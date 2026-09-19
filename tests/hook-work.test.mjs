@@ -247,6 +247,10 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   mkdirSync(scripts, { recursive: true })
   cpSync(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
   cpSync(path.join(pluginRoot, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
+  // ADR-060 T6: the runner records what the per-edit gate answered, so a staged
+  // copy needs the event log and the git-directory walk it uses.
+  cpSync(path.join(pluginRoot, 'scripts', 'event-log.mjs'), path.join(scripts, 'event-log.mjs'))
+  cpSync(path.join(pluginRoot, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
   writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
     '#!/bin/bash',
     'if [ "${QH_TEST_BULK-}" = 1 ]; then printf "%600000s\\n" "" >&2; fi',
@@ -274,7 +278,7 @@ test('artifact batches use one runner and keep findings on both sides of a timed
       ? { length: finding?.length, last: /CHECKED .*last\.ts/.test(finding),
         unchecked: /may be unchecked/.test(finding), limited: /output limit/.test(finding), runners,
         stopped: /batch stopped after unconfirmed process cleanup/.test(finding),
-        remaining: finding?.split('Unchecked artifacts:\n')[1] ?? '' }
+        remaining: finding?.split('UNRUN artifacts:\n')[1] ?? '' }
       : { finding, runners }))
   }
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
@@ -296,8 +300,14 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   if (process.platform === 'win32' && /cleanup could not be confirmed/.test(result.finding)) {
     assert.doesNotMatch(result.finding, /CHECKED .*last\.ts/)
     assert.match(result.finding, /batch stopped after unconfirmed process cleanup/)
-    const remaining = result.finding.split('Unchecked artifacts:\n')[1]
-    assert.equal(remaining?.replaceAll('\\', '/'), files.slice(1).join('\n').replaceAll('\\', '/'))
+    // UNRUN means NOT ATTEMPTED. `slow.ts` is files[1] and it is the one that was
+    // attempted and timed out, so production is right to report only what comes
+    // after it — `batch.paths.slice(index + 1)`, i.e. `[last.ts]`. The test asked
+    // for `slice(1)` and so demanded that the timed-out file be called unrun,
+    // which contradicts the word the rename in this branch chose. Reported
+    // 2026-09-18 by a Windows session; only win32 reaches this arm.
+    const remaining = result.finding.split('UNRUN artifacts:\n')[1]
+    assert.equal(remaining?.trim().replaceAll('\\', '/'), files.slice(2).join('\n').replaceAll('\\', '/'))
   } else {
     assert.match(result.finding, /CHECKED .*last\.ts/, 'confirmed cleanup must preserve later findings')
     assert.ok(result.finding.indexOf('budget, not a finding') < result.finding.lastIndexOf('CHECKED'),
@@ -375,6 +385,8 @@ test('historical archive discovery uses one scoped Git query and preserves neare
 
   cpSync(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
   cpSync(path.join(pluginRoot, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
+  cpSync(path.join(pluginRoot, 'scripts', 'event-log.mjs'), path.join(scripts, 'event-log.mjs'))
+  cpSync(path.join(pluginRoot, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
   const files = [path.join(nested, 'first.md'), path.join(nested, 'second.md'), source,
     path.join(sourceDir, 'another.ts')]
   writeFileSync(trace, '')
@@ -493,7 +505,11 @@ test('unconfirmed cleanup stops a batch while a direct hook stays advisory', t =
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
     pathToFileURL(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs')).href, root,
   ]) + ')'
-  const { direct, batch, confirmed } = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root).stdout)
+  // ADR-060 T6: the batch also writes one `{"gated":…}` line per path it
+  // answered for, so the probe's own report is the LAST line of stdout.
+  const said = run([process.execPath, '--input-type=module', '-e', code], root).stdout
+  const { direct, batch, confirmed } = JSON.parse(said.trim().split('\n').at(-1))
+  assert.match(said, /"gated":/, 'the per-path results reach the caller')
   assert.equal(direct.calls, 1, 'the control must exercise the injected child')
   assert.equal(direct.status, 0, 'direct edit hooks stay advisory')
   assert.equal(batch.status, 0, 'the batch reports unchecked work without blocking')
@@ -502,7 +518,7 @@ test('unconfirmed cleanup stops a batch while a direct hook stays advisory', t =
   assert.match(batch.stderr, /cleanup could not be confirmed/)
   assert.match(batch.stderr, /current\.md/)
   assert.match(batch.stderr, /remaining\.md/)
-  assert.match(batch.stderr, /Unchecked artifacts/)
+  assert.match(batch.stderr, /UNRUN artifacts/)
   assert.equal(confirmed.status, 0)
   assert.equal(confirmed.calls, 2, 'an observed close permits the next artifact on every platform')
   assert.match(confirmed.stderr, /timed out after 100ms/)
@@ -544,4 +560,61 @@ test('archive prefetch keeps incomplete history unknown and respects the shared 
     } else assert.equal(answer.size, 0, failure + ' must fall back to ordinary per-file checks')
   }
   assert.equal(archiveHistory(files, Date.now() - 1, () => { throw new Error('budget spent') }).size, 0)
+})
+
+test('a gate the OS killed is not a gate that answered', t => {
+  // ⚠ A SIGNALLED CHILD HAS `status: null`, WHICH IS NOT AN INTEGER — and the
+  // completion guard tested `Number.isInteger(run.status) && run.status !== 0`.
+  // So a gate killed by SIGTERM or SIGKILL sailed past it and `verdict.complete`
+  // was set true, after which rule A treats the artifact as answered and does not
+  // gate it again. A gate that was killed has made NO observation; ADR-005 calls
+  // that could-not-look, and could-not-look must never wear a verdict's clothes
+  // (CLAUDE.md §3).
+  //
+  // Found by a different-lineage review of this branch, which reproduced it with
+  // a real `bash -c 'kill -TERM $$'`. Driven here through the spawn seam so it is
+  // deterministic and creates no OS process.
+  const probe = async moduleUrl => {
+    const cp = await import('node:child_process')
+    const { EventEmitter } = await import('node:events')
+    const { PassThrough } = await import('node:stream')
+    const { syncBuiltinESMExports } = await import('node:module')
+    let signalled = true
+    cp.default.spawn = () => {
+      const child = new EventEmitter()
+      child.stdout = new PassThrough()
+      child.stderr = new PassThrough()
+      child.stdin = new PassThrough()
+      child.unref = () => {}
+      // A signalled child: null status, and the signal beside it.
+      queueMicrotask(() => child.emit('close', signalled ? null : 0, signalled ? 'SIGTERM' : null))
+      return child
+    }
+    syncBuiltinESMExports()
+    const { runShellHook } = await import(moduleUrl)
+    let stderr = ''
+    const original = process.stderr.write
+    process.stderr.write = chunk => { stderr += chunk; return true }
+    const killed = {}
+    await runShellHook('facts-gate-dispatch.sh', JSON.stringify({ tool_input: { file_path: 'x.md' } }),
+      { verdict: killed, timeoutMs: 5_000 })
+    // ...and the same seam with a clean exit, so the assertion above is not
+    // satisfied by a `complete` that is never set at all (CLAUDE.md §4).
+    signalled = false
+    const clean = {}
+    await runShellHook('facts-gate-dispatch.sh', JSON.stringify({ tool_input: { file_path: 'x.md' } }),
+      { verdict: clean, timeoutMs: 5_000 })
+    process.stderr.write = original
+    process.stdout.write(JSON.stringify({ killed: killed.complete ?? null, clean: clean.complete ?? null, stderr }))
+  }
+  const code = '(' + probe.toString() + ')(...' + JSON.stringify([
+    pathToFileURL(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs')).href,
+  ]) + ')'
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', code],
+    { encoding: 'utf8', timeout: 60_000, cwd: scratch(t) })
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)
+  const result = JSON.parse(run.stdout)
+  assert.equal(result.killed, false, `a killed gate must not be complete: ${run.stdout}`)
+  assert.equal(result.clean, true, 'and a clean one still is, or the check above asserts nothing')
+  assert.match(result.stderr, /killed|signal/i, 'the kill is said out loud, not swallowed')
 })

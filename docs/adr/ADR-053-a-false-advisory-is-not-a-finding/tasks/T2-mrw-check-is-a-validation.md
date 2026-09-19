@@ -1,5 +1,6 @@
 # Task ADR-053-T2: A passing mrw --check is a validation for the commit gate
 
+**Status:** superseded by ADR-060 — the clause this task proved read a command's text, which nothing does any more; its test was deleted with the classifier, so its fence now selects nothing
 **Depends-on:** T1
 **Covers:** none — no spec
 **Estimated scope:** S (single file)

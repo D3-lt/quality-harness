@@ -414,6 +414,7 @@ plugin is enabled:
 - `arch-lint` — architecture documents against the code they describe.
 - `postmortem-verify` — a postmortem's claims against its evidence.
 - `qh-mcp` — the reading gates over MCP, for clients with no shell.
+- `qh-check` — runs this project's check and records what it observed, the evidence ADR-060's advisories count.
 - `qh-root` — resolves the installed plugin root for a caller that has no placeholder.
 
 **Name the working-tree path when you are developing the plugin itself.** A bare

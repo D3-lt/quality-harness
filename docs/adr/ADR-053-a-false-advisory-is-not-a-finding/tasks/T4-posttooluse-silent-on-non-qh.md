@@ -1,5 +1,6 @@
 # Task ADR-053-T4: PostToolUse is silent on a file that is not a QH record
 
+**Status:** superseded by ADR-060 — the clause this task proved read a command's text, which nothing does any more; its test was deleted with the classifier, so its fence now selects nothing
 **Depends-on:** T3
 **Covers:** none — no spec
 **Estimated scope:** M (multi-file)

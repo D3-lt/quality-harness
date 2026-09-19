@@ -1,5 +1,6 @@
 # Task ADR-053-T1: Compound check then git commit does not accuse unverified
 
+**Status:** superseded by ADR-060 — the clause this task proved read a command's text, which nothing does any more; its test was deleted with the classifier, so its fence now selects nothing
 **Depends-on:** none
 **Covers:** none — no spec
 **Estimated scope:** S (single file)

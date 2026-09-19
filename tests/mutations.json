@@ -118,24 +118,6 @@
       "to": "/\\bEVIDENCE-LIMITED:\\s*/i"
     },
     {
-      "label": "hooks: EVIDENCE-LIMITED does not release code",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (docsOnly(provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd)) && evidenceLimited(input.last_assistant_message)) return",
-      "to": "  if (evidenceLimited(input.last_assistant_message)) return"
-    },
-    {
-      "label": "hooks: an interim answer is Stop-only",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (event === 'Stop' && interimResponse(input.last_assistant_message)) return",
-      "to": "  if (interimResponse(input.last_assistant_message)) return"
-    },
-    {
       "label": "hooks: SubagentStart names its own event",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -298,60 +280,6 @@
       "to": "\"--every\" in flags"
     },
     {
-      "label": "hooks: an unresolvable Bash write is one readable line",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const line = collapse(remainder) || collapse(script)",
-      "to": "  const line = String(command ?? '').slice(0, 120)"
-    },
-    {
-      "label": "hooks: a commit gates only what it publishes",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    mutationPathsSince: position => mutationPaths.filter((_, index) => mutationPositions[index] > position),",
-      "to": "    mutationPathsSince: () => mutationPaths,"
-    },
-    {
-      "label": "hooks: a deletion path the command set is resolved",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw",
-      "to": "        const operand = raw"
-    },
-    {
-      "label": "hooks: a deletion never trusts the ambient environment",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw",
-      "to": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, true) : raw"
-    },
-    {
-      "label": "hooks: deletion+commit in one command is refused",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (isGitPublishCommand(command)\n        && bashDeletionMutationPaths(command, input.cwd).includes(UNRESOLVED_DELETION_MUTATION)) {",
-      "to": "    if (false) {"
-    },
-    {
-      "label": "hooks: a Windows path is a path, not an escape",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        const ambiguous = platform === 'win32' ? '*?[]{}' : '*?[]{}\\\\'",
-      "to": "        const ambiguous = '*?[]{}\\\\'"
-    },
-    {
       "label": "gates: the edit boundary advises rather than blocks",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": [
@@ -478,85 +406,13 @@
       "to": "                       if True]"
     },
     {
-      "label": "advisory: a finding is never hidden",
+      "label": "advisory: a finding is never hidden — it is on stderr as well as in the hook's JSON",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/advisory-headline.test.mjs"
       ],
-      "from": "  process.stderr.write(`${reason}\\n`)\n  if (input?.hook_event_name !== 'PreToolUse') {\n    emitJson({ systemMessage: reason })\n    return\n  }",
-      "to": "  process.stderr.write(`${reason}\\n`)\n  if (input?.hook_event_name !== 'PreToolUse') {\n    return\n  }"
-    },
-    {
-      "label": "advisory: a wrapper does not launder a mutation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const inner = commandInsideWrappers(command)\n  if (inner && inner !== command.trim()) return isValidationCommand(inner)",
-      "to": "  const inner = commandInsideWrappers(command)\n  if (inner && inner !== command.trim()) return true"
-    },
-    {
-      "label": "advisory: --rm is a flag, not the rm command",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  return /(?<![-\\w])(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)(?![-\\w])/.test(executable)",
-      "to": "  return /\\b(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)\\b/.test(executable)"
-    },
-    {
-      "label": "advisory: php artisan test is validation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "(?:php\\s+)?artisan\\s+test|",
-      "to": ""
-    },
-    {
-      "label": "advisory: the marker names the write, not the cd that preceded it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const script = withoutHeredocBodies(String(command ?? ''))",
-      "to": "  const script = String(command ?? '').split(String.fromCharCode(10))[0]"
-    },
-    {
-      "label": "advisory: cd arguments stop at the newline",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "(?:[ \\t]+(?:\"[^\"]*\"|'[^']*'|[^\\s;&|<>]+))*",
-      "to": "(?:\\s+(?:\"[^\"]*\"|'[^']*'|[^\\s;&|<>]+))*"
-    },
-    {
-      "label": "advisory: the changed-path list is distinct",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (seen.has(entry)) continue\n    seen.add(entry)",
-      "to": "    seen.add(entry)"
-    },
-    {
-      "label": "advisory: no advisory calls itself a block",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        + 'Nothing is blocked — this is what the gate sees before you commit.', input)",
-      "to": "        + 'This commit is blocked until the check runs.', input)"
-    },
-    {
-      "label": "advisory: a commit is not unverified work for the next commit",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending())\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {",
-      "to": "    if (((state.hasMutations && !state.verifiedAfterLastMutation) || state.unprovenWritePending())\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {"
+      "from": "      for (const text of texts) process.stderr.write(`${text}\\n`)",
+      "to": "      void texts"
     },
     {
       "label": "advisory: a project that names no check hears nothing",
@@ -564,54 +420,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (!check) return",
-      "to": "  if (false) return"
-    },
-    {
-      "label": "advisory: finding the repo root does not disqualify the check",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !inertNavigation(line))",
-      "to": "    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !CD_ONLY.test(line))"
-    },
-    {
-      "label": "advisory: an env prefix does not hide the command",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "segment.replace(ASSIGNMENT_PREFIX, '').replace(TIMEOUT_PREFIX, '')",
-      "to": "segment.replace(TIMEOUT_PREFIX, '')"
-    },
-    {
-      "label": "advisory: a substitution still fails the guard",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      && segments.every(segment => !UNSAFE_SEGMENT.test(segment)",
-      "to": "      && segments.every(segment => true"
-    },
-    {
-      "label": "advisory: a git revision is not a changed path",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs",
-        "tests/advice-accuracy.test.mjs"
-      ],
-      "from": "    if (/^.{2,}:/.test(candidate)) continue",
-      "to": "    if (false) continue"
-    },
-    {
-      "label": "advisory: cp is accounted by its destination",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "          if (word === 'cp') operands.push(argument)",
-      "to": "          if (false) operands.push(argument)"
+      "from": "  if (!check) return\n\n  const changed",
+      "to": "  if (false) return\n\n  const changed"
     },
     {
       "label": "advisory: the harness never blocks over its own breakage",
@@ -623,33 +433,6 @@
       "to": "      + 'The gates did not report; nothing is blocked.\\n')\n    return 2"
     },
     {
-      "label": "advisory: the turn does not re-ask about what was published",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const unverified = state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()",
-      "to": "  const unverified = state.hasMutations && !state.verifiedAfterLastMutation"
-    },
-    {
-      "label": "advisory: PreToolUse commit advice Advises on UNPROVEN write authorship",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending())\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {",
-      "to": "    if (state.unverifiedSince(state.lastPublish)\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {"
-    },
-    {
-      "label": "advisory: PreToolUse commit advice Advises on UNPROVEN write after a published mutation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending())\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {",
-      "to": "    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN')\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {"
-    },
-    {
       "label": "advisory: a verify script is the project's named check",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -657,60 +440,6 @@
       ],
       "from": "  { file: 'verify.sh', command: 'bash verify.sh' },",
       "to": ""
-    },
-    {
-      "label": "advisory: mktemp -d is a temp directory",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      ? mktempDirectoryValue()",
-      "to": "      ? match"
-    },
-    {
-      "label": "advisory: mktemp -d -p names somewhere else",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (/^(?:-p|--tmpdir)/.test(word)) return false",
-      "to": "    if (word === '--never-matches') return false"
-    },
-    {
-      "label": "advisory: an assignment can hold a substitution",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "const SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(\"[^\"]*\"|'[^']*'|\\$\\([^()]*\\)|`[^`]*`|\\S*)$/",
-      "to": "const SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(\"[^\"]*\"|'[^']*'|\\S*)$/"
-    },
-    {
-      "label": "advisory: naming adr-verify is not running it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    || runsAdrVerify(executable)",
-      "to": "    || /(?:^|\\s)(?:\\S*[\\\\/])?adr-verify(?:\\s|$)/i.test(executable)"
-    },
-    {
-      "label": "advisory: introspection is not authorship",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  'inspect.signature', 'isinstance', 'issubclass', 'getmembers', 'getsource',\n  'isclass', 'isfunction', 'signature', 'vars',",
-      "to": ""
-    },
-    {
-      "label": "advisory: a Windows venv interpreter is an interpreter",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    /\\b(?:python3?|node|ruby|perl|php)(?:\\.exe)?\\b((?:\\s+-[A-Za-bd-z]\\w*)*\\s+-[ce]\\s+)('[^']*'|\"(?:[^\"\\\\]|\\\\.)*\")/g,",
-      "to": "    /\\b(?:python3?|node|ruby|perl|php)\\b((?:\\s+-[A-Za-bd-z]\\w*)*\\s+-[ce]\\s+)('[^']*'|\"(?:[^\"\\\\]|\\\\.)*\")/g,"
     },
     {
       "label": "advisory: the harness has no opinion about branches",
@@ -779,7 +508,7 @@
       "label": "context: said once per path per session",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
       "from": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return error?.code !== 'EEXIST' }",
       "to": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return true }"
@@ -1209,52 +938,34 @@
       "label": "verdict: a command that never started is not a failure",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'",
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'",
       "to": "  if (false) return 'unstarted'"
     },
     {
       "label": "verdict: a killed run is not a failure either",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'",
+      "from": "  if (exitCode === 124) return 'timeout'",
       "to": "  if (false) return 'timeout'"
     },
     {
       "label": "verdict: the environment is checked before the exit code",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'\n  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
-      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'\n  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'"
-    },
-    {
-      "label": "verdict: only a pass is evidence",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (lastVerdict === 'passed') {",
-      "to": "        if (lastVerdict !== 'failed') {"
-    },
-    {
-      "label": "verdict: an environment problem says so instead of asking again",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (excuse) return `${changed} ${excuse}`",
-      "to": "  if (false) return `${changed} ${excuse}`"
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
+      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'"
     },
     {
       "label": "verdict: Windows says none of what POSIX says",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/validation-verdict.test.mjs"
       ],
       "from": "  'the system cannot find the file specified', 'the system cannot find the path specified',",
       "to": ""
@@ -1263,7 +974,7 @@
       "label": "verdict: cmd.exe reports 9009, not 127",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/validation-verdict.test.mjs"
       ],
       "from": "const NEVER_STARTED_EXITS = new Set([126, 127, 9009])",
       "to": "const NEVER_STARTED_EXITS = new Set([126, 127])"
@@ -1272,9 +983,9 @@
       "label": "verdict: an explicit exit 0 is authoritative",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (exitCode === 0) {\n    return testCommand(command) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'\n  }",
+      "from": "  if (exitCode === 0) {\n    return (anyCommand || testCommand(command)) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'\n  }",
       "to": ""
     },
     {
@@ -1770,8 +1481,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader) })",
-      "to": "      void status"
+      "from": "      unreadable.push({ file, status: status || null, taskFiles: recordTasks,\n        ...(archived?.unproven ? { unproven: archived.unproven, governs: wouldGovern(),\n          title: (text.match(/^#\\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })",
+      "to": "      void recordTasks"
     },
     {
       "label": "state: the unreadable list does not change the corpus shape",
@@ -3014,15 +2725,6 @@
       ],
       "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout())",
       "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None)"
-    },
-    {
-      "label": "checks: an inferred command says it was inferred, a declared one does not",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (origin === 'declared') {\n    return `Run \\`${command}\\` (this project's own check)",
-      "to": "  if (false) {\n    return `Run \\`${command}\\` (this project's own check)"
     },
     {
       "label": "next: a record owning no tasks is answered, a missing path is refused",
@@ -4909,61 +4611,25 @@
       "label": "lifecycle: a PreToolUse advisory reaches the agent as additionalContext, not only the person",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/advisory-headline.test.mjs"
       ],
-      "from": "      additionalContext: first\n        ? reason\n        : `quality-harness: the same finding as earlier this session still stands — ${headline}`,",
-      "to": "      additionalContext: '',"
+      "from": "        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\\n\\n${joined}` : joined",
+      "to": "        void joined"
     },
     {
       "label": "lifecycle: the person sees one line of a PreToolUse advisory, not the report",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/advisory-headline.test.mjs"
       ],
-      "from": "    ...(first ? { systemMessage: `quality-harness advised the agent: ${headline} (full text in the transcript)` } : {}),",
-      "to": "    systemMessage: reason,"
-    },
-    {
-      "label": "lifecycle: the same PreToolUse finding is said in full once per session",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const first = firstMentionThisSession(input.session_id, key)\n  const headline = advisoryHeadline(reason)",
-      "to": "  const first = true\n  const headline = advisoryHeadline(reason)"
-    },
-    {
-      "label": "lifecycle: a shell assignment names the markdown file through its value, not as a path called NAME=…",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (kept.has(name)) paths.push(...expandExistingGlob(value, cwd))",
-      "to": "      if (kept.has(name)) paths.push(...expandExistingGlob(`${name}=${value}`, cwd))"
-    },
-    {
-      "label": "lifecycle: a key=value argument is data, not a path the gate reports",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (SHELL_ASSIGNMENT.test(candidate)) continue\n      if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue",
-      "to": "      if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue"
-    },
-    {
-      "label": "lifecycle: a changed PreToolUse finding is news again, not a repeat",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const key = `advisory:${createHash('sha256').update(String(reason)).digest('hex').slice(0, 32)}`",
-      "to": "  const key = 'advisory:any'"
+      "from": "        const headline = `quality-harness advised the agent: ${advisoryHeadline(texts[0])} (full text in the transcript)`",
+      "to": "        const headline = `quality-harness advised the agent: ${joined}`"
     },
     {
       "label": "lifecycle: a once-per-session marker is scoped to the session's generation",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
       "from": "  const generation = sessionGeneration(sessionId)\n  const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`)",
       "to": "  const generation = 0\n  const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`)"
@@ -4972,7 +4638,7 @@
       "label": "lifecycle: compaction bumps the session generation; a resume does not",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
       "from": "    if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
       "to": "    if (input.source === 'clear') bumpSessionGeneration(input.session_id)"
@@ -4981,7 +4647,7 @@
       "label": "lifecycle: /clear bumps the session generation too",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
       "from": "    if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
       "to": "    if (input.source === 'compact') bumpSessionGeneration(input.session_id)"
@@ -5001,8 +4667,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        try { writeFileSync(sessionNotePath(input.session_id), JSON.stringify(note)) } catch (failure) {",
-      "to": "        try { void note } catch (failure) {"
+      "from": "  try { write(sessionNotePath(sessionId), JSON.stringify(note)); return true } catch (failure) {",
+      "to": "  try { void note; return true } catch (failure) {"
     },
     {
       "label": "lifecycle: the compact SessionStart hands the note back",
@@ -5010,8 +4676,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
-      "to": "      void note"
+      "from": "      else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
+      "to": "      else void note"
     },
     {
       "label": "lifecycle: SessionEnd writes the sessions ledger row",
@@ -5044,46 +4710,10 @@
       "label": "lifecycle: a PreCompact that fails leaves no earlier note to hand back",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
-      "from": "      try { unlinkSync(sessionNotePath(input.session_id)) } catch {}",
-      "to": "      void sessionNotePath"
-    },
-    {
-      "label": "statusline: an unchanged transcript is not analysed twice",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "      if (cached.key === key) return cached.value",
-      "to": "      if (false) return cached.value"
-    },
-    {
-      "label": "statusline: unverified edits render as unverified, not as checked",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "    kind: unprovenWrite || markerOnly ? 'unverified'\n      : proven.length === 0 ? 'nothing'\n      : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',",
-      "to": "    kind: unprovenWrite || markerOnly ? 'unverified'\n      : proven.length === 0 ? 'nothing'\n      : 'checked',"
-    },
-    {
-      "label": "statusline: a transcript over the cap is said, not read",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "  if (stat.size > SIZE_CAP) return { kind: 'too-large', bytes: stat.size }",
-      "to": "  if (false) return { kind: 'too-large', bytes: stat.size }"
-    },
-    {
-      "label": "reviewer-guard: a write outside the temp roots is refused inside a read-only role",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs"
-      ],
-      "from": "  if (kind === 'mutation' && !mutatesOnlyTempPaths(command, cwd)) {",
-      "to": "  if (false) {"
+      "from": "  try { unlinkSync(sessionNotePath(sessionId)) } catch (failure) { cleared = failure?.code === 'ENOENT' }",
+      "to": "  if (note === null) { try { unlinkSync(sessionNotePath(sessionId)) } catch {} }"
     },
     {
       "label": "reviewer-guard: a publish is refused inside a read-only role",
@@ -5091,8 +4721,8 @@
       "tests": [
         "tests/reviewer-guard.test.mjs"
       ],
-      "from": "  if (isGitPublishCommand(command)) {",
-      "to": "  if (false) {"
+      "from": "  if (!containsCommitOrPush(command)) return null",
+      "to": "  if (true) return null"
     },
     {
       "label": "reviewer-guard: an editing tool is refused inside a read-only role",
@@ -5111,24 +4741,6 @@
       ],
       "from": "    if root is None:\n        raise GateDidNotRun(\"could not run: no repository root (.git or docs/adr) above {}\".format(paths[0]))",
       "to": "    if root is None:\n        root = os.getcwd()"
-    },
-    {
-      "label": "reviewer-guard: a shell payload or a command substitution is judged as a command of its own",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs"
-      ],
-      "from": "  if (depth < 3) {",
-      "to": "  if (false) {"
-    },
-    {
-      "label": "reviewer-guard: an editor is refused inside a read-only role",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs"
-      ],
-      "from": "  if (EDITORS.test(command)) {",
-      "to": "  if (false) {"
     },
     {
       "label": "doctor: a tag on the remote is the only thing that makes an install a release",
@@ -5426,15 +5038,6 @@
       ],
       "from": "    || /\\b(?:can ?n[o']t|cannot|could ?n[o']t|unable to)\\s+(?:\\w+\\s+){0,2}(?:verify|confirm|check|run|test)\\b/i.test(message)",
       "to": "    || /\\b(?:verify|confirm|check|run|test|ran|verified)\\b/i.test(message)"
-    },
-    {
-      "label": "lifecycle: an honest disclosure does not suppress the evidence advisory at Stop",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (event === 'Stop' && interimResponse(input.last_assistant_message)) return",
-      "to": "  if (event === 'Stop' && (interimResponse(input.last_assistant_message) || unverifiedDisclosure(input.last_assistant_message))) return"
     },
     {
       "label": "lint: a document with no Status line and no ADR name is not judged as a record",
@@ -6349,8 +5952,8 @@
       "label": "hook-work: an incidental historical marker is not an archive",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "only": "historical archive discovery",
-      "from": "-e '^\\*\\*Lifecycle:\\*\\* Frozen historical ADR records$' HEAD",
-      "to": "-e '\\*\\*Lifecycle:\\*\\* Frozen historical ADR records' HEAD",
+      "from": "-e '^\\*\\*Lifecycle:\\*\\* Frozen historical ADR records$' \"$base\"",
+      "to": "-e '\\*\\*Lifecycle:\\*\\* Frozen historical ADR records' \"$base\"",
       "tests": [
         "tests/hook-work.test.mjs"
       ]
@@ -6419,8 +6022,8 @@
       "label": "hook-work: the deadline identifies all remaining artifacts",
       "file": "plugin/scripts/run-shell-hook.mjs",
       "only": "artifact batch input",
-      "from": "+ 'All remaining artifacts were not checked:\\n' + batch.paths.slice(index).join('\\n')",
-      "to": "+ 'All remaining artifacts were not checked:\\n' + filePath",
+      "from": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + batch.paths.slice(index).join('\\n')",
+      "to": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + filePath",
       "tests": [
         "tests/hook-work.test.mjs"
       ]
@@ -6429,8 +6032,8 @@
       "label": "hook-work: a pre-start deadline identifies every unchecked artifact",
       "file": "plugin/scripts/lifecycle.mjs",
       "only": "artifact batch input",
-      "from": "+ 'All remaining artifacts were not checked:\\n' + uniqueTargets.join('\\n')",
-      "to": "+ 'All remaining artifacts were not checked:\\n' + uniqueTargets[0]",
+      "from": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + uniqueTargets.join('\\n')",
+      "to": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + uniqueTargets[0]",
       "tests": [
         "tests/hook-work.test.mjs"
       ]
@@ -6527,69 +6130,6 @@
       "to": "    if False:\n        print(f\"[adr-verify] {task.name} already carries {prior} exit-0 \"\n"
     },
     {
-      "label": "lifecycle: a Bash edit naming only Markdown files carries no mutation marker",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (markdown.length === 0 || !namesOnlyMarkdownFiles(use.input.command, cwd)) {\n",
-      "to": "        if (true) {\n"
-    },
-    {
-      "label": "lifecycle: a real non-Markdown path in a Bash edit keeps the marker",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (expandExistingGlob(candidate, cwd).some(resolved => existsSync(resolved))) return false\n",
-      "to": "    if (false) return false\n"
-    },
-    {
-      "label": "lifecycle: a literal read-only subprocess argv in a heredoc is not a mutation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (!READ_ONLY_CHILD.test(executable)) return whole\n",
-      "to": "      if (false) return whole\n"
-    },
-    {
-      "label": "lifecycle: a mutating literal subprocess argv is still a mutation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (!literal) return whole\n",
-      "to": "        if (!literal) { words.push(element); continue }\n"
-    },
-    {
-      "label": "lifecycle: a relative path follows the command's own cd",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (isDirectory(next)) here = next\n",
-      "to": "        if (false) here = next\n"
-    },
-    {
-      "label": "lifecycle: a write outside the project is not a project change",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "          && !writesOutsideProject(use.input.command, cwd)) {\n",
-      "to": "          && true) {\n"
-    },
-    {
-      "label": "lifecycle: an absolute path back into the project is not outside it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (resolved !== null && underDirectory(resolved, project)) return false\n",
-      "to": "      if (false) return false\n"
-    },
-    {
       "label": "lint: a runner that fails on an empty selection is itself the vacuity check",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -6680,42 +6220,6 @@
       "to": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)\\b\")\n"
     },
     {
-      "label": "lifecycle: the read-only child allowlist admits no archiver and no in-place editor",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|jq|column|nl)$/\n",
-      "to": "const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|tar|sed|tee|jq|column|nl)$/\n"
-    },
-    {
-      "label": "lifecycle: an output-handle keyword keeps a subprocess call",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (/\\b(?:shell\\s*=\\s*True|stdout\\s*=|stderr\\s*=|stdin\\s*=|input\\s*=)/.test(rest)) return whole\n",
-      "to": "      if (/\\b(?:shell\\s*=\\s*True)/.test(rest)) return whole\n"
-    },
-    {
-      "label": "lifecycle: find that executes or deletes is not read-only",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (executable === 'find' && FIND_WRITES.test(' ' + words.slice(1).join(' '))) return whole\n",
-      "to": "      if (false) return whole\n"
-    },
-    {
-      "label": "lifecycle: an interpreter is not a direct file writer",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "const DIRECT_FILE_WRITER = /^(?:cp|mv|touch|rm|ln|cat|tee|sed|printf|echo|mkdir|rmdir)$/\n",
-      "to": "const DIRECT_FILE_WRITER = /^(?:cp|mv|touch|rm|ln|cat|tee|sed|printf|echo|mkdir|rmdir|python3?|node)$/\n"
-    },
-    {
       "label": "lint: an OR tail that always fails makes its head load-bearing",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -6741,24 +6245,6 @@
       ],
       "from": "                              f\"fenced ELSEWHERE is unproven here: a file that was planned and never \"\n",
       "to": "                              f\"fenced ELSEWHERE is not in doubt: nothing can run it, and never \"\n"
-    },
-    {
-      "label": "lifecycle: a bare directory name is a write target, not a skipped token",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (candidate === '.' || candidate === '..') continue\n",
-      "to": "        if (!/[/.]/.test(candidate) || candidate === '.' || candidate === '..') continue\n"
-    },
-    {
-      "label": "lifecycle: a tilde path is expanded before it is judged outside the project",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      const expanded = token.startsWith('~/') ? path.join(os.homedir(), token.slice(2))\n        : (token === '~' ? os.homedir() : token)\n",
-      "to": "      const expanded = token\n"
     },
     {
       "label": "lint: the shell splitter does not cut inside a command substitution",
@@ -7406,57 +6892,6 @@
       "only": "^ADR-046 names the ADR-012 §2 amendment for a completed could-not-run exit$"
     },
     {
-      "label": "classify: an unmeasured family is unrecognised, not neither (ADR-047 T1)",
-      "file": "plugin/scripts/classify-command.mjs",
-      "tests": [
-        "tests/classify.test.mjs"
-      ],
-      "from": "    if (family && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'",
-      "to": "    if (false) return 'unrecognised'",
-      "only": "a path-shaped unmeasured family is unrecognised"
-    },
-    {
-      "label": "classify: nested validation does not certify a later succeeding segment",
-      "file": "plugin/scripts/classify-command.mjs",
-      "tests": [
-        "tests/classify.test.mjs"
-      ],
-      "from": "      if (inner === 'unrecognised' || inner === 'mutation') {",
-      "to": "      if (inner === 'unrecognised' || inner === 'mutation' || inner === 'validation') {",
-      "only": "a nested validation does not certify"
-    },
-    {
-      "label": "classify: foreign family is unrecognised before POSIX letters (ADR-047 T2)",
-      "file": "plugin/scripts/classify-command.mjs",
-      "tests": [
-        "tests/classify.test.mjs"
-      ],
-      "from": "    if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks))) return 'unrecognised'\n  }\n\n  // A family outside MEASURED_FAMILIES may still carry one measured read-only\n  // subcommand (`mrw read`, ADR-058 T2). Both family checks below ask the hook,\n  // which admits that invocation only; its redirects and sibling segments are\n  // still judged by the mutation check at the end.\n  //\n  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (family && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'",
-      "to": "    if (false) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (false) return 'unrecognised'",
-      "only": "POSIX rm as the executable stays mutation|pwsh or cmd with POSIX letters in the payload is unrecognised, not mutation"
-    },
-    {
-      "label": "classify: a never-measured bare *selftest* is unrecognised, not validation",
-      "file": "plugin/scripts/classify-command.mjs",
-      "tests": [
-        "tests/classify.test.mjs",
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'\n  }\n\n",
-      "to": "\n",
-      "only": "a never-measured bare \\*selftest\\* or \\*check\\* is unrecognised|a passing never-measured \\*selftest\\* after an UNPROVEN write"
-    },
-    {
-      "label": "lifecycle: analyzeTranscript certifies only classifyCommand validation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (use.name === 'Bash' && classifyCommand(use.input.command) === 'validation'",
-      "to": "    if (use.name === 'Bash' && isValidationCommand(use.input.command)",
-      "only": "a passing never-measured \\*selftest\\* after an UNPROVEN write"
-    },
-    {
       "label": "corpus: an unreadable listed ADR is PARTIAL, not dropped as not-a-record",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -7967,16 +7402,6 @@
       "only": "does not keep the hash after the assertion moves"
     },
     {
-      "label": "lifecycle: wrapper operands stop at attached || and ;",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/leftovers-after-adr053.test.mjs"
-      ],
-      "from": "const PUBLISH_WRAPPER = /^(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*/",
-      "to": "const PUBLISH_WRAPPER = /^(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+\\S+|[A-Za-z_][\\w]*=\\S+))*|sudo(?:\\s+(?:-n|-u\\s+\\S+))*|exec|time(?:\\s+-p)?)\\s+)*/",
-      "only": "loud joiners still advise"
-    },
-    {
       "label": "lock: escaped same-quote BDD names stay discoverable",
       "file": "plugin/lib/record.py",
       "tests": [
@@ -7985,16 +7410,6 @@
       "from": "    for name, _after in _iter_bdd_calls(text, php=php):",
       "to": "    for name, _after in ((m.group(1) or m.group(2) or m.group(3), m.end()) for m in _BDD_NAME.finditer(text)):  # [^'\\n]+",
       "only": "escaped same-quote BDD names are discovered"
-    },
-    {
-      "label": "lifecycle: quoted separators in a git operand still strip",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/leftovers-after-adr053.test.mjs"
-      ],
-      "from": "function quoteAwarePublishArgsOk(text) {\n  // Replaces quote-blind [^|;\\n]* : unquoted | ; newline stop; quoted do not.\n  let quote = null",
-      "to": "function quoteAwarePublishArgsOk(text) {\n  return /^[^|;\\n]*$/.test(text)\n  // Replaces quote-blind [^|;\\n]*\n  let quote = null",
-      "only": "quoted semicolon and pipe"
     },
     {
       "label": "lock: decoded lock delimiters in a BDD name stay unhashed",
@@ -8017,16 +7432,6 @@
       "only": "a BDD name may wrap after the opening paren"
     },
     {
-      "label": "lifecycle: a quoted wrapper assignment does not hide a later loud joiner",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/leftovers-after-adr053.test.mjs"
-      ],
-      "from": "    if (character === '|' || character === ';' || character === '\\n' || character === '\\r') {\n      return false\n    }\n  }\n  return quote === null",
-      "to": "    if (character === '|' || character === ';' || character === '\\n' || character === '\\r') {\n      return false\n    }\n  }\n  return true",
-      "only": "a quoted wrapper assignment does not hide"
-    },
-    {
       "label": "lock: PHP double-quoted unknown escapes keep their backslash",
       "file": "plugin/lib/record.py",
       "tests": [
@@ -8035,16 +7440,6 @@
       "from": "            if php and quote == '\"':",
       "to": "            if False and php and quote == '\"':",
       "only": "PHP double-quoted unknown escapes keep"
-    },
-    {
-      "label": "lifecycle: an unclosed quote on a wrapper match is not a silent publish",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/leftovers-after-adr053.test.mjs"
-      ],
-      "from": "  if (wrap && !wrapperQuotesClosed(wrap[0])) return false",
-      "to": "  if (false) return false",
-      "only": "a quoted wrapper assignment does not hide"
     },
     {
       "label": "lock: JS control escapes do not collapse onto a shorter name",
@@ -8085,46 +7480,6 @@
       "from": "            if nxt in \"\\n\\r\":",
       "to": "            if False:",
       "only": "JS line continuation does not leave"
-    },
-    {
-      "label": "lifecycle: a hash inside a word is not a comment opener",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/leftovers-after-adr053.test.mjs"
-      ],
-      "from": "    if (character === '#' && hashStartsComment(command, index)) {",
-      "to": "    if (character === '#') {",
-      "only": "a quoted wrapper assignment does not hide"
-    },
-    {
-      "label": "lifecycle: operators inside a trailing comment are not joiners",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/leftovers-after-adr053.test.mjs"
-      ],
-      "from": "    if (inComment) {\n      if (character === '\\n' || character === '\\r') {\n        return false\n      }",
-      "to": "    if (inComment) {\n      if (character === '|' || character === ';' || character === '\\n' || character === '\\r') {\n        return false\n      }",
-      "only": "a quoted wrapper assignment does not hide"
-    },
-    {
-      "label": "lifecycle: an escaped space does not start a comment",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/leftovers-after-adr053.test.mjs"
-      ],
-      "from": "    return slashes % 2 === 0",
-      "to": "    return true",
-      "only": "a quoted wrapper assignment does not hide"
-    },
-    {
-      "label": "lifecycle: a newline after && still peels the continued publish",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/leftovers-after-adr053.test.mjs"
-      ],
-      "from": "    if (joiner === '\\n' || joiner === '\\r\\n') {\n      if (rest.endsWith('&&')) rest = rest.slice(0, -2).trim()\n    }",
-      "to": "    if (false) {\n      if (rest.endsWith('&&')) rest = rest.slice(0, -2).trim()\n    }",
-      "only": "a quoted wrapper assignment does not hide"
     },
     {
       "label": "lock: a shell URL is not a C comment in the digest",
@@ -8397,57 +7752,6 @@
       "only": "chmod-000 named ADR with strictFrom is UNPROVEN exit 2, not a traceback"
     },
     {
-      "label": "lifecycle: unrecognised Bash advances lastUnprovenWrite (ADR-047 T3)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))\n          && !isMrwWriteCheckCommand(use.input.command)) {",
-      "to": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (false) {",
-      "only": "unrecognised Bash is Advise the same way an MCP write is|echo is not Advise, and a classify-only green is not this fact"
-    },
-    {
-      "label": "lifecycle: bashVerdict denies unrecognised (ADR-047 T4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs",
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const kind = classifyCommand(command)\n  if (kind === 'unrecognised') {",
-      "to": "  const kind = classifyCommand(command)\n  if (false) {",
-      "only": "a reviewer is denied Remove-Item and pwsh -Command rm|echo and selftest are not denied as unrecognised"
-    },
-    {
-      "label": "lifecycle: UNPROVEN Advise has a validation term (ADR-048 T1)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    unprovenWritePending: () => lastUnprovenWrite > lastPublish\n      && !(lastSuccessfulValidation > lastUnprovenWrite && lastSuccessfulValidation === lastValidation),",
-      "to": "    unprovenWritePending: () => lastUnprovenWrite > lastPublish,",
-      "only": "a passing recognised check after an UNPROVEN write silences Advise|a failing check after an UNPROVEN write still Advises, and Read does not flag"
-    },
-    {
-      "label": "lifecycle: lastUnprovenWrite only on success, unrecognised arm (ADR-048 T2)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))\n          && !isMrwWriteCheckCommand(use.input.command)) {",
-      "to": "      if (kind === 'unrecognised'\n          && !isMrwWriteCheckCommand(use.input.command)) {",
-      "only": "a failed UNPROVEN write does not advance lastUnprovenWrite"
-    },
-    {
-      "label": "lifecycle: lastUnprovenWrite only on success, MCP arm (ADR-048 T2)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    } else if (executed(use) && commandSucceeded(results.get(use.id)) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
-      "to": "    } else if (executed(use) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
-      "only": "a failed UNPROVEN write does not advance lastUnprovenWrite"
-    },
-    {
       "label": "lock: first-red suffix is written (ADR-050 T1)",
       "file": "plugin/bin/adr-verify",
       "tests": [
@@ -8496,66 +7800,6 @@
       "from": "unrun_exit() {\n  case \"$1\" in\n    \"spec-verify --draft\") printf '4' ;;\n    adr-lint|arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;",
       "to": "unrun_exit() {\n  case \"$1\" in\n    \"spec-verify --draft\") printf '4' ;;\n    arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;",
       "only": "UNPROVEN through the dispatcher, not not satisfied"
-    },
-    {
-      "label": "advisory: provenMutationPaths drops stand-ins and paths outside cwd (ADR-051 T1)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (typeof entry !== 'string' || !entry || entry.startsWith('<')) continue",
-      "to": "    if (typeof entry !== 'string' || !entry) continue",
-      "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
-    },
-    {
-      "label": "advisory: empty mutationPaths is could-not-look (ADR-051 T1)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    : 'I could not prove a repository path for those edits (could not classify the command, or could not resolve a path).'",
-      "to": "    : 'The transcript contains file mutations.'",
-      "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
-    },
-    {
-      "label": "statusline: marker-only is unverified, not a numbered write (ADR-051 T2)",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "    count: proven.length,",
-      "to": "    count: edited.length,",
-      "only": "a marker-only transcript is unverified, not a numbered write"
-    },
-    {
-      "label": "hooks: docsOnly is over proven paths (ADR-051 T1)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "docsOnly(provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd))",
-      "to": "docsOnly(state.mutationPaths)",
-      "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
-    },
-    {
-      "label": "hooks: docsOnly uses paths since lastPublish",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd)",
-      "to": "provenMutationPaths(state.mutationPaths, input.cwd)",
-      "only": "EVIDENCE-LIMITED does not release an unproven write after a published docs change"
-    },
-    {
-      "label": "statusline: marker-only stays unverified, not nothing-edited (ADR-051 T2)",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "  const markerOnly = edited.length > 0 && proven.length === 0",
-      "to": "  const markerOnly = false",
-      "only": "a marker-only transcript is unverified, not a numbered write"
     },
     {
       "label": "lock: a UTF-8 lock map with no check record is unreadable",
@@ -8871,6 +8115,753 @@
       ],
       "from": "`subagent_type: quality-harness:qh-correctness-reviewer`",
       "to": "`subagent_type: quality-harness:qh-correctness-reviewer-typo`"
+    },
+    {
+      "label": "qh-check: --version answers without running a check",
+      "file": "plugin/bin/qh-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if \"--version\" in argv:",
+      "to": "    if False:"
+    },
+    {
+      "label": "qh-check: the kept output is the tail, where a runner prints its summary",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "kept = kept.subarray(kept.length - KEEP_BYTES)",
+      "to": "kept = kept.subarray(0, KEEP_BYTES)"
+    },
+    {
+      "label": "R3: an index-only change during a read-only run is reported",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (sameObservation(before, after)) return",
+      "to": "  if (before.tree === after.tree) return"
+    },
+    {
+      "label": "advisory: R1 speaks only about an unchecked tree or an unseen write",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {",
+      "to": "  if (!quiet) {"
+    },
+    {
+      "label": "advisory: R1's key carries the evidence revision, so a later check re-opens it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`",
+      "to": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${writes.length}`"
+    },
+    {
+      "label": "advisory: R4 is said once per session and cwd",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    if (!emittedFor(log, 'R4', key)) {",
+      "to": "    if (true) {"
+    },
+    {
+      "label": "ledger: an unchecked tree is unverified, whatever the rules said",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (treeUnchecked || writes.length > 0) return 'unverified'",
+      "to": "  if (writes.length > 0) return 'unverified'"
+    },
+    {
+      "label": "statusline: the segment says when it was last observed",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "  const age = typeof value?.ageMs === 'number' ? `last observed ${renderAge(value.ageMs)} ago` : null",
+      "to": "  const age = null"
+    },
+    {
+      "label": "event-log: an event that is not appended is an event no rule can read",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\\n`, 'utf8')",
+      "to": "    void file"
+    },
+    {
+      "label": "evidence-flip: a pass that survived a torn log certifies nothing, for any caller",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  return latest?.event === 'check.passed' && logIncomplete(log) ? LOG_INCOMPLETE : latest",
+      "to": "  return latest"
+    },
+    {
+      "label": "evidence-flip: a torn log is not a session where nothing happened",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "      : logIncomplete(log) ? 'the session log could not be read whole'",
+      "to": "      : false ? 'the session log could not be read whole'"
+    },
+    {
+      "label": "evidence-flip: a git status that failed is not an empty working tree",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    : status.ok === false ? 'git could not list the working tree'",
+      "to": "    : false ? 'git could not list the working tree'"
+    },
+    {
+      "label": "evidence-flip: a committed turn with an unchecked tree is not neutral",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    : files.length === 0 && other === 0 && !pending ? (late ? 'unverified' : 'neutral')",
+      "to": "    : files.length === 0 && other === 0 ? (late ? 'unverified' : 'neutral')"
+    },
+    {
+      "label": "evidence-flip: the status line says nothing positive from a torn log",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  const kind = observation?.ok !== true || logIncomplete(log) ? 'could-not-look'",
+      "to": "  const kind = observation?.ok !== true ? 'could-not-look'"
+    },
+    {
+      "label": "lint: a record retired to the sibling archive is still a record a citation can name",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return number in archived_record_numbers(root, corpus_dir, tracked)",
+      "to": "    return False"
+    },
+    {
+      "label": "lint: a sibling directory without the Lifecycle marker is not part of the corpus",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if not ARCHIVE_LIFECYCLE_RE.search(catalog):",
+      "to": "        if False:"
+    },
+    {
+      "label": "evidence-flip: a torn log does not say which check ran last",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  parts.push(facts?.whole === false ? 'Which check ran last is unknown.'",
+      "to": "  parts.push(false ? 'Which check ran last is unknown.'"
+    },
+    {
+      "label": "evidence-flip: a torn log persists no last verdict",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    lastCheck: check && !logIncomplete(log)",
+      "to": "    lastCheck: check"
+    },
+    {
+      "label": "evidence-flip: a review whose opening bracket tore is not a review where nothing changed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "        ? (logIncomplete(log)\n          ? 'this session\\'s event log could not be read whole",
+      "to": "        ? (false\n          ? 'this session\\'s event log could not be read whole"
+    },
+    {
+      "label": "evidence-flip: the completion rule does not accuse from a torn log",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  const opening = logTorn",
+      "to": "  const opening = false"
+    },
+    {
+      "label": "evidence-flip: the publish warning does not accuse from a torn log",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    text: (logIncomplete(log)",
+      "to": "    text: (false"
+    },
+    {
+      "label": "orientation: a frozen archive's tasks are not work in flight",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (archived === true) continue",
+      "to": "    if (false) continue"
+    },
+    {
+      "label": "corpus: a retired record governs only if its archive catalog says so",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    const status = archived?.unproven ? `frozen, effect UNPROVEN — ${archived.unproven}` : retired ? effect : recordStatus(text)",
+      "to": "    const status = archived?.unproven ? `frozen, effect UNPROVEN — ${archived.unproven}` : recordStatus(text)"
+    },
+    {
+      "label": "advisory: the headline a person sees names the finding, not the prefix",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/advisory-headline.test.mjs"
+      ],
+      "from": "  const sentence = first.trim().replace(/^quality-harness:\\s*/i, '').split(/(?<=\\.)\\s/)[0]",
+      "to": "  const sentence = first.trim().split(/(?<=[.:])\\s/)[0]"
+    },
+    {
+      "label": "paths: a changed path is read NUL-terminated, never unquoted by hand",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-paths.test.mjs"
+      ],
+      "from": "  if (nul) return mark(run.stdout.split('\\0').filter(Boolean), true)",
+      "to": "  if (false) return mark(run.stdout.split('\\0').filter(Boolean), true)"
+    },
+    {
+      "label": "verdict: a suite that ran is not `unstarted` because an assertion quoted an error",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (saidLittle(text) && (NEVER_STARTED.test(text)",
+      "to": "  if ((NEVER_STARTED.test(text)"
+    },
+    {
+      "label": "verdict: an interpreter that could not open its script did not run the tests",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  'could not open input file',",
+      "to": "  'qh-no-such-phrase',"
+    },
+    {
+      "label": "baseline: a session watched from late does not accuse a tree nothing changed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "      lateBaseline = appendEvent(input.cwd, session, { event: 'session.started', late: true, observation: entry.observation }) !== false",
+      "to": "      lateBaseline = false"
+    },
+    {
+      "label": "baseline: a dirty tree is never adopted as a late baseline",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "      && observedClean(input.cwd, entry.observation)) {",
+      "to": "      && true) {"
+    },
+    {
+      "label": "inferred: a pass of a guessed check says so in the session note",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/inferred-pass.test.mjs"
+      ],
+      "from": "    checkOrigin: latestCheckFor(log, observation?.tree)?.origin ?? null,",
+      "to": "    checkOrigin: null,"
+    },
+    {
+      "label": "inferred: the status line marks a tick a guessed check earned",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/inferred-pass.test.mjs"
+      ],
+      "from": "inferred: checked && latest?.origin === 'inferred',",
+      "to": "inferred: false,"
+    },
+    {
+      "label": "identity: only a regular file of bounded size is read, so a FIFO cannot hang the hook",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/content-id.test.mjs"
+      ],
+      "from": "    if (!opened.isFile() || opened.size > CONTENT_ID_MAX_BYTES) return null",
+      "to": "    if (false) return null"
+    },
+    {
+      "label": "dispatch: could-not-look is written to stderr, where the commit boundary reads",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "  printf '%s\\n' \"$1\" >&2",
+      "to": "  printf '%s\\n' \"$1\""
+    },
+    {
+      "label": "archive: the bulk lookup takes the first base with a CATALOG, as the dispatcher does",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/archive-history-parity.test.mjs"
+      ],
+      "from": "      for (const blobs of perBase) {",
+      "to": "      for (const blobs of perBase.slice(0, 1)) {"
+    },
+    {
+      "label": "checks: the DECLARED arm of the run-the-check sentence says whose word the command is",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (origin === 'declared') {",
+      "to": "  if (origin === 'never') {"
+    },
+    {
+      "label": "checks: a composer `test` script is not offered as the project's own check",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (declared) return { command: declared, origin: 'declared' }",
+      "to": "  if (declared) return { command: declared, origin: 'declared' }\n  if (existsSync(path.join(root, 'composer.json')) && readFileSync(path.join(root, 'composer.json'), 'utf8').includes('\"test\"')) return { command: 'composer test', origin: 'declared' }"
+    },
+    {
+      "label": "evidence-flip: whole is something a log must SAY, so a copy that lost the flag cannot certify",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  return log?.complete !== true",
+      "to": "  return log?.complete === false"
+    },
+    {
+      "label": "statusline: a write the last observation does not cover outranks a pass",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    : uncovered.length ? 'unverified'",
+      "to": "    : false ? 'unverified'"
+    },
+    {
+      "label": "note: a late baseline is never neutral",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  const late = facts?.late === true",
+      "to": "  const late = false"
+    },
+    {
+      "label": "statusline: a late baseline says since when nothing was edited",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "late: kind === 'nothing' && began?.late === true",
+      "to": "late: false"
+    },
+    {
+      "label": "late baseline: not adopted over a write already on record",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": " || (event.event === 'file.written' && event.observable !== false))",
+      "to": ")"
+    },
+    {
+      "label": "note: Last check is ordered by when it ran",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), { unresolved: 'say-so' })",
+      "to": "  const check = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).at(-1)"
+    },
+    {
+      "label": "note: an unlink that failed is not a note removed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "catch (failure) { cleared = failure?.code === 'ENOENT' }",
+      "to": "catch (failure) { cleared = true }"
+    },
+    {
+      "label": "R3: a bracket that could not be observed is said, not dropped",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (before?.ok !== true || after?.ok !== true) {",
+      "to": "  if (before?.ok !== true || after?.ok !== true) { return }\n  if (false) {"
+    },
+    {
+      "label": "R2: over a torn log a commit is not known to be checked",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log) }),",
+      "to": "      text: uncheckedCommitsReason(input.cwd, unchecked),"
+    },
+    {
+      "label": "note: one older than its compaction is not served",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      if (note && !tied) sections.push(",
+      "to": "      if (false) sections.push("
+    },
+    {
+      "label": "ledger: an unverified row with no edits is read back as unknown, not as edits",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (typeof row.unknown === 'string' && row.unknown) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "archive: a base that could not be read leaves the bulk answer unknown",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/archive-history-parity.test.mjs"
+      ],
+      "from": "      if (tree === null || (tree.length && tree.at(-1) !== 0)) { valid = false; break }",
+      "to": "      if (tree === null || (tree.length && tree.at(-1) !== 0)) continue"
+    },
+    {
+      "label": "catalog: a record with no row is UNPROVEN, not governing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }",
+      "to": "  if (effects.length === 0) return null"
+    },
+    {
+      "label": "catalog: two rows for one record are UNPROVEN",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }",
+      "to": "  if (false) return { unproven: '' }"
+    },
+    {
+      "label": "catalog: only the three effects adr-retire-check accepts are read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by ADR-\\d+)$/i",
+      "to": "const ARCHIVE_EFFECT = /./"
+    },
+    {
+      "label": "catalog: a README git does not list governs nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)),",
+      "to": "      ['README.md'],"
+    },
+    {
+      "label": "catalog: a row speaks for the file its link names",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "            const target = path.resolve(directory, ...href.split('/'))",
+      "to": "            const target = file"
+    },
+    {
+      "label": "catalog: an escaped pipe in a title is not a column",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (line[index] === '\\\\' && line[index + 1] === '|') { cell += '|'; index += 1 }",
+      "to": "    if (false) { cell += '|'; index += 1 }"
+    },
+    {
+      "label": "orientation: a README git does not list freezes nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "        [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)),",
+      "to": "        ['README.md'],"
+    },
+    {
+      "label": "orientation: a tasks directory with no Markdown is not an ADR task set",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (parts.length !== index + 2 || !/\\.md$/i.test(parts[index + 1])) continue",
+      "to": "    if (false) continue"
+    },
+    {
+      "label": "verdict: a phrase alone is unproven, not unstarted",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "KILLED_ON_TIME.test(text))) return 'unproven'",
+      "to": "KILLED_ON_TIME.test(text))) return 'unstarted'"
+    },
+    {
+      "label": "verdict: an unproven verdict never becomes check.passed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (record?.verdict === 'unproven') return 'check.unproven'",
+      "to": "  void 0"
+    },
+    {
+      "label": "event-log: the nearest existing directory is a directory",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/content-id.test.mjs"
+      ],
+      "from": "  const isDirectory = target => { try { return statSync(target).isDirectory() } catch { return false } }",
+      "to": "  const isDirectory = target => { try { return statSync(target) !== null } catch { return false } }"
+    },
+    {
+      "label": "event-log: a chunked identity hashes only the bytes read",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/content-id.test.mjs"
+      ],
+      "from": "      hash.update(chunk.subarray(0, read))",
+      "to": "      hash.update(chunk)"
+    },
+    {
+      "label": "catalog: a fragment is not part of the file a row links to",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "            const href = link[1].split('#')[0]",
+      "to": "            const href = link[1]"
+    },
+    {
+      "label": "catalog: a README listed under another spelling is UNKNOWN, not absent",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": ".includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN : null } catch",
+      "to": ".includes(ARCHIVE_LIFECYCLE_LINE) ? null : null } catch"
+    },
+    {
+      "label": "baseline: a SessionStart in the middle of a session is not its beginning",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    if (existing.length > 0 || existing.complete !== true) return null",
+      "to": "    if (existing.some(entry => entry.event === 'session.started')) return null"
+    },
+    {
+      "label": "late baseline: a write git cannot see does not block it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "(event.event === 'file.written' && event.observable !== false))",
+      "to": "(event.event === 'file.written'))"
+    },
+    {
+      "label": "statusline: covered is decided by position in the log, not by a timestamp that can tie",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "(entry.observable === false || index > observedIndex))",
+      "to": "(entry.observable === false || entry.at > observed.at))"
+    },
+    {
+      "label": "ledger: an UNKNOWN row still names the writes known to be outstanding",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      + `${other ? ` ${other} write(s) git cannot see were recorded, and no passing check after them is on record.` : ''} `",
+      "to": "      + ' '"
+    },
+    {
+      "label": "verdict: a recorded signal outranks a phrase-derived unproven",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'",
+      "to": "  if (record?.verdict === 'unproven') return 'check.unproven'\n  if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'"
+    },
+    {
+      "label": "note: a note is served only when it is tied to its compaction by id",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      const tied = !logIncomplete(events) && typeof owner === 'string' && note?.compaction === owner",
+      "to": "      const tied = true"
+    },
+    {
+      "label": "note: an order that cannot be established is said so",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (unresolved === 'say-so' && new Set(",
+      "to": "  if (false && new Set("
+    },
+    {
+      "label": "catalog: a link is a plain relative path, or the row says nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "            if (!/^(?:\\.\\.?\\/)*[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$/.test(href)) continue",
+      "to": "            if (!href) continue"
+    },
+    {
+      "label": "note: a log that could not be read whole cannot say which compaction was last",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      const tied = !logIncomplete(events) && typeof owner === 'string'",
+      "to": "      const tied = typeof owner === 'string'"
+    },
+    {
+      "label": "R3: told-already is read from the action detail, not from the shape of a key",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    const told = entry => entry.detail?.kind === 'unobserved' && entry.detail.agent === input.agent_id",
+      "to": "    const told = entry => entry.key === unobservedKey || entry.key === `${input.agent_id}:unknown`"
+    },
+    {
+      "label": "note: a note is served once",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "        && !events.some(entry => entry.event === 'note.served' && entry.compactionId === owner)",
+      "to": "        && true"
+    },
+    {
+      "label": "orientation: a directory that may be under a frozen archive is UNPROVEN, never offered as ready",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (archive === 'unknown') {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "orientation: a listed README that cannot be read may be a catalog",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "catch { frozen = 'unknown' }",
+      "to": "catch { frozen = false }"
+    },
+    {
+      "label": "catalog: an ordinary readme.md, with no marker, is not an archive question",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "return read(path.join(directory, spellings[0])).split(/\\r?\\n/).includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN",
+      "to": "return read(path.join(directory, spellings[0])).length >= 0 ? README_UNKNOWN"
+    },
+    {
+      "label": "catalog: two listed README spellings are unknown outright, whatever they read as",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (spellings.length > 1) return README_UNKNOWN",
+      "to": "  void 0"
+    },
+    {
+      "label": "context: a path only an UNPROVEN record declares is not answered with silence",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (!governing.length && !graveyard.length && !unproven.length) return ''",
+      "to": "  if (!governing.length && !graveyard.length) return ''"
+    },
+    {
+      "label": "context: an UNPROVEN record is named in the edit-time context",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (unproven.length) {\n    lines.push('UNPROVEN",
+      "to": "  if (false) {\n    lines.push('UNPROVEN"
+    },
+    {
+      "label": "adr-context: PARTIAL qualifies the answer and does not replace it",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    for (const record of governing) {",
+      "to": "    for (const record of partial ? [] : governing) {"
+    },
+    {
+      "label": "adr-context: an UNPROVEN record is named, in prose and in JSON",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      for (const record of unproven) {",
+      "to": "      for (const record of []) {"
+    },
+    {
+      "label": "context: an UNPROVEN record keeps the paths its task tables name",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "        ...recordTasks.flatMap(task => { try { return affectedFiles(reader.text(task)) } catch { return [] } })])]",
+      "to": "        ])]"
+    },
+    {
+      "label": "catalog: the exact README.md is one of the spellings, counted before it is returned",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (spellings.length > 1) return README_UNKNOWN\n  if (spellings[0] === 'README.md') return path.join(directory, 'README.md')",
+      "to": "  if (spellings.includes('README.md')) return path.join(directory, 'README.md')\n  if (spellings.length > 1) return README_UNKNOWN"
     }
   ]
 }

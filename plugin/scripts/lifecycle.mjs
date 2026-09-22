@@ -2786,7 +2786,9 @@ function recordFileWritten(input) {
   if (typeof target !== 'string' || !target) return null
   // Canonical, so this path and rule A's candidate for the same file are one key.
   const absolute = canonicalFile(path.resolve(input.cwd, target))
-  const entry = { event: 'file.written', path: absolute, observable: false }
+  // How many check records existed when this write happened. Only a pass recorded
+  // AFTER it can cover it; the importer may append an earlier pass later in the log.
+  const entry = { event: 'file.written', path: absolute, observable: false, checksSeen: checkRecordCount(input.cwd) }
   const directory = nearestExistingDirectory(path.resolve(input.cwd))
   const root = directory ? gitRepositoryRoot(directory) : null
   const parent = nearestExistingDirectory(absolute)
@@ -2804,6 +2806,22 @@ function recordFileWritten(input) {
   }
   appendEvent(input.cwd, input.session_id, entry)
   return entry
+}
+
+// The number of records in `checks.jsonl`, counted the way `importCheckRecords`
+// numbers `seq`. Null when the file exists and cannot be read: a count that was
+// not taken is not zero (ADR-005).
+function checkRecordCount(cwd) {
+  let text
+  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch (error) {
+    return error?.code === 'ENOENT' ? 0 : null
+  }
+  let count = 0
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    try { if (typeof JSON.parse(line)?.id === 'string') count += 1 } catch { /* the importer skips it too */ }
+  }
+  return count
 }
 
 // Whether git lists nothing changed under an observation that succeeded. A listing
@@ -3063,8 +3081,12 @@ function checkStanding(log, tree) {
   if (!descriptive) return 'none'
   if (descriptive.event === 'check.unresolved') return 'unresolved'
   if (descriptive.event === 'check.passed') return 'passed'
+  // A check that timed out, never started, or could not observe its tree said
+  // nothing about the tree. It is not a failure, and it must not refuse (ADR-061).
+  if (COULD_NOT_LOOK.has(descriptive.event)) return 'could-not-look'
   return 'not-passed'
 }
+const COULD_NOT_LOOK = new Set(['check.unproven', 'check.timeout', 'check.unstarted'])
 
 
 function checkRevision(log, tree) {
@@ -3095,6 +3117,7 @@ function publishUnchecked(input, requested) {
   const indexUnchecked = indexStanding !== 'passed' && (baseline?.ok !== true || now.index !== baseline.index)
   if (!treeUnchecked && !indexUnchecked) return
   const unordered = treeStanding === 'unresolved' || indexStanding === 'unresolved'
+  const couldNotLook = treeStanding === 'could-not-look' || indexStanding === 'could-not-look'
   const revision = checkRevision(log, now.tree)
   const key = `${now.tree}:${now.index}:${revision}`
   // A denial has to happen on every attempt. Saying it once and then allowing
@@ -3103,7 +3126,7 @@ function publishUnchecked(input, requested) {
   // compared against those trees, so a staged change beside an untracked file
   // equals no checked tree and was denied after every pass (found live by a peer,
   // 2026-09-22). The index still warns: its exact bytes were never checked.
-  const deny = treeUnchecked && !logIncomplete(log) && !unordered && origin.origin !== 'unproven'
+  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'
   if (!deny && log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
   queueAction({
     rule: 'P', key, detail: { tree: now.tree, revision }, deny,
@@ -3114,12 +3137,16 @@ function publishUnchecked(input, requested) {
       ? 'quality-harness: whether this repository is checked is unknown — the session log could not be read whole, so whether `qh-check` succeeded on its current tree cannot be shown — and the command '
       : unordered
         ? 'quality-harness: whether this repository is checked is unknown — the order of its check events could not be established — and the command '
+        : couldNotLook
+          ? 'quality-harness: whether this repository is checked is unknown — the latest `qh-check` on its current tree could not observe it (it timed out, did not start, or its observation failed) — and the command '
         : origin.origin === 'unproven'
           ? 'quality-harness: whether this repository is checked is unknown — the repository root could not be read — and the command '
           : origin.origin === 'refused'
             ? 'quality-harness: this repository is unchecked — the check declared in .quality-harness.json is a constant success and was refused — and the command '
-            : !treeUnchecked
+            : !treeUnchecked && treeStanding === 'passed'
               ? 'quality-harness: the staged index is unchecked — `qh-check` passed on the working tree, but the index holds different content (a partial stage, or files the check saw that are not staged) — and the command '
+            : !treeUnchecked
+              ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
               : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
       + 'about to run names commit or push. Run `qh-check` first. This says what state the repository is in, not what '
       + `the command publishes.${inferredCheckCaveat(input.cwd)}`,
@@ -3252,18 +3279,19 @@ function namedByPublish(log, tree, revision) {
     && entry.detail?.tree === tree && entry.detail?.revision === revision)
 }
 
-// A write git cannot see stays outstanding until a later check.passed in a log
-// that was read whole. A timestamp is not that order: a clock stepping backwards
-// hid the write. An incomplete log leaves every such write outstanding.
+// A write git cannot see stays outstanding until a check.passed in a log that
+// was read whole covers it. A timestamp is not that order: a clock stepping
+// backwards hid the write. Log position alone is not either: the importer can
+// append a pass that was recorded BEFORE the write after it (Codex review,
+// 2026-09-22). So a write that counted the check records it saw is covered only
+// by a pass with a higher `seq`. A write that could not count them falls back to
+// log position. An incomplete log leaves every such write outstanding.
 export function unobservableWrites(log) {
-  if (logIncomplete(log)) {
-    return log.filter(entry => entry.event === 'file.written' && entry.observable === false)
-  }
-  let lastPass = -1
-  for (let index = 0; index < log.length; index += 1) {
-    if (log[index].event === 'check.passed') lastPass = index
-  }
-  return log.filter((entry, index) => entry.event === 'file.written' && entry.observable === false && index > lastPass)
+  const writes = (entry) => entry.event === 'file.written' && entry.observable === false
+  if (logIncomplete(log)) return log.filter(writes)
+  return log.filter((entry, index) => writes(entry) && !log.some((later, at) => at > index
+    && later.event === 'check.passed'
+    && (!Number.isInteger(entry.checksSeen) || (Number.isInteger(later.seq) && later.seq > entry.checksSeen))))
 }
 
 // The evidence revision where nothing can be observed: every check event is one,

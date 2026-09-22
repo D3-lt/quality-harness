@@ -158,6 +158,24 @@ test('quality-cycle cannot synthesize a required evidence-limited review into cl
   assert.equal(result.reviews[0].status, 'evidence-limited')
 })
 
+// Codex review, 2026-09-22 (F3): a requested host's result must BE a review.
+test('quality-cycle is unavailable when a requested host result is not the review schema', async () => {
+  let calls = 0
+  const agent = async () => { calls += 1; return { status: 'clean', findings: [] } }
+  for (const external of [{ host: 'codex' }, { host: 'codex', status: 'clean', findings: 'none' }]) {
+    const result = await runWorkflow(qualityCycle, {
+      repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true, externalReviews: [external],
+    }, agent)
+    assert.equal(result.status, 'reviewer-unavailable', JSON.stringify(external))
+  }
+  assert.equal(calls, 0)
+  const control = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true,
+    externalReviews: [{ host: 'codex', status: 'clean', findings: [] }],
+  }, agent)
+  assert.equal(control.status, 'clean')
+})
+
 test('Codex review and advice skills mark spawned sessions as non-recursive leaves', async () => {
   const review = await readFile(path.join(bundledSkills, 'codex-review/SKILL.md'), 'utf8')
   const advise = await readFile(path.join(bundledSkills, 'codex-advise/SKILL.md'), 'utf8')

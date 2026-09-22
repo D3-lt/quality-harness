@@ -30,6 +30,8 @@ On Claude, the scope role asks for `haiku`. Correctness and synthesis stay `opus
 
 What would make this fail: quality-cycle with `codex: true` and no external result still spawning an agent whose label is `codex-external`. That call exists in the workflow today and the test can see it.
 
+**Revision, 2026-09-22, before release (Codex review, xhigh, REQUEST CHANGES; the owner chose to fix all).** The first form did not review anything. The host was sent only "reply with one JSON object", with no repository scope, requirements, or evidence, so a clean answer said nothing about the change. `host-review.mjs` now takes `--scope`, `--requirements` and `--evidence` and sends them. A missing repository or scope is `unavailable` before any spawn. A host result is a review only when it is the whole schema: a status from the four, a `findings` array whose every entry carries `file`, `problem`, `impact`, `evidence`, `minimal_fix` and a `blocking` or `advisory` severity, with `blocking` status having a blocking finding and `clean` having none. Quality-cycle applies the same rule to `externalReviews` and answers `reviewer-unavailable` for any malformed entry. The documented commands in `quality-policy` and `work` omitted `--repo` and now name it and `--scope`. Still unmeasured: the shape of Cursor's `--output-format json` envelope. A result wrapped in an envelope fails the schema and reads as `unavailable`, which fails closed rather than certifying.
+
 ## Alternatives Considered
 
 - **Keep the inline translator.** Rejected because it spends a second model to restate a result the host already returned.

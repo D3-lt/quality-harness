@@ -1,6 +1,7 @@
 // ADR-062: a host returns the review schema, or unavailable. No second model paraphrases it.
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { readFileSync } from 'node:fs'
 import { CODEX_MODEL, PI_UNMEASURED, hostReview, reviewFromOutput } from '../plugin/scripts/host-review.mjs'
 
 const finding = {
@@ -56,4 +57,55 @@ test('a host review is the schema or unavailable', () => {
   assert.equal(pi.status, 'unavailable')
   assert.equal(pi.reason, PI_UNMEASURED)
   assert.equal(spawned, false)
+})
+
+// Codex review, 2026-09-22 (F3, F4): a result that is not the whole schema is not
+// a review, and a host that was never told what to review has not reviewed it.
+test('a host result missing the schema is unavailable, and the host is told the target', () => {
+  for (const output of [
+    { status: 'clean' },
+    { status: 'clean', findings: 'none' },
+    { status: 'clean', findings: [{ file: 'a.js' }] },
+    { status: 'blocking', findings: [] },
+    { status: 'clean', findings: [finding] },
+  ]) {
+    assert.equal(reviewFromOutput(JSON.stringify(output), { host: 'codex' }).status, 'unavailable', JSON.stringify(output))
+  }
+  assert.equal(reviewFromOutput(JSON.stringify({ status: 'clean', findings: [] }), { host: 'codex' }).status, 'clean')
+
+  let spawned = false
+  const noScope = hostReview({ host: 'codex', effort: 'high', repo: '/repo', resolve: () => '/bin/codex', run: () => { spawned = true } })
+  assert.equal(noScope.status, 'unavailable')
+  assert.match(noScope.reason, /scope/)
+  assert.equal(spawned, false)
+
+  const review = { host: 'codex', effort: 'high', repo: '/repo', scope: 'commit abc123', requirements: 'reject empty input', evidence: '{"status":"executed","exitCode":0}' }
+  for (const host of ['codex', 'cursor']) {
+    let argv = null
+    const result = hostReview({
+      ...review, host, resolve: () => '/bin/host',
+      run: (_, args) => { argv = args; return { status: 0, stdout: JSON.stringify({ status: 'clean', findings: [] }) } },
+    })
+    assert.equal(result.status, 'clean', host)
+    const prompt = argv.at(-1)
+    assert.match(prompt, /commit abc123/, host)
+    assert.match(prompt, /reject empty input/, host)
+    assert.match(prompt, /"exitCode":0/, host)
+  }
+})
+
+// Codex review, 2026-09-22 (F5): the documented command omitted --repo, so
+// following it returned unavailable every time.
+test('every documented host-review command names the repository and the scope', () => {
+  const skills = ['plugin/skills/quality-policy/SKILL.md', 'plugin/skills/work/SKILL.md']
+  let seen = 0
+  for (const file of skills) {
+    const text = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
+    for (const [command] of text.matchAll(/`node \$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/host-review\.mjs[^`]*`/g)) {
+      seen += 1
+      assert.match(command, /--repo /, `${file}: ${command}`)
+      assert.match(command, /--scope /, `${file}: ${command}`)
+    }
+  }
+  assert.ok(seen >= 2, 'both skills document the command')
 })

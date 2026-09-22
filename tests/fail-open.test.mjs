@@ -150,6 +150,95 @@ test('a passing check on the tree is not refused because the index differs from 
   assert.equal(decision(moved), 'deny', moved.stdout)
 })
 
+// Codex review, 2026-09-22 (F1): a later check that could not look is not a
+// failure. It must not turn an earlier pass into a refusal.
+test('a check that could not look after a pass warns and does not refuse', () => {
+  for (const [label, extra] of [['timeout', { signal: 'SIGTERM' }], ['unstarted', { verdict: 'unstarted' }]]) {
+    const dir = repository(`couldnot-${label}-`)
+    writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+    writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'check')
+    const session = `fail-open-${label}-` + process.pid
+    hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+    writeFileSync(path.join(dir, 'a.md'), 'edited\n')
+    const passed = spawnSync('python3', [qhCheck], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(passed.status, 0, passed.stderr)
+    const allowed = hook(dir, {
+      hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+      tool_input: { command: 'git commit -am edited' },
+    })
+    assert.notEqual(decision(allowed), 'deny', `${label} control: ${allowed.stdout}`)
+
+    const now = lifecycle.observe(dir)
+    assert.equal(now.ok, true)
+    const at = new Date().toISOString()
+    appendFileSync(path.join(lifecycle.stateDir(dir), 'checks.jsonl'), `${JSON.stringify({
+      id: `later-${label}`, at, git: true, command: 'sh check.sh', origin: 'declared',
+      before: { ...now, at }, after: { ...now, at }, exit: null, signal: null, verdict: 'failed', ...extra,
+    })}\n`)
+    const run = hook(dir, {
+      hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+      tool_input: { command: 'git commit -am edited' },
+    })
+    assert.notEqual(decision(run), 'deny', `${label}: ${run.stdout}`)
+    const said = hookSaid(run.stdout, run.stderr).text
+    assert.match(said, /unknown/, label)
+    assert.doesNotMatch(said, /no `qh-check` has passed/, label)
+  }
+})
+
+// Codex review, 2026-09-22 (F2): a pass that finished BEFORE a write git cannot
+// see must not clear it, whatever order the importer appends the two in.
+test('a pass recorded before an unobservable write does not cover it', () => {
+  const dir = repository('write-order-')
+  writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+  writeFileSync(path.join(dir, '.gitignore'), 'ignored.txt\n')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = 'fail-open-write-order-' + process.pid
+  hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+  const passed = spawnSync('python3', [qhCheck], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(passed.status, 0, passed.stderr)
+  writeFileSync(path.join(dir, 'ignored.txt'), 'written after the check\n')
+  hook(dir, {
+    hook_event_name: 'PostToolUse', tool_name: 'Write', session_id: session,
+    tool_input: { file_path: path.join(dir, 'ignored.txt') },
+  })
+  hook(dir, { hook_event_name: 'Stop', session_id: session })
+  const log = lifecycle.readEvents(dir, session)
+  assert.equal(log.some(entry => entry.event === 'check.passed'), true, 'the earlier pass was imported')
+  assert.equal(lifecycle.unobservableWrites(log).length, 1)
+
+  const again = spawnSync('python3', [qhCheck], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(again.status, 0, again.stderr)
+  hook(dir, { hook_event_name: 'Stop', session_id: session })
+  assert.equal(lifecycle.unobservableWrites(lifecycle.readEvents(dir, session)).length, 0, 'a later pass covers it')
+})
+
+// Codex review, 2026-09-22 (F6): an index that moved while the tree still equals
+// the session start is unchecked, and nothing passed. The warning must not say one did.
+test('an unchecked index warning does not invent a passing check', () => {
+  const dir = repository('inherited-')
+  writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  writeFileSync(path.join(dir, 'a.md'), 'inherited\n')
+  const session = 'fail-open-inherited-' + process.pid
+  hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+  git(dir, 'add', 'a.md')
+  const run = hook(dir, {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+    tool_input: { command: 'git commit -m inherited' },
+  })
+  assert.notEqual(decision(run), 'deny', run.stdout)
+  const said = hookSaid(run.stdout, run.stderr).text
+  assert.match(said, /staged index is unchecked/)
+  assert.doesNotMatch(said, /passed on the working tree/)
+})
+
 test('a write stays outstanding by log order, not by its timestamp', () => {
   const laterInTheLog = whole([
     { event: 'check.passed', startedAt: '2026-01-02T00:00:00.000Z' },

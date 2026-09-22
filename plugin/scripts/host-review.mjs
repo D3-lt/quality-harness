@@ -22,9 +22,24 @@ export function unavailable(host, effort, reason, model = null) {
   }
 }
 
+// The whole schema, or it is not a review (Codex review, 2026-09-22): a missing
+// `findings` read as `[]` and certified clean, and so did a string.
+const FINDING_TEXT = ['file', 'problem', 'impact', 'evidence', 'minimal_fix']
+export function validReview(parsed) {
+  if (!parsed || typeof parsed !== 'object' || !REVIEW_STATUS.has(parsed.status) || !Array.isArray(parsed.findings)) return false
+  const wellFormed = parsed.findings.every(finding => finding && typeof finding === 'object'
+    && FINDING_TEXT.every(key => typeof finding[key] === 'string')
+    && (finding.severity === 'blocking' || finding.severity === 'advisory'))
+  if (!wellFormed) return false
+  const blocking = parsed.findings.some(finding => finding.severity === 'blocking')
+  if (parsed.status === 'blocking') return blocking
+  if (parsed.status === 'clean') return !blocking
+  return true
+}
+
 export function reviewFromOutput(text, { host, model = null, effort = null } = {}) {
   const parsed = jsonObject(text)
-  if (!parsed || !REVIEW_STATUS.has(parsed.status)) {
+  if (!validReview(parsed)) {
     return unavailable(host, effort, 'the host did not return the review schema', model)
   }
   const printed = typeof parsed.model === 'string' && parsed.model.trim() ? parsed.model.trim() : null
@@ -34,7 +49,7 @@ export function reviewFromOutput(text, { host, model = null, effort = null } = {
     model: printed ?? model,
     effort,
     bound: printed ? 'reported' : 'unproven',
-    findings: Array.isArray(parsed.findings) ? parsed.findings : [],
+    findings: parsed.findings,
     reason: typeof parsed.reason === 'string' ? parsed.reason : '',
   }
 }
@@ -70,22 +85,36 @@ export function resolveCursorAgent(which = commandWhich) {
   return which('agent')
 }
 
-const REVIEW_PROMPT = 'Reply with one JSON object {status, findings, model} and nothing else. status is clean, blocking, evidence-limited, or unavailable.'
+// A host that is not told what to review has not reviewed it (Codex review,
+// 2026-09-22): the first prompt named only the reply format.
+export function reviewPrompt({ repo, scope, requirements = '', evidence = '' }) {
+  return [
+    'You are an assigned read-only leaf reviewer. Do not edit, stage, commit, push, or start another review session.',
+    `Repository: ${JSON.stringify(repo)}. Scope: ${JSON.stringify(scope)}.`,
+    'Inspect exactly that scope, read-only: for "uncommitted", `git status --short`, `git diff HEAD` and every untracked path; for "commit <sha>", `git show <sha>`; for "base <ref>", `git diff <ref>...HEAD`.',
+    `Requirements: ${JSON.stringify(requirements || 'use repository-owned acceptance criteria')}.`,
+    `Caller-observed evidence (immutable): ${evidence || 'none supplied'}.`,
+    'Reply with one JSON object {status, findings, model} and nothing else. status is clean, blocking, evidence-limited, or unavailable.',
+    'Each finding is {file, line, problem, impact, evidence, minimal_fix, severity}, severity blocking or advisory.',
+  ].join('\n')
+}
 
-export function hostReview({ host, effort = 'high', model = null, repo, resolve, run = spawnSync, output } = {}) {
+export function hostReview({ host, effort = 'high', model = null, repo, scope, requirements, evidence, resolve, run = spawnSync, output } = {}) {
   if (host === 'pi') return unavailable('pi', null, PI_UNMEASURED)
-  if (host === 'cursor') return runCursor({ model, repo, resolve: resolve ?? resolveCursorAgent, run, output })
+  const target = { repo, scope, requirements, evidence }
+  if (host === 'cursor') return runCursor({ model, target, resolve: resolve ?? resolveCursorAgent, run, output })
   if (host !== 'codex') return unavailable(host ?? null, null, 'unknown host')
   if (!EFFORTS.has(effort)) return unavailable('codex', effort, 'effort is not high, xhigh, or ultra', CODEX_MODEL)
   if (output !== undefined) return reviewFromOutput(output, { host: 'codex', model: CODEX_MODEL, effort })
   const bin = (resolve ?? resolveCodex)()
   if (!bin) return unavailable('codex', effort, 'codex binary is absent', CODEX_MODEL)
-  if (typeof repo !== 'string' || !repo) return unavailable('codex', effort, 'no repository was named', CODEX_MODEL)
+  const missing = missingTarget(target)
+  if (missing) return unavailable('codex', effort, missing, CODEX_MODEL)
   const child = run(bin, [
     'exec', '-C', repo, '-s', 'read-only',
     '-m', CODEX_MODEL, '-c', `model_reasoning_effort="${effort}"`,
     '-c', 'sandbox_mode="read-only"', '--ephemeral',
-    `CODEX-REVIEW-LEAF: ${REVIEW_PROMPT}`,
+    `CODEX-REVIEW-LEAF: ${reviewPrompt(target)}`,
   ], { encoding: 'utf8', timeout: 600_000 })
   if (!child || child.error || child.status !== 0) {
     return unavailable('codex', effort, child?.error?.message ?? `codex exited ${child?.status}`, CODEX_MODEL)
@@ -93,14 +122,21 @@ export function hostReview({ host, effort = 'high', model = null, repo, resolve,
   return reviewFromOutput(child.stdout, { host: 'codex', model: CODEX_MODEL, effort })
 }
 
-function runCursor({ model, repo, resolve, run, output }) {
+function missingTarget({ repo, scope }) {
+  if (typeof repo !== 'string' || !repo) return 'no repository was named'
+  if (typeof scope !== 'string' || !scope.trim()) return 'no review scope was named'
+  return null
+}
+
+function runCursor({ model, target, resolve, run, output }) {
   if (output !== undefined) return reviewFromOutput(output, { host: 'cursor', model, effort: null })
   const bin = resolve()
   if (!bin) return unavailable('cursor', null, 'cursor agent binary is absent', model)
-  if (typeof repo !== 'string' || !repo) return unavailable('cursor', null, 'no repository was named', model)
-  const args = ['-p', '--output-format', 'json', '--mode', 'ask', '--sandbox', 'enabled', REVIEW_PROMPT]
+  const missing = missingTarget(target)
+  if (missing) return unavailable('cursor', null, missing, model)
+  const args = ['-p', '--output-format', 'json', '--mode', 'ask', '--sandbox', 'enabled', reviewPrompt(target)]
   if (typeof model === 'string' && model.trim()) args.splice(args.length - 1, 0, '--model', model.trim())
-  const child = run(bin, args, { encoding: 'utf8', timeout: 600_000, cwd: repo })
+  const child = run(bin, args, { encoding: 'utf8', timeout: 600_000, cwd: target.repo })
   if (!child || child.error || child.status !== 0) {
     return unavailable('cursor', null, child?.error?.message ?? `agent exited ${child?.status}`, model)
   }
@@ -115,6 +151,7 @@ function arg(name) {
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const result = hostReview({
     host: arg('--host'), effort: arg('--effort') ?? 'high', model: arg('--model') ?? null, repo: arg('--repo'),
+    scope: arg('--scope'), requirements: arg('--requirements') ?? '', evidence: arg('--evidence') ?? '',
   })
   process.stdout.write(`${JSON.stringify(result)}\n`)
   process.exit(result.status === 'unavailable' ? 2 : 0)

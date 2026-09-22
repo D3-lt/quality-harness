@@ -56,15 +56,14 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of  # noqa: E402
+from record import first_number_id, looks_like_record, record_id, references_in, title_line  # noqa: E402
 
 
-ADR_ID_RE = re.compile(r"(?<!\w)ADR-?(\d+)(?!\w)", re.I)
 PLACEHOLDERS = {"", "none", "none.", "_none._", "(empty at authoring)"}
 
 
-def normalize_id(value):
-    match = ADR_ID_RE.search(value)
-    return f"ADR-{int(match.group(1)):03d}" if match else None
+def _read(path):
+    return path.read_text(errors="replace", encoding="utf-8")
 
 
 def disposition_span(text):
@@ -139,38 +138,67 @@ def is_accepted_status(status):
     return status.strip().casefold() == "accepted"
 
 
-def adr_files(root):
+def adr_files(root, unidentified=None):
+    """Every record under `root`, keyed by its ADR-063 identity.
+
+    A file is a record when its name starts `ADR-` (the glob this gate used before
+    ADR-063, kept so a numbered corpus reads exactly as it did) or when its content
+    reads as one: a Status line and a `## Context` or `## Decision`. That second arm
+    is what finds `012-slug.md` and `2026-07-15-slug.md`. A file the content test
+    admits but no rule identifies is appended to `unidentified`, so the caller can
+    say so; it is never counted and never silently dropped (ADR-005).
+    """
     records = {}
-    for path in sorted(root.rglob("ADR-*.md")):
-        if "tasks" in {part.lower() for part in path.parts}:
+    for path in sorted(root.rglob("*.md")):
+        relative = path.relative_to(root)
+        if "tasks" in {part.lower() for part in relative.parts[:-1]} or path.name.lower() == "readme.md":
             continue
-        adr_id = normalize_id(path.name)
-        if adr_id:
-            records.setdefault(adr_id, []).append(path)
+        named = path.name.startswith("ADR-")
+        text = _read(path)
+        if not named and not looks_like_record(text):
+            continue
+        adr_id = record_id(path.name, title_line(text))
+        if adr_id is None:
+            if not named and unidentified is not None:
+                unidentified.append(path)
+            continue
+        records.setdefault(adr_id, []).append(path)
     return records
 
 
-def adr_id_for_file(path):
-    first = path.read_text(errors="replace", encoding="utf-8").splitlines()[:2]
-    found = normalize_id(" ".join(first))
+def adr_id_for_file(path, root, known=frozenset()):
+    """Which record a file belongs to (ADR-063): its own heading first (its
+    first two lines, as before), then a record whose stem it extends
+    (`<stem>.queries.md`), then its own name, then the nearest directory below
+    `root` whose name carries an id. The walk stops at `root`: a directory
+    above the corpus says nothing about a file in it."""
+    text = _read(path)
+    found = first_number_id(" ".join(text.splitlines()[:2]))
     if found:
         return found
-    for part in reversed(path.parts):
-        found = normalize_id(part)
+    stem = path.name[:-len(".md")] if path.name.lower().endswith(".md") else path.name
+    for adr_id in known:
+        if not adr_id.startswith("ADR-") and stem.startswith(f"{adr_id}."):
+            return adr_id
+    found = record_id(path.name, title_line(text))
+    if found:
+        return found
+    for part in reversed(path.relative_to(root).parent.parts):
+        found = record_id(part)
         if found:
             return found
     return None
 
 
-def meaningful_obligations(root):
+def meaningful_obligations(root, known=frozenset()):
     counts = Counter()
     for path in sorted(root.rglob("*.md")):
         if path.resolve() == (root / "README.md").resolve():
             continue
-        adr_id = adr_id_for_file(path)
+        adr_id = adr_id_for_file(path, root, known)
         if not adr_id:
             continue
-        sections = sections_of(path.read_text(errors="replace", encoding="utf-8"))
+        sections = sections_of(_read(path))
         for line in sections.get("Out of Scope", []):
             # An obligation is COUNTED, not resolved, so anything after the colon
             # counts — `(deferred: )` included, which is still an obligation
@@ -185,17 +213,11 @@ def meaningful_obligations(root):
     return counts
 
 
-def adr_ids_in(text):
-    return {
-        normalize_id(match.group(0))
-        for match in re.finditer(r"(?<![A-Za-z0-9_])ADR-\d+(?![A-Za-z0-9_])", text, re.I)
-    }
-
-
 def receipt_count(lines, adr_id):
+    """Unchecked BACKLOG lines naming `adr_id`, by ADR-063's reference rule."""
     return sum(
         1 for line in lines
-        if re.match(r"^\s*- \[ \]", line) and adr_id in adr_ids_in(line)
+        if re.match(r"^\s*- \[ \]", line) and adr_id in references_in(line)
     )
 
 
@@ -241,16 +263,21 @@ def catalog_rows(readme, errors):
         if len(cells) != 7:
             errors.advise(f"archive catalog row needs 7 cells: {line[:100]}")
             continue
-        adr_id = normalize_id(cells[0])
+        link = re.search(r"\[[^]]+\]\(([^)]+)\)", cells[0])
+        target = link.group(1).split("#", 1)[0] if link else ""
+        # The id is an ADR token in the cell, or else the record the link names
+        # (ADR-063): `[2026-07-15-x](2026-07-15-x/2026-07-15-x.md)` has no token.
+        adr_id = first_number_id(cells[0])
+        if not adr_id and target:
+            adr_id = record_id(re.split(r"[/\\]", target)[-1])
         if not adr_id:
-            errors.append(f"archive catalog row has no ADR id: {line[:100]}")
+            errors.append(f"archive catalog row has no ADR id or record stem: {line[:100]}")
             continue
         if adr_id in rows:
             errors.append(f"archive catalog lists {adr_id} more than once")
             continue
-        link = re.search(r"\[[^]]+\]\(([^)]+)\)", cells[0])
         rows[adr_id] = {
-            "link": link.group(1).split("#", 1)[0] if link else "",
+            "link": target,
             "title": cells[1],
             "effect": cells[2],
             "retired": cells[3],
@@ -273,12 +300,12 @@ def contained(child, parent):
     return child == parent or parent in child.parents
 
 
-def decision_unit_files(archive_root, adr_id, source):
+def decision_unit_files(archive_root, adr_id, source, known=frozenset()):
     if source.parent != archive_root:
         return sorted(path for path in source.parent.rglob("*") if path.is_file())
     files = {source}
     for path in archive_root.rglob("*"):
-        if path.is_file() and path.name != "README.md" and adr_id_for_file(path) == adr_id:
+        if path.is_file() and path.name != "README.md" and adr_id_for_file(path, archive_root, known) == adr_id:
             files.add(path)
     return sorted(files)
 
@@ -302,9 +329,9 @@ def canonical_bytes(raw):
     return raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
 
 
-def decision_unit_digest(archive_root, adr_id, source):
+def decision_unit_digest(archive_root, adr_id, source, known=frozenset()):
     digest = hashlib.sha256()
-    for path in decision_unit_files(archive_root, adr_id, source):
+    for path in decision_unit_files(archive_root, adr_id, source, known):
         digest.update(path.relative_to(archive_root).as_posix().encode())
         digest.update(b"\0")
         digest.update(canonical_bytes(path.read_bytes()))
@@ -359,7 +386,7 @@ def adoption_report(active_root, archive_root):
             if paths[0].resolve() not in linked:
                 errors.append(f"accepted archived {adr_id} has no exact active-catalog link")
 
-    obligations = meaningful_obligations(archive_root)
+    obligations = meaningful_obligations(archive_root, frozenset(active_records) | frozenset(archive_records))
     backlog = active_root / "BACKLOG.md"
     backlog_text = backlog.read_text(errors="replace", encoding="utf-8") if backlog.is_file() else ""
     backlog_lines = sections_of(backlog_text).get("Follow-ups", [])
@@ -504,8 +531,13 @@ def main():
             else:
                 resolved_active_links.add(target.resolve())
 
-    archive_records = adr_files(archive_root)
-    active_records = adr_files(active_root) if active_root and active_root.is_dir() else {}
+    unidentified = []
+    archive_records = adr_files(archive_root, unidentified)
+    active_records = adr_files(active_root, unidentified) if active_root and active_root.is_dir() else {}
+    known = frozenset(active_records) | frozenset(archive_records)
+    for path in unidentified:
+        errors.advise(f"{path.relative_to(archive_root.parent).as_posix()}: reads as a record (a Status line and "
+                      f"a ## Context or ## Decision) but carries no ADR number and no dated name, so it is not counted")
     for adr_id in sorted(set(active_records) | set(archive_records)):
         all_paths = active_records.get(adr_id, []) + archive_records.get(adr_id, [])
         if len(all_paths) != 1:
@@ -517,7 +549,7 @@ def main():
     for adr_id in sorted(set(rows) - set(archive_records)):
         errors.append(f"archive catalog lists {adr_id}, but no archived ADR file exists")
 
-    obligations = meaningful_obligations(archive_root)
+    obligations = meaningful_obligations(archive_root, known)
     governing = set()
     replacements = {}
     for adr_id, row in sorted(rows.items()):
@@ -534,15 +566,24 @@ def main():
             else:
                 errors.append(
                     f"{adr_id}: archived governing decision is not Accepted")
-        elif re.fullmatch(r"superseded by ADR-\d+", row["effect"], re.I):
-            replacements[adr_id] = normalize_id(row["effect"])
+        elif effect.startswith("superseded by "):
+            # ADR-063: the replacement is an ADR id or a dated record, named by
+            # the reference rule. A date beside a path, `(2026-07-12)`, names no
+            # record, so only the names that ARE records count; none, or more
+            # than one, is reported below as a replacement that does not exist.
+            named = references_in(row["effect"][len("superseded by "):])
+            if not named:
+                errors.append(f"{adr_id}: bad Decision effect '{row['effect']}'")
+            else:
+                hits = sorted(named & known)
+                replacements[adr_id] = hits[0] if len(hits) == 1 else ", ".join(hits or sorted(named))
         elif effect != "withdrawn":
             errors.append(f"{adr_id}: bad Decision effect '{row['effect']}'")
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", row["retired"]):
             errors.advise(f"{adr_id}: Retired must be YYYY-MM-DD")
         if not row["reason"] or row["reason"].startswith("<"):
             errors.append(f"{adr_id}: retirement Reason is empty or a placeholder")
-        digest = decision_unit_digest(archive_root, adr_id, source)
+        digest = decision_unit_digest(archive_root, adr_id, source, known)
         if row["digest"] != digest:
             errors.append(f"{adr_id}: SHA-256 does not match the frozen decision unit")
 

@@ -9044,6 +9044,76 @@
       ],
       "from": "  for (let depth = 0; depth < dirParts.length; depth++) {",
       "to": "  for (let depth = 1; depth < dirParts.length; depth++) {"
+    },
+    {
+      "label": "ADR-063: a date-shaped name is its stem, not a number",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-slug archive passes",
+      "from": "        return stem",
+      "to": "        return None"
+    },
+    {
+      "label": "ADR-063: a date-shaped name is never read as a record number",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-shaped name never yields",
+      "from": "    if DATE_SHAPED_RE.match(shaped):",
+      "to": "    if False and DATE_SHAPED_RE.match(shaped):"
+    },
+    {
+      "label": "ADR-063: a receipt names a dated record by stem",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-slug archive passes",
+      "from": "                found.add(part)",
+      "to": "                pass"
+    },
+    {
+      "label": "ADR-063: a receipt names a record only as a whole token",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a reference names a record only as a whole token",
+      "from": "and adr_id in references_in(line)",
+      "to": "and adr_id in line"
+    },
+    {
+      "label": "ADR-063: a supersession may name a dated record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-slug archive passes",
+      "from": "hits = sorted(named & known)",
+      "to": "hits = sorted(named & {k for k in known if k.startswith(\"ADR-\")})"
+    },
+    {
+      "label": "ADR-063: a record is found by its content, not only by an ADR- name",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "an NNN-slug archive keeps",
+      "from": "if not named and not looks_like_record(text):",
+      "to": "if not named:"
+    },
+    {
+      "label": "ADR-063: an admitted file with no identity is named, not dropped",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a file with no identity is advice",
+      "from": "unidentified.append(path)",
+      "to": "pass"
     }
   ]
 }

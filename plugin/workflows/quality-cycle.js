@@ -59,7 +59,18 @@ const reviewerTasks = [
 
 const requested = [...(codex === true ? ['codex'] : []), ...(A.pi === true ? ['pi'] : []), ...(A.cursor === true ? ['cursor'] : [])]
 const externalReviews = Array.isArray(A.externalReviews) ? A.externalReviews : []
-if (requested.some(host => !externalReviews.some(review => review?.host === host))) {
+// A host result must BE a review: the REVIEW schema, with a host. `{host}` alone
+// satisfied "a result was passed" and the cycle went on to certify clean (Codex
+// review, 2026-09-22). host-review.mjs applies the same rule before it returns.
+const FINDING = REVIEW.properties.findings.items
+const wellFormed = review => review && typeof review === 'object' && typeof review.host === 'string'
+  && REVIEW.properties.status.enum.includes(review.status) && Array.isArray(review.findings)
+  && review.findings.every(finding => finding && typeof finding === 'object'
+    && FINDING.required.every(key => key === 'severity'
+      ? FINDING.properties.severity.enum.includes(finding.severity)
+      : typeof finding[key] === 'string'))
+if (!externalReviews.every(wellFormed)
+    || requested.some(host => !externalReviews.some(review => review.host === host))) {
   return { status: 'reviewer-unavailable', evidence, reviews: externalReviews }
 }
 

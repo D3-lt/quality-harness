@@ -8177,8 +8177,8 @@
       "tests": [
         "tests/workflows.test.mjs"
       ],
-      "from": "if (!externalReviews.every(wellFormed)",
-      "to": "if (false"
+      "from": "const malformed = externalReviews.filter(review => !wellFormed(review)).length",
+      "to": "const malformed = 0"
     },
     {
       "label": "routing: the documented host-review command names the repository",
@@ -8205,8 +8205,17 @@
         "tests/routing-stress.test.mjs",
         "tests/workflows.test.mjs"
       ],
-      "from": "    || requested.some(host => !externalReviews.some(review => review.host === host))) {",
-      "to": "    || false) {"
+      "from": "const missingHosts = requested.filter(host => !externalReviews.some(review => wellFormed(review) && review.host === host))",
+      "to": "const missingHosts = []"
+    },
+    {
+      "label": "quality-cycle: an unavailable cycle says which host result is missing and what to run",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "  return { status: 'reviewer-unavailable', reason: reasons.join('; '), evidence, reviews: externalReviews }",
+      "to": "  return { status: 'reviewer-unavailable', evidence, reviews: externalReviews }"
     },
     {
       "label": "host-review: a missing cursor agent is not a clean review",

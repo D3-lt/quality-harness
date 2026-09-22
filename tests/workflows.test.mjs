@@ -182,6 +182,39 @@ test('quality-cycle is unavailable when a requested host result is not the revie
   assert.equal(control.status, 'clean')
 })
 
+// Reported by a peer on 2026-09-22: `codex: true` with no externalReviews
+// returned reviewer-unavailable in milliseconds, with no reason, while the
+// Skill listing still advertised `codex` as the whole argument. From outside
+// that reads as "review is impossible", which invites shipping unreviewed.
+test('a requested host with no result says what to run, and the listing names externalReviews', async () => {
+  const source = await readFile(qualityCycle, 'utf8')
+  const whenToUse = source.split('whenToUse:')[1]?.split('\n')[0] ?? ''
+  assert.match(whenToUse, /externalReviews/)
+  assert.match(whenToUse, /host-review\.mjs/)
+
+  const missing = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true,
+  }, async () => { throw new Error('no reviewer may start') })
+  assert.equal(missing.status, 'reviewer-unavailable')
+  assert.match(missing.reason, /codex/)
+  assert.match(missing.reason, /host-review\.mjs --host codex/)
+  assert.match(missing.reason, /externalReviews/)
+
+  const malformed = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true, externalReviews: [{ host: 'codex' }],
+  }, async () => { throw new Error('no reviewer may start') })
+  assert.equal(malformed.status, 'reviewer-unavailable')
+  assert.match(malformed.reason, /not the review schema/)
+
+  // A reviewer that answers unavailable is named too, not only a missing host.
+  const replies = [{ status: 'clean', findings: [] }, { status: 'unavailable', findings: [], notes: 'reviewer failed' }]
+  const silent = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence,
+  }, async () => replies.shift())
+  assert.equal(silent.status, 'reviewer-unavailable')
+  assert.match(silent.reason, /reviewer/)
+})
+
 test('Codex review and advice skills mark spawned sessions as non-recursive leaves', async () => {
   const review = await readFile(path.join(bundledSkills, 'codex-review/SKILL.md'), 'utf8')
   const advise = await readFile(path.join(bundledSkills, 'codex-advise/SKILL.md'), 'utf8')

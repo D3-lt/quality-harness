@@ -185,6 +185,88 @@ test('a project can turn the publish refusal back into a warning, and only on pu
   }
 })
 
+// Codex review round 2, 2026-09-22: only the TREE's standing decides a refusal.
+// An index whose check timed out must not rescue a working tree that failed.
+test('an index that could not be checked does not rescue a failed working tree', () => {
+  const dir = repository('index-timeout-')
+  writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = 'fail-open-index-timeout-' + process.pid
+  hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+  writeFileSync(path.join(dir, 'a.md'), 'staged\n')
+  git(dir, 'add', 'a.md')
+  const staged = lifecycle.observe(dir)
+  writeFileSync(path.join(dir, 'a.md'), 'working tree differs\n')
+  const working = lifecycle.observe(dir)
+  assert.notEqual(staged.tree, working.tree)
+  const at = new Date().toISOString()
+  const record = (id, observation, extra) => JSON.stringify({
+    id, at, git: true, command: 'sh check.sh', origin: 'declared',
+    before: { ...observation, at }, after: { ...observation, at }, exit: 1, signal: null, verdict: 'failed', ...extra,
+  })
+  appendFileSync(path.join(lifecycle.stateDir(dir), 'checks.jsonl'),
+    `${record('index-timeout', staged, { exit: null, signal: 'SIGTERM' })}\n${record('tree-failed', working, {})}\n`)
+  const run = hook(dir, {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+    tool_input: { command: 'git commit -m staged' },
+  })
+  assert.equal(decision(run), 'deny', run.stdout)
+  assert.doesNotMatch(hookSaid(run.stdout, run.stderr).text, /could not observe/)
+})
+
+// Codex review round 2 (F4): after a pass, a later check that could not look must
+// not be reported by the session note or R1 as "no check has passed".
+test('a check that could not look is not reported as no check passing', () => {
+  const tree = 'tree-1'
+  const log = whole([
+    { event: 'session.started', observation: { ok: true, tree: 'tree-0', index: 'i0', head: 'h0' } },
+    { event: 'check.passed', after: { tree }, seq: 1, record: 'a', command: 'sh check.sh' },
+    { event: 'check.timeout', after: { tree }, seq: 2, record: 'b', command: 'sh check.sh' },
+  ])
+  const facts = lifecycle.observedFacts(log, null, { ok: true, tree, index: 'i1', head: 'h1' })
+  const note = lifecycle.sessionStateNote({ ...facts, files: ['/x/a.md'] }, '/x', '/x', true, new Date('2026-09-22T00:00:00.000Z'), { tasks: false })
+  assert.match(note.text, /could not observe/)
+  assert.doesNotMatch(note.text, /no `qh-check` has passed/)
+
+  const dir = repository('stop-couldnot-')
+  writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = 'fail-open-stop-couldnot-' + process.pid
+  hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+  writeFileSync(path.join(dir, 'a.md'), 'edited\n')
+  const passed = spawnSync('python3', [qhCheck], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(passed.status, 0, passed.stderr)
+  const now = lifecycle.observe(dir)
+  const at = new Date().toISOString()
+  appendFileSync(path.join(lifecycle.stateDir(dir), 'checks.jsonl'), `${JSON.stringify({
+    id: 'later-timeout', at, git: true, command: 'sh check.sh', origin: 'declared',
+    before: { ...now, at }, after: { ...now, at }, exit: null, signal: 'SIGTERM', verdict: 'failed',
+  })}\n`)
+  const stop = hook(dir, { hook_event_name: 'Stop', session_id: session })
+  const said = hookSaid(stop.stdout, stop.stderr).text
+  assert.match(said, /could not observe/)
+  assert.doesNotMatch(said, /no `qh-check` has passed/)
+})
+
+// Codex review round 2 (F2): a count that was TAKEN and failed is unknown, not
+// legacy. Such a write stays outstanding; only an absent field falls back.
+test('a write whose check count failed stays outstanding', () => {
+  const unknownCount = whole([
+    { event: 'file.written', observable: false, path: 'a', checksSeen: null },
+    { event: 'check.passed', seq: 1, record: 'a' },
+  ])
+  assert.equal(lifecycle.unobservableWrites(unknownCount).length, 1)
+  const legacy = whole([
+    { event: 'file.written', observable: false, path: 'a' },
+    { event: 'check.passed', seq: 1, record: 'a' },
+  ])
+  assert.equal(lifecycle.unobservableWrites(legacy).length, 0)
+})
+
 // Codex review, 2026-09-22 (F1): a later check that could not look is not a
 // failure. It must not turn an earlier pass into a refusal.
 test('a check that could not look after a pass warns and does not refuse', () => {

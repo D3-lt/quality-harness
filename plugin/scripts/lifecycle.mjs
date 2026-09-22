@@ -2081,8 +2081,11 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
       : pending || !passed ? 'unverified' : 'verified'
   const parts = []
   const unordered = facts?.treeOrder === 'unresolved'
+  // A check that could not look after a pass is not "no check passed" (ADR-061).
+  const unobserved = facts?.treeOrder === 'could-not-look'
   if (files.length && observed) {
     const verdict = unordered ? 'which check ran last on this tree could not be established'
+      : unobserved ? 'the latest `qh-check` on this tree could not observe it, so it is not known to be checked'
       : pending ? 'no `qh-check` has passed on them'
       : passed ? `a \`qh-check\` passed on them${facts?.checkOrigin === 'inferred'
         ? ` — using an INFERRED check (\`${facts.checkCommand ?? 'unknown'}\`), guessed from a manifest and not declared, so it may not be this project's whole gate; declare the real command as \`check\` in .quality-harness.json`
@@ -2098,7 +2101,9 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   } else if (pending) {
     parts.push(unordered
       ? 'nothing is uncommitted, and which check ran last on the tree at HEAD could not be established.'
-      : 'nothing is uncommitted, and the tree at HEAD is one no `qh-check` has passed on.')
+      : unobserved
+        ? 'nothing is uncommitted, and the latest `qh-check` on the tree at HEAD could not observe it.'
+        : 'nothing is uncommitted, and the tree at HEAD is one no `qh-check` has passed on.')
   } else {
     parts.push(late
       ? 'nothing has changed in the working tree since this plugin began watching — which was partway through this '
@@ -3141,8 +3146,12 @@ function publishUnchecked(input, requested) {
   const treeUnchecked = treeStanding !== 'passed' && (baseline?.ok !== true || now.tree !== baseline.tree)
   const indexUnchecked = indexStanding !== 'passed' && (baseline?.ok !== true || now.index !== baseline.index)
   if (!treeUnchecked && !indexUnchecked) return
-  const unordered = treeStanding === 'unresolved' || indexStanding === 'unresolved'
-  const couldNotLook = treeStanding === 'could-not-look' || indexStanding === 'could-not-look'
+  // ⚠ THE TREE'S STANDING DECIDES THE REFUSAL, and only the tree's. An index whose
+  // check could not look is a finding about the index; folding it in here let it
+  // rescue a working tree that FAILED (Codex review round 2, 2026-09-22).
+  const unordered = treeStanding === 'unresolved'
+  const couldNotLook = treeStanding === 'could-not-look'
+  const indexUnknown = indexStanding === 'unresolved' || indexStanding === 'could-not-look'
   const revision = checkRevision(log, now.tree)
   const key = `${now.tree}:${now.index}:${revision}`
   // A denial has to happen on every attempt. Saying it once and then allowing
@@ -3173,6 +3182,8 @@ function publishUnchecked(input, requested) {
             ? 'quality-harness: this repository is unchecked — the check declared in .quality-harness.json is a constant success and was refused — and the command '
             : !treeUnchecked && treeStanding === 'passed'
               ? 'quality-harness: the staged index is unchecked — `qh-check` passed on the working tree, but the index holds different content (a partial stage, or files the check saw that are not staged) — and the command '
+            : !treeUnchecked && indexUnknown
+              ? 'quality-harness: the staged index is not known to be checked — the working tree is unchanged since the session started, but the index has moved and whether a `qh-check` passed on the staged content cannot be established — and the command '
             : !treeUnchecked
               ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
               : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
@@ -3313,13 +3324,16 @@ function namedByPublish(log, tree, revision) {
 // append a pass that was recorded BEFORE the write after it (Codex review,
 // 2026-09-22). So a write that counted the check records it saw is covered only
 // by a pass with a higher `seq`. A write that could not count them falls back to
-// log position. An incomplete log leaves every such write outstanding.
+// log position. A count that was TAKEN and failed (`checksSeen: null`) is unknown,
+// not legacy: that write stays outstanding (Codex review round 2). An incomplete
+// log leaves every such write outstanding.
 export function unobservableWrites(log) {
   const writes = (entry) => entry.event === 'file.written' && entry.observable === false
   if (logIncomplete(log)) return log.filter(writes)
   return log.filter((entry, index) => writes(entry) && !log.some((later, at) => at > index
     && later.event === 'check.passed'
-    && (!Number.isInteger(entry.checksSeen) || (Number.isInteger(later.seq) && later.seq > entry.checksSeen))))
+    && (entry.checksSeen === undefined
+      || (Number.isInteger(entry.checksSeen) && Number.isInteger(later.seq) && later.seq > entry.checksSeen))))
 }
 
 // The evidence revision where nothing can be observed: every check event is one,
@@ -3411,7 +3425,7 @@ function unseenPathNote(count) {
 // as the old commit-loop shape surviving in a quieter form. R2 is silent for
 // that commit on purpose (its tree is the observed tree, which is R1's to speak
 // for), so R1 is the one that has to say the commit.
-function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = false, orderUnknown = false } = {}) {
+function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = false, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = paths.slice(0, 8)
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   const listed = paths.length
@@ -3419,7 +3433,9 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
     : held
       ? (orderUnknown
         ? `Nothing is uncommitted: which check ran last on the tree at HEAD could not be established; it was committed as ${held}.`
-        : `Nothing is uncommitted: what no \`qh-check\` has passed on is the tree at HEAD, committed as ${held}.`)
+        : couldNotLook
+          ? `Nothing is uncommitted: the latest \`qh-check\` on the tree at HEAD could not observe it; it was committed as ${held}.`
+          : `Nothing is uncommitted: what no \`qh-check\` has passed on is the tree at HEAD, committed as ${held}.`)
       : 'Git reports no changed path in the working tree.'
   // ⚠ A TORN LOG CANNOT SUPPORT "NO CHECK HAS", ONLY "NONE CAN BE SHOWN". Since a
   // surviving record no longer certifies (`latestCheckFor`), this rule fires on a
@@ -3432,6 +3448,8 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
       + 'so whether `qh-check` succeeded on it cannot be shown.'
     : orderUnknown
       ? 'which check ran last on this turn\'s work could not be established, so it is not known to be checked.'
+      : couldNotLook
+        ? 'the latest `qh-check` on this turn\'s work could not observe it (it timed out, did not start, or its observation failed), so it is not known to be checked.'
       : paths.length || !held
         ? 'this turn ends with work no `qh-check` has passed on.'
         : 'this turn ends on an unchecked tree.'
@@ -3445,7 +3463,7 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
 // git for the check command again. Dedupe stays per commit and evidence revision
 // (ADR-060's key), carried in the action's detail.
 const NAMED_COMMIT_LIMIT = 5
-function uncheckedCommitsReason(cwd, commits, { logTorn = false, orderUnknown = false } = {}) {
+function uncheckedCommitsReason(cwd, commits, { logTorn = false, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
   const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
   const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
@@ -3457,11 +3475,13 @@ function uncheckedCommitsReason(cwd, commits, { logTorn = false, orderUnknown = 
       + 'is UNKNOWN — this session\'s log could not be read whole, and the record of a pass may be among what was lost:'
     : orderUnknown
       ? `which check ran last on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} could not be established:`
+      : couldNotLook
+        ? `the latest \`qh-check\` on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} could not observe it:`
       : commits.length === 1
         ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
         : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`
   return `quality-harness: ${head}\n${listed}${rest}\nThis says they are reachable from HEAD and `
-    + `${logTorn || orderUnknown ? 'not known to be checked' : 'unchecked'}, not that this session authored them. ${runTheCheckSentence(cwd)}`
+    + `${logTorn || orderUnknown || couldNotLook ? 'not known to be checked' : 'unchecked'}, not that this session authored them. ${runTheCheckSentence(cwd)}`
 }
 
 function couldNotLookReason(cwd, reason) {
@@ -3659,7 +3679,7 @@ function completionRules(input, ended) {
     if (!emittedFor(log, 'R1', key)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
-      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor, { logTorn: logIncomplete(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved' }) })
+      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor, { logTorn: logIncomplete(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look' }) })
     }
   }
   const unchecked = commits.filter(commit => {
@@ -3675,7 +3695,7 @@ function completionRules(input, ended) {
     const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
     queueAction({
       rule: 'R2', key: keys.join(' '), detail: { commits: keys },
-      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved') }),
+      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),
     })
   }
   if (observation?.ok !== true || status?.ok === false || commits?.ok === false

@@ -162,7 +162,13 @@ test('quality-cycle cannot synthesize a required evidence-limited review into cl
 test('quality-cycle is unavailable when a requested host result is not the review schema', async () => {
   let calls = 0
   const agent = async () => { calls += 1; return { status: 'clean', findings: [] } }
-  for (const external of [{ host: 'codex' }, { host: 'codex', status: 'clean', findings: 'none' }]) {
+  const blockingFinding = { file: 'a.js', problem: 'p', impact: 'i', evidence: 'a.js:1', minimal_fix: 'f', severity: 'blocking' }
+  for (const external of [
+    { host: 'codex' },
+    { host: 'codex', status: 'clean', findings: 'none' },
+    { host: 'codex', status: 'blocking', findings: [] },
+    { host: 'codex', status: 'clean', findings: [blockingFinding] },
+  ]) {
     const result = await runWorkflow(qualityCycle, {
       repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true, externalReviews: [external],
     }, agent)

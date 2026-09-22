@@ -3331,21 +3331,27 @@ function namedByPublish(log, tree, revision) {
 }
 
 // A write git cannot see stays outstanding until a check.passed in a log that
-// was read whole covers it. A timestamp is not that order: a clock stepping
-// backwards hid the write. Log position alone is not either: the importer can
-// append a pass that was recorded BEFORE the write after it (Codex review,
-// 2026-09-22). So a write that counted the check records it saw is covered only
-// by a pass with a higher `seq`. A write that could not count them falls back to
-// log position. A count that was TAKEN and failed (`checksSeen: null`) is unknown,
-// not legacy: that write stays outstanding (Codex review round 2). An incomplete
-// log leaves every such write outstanding.
+// was read whole covers it, and a pass covers it only when BOTH orders agree.
+// The record order: a write that counted the check records it saw needs a pass
+// with a higher `seq`, because the importer can append an older pass after the
+// write (Codex review, 2026-09-22); a write with no count falls back to log
+// position, and a count that was taken and failed (`checksSeen: null`) is
+// unknown, so that write stays outstanding. And the start order: the pass must
+// have STARTED after the write, because a check that was already running did
+// not see it. Either order alone failed open: the timestamp alone when a clock
+// stepped backwards, the record order alone when a check spanned the write (CI
+// mutation campaign on 0150376). Together, only a clock stepping backwards
+// DURING a check can still hide a write. An incomplete log leaves every such
+// write outstanding.
 export function unobservableWrites(log) {
   const writes = (entry) => entry.event === 'file.written' && entry.observable === false
   if (logIncomplete(log)) return log.filter(writes)
+  const recordedAfter = (write, pass) => write.checksSeen === undefined
+    || (Number.isInteger(write.checksSeen) && Number.isInteger(pass.seq) && pass.seq > write.checksSeen)
+  const startedAfter = (write, pass) => typeof write.at !== 'string' || typeof pass.startedAt !== 'string'
+    || pass.startedAt > write.at
   return log.filter((entry, index) => writes(entry) && !log.some((later, at) => at > index
-    && later.event === 'check.passed'
-    && (entry.checksSeen === undefined
-      || (Number.isInteger(entry.checksSeen) && Number.isInteger(later.seq) && later.seq > entry.checksSeen))))
+    && later.event === 'check.passed' && recordedAfter(entry, later) && startedAfter(entry, later)))
 }
 
 // The evidence revision where nothing can be observed: every check event is one,

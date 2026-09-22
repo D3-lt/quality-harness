@@ -2179,6 +2179,40 @@ def main():
     blocking, advice = pointers("# ADR-999: no headers at all\n")
     assert not blocking and not advice, "a record without these headers must be unchanged"
 
+
+    # A RETIRED RECORD IS STILL A RECORD. Found the day this corpus first retired
+    # one: ADR-060 cites the three it superseded, `adr-retire` had moved them to the
+    # sibling archive, and every citation read as "not a record in this corpus" —
+    # so the act of retiring a decision made the decision that retired it look
+    # broken. Citation only: `record_files` stays the ACTIVE corpus, because a
+    # task must not be able to depend on a frozen one.
+    with tempfile.TemporaryDirectory() as scratch:
+        top = Path(scratch)
+        (top / "docs" / "adr").mkdir(parents=True)
+        (top / "docs" / "adr-archive").mkdir(parents=True)
+        (top / "docs" / "notes").mkdir(parents=True)
+        (top / "docs" / "adr" / "ADR-002-current.md").write_text("# ADR-002: current\n", encoding="utf-8")
+        (top / "docs" / "adr-archive" / "README.md").write_text(
+            "# ADR Archive\n\n**Lifecycle:** Frozen historical ADR records\n", encoding="utf-8")
+        (top / "docs" / "adr-archive" / "ADR-001-retired.md").write_text("# ADR-001: retired\n", encoding="utf-8")
+        # A sibling that is NOT an archive: a record-shaped name there is not a record.
+        (top / "docs" / "notes" / "README.md").write_text("# Notes\n", encoding="utf-8")
+        (top / "docs" / "notes" / "ADR-003-draft.md").write_text("# ADR-003: a draft\n", encoding="utf-8")
+        listed = ["docs/adr/ADR-002-current.md", "docs/adr-archive/README.md",
+                  "docs/adr-archive/ADR-001-retired.md", "docs/notes/README.md", "docs/notes/ADR-003-draft.md"]
+
+        def cites(number):
+            errs = lint.Findings()
+            lint.check_pointers(f"**Cross-references:** ADR-{number}\n", Path("ADR-999-probe.md"), errs,
+                                top, top / "docs" / "adr", tracked=listed)
+            return [str(a) for a in errs.advice]
+
+        assert not cites("002"), "an active record resolves, as before"
+        assert not cites("001"), f"a record retired to the sibling archive is still a record: {cites('001')}"
+        assert any("ADR-003" in a for a in cites("003")), (
+            "a record-shaped file in a sibling WITHOUT the Lifecycle marker is not a record — "
+            "or every notes directory becomes part of the corpus")
+        assert any("ADR-004" in a for a in cites("004")), "and a number nobody wrote still names nothing"
     # THE COURT OF LAST RESORT: every record in this repository resolves today.
     # A silent check and a check that cannot fire look identical, which is why the
     # dirty cases above are asserted in the same run as this one.

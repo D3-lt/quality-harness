@@ -24,13 +24,13 @@ Every task edits `tests/observed-events.test.mjs` and `plugin/scripts/lifecycle.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Events are named and the tree is observed | pending | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/lifecycle.test.mjs` |
-| T2 | qh-check writes the check event | pending | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/gates.test.mjs tests/package.test.mjs` |
-| T3 | A read-only role cannot commit or push, and its other changes are reported | pending | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/reviewer-guard.test.mjs` |
-| T4 | A command naming commit or push is warned before it runs | pending | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/lifecycle.test.mjs …` |
-| T5 | Completion rules advise once per rule and evidence | pending | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/lifecycle.test.mjs tests/claims-rate.test.mjs tests/statusline.test.mjs` |
-| T6 | Artifacts and notes read observed changes | pending | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/lifecycle.test.mjs tests/staged-product.test.mjs` |
-| T7 | The command classifiers are deleted | pending | none — no spec | `node --test … tests/observed-events.test.mjs` + `bash scripts/selftest.sh` |
+| T1 | Events are named and the tree is observed | done | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/lifecycle.test.mjs` |
+| T2 | qh-check writes the check event | done | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/gates.test.mjs tests/package.test.mjs` |
+| T3 | A read-only role cannot commit or push, and its other changes are reported | done | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/reviewer-guard.test.mjs` |
+| T4 | A command naming commit or push is warned before it runs | done | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/lifecycle.test.mjs …` |
+| T5 | Completion rules advise once per rule and evidence | done | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/lifecycle.test.mjs tests/claims-rate.test.mjs tests/statusline.test.mjs` |
+| T6 | Artifacts and notes read observed changes | done | none — no spec | `node --test … tests/observed-events.test.mjs` + `node --test tests/lifecycle.test.mjs tests/staged-product.test.mjs` |
+| T7 | The command classifiers are deleted | done | none — no spec | `node --test … tests/observed-events.test.mjs` + `bash scripts/selftest.sh` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

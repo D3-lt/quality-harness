@@ -1,9 +1,8 @@
 // BACKLOG §134 — the gates' reading of a session, on the status line.
 //
-// Shown dirty before clean: an unverified transcript renders ✗, a checked one
-// ✓, and an unchanged transcript is NOT analysed twice — a status line renders
-// constantly, and a "cache" that re-reads on every render is a freeze waiting
-// for a large transcript.
+// ADR-060: the input is the session's event log, not the transcript. Shown dirty
+// before clean — an unchecked tree renders ✗, a checked one ✓ — and an unchanged
+// log is NOT read twice, because a status line renders constantly.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
@@ -12,8 +11,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { analyzeTranscript } from '../plugin/scripts/lifecycle.mjs'
-import { CI_STALE_MS, SIZE_CAP, ciReading, findGitDir, reading, render, renderCi } from '../plugin/scripts/statusline.mjs'
+import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
+import { CI_STALE_MS, STALE_MS, ciReading, findGitDir, reading, render, renderCi } from '../plugin/scripts/statusline.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -47,104 +46,100 @@ function assertComposeNotReplacement(text) {
   }
 }
 
-const line = (id, name, input, result) => [
-  JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } }),
-  JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: false, content: result ?? '' }] } }),
-].join('\n')
+// One session's event log, written where the plugin looks for it. The path comes
+// from the plugin itself, so a change to where state lives fails here too.
+const OBSERVED_AT = '2026-09-17T12:00:00.000Z'
+const NOW = Date.parse(OBSERVED_AT) + 10_000
 
-test('unverified edits render ✗ with the count; a passed check renders ✓; nothing edited renders · only with a check', () => {
+function logFor(dir, session, entries) {
+  const file = sessionLogFile(dir, session, { spawn: false })
+  mkdirSync(dirname(file), { recursive: true })
+  writeFileSync(file, `${entries.map(entry => JSON.stringify(entry)).join('\n')}\n`)
+  return file
+}
+
+const observation = tree => ({ ok: true, tree, index: `index-${tree}`, head: 'HEAD0' })
+const started = { at: '2026-09-17T11:59:00.000Z', event: 'session.started', observation: observation('T0') }
+const wrote = (at, name) => ({ at, event: 'file.written', path: name, observable: true, blob: `blob-${name}` })
+const ended = tree => ({ at: OBSERVED_AT, event: 'turn.ended', observation: observation(tree) })
+
+test('the segment follows the log: a count, a passed check, nothing edited, unknown, and could-not-look', () => {
   const dir = mkdtempSync(join(tmpdir(), 'qh-statusline-'))
   try {
     writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }))
-    const transcript = join(dir, 'agent.jsonl')
-    writeFileSync(transcript, [
-      line('e1', 'Write', { file_path: join(dir, 'a.py') }),
-      line('e2', 'Write', { file_path: join(dir, 'b.py') }),
-    ].join('\n'))
-    const session = `sl-${Date.now()}-${process.pid}`
-    const input = { session_id: session, transcript_path: transcript, workspace: { current_dir: dir } }
-    assert.equal(render(reading(input)), 'QH ✗ 2 unverified')
+    const at = session => ({ session_id: session, workspace: { current_dir: dir } })
 
-    writeFileSync(transcript, [
-      line('e1', 'Write', { file_path: join(dir, 'a.py') }),
-      line('t1', 'Bash', { command: 'npm run test' }, 'tests 1\npass 1'),
-    ].join('\n'))
-    assert.equal(render(reading({ ...input, session_id: `${session}-2` })), 'QH ✓ checked')
+    logFor(dir, 'sl-unverified', [started,
+      wrote('2026-09-17T11:59:30.000Z', 'a.py'), wrote('2026-09-17T11:59:40.000Z', 'b.py'), ended('T1')])
+    assert.equal(render(reading(at('sl-unverified'), { now: NOW })), 'QH ✗ 2 unverified · last observed 10s ago')
 
-    writeFileSync(transcript, line('r1', 'Read', { file_path: join(dir, 'a.py') }))
-    assert.equal(render(reading({ ...input, session_id: `${session}-3` })), 'QH · nothing edited')
+    logFor(dir, 'sl-checked', [started, wrote('2026-09-17T11:59:30.000Z', 'a.py'),
+      { at: '2026-09-17T11:59:50.000Z', event: 'check.passed', startedAt: '2026-09-17T11:59:45.000Z',
+        before: observation('T1'), after: observation('T1'), exit: 0 },
+      ended('T1')])
+    assert.equal(render(reading(at('sl-checked'), { now: NOW })), 'QH ✓ checked · last observed 10s ago')
 
-    // No check named and nothing edited: nothing worth a segment.
+    // A later failure on the same tree re-opens it, the way the advisories read it.
+    logFor(dir, 'sl-refailed', [started,
+      { at: '2026-09-17T11:59:50.000Z', event: 'check.passed', startedAt: '2026-09-17T11:59:45.000Z',
+        before: observation('T1'), after: observation('T1'), exit: 0 },
+      { at: '2026-09-17T11:59:55.000Z', event: 'check.failed', startedAt: '2026-09-17T11:59:52.000Z',
+        before: observation('T1'), after: observation('T1'), exit: 1 },
+      ended('T1')])
+    assert.equal(render(reading(at('sl-refailed'), { now: NOW })), 'QH ✗ unverified · last observed 10s ago')
+
+    logFor(dir, 'sl-nothing', [started, ended('T0')])
+    assert.equal(render(reading(at('sl-nothing'), { now: NOW })), 'QH · nothing edited · last observed 10s ago')
+
+    logFor(dir, 'sl-blind', [started,
+      { at: OBSERVED_AT, event: 'turn.ended', observation: { ok: false, reason: 'git is not installed here' } }])
+    assert.equal(render(reading(at('sl-blind'), { now: NOW })), 'QH ? could not look · last observed 10s ago')
+
+    // A session with a check and no log yet is UNKNOWN, never a clean bill.
+    assert.equal(render(reading(at('sl-never'), { now: NOW })), 'QH ? unknown')
+
+    // An observation too old to speak for the tree as it is now says what it saw
+    // and when, and claims nothing.
+    assert.equal(render(reading(at('sl-unverified'), { now: Date.parse(OBSERVED_AT) + STALE_MS + 120_000 })),
+      'QH ? last observed 17m ago')
+
+    // No check named and no log: nothing worth a segment.
     rmSync(join(dir, 'package.json'))
-    assert.equal(render(reading({ ...input, session_id: `${session}-4` })), '')
-
-    // No transcript at all: nothing, not an error.
-    assert.equal(render(reading({ session_id: session, workspace: { current_dir: dir } })), '')
-    assert.equal(render(reading({ session_id: session, transcript_path: join(dir, 'missing.jsonl'), workspace: { current_dir: dir } })), '')
+    assert.equal(render(reading(at('sl-none'), { now: NOW })), '')
+    // And no session id at all is not an error.
+    assert.equal(render(reading({ workspace: { current_dir: dir } }, { now: NOW })), '')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
 })
 
-test('a marker-only transcript is unverified, not a numbered write', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'qh-statusline-marker-'))
-  try {
-    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }))
-    const transcript = join(dir, 'agent.jsonl')
-    writeFileSync(transcript, line('v1', 'Bash', { command: 'node --version' }, 'v24\n'))
-    const input = {
-      session_id: `sl-marker-${Date.now()}-${process.pid}`,
-      transcript_path: transcript,
-      workspace: { current_dir: dir },
-    }
-    assert.equal(render(reading(input)), 'QH ✗ unverified')
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('an unchanged transcript is not analysed twice; a changed one is', () => {
+test('an unchanged log is not read twice; a changed one is', () => {
   const dir = mkdtempSync(join(tmpdir(), 'qh-statusline-cache-'))
   try {
-    const transcript = join(dir, 'agent.jsonl')
-    writeFileSync(transcript, line('e1', 'Write', { file_path: join(dir, 'a.py') }))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }))
     const session = `sl-cache-${Date.now()}-${process.pid}`
-    const input = { session_id: session, transcript_path: transcript, workspace: { current_dir: dir } }
+    const file = logFor(dir, session, [started, wrote('2026-09-17T11:59:30.000Z', 'a.py'), ended('T1')])
+    const input = { session_id: session, workspace: { current_dir: dir } }
     let calls = 0
-    const analyze = (raw, cwd) => { calls += 1; return analyzeTranscript(raw, cwd) }
-    assert.equal(reading(input, { analyze }).kind, 'unverified')
-    assert.equal(reading(input, { analyze }).kind, 'unverified')
-    assert.equal(calls, 1, 'the second render of an unchanged transcript reads the cache')
+    const read = () => {
+      calls += 1
+      // Marked whole, as `readEvents` marks it: a log that does not SAY it was
+      // read whole is could-not-look, and this test is about the cache.
+      return Object.assign(readFileSync(file, 'utf8').split('\n').filter(Boolean).map(entry => JSON.parse(entry)), { complete: true })
+    }
+    assert.equal(reading(input, { read, now: NOW }).kind, 'unverified')
+    assert.equal(reading(input, { read, now: NOW }).kind, 'unverified')
+    assert.equal(calls, 1, 'the second render of an unchanged log reads the cache')
 
-    // Same size, new mtime: changed, so analysed again.
-    const later = new Date(statSync(transcript).mtimeMs + 5_000)
-    utimesSync(transcript, later, later)
-    reading(input, { analyze })
-    assert.equal(calls, 2, 'a changed mtime is a changed transcript')
+    // The AGE is still recomputed on a cache hit, or a still session would freeze
+    // its own clock.
+    assert.equal(reading(input, { read, now: NOW + 60_000 }).ageMs, 70_000)
 
-    // Without a session id there is no cache to key, so every render analyses.
-    reading({ ...input, session_id: undefined }, { analyze })
-    reading({ ...input, session_id: undefined }, { analyze })
-    assert.equal(calls, 4)
-  } finally {
-    rmSync(dir, { recursive: true, force: true })
-  }
-})
-
-test('a transcript over the cap is said to be, never read into a verdict', () => {
-  const dir = mkdtempSync(join(tmpdir(), 'qh-statusline-big-'))
-  try {
-    const transcript = join(dir, 'agent.jsonl')
-    writeFileSync(transcript, line('e1', 'Write', { file_path: join(dir, 'a.py') }))
-    // Truncate-extend the file past the cap without writing the bytes.
-    const fd = openSync(transcript, 'r+')
-    ftruncateSync(fd, SIZE_CAP + 1)
-    closeSync(fd)
-    let calls = 0
-    const value = reading({ session_id: 'big', transcript_path: transcript, workspace: { current_dir: dir } }, { analyze: () => { calls += 1 } })
-    assert.equal(value.kind, 'too-large')
-    assert.equal(calls, 0, 'not analysed')
-    assert.match(render(value), /^QH \? transcript \d+MB$/)
+    // Same size, new mtime: changed, so read again.
+    const later = new Date(statSync(file).mtimeMs + 5_000)
+    utimesSync(file, later, later)
+    reading(input, { read, now: NOW })
+    assert.equal(calls, 2, 'a changed mtime is a changed log')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
@@ -153,12 +148,16 @@ test('a transcript over the cap is said to be, never read into a verdict', () =>
 test('the CLI reads the statusLine JSON from stdin, prints the segment, and never fails', () => {
   const dir = mkdtempSync(join(tmpdir(), 'qh-statusline-cli-'))
   try {
-    const transcript = join(dir, 'agent.jsonl')
-    writeFileSync(transcript, line('e1', 'Write', { file_path: join(dir, 'a.py') }))
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }))
+    const session = `cli-${Date.now()}`
+    // The CLI reads the real clock, so this log is stamped now: a fixed
+    // timestamp would render as an observation too old to be a verdict.
+    const stamp = new Date().toISOString()
+    logFor(dir, session, [{ ...started, at: stamp }, wrote(stamp, 'a.py'), { ...ended('T1'), at: stamp }])
     const run = input => spawnSync(process.execPath, [script], { input, encoding: 'utf8', timeout: 30_000 })
-    const ok = run(JSON.stringify({ session_id: `cli-${Date.now()}`, transcript_path: transcript, workspace: { current_dir: dir } }))
+    const ok = run(JSON.stringify({ session_id: session, workspace: { current_dir: dir } }))
     assert.equal(ok.status, 0)
-    assert.equal(ok.stdout.trim(), 'QH ✗ 1 unverified')
+    assert.match(ok.stdout.trim(), /^QH ✗ 1 unverified · last observed \d+[smh] ago$/)
     assert.equal(ok.stderr, '', 'a status line never carries an error string')
     const garbage = run('not json')
     assert.equal(garbage.status, 0)

@@ -89,6 +89,11 @@ TypeScript, Rust and Go checks run when you explicitly invoke them or include th
 in a task's acceptance command. Commit and completion verification still report
 when the project's declared check has not run after the final edit.
 
+Run that check through `qh-check`: it runs the command your project declared as
+`check` in `.quality-harness.json` (or the one inferred from a manifest), observes
+the tree before and after, and writes the result where the hooks read it. A check
+run any other way is not recorded, so the advisories cannot see it.
+
 At an artifact-verification boundary, tasks that resolve to the same ADR command
 share that check within the pass. Findings are retained, and the next boundary
 checks again. The harness's own selftests run in its development repository and CI;

@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-16-an-escaped-quote-is-still-the-name.md`
 **Cross-references:** ADR-005, ADR-050, ADR-052, ADR-054, `docs/BACKLOG.md` §209
-**Governs:** `plugin/lib/record.py`, `tests/leftovers-after-adr053.test.mjs`, `tests/adr053-stress.mjs`
+**Governs:** `plugin/lib/record.py`, `tests/leftovers-after-adr053.test.mjs`
 
 Class: every `it(` / `test(` name whose delimiter appears inside the name, escaped. Enumerated 2026-09-16 with `rg -n '_BDD_NAME|_iter_bdd_names|extract_test_body' plugin/lib/record.py` and `git ls-files -- plugin/lib/record.py tests/leftovers-after-adr053.test.mjs tests/adr053-stress.mjs`. Named members:
 

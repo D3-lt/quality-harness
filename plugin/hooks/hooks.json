@@ -134,6 +134,14 @@
               "post-edit-check.sh"
             ],
             "timeout": 120
+          },
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+            ],
+            "timeout": 30
           }
         ]
       }

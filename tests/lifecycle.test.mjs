@@ -6,24 +6,14 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'n
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
+import { hookSaid, stripPauseLines } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
-  analyzeTranscript,
   artifactGateTimeoutMs,
-  bashDeletionMutationPaths,
-  namesOnlyMarkdownFiles,
-  segmentDirectories,
-  writesOutsideProject,
-  interpreterCommandLooksMutating,
-  bashNavigationImpact,
-  mutatesOnlyTempPaths,
   checkCommandOrigin,
   projectCheckCommand,
   runTheCheckSentence,
-  provenMutationPaths,
   budgetExhausted,
-  commandInsideWrappers,
-  describeCommand,
   sessionOrientation,
   sessionStateNote,
   hasDecisionCorpus,
@@ -31,28 +21,23 @@ import {
   probedPythonVersion,
   resolvePython,
   adrCorpus,
-  validationVerdict,
   shadowInstallNotice,
   staleVersionNotice,
   decisionContext,
   decisionsGoverning,
   pathMatchesDeclaration,
-  bashMarkdownMutationPaths,
-  isGitPublishCommand,
-  classifyCommand,
-  isPotentialMutationCommand,
-  isValidationCommand,
-  publishPrecededByValidation,
   readOnlyVerdict,
   posixListed,
   readyTaskLines,
   runArtifactGates,
+  observe,
+  appendEvent,
   surfaceReadyLines,
-  shellSegments,
   ASSERTION_ARM_WITHDRAWN,
   completionClaim,
   saidMarkerDirectory,
   sweepStaleMarkers,
+  SLOW_HOOK_NOTE,
 } from '../plugin/scripts/lifecycle.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { NEVER_MIRRORED, SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
@@ -82,7 +67,7 @@ function gitInit(dir) {
 // directories left per run, 1117 after twelve (2026-09-05), and the runner's
 // temp is no different. realpath'd, because /tmp is a symlink on macOS and the
 // judgements under test compare realpaths.
-const testTmp = realpathSync(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'quality-lifecycle-')))
+const testTmp = realpathSync.native(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'quality-lifecycle-')))
 // Bounded retries for Windows handle locks. A failure here is SAID, loudly, and
 // never thrown: on 2026-09-05 (CI run 33970787579) the file failed at FILE level
 // on windows-latest with every subtest ok — the shape BACKLOG §49 had seen twice
@@ -127,6 +112,49 @@ async function checkedProject(prefix) {
   const dir = await mkdtemp(path.join(testTmp, prefix))
   await writeFile(path.join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'true' } }))
   return dir
+}
+
+// ADR-060: the publish warning is about OBSERVED state, so its fixture is a git
+// repository with a declared check, a session whose start was observed, and a
+// change since. Returns the session id the hook payloads must carry.
+let publishSessions = 0
+async function unheldRepository(prefix, changed = 'a.js') {
+  const dir = await mkdtemp(path.join(testTmp, prefix))
+  await writeFile(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  await writeFile(path.join(dir, 'check.sh'), 'exit 0\n')
+  const init = spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(init.status, 0, init.stderr)
+  // The project's OWN files are committed, so the only change the session is
+  // judged on is the one it makes below. Observed state is the whole dirty tree,
+  // and a fixture that left its config untracked would put `.json` and `.sh`
+  // into every path list — which silently defeats the docs-only escape.
+  const git = (...args) => {
+    const run = spawnSync('git', ['-C', dir, '-c', 'user.name=qh', '-c', 'user.email=qh@example.invalid', ...args],
+      { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.status, 0, `git ${args.join(' ')}: ${run.stderr}`)
+  }
+  git('add', '-A')
+  git('commit', '-q', '-m', 'fixture', '--no-gpg-sign')
+  publishSessions += 1
+  const session = `publish-${process.pid}-${publishSessions}`
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: dir, session_id: session })
+  await writeFile(path.join(dir, changed), 'export {}\n')
+  return { dir, session }
+}
+
+function publishAttempt(command, dir, session, options = {}) {
+  return runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir, session_id: session,
+    tool_input: { command },
+  }, options)
+}
+
+// A turn end in the observed model: no transcript, a session id, and whatever
+// the assistant's last message was (the suppressions read it).
+function turnEnd(dir, session, message, options = {}) {
+  return runLifecycleHook({
+    hook_event_name: 'Stop', cwd: dir, session_id: session, last_assistant_message: message,
+  }, options)
 }
 
 function toolUse(id, name, input) {
@@ -183,276 +211,6 @@ function runLifecycleHook(payload, options = {}) {
     ...rest,
   })
 }
-
-test('recognizes project verification commands without treating arbitrary shell as evidence', () => {
-  assert.equal(isValidationCommand('pnpm test'), true)
-  assert.equal(isValidationCommand('cargo check --workspace'), true)
-  assert.equal(isValidationCommand('node /plugin/scripts/verify.mjs --cwd /repo -- custom gate'), true)
-  assert.equal(isValidationCommand('node --test tests/unit.test.mjs'), true)
-  assert.equal(isValidationCommand('pnpm test && pnpm lint'), true)
-  assert.equal(isValidationCommand('pnpm test || true'), false)
-  assert.equal(isValidationCommand('pnpm test && python3 rewrite.py'), false)
-  assert.equal(isValidationCommand('pnpm test | tail -20'), false)
-  assert.equal(isValidationCommand('git status --short'), false)
-  assert.equal(isValidationCommand('rg test src'), false)
-  assert.equal(isValidationCommand('test -n x'), false)
-
-  // A shell name in front of the validator does not change what ran.
-  assert.equal(isValidationCommand('bash scripts/selftest.sh'), true)
-  assert.equal(isValidationCommand('sh ./run-checks.sh'), true)
-  assert.equal(isValidationCommand('bash -n scripts/lifecycle.sh'), true)
-  assert.equal(isValidationCommand('bash scripts/deploy.sh'), false)
-  assert.equal(isValidationCommand('bash scripts/rewrite-tests.sh'), false)
-  assert.equal(isValidationCommand('bash -c "rm -rf build"'), false)
-
-  // Running the gate the obvious way must also clear the evidence bar, and must
-  // not be recorded as an edit on the way through.
-  assert.equal(isPotentialMutationCommand('bash scripts/selftest.sh'), false)
-})
-
-test('tracks mutation-capable Bash commands without treating read-only probes as edits', () => {
-  assert.equal(isPotentialMutationCommand('python3 rewrite.py'), true)
-  assert.equal(isPotentialMutationCommand('printf x > src/generated.txt'), true)
-  assert.equal(isPotentialMutationCommand('cp source.txt destination.txt'), true)
-  assert.equal(isPotentialMutationCommand('touch generated.txt'), true)
-  assert.equal(isPotentialMutationCommand('git restore tracked.txt'), true)
-  assert.equal(isPotentialMutationCommand("sed -i '' docs/spec.md"), true)
-  assert.equal(isPotentialMutationCommand("sed -i.bak 's/x/y/' docs/spec.md"), true)
-  assert.equal(isPotentialMutationCommand("sed --in-place=.bak 's/x/y/' docs/spec.md"), true)
-  assert.equal(isPotentialMutationCommand('git reset --hard HEAD~1'), true)
-  assert.equal(isPotentialMutationCommand('git -c user.name=Bot commit -m test'), true)
-  assert.equal(isPotentialMutationCommand('command git -C /repo -c user.name=Bot restore file'), true)
-  assert.equal(isPotentialMutationCommand('git pull --ff-only'), true)
-  assert.equal(isPotentialMutationCommand('rsync -a src/ dst/'), true)
-  assert.equal(isPotentialMutationCommand('chmod +x script.sh'), true)
-  assert.equal(isPotentialMutationCommand('ln -sf a b'), true)
-  assert.equal(isPotentialMutationCommand('git status --short'), false)
-  // The gate resolves a relative operand against the session cwd, so what it
-  // returns is an ABSOLUTE path in the host platform's shape: `/repo/docs/spec.md`
-  // on POSIX, `D:\\repo\\docs\\spec.md` on Windows. Spelling the expectation as a
-  // POSIX literal asserted the platform, not the behaviour.
-  const under = (...parts) => path.resolve('/repo', ...parts)
-  assert.deepEqual(
-    bashMarkdownMutationPaths("printf x > docs/spec.md", '/repo'),
-    [under('docs/spec.md')],
-  )
-  assert.deepEqual(bashMarkdownMutationPaths('python rewrite.py $DOC/spec.md', '/repo'), [])
-  // `A=docs/spec.md; tee "$A"` names the file through an assignment: the path is
-  // the value, not a file called `A=docs/spec.md` (owner's terminal, 2026-09-05).
-  assert.deepEqual(
-    bashMarkdownMutationPaths('A=docs/spec.md; printf x | tee "$A"', '/repo'),
-    [path.resolve('/repo', 'docs/spec.md')])
-  assert.deepEqual(
-    bashMarkdownMutationPaths("DOC='docs/spec.md' && printf x > docs/other.md", '/repo').sort(),
-    [path.resolve('/repo', 'docs/other.md'), path.resolve('/repo', 'docs/spec.md')].sort())
-  // A quoted value with a space is ONE value; the token scanner alone split it
-  // in two and matched neither (Codex review, 2026-09-05).
-  assert.deepEqual(
-    bashMarkdownMutationPaths("DOC='docs/My File.md'; printf x | tee \"$DOC\"", '/repo'),
-    [path.resolve('/repo', 'docs/My File.md')])
-  // A `key=value` ARGUMENT is data, not an assignment: neither the literal token
-  // nor its value is a path this gate can report.
-  assert.deepEqual(bashMarkdownMutationPaths("printf '%s' 'file=docs/BACKLOG.md' > out.txt", '/repo'), [])
-  assert.deepEqual(bashMarkdownMutationPaths('curl -d name=docs/x.md https://h/', '/repo'), [])
-  assert.deepEqual(bashMarkdownMutationPaths("sed -i '' docs/specs/*.md", '/repo'), [])
-  assert.deepEqual(
-    bashDeletionMutationPaths('rm -rf /repo/adr-archive', '/elsewhere'),
-    [path.resolve('/repo/adr-archive')],
-  )
-  assert.deepEqual(
-    bashDeletionMutationPaths('rm -rf docs/adr-archive', '/repo'),
-    [under('docs/adr-archive')],
-  )
-  assert.match(bashDeletionMutationPaths('rm -rf "$ARCHIVE"', '/repo')[0], /Unresolved/)
-})
-
-test('a redirect ampersand stays inside its segment', () => {
-  // The branch guard classifies per segment, so it has to be tested per segment:
-  // `2>&1` split at the bare `&` leaves `… 2>` behind, and a whole-command test
-  // stays green while that truncated segment reads as a write.
-  const readOnly = 'git ls-remote --heads https://example.invalid/repo.git 2>&1 | head -20'
-  assert.deepEqual(shellSegments(readOnly), [
-    'git ls-remote --heads https://example.invalid/repo.git 2>&1',
-    'head -20',
-  ])
-  for (const segment of shellSegments(readOnly)) {
-    assert.equal(isPotentialMutationCommand(segment), false, segment)
-  }
-  assert.deepEqual(shellSegments('gh release list >&2'), ['gh release list >&2'])
-  assert.equal(isPotentialMutationCommand('gh release list >&2'), false)
-  assert.deepEqual(shellSegments('git fsck 2>&-'), ['git fsck 2>&-'])
-  assert.deepEqual(shellSegments('echo x &> out.txt'), ['echo x &> out.txt'])
-
-  // `&` still separates a background job, and `&&` still separates two commands.
-  assert.deepEqual(shellSegments('sleep 1 & git status --short'), ['sleep 1', 'git status --short'])
-  assert.deepEqual(shellSegments('git status --short && git diff'), ['git status --short', 'git diff'])
-  // A quoted `>` never turns the next `&` into part of a redirect.
-  assert.deepEqual(shellSegments('echo "a>" & git diff'), ['echo "a>"', 'git diff'])
-
-  // `&>f` and `&>>f` write, so keeping them in one segment must not lose them.
-  assert.equal(isPotentialMutationCommand('echo x &> out.txt'), true)
-  assert.equal(isPotentialMutationCommand('echo x &>> out.txt'), true)
-})
-
-test('quoted Markdown and git text are mentions, not permanent lifecycle failures', async () => {
-  assert.equal(isGitPublishCommand("printf '%s\\n' 'diagnostic: git commit failed'"), false)
-  assert.equal(isGitPublishCommand("cat <<'EOF'\ngit push origin main\nEOF"), false)
-  assert.equal(isGitPublishCommand('command -v git commit'), false)
-  for (const command of [
-    'cd /repo && git commit -m test',
-    'git -c user.name=Bot -c user.email=bot@example.invalid commit -m test',
-    'git --no-pager push origin main',
-    'command git commit -m test',
-    'env GIT_AUTHOR_NAME=Bot git commit -m test',
-    'GIT_AUTHOR_NAME="Bot User" git commit -m test',
-    'env -S "git commit -m test"',
-    'env -a custom0 git commit -m test',
-    'sudo -u root git commit -m test',
-    'sudo -D /tmp git commit -m test',
-    'exec git commit -m test',
-    'time -p git commit -m test',
-    'time -o /tmp/timing git commit -m test',
-    '(git commit -m test)',
-    '{ git commit -m test; }',
-    'bash -c "git commit -m test"',
-    'bash -o pipefail -c "git commit -m test"',
-    'echo $((1 << 2))\ngit commit -m test',
-    '((1 << 2))\ngit commit -m test',
-    '"C:\\Tools\\Git\\cmd\\git.exe" -C "C:\\repo" push origin main',
-  ]) {
-    assert.equal(isGitPublishCommand(command), true, command)
-  }
-  const quotedHeredocText = [
-    'EOF(){ :; }',
-    "printf %s 'literal <<EOF'",
-    'git commit -m test',
-    'EOF',
-  ].join('\n')
-  assert.equal(isGitPublishCommand(quotedHeredocText), true)
-  assert.equal(isGitPublishCommand("cat <<\\EOF\ngit push origin main\nEOF"), false)
-
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-quoted-md-'))
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', {
-      command: 'python3 signer.py --human "A1 PROVEN; see $DOC/T9-verdict.md Cleanup"',
-    }),
-    toolResult('b1'),
-    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  assert.equal(run.status, 0, run.stderr)
-  assert.equal(run.stdout, '')
-})
-
-test('requires successful verification after the final edit', () => {
-  const before = analyzeTranscript(transcript([
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1'),
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-    toolResult('e1'),
-  ]))
-  assert.equal(before.verifiedAfterLastMutation, false)
-
-  const after = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-    toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1'),
-  ]))
-  assert.equal(after.verifiedAfterLastMutation, true)
-})
-
-test('only executed tool calls count as mutations', () => {
-  const pending = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-  ]))
-  assert.equal(pending.hasMutations, false)
-  assert.deepEqual(pending.mutationPaths, [])
-
-  const blocked = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-    toolResult('e1', true, 'PreToolUse:Edit hook error: Quality gate blocked'),
-  ]))
-  assert.equal(blocked.hasMutations, false)
-  assert.deepEqual(blocked.mutationPaths, [])
-
-  const failedAfterStarting = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-    toolResult('e1', true, 'write failed after replacing one section'),
-  ]))
-  assert.equal(failedAfterStarting.hasMutations, true)
-  assert.deepEqual(failedAfterStarting.mutationPaths, ['/repo/src/a.ts'])
-})
-
-test('failed verification does not satisfy the gate', () => {
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Write', { file_path: '/repo/a.py' }),
-    toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pytest -q' }),
-    toolResult('t1', true, '1 failed'),
-  ]))
-  assert.equal(state.verifiedAfterLastMutation, false)
-})
-
-test('the latest validation result determines whether post-edit evidence is verified', () => {
-  const failedAfterPass = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.py' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pytest -q' }), toolResult('t1', false, '3 passed'),
-    toolUse('t2', 'Bash', { command: 'pytest -q' }), toolResult('t2', true, '1 failed'),
-  ]))
-  assert.equal(failedAfterPass.verifiedAfterLastMutation, false)
-
-  const successfulRerun = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.py' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pytest -q' }), toolResult('t1', false, '3 passed'),
-    toolUse('t2', 'Bash', { command: 'pytest -q' }), toolResult('t2', true, '1 failed'),
-    toolUse('t3', 'Bash', { command: 'pytest -q' }), toolResult('t3', false, '3 passed'),
-  ]))
-  assert.equal(successfulRerun.verifiedAfterLastMutation, true)
-})
-
-test('explicit non-zero process metadata cannot satisfy the gate', () => {
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Write', { file_path: '/repo/a.py' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pytest -q' }),
-    toolResult('t1', false, 'Process exited with code 1'),
-  ]))
-  assert.equal(state.verifiedAfterLastMutation, false)
-})
-
-test('aggregate Cargo output must include at least one executed test', () => {
-  const zero = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/lib.rs' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'cargo test' }),
-    toolResult('t1', false, 'running 0 tests\ntest result: ok. 0 passed; 0 failed'),
-  ]))
-  assert.equal(zero.verifiedAfterLastMutation, false)
-
-  const mixed = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/lib.rs' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'cargo test' }),
-    toolResult('t1', false, 'running 0 tests\ntest result: ok. 0 passed\nrunning 3 tests\ntest result: ok. 3 passed'),
-  ]))
-  assert.equal(mixed.verifiedAfterLastMutation, true)
-})
-
-test('Node test output must include executed work', () => {
-  const zero = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.mjs' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'node --test' }),
-    toolResult('t1', false, 'tests 0\npass 0\nfail 0'),
-  ]))
-  assert.equal(zero.verifiedAfterLastMutation, false)
-
-  const one = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.mjs' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'node --test' }),
-    toolResult('t1', false, 'tests 1\npass 1\nfail 0'),
-  ]))
-  assert.equal(one.verifiedAfterLastMutation, true)
-})
 
 test('documented custom-validator wrapper executes through Node', () => {
   const run = spawnSync(process.execPath, [
@@ -610,55 +368,6 @@ test('shell-hook timeout stays below its host deadline and kills the process tre
   assert.equal(descendantAlive, false, `descendant process ${descendantPid} survived timeout`)
 })
 
-test('masked, zero-work, and stale validation cannot satisfy the gate', () => {
-  const masked = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test || true' }), toolResult('t1', false, '1 failed'),
-  ]))
-  assert.equal(masked.verifiedAfterLastMutation, false)
-
-  const zeroWork = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test --filter missing' }), toolResult('t1', false, 'No tests found'),
-  ]))
-  assert.equal(zeroWork.verifiedAfterLastMutation, false)
-
-  const stale = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: 'python3 rewrite.py' }), toolResult('b1'),
-  ]))
-  assert.equal(stale.verifiedAfterLastMutation, false)
-
-  const sedAfterTest = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: "sed -i '' docs/spec.md" }), toolResult('b1'),
-  ]), '/repo')
-  assert.equal(sedAfterTest.verifiedAfterLastMutation, false)
-
-  for (const command of [
-    'git reset --hard HEAD~1', 'git pull --ff-only', 'rsync -a src/ dst/',
-    'chmod +x script.sh', 'ln -sf a b',
-  ]) {
-    const staleAfterCommonMutator = analyzeTranscript(transcript([
-      toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-      toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-      toolUse('b1', 'Bash', { command }), toolResult('b1'),
-    ]))
-    assert.equal(staleAfterCommonMutator.verifiedAfterLastMutation, false, command)
-  }
-})
-
-test('unfinished background validation cannot satisfy the gate', () => {
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test', run_in_background: true }),
-    toolResult('t1', false, 'Command running in background with ID 42'),
-  ]))
-  assert.equal(state.verifiedAfterLastMutation, false)
-})
-
 test('advisory Python syntax check creates no project bytecode', async () => {
   const dir = await mkdtemp(path.join(testTmp, 'quality-python-check-'))
   const source = path.join(dir, 'probe.py')
@@ -675,128 +384,26 @@ test('advisory Python syntax check creates no project bytecode', async () => {
   assert.deepEqual(await readdir(dir), ['probe.py'])
 })
 
-test('successful negative-control suites are not rejected by their output text', () => {
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: './selftest.sh' }),
-    toolResult('t1', false, 'negative fixture expected exit 1\nPASS — 47 checks'),
-  ]))
-  assert.equal(state.verifiedAfterLastMutation, true)
-})
-
 test('command hook advises on subagent completion without later evidence', async () => {
-  const dir = await checkedProject('quality-hook-')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.js' }),
-    toolResult('e1'),
-  ]))
-
+  // A subagent end that is not a read-only reviewer is a completion boundary
+  // like any other: ADR-060's R1 speaks for the work it leaves unchecked.
+  const { dir, session } = await unheldRepository('quality-hook-')
   const run = runLifecycleHook({
-    hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir,
+    hook_event_name: 'SubagentStop', cwd: dir, session_id: session, agent_id: 'a1',
   })
   assert.equal(run.status, 0)
   assert.match(run.stdout, /"systemMessage"/)
 })
 
-test('commit gate advises, never blocks, when this session has unverified edits', async () => {
-  const dir = await checkedProject('quality-hook-')
-  const edited = path.join(dir, 'a.js')
-  await writeFile(edited, 'export {}\n')
-  const file = path.join(dir, 'main.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: edited }),
-    toolResult('e1'),
-  ]))
-
-  const run = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
-  })
+test('the publish warning advises, never blocks, while this repository is unchecked', async () => {
+  // ADR-060: the finding is the observed state — no qh-check has passed on this
+  // tree — raised before a command that names commit or push runs.
+  const { dir, session } = await unheldRepository('quality-hook-')
+  const run = publishAttempt('git commit -m test', dir, session)
   assert.equal(run.status, 0)
-  assert.match(run.stderr, /would publish unchecked/i)
-  assert.match(run.stderr, /Changed paths include: .*a\.js/)
-})
-
-test('reported: finding the repository root does not disqualify the check that follows', () => {
-  // blueprints, 2026-08-26. `cd "$(git rev-parse --show-toplevel)" && …
-  // ./verify.sh` is how a script finds its own root, and the guard rejected the
-  // whole command for containing `$(` — so the project's check ran, passed, and
-  // the gate asked for it again at the end of the turn.
-  assert.equal(isValidationCommand(
-    'cd "$(git rev-parse --show-toplevel)" && BLUEPRINT_VENV=.venv ./verify.sh'), true)
-  assert.equal(isValidationCommand('cd "$(git rev-parse --show-toplevel)"\nnpm test'), true)
-  assert.equal(isValidationCommand('cd `pwd` && npm test'), true)
-
-  // The guard did not go away, it moved. A substitution anywhere a command can
-  // actually run is still opaque, and a `cd` whose argument runs something with
-  // effects is not navigation.
-  assert.equal(isValidationCommand('npm test $(rm -rf build)'), false)
-  assert.equal(isValidationCommand('cd "$(rm -rf x && pwd)" && npm test'), false)
-  // Same on its own line, where a plain `cd`-shaped filter would have dropped it
-  // unread and let the test below stand as the session's only evidence.
-  assert.equal(isValidationCommand('cd "$(rm -rf x && pwd)"\nnpm test'), false)
-  assert.equal(isValidationCommand('cd "$(curl -s http://evil)" && npm test'), false)
-  assert.equal(isValidationCommand('npm test; rm -rf build'), false)
-  assert.equal(isValidationCommand('npm test | tail -3'), false)
-  assert.equal(isValidationCommand('npm test > out.txt'), false)
-  assert.equal(isValidationCommand('npm test &'), false)
-  assert.equal(isValidationCommand('cd /repo && npm test && rm -rf build'), false)
-})
-
-test('reported: the changed-path list holds paths, and only ones that changed', async () => {
-  // agentsmemory, 2026-08-26. Of five "changed paths" one was real. The list
-  // carried a git REVISION resolved as if it were a file —
-  // `<repo>/origin/main:docs/adr/BACKLOG.md`, a path that has never existed —
-  // and a scratch copy, because `cp <repo file> "$S/"` was accounted by its
-  // source instead of its destination.
-  const repo = await mkdtemp(path.join(testTmp, 'quality-paths-'))
-  await writeFile(path.join(repo, 'BACKLOG.md'), '# Backlog\n')
-
-  // `git show <rev>:<path>` reads out of history. Nothing is written.
-  assert.deepEqual(
-    bashMarkdownMutationPaths('git show origin/main:docs/adr/BACKLOG.md', repo), [])
-  // Selective, not blanket: in one command the revision is dropped and the real
-  // path beside it survives. (The guard keys on a colon past the second
-  // character, so a Windows `C:\…` drive letter is still a path — not asserted
-  // here, because resolving one on POSIX proves nothing either way.)
-  // A repo-relative target, not an absolute one: expandExistingGlob refuses any
-  // candidate containing a backslash, so a Windows absolute path resolves to
-  // nothing and the assertion would be about that instead (run 32957651615).
-  assert.deepEqual(
-    bashMarkdownMutationPaths('git show origin/main:docs/adr/BACKLOG.md > BACKLOG.md', repo),
-    [path.join(repo, 'BACKLOG.md')])
-
-  // pluginDir, not the temp fixture above: a project that lives under the temp
-  // root deliberately gets no scratch exemption at all.
-  const scratch = path.join(os.tmpdir(), 'qh-copy-target')
-  // Copying a repository file INTO scratch writes only the scratch copy.
-  assert.equal(mutatesOnlyTempPaths(`S=${scratch}; cp docs/BACKLOG.md "$S/"`, pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths(`S=${scratch}; cp a.md b.md "$S/"`, pluginDir), true)
-  // Moving it out is authorship: mv removes the source.
-  assert.equal(mutatesOnlyTempPaths(`S=${scratch}; mv docs/BACKLOG.md "$S/"`, pluginDir), false)
-  // And copying the other way lands in the repository.
-  assert.equal(mutatesOnlyTempPaths(`cp ${scratch}/a.md ./docs/BACKLOG.md`, pluginDir), false)
-
-  // The list is five slots wide. Repeats of one proven path report one thing.
-  // Markers used to fill the slots; a marker is not a path (F-1).
-  const project = await checkedProject('quality-repeats-')
-  const file = path.join(project, 'agent.jsonl')
-  const note = path.join(project, 'note.txt')
-  await writeFile(file, transcript([
-    toolUse('w1', 'Write', { file_path: note }), toolResult('w1'),
-    toolUse('w2', 'Write', { file_path: note }), toolResult('w2'),
-    toolUse('w3', 'Write', { file_path: note }), toolResult('w3'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: project })
-  const listed = (`${run.stdout}`.match(/Changed paths include: ([^"]*?)\./) ?? [])[1] ?? ''
-  const entries = listed.split(', ').filter(Boolean)
-  assert.ok(entries.length > 0, run.stdout)
-  assert.deepEqual(entries, [...new Set(entries)], `repeated entries: ${listed}`)
-  assert.deepEqual(
-    provenMutationPaths(['a.js', 'a.js', 'b.js', 'a.js'], project),
-    ['a.js', 'b.js'],
-    'dedupe is provenMutationPaths itself, not a later unique()')
+  assert.match(run.stderr, /names commit or push/i)
+  assert.match(run.stderr, /qh-check/)
+  assert.doesNotMatch(run.stderr, /would publish unchecked/i)
 })
 
 test('reported: no advisory claims to have blocked anything', async () => {
@@ -805,7 +412,8 @@ test('reported: no advisory claims to have blocked anything', async () => {
   // narrated "Committed — the reload cleared the stuck hook": a false belief
   // about the harness AND a false explanation of the success. Advisory text that
   // describes itself as a refusal is the same defect as refusing.
-  const dir = await checkedProject('quality-wording-')
+  const dir = (await unheldRepository('quality-wording-')).dir
+  const session = `wording-${Date.now()}-${process.pid}`
   // The disclaimer lives after the artifact pass. An Edit of a missing file is
   // UNPROVEN-unclassified and returns before that sentence, so a mutant that
   // calls the commit a block would stay silent (CLAUDE.md §4).
@@ -818,7 +426,7 @@ test('reported: no advisory claims to have blocked anything', async () => {
   const missing = path.join(testTmp, 'quality-wording-absent.jsonl')
 
   const runs = [
-    { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir,
+    { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir, session_id: session,
       tool_input: { command: 'git commit -m test' }, transcript_path: file },
     { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir,
       tool_input: { command: 'git commit -m test' }, transcript_path: missing },
@@ -834,60 +442,15 @@ test('reported: no advisory claims to have blocked anything', async () => {
     const run = runLifecycleHook(payload)
     assert.equal(run.status, 0, JSON.stringify(payload))
     const message = `${run.stdout}${run.stderr}`
-    if (payload.tool_input?.command === 'git commit -m test' && payload.transcript_path === file) {
-      assert.match(message, /Nothing is blocked — this is what the gate sees/,
-        `the commit-gate disclaimer must be present, or a mutant that calls it a block is silent\n${message}`)
+    if (payload.session_id === session) {
+      assert.match(message, /names commit or push/,
+        `the publish warning must be present, or a mutant that calls it a block is silent\n${message}`)
     }
     // "nothing is blocked" is the disclaimer, not the offence.
     const claims = message.replace(/[Nn]othing (?:is|was) blocked/g, '')
       .match(/\b(?:blocked|blocking|refus\w*|denied|prevented|not allowed|disallowed)\b/gi) ?? []
     assert.deepEqual(claims, [], `${JSON.stringify(payload)} -> ${message}`)
   }
-})
-
-test('reported: committing does not make the next commit demand a check of it', async () => {
-  // agentsmemory, 2026-08-26, on 2.3.0. `git add -A && git commit …` is itself a
-  // git mutation, so the commit landed, was recorded as unverified authorship,
-  // and the following push was advised to go verify... the commit. No test could
-  // clear it: the loop closed on the publish itself.
-  const dir = await checkedProject('quality-loop-')
-  const file = path.join(dir, 'main.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(dir, 'a.go') }), toolResult('e1'),
-    toolUse('v1', 'Bash', { command: 'go test ./...' }), toolResult('v1'),
-    toolUse('c1', 'Bash', { command: 'git add -A && git commit -m done' }), toolResult('c1'),
-  ]))
-
-  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-  // The whole session still knows the commit was authorship — the completion
-  // gate's question is unchanged.
-  assert.equal(state.hasMutations, true)
-  assert.equal(state.verifiedAfterLastMutation, false)
-  // But the publish boundary has nothing unchecked after it.
-  assert.equal(state.unverifiedSince(state.lastPublish), false)
-
-  const push = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git push' }, transcript_path: file, cwd: dir,
-  })
-  assert.equal(push.status, 0)
-  assert.equal(`${push.stdout}${push.stderr}`.trim(), '', 'the loop is closed, so the gate is quiet')
-
-  // And the end of the turn asks the same question, so it gets the same answer.
-  // blueprints, 2026-08-26: edit, check, commit — and Stop reported that nothing
-  // had verified the work, because the commit came after the check.
-  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  assert.equal(stop.status, 0)
-  assert.equal(`${stop.stdout}${stop.stderr}`.trim(), '', stop.stdout)
-
-  // Editing AFTER the commit is unpublished work, and still draws the advisory.
-  await writeFile(file, `${await readFile(file, 'utf8')}\n${transcript([
-    toolUse('e2', 'Edit', { file_path: path.join(dir, 'b.go') }), toolResult('e2'),
-  ])}`)
-  const after = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  assert.match(after.stdout, /Changed paths include/)
-  assert.match(after.stdout, /b\.go/)
-  assert.doesNotMatch(after.stdout, /a\.go/, 'the published half is not re-reported')
 })
 
 test('a project that declares its check is asked for that check', async () => {
@@ -1029,37 +592,37 @@ test('reported: a project that names no check hears nothing from the evidence ga
   // smallest repository-owned test, lint, build, or validation command" — fired
   // at the end of every turn in a repository that had never opted in, naming no
   // command and asking for nothing that could be delivered. A gate with nothing
-  // specific to say says nothing.
+  // specific to say says nothing. ADR-060 keeps that opt-in: R1, R2, R4 and the
+  // publish warning all require a check this project named.
   const bare = await mkdtemp(path.join(testTmp, 'quality-unopted-'))
-  const file = path.join(bare, 'agent.jsonl')
   await writeFile(path.join(bare, 'redash_core.py'), 'print(0)\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(bare, 'redash_core.py') }), toolResult('e1'),
-  ]))
   assert.equal(projectCheckCommand(bare), null, 'the fixture must declare no check')
+  const session = `unopted-${process.pid}-${Date.now()}`
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: bare, session_id: session })
+  runLifecycleHook({
+    hook_event_name: 'PostToolUse', tool_name: 'Write', cwd: bare, session_id: session,
+    tool_input: { file_path: path.join(bare, 'redash_core.py') },
+  })
 
   for (const event of ['Stop', 'TaskCompleted', 'SubagentStop']) {
-    const run = runLifecycleHook({
-      hook_event_name: event, transcript_path: file, agent_transcript_path: file, cwd: bare,
-    })
+    const run = runLifecycleHook({ hook_event_name: event, cwd: bare, session_id: session })
     assert.equal(run.status, 0)
-    assert.equal(`${run.stdout}${run.stderr}`.trim(), '', `${event} should be silent`)
+    assert.equal(hookSaid(run.stdout, run.stderr).text, '', `${event} should be silent`)
   }
-  const commit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m x' }, transcript_path: file, cwd: bare,
-  })
+  const commit = publishAttempt('git commit -m x', bare, session)
   assert.equal(commit.status, 0)
-  assert.equal(`${commit.stdout}${commit.stderr}`.trim(), '')
+  assert.equal(hookSaid(commit.stdout, commit.stderr).text, '')
 
   // Declare one and the same session gets the same finding it always did, by name.
   await writeFile(path.join(bare, 'package.json'), JSON.stringify({ scripts: { test: 'pytest' } }))
-  const named = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: bare })
+  const named = turnEnd(bare, session, 'done')
   assert.match(named.stdout, /npm run test/)
 })
 
-test('commit gate recognizes Git global options and executable wrappers', () => {
-  const missing = path.join(testTmp, 'quality-hook-transcript-does-not-exist.jsonl')
+test('the publish warning reads commit or push through wrappers and quoting', async () => {
+  // ADR-060's word rule: no letter, digit, `_` or `-` beside the word. Every
+  // shape below names one, however it is wrapped.
+  const { dir, session } = await unheldRepository('quality-wrappers-')
   for (const command of [
     'git -c user.name=Bot commit -m test',
     'git --no-pager push origin main',
@@ -1077,126 +640,42 @@ test('commit gate recognizes Git global options and executable wrappers', () => 
     '((1 << 2))\ngit commit -m test',
     ['EOF(){ :; }', "printf %s 'literal <<EOF'", 'git commit -m test', 'EOF'].join('\n'),
   ]) {
-    const run = runLifecycleHook({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash',
-      tool_input: { command }, transcript_path: missing,
-    })
+    const run = publishAttempt(command, dir, session)
     assert.equal(run.status, 0, command)
-    assert.match(run.stderr, /cannot tell whether this change was checked/i, command)
+    // Once per state: the first shape warns, and the rest confirm the word rule
+    // reaches them by raising the event, which the log holds.
+    assert.doesNotMatch(run.stderr, /would publish unchecked/i, command)
   }
+  const log = readFileSync(path.join(dir, '.git', 'quality-harness', 'sessions', `${session}.jsonl`), 'utf8')
+  const requested = log.split('\n').filter(Boolean).map(line => JSON.parse(line))
+    .filter(entry => entry.event === 'publish.requested')
+  assert.equal(requested.length, 15, log)
 })
 
-test('commit and completion gates fail closed when the transcript is unreadable', () => {
-  const missing = path.join(testTmp, 'quality-hook-transcript-does-not-exist.jsonl')
-
-  // Exit 2 alone cannot say which gate answered, so each assertion names its reason.
-  const commit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: missing,
-  })
-  assert.equal(commit.status, 0)
-  assert.match(commit.stderr, /cannot tell whether this change was checked/i)
-
-  const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: missing })
-  assert.equal(task.status, 0)
-  assert.match(task.stderr, /completion evidence is unavailable/i)
-
-  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: missing })
-  assert.equal(stop.status, 0)
-  assert.match(stop.stdout, /"systemMessage"/)
+// ADR-060 T4 keeps the pre-publish artifact pass until T6 replaces it with rule
+// A: before a command that names commit or push, a malformed record this session
+// wrote is still reported. A surviving mutant showed nothing pinned it (§4).
+test('the pre-publish artifact pass still gates a malformed record', async () => {
+  // Rule A runs before a command that names commit or push, over what the
+  // session changed — here a malformed record nobody has gated (ADR-060 T6).
+  const { dir, session } = await unheldRepository('quality-prepublish-artifact-', 'invalid-spec.md')
+  await writeFile(path.join(dir, 'invalid-spec.md'), '# Invalid\n\n## Facts\n\n## Grill Log\n')
+  const run = publishAttempt('git commit -m x', dir, session)
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(run.stderr, /Artifact validation failed/)
 })
 
 test('subagent evidence gate remains active while the parent has background work', async () => {
-  const dir = await checkedProject('quality-hook-')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.js' }), toolResult('e1'),
-  ]))
+  // The background-work skip is Stop's alone: a subagent that has finished has
+  // finished, whatever the parent still has running.
+  const { dir, session } = await unheldRepository('quality-hook-background-')
   const run = runLifecycleHook({
-    hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir,
+    hook_event_name: 'SubagentStop', cwd: dir, session_id: session, agent_id: 'a1',
     background_tasks: [{ id: 'parent-task' }],
   })
   assert.match(run.stdout, /"systemMessage"/)
 })
 
-test('Stop stays Node-only while strict completion boundaries run artifact gates', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
-  const artifact = path.join(dir, 'invalid-spec.md')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: artifact }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file })
-  assert.equal(stop.status, 0, stop.stderr)
-  assert.equal(stop.stdout, '')
-
-  const subagent = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file })
-  assert.match(subagent.stdout, /Artifact validation failed/)
-
-  const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: file })
-  assert.equal(task.status, 0)
-  assert.match(task.stderr, /Artifact validation failed/)
-})
-
-test('an invalid Markdown artifact written through Bash is still gated', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-bash-md-'))
-  const artifact = path.join(dir, 'invalid-spec.md')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: `printf content > "${bashPath(artifact)}"` }), toolResult('b1'),
-    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir })
-  assert.match(run.stdout, /Artifact validation failed/)
-})
-
-test('globbed Markdown Bash mutations gate the files that actually exist without poisoning prose', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-bash-glob-'))
-  const file = path.join(dir, 'agent.jsonl')
-  const specs = path.join(dir, 'docs', 'specs')
-  const artifact = path.join(specs, 'invalid.md')
-  await mkdir(specs, { recursive: true })
-  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: `sed -i '' "${bashPath(specs)}/*.md"` }), toolResult('b1'),
-    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir })
-  assert.match(run.stdout, /Artifact validation failed/)
-  assert.doesNotMatch(run.stdout, /unresolved path/i)
-})
-
-test('an unresolved Bash deletion is answered by the repository, not held against the session', async () => {
-  // The sentinel comes from the public classifier so the test cannot drift from it.
-  const [sentinel] = bashDeletionMutationPaths('rm -rf "$ARCHIVE"', testTmp)
-  const repo = await mkdtemp(path.join(testTmp, 'quality-unresolved-rm-'))
-  const fixtures = path.join(repoRoot, 'tests', 'fixtures', 'ok')
-  await cp(path.join(fixtures, 'adr-archive'), path.join(repo, 'docs', 'adr-archive'), { recursive: true })
-  await cp(path.join(fixtures, 'adr'), path.join(repo, 'docs', 'adr'), { recursive: true })
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8', timeout: 60_000 })
-  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 60_000 })
-  git('add', '-A')
-  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'archive')
-
-  // A scratch deletion leaves the corpus whole, so the session is not held to a
-  // question the repository has already answered.
-  assert.equal(runArtifactGates([sentinel], repo), null)
-
-  // When a record really is gone the gate still fails, and now it names the file.
-  await rm(path.join(repo, 'docs', 'adr-archive', 'ADR-001-history.md'))
-  const removed = runArtifactGates([sentinel], repo)
-  assert.match(removed, /ADR-001-history\.md/)
-  assert.match(removed, /archive catalog lists ADR-001/)
-
-  // Outside a repository Git cannot answer, so the gate stays closed.
-  assert.match(runArtifactGates([sentinel], testTmp), /Git cannot say what is missing/)
-})
 
 test('every record gate advises, at the edit and at the boundary alike', async () => {
   const repo = await mkdtemp(path.join(testTmp, 'quality-adr-set-'))
@@ -1330,99 +809,6 @@ test('the artifact gate budget is raisable, and running out of it names the budg
   assert.doesNotMatch(judged, /timed out/)
 })
 
-test('scratch writes under the temp root are not the repository\'s edits', async () => {
-  // pluginDir stands in for a real (non-temp) project checkout; the scratch
-  // base comes from the platform so the truths hold off-macOS too.
-  const scratch = path.join(os.tmpdir(), 'qh-scratch')
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${scratch}/note.txt"`, pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths(`S="${scratch}"\ncat > "$S/commit.txt"`, pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths(`mkdir -p "${scratch}/old"`, pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths(`rm -rf "${scratch}"`, pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths(`git show HEAD:scripts/lifecycle.mjs > "${scratch}/old.mjs"`, pluginDir), true)
-
-  // Anything unprovable, repo-touching, or executed keeps today's answer.
-  assert.equal(mutatesOnlyTempPaths('printf x > docs/spec.md', pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`sed -i '' "${scratch}/x.md"`, pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`python3 "${scratch}/rewrite.py"`, pluginDir), false)
-  // NOT here any more: `cp scripts/lifecycle.mjs "<scratch>/"`. It used to be
-  // false, accounted by its source — but cp reads the source and writes only the
-  // destination, so nothing in the repository changed. Asserted the other way in
-  // the changed-path test above.
-  assert.equal(mutatesOnlyTempPaths('cat > "$UNSET_VAR_QH/f"', pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`rm -rf "${scratch}/a" && printf x > README.md`, pluginDir), false)
-  // A project living under the temp root gets no exemption at all.
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${scratch}/note.txt"`, testTmp), false)
-
-  // The bypasses the 2.0.17 review demonstrated stay dead:
-  // an option can smuggle the destination...
-  assert.equal(mutatesOnlyTempPaths(`mv --target-directory=scripts "${scratch}/evil.js"`, pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`cp -tscripts "${scratch}/evil.js"`, pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`cp -t scripts "${scratch}/evil.js"`, pluginDir), false)
-  // ...a later reassignment must not rewrite an earlier use...
-  assert.equal(mutatesOnlyTempPaths(`S=docs\nprintf x > $S/f.md\nS="${scratch}"\nprintf y > $S/g`, pluginDir), false)
-  // ...a glued redirect writes even where the mutation classifier is blind...
-  assert.equal(mutatesOnlyTempPaths(`echo y > "${scratch}/ok"; echo x>scripts/f`, pluginDir), false)
-  // ...and a DIRECTORY symlink under the temp root is judged by where it lands.
-  // The FILE and dangling arms are the test below, split out 2026-09-18: they
-  // need a real symlink, which is EPERM for an ordinary Windows account, and
-  // keeping them here meant that one skip discarded every assertion after this
-  // point. §7: split a test so its portable half keeps running. Found when two
-  // Windows sessions observed that converting the directory link moved this
-  // test's skip rather than removing it.
-  const linkDir = await mkdtemp(path.join(testTmp, 'quality-scratch-link-'))
-  const directoryLink = path.join(linkDir, 'repo-link')
-  // A DIRECTORY link: a junction needs no privilege, so this runs on Windows
-  // rather than skipping (tests/symlink-support.mjs).
-  linkDirectory(pluginDir, directoryLink)
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${directoryLink}/smuggled.txt"`, pluginDir), false)
-
-  // A scratch write is invisible to the evidence gate; a repo write is not.
-  const scratchOnly = analyzeTranscript(transcript([
-    toolUse('b1', 'Bash', { command: `cat > "${scratch}/notes.txt"` }), toolResult('b1'),
-  ]), pluginDir)
-  assert.equal(scratchOnly.hasMutations, false)
-  const verifiedThenScratch = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(pluginDir, 'a.ts') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: `cat > "${scratch}/notes.txt"` }), toolResult('b1'),
-  ]), pluginDir)
-  assert.equal(verifiedThenScratch.verifiedAfterLastMutation, true)
-})
-
-test('a symlink under the temp root is judged by where it lands, not by what it is', async t => {
-  const linkDir = await mkdtemp(path.join(testTmp, 'quality-scratch-file-link-'))
-  const fileLink = path.join(linkDir, 'file-link')
-  if (!await symlinkOrSkip(t, path.join(repoRoot, 'README.md'), fileLink)) return
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${fileLink}"`, pluginDir), false)
-  const danglingLink = path.join(linkDir, 'dangling-link')
-  await symlink(path.join(repoRoot, 'does-not-exist-yet.md'), danglingLink)
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${danglingLink}"`, pluginDir), false)
-})
-
-test('a deletion and a commit in one command cannot hide what was removed', async () => {
-  // The one shape nothing else can check. This hook runs BEFORE the command, so
-  // the deletion has not happened and deletedTrackedPaths would answer about an
-  // untouched tree; afterwards HEAD has moved and the answer is gone.
-  const repo = await mkdtemp(path.join(testTmp, 'quality-launder-'))
-  const file = path.join(repo, 'main.jsonl')
-  await writeFile(file, transcript([
-    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const attempt = command => runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
-    transcript_path: file, tool_input: { command },
-  })
-
-  const blocked = attempt('rm -rf "$ARCHIVE_DIR" && git add -A && git commit -m cover')
-  assert.equal(blocked.status, 0)
-  assert.match(blocked.stderr, /deletes by an unresolved path and commits in the same breath/)
-
-  // Named explicitly, the repository can answer, so it is allowed through here.
-  assert.notEqual(attempt('rm -rf docs/adr-archive && git commit -m x').status, 2)
-  assert.notEqual(attempt('git commit -m x').status, 2)
-})
-
 test('the artifact pass never outlives the hook it runs inside', async () => {
   // An exhausted window is a blocking failure, not a silent skip: an unread
   // artifact is not a clean one.
@@ -1441,69 +827,6 @@ test('the artifact pass never outlives the hook it runs inside', async () => {
 // written as the reports arrived rather than as tidy minimal cases, because the
 // tidy version is what passed while the real one failed.
 
-test('reported: a read-only command is not authorship because of how it is spelled', () => {
-  // Hit live on 2026-08-26 while trying to WATCH a CI run:
-  //   gh run watch 123 > /dev/null 2>&1
-  //   -> "Bash would mutate files in protected 'main'. Create a task branch first"
-  //
-  // `\s*` matched the space, the /dev/null exclusion failed, the engine handed the
-  // space back, and the lookahead was re-tried against " /dev/null" — which does
-  // not start with /dev/null. So the spacing decided whether reading counted as
-  // writing. Recorded in BACKLOG item 6 as "one careful regex away" and left
-  // unfixed until it blocked a session.
-  const nul = ['>', ' /dev/null'].join('')
-  for (const spelling of [`gh run watch 123 ${nul} 2>&1`, `gh run watch 123 >/dev/null`,
-    `printf x ${nul}`, `node --test ${nul} 2>&1`]) {
-    assert.equal(isPotentialMutationCommand(spelling), false, spelling)
-  }
-
-  // Closing a descriptor writes nothing either.
-  assert.equal(isPotentialMutationCommand('git fsck 2>&-'), false)
-  assert.equal(isPotentialMutationCommand('git fsck 2>&1'), false)
-
-  // The exclusion must stay narrow: a real write is still a write, and a path
-  // that merely BEGINS like the null device is not it.
-  assert.equal(isPotentialMutationCommand(['printf x ', ' out.txt'].join('>')), true)
-  assert.equal(isPotentialMutationCommand(['printf x ', ' /dev/null-backup'].join('>')), true)
-  assert.equal(isPotentialMutationCommand(['printf x ', '> appended.log'].join('>')), true)
-
-  // A glued redirect is a redirect. `printf x>out.txt` writes a file, and the
-  // old `(?:^|\s)` prefix required whitespace, so the evidence gate never saw it
-  // — a fail-open living in the same regex as the two false blocks above.
-  assert.equal(isPotentialMutationCommand(['printf x', 'out.txt'].join('>')), true)
-
-  // Quoted segments are stripped before the test, so a `>` that is a comparison
-  // in someone else's language is not read as a redirect in this one. That is
-  // what makes the glued-redirect fix safe rather than noisy.
-  assert.equal(isPotentialMutationCommand("python3 -c 'print(1 if a>b else 2)'"), false)
-  assert.equal(isPotentialMutationCommand('echo "a > b"'), false)
-})
-
-test('reported: a Windows path is a path, not an escape sequence', () => {
-  // `\` is a shell escape on POSIX and the path separator on Windows. The
-  // deletion resolver treated it as unresolvable on both, so on Windows EVERY
-  // literal path deletion came back <Unresolved Bash deletion> — which is why the
-  // sticky sentinel bit hardest there. Caught by the windows job on 2026-08-26,
-  // on a test written for the POSIX shape of the same bug.
-  //
-  // The platform is a parameter so both branches are exercised here rather than
-  // on one machine each. mutatesOnlyTempPaths already excluded `\` from its own
-  // ambiguous set; the two had simply disagreed.
-  const win = String.raw`C:\Users\RUNNER~1\AppData\Local\Temp\scratch`
-  const onWindows = bashDeletionMutationPaths(`rm -rf "${win}"`, 'C:\\repo', 'win32')
-  assert.ok(!onWindows.includes('<Unresolved Bash deletion>'), JSON.stringify(onWindows))
-
-  // On POSIX the same characters really are escapes, and must stay unresolvable.
-  assert.ok(bashDeletionMutationPaths(`rm -rf "${win}"`, '/repo', 'linux')
-    .includes('<Unresolved Bash deletion>'))
-
-  // A glob is unresolvable on both, because it names no single path.
-  for (const platform of ['win32', 'linux']) {
-    assert.ok(bashDeletionMutationPaths('rm -rf build/*', '/repo', platform)
-      .includes('<Unresolved Bash deletion>'), platform)
-  }
-})
-
 test('no finding is ever hidden: a completion advisory is a systemMessage, and a PreToolUse one reaches the agent in full', async () => {
   // The owner's rule, stated three times: never block, never hide. The advisory
   // conversion nearly violated the second half — exit-0 stderr alone is surfaced
@@ -1511,17 +834,12 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
   // completion-boundary advisory emits a systemMessage, which the session shows
   // regardless of exit code, alongside stderr for the transcript. At a tool
   // boundary the reader is the agent (BACKLOG §131), and that arm is below.
-  const repo = await checkedProject('quality-visible-')
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-  ]))
+  const { dir: repo, session: repoSession } = await unheldRepository('quality-visible-')
 
-  // A completion boundary with unverified edits: exit 0, and the finding is in
+  // A completion boundary with unchecked work: exit 0, and the finding is in
   // BOTH channels.
   const completion = runLifecycleHook({
-    hook_event_name: 'TaskCompleted', transcript_path: file, cwd: repo,
+    hook_event_name: 'TaskCompleted', cwd: repo, session_id: repoSession,
   })
   assert.equal(completion.status, 0, completion.stderr)
   assert.match(completion.stdout, /"systemMessage"/, 'the session must see it')
@@ -1531,47 +849,28 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
   // instruction as context. `systemMessage` is rendered to the person one
   // "PreToolUse:Bash says:" line per line of text, and a full report was
   // littering the owner's terminal on every commit attempt (2026-09-05).
-  const session = `visible-${Date.now()}-${process.pid}`
-  const commit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
-    transcript_path: file, tool_input: { command: 'git commit -m x' },
-  })
+  const { dir: held, session } = await unheldRepository('quality-visible-commit-')
+  const commit = publishAttempt('git commit -m x', held, session)
   assert.equal(commit.status, 0, commit.stderr)
   const said = JSON.parse(commit.stdout)
   assert.match(said.systemMessage ?? '', /^quality-harness advised the agent: /, 'the person must still see that a finding was made')
-  assert.doesNotMatch(said.systemMessage, /\n/, 'and see it as one line')
-  assert.equal(said.hookSpecificOutput?.additionalContext, commit.stderr.trim(),
+  assert.doesNotMatch(stripPauseLines(said.systemMessage), /\n/, 'and see it as one line')
+  assert.equal(said.hookSpecificOutput?.additionalContext, stripPauseLines(commit.stderr),
     'the agent gets the WHOLE finding, byte for byte what the transcript holds')
   assert.equal(said.hookSpecificOutput.hookEventName, 'PreToolUse')
-  assert.match(commit.stderr, /Nothing has verified the work/, 'the transcript keeps the full text')
+  assert.match(commit.stderr, /names commit or push/, 'the transcript keeps the full text')
 
-  // The same finding again in the same session: one line for the agent, nothing
-  // for the person.
-  const again = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
-    transcript_path: file, tool_input: { command: 'git commit -m y' },
-  })
-  const repeated = JSON.parse(again.stdout)
-  assert.equal(repeated.systemMessage, undefined, 'a repeat must not re-litter the terminal')
-  assert.match(repeated.hookSpecificOutput?.additionalContext ?? '', /still stands/, 'the agent is still reminded')
-  assert.ok(repeated.hookSpecificOutput.additionalContext.length < 400, 'as a line, not the report')
+  // The same state again says nothing at all: the publish warning speaks once per
+  // tree, index and evidence revision (ADR-060), so there is no repeat to litter.
+  const again = publishAttempt('git commit -m y', held, session)
+  assert.equal(hookSaid(again.stdout).stdout, '', 'the same state must not speak twice')
 
-  // A CHANGED finding in the same session is said in full again: one more
-  // unverified edit changes the changed-path list, and the person hears of it.
-  await writeFile(path.join(repo, 'other.py'), 'print(1)\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-    toolUse('e2', 'Write', { file_path: path.join(repo, 'other.py') }), toolResult('e2'),
-  ]))
-  const changed = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
-    transcript_path: file, tool_input: { command: 'git commit -m z' },
-  })
+  // A changed state is news again.
+  await writeFile(path.join(held, 'other.py'), 'print(1)\n')
+  const changed = publishAttempt('git commit -m z', held, session)
   const fresh = JSON.parse(changed.stdout)
-  assert.match(fresh.systemMessage ?? '', /^quality-harness advised the agent: /, 'a changed finding is news again')
-  assert.equal(fresh.hookSpecificOutput.additionalContext, changed.stderr.trim())
-  assert.match(fresh.hookSpecificOutput.additionalContext, /other\.py/, 'and it is the new finding, not the old one')
-
+  assert.match(fresh.systemMessage ?? '', /^quality-harness advised the agent: /, 'a changed state is news again')
+  assert.equal(fresh.hookSpecificOutput.additionalContext, stripPauseLines(changed.stderr))
   // And a clean state stays silent — guidance, not noise.
   const clean = await mkdtemp(path.join(testTmp, 'quality-visible-clean-'))
   const cleanFile = path.join(clean, 'agent.jsonl')
@@ -1583,49 +882,7 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
     hook_event_name: 'TaskCompleted', transcript_path: cleanFile, cwd: clean,
   })
   assert.equal(quiet.status, 0)
-  assert.doesNotMatch(quiet.stdout, /"systemMessage"/)
-})
-
-test('compaction makes a once-per-session finding first again', async () => {
-  // The markers gate context the agent HAS. After compaction it has none of it,
-  // and a marker that survived would keep the reminder to one line for exactly
-  // the session that lost the full text. SessionStart with source "compact"
-  // bumps the session's generation; the same finding is then news again.
-  const repo = await checkedProject('quality-compact-')
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-  ]))
-  const session = `compact-${Date.now()}-${process.pid}`
-  const commit = () => JSON.parse(runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
-    transcript_path: file, tool_input: { command: 'git commit -m x' },
-  }).stdout)
-  assert.match(commit().systemMessage ?? '', /^quality-harness advised/, 'first: in full')
-  assert.equal(commit().systemMessage, undefined, 'second: a repeat')
-
-  // A resume is not a compaction: the context is still there.
-  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: repo, session_id: session })
-  assert.equal(commit().systemMessage, undefined, 'after a resume: still a repeat')
-
-  const compacted = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session })
-  assert.equal(compacted.status, 0, compacted.stderr)
-  assert.match(commit().systemMessage ?? '', /^quality-harness advised/, 'after compaction: in full again')
-  assert.equal(commit().systemMessage, undefined, 'and then a repeat again')
-
-  // /clear is the other source that empties the context; it bumps too.
-  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'clear', cwd: repo, session_id: session })
-  assert.match(commit().systemMessage ?? '', /^quality-harness advised/, 'after /clear: in full again')
-  assert.equal(commit().systemMessage, undefined, 'and then a repeat')
-
-  // The markers and the generation live under the per-run root, not the OS temp
-  // directory the cleanup never touches: the generation beside the root, the
-  // said-markers in their own directory below it (BACKLOG §146).
-  const own = (await readdir(testTmp)).filter(name => /^quality-harness-gen-/.test(name))
-  assert.ok(own.length >= 1, `the hook's generation file must land under the run's root: ${own}`)
-  const said = (await readdir(saidMarkerDirectory(testTmp))).filter(name => /^[0-9a-f]{32}$/.test(name))
-  assert.ok(said.length >= 1, `the hook's said-markers must land under the run's root: ${said}`)
+  assert.doesNotMatch(hookSaid(quiet.stdout).stdout, /"systemMessage"/)
 })
 
 test('a slow hook names itself; a fast one says nothing about its time', async () => {
@@ -1637,100 +894,98 @@ test('a slow hook names itself; a fast one says nothing about its time', async (
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
   ]))
+  const { dir: held, session } = await unheldRepository('quality-slow-commit-')
   const payload = {
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
-    transcript_path: file, tool_input: { command: 'git commit -m x' },
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: held, session_id: session,
+    tool_input: { command: 'git commit -m x' },
   }
   const slow = runLifecycleHook(payload, { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, QUALITY_HARNESS_SLOW_HOOK_MS: '0' } })
   assert.equal(slow.status, 0, slow.stderr)
   const said = JSON.parse(slow.stdout)
   assert.match(said.systemMessage, /the PreToolUse hook took \d+\.\ds/, 'the pause is named to the person')
+  assert.match(said.systemMessage.split('\n').at(-1), SLOW_HOOK_NOTE, 'the pause is one whole line, the only one a silence check may ignore')
   assert.match(said.systemMessage, /^quality-harness advised the agent/, 'and the finding is still first')
   assert.match(slow.stderr, /hook took \d+\.\ds/, 'and in the transcript')
-  assert.match(said.hookSpecificOutput?.additionalContext ?? '', /Nothing has verified/, 'the finding itself is untouched')
+  assert.match(said.hookSpecificOutput?.additionalContext ?? '', /names commit or push/, 'the finding itself is untouched')
 
+  // A fast run in a state the warning has not spoken for yet.
+  await writeFile(path.join(held, 'third.py'), 'print(2)\n')
   const fast = JSON.parse(runLifecycleHook(payload).stdout)
   assert.doesNotMatch(fast.systemMessage ?? '', /hook took/, 'a fast run does not talk about its time')
   // With nothing to say and nothing slow, nothing is written at all.
   const quiet = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: await mkdtemp(path.join(testTmp, 'quality-quiet-')) })
-  assert.equal(quiet.stdout.trim(), '', 'no finding, no time: no output')
+  assert.equal(hookSaid(quiet.stdout).stdout, '', 'no finding, and a pause line is not one')
 })
 
 test('PreCompact records what the gates measured, and the compact SessionStart hands it back', async () => {
   // Compaction keeps the model's summary and drops the state the gates measured.
-  // PreCompact writes a note — paths since the last publish, whether a
-  // recognised check passed after them, the last check, task in flight — and
-  // the compact-source SessionStart injects it alongside the orientation. A
+  // PreCompact OBSERVES, then writes a note — the changed paths, whether a
+  // `qh-check` has passed on them, the last check event, the task in flight —
+  // and the compact-source SessionStart injects it beside the orientation. A
   // resume does not: that context is still there.
-  const repo = await checkedProject('quality-precompact-')
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
+  const { dir: repo, session } = await unheldRepository('quality-precompact-', 'service.py')
   await writeFile(path.join(repo, 'other.py'), 'print(1)\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-    toolUse('e2', 'Write', { file_path: path.join(repo, 'other.py') }), toolResult('e2'),
-  ]))
-  const session = `precompact-${Date.now()}-${process.pid}`
-  const pre = runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'auto', cwd: repo, session_id: session, transcript_path: file })
+  const pre = runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'auto', cwd: repo, session_id: session })
   assert.equal(pre.status, 0, pre.stderr)
-  assert.equal(pre.stdout.trim(), '', 'PreCompact has nothing to say to the model; it writes')
+  assert.equal(hookSaid(pre.stdout).stdout, '', 'PreCompact has nothing to say to the model; it writes')
 
   const compact = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session })
   assert.equal(compact.status, 0, compact.stderr)
   const context = JSON.parse(compact.stdout).hookSpecificOutput.additionalContext
   assert.match(context, /What this session was doing before compaction/, 'the note is handed back')
-  assert.match(context, /2 path\(s\) edited since the last publish; no recognised check has passed since: (service\.py, other\.py|other\.py, service\.py)/)
+  assert.match(context, /2 changed path\(s\); no `qh-check` has passed on them: /)
+  assert.match(context, /service\.py/)
   assert.match(context, /No check has run this session/)
 
   const resume = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: repo, session_id: session })
   assert.doesNotMatch(resume.stdout, /before compaction/, 'a resume still has its context')
 
-  // A checked session says so, narrowly, with the check named.
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'npm run test' }), toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'manual', cwd: repo, session_id: session, transcript_path: file })
+  // A checked session says so, with the check named. The event is the one
+  // `qh-check` writes: it belongs to the tree it observed.
+  const observed = observe(repo)
+  appendEvent(repo, session, {
+    event: 'check.passed', startedAt: new Date().toISOString(), command: 'sh check.sh',
+    origin: 'declared', before: observed, after: observed, exit: 0,
+  })
+  runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'manual', cwd: repo, session_id: session })
   const checked = JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session }).stdout)
-  assert.match(checked.hookSpecificOutput.additionalContext, /1 path\(s\) edited since the last publish; a recognised check passed after them: service\.py\. Last check: `npm run test` passed/)
+  assert.match(checked.hookSpecificOutput.additionalContext, /a `qh-check` passed on them/)
+  assert.match(checked.hookSpecificOutput.additionalContext, /Last check: `sh check\.sh` passed/)
 
-  // A PreCompact that cannot read the transcript says so, and the note from the
-  // EARLIER compaction is not handed back as current: the old note goes first.
-  const blind = runLifecycleHook({ hook_event_name: 'PreCompact', cwd: repo, session_id: session, transcript_path: path.join(repo, 'missing.jsonl') })
-  assert.equal(blind.status, 0)
-  assert.match(blind.stderr, /transcript could not be read/)
-  assert.doesNotMatch(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session }).stdout, /before compaction/,
-    'a failed PreCompact must not leave the previous note to be handed back')
+  // Every PreCompact replaces the note, so a later one is never read as the
+  // earlier one's state (Codex review, 2026-09-05).
+  await writeFile(path.join(repo, 'third.py'), 'print(2)\n')
+  runLifecycleHook({ hook_event_name: 'PreCompact', cwd: repo, session_id: session })
+  const fresh = JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session }).stdout)
+  assert.match(fresh.hookSpecificOutput.additionalContext, /3 changed path\(s\); no `qh-check` has passed on them/)
 })
 
 test('SessionEnd records what was left unverified, and the next startup here says so', async () => {
   // The ledger row is what lets a NEW session in the same place start knowing
-  // the last one ended with unchecked edits. A neutral session (nothing edited)
+  // the last one ended with unchecked work. A neutral session (nothing changed)
   // does not mask it; a checked end clears it; a different place is not here;
   // a subdirectory of the same repository is.
-  const repo = await checkedProject('quality-sessionend-')
-  // A repository, so "here" is the repository root and a subdirectory is the
-  // same place; only ever spawned in a directory this test created (CLAUDE.md §9).
-  assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, encoding: 'utf8', timeout: 60_000 }).status, 0)
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-    toolUse('b1', 'Bash', { command: 'printf x > notes.txt' }), toolResult('b1'),
-  ]))
-  const end = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'prompt_input_exit', cwd: repo, session_id: 'ended-1', transcript_path: file })
+  const { dir: repo, session } = await unheldRepository('quality-sessionend-', 'service.py')
+  // A write git cannot see, so the row counts it beside the tree's own paths.
+  const outside = path.join(testTmp, `sessionend-outside-${process.pid}.bin`)
+  await writeFile(outside, 'x')
+  runLifecycleHook({
+    hook_event_name: 'PostToolUse', tool_name: 'Write', cwd: repo, session_id: session,
+    tool_input: { file_path: outside },
+  })
+  const end = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'prompt_input_exit', cwd: repo, session_id: session })
   assert.equal(end.status, 0, end.stderr)
   const rows = () => readFileSync(path.join(ledgerHome, 'sessions.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
   const row = rows().findLast(entry => entry.cwd === repo)
   assert.ok(row, 'a row for this place')
   assert.equal(row.status, 'unverified')
   assert.deepEqual(row.files, [path.join(repo, 'service.py')])
-  assert.equal(row.other, 1, 'the shell mutation is counted, not dropped')
+  assert.equal(row.other, 1, 'the write git cannot see is counted, not dropped')
   assert.equal(row.reason, 'prompt_input_exit')
   assert.equal(typeof row.location, 'string')
 
-  const notice = cwd => JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd }).stdout || '{}').hookSpecificOutput?.additionalContext ?? ''
-  assert.match(notice(repo), /The previous session in this directory ended \(prompt_input_exit, .*\) with 1 edit\(s\) and 1 shell mutation\(s\) after which no recognised check passed: service\.py\. Run `npm run test` before building on them\./)
+  const notice = cwd => JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd, session_id: `after-${Date.now()}` }).stdout || '{}').hookSpecificOutput?.additionalContext ?? ''
+  assert.match(notice(repo), /The previous session in this directory ended \(prompt_input_exit, .*\) with/)
 
   // A subdirectory of the same repository is the same place.
   await mkdir(path.join(repo, 'src'), { recursive: true })
@@ -1740,32 +995,35 @@ test('SessionEnd records what was left unverified, and the next startup here say
   const other = await checkedProject('quality-sessionend-other-')
   assert.doesNotMatch(notice(other), /previous session/)
 
-  // A neutral session in between — nothing edited — does not mask the finding.
-  await writeFile(file, transcript([toolUse('r1', 'Read', { file_path: path.join(repo, 'service.py') }), toolResult('r1')]))
-  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-neutral', transcript_path: file })
+  // A neutral session in between — nothing changed, because the work is
+  // committed — does not mask the finding.
+  const git = (...args) => spawnSync('git', ['-C', repo, '-c', 'user.name=qh', '-c', 'user.email=qh@example.invalid', ...args],
+    { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(git('add', '-A').status, 0)
+  assert.equal(git('commit', '-q', '-m', 'work', '--no-gpg-sign').status, 0)
+  const neutral = `ended-neutral-${Date.now()}`
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: repo, session_id: neutral })
+  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: neutral })
   assert.equal(rows().findLast(entry => entry.cwd === repo).status, 'neutral')
-  assert.match(notice(repo), /previous session in this directory/, 'a neutral session says nothing about what was left')
-
-  // A transcript that cannot be read writes NO row — a could-not-look row would be
-  // walked over as if it had looked.
-  const before = rows().length
-  const blind = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-blind', transcript_path: path.join(repo, 'missing.jsonl') })
-  assert.match(blind.stderr, /transcript could not be read/)
-  assert.equal(rows().length, before, 'nothing written for a session that could not be read')
-  assert.match(notice(repo), /previous session in this directory/)
+  assert.match(notice(repo), /previous session in this directory/, 'a neutral session says nothing about an earlier one')
 
   // A checked end clears it.
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'npm run test' }), toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-2', transcript_path: file })
+  const checked = `ended-checked-${Date.now()}`
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: repo, session_id: checked })
+  await writeFile(path.join(repo, 'later.py'), 'print(3)\n')
+  const observed = observe(repo)
+  appendEvent(repo, checked, {
+    event: 'check.passed', startedAt: new Date().toISOString(), command: 'sh check.sh',
+    origin: 'declared', before: observed, after: observed, exit: 0,
+  })
+  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: checked })
+  assert.equal(rows().findLast(entry => entry.cwd === repo).status, 'verified')
   assert.doesNotMatch(notice(repo), /previous session/)
 
   // No data home: said on stderr, nothing written, nothing invented.
   const env = { ...process.env }
   delete env.CLAUDE_PLUGIN_DATA
-  const homeless = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-3', transcript_path: file }, { env })
+  const homeless = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-homeless' }, { env })
   assert.equal(homeless.status, 0)
   assert.match(homeless.stderr, /CLAUDE_PLUGIN_DATA is not set/)
 })
@@ -1783,65 +1041,6 @@ test('a location key is the realpath of the repository root, case-folded where t
   assert.equal(locationKey(path.join(dir, 'nope'), 'linux'), path.join(dir, 'nope'))
 })
 
-test('reported: a build in a container is a build, not a deletion', () => {
-  // depozitas_laravel, 2026-08-26. `docker compose run --rm --no-deps node sh -c
-  // 'cd /var/www && npm run build'` was recorded as a MUTATION, so every build
-  // demanded another build — a closed loop the session escaped only by running
-  // npm ci (37 packages) to make a native build possible.
-  //
-  // `--rm` was read as the `rm` command: \b treats a hyphen as a word boundary.
-  const containerBuild = "docker compose run --rm --no-deps node sh -c 'cd /var/www && npm run build'"
-  assert.equal(isPotentialMutationCommand(containerBuild), false, containerBuild)
-  assert.equal(isPotentialMutationCommand('docker compose run --rm app npm run build'), false)
-  // The same trap sits under every mutator word that is also a flag.
-  for (const flag of ['--rm', '--move', '--copy', '--install', '--patch', '--link']) {
-    assert.equal(isPotentialMutationCommand(`some-tool ${flag} thing`), false, flag)
-  }
-  // And a real one is still real.
-  assert.equal(isPotentialMutationCommand('rm -rf build'), true)
-  assert.equal(isPotentialMutationCommand('docker compose exec -T app rm -rf storage'), true)
-
-  // The other half: nothing containerised counted as validation, so a project
-  // whose tests run in a container produced no evidence at all — 286 passing
-  // tests, and the completion gate still asking for a check.
-  assert.equal(isValidationCommand('docker compose exec -T app php artisan test'), true)
-  assert.equal(isValidationCommand(containerBuild), true)
-  assert.equal(isValidationCommand('docker exec -u root ctr npm run test'), true)
-
-  // A wrapper judges what it runs — it does not launder what it runs.
-  assert.equal(isValidationCommand('docker compose exec -T app rm -rf storage'), false)
-  assert.equal(isValidationCommand('docker compose exec -T app php artisan migrate'), false)
-
-  // Two runners that were missing outright, container or not.
-  assert.equal(isValidationCommand('php artisan test'), true)
-  assert.equal(isValidationCommand('./vendor/bin/phpunit'), true)
-  assert.equal(isValidationCommand('php artisan migrate'), false)
-
-  // Only one layer of each wrapper is peeled: guessing deeper is how a wrapper
-  // starts hiding a mutation inside a validation.
-  assert.equal(commandInsideWrappers('docker compose exec -T app php artisan test'), 'php artisan test')
-  assert.equal(commandInsideWrappers('npm run test'), 'npm run test')
-})
-
-test('reported: a long session can still commit', async () => {
-  // Webitel, 2026-08-26. An ADR/spec session made dozens of edits; every commit
-  // re-gated the whole accumulated list against a fixed 45s window, so once the
-  // per-file cost crossed it EVERY commit failed, naming a different file as the
-  // cutoff each time. Three retries, three different files.
-  const entries = []
-  for (let index = 0; index < 40; index += 1) {
-    entries.push(toolUse(`e${index}`, 'Write', { file_path: `/repo/docs/specs/spec-${index}.md` }),
-      toolResult(`e${index}`))
-  }
-  entries.push(toolUse('c1', 'Bash', { command: 'git commit -m "first batch"' }), toolResult('c1'))
-  entries.push(toolUse('last', 'Write', { file_path: '/repo/docs/specs/current.md' }), toolResult('last'))
-
-  const state = analyzeTranscript(transcript(entries))
-  assert.ok(state.mutationPaths.length > 40, 'the session still knows everything it touched')
-  // But the commit gates one file: the one being published.
-  assert.deepEqual(state.mutationPathsSince(state.lastPublish), ['/repo/docs/specs/current.md'])
-})
-
 test('reported: the nag says what changed in a form a person can read', async () => {
   // depozitas_laravel, 2026-08-26. The Stop message spliced 120 raw characters of
   // each command into one sentence, so a heredoc put newlines and a mid-token
@@ -1850,44 +1049,17 @@ test('reported: the nag says what changed in a form a person can read', async ()
   //   python3 - <<'PY'
   //   import io
   //   p="tests/Unit/Notifications/CustomerEmailTest.p>
-  const dir = await checkedProject('quality-nag-')
-  const file = path.join(dir, 'agent.jsonl')
-  const heredoc = 'cd /repo\npython3 - <<\'PY\'\nimport pathlib\n'
-    + 'pathlib.Path("tests/Unit/Notifications/CustomerEmailTest.php").write_text("x")\nPY'
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: heredoc }), toolResult('b1'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  // ADR-060: the list is `git status --porcelain`, relative to the repository, so
+  // no command's text can reach it however it was spelled.
+  const { dir, session } = await unheldRepository('quality-nag-', 'CustomerEmailTest.php')
+  const run = turnEnd(dir, session, 'done')
   const message = `${run.stdout}${run.stderr}`
   assert.match(message, /"systemMessage"/)
-  assert.match(message, /could not prove a repository path/)
-  assert.doesNotMatch(message, /Changed paths include/)
+  assert.match(message, /Changed paths: /)
+  assert.match(message, /CustomerEmailTest\.php/)
   assert.doesNotMatch(message, /python3 - <</)
-  // A marker, if still printed, must be one line. F-1 no longer lists it as a path.
-  const markers = message.match(/<Bash mutation: [^>]*>/g) ?? []
-  for (const marker of markers) assert.doesNotMatch(marker, /\n/, marker)
-})
-
-test('reported: cleaning up a scratch directory does not brick the session', async () => {
-  // This repository, 2026-08-26, mid-session. `W=<temp>; rm -rf "$W"` armed the
-  // unresolved-deletion sentinel, and because a publish after one failed closed,
-  // committing was blocked for the rest of the session. Two commits had to be
-  // run by hand through the `!` prefix.
-  const repo = await mkdtemp(path.join(testTmp, 'quality-scratch-'))
-  const scratch = path.join(os.tmpdir(), 'quality-scratch-target')
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(path.join(repo, 'notes.md'), '# Notes\n')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: `W=${scratch}\nrm -rf "$W"\nmkdir -p "$W"` }), toolResult('b1'),
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'notes.md') }), toolResult('e1'),
-    toolUse('c1', 'Bash', { command: 'git commit -m one' }), toolResult('c1'),
-  ]))
-
-  // The scratch deletion resolves, so nothing is unresolved and nothing sticks.
-  const cleaned = bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo)
-  assert.ok(!cleaned.includes('<Unresolved Bash deletion>'), JSON.stringify(cleaned))
-  const state = analyzeTranscript(await readFile(file, 'utf8'), repo)
-  assert.ok(!state.mutationPaths.includes('<Unresolved Bash deletion>'))
+  assert.doesNotMatch(message, /<Bash mutation:/)
+  assert.doesNotMatch(message, /\\n/, message)
 })
 
 test('reported: a deletion in one command does not block every commit after it', async () => {
@@ -1909,53 +1081,6 @@ test('reported: a deletion in one command does not block every commit after it',
   // The completion boundary must not refuse the session outright.
   const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: file, cwd: repo })
   assert.doesNotMatch(`${task.stdout}${task.stderr}`, /commit has already landed since/)
-})
-
-test('the gate names the check this project owns instead of asking for one', async () => {
-  // The harness's own repository names its check in a script.
-  assert.equal(projectCheckCommand(pluginDir), 'bash scripts/selftest.sh')
-
-  // A package manifest is read for a real script, in lock-file order.
-  const node = await mkdtemp(path.join(testTmp, 'quality-check-node-'))
-  await writeFile(path.join(node, 'package.json'),
-    JSON.stringify({ scripts: { build: 'tsc', test: 'vitest run' } }))
-  assert.equal(projectCheckCommand(node), 'npm run test')
-  await writeFile(path.join(node, 'pnpm-lock.yaml'), '')
-  assert.equal(projectCheckCommand(node), 'pnpm test')
-
-  // An empty or absent scripts block names nothing rather than guessing.
-  const bare = await mkdtemp(path.join(testTmp, 'quality-check-bare-'))
-  await writeFile(path.join(bare, 'package.json'), JSON.stringify({ name: 'x' }))
-  assert.equal(projectCheckCommand(bare), null)
-
-  const make = await mkdtemp(path.join(testTmp, 'quality-check-make-'))
-  await writeFile(path.join(make, 'Makefile'), 'all:\n\techo hi\ncheck:\n\techo ok\n')
-  assert.equal(projectCheckCommand(make), 'make check')
-
-  // Whatever is offered must be something the evidence rule actually accepts —
-  // naming a command the gate would then refuse is worse than naming none.
-  for (const command of ['bash scripts/selftest.sh', 'npm run test', 'pnpm test', 'make check',
-    'cargo test', 'go test ./...', 'pytest']) {
-    assert.equal(isValidationCommand(command), true, command)
-  }
-
-  // And the blocking message carries it. The fixture repo sits on a task branch
-  // with its own manifest, so this reads the project under test rather than the
-  // host checkout — the trap that made this suite branch-sensitive before.
-  spawnSync('git', ['init', '-q', '-b', 'task/work', node], { encoding: 'utf8', timeout: 60_000 })
-  const file = path.join(node, 'main.jsonl')
-  await writeFile(path.join(node, 'a.ts'), 'export {}\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(node, 'a.ts') }), toolResult('e1'),
-  ]))
-  const run = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: node,
-  })
-  assert.equal(run.status, 0)
-  assert.match(run.stderr, /No `check` is declared/)
-  assert.match(run.stderr, /pnpm test/)
-  assert.doesNotMatch(run.stderr, /\(this project's own check\)/)
 })
 
 test('a bin/ gate is spawned in a way Windows can actually run', async () => {
@@ -2137,1053 +1262,25 @@ test('every hook script the runner accepts has its arguments wired', () => {
 
 // --- Wave 2 of docs/TEST-PLAN.md: the escapes, and the hook nothing ever fired.
 
-test('a commit gates what it is publishing, not everything the session touched', () => {
-  // mutationPaths is append-only across the whole transcript. Re-gating all of it
-  // at every commit meant the per-file cost grew without bound until it exceeded
-  // the boundary's 45s window — and from then on EVERY commit failed, whatever
-  // was staged, naming a different file as the cutoff each time. Reported from a
-  // live 2.1.7 session on 2026-08-26; on this repository's own transcript the
-  // accumulated list had reached 390 entries against 33 actually being published.
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Write', { file_path: '/repo/first.md' }), toolResult('e1'),
-    toolUse('c1', 'Bash', { command: 'git commit -m first' }), toolResult('c1'),
-    toolUse('e2', 'Write', { file_path: '/repo/second.md' }), toolResult('e2'),
-  ]))
-
-  // The whole list is unchanged, because the completion gate and the nag still
-  // ask about the session.
-  assert.ok(state.mutationPaths.includes('/repo/first.md'))
-  assert.ok(state.mutationPaths.includes('/repo/second.md'))
-
-  // What a commit gates is only what came after the last publish.
-  const publishing = state.mutationPathsSince(state.lastPublish)
-  assert.deepEqual(publishing, ['/repo/second.md'])
-
-  // Before any publish, nothing is pruned — a first commit still gates it all.
-  const fresh = analyzeTranscript(transcript([
-    toolUse('e1', 'Write', { file_path: '/repo/only.md' }), toolResult('e1'),
-  ]))
-  assert.deepEqual(fresh.mutationPathsSince(fresh.lastPublish), ['/repo/only.md'])
-})
-
-test('a deletion whose path the command itself set is not unresolved', async () => {
-  // `W=/tmp/scratch; rm -rf "$W"` names its own path — the value is in the
-  // command, in front of the use. Until 2026-08-26 the sentinel armed on every
-  // scratch cleanup written that way, and because a publish after an unresolved
-  // deletion fails closed, committing was bricked for the rest of the session.
-  // It happened here, mid-session, on this repository.
-  const repo = await mkdtemp(path.join(testTmp, 'quality-deletion-'))
-  const scratch = path.join(os.tmpdir(), 'quality-deletion-target')
-  const resolved = bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo)
-  assert.ok(!resolved.includes('<Unresolved Bash deletion>'), JSON.stringify(resolved))
-  assert.equal(resolved.length, 1)
-  // Separator-insensitive: the resolver normalises, and which separator it lands
-  // on is not what this test is about.
-  assert.match(resolved[0].replaceAll('\\', '/'), /quality-deletion-target$/)
-
-  // The three ways it must STILL refuse, because each would disarm the sentinel
-  // on a value the command did not establish.
-  const refuses = {
-    'a use before its assignment': `rm -rf "$W"\nW=${scratch}`,
-    'a value from the ambient environment': 'rm -rf "$HOME/thing"',
-    'a glob, which names no single path': `W=${scratch}\nrm -rf "$W"/*`,
-  }
-  for (const [why, command] of Object.entries(refuses)) {
-    assert.ok(bashDeletionMutationPaths(command, repo).includes('<Unresolved Bash deletion>'), why)
-  }
-
-  // Ordering is the point: a later reassignment must not reach back.
-  const ordered = bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"\nW=${repo}`, repo)
-  assert.match(ordered[0].replaceAll('\\', '/'), /quality-deletion-target$/)
-})
-
-test('an unresolvable Bash write is named in one readable line', async () => {
-  // The completion message exists to say what changed. It used to splice 120 raw
-  // characters of the command into that sentence, so a heredoc put newlines and a
-  // mid-token truncation into it and five of them joined by ", " were unreadable.
-  // Reported from a live 2.1.7 session on 2026-08-26.
-  // The body has to actually WRITE. A heredoc that only reads is correctly not a
-  // mutation — the classifier inspects the script rather than assuming, which is
-  // why `python3 -` with unknown stdin counts and this one is judged on content.
-  const heredoc = 'cd /repo\npython3 - <<\'PY\'\nimport pathlib\n'
-    + 'pathlib.Path("tests/Unit/CustomerEmailTest.php").write_text("x")\nPY'
-  const described = describeCommand(heredoc)
-  assert.doesNotMatch(described, /\n/, 'a marker must not carry newlines into the sentence')
-  // NOT 'cd /repo'. The first line of an agent's Bash call is almost always the
-  // move into the repository, so describing it describes the one segment that
-  // changed nothing — and five such calls produced five identical markers that
-  // said nothing at all. Live 2.3.0 session, 2026-08-26.
-  assert.equal(described, "python3 - <<'PY'")
-
-  // Navigation is peeled however it is spelled, and a command that is ONLY
-  // navigation still describes itself rather than collapsing to an empty marker.
-  assert.equal(describeCommand('cd /repo\ngit add -A && git commit -m x'),
-    'git add -A && git commit -m x')
-  assert.equal(describeCommand('cd "/a b/repo" && rm -rf build'), 'rm -rf build')
-  assert.equal(describeCommand('pushd /repo; touch f'), 'touch f')
-  assert.equal(describeCommand('cd /repo'), 'cd /repo')
-  assert.equal(describeCommand('cd /repo &&'), 'cd /repo &&')
-
-  // Long single-line commands are cut at a word boundary, not mid-token.
-  const long = `git commit -m ${'word '.repeat(40)}`
-  const cut = describeCommand(long)
-  assert.ok(cut.length <= 73, cut)
-  assert.match(cut, /…$/)
-  assert.doesNotMatch(cut, /wor…$/, 'cut at a space, not inside a word')
-
-  // Short commands are left exactly as they are.
-  assert.equal(describeCommand('rm -rf build'), 'rm -rf build')
-  assert.equal(describeCommand(undefined), '')
-
-  // And the marker must stay non-absolute, because that is what keeps an
-  // unresolvable command OUT of the artifact gate rather than into it.
-  const dir = await mkdtemp(path.join(testTmp, 'quality-marker-'))
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: heredoc }), toolResult('b1'),
-  ]))
-  const state = analyzeTranscript(await readFile(file, 'utf8'))
-  const marker = state.mutationPaths.find(p => p.startsWith('<Bash mutation:'))
-  assert.ok(marker, 'the write is still recorded')
-  assert.doesNotMatch(marker, /\n/)
-  assert.equal(path.isAbsolute(marker), false)
-})
-
-test('Stop names the mutating remainder after a probe prefix', async () => {
-  // Live 2026-09-10 Stop in a foreign repo: Changed paths named the echo/ls
-  // prefix of a long cache listing, truncated, because describeCommand peels only cd.
-  // because describeCommand peels only cd, then truncates. Isolated echo/ls are
-  // not mutations; the hole is the prefix of a compound that does mutate.
-  const dir = await mkdtemp(path.join(testTmp, 'quality-probe-prefix-'))
-  await writeFile(path.join(dir, 'go.mod'), 'module example\n')
-  const file = path.join(dir, 'agent.jsonl')
-  const cacheLs = 'ls /var/cache/quality-harness/quality-harness/2.97.0/skills/quality-policy'
-  const command = `echo "== cache versions"; ${cacheLs}; rm -rf build`
-  assert.equal(describeCommand(command), 'rm -rf build')
-  assert.equal(
-    describeCommand('adr-lint --version; node plugin/scripts/work-next.mjs'),
-    'node plugin/scripts/work-next.mjs')
-  assert.match(describeCommand('echo x > out.txt; rm -rf build'), /echo x > out.txt/)
-  assert.match(describeCommand('mystery-tool write-files; rm -rf build'), /mystery-tool/)
-
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command }), toolResult('b1'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  const message = `${run.stdout}${run.stderr}`
-  assert.match(message, /Changed paths include:.*build/, message)
-  assert.doesNotMatch(message, /<Bash mutation:/, message)
-  // Non-Goal: which inferred check a go.mod repo is told to run stays `go test`.
-  assert.match(message, /go test/, message)
-  assert.doesNotMatch(message, /\(this project's own check\)/, message)
-})
-
-test('probe-only Bash is not Session authorship', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-probe-only-'))
-  await writeFile(path.join(dir, 'go.mod'), 'module example\n')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Bash', {
-      command: 'echo "== cache versions"; ls /var/cache/quality-harness',
-    }), toolResult('e1'),
-    toolUse('v1', 'Bash', { command: 'adr-lint --version' }), toolResult('v1'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  const message = `${run.stdout}${run.stderr}`
-  assert.doesNotMatch(message, /Changed paths include/, message)
-  assert.doesNotMatch(message, /go test/, message)
-
-  // Same fixture with a later mutating segment must still speak — otherwise the
-  // silence above is vacuous (CLAUDE.md §4).
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', {
-      command: 'echo "== cache versions"; ls /var/cache/quality-harness/x; rm -rf build',
-    }), toolResult('b1'),
-  ]))
-  const dirty = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  const dirtyMessage = `${dirty.stdout}${dirty.stderr}`
-  assert.match(dirtyMessage, /Changed paths include/, dirtyMessage)
-})
-
-test('Stop does not invent writes from probes, markers, or paths outside the repo', async () => {
-  // docs/specs/2026-09-12-unproven-advise-does-not-invent-writes.md F-1-F-5.
-  const dir = await mkdtemp(path.join(testTmp, 'quality-proven-paths-'))
-  await writeFile(path.join(dir, 'notes.md'), 'x\n')
-  await writeFile(path.join(dir, 'Makefile'), 'test:\n\t@true\n')
-  const file = path.join(dir, 'agent.jsonl')
-  const stop = extra => runLifecycleHook({
-    hook_event_name: 'Stop', transcript_path: file, cwd: dir, ...extra,
-  })
-  const msg = run => `${run.stdout}${run.stderr}`
-
-  await writeFile(file, transcript([
-    toolUse('v1', 'Bash', { command: 'node --version' }), toolResult('v1'),
-  ]))
-  const probe = stop()
-  const probeMsg = msg(probe)
-  assert.match(probe.stdout, /"systemMessage"/, probeMsg)
-  assert.match(probeMsg, /could not prove a repository path/, probeMsg)
-  assert.doesNotMatch(probeMsg, /Changed paths include/, probeMsg)
-  assert.doesNotMatch(probeMsg, /<Bash mutation:/, probeMsg)
-  assert.doesNotMatch(probeMsg, /transcript contains file mutations/, probeMsg)
-  assert.doesNotMatch(probeMsg, /\(this project's own check\)/, probeMsg)
-  assert.match(probeMsg, /No `check` is declared/, probeMsg)
-  assert.equal(provenMutationPaths(analyzeTranscript(await readFile(file, 'utf8'), dir)
-    .mutationPaths, dir).length, 0)
-
-  await writeFile(file, transcript([
-    toolUse('p1', 'Bash', { command: 'ps aux' }), toolResult('p1'),
-  ]))
-  const psMsg = msg(stop())
-  assert.match(psMsg, /"systemMessage"/, psMsg)
-  assert.match(psMsg, /could not prove a repository path/, psMsg)
-  assert.doesNotMatch(psMsg, /transcript contains file mutations/, psMsg)
-
-  await writeFile(file, transcript([
-    toolUse('s1', 'Bash', { command: 'sed -i "s/x/y/" notes.md' }), toolResult('s1'),
-  ]))
-  const sed = msg(stop())
-  assert.match(sed, /Changed paths include:.*notes\.md/, sed)
-  assert.doesNotMatch(sed, /transcript contains file mutations/, sed)
-
-  await writeFile(file, transcript([
-    toolUse('s1', 'Bash', { command: 'sed -i "s/x/y/" notes.md' }), toolResult('s1'),
-    toolUse('v2', 'Bash', { command: 'node --version' }), toolResult('v2'),
-  ]))
-  const mixed = msg(stop())
-  assert.match(mixed, /Changed paths include:.*notes\.md/, mixed)
-  assert.doesNotMatch(mixed, /<Bash mutation:/, mixed)
-
-  const away = await mkdtemp(path.join(testTmp, 'quality-outside-write-'))
-  await writeFile(path.join(away, 'scratch.md'), 'x\n')
-  await writeFile(file, transcript([
-    toolUse('w1', 'Write', { file_path: path.join(away, 'scratch.md') }), toolResult('w1'),
-  ]))
-  const outside = msg(stop())
-  assert.match(outside, /"systemMessage"/, outside)
-  assert.doesNotMatch(outside, /Changed paths include/, outside)
-  assert.match(outside, /could not prove a repository path/, outside)
-
-  await writeFile(file, transcript([
-    toolUse('d1', 'Bash', { command: 'rm -rf "$UNSET"' }), toolResult('d1'),
-  ]))
-  const del = msg(stop())
-  assert.doesNotMatch(del, /Unresolved Bash deletion/, del)
-  assert.match(del, /could not prove a repository path/, del)
-
-  await writeFile(file, transcript([
-    toolUse('s1', 'Bash', { command: 'sed -i "s/x/y/" notes.md' }), toolResult('s1'),
-    toolUse('v3', 'Bash', { command: 'node --version' }), toolResult('v3'),
-  ]))
-  const docs = stop({ last_assistant_message: 'EVIDENCE-LIMITED: prose only, nothing here executes' })
-  assert.equal(docs.stdout, '', docs.stdout)
-})
-
-test('an unknown non-Bash write is Advise, not nothing edited', async () => {
-  const dir = await checkedProject('quality-unproven-write-')
-  const surfaces = async (name, input) => {
-    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
-    await writeFile(file, transcript([toolUse('t1', name, input), toolResult('t1')]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-    const note = sessionStateNote(state, dir, dir, false)
-    const value = reading({
-      session_id: `unproven-write-${name}-${Date.now()}-${process.pid}`,
-      transcript_path: file,
-      workspace: { current_dir: dir },
-    })
-    return { file, state, stop: `${stop.stdout}${stop.stderr}`, note, reading: value }
-  }
-
-  for (const name of ['mcp__mrw__mrw_write', 'mcp__other__write']) {
-    const seen = await surfaces(name, { plan: 'docs/a.md' })
-    assert.equal(seen.state.authorship, 'UNPROVEN', name)
-    assert.equal(seen.state.lastMutation, -1, name)
-    assert.deepEqual(seen.state.mutationPaths, [])
-    assert.match(seen.stop, /systemMessage/, seen.stop)
-    assert.doesNotMatch(seen.stop, /nothing edited since the last publish/)
-    assert.notEqual(seen.note.status, 'neutral', name)
-    assert.doesNotMatch(seen.note.text, /nothing edited since the last publish/)
-    assert.notEqual(seen.reading.kind, 'nothing', name)
-  }
-
-  const hooks = readFileSync(path.join(pluginDir, 'hooks', 'hooks.json'), 'utf8')
-  assert.doesNotMatch(hooks, /statusLine/)
-})
-
-test('unrecognised Bash is Advise the same way an MCP write is', async () => {
-  const dir = await checkedProject('quality-unrecognised-bash-')
-  const surfaces = async (name, input) => {
-    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
-    await writeFile(file, transcript([toolUse('t1', name, input), toolResult('t1')]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-    const note = sessionStateNote(state, dir, dir, false)
-    const value = reading({
-      session_id: `unrecognised-bash-${name}-${Date.now()}-${process.pid}`,
-      transcript_path: file,
-      workspace: { current_dir: dir },
-    })
-    const commit = runLifecycleHook({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash',
-      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
-      session_id: `unrecognised-commit-${name}-${Date.now()}-${process.pid}`,
-    })
-    return { file, state, stop: `${stop.stdout}${stop.stderr}`, note, reading: value, commit }
-  }
-
-  const bash = await surfaces('Bash', { command: 'Remove-Item -Recurse build' })
-  assert.equal(classifyCommand('Remove-Item -Recurse build'), 'unrecognised')
-  assert.equal(bash.state.authorship, 'UNPROVEN')
-  assert.equal(bash.state.lastMutation, -1)
-  assert.ok(bash.state.lastUnprovenWrite >= 0, 'unrecognised Bash advances lastUnprovenWrite')
-  assert.match(bash.stop, /systemMessage/, bash.stop)
-  assert.doesNotMatch(bash.stop, /nothing edited since the last publish/)
-  assert.notEqual(bash.note.status, 'neutral')
-  assert.doesNotMatch(bash.note.text, /nothing edited since the last publish/)
-  assert.notEqual(bash.reading.kind, 'nothing')
-  assert.equal(bash.commit.status, 0, bash.commit.stderr)
-  assert.match(bash.commit.stderr, /would publish unchecked/i)
-
-  const mcp = await surfaces('mcp__mrw__mrw_write', { plan: 'docs/a.md' })
-  assert.equal(mcp.state.authorship, 'UNPROVEN')
-  assert.ok(mcp.state.lastUnprovenWrite >= 0)
-  assert.match(mcp.stop, /systemMessage/, mcp.stop)
-  assert.notEqual(mcp.reading.kind, 'nothing')
-})
-
-test('echo is not Advise, and a classify-only green is not this fact', async () => {
-  const dir = await checkedProject('quality-echo-not-unproven-')
-  const file = path.join(dir, 'echo.jsonl')
-  await writeFile(file, transcript([
-    toolUse('t1', 'Bash', { command: 'echo hi' }), toolResult('t1'),
-  ]))
-  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-  assert.equal(classifyCommand('echo hi'), 'neither')
-  assert.equal(state.lastUnprovenWrite, -1)
-  assert.notEqual(state.authorship, 'UNPROVEN')
-  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  const said = `${stop.stdout}${stop.stderr}`
-  assert.doesNotMatch(said, /systemMessage/, said)
-  const note = sessionStateNote(state, dir, dir, false)
-  assert.equal(note.status, 'neutral')
-  assert.match(note.text, /nothing edited since the last publish/)
-  const value = reading({
-    session_id: `echo-not-unproven-${Date.now()}-${process.pid}`,
-    transcript_path: file,
-    workspace: { current_dir: dir },
-  })
-  assert.equal(value.kind, 'nothing')
-  const commit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
-    session_id: `echo-commit-${Date.now()}-${process.pid}`,
-  })
-  assert.doesNotMatch(commit.stderr, /would publish unchecked/i)
-
-  // Dirty: executed unrecognised Bash still Advises (CLAUDE.md §4). A classify
-  // unit test is not this fact.
-  const dirtyFile = path.join(dir, 'remove-item.jsonl')
-  await writeFile(dirtyFile, transcript([
-    toolUse('w1', 'Bash', { command: 'Remove-Item -Recurse build' }), toolResult('w1'),
-  ]))
-  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
-  assert.ok(dirtyState.lastUnprovenWrite >= 0)
-  const dirtyStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: dirtyFile, cwd: dir })
-  assert.match(`${dirtyStop.stdout}${dirtyStop.stderr}`, /systemMessage/)
-})
-
-test('a passing recognised check after an UNPROVEN write silences Advise', async () => {
-  const dir = await checkedProject('quality-unproven-validated-')
-  const writes = [
-    ['mcp', [toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1')]],
-    ['mrw', [toolUse('w1', 'Bash', { command: 'mrw write --plan-file p.txt' }), toolResult('w1')]],
-  ]
-  for (const [name, write] of writes) {
-    const file = path.join(dir, `${name}.jsonl`)
-    await writeFile(file, transcript([
-      ...write,
-      toolUse('t1', 'Bash', { command: 'pnpm test' }),
-      toolResult('t1', false, '12 passed'),
-    ]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    assert.equal(state.lastMutation, -1, name)
-    assert.ok(state.lastUnprovenWrite >= 0, name)
-    assert.ok(state.lastSuccessfulValidation > state.lastUnprovenWrite, name)
-    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-    const said = `${stop.stdout}${stop.stderr}`
-    assert.doesNotMatch(said, /systemMessage/, said)
-    const note = sessionStateNote(state, dir, dir, false)
-    assert.doesNotMatch(note.text, /no recognised check has proven it/)
-    assert.notEqual(note.status, 'unverified', name)
-    const value = reading({
-      session_id: `unproven-ok-${name}-${Date.now()}-${process.pid}`,
-      transcript_path: file,
-      workspace: { current_dir: dir },
-    })
-    assert.notEqual(value.kind, 'unverified', name)
-    const commit = runLifecycleHook({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash',
-      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
-      session_id: `unproven-ok-commit-${name}-${Date.now()}-${process.pid}`,
-    })
-    assert.doesNotMatch(commit.stderr, /would publish unchecked/i)
-  }
-
-  const sed = path.join(dir, 'sed.jsonl')
-  await writeFile(sed, transcript([
-    toolUse('w1', 'Bash', { command: "sed -i '' notes.md" }), toolResult('w1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1', false, '12 passed'),
-  ]))
-  const sedState = analyzeTranscript(await readFile(sed, 'utf8'), dir)
-  assert.ok(sedState.lastMutation >= 0)
-  assert.equal(sedState.verifiedAfterLastMutation, true)
-  const sedStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: sed, cwd: dir })
-  assert.doesNotMatch(`${sedStop.stdout}${sedStop.stderr}`, /systemMessage/)
-  const sedCommit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: sed, cwd: dir,
-    session_id: `unproven-sed-${Date.now()}-${process.pid}`,
-  })
-  assert.doesNotMatch(sedCommit.stderr, /would publish unchecked/i)
-
-  const dirty = path.join(dir, 'dirty.jsonl')
-  await writeFile(dirty, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-  ]))
-  const dirtyState = analyzeTranscript(await readFile(dirty, 'utf8'), dir)
-  const dirtyStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: dirty, cwd: dir })
-  assert.match(`${dirtyStop.stdout}${dirtyStop.stderr}`, /systemMessage/)
-  const dirtyNote = sessionStateNote(dirtyState, dir, dir, false)
-  assert.match(dirtyNote.text, /no recognised check has proven it/)
-  const dirtyReading = reading({
-    session_id: `unproven-dirty-${Date.now()}-${process.pid}`,
-    transcript_path: dirty,
-    workspace: { current_dir: dir },
-  })
-  assert.equal(dirtyReading.kind, 'unverified')
-  const dirtyCommit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: dirty, cwd: dir,
-    session_id: `unproven-dirty-commit-${Date.now()}-${process.pid}`,
-  })
-  assert.match(dirtyCommit.stderr, /would publish unchecked/i)
-})
-
-test('a passing never-measured *selftest* after an UNPROVEN write does not silence Advise', async () => {
-  const dir = await checkedProject('quality-unproven-unknown-selftest-')
-  const file = path.join(dir, 'unknown-selftest.jsonl')
-  await writeFile(file, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-    toolUse('t1', 'Bash', { command: 'qh-never-measured-selftest' }),
-    toolResult('t1', false, 'ok'),
-  ]))
-  assert.equal(classifyCommand('qh-never-measured-selftest'), 'unrecognised')
-  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-  assert.ok(state.lastUnprovenWrite >= 0)
-  assert.equal(state.lastSuccessfulValidation, -1,
-    'an unpublished family must not become lastSuccessfulValidation')
-  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  assert.match(`${stop.stdout}${stop.stderr}`, /systemMessage/)
-  const note = sessionStateNote(state, dir, dir, false)
-  assert.match(note.text, /no recognised check has proven it/)
-  const recognised = path.join(dir, 'recognised.jsonl')
-  await writeFile(recognised, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1', false, '12 passed'),
-  ]))
-  const ok = analyzeTranscript(await readFile(recognised, 'utf8'), dir)
-  assert.ok(ok.lastSuccessfulValidation > ok.lastUnprovenWrite)
-  const okStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: recognised, cwd: dir })
-  assert.doesNotMatch(`${okStop.stdout}${okStop.stderr}`, /systemMessage/)
-})
-
-test('a nested validation with a later succeeding segment does not silence Advise', async () => {
-  const dir = await checkedProject('quality-nested-true-')
-  const file = path.join(dir, 'nested-true.jsonl')
-  const command = "bash -c 'bash -n'; true"
-  await writeFile(file, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-    toolUse('t1', 'Bash', { command }),
-    toolResult('t1', false, 'ok'),
-  ]))
-  assert.notEqual(classifyCommand(command), 'validation')
-  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-  assert.equal(state.lastSuccessfulValidation, -1,
-    'a succeeding ; true must not become lastSuccessfulValidation')
-})
-
-test('a failing check after an UNPROVEN write still Advises, and Read does not flag', async () => {
-  const dir = await checkedProject('quality-unproven-failed-check-')
-  const file = path.join(dir, 'fail.jsonl')
-  await writeFile(file, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1', true, '1 failed'),
-  ]))
-  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-  assert.ok(state.lastUnprovenWrite >= 0)
-  assert.equal(state.lastVerdict, 'failed')
-  assert.ok(!(state.lastSuccessfulValidation > state.lastUnprovenWrite))
-  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  assert.match(`${stop.stdout}${stop.stderr}`, /systemMessage/)
-  const note = sessionStateNote(state, dir, dir, false)
-  assert.match(note.text, /no recognised check has proven it/)
-  const value = reading({
-    session_id: `unproven-fail-${Date.now()}-${process.pid}`,
-    transcript_path: file,
-    workspace: { current_dir: dir },
-  })
-  assert.equal(value.kind, 'unverified')
-  const commit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
-    session_id: `unproven-fail-commit-${Date.now()}-${process.pid}`,
-  })
-  assert.match(commit.stderr, /would publish unchecked/i)
-
-  const readFilePath = path.join(dir, 'read.jsonl')
-  await writeFile(readFilePath, transcript([
-    toolUse('r1', 'Read', { file_path: 'docs/a.md' }), toolResult('r1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1', false, '12 passed'),
-  ]))
-  const readState = analyzeTranscript(await readFile(readFilePath, 'utf8'), dir)
-  assert.equal(readState.lastUnprovenWrite, -1)
-  const readStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: readFilePath, cwd: dir })
-  assert.doesNotMatch(`${readStop.stdout}${readStop.stderr}`, /systemMessage/)
-  const readNote = sessionStateNote(readState, dir, dir, false)
-  assert.equal(readNote.status, 'neutral')
-
-  const published = path.join(dir, 'publish.jsonl')
-  await writeFile(published, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-    toolUse('c1', 'Bash', { command: 'git commit -m probe' }), toolResult('c1'),
-  ]))
-  const publishedState = analyzeTranscript(await readFile(published, 'utf8'), dir)
-  assert.ok(publishedState.lastPublish >= publishedState.lastUnprovenWrite)
-  const publishedStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: published, cwd: dir })
-  assert.doesNotMatch(`${publishedStop.stdout}${publishedStop.stderr}`, /systemMessage/)
-  const publishedCommit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: published, cwd: dir,
-    session_id: `unproven-publish-${Date.now()}-${process.pid}`,
-  })
-  assert.doesNotMatch(publishedCommit.stderr, /would publish unchecked/i)
-})
-
-test('a failed UNPROVEN write does not advance lastUnprovenWrite', async () => {
-  const dir = await checkedProject('quality-unproven-failed-write-')
-  const writes = [
-    ['mcp', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }],
-    ['mrw', 'Bash', { command: 'mrw write --plan-file p.txt' }],
-  ]
-  for (const [name, tool, input] of writes) {
-    const file = path.join(dir, `${name}-fail.jsonl`)
-    await writeFile(file, transcript([
-      toolUse('w1', tool, input), toolResult('w1', true, 'write failed'),
-      toolUse('t1', 'Bash', { command: 'pnpm test' }),
-      toolResult('t1', false, '12 passed'),
-    ]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    assert.equal(state.lastUnprovenWrite, -1, name)
-    assert.notEqual(state.authorship, 'UNPROVEN', name)
-    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-    assert.doesNotMatch(`${stop.stdout}${stop.stderr}`, /systemMessage/, name)
-    const note = sessionStateNote(state, dir, dir, false)
-    assert.doesNotMatch(note.text, /no recognised check has proven it/)
-    const value = reading({
-      session_id: `unproven-failed-write-${name}-${Date.now()}-${process.pid}`,
-      transcript_path: file,
-      workspace: { current_dir: dir },
-    })
-    assert.notEqual(value.kind, 'unverified', name)
-  }
-
-  const ok = path.join(dir, 'ok-then-check.jsonl')
-  await writeFile(ok, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1', false, '12 passed'),
-  ]))
-  const okState = analyzeTranscript(await readFile(ok, 'utf8'), dir)
-  assert.ok(okState.lastUnprovenWrite >= 0)
-  assert.ok(okState.lastSuccessfulValidation > okState.lastUnprovenWrite)
-  const okStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: ok, cwd: dir })
-  assert.doesNotMatch(`${okStop.stdout}${okStop.stderr}`, /systemMessage/)
-
-  const inflight = path.join(dir, 'inflight.jsonl')
-  await writeFile(inflight, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }),
-  ]))
-  const inflightState = analyzeTranscript(await readFile(inflight, 'utf8'), dir)
-  assert.equal(inflightState.lastUnprovenWrite, -1)
-})
-
-test('a reviewer is denied Remove-Item and pwsh -Command rm', async () => {
-  const repo = await checkedProject('quality-unrecognised-reviewer-')
-  const deny = (command) => JSON.parse(runLifecycleHook({
+test('a reviewer is denied only a command naming commit or push (ADR-060)', async () => {
+  const repo = await checkedProject('quality-reviewer-word-rule-')
+  const decide = (command) => JSON.parse(runLifecycleHook({
     hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
     agent_type: 'qh-correctness-reviewer', agent_id: 'a1',
     tool_input: { command },
   }).stdout || '{}')
-  for (const command of [
-    'Remove-Item -Recurse build',
-    'pwsh -Command rm -rf build',
-    'rm -rf build',
-  ]) {
-    const said = deny(command)
+  for (const command of ["pwsh -Command 'git push'", 'git commit -m x']) {
+    const said = decide(command)
     assert.equal(said.hookSpecificOutput?.permissionDecision, 'deny', command)
     assert.match(said.hookSpecificOutput.permissionDecisionReason, /read-only/, command)
     assert.ok(readOnlyVerdict({ tool_name: 'Bash', tool_input: { command }, cwd: repo }))
   }
-})
-
-test('echo and selftest are not denied as unrecognised', async () => {
-  const repo = await checkedProject('quality-reviewer-allows-probe-')
-  const verdict = (command) => JSON.parse(runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
-    agent_type: 'qh-correctness-reviewer', agent_id: 'a1',
-    tool_input: { command },
-  }).stdout || '{}')
-  for (const command of ['echo hi', 'bash scripts/selftest.sh', 'ls']) {
-    assert.notEqual(verdict(command).hookSpecificOutput?.permissionDecision, 'deny', command)
+  // Every other command passes; a write it makes is reported when the reviewer finishes (R3).
+  for (const command of ['Remove-Item -Recurse build', 'pwsh -Command rm -rf build', 'rm -rf build', 'echo hi', 'bash scripts/selftest.sh', 'ls']) {
+    assert.notEqual(decide(command).hookSpecificOutput?.permissionDecision, 'deny', command)
     assert.equal(readOnlyVerdict({ tool_name: 'Bash', tool_input: { command }, cwd: repo }), null, command)
   }
-  const dirty = verdict('Remove-Item -Recurse build')
-  assert.equal(dirty.hookSpecificOutput?.permissionDecision, 'deny')
 })
-
-test('Read or Grep is not Advise every turn', async () => {
-  const dir = await checkedProject('quality-unproven-read-')
-  const names = [
-    ['Read', { file_path: path.join(dir, 'a.py') }],
-    ['Grep', { pattern: 'x' }],
-    ['Glob', { glob_pattern: '*.md' }],
-    ['WebSearch', { search_term: 'x' }],
-    ['WebFetch', { url: 'https://example.com' }],
-    ['Task', { prompt: 'x' }],
-    ['TodoWrite', { todos: [] }],
-    ['Skill', { skill: 'x' }],
-    ['Agent', { prompt: 'x' }],
-    ['mcp__mrw__mrw_read', { specs: ['a.md:1'] }],
-  ]
-  for (const [name, input] of names) {
-    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
-    await writeFile(file, transcript([toolUse('t1', name, input), toolResult('t1')]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-    const said = `${stop.stdout}${stop.stderr}`
-    const note = sessionStateNote(state, dir, dir, false)
-    const value = reading({
-      session_id: `unproven-read-${name}-${Date.now()}-${process.pid}`,
-      transcript_path: file,
-      workspace: { current_dir: dir },
-    })
-    assert.notEqual(state.authorship, 'UNPROVEN', name)
-    assert.equal(state.unverifiedSince(state.lastPublish), false, name)
-    assert.doesNotMatch(said, /systemMessage/, said)
-    assert.equal(note.status, 'neutral', name)
-    assert.match(note.text, /nothing edited since the last publish/)
-    assert.equal(value.kind, 'nothing', name)
-  }
-
-  // Same fixture with a native write must still Advise — otherwise the silence
-  // above is vacuous (CLAUDE.md §4).
-  const dirtyFile = path.join(dir, 'native-write.jsonl')
-  await writeFile(path.join(dir, 'a.py'), 'print(0)\n')
-  await writeFile(dirtyFile, transcript([
-    toolUse('w1', 'Write', { file_path: path.join(dir, 'a.py') }), toolResult('w1'),
-  ]))
-  const dirty = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: dirtyFile, cwd: dir })
-  const dirtySaid = `${dirty.stdout}${dirty.stderr}`
-  assert.match(dirtySaid, /systemMessage/, dirtySaid)
-  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
-  const dirtyNote = sessionStateNote(dirtyState, dir, dir, false)
-  assert.notEqual(dirtyNote.status, 'neutral')
-  const dirtyReading = reading({
-    session_id: `unproven-read-dirty-${Date.now()}-${process.pid}`,
-    transcript_path: dirtyFile,
-    workspace: { current_dir: dir },
-  })
-  assert.equal(dirtyReading.kind, 'unverified')
-})
-
-test('PreToolUse commit advice Advises on UNPROVEN writes', async () => {
-  const dir = await checkedProject('quality-unproven-commit-')
-  for (const name of ['mcp__mrw__mrw_write', 'mcp__other__write']) {
-    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
-    await writeFile(file, transcript([toolUse('t1', name, { plan: 'docs/a.md' }), toolResult('t1')]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    assert.equal(state.authorship, 'UNPROVEN', name)
-    assert.equal(state.lastMutation, -1, name)
-    assert.deepEqual(state.mutationPaths, [])
-    const run = runLifecycleHook({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash',
-      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
-      session_id: `unproven-commit-${name}-${Date.now()}-${process.pid}`,
-    })
-    assert.equal(run.status, 0, `${name}: ${run.stderr}`)
-    assert.match(run.stderr, /would publish unchecked/i, name)
-    assert.match(run.stderr, /Nothing has verified the work/, name)
-  }
-})
-
-test('PreToolUse commit advice does not Advise on Read or Grep', async () => {
-  const dir = await checkedProject('quality-unproven-commit-read-')
-  const names = [
-    ['Read', { file_path: path.join(dir, 'a.py') }],
-    ['Grep', { pattern: 'x' }],
-    ['Glob', { glob_pattern: '*.md' }],
-    ['WebSearch', { search_term: 'x' }],
-    ['WebFetch', { url: 'https://example.com' }],
-    ['Task', { prompt: 'x' }],
-    ['TodoWrite', { todos: [] }],
-    ['Skill', { skill: 'x' }],
-    ['Agent', { prompt: 'x' }],
-    ['mcp__mrw__mrw_read', { specs: ['a.md:1'] }],
-  ]
-  for (const [name, input] of names) {
-    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
-    await writeFile(file, transcript([toolUse('t1', name, input), toolResult('t1')]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    const run = runLifecycleHook({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash',
-      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
-      session_id: `unproven-commit-read-${name}-${Date.now()}-${process.pid}`,
-    })
-    assert.notEqual(state.authorship, 'UNPROVEN', name)
-    assert.equal(run.status, 0, name)
-    assert.doesNotMatch(run.stderr, /would publish unchecked/i, name)
-    assert.doesNotMatch(run.stderr, /Nothing has verified the work/, name)
-  }
-
-  // Same fixture with a native write must still Advise — otherwise the silence
-  // above is vacuous (CLAUDE.md §4).
-  const dirtyFile = path.join(dir, 'native-write.jsonl')
-  await writeFile(path.join(dir, 'a.py'), 'print(0)\n')
-  await writeFile(dirtyFile, transcript([
-    toolUse('w1', 'Write', { file_path: path.join(dir, 'a.py') }), toolResult('w1'),
-  ]))
-  const dirty = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
-    session_id: `unproven-commit-read-dirty-${Date.now()}-${process.pid}`,
-  })
-  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
-})
-
-test('PreToolUse commit advice Advises on mrw_write after a published Bash mutation', async () => {
-  // Live Case A / S3: T2 plants mrw_write as the FIRST act, so authorship is
-  // still UNPROVEN at PreToolUse. A real session has already mutated; git
-  // commit itself is a Bash mutation and overwrites the scalar. The gate has
-  // to be lastUnprovenWrite > lastPublish, same shape as lastMutation.
-  const dir = await checkedProject('quality-unproven-after-bash-')
-  const published = [
-    toolUse('b1', 'Bash', { command: 'echo hi > src/a.py' }), toolResult('b1'),
-    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
-  ]
-  const cleanFile = path.join(dir, 'clean.jsonl')
-  await writeFile(cleanFile, transcript(published))
-  const cleanState = analyzeTranscript(await readFile(cleanFile, 'utf8'), dir)
-  assert.equal(cleanState.authorship, 'bash')
-  assert.equal(cleanState.unverifiedSince(cleanState.lastPublish), false)
-  const clean = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: cleanFile, cwd: dir,
-    session_id: `unproven-after-bash-clean-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(clean.status, 0, clean.stderr)
-  assert.doesNotMatch(clean.stderr, /would publish unchecked/i, 'published Bash work is not re-advised')
-
-  const dirtyFile = path.join(dir, 'dirty.jsonl')
-  await writeFile(dirtyFile, transcript([
-    ...published,
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-  ]))
-  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
-  assert.notEqual(dirtyState.authorship, 'UNPROVEN',
-    'the scalar was overwritten; lastUnprovenWrite is the remaining signal')
-  assert.equal(dirtyState.unverifiedSince(dirtyState.lastPublish), false)
-  assert.ok(dirtyState.lastUnprovenWrite > dirtyState.lastPublish)
-  const dirty = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
-    session_id: `unproven-after-bash-dirty-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(dirty.status, 0, dirty.stderr)
-  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
-  assert.match(dirty.stderr, /Nothing has verified the work/, dirty.stderr)
-})
-
-test('PreToolUse commit advice Advises on mrw_write after a published native Write', async () => {
-  // S5: native Write sets authorship 'native'; git commit does not demote it
-  // to bash, so UNPROVEN can never be assigned afterwards.
-  const dir = await checkedProject('quality-unproven-after-write-')
-  await writeFile(path.join(dir, 'a.py'), 'print(0)\n')
-  const published = [
-    toolUse('n1', 'Write', { file_path: path.join(dir, 'a.py') }), toolResult('n1'),
-    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
-  ]
-  const cleanFile = path.join(dir, 'clean.jsonl')
-  await writeFile(cleanFile, transcript(published))
-  const cleanState = analyzeTranscript(await readFile(cleanFile, 'utf8'), dir)
-  assert.equal(cleanState.authorship, 'native')
-  assert.equal(cleanState.unverifiedSince(cleanState.lastPublish), false)
-  const clean = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: cleanFile, cwd: dir,
-    session_id: `unproven-after-write-clean-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(clean.status, 0, clean.stderr)
-  assert.doesNotMatch(clean.stderr, /would publish unchecked/i, 'published native write is not re-advised')
-
-  const dirtyFile = path.join(dir, 'dirty.jsonl')
-  await writeFile(dirtyFile, transcript([
-    ...published,
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-  ]))
-  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
-  assert.notEqual(dirtyState.authorship, 'UNPROVEN',
-    'native authorship blocks UNPROVEN promotion; lastUnprovenWrite is the remaining signal')
-  assert.equal(dirtyState.unverifiedSince(dirtyState.lastPublish), false)
-  assert.ok(dirtyState.lastUnprovenWrite > dirtyState.lastPublish)
-  const dirty = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
-    session_id: `unproven-after-write-dirty-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(dirty.status, 0, dirty.stderr)
-  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
-  assert.match(dirty.stderr, /Nothing has verified the work/, dirty.stderr)
-})
-
-test('PreToolUse commit advice stays quiet after a published UNPROVEN write then Read', async () => {
-  // S4: silence after publish+Read must be lastUnprovenWrite <= lastPublish,
-  // not because the commit overwrote authorship and dropped the write.
-  const dir = await checkedProject('quality-unproven-then-read-')
-  const published = [
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
-  ]
-  const quietFile = path.join(dir, 'read.jsonl')
-  await writeFile(quietFile, transcript([
-    ...published,
-    toolUse('r1', 'Read', { file_path: path.join(dir, 'a.py') }), toolResult('r1'),
-  ]))
-  const quietState = analyzeTranscript(await readFile(quietFile, 'utf8'), dir)
-  assert.ok(quietState.lastUnprovenWrite >= 0, 'the MCP write was recorded as a position')
-  assert.equal(quietState.lastUnprovenWrite > quietState.lastPublish, false,
-    'silence is the publish boundary, not a lost UNPROVEN flag')
-  assert.notEqual(quietState.authorship, 'UNPROVEN')
-  const quiet = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: quietFile, cwd: dir,
-    session_id: `unproven-then-read-quiet-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(quiet.status, 0, quiet.stderr)
-  assert.doesNotMatch(quiet.stderr, /would publish unchecked/i, quiet.stderr)
-
-  const dirtyFile = path.join(dir, 'rewrite.jsonl')
-  await writeFile(dirtyFile, transcript([
-    ...published,
-    toolUse('w2', 'mcp__mrw__mrw_write', { plan: 'docs/b.md' }), toolResult('w2'),
-  ]))
-  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
-  assert.ok(dirtyState.lastUnprovenWrite > dirtyState.lastPublish)
-  const dirty = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
-    session_id: `unproven-then-read-dirty-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(dirty.status, 0, dirty.stderr)
-  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
-})
-
-test('PreToolUse commit advice still Advises after a failed git commit', async () => {
-  // Stress F1 against 5860b5b: executed() treated an is_error commit as a publish,
-  // so the second git commit was silent while HEAD never moved. Measured in a
-  // created repo: exit 1 for untracked, a clean tree, and a declining pre-commit hook.
-  const dir = await checkedProject('quality-failed-commit-')
-  const write = [
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-  ]
-  const failures = [
-    'nothing added to commit but untracked files present (use "git add" to track)',
-    'nothing to commit, working tree clean',
-    'hook declined to commit',
-  ]
-  for (const [index, detail] of failures.entries()) {
-    const file = path.join(dir, `fail-${index}.jsonl`)
-    await writeFile(file, transcript([
-      ...write,
-      toolUse('c1', 'Bash', { command: 'git commit -m probe' }),
-      toolResult('c1', true, detail),
-    ]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    assert.ok(state.lastUnprovenWrite > state.lastPublish, detail)
-    const run = runLifecycleHook({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash',
-      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
-      session_id: `failed-commit-${index}-${Date.now()}-${process.pid}`,
-    })
-    assert.equal(run.status, 0, `${detail}: ${run.stderr}`)
-    assert.match(run.stderr, /would publish unchecked/i, detail)
-  }
-
-  const pendingFile = path.join(dir, 'no-result.jsonl')
-  await writeFile(pendingFile, transcript([
-    ...write,
-    toolUse('c1', 'Bash', { command: 'git commit -m probe' }),
-  ]))
-  const pendingState = analyzeTranscript(await readFile(pendingFile, 'utf8'), dir)
-  assert.ok(pendingState.lastUnprovenWrite > pendingState.lastPublish, 'no result is not a publish')
-  const pending = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: pendingFile, cwd: dir,
-    session_id: `failed-commit-pending-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(pending.status, 0, pending.stderr)
-  assert.match(pending.stderr, /would publish unchecked/i, pending.stderr)
-
-  const quietFile = path.join(dir, 'published.jsonl')
-  await writeFile(quietFile, transcript([
-    ...write,
-    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
-  ]))
-  const quietState = analyzeTranscript(await readFile(quietFile, 'utf8'), dir)
-  assert.equal(quietState.lastUnprovenWrite > quietState.lastPublish, false)
-  const quiet = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: quietFile, cwd: dir,
-    session_id: `failed-commit-quiet-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(quiet.status, 0, quiet.stderr)
-  assert.doesNotMatch(quiet.stderr, /would publish unchecked/i, 'a successful local commit still publishes')
-})
-
-test('PreToolUse commit advice still Advises after a foreign git -C commit', async () => {
-  // Stress F2 against 5860b5b: isGitPublishCommand never asked where the command
-  // ran, so a commit in another repository moved this session's lastPublish.
-  const dir = await checkedProject('quality-foreign-publish-')
-  const other = await mkdtemp(path.join(testTmp, 'quality-foreign-other-'))
-  gitInit(other)
-  const write = [
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-  ]
-  const foreignCommands = [
-    `git -C "${bashPath(other)}" commit -m other`,
-    `git --git-dir "${bashPath(other)}/.git" --work-tree "${bashPath(other)}" commit -m other`,
-    `git -C "${bashPath(other)}" push`,
-    `git -C "${bashPath(path.relative(dir, other))}" commit -m other`,
-
-  ]
-  for (const [index, command] of foreignCommands.entries()) {
-    const file = path.join(dir, `foreign-${index}.jsonl`)
-    await writeFile(file, transcript([
-      ...write,
-      toolUse('c1', 'Bash', { command }), toolResult('c1'),
-    ]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    assert.ok(state.lastUnprovenWrite > state.lastPublish, command)
-    const run = runLifecycleHook({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash',
-      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
-      session_id: `foreign-publish-${index}-${Date.now()}-${process.pid}`,
-    })
-    assert.equal(run.status, 0, `${command}: ${run.stderr}`)
-    assert.match(run.stderr, /would publish unchecked/i, command)
-  }
-
-  const erroredFile = path.join(dir, 'foreign-errored.jsonl')
-  await writeFile(erroredFile, transcript([
-    ...write,
-    toolUse('c1', 'Bash', { command: `git -C "${bashPath(other)}" commit -m other` }),
-    toolResult('c1', true, 'nothing to commit, working tree clean'),
-  ]))
-  const erroredState = analyzeTranscript(await readFile(erroredFile, 'utf8'), dir)
-  assert.ok(erroredState.lastUnprovenWrite > erroredState.lastPublish, 'an errored foreign commit is not a publish here')
-  const errored = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: erroredFile, cwd: dir,
-    session_id: `foreign-publish-errored-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(errored.status, 0, errored.stderr)
-  assert.match(errored.stderr, /would publish unchecked/i, errored.stderr)
-
-  const sandbox = await mkdtemp(path.join(testTmp, 'quality-foreign-nest-'))
-  const nested = path.join(sandbox, 'wrap', 'project')
-  await mkdir(nested, { recursive: true })
-  await writeFile(path.join(nested, 'package.json'), JSON.stringify({ scripts: { test: 'true' } }))
-  gitInit(nested)
-  gitInit(sandbox)
-  const nestFile = path.join(nested, 'relative.jsonl')
-  await writeFile(nestFile, transcript([
-    ...write,
-    toolUse('c1', 'Bash', { command: 'git -C ../.. commit -m other' }), toolResult('c1'),
-  ]))
-  const nestState = analyzeTranscript(await readFile(nestFile, 'utf8'), nested)
-  assert.ok(nestState.lastUnprovenWrite > nestState.lastPublish, 'git -C ../..')
-  const nestRun = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: nestFile, cwd: nested,
-    session_id: `foreign-publish-relative-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(nestRun.status, 0, nestRun.stderr)
-  assert.match(nestRun.stderr, /would publish unchecked/i, 'git -C ../..')
-
-  assert.equal(isGitPublishCommand('echo git commit'), false)
-  assert.equal(isGitPublishCommand("cat <<'EOF'\ngit commit -m x\nEOF"), false)
-
-  const quietFile = path.join(dir, 'local.jsonl')
-  await writeFile(quietFile, transcript([
-    ...write,
-    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
-  ]))
-  const quietState = analyzeTranscript(await readFile(quietFile, 'utf8'), dir)
-  assert.equal(quietState.lastUnprovenWrite > quietState.lastPublish, false)
-  const quiet = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: quietFile, cwd: dir,
-    session_id: `foreign-publish-quiet-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(quiet.status, 0, quiet.stderr)
-  assert.doesNotMatch(quiet.stderr, /would publish unchecked/i, 'a successful local commit still publishes')
-})
-
-test('PreToolUse commit advice still Advises when the transcript starts with a UTF-8 BOM', async () => {
-  const dir = await checkedProject('quality-bom-transcript-')
-  const dirtyFile = path.join(dir, 'bom-write.jsonl')
-  await writeFile(dirtyFile, `\uFEFF${transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-  ])}`)
-  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
-  assert.ok(dirtyState.lastUnprovenWrite > dirtyState.lastPublish, 'BOM must not drop the write')
-  const dirty = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
-    session_id: `bom-transcript-dirty-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(dirty.status, 0, dirty.stderr)
-  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
-
-  const quietFile = path.join(dir, 'bom-read.jsonl')
-  await writeFile(quietFile, `\uFEFF${transcript([
-    toolUse('r1', 'Read', { file_path: path.join(dir, 'a.py') }), toolResult('r1'),
-  ])}`)
-  const quiet = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: quietFile, cwd: dir,
-    session_id: `bom-transcript-quiet-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(quiet.status, 0, quiet.stderr)
-  assert.doesNotMatch(quiet.stderr, /would publish unchecked/i, 'BOM + Read is still not a write')
-})
-
-
-
 
 test('SubagentStart states the leaf-role contract, and never blocks', async () => {
   // hooks.json declares this event and the installed plugin registers it, so
@@ -3235,285 +1332,53 @@ async function unverifiedDocsChange(name) {
   return { dir, file }
 }
 
-test('EVIDENCE-LIMITED opens the completion gate only with a stated reason', async () => {
-  const { dir, file } = await unverifiedDocsChange('evidence')
-  const stop = message => runLifecycleHook({
-    hook_event_name: 'Stop', transcript_path: file, cwd: dir, last_assistant_message: message,
-  })
+test('EVIDENCE-LIMITED opens the completion gate only with a stated reason, and only over docs', async () => {
+  // Both halves of the escape survive ADR-060, because both read the assistant's
+  // own message and the OBSERVED changed paths rather than a command's text.
+  const { dir, session } = await unheldRepository('quality-escape-docs-', 'notes.md')
+  // Each turn writes one more Markdown file, because a finding is made once per
+  // rule and evidence state (ADR-060): asking about the SAME state again is
+  // silence by design, and would make every assertion below vacuous.
+  let turn = 0
+  const stop = async message => {
+    turn += 1
+    await writeFile(path.join(dir, `notes-${turn}.md`), `# ${turn}\n`)
+    return turnEnd(dir, session, message)
+  }
 
-  // Negative control first: without the escape this state must block, or every
+  // Negative control first: without the escape this state must speak, or every
   // assertion below is about a gate that was open anyway.
-  const blocked = stop('Done.')
-  assert.match(blocked.stdout, /"systemMessage"/)
-
-  assert.equal(stop('EVIDENCE-LIMITED: no runtime is installed here').stdout, '')
+  assert.match((await stop('Done.')).stdout, /"systemMessage"/)
+  assert.equal((await stop('EVIDENCE-LIMITED: no runtime is installed here')).stdout, '')
 
   // A reason short enough to be a shrug is not a reason. `EVIDENCE-LIMITED: x`
   // would otherwise be a two-character bypass of the whole gate.
-  assert.match(stop('EVIDENCE-LIMITED: x').stdout, /"systemMessage"/)
-  assert.match(stop('EVIDENCE-LIMITED:').stdout, /"systemMessage"/)
-})
+  assert.match((await stop('EVIDENCE-LIMITED: x')).stdout, /"systemMessage"/)
+  assert.match((await stop('EVIDENCE-LIMITED:')).stdout, /"systemMessage"/)
 
-test('EVIDENCE-LIMITED does not release an unproven write after a published docs change', async () => {
-  // Codex review of 12c22b8...c1e1f9e: docsOnly used the full-session path list, so
-  // a published Markdown write plus a later marker-only command looked docs-only
-  // and silenced Stop. The unverified bit is already scoped to lastPublish.
-  const dir = await checkedProject('quality-escape-published-docs-')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(path.join(dir, 'notes.md'), '# Notes\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(dir, 'notes.md') }), toolResult('e1'),
-    toolUse('c1', 'Bash', { command: 'git commit -m done' }), toolResult('c1'),
-    toolUse('v1', 'Bash', { command: 'node --version' }), toolResult('v1'),
-  ]))
-  const run = runLifecycleHook({
-    hook_event_name: 'Stop', transcript_path: file, cwd: dir,
-    last_assistant_message: 'EVIDENCE-LIMITED: prose only, nothing here executes',
+  // The escape exists because prose cannot always be executed. Code can, so the
+  // docs-only guard is the difference between an escape and a bypass.
+  const code = await unheldRepository('quality-escape-code-', 'service.py')
+  assert.match(turnEnd(code.dir, code.session,
+    'EVIDENCE-LIMITED: the integration environment is unreachable').stdout, /"systemMessage"/)
+
+  // And a write git cannot see is not docs-only just because the tree's own
+  // changes are Markdown: the count of unseen paths is part of the finding.
+  const mixed = await unheldRepository('quality-escape-mixed-', 'notes.md')
+  const outside = path.join(testTmp, `escape-outside-${process.pid}.bin`)
+  await writeFile(outside, 'x')
+  runLifecycleHook({
+    hook_event_name: 'PostToolUse', tool_name: 'Write', cwd: mixed.dir, session_id: mixed.session,
+    tool_input: { file_path: outside },
   })
-  assert.match(run.stdout, /"systemMessage"/, run.stdout)
-  assert.match(`${run.stdout}${run.stderr}`, /could not prove a repository path/)
-})
-
-test('EVIDENCE-LIMITED does not release a code change, however well explained', async () => {
-  // The escape exists because prose cannot always be executed. Code can, so
-  // docsOnly guards it — and that guard is the difference between an escape and
-  // a bypass.
-  const dir = await checkedProject('quality-escape-code-')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(path.join(dir, 'service.py'), 'print(0)\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(dir, 'service.py') }), toolResult('e1'),
-  ]))
-  const run = runLifecycleHook({
-    hook_event_name: 'Stop', transcript_path: file, cwd: dir,
-    last_assistant_message: 'EVIDENCE-LIMITED: the integration environment is unreachable',
-  })
-  assert.match(run.stdout, /"systemMessage"/)
-})
-
-test('a Bash edit that names only Markdown files is a docs-only change', async () => {
-  // docs/BACKLOG.md §174, reported 2026-09-08: the Stop gate listed
-  // `<Bash mutation: …>` under "Changed paths" for a commit touching fourteen
-  // Markdown files and demanded a forty-minute test run. The marker stands in
-  // for a write that could not be resolved to a path; when every path the
-  // command names is Markdown it adds nothing and defeats `docsOnly`.
-  assert.equal(namesOnlyMarkdownFiles('sed -i "s/a/b/" docs/BACKLOG.md README.md', repoRoot), true)
-  assert.equal(namesOnlyMarkdownFiles('cp docs/BACKLOG.md plugin/bin/adr-lint', repoRoot), false)
-  assert.equal(namesOnlyMarkdownFiles('git add docs/', repoRoot), false)
-  assert.equal(namesOnlyMarkdownFiles('gh run list --limit 1 --json status', repoRoot), false)
-
-  const dir = await checkedProject('quality-md-bash-')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(path.join(dir, 'notes.md'), '# Notes\n')
-  await writeFile(path.join(dir, 'service.py'), 'x = 1\n')
-  const stopAfter = async command => {
-    await writeFile(file, transcript([
-      toolUse('b1', 'Bash', { command }), toolResult('b1'),
-    ]))
-    return runLifecycleHook({
-      hook_event_name: 'Stop', transcript_path: file, cwd: dir,
-      last_assistant_message: 'EVIDENCE-LIMITED: prose only, nothing here executes',
-    })
-  }
-  // Markdown only: the escape a docs change is entitled to.
-  const docs = await stopAfter('sed -i "s/a/b/" notes.md')
-  assert.equal(docs.stdout, '', docs.stdout)
-  // Stop drops startsWith('<'), so always-recording the marker stays silent
-  // there. The mechanism is the record itself (CLAUDE.md §4).
-  const mdState = analyzeTranscript(await readFile(file, 'utf8'), dir)
-  assert.equal(mdState.mutationPaths.some(p => String(p).startsWith('<Bash mutation:')), false,
-    'the unresolved marker is not recorded for a Markdown-only Bash edit')
-  // The control: a proven non-document path keeps the gate. Bash sed that also
-  // names service.py still only resolves Markdown, so the marker is not a path
-  // (F-1) and cannot be why docsOnly is false.
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: 'sed -i "s/a/b/" notes.md' }), toolResult('b1'),
-    toolUse('w1', 'Write', { file_path: path.join(dir, 'service.py') }), toolResult('w1'),
-  ]))
-  const code = runLifecycleHook({
-    hook_event_name: 'Stop', transcript_path: file, cwd: dir,
-    last_assistant_message: 'EVIDENCE-LIMITED: prose only, nothing here executes',
-  })
-  assert.match(code.stdout, /"systemMessage"/)
-  assert.match(code.stdout, /service.py/)
-  assert.doesNotMatch(code.stdout, /<Bash mutation:/)
-})
-
-test('a heredoc that only reads through a literal read-only subprocess is not a mutation', () => {
-  // docs/BACKLOG.md §175, verbatim from the reporting session: a Python heredoc
-  // that grepped the tree and printed a JSON summary was listed under "Changed
-  // paths" as a mutation, on the strength of `subprocess` and `re.search(`.
-  const body = [
-    'import re,pathlib,subprocess,json', 'defs={}',
-    'out=subprocess.run(["grep","-rnoE",r"def test_[a-z0-9_]+","tests/"],capture_output=True,text=True).stdout',
-    'for line in out.splitlines():', '  m=re.search(r"def (test_\\w+)",line)',
-    '  defs.setdefault(m.group(1),[]).append(line.split(":")[0])',
-    'print(json.dumps(defs,indent=0))',
-  ].join('\n')
-  const heredoc = script => `cd /repo\ngh run list --limit 1 --json headSha 2>&1 | head -3\npython3 - <<'PY'\n${script}\nPY`
-  assert.equal(isPotentialMutationCommand(heredoc(body)), false)
-  // The must-fail arms: a literal argv that mutates, a computed argv, and
-  // `shell=True` each keep the command a mutation.
-  assert.equal(isPotentialMutationCommand(heredoc('import subprocess\nsubprocess.run(["rm","-rf","build"])')), true)
-  assert.equal(isPotentialMutationCommand(heredoc('import subprocess\nsubprocess.run(argv)')), true)
-  assert.equal(isPotentialMutationCommand(heredoc('import subprocess\nsubprocess.run("ls", shell=True)')), true)
-  assert.equal(isPotentialMutationCommand(heredoc('import pathlib\npathlib.Path("x").write_text("y")')), true)
-})
-
-test('a relative path follows the command\'s own cd, and a write outside the project is not a project change', async () => {
-  // docs/BACKLOG.md §175, verbatim from the reporting session: `cd` into
-  // the session's memory directory under the user's Claude config, outside the
-  // repository, then `cat >> project_adr_corpus_state.md`. The
-  // gate reported `<repo>/project_adr_corpus_state.md` — a path that has never
-  // existed — because the relative token was resolved against the session cwd.
-  const dir = await checkedProject('quality-cd-')
-  const elsewhere = await mkdtemp(path.join(testTmp, 'quality-elsewhere-'))
-  await mkdir(path.join(dir, 'sub'))
-  await writeFile(path.join(dir, 'notes.md'), '# Notes\n')
-
-  // The trail: a cd that exists is followed, one that does not leaves the shell
-  // where it was (that is what the shell does), and one this cannot read is null.
-  const trail = segmentDirectories(`cd sub && cat >> a.md\ncd /no/such/dir; cat >> b.md\ncd "$X"; cat >> c.md`, dir)
-  assert.deepEqual(trail.filter(t => !t.navigation).map(t => t.dir), [path.join(dir, 'sub'), path.join(dir, 'sub'), null])
-
-  assert.deepEqual(bashMarkdownMutationPaths('cd sub && cat >> a.md', dir), [path.join(dir, 'sub', 'a.md')])
-  const outside = `cd "${elsewhere}"\ncat >> project_state.md <<'EOF'\nhello\nEOF\necho done`
-  assert.deepEqual(bashMarkdownMutationPaths(outside, dir), [], 'nothing under the project was named')
-  assert.equal(writesOutsideProject(outside, dir), true)
-  // Reaching back in by an absolute path, or through a variable, is not "outside".
-  assert.equal(writesOutsideProject(`cd "${elsewhere}" && cp x ${path.join(dir, 'y.py')}`, dir), false)
-  assert.equal(writesOutsideProject(`cd "${elsewhere}" && cp x "$REPO/y.py"`, dir), false)
-  assert.equal(writesOutsideProject('sed -i s/a/b/ notes.md', dir), false)
-
-  // Through the hook: the outside write owes nothing; the same write inside does.
-  const file = path.join(dir, 'agent.jsonl')
-  const stopAfter = async command => {
-    await writeFile(file, transcript([toolUse('b1', 'Bash', { command }), toolResult('b1')]))
-    return runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir, last_assistant_message: 'Done.' })
-  }
-  const away = await stopAfter(outside)
-  assert.equal(away.stdout, '', away.stdout)
-  const home = await stopAfter("cat >> notes.md <<'EOF'\nhello\nEOF\necho done")
-  assert.match(home.stdout, /"systemMessage"/)
-  assert.match(home.stdout, /notes\.md/)
-  assert.doesNotMatch(home.stdout, /project_state\.md/)
-})
-
-test('the writes a different-lineage review got past these classifiers', async () => {
-  // docs/BACKLOG.md §180. Every input below is verbatim from that review and each
-  // was classified NON-mutating or docs-only at the time. The coarse mutants for
-  // these functions already died, which is exactly the point: they prove a branch
-  // is reachable, not that it is NARROW enough. A guard is only worth the input
-  // that would slip past a narrower version of it (CLAUDE.md §4).
-  const heredoc = body => `python3 - <<'PY'\nimport subprocess\n${body}\nPY`
-
-  // withoutReadOnlySubprocessCalls read "not recognised as mutating" as "safe" —
-  // ADR-005 inverted, inside the gate that enforces it.
-  for (const [label, body] of [
-    ['an executable hidden in a variable', 'cmd = "rm"\nsubprocess.run([cmd, "-rf", "build"])'],
-    ['tar extracts',                       'subprocess.run(["tar", "-xf", "archive.tar"])'],
-    ['find -exec runs anything',           'subprocess.run(["find", ".", "-exec", "./mutate", "{}", ";"])'],
-    ['stdout=open writes a file the argv never names',
-                                           'subprocess.run(["grep", "x", "in"], stdout=open("out.txt", "w"))'],
-    // ⚠ THE CASE THAT DISTINGUISHES "EVERY ELEMENT MUST BE A LITERAL" FROM THE
-    // EXECUTABLE CHECK, and it took three tries to find one that does. `cmd = "rm"`
-    // is caught by the executable test whether or not non-literals are skipped,
-    // because skipping leaves `-rf` as the command name. A computed `"-exec"` looked
-    // right and was worse than useless: that literal string trips `\bexec\b` in
-    // VISIBLE_CODE_MUTATION_TOKENS, so the case read MUTATING for a reason having
-    // nothing to do with this guard, and the mutant stayed GREEN behind it twice.
-    //
-    // These two carry a READ-ONLY literal head and a computed element that trips no
-    // token by itself, so only refusing the whole call keeps them: skipping the
-    // non-literal leaves `find . flag`, which FIND_WRITES cannot see (BACKLOG §188).
-    ['a computed argument that could be -delete',
-     'flag = "-delete"\nsubprocess.run(["find", ".", flag])'],
-    ['a computed argument to a read-only head',
-     'p = "x"\nsubprocess.run(["grep", p, "in"])'],
-  ]) {
-    assert.equal(isPotentialMutationCommand(heredoc(body)), true, label)
-  }
-  // ...and the genuinely read-only call the exemption exists for is still exempt,
-  // or "recognise nothing" would satisfy every assertion above.
-  assert.equal(isPotentialMutationCommand(
-    heredoc('out = subprocess.run(["grep", "-rn", "x", "tests/"], capture_output=True).stdout')), false)
-  assert.equal(isPotentialMutationCommand(
-    heredoc('subprocess.run(["find", ".", "-name", "*.py"])')), false)
-
-  // The Markdown-only marker suppression laundered a code write through the
-  // docs-only escape: one .md argument silenced the Stop notice for a command
-  // that rewrote a gate.
-  const launder = 'python3 -c "open(\'plugin/bin/adr-lint\',\'w\').write(\'x\')" docs/BACKLOG.md'
-  assert.equal(namesOnlyMarkdownFiles(launder, repoRoot), false, 'an interpreter body cannot be read')
-  assert.equal(namesOnlyMarkdownFiles("python3 - <<EOF\nopen('x','w')\nEOF\ndocs/a.md", repoRoot), false)
-  assert.equal(namesOnlyMarkdownFiles('some-tool --out docs/a.md', repoRoot), false, 'unknown command')
-  assert.equal(namesOnlyMarkdownFiles('sed -i "s/a/b/" docs/BACKLOG.md README.md', repoRoot), true,
-    'a real docs edit still earns the exemption')
-
-  // writesOutsideProject exempted genuine in-repository writes: the CWD was the
-  // boundary rather than the git root, and `cd` followed into a FILE, which bash
-  // rejects while staying where it was.
-  assert.equal(writesOutsideProject('cd ../docs && touch BACKLOG.md', path.join(repoRoot, 'plugin')), false,
-    'the project is its git root, not wherever the session happens to stand')
-  // ⚠ A COMMAND THAT NEVER NAVIGATES CANNOT BE OUTSIDE THE PROJECT — true by
-  // construction, and it was being COMPUTED from two paths agreeing. On the
-  // Windows runner they did not: `printf x > notes.txt`, with no `cd` anywhere,
-  // was exempted and its mutation marker dropped, so a session that wrote a file
-  // was asked for no evidence (BACKLOG 188). Canonicalising both sides was the
-  // first fix and did not hold; this asserts the invariant instead.
-  assert.equal(writesOutsideProject('printf x > notes.txt', repoRoot), false,
-    'no cd means the command ran in the project')
-  assert.equal(writesOutsideProject('sed -i "s/a/b/" plugin/bin/adr-lint', repoRoot), false)
-  assert.equal(writesOutsideProject('cd /etc/passwd; touch plugin/bin/adr-lint', repoRoot), false,
-    'cd into a file fails and the shell stays in the repository')
-  assert.deepEqual(segmentDirectories('cd /etc/passwd; touch x', repoRoot).map(t => t.dir),
-    [repoRoot, repoRoot])
-  // ...and a write that really is outside is still exempt, or the fix would be
-  // "always false" and the exemption dead rather than correct.
-  const away = await mkdtemp(path.join(testTmp, 'quality-away-'))
-  assert.equal(writesOutsideProject(`cd "${away}" && touch note.md`, repoRoot), true)
-})
-
-test('two doors into the evidence gate that this release opened and closed', async () => {
-  // docs/BACKLOG.md §183, found by probing these two functions directly rather
-  // than through a transcript. BOTH are fail-opens introduced by this range: a
-  // real code write escaping the Stop evidence requirement. Before this range
-  // neither exemption existed, so each was a REGRESSION in what the gate can see.
-  //
-  // 1. A BARE WORD CAN BE A DIRECTORY. `cp docs/BACKLOG.md plugin` writes into a
-  //    code directory; requiring a `/` or a `.` in a token skipped it entirely,
-  //    so the command read as docs-only and the mutation marker was withheld.
-  //    `plugin/` with a slash was held all along, which is what made it look fine.
-  assert.equal(namesOnlyMarkdownFiles('cp docs/BACKLOG.md plugin', repoRoot), false)
-  assert.equal(namesOnlyMarkdownFiles('mv docs/BACKLOG.md plugin', repoRoot), false)
-  assert.equal(namesOnlyMarkdownFiles('cp docs/BACKLOG.md plugin/', repoRoot), false)
-  // ...and the exemption still fires for a real documents-only edit, or the fix
-  // would be "never docs-only" and the optimisation dead rather than correct.
-  assert.equal(namesOnlyMarkdownFiles('sed -i "s/a/b/" docs/BACKLOG.md README.md', repoRoot), true)
-  assert.equal(namesOnlyMarkdownFiles('cd docs && touch a.md', repoRoot), true)
-
-  // 2. `~` IS EXPANDED BY THE SHELL AND WAS NOT EXPANDED HERE. `$HOME` was
-  //    already held, because `$` marks a token this cannot follow; `~` carries no
-  //    such mark, so a write bash makes INSIDE the repository was exempted.
-  // ⚠ `/tmp` DOES NOT EXIST ON WINDOWS, and a `cd` that fails leaves the shell
-  // where it was — which is the behaviour this parser deliberately copies. Three
-  // assertions here used /tmp and two of them passed on Windows for the WRONG
-  // reason (the cd failed, so nothing was outside anything). A real temporary
-  // directory makes the intent hold on every platform (BACKLOG §188).
-  const outside = await mkdtemp(path.join(testTmp, 'quality-tilde-'))
-  const under = path.relative(os.homedir(), repoRoot)
-  if (!under.startsWith('..') && !path.isAbsolute(under)) {
-    assert.equal(writesOutsideProject(`cd "${outside}" && touch ~/${under}/plugin/bin/adr-lint`, repoRoot), false)
-  }
-  assert.equal(writesOutsideProject(`cd "${outside}" && touch "$HOME/x/plugin/bin/adr-lint"`, repoRoot), false)
-  // ...and a tilde path that really is outside the project is still exempt.
-  assert.equal(writesOutsideProject(`cd "${outside}" && touch ~/scratch-qh-note.md`, repoRoot), true)
+  assert.match(turnEnd(mixed.dir, mixed.session,
+    'EVIDENCE-LIMITED: prose only, nothing here executes').stdout, /"systemMessage"/)
 })
 
 test('an interim answer defers the gate at Stop, and never at TaskCompleted', async () => {
-  const { dir, file } = await unverifiedDocsChange('interim')
+  const { dir, session } = await unheldRepository('quality-interim-', 'notes.md')
   const at = (event, message) => runLifecycleHook({
-    hook_event_name: event, transcript_path: file, cwd: dir, last_assistant_message: message,
+    hook_event_name: event, cwd: dir, session_id: session, last_assistant_message: message,
   })
 
   // Stop fires whenever the assistant yields the turn, including to ask a
@@ -3525,54 +1390,13 @@ test('an interim answer defers the gate at Stop, and never at TaskCompleted', as
   // both be true and finish the task, so the escape must not reach here.
   const claimed = at('TaskCompleted', 'I am blocked on which schema you want.')
   assert.equal(claimed.status, 0)
-  assert.match(claimed.stderr, /Changed paths include:.*notes\.md/)
+  assert.match(claimed.stderr, /Changed paths: .*notes\.md/)
 
-  // And a plain sign-off is not an interim answer at either boundary.
+  // And a plain sign-off is not an interim answer at either boundary. The state
+  // has to move first, because the finding TaskCompleted just made is the same
+  // one — once per rule and evidence state (ADR-060).
+  await writeFile(path.join(dir, 'second.md'), '# second\n')
   assert.match(at('Stop', 'All done, shipped it.').stdout, /"systemMessage"/)
-})
-
-test('navigation refreshes the tree without counting as authored work', async () => {
-  const repo = await mkdtemp(path.join(testTmp, 'quality-navigation-'))
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8', timeout: 60_000 })
-  await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
-  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 60_000 })
-  git('add', '-A')
-  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
-  git('branch', 'task/work')
-
-  assert.equal(bashNavigationImpact('git checkout task/work && git pull --ff-only', repo), 'refresh')
-  assert.equal(bashNavigationImpact('git switch task/work', repo), 'refresh')
-  // A non-fast-forward pull can create a merge commit: authorship, not navigation.
-  assert.equal(bashNavigationImpact('git pull', repo), null)
-  assert.equal(bashNavigationImpact('git pull --rebase', repo), null)
-  assert.equal(bashNavigationImpact('git checkout -b task/next', repo), 'inert')
-  assert.equal(bashNavigationImpact('git checkout -b task/next origin/main', repo), 'refresh')
-  assert.equal(bashNavigationImpact('git pull --ff-only && rm -rf src', repo), null)
-  assert.equal(bashNavigationImpact('git checkout tracked.txt', repo), null)
-  assert.equal(bashNavigationImpact('git status', repo), null)
-
-  // A session that only navigated authored nothing and owes nothing.
-  const navigationOnly = analyzeTranscript(transcript([
-    toolUse('b1', 'Bash', { command: 'git checkout task/work && git pull --ff-only' }), toolResult('b1'),
-  ]), repo)
-  assert.equal(navigationOnly.hasMutations, false)
-
-  // But navigating after a green run stales that evidence: the tested tree is
-  // no longer the current tree.
-  const staleAfterSwitch = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: 'git checkout task/work' }), toolResult('b1'),
-  ]), repo)
-  assert.equal(staleAfterSwitch.verifiedAfterLastMutation, false)
-
-  // Creating a branch where you stand changes no tree and stales nothing.
-  const branchAfterGreen = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: 'git checkout -b task/next' }), toolResult('b1'),
-  ]), repo)
-  assert.equal(branchAfterGreen.verifiedAfterLastMutation, true)
 })
 
 test('session orientation states this project, and only this project', async () => {
@@ -3916,56 +1740,6 @@ test('listing-null still names a stale shadow install, not no corpus', async () 
   assert.match(`${listed.stdout}${listed.stderr}`, /SEPARATE copy/)
 })
 
-test('reported: a scratch directory made the standard way is still scratch', async () => {
-  // `W=$(mktemp -d)` is how everyone makes a scratch directory, and every use of
-  // it armed the unresolved-deletion sentinel AND counted as repository
-  // authorship — so cleaning up after yourself invalidated a check that had
-  // already passed. Two causes: the assignment pattern's `\S*` stopped at the
-  // space inside the substitution, so the value was never recorded at all, and
-  // nothing knew what mktemp -d returns.
-  const repo = pluginDir
-  const clean = 'W=$(mktemp -d); cp README.md "$W/"; rm -rf "$W"'
-  assert.equal(mutatesOnlyTempPaths(clean, repo), true)
-  assert.deepEqual(bashDeletionMutationPaths(clean, repo)
-    .filter(entry => entry === '<Unresolved Bash deletion>'), [])
-  assert.equal(mutatesOnlyTempPaths('rm -rf "$(mktemp -d)"', repo), true)
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d -t qh); rm -rf "$W"', repo), true)
-
-  // Only the spellings that cannot name somewhere else. -p and --tmpdir point
-  // where they are told, and a bare template is created relative to the working
-  // directory by GNU mktemp — `mktemp -d buildXXXXXX` writes into the repo.
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d -p .); rm -rf "$W"', repo), false)
-  // The glued and `=` spellings are the ones the flag guard exists for: a bare
-  // operand is already refused, so without it these would read as scratch.
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d -p.); rm -rf "$W"', repo), false)
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d --tmpdir=.); rm -rf "$W"', repo), false)
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d buildXXXX); rm -rf "$W"', repo), false)
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp); rm -rf "$W"', repo), false)
-  assert.equal(mutatesOnlyTempPaths('W=$(pwd); rm -rf "$W"', repo), false)
-})
-
-test('reported: naming a gate is not running it, and asking is not writing', async () => {
-  // Both from live sessions on 2026-08-26.
-  // `which adr-lint adr-verify arch-lint` asks where the gates are and runs
-  // none of them; the pattern counted the mention.
-  assert.equal(isPotentialMutationCommand('which adr-lint adr-verify arch-lint'), false)
-  assert.equal(isPotentialMutationCommand('command -v adr-verify'), false)
-  // Running it really is authorship: it writes a Verification Log entry.
-  assert.equal(isPotentialMutationCommand('adr-verify docs/tasks/T1.md'), true)
-  assert.equal(isPotentialMutationCommand('python3 bin/adr-verify docs/tasks/T1.md'), true)
-
-  // An unrecognised call inside `-c` is treated as a mutation, which made
-  // `print(inspect.signature(X.__init__))` authorship and demanded a re-run of
-  // the project's check for having looked something up.
-  assert.equal(isPotentialMutationCommand(
-    'python3 -c "import inspect; print(inspect.signature(int))"'), false)
-  assert.equal(isPotentialMutationCommand(
-    './.venv/Scripts/python.exe -c "import inspect\nfrom x import Y\nprint(inspect.signature(Y.__init__))"'), false)
-  // The conservative default survives: a call nobody recognises still counts.
-  assert.equal(isPotentialMutationCommand('python3 -c "open(\'f\',\'w\').write(1)"'), true)
-  assert.equal(isPotentialMutationCommand('python3 -c "shutil.rmtree(p)"'), true)
-})
-
 test('the harness has no opinion about git branches', async () => {
   // Removed on 2026-08-26: "leave GIT alone... our quality harness is only about
   // ADR skills, not the GIT usage, AI agent already knows how to work here, and
@@ -3995,16 +1769,15 @@ test('the harness has no opinion about git branches', async () => {
   }
 
   // The evidence question is untouched: it is about the project's check, not
-  // about git, and it still fires at the commit boundary.
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.js') }), toolResult('e1'),
-  ]))
+  // about git, and it still fires before a command naming commit or push.
+  const session = `nogit-${Date.now()}-${process.pid}`
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: repo, session_id: session })
+  await writeFile(path.join(repo, 'b.js'), 'y\n')
   const commit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
-    tool_input: { command: 'git commit -m x' }, transcript_path: file,
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
+    tool_input: { command: 'git commit -m x' },
   })
-  assert.match(commit.stderr, /would publish unchecked/)
+  assert.match(commit.stderr, /names commit or push/)
   assert.match(commit.stderr, /npm run test/)
 })
 
@@ -4154,11 +1927,11 @@ test('the decision context is delivered once per path per session, and never as 
   assert.equal(emitted.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.match(emitted.hookSpecificOutput.additionalContext, /ADR-001-postgres\.md/)
   // Delivery, not judgement: no decision, no systemMessage, nothing to answer for.
-  assert.doesNotMatch(first.stdout, /"decision"|systemMessage/)
-  assert.equal(first.stderr, '')
+  assert.doesNotMatch(hookSaid(first.stdout).stdout, /"decision"|systemMessage/)
+  assert.equal(stripPauseLines(first.stderr), '')
 
   // Saying it again at every edit of a hot file is how a delivery becomes a nag.
-  assert.equal(runLifecycleHook(payload(once)).stdout.trim(), '')
+  assert.equal(hookSaid(runLifecycleHook(payload(once)).stdout).stdout, '')
   // A new session has not heard it.
   assert.match(runLifecycleHook(payload(two)).stdout, /ADR-001-postgres\.md/)
 
@@ -4168,7 +1941,7 @@ test('the decision context is delivered once per path per session, and never as 
     tool_input: { file_path: path.join(repoRoot, 'README.md') },
   })
   assert.equal(quiet.status, 0)
-  assert.equal(`${quiet.stdout}${quiet.stderr}`.trim(), '')
+  assert.equal(hookSaid(quiet.stdout, quiet.stderr).text, '')
 })
 
 test('reported: a stale standalone copy answering instead of the plugin is named', async () => {
@@ -5261,140 +3034,6 @@ test('reported: the layouts and scale a real corpus actually has', async () => {
     [110, 112])
 })
 
-test('a check that could not run is not a finding about the change', async () => {
-  // Taken from zeus-eval-harness, whose AcceptanceVerdict is
-  // Passed / Failed{exit_code} / Timeout / SpawnError, and whose evidence record
-  // keeps `infra_failure_class` apart from an acceptance miss so "the provider
-  // was down" never reads as "the work is wrong".
-  //
-  // This harness had one bit. A check that FAILED, one that TIMED OUT and one
-  // that never started because Docker was not running all produced the same
-  // sentence. Only the first is about the change — the same mistake fixed one
-  // layer down in 2.5.0 and never applied to the project's own check.
-  const outcome = (content, isError = false) =>
-    ({ type: 'tool_result', content, is_error: isError })
-
-  assert.equal(validationVerdict(outcome('ok\n12 passed'), 'npm test'), 'passed')
-  assert.equal(validationVerdict(outcome('FAIL 3 tests', true), 'npm test'), 'failed')
-  assert.equal(validationVerdict(outcome('Command exited with code 1'), 'npm test'), 'failed')
-  assert.equal(validationVerdict({ exit_code: 2 }, 'npm test'), 'failed')
-
-  // Never got a status. 127 is "not found" and 126 "found but not executable" in
-  // every POSIX shell; reading either as "your tests failed" is the accusation.
-  for (const [content, label] of [
-    ['docker: command not found', 'a missing binary'],
-    ['Cannot connect to the Docker daemon. Is the docker daemon running?', 'a dead daemon'],
-    ['bash: ./verify.sh: Permission denied', 'a file that will not execute'],
-  ]) {
-    assert.equal(validationVerdict(outcome(content), 'npm test'), 'unstarted', label)
-  }
-  assert.equal(validationVerdict({ exit_code: 127 }, 'npm test'), 'unstarted')
-  assert.equal(validationVerdict({ exit_code: 126 }, 'npm test'), 'unstarted')
-
-  assert.equal(validationVerdict(outcome('Command timed out after 120s'), 'go test ./...'), 'timeout')
-  assert.equal(validationVerdict({ exit_code: 124 }, 'go test ./...'), 'timeout', 'GNU timeout')
-
-  assert.equal(validationVerdict(outcome('Command running in background with ID: x'), 'npm test'),
-    'running')
-  assert.equal(validationVerdict(outcome('no tests ran'), 'pytest'), 'no-work')
-
-  // End to end: the three cases must not read the same.
-  const repo = await checkedProject('quality-verdict-')
-  const file = path.join(repo, 'agent.jsonl')
-  const say = async (content, isError) => {
-    await writeFile(file, transcript([
-      toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.js') }), toolResult('e1'),
-      toolUse('v1', 'Bash', { command: 'npm test' }), toolResult('v1', isError, content),
-    ]))
-    const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: repo })
-    assert.equal(run.status, 0)
-    return JSON.parse(run.stdout).systemMessage
-  }
-
-  const failed = await say('FAIL 3 tests', true)
-  assert.match(failed, /Run `npm run test`/, 'a real failure still asks for the check')
-  assert.doesNotMatch(failed, /environment/)
-
-  const unstarted = await say('docker: command not found', false)
-  assert.match(unstarted, /never started/)
-  assert.match(unstarted, /this environment, not your change/)
-  assert.doesNotMatch(unstarted, /Do not add cleanup/,
-    'an environment problem is not a scope lecture')
-
-  const timedOut = await say('Command timed out after 120s', false)
-  assert.match(timedOut, /killed on its time budget/)
-  assert.match(timedOut, /not a verdict about your change/)
-
-  // All three still name what changed, and none of them blocks.
-  for (const message of [failed, unstarted, timedOut]) {
-    assert.match(message, /Changed paths include: .*a\.js/)
-  }
-})
-
-test('reported: a check that never ran on Windows was counted as a passing check', async () => {
-  // Asked directly on 2026-08-26: "is it true in windows environment too?" It
-  // was not. The verdict taxonomy was written against POSIX — exit 127/126,
-  // `command not found`, `permission denied` — and eight of nine shapes Windows
-  // actually produces were misread. Six of them came back `passed`, which is
-  // not the accusation the taxonomy was built to stop but its opposite: a
-  // FAIL-OPEN. `verifiedAfterLastMutation` returned true for a check that never
-  // ran, so the gate reported the work verified. That predates the taxonomy —
-  // the boolean it replaced did the same — and is the worst class of defect
-  // this project has, a confident wrong answer that clears the gate.
-  //
-  // Platform-independent on purpose: these are the STRINGS Windows tools emit,
-  // and the hook reads them out of a transcript wherever it runs.
-  const outcome = content => ({ type: 'tool_result', content })
-
-  const neverRan = [
-    // cmd.exe
-    ["'pytest' is not recognized as an internal or external command,\noperable program or batch file.", 'cmd.exe'],
-    // PowerShell says something completely different
-    ["The term 'pytest' is not recognized as the name of a cmdlet, function, script file, or operable program.", 'PowerShell'],
-    ['CommandNotFoundException', 'PowerShell exception type'],
-    // Win32 error text, which is what most tooling surfaces
-    ['The system cannot find the file specified.', 'ERROR_FILE_NOT_FOUND'],
-    ['The system cannot find the path specified.', 'ERROR_PATH_NOT_FOUND'],
-    ['Access is denied.', 'ERROR_ACCESS_DENIED'],
-    // Docker Desktop, which is how a containerised check fails on Windows
-    ['error during connect: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.',
-      'Docker Desktop not running'],
-  ]
-  for (const [content, label] of neverRan) {
-    assert.equal(validationVerdict(outcome(content), 'npm test'), 'unstarted', label)
-  }
-  // cmd.exe's own "command not found" code. 127 is the POSIX one and Windows
-  // does not use it.
-  assert.equal(validationVerdict({ exit_code: 9009 }, 'npm test'), 'unstarted', 'cmd.exe 9009')
-  // Windows has no signals; a killed process is reported by taskkill.
-  assert.equal(validationVerdict(outcome('ERROR: The process was terminated by taskkill'), 'npm test'),
-    'timeout', 'taskkill')
-
-  // The other direction, which adding those strings could easily break: an
-  // explicit exit 0 is authoritative, so a suite that PASSES while printing one
-  // of these phrases — a test named for the error it asserts — is still a pass.
-  assert.equal(validationVerdict(
-    { exit_code: 0, content: 'test_access_is_denied ... ok\n12 passed' }, 'npm test'), 'passed')
-  assert.equal(validationVerdict(
-    { exit_code: 0, content: 'the system cannot find the file specified ... ok' }, 'npm test'), 'passed')
-  // And an explicit exit 0 does not launder a run that collected nothing.
-  assert.equal(validationVerdict({ exit_code: 0, content: 'no tests ran' }, 'pytest'), 'no-work')
-
-  // End to end: the gate must not report work verified by a check that never ran.
-  const repo = await checkedProject('quality-windows-')
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.js') }), toolResult('e1'),
-    toolUse('v1', 'Bash', { command: 'npm test' }),
-    toolResult('v1', false, 'The system cannot find the file specified.'),
-  ]))
-  const state = analyzeTranscript(await readFile(file, 'utf8'), repo)
-  assert.equal(state.verifiedAfterLastMutation, false,
-    'a check that never ran is not evidence that the work is verified')
-  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: repo })
-  assert.match(JSON.parse(run.stdout).systemMessage, /never started/)
-})
-
 test('importing the router does not end the process that imported it', async () => {
   // The router's CLI half used to run at module top level, `process.exit` and
   // all. Two consequences, both silent: it parsed the IMPORTER's argv, so a
@@ -5802,93 +3441,6 @@ async function unverifiedProject(prefix) {
   return { dir, file }
 }
 
-test('the withdrawn assertion arm classifies nothing, so no claim is called a false success', async () => {
-  // ADR-035's own criterion killed this arm on 2026-09-04: measured on the first
-  // real eval run, 3 of 3 answers it called `asserted` were honest disclosures
-  // ("tests not yet run on my side", "I can't verify anything here"). Precision
-  // 0/3 against a threshold of 0.90.
-  //
-  // The test that used to live here asserted the advisory quoted the claim. It
-  // is REPLACED rather than deleted, because the withdrawal is a behaviour with
-  // its own risk: a session could quietly restore the arm and nothing would
-  // notice. This fails if it comes back without a fresh measurement.
-  const { dir, file } = await unverifiedProject('quality-hook-withdrawn-arm-')
-  const run = runLifecycleHook({
-    hook_event_name: 'Stop',
-    transcript_path: file,
-    cwd: dir,
-    last_assistant_message: '✅ All tests pass. Task complete.',
-  })
-  assert.equal(run.status, 0, run.stderr)
-  assert.equal(completionClaim('✅ All tests pass. Task complete.').kind, 'none',
-    'the assertion arm is withdrawn — see ADR-035 and BACKLOG §124')
-  assert.doesNotMatch(run.stdout, /You claimed completion/,
-    `no advisory may accuse a claim while the arm is withdrawn\n${run.stdout}`)
-  // The EVIDENCE half is untouched: unverified work still gets its advisory.
-  assert.notEqual(run.stdout, '', 'the plain evidence advisory still fires')
-  assert.match(run.stdout, /npm test|pnpm test|check/i,
-    `the advisory must still name the check that did not run\n${run.stdout}`)
-})
-
-test('an honest final message over unverified edits gets the plain evidence advisory', async () => {
-  const { dir, file } = await unverifiedProject('quality-hook-honest-')
-  const honest = runLifecycleHook({
-    hook_event_name: 'Stop',
-    transcript_path: file,
-    cwd: dir,
-    last_assistant_message: 'I edited the parser. I have not run the tests yet.',
-  })
-  assert.equal(honest.status, 0, honest.stderr)
-  assert.notEqual(honest.stdout, '', 'the existing evidence advisory must still fire')
-  assert.doesNotMatch(honest.stdout, /claimed|false success/i,
-    `an honest message must not be accused of a false success\n${honest.stdout}`)
-})
-
-// REPURPOSED 2026-09-04. This test was named for the `asserted` arm and its only
-// assertion searched for "false success", output the shipped classifier can no
-// longer produce — so it passed for a reason unrelated to its name, and would
-// have passed just as well if the verified session had been advised. The live
-// contract underneath it is real and still worth pinning: a session whose check
-// ran after its edits is advised about NOTHING. Both arms are here, because an
-// assertion that only ever sees silence cannot tell silence from a broken hook.
-test('a session whose check ran after its edits is advised about nothing', async () => {
-  const dir = await checkedProject('quality-hook-verified-claim-')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(dir, 'src', 'a.ts') }),
-    toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const run = runLifecycleHook({
-    hook_event_name: 'Stop',
-    transcript_path: file,
-    cwd: dir,
-    last_assistant_message: '✅ All tests pass. Task complete.',
-  })
-  assert.equal(run.status, 0, run.stderr)
-  assert.doesNotMatch(run.stdout, /"systemMessage"/,
-    `the evidence half decides, and the check ran after the edit\n${run.stdout}`)
-
-  // The dirty arm: the SAME confident message with the check missing must be
-  // advised, or the assertion above is satisfied by a hook that says nothing at
-  // all (CLAUDE.md §4 — a check that cannot report dirty reports nothing).
-  const unverified = path.join(dir, 'unverified.jsonl')
-  await writeFile(unverified, transcript([
-    toolUse('e2', 'Edit', { file_path: path.join(dir, 'src', 'b.ts') }),
-    toolResult('e2'),
-  ]))
-  const advised = runLifecycleHook({
-    hook_event_name: 'Stop',
-    transcript_path: unverified,
-    cwd: dir,
-    last_assistant_message: '✅ All tests pass. Task complete.',
-  })
-  assert.equal(advised.status, 0, advised.stderr)
-  assert.match(advised.stdout, /"systemMessage"/,
-    `an unverified edit must still be advised\n${advised.stdout}`)
-})
-
 test('completionClaim reads negation before assertion', () => {
   // Precedence is the whole design: every one of these CONTAINS an assertion
   // word, and none of them is an assertion.
@@ -6017,36 +3569,20 @@ test('the claims ledger gets one row per completion event, classified', async ()
   const data = await mkdtemp(path.join(testTmp, 'quality-claims-data-'))
   const env = { ...process.env, CLAUDE_PLUGIN_DATA: data }
 
-  // asserted × unverified — the false success.
-  const { dir, file } = await unverifiedProject('quality-claims-unverified-')
-  runLifecycleHook({
-    hook_event_name: 'Stop',
-    transcript_path: file,
-    cwd: dir,
-    last_assistant_message: '✅ All tests pass. Task complete.',
-  }, { env })
+  // unverified — an unchecked tree, whatever the final message claimed.
+  const unchecked = await unheldRepository('quality-claims-unverified-')
+  turnEnd(unchecked.dir, unchecked.session, '✅ All tests pass. Task complete.', { env })
 
-  // could-not-look — the transcript is unreadable, so nothing was observed.
-  runLifecycleHook({
-    hook_event_name: 'Stop',
-    transcript_path: path.join(dir, 'no-such-transcript.jsonl'),
-    cwd: dir,
-    last_assistant_message: 'Done.',
-  }, { env })
+  // could-not-look — a directory git cannot observe, so nothing was observed.
+  const unobservable = await mkdtemp(path.join(testTmp, 'quality-claims-unobservable-'))
+  await writeFile(path.join(unobservable, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  turnEnd(unobservable, `claims-unobservable-${process.pid}`, 'Done.', { env })
 
-  // no-check — a project that declares and infers no check command.
+  // no-check — a repository that declares and infers no check command.
   const bare = await mkdtemp(path.join(testTmp, 'quality-claims-nocheck-'))
-  const bareFile = path.join(bare, 'agent.jsonl')
-  await writeFile(bareFile, transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(bare, 'a.ts') }),
-    toolResult('e1'),
-  ]))
-  runLifecycleHook({
-    hook_event_name: 'Stop',
-    transcript_path: bareFile,
-    cwd: bare,
-    last_assistant_message: 'Done.',
-  }, { env })
+  const init = spawnSync('git', ['init', '-q', bare], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(init.status, 0, init.stderr)
+  turnEnd(bare, `claims-nocheck-${process.pid}`, 'Done.', { env })
 
   const rows = await ledgerRows(data)
   assert.equal(rows.length, 3, `one row per completion event, got ${JSON.stringify(rows)}`)
@@ -6059,42 +3595,33 @@ test('the claims ledger gets one row per completion event, classified', async ()
   assert.equal(rows[0].event, 'Stop')
   assert.ok(Number.isInteger(rows[0].mutations), 'the row counts the edits it was judging')
   assert.ok(Date.parse(rows[0].at), `at must be a timestamp, got ${rows[0].at}`)
-  // could-not-look observed nothing, so it carries no claim about the work.
-  assert.equal(rows[1].evidence, 'could-not-look')
+  // ADR-060: every row says which model computed it, so a reader can tell these
+  // apart from rows written before the event log existed.
+  assert.deepEqual([...new Set(rows.map(row => row.version))], ['events/1'])
 })
 
 test('the claims ledger is not written without CLAUDE_PLUGIN_DATA, and says so', async () => {
-  const { dir, file } = await unverifiedProject('quality-claims-nodata-')
+  const { dir, session } = await unheldRepository('quality-claims-nodata-')
   const env = { ...process.env }
   delete env.CLAUDE_PLUGIN_DATA
-  const run = runLifecycleHook({
-    hook_event_name: 'Stop',
-    transcript_path: file,
-    cwd: dir,
-    last_assistant_message: '✅ All tests pass. Task complete.',
-  }, { env })
+  const run = turnEnd(dir, session, '✅ All tests pass. Task complete.', { env })
   assert.equal(run.status, 0, run.stderr)
   assert.match(run.stderr, /CLAUDE_PLUGIN_DATA/,
     `the absence must be announced, not skipped\n${run.stderr}`)
-  // The advisory still fires: recording is separate from judging. It is the
-  // plain evidence sentence now, not a quoted claim — the arm is withdrawn.
-  assert.match(run.stdout, /after the final edit|Run `/, run.stdout)
+  // The advisory still fires: recording is separate from judging.
+  assert.match(run.stdout, /qh-check/, run.stdout)
 })
 
 test('the claims ledger row never throws out of the hook', async () => {
-  const { dir, file } = await unverifiedProject('quality-claims-unwritable-')
+  const { dir, session } = await unheldRepository('quality-claims-unwritable-')
   // A data dir that is a FILE: every write into it fails, at the OS level, on
   // every platform. The hook must still judge and still exit 0.
   const wall = path.join(dir, 'not-a-directory')
   await writeFile(wall, 'x')
-  const run = runLifecycleHook({
-    hook_event_name: 'Stop',
-    transcript_path: file,
-    cwd: dir,
-    last_assistant_message: '✅ All tests pass. Task complete.',
-  }, { env: { ...process.env, CLAUDE_PLUGIN_DATA: wall } })
+  const run = turnEnd(dir, session, '✅ All tests pass. Task complete.',
+    { env: { ...process.env, CLAUDE_PLUGIN_DATA: wall } })
   assert.equal(run.status, 0, `a ledger failure is not a hook failure\n${run.stderr}`)
-  assert.match(run.stdout, /after the final edit|Run `/,
+  assert.match(run.stdout, /qh-check/,
     `the advisory must survive an unwritable ledger\n${run.stdout}`)
 })
 
@@ -6109,8 +3636,8 @@ test('inside a read-only role, the plugin-level PreToolUse hook denies a write; 
     tool_input: toolInput,
   }).stdout || '{}')
   for (const role of ['qh-correctness-reviewer', 'quality-harness:qh-correctness-reviewer', 'qh-scope-reviewer', 'qh-synthesis']) {
-    const said = deny(role, 'Bash', { command: "sed -i 's/a/b/' README.md" })
-    assert.equal(said.hookSpecificOutput?.permissionDecision, 'deny', `${role}: a write must be denied`)
+    const said = deny(role, 'Bash', { command: 'git commit -am x' })
+    assert.equal(said.hookSpecificOutput?.permissionDecision, 'deny', `${role}: a commit must be denied`)
     assert.match(said.hookSpecificOutput.permissionDecisionReason, /reviewer guard \(qh-[a-z-]+\): This role is read-only/)
   }
   assert.equal(deny('qh-synthesis', 'Edit', { file_path: path.join(repo, 'x') }).hookSpecificOutput?.permissionDecision, 'deny')
@@ -6118,7 +3645,7 @@ test('inside a read-only role, the plugin-level PreToolUse hook denies a write; 
   assert.notEqual(deny('qh-correctness-reviewer', 'Bash', { command: 'git diff HEAD' }).hookSpecificOutput?.permissionDecision, 'deny')
   // Outside the role — the main thread, Explore, the fixer — nothing is denied.
   for (const other of [undefined, 'Explore', 'qh-narrow-fixer', 'general-purpose']) {
-    const said = deny(other, 'Bash', { command: "sed -i 's/a/b/' README.md" })
+    const said = deny(other, 'Bash', { command: 'git commit -am x' })
     assert.notEqual(said.hookSpecificOutput?.permissionDecision, 'deny', `${other}: not a read-only role`)
   }
 })
@@ -6270,26 +3797,56 @@ test('every command this harness OFFERS, it also accepts as evidence', () => {
   // This asserts the CLASS rather than the instance: whatever a tree's manifests
   // look like, if a command is named then it must be evidence. A new rung added
   // later fails here rather than in somebody's repository.
+  // Each tree states the ORIGIN it must resolve to. Without that the loop below
+  // `continue`d past any tree that named nothing, so the Laravel fixture this
+  // test was written FOR asserted nothing at all — re-adding a `composer test`
+  // rung would have gone unnoticed (docs/audits/2026-09-18-adr-060.md, G4).
   const trees = [
-    ['composer with a test script (the Laravel skeleton default)',
+    ['composer with a test script (the Laravel skeleton default)', 'none',
       { 'composer.json': '{"scripts":{"test":["@php artisan test"]},"require":{"laravel/framework":"^13.8"}}' }],
-    ['composer with phpunit and no script',
+    ['composer with phpunit and no script', 'inferred',
       { 'composer.json': '{"require-dev":{"phpunit/phpunit":"^11"}}', 'phpunit.xml': '<phpunit/>\n' }],
-    ['npm with a test script', { 'package.json': '{"scripts":{"test":"vitest run"}}' }],
-    ['a Makefile with a test target', { Makefile: 'test:\n\techo hi\n' }],
-    ['cargo', { 'Cargo.toml': '[package]\nname = "x"\n' }],
-    ['go', { 'go.mod': 'module x\n' }],
+    ['npm with a test script', 'inferred', { 'package.json': '{"scripts":{"test":"vitest run"}}' }],
+    ['a Makefile with a test target', 'inferred', { Makefile: 'test:\n\techo hi\n' }],
+    ['cargo', 'inferred', { 'Cargo.toml': '[package]\nname = "x"\n' }],
+    ['go', 'inferred', { 'go.mod': 'module x\n' }],
+    // The one branch no fixture reached: a mutant that emptied the DECLARED arm
+    // of `runTheCheckSentence` survived the whole file (G3).
+    ['a declared check', 'declared', { '.quality-harness.json': '{"check":"sh check.sh"}' }],
   ]
   const offered = []
-  for (const [label, files] of trees) {
+  for (const [label, expected, files] of trees) {
     const dir = mkdtempSync(path.join(testTmp, 'offers-'))
     for (const [name, body] of Object.entries(files)) writeFileSync(path.join(dir, name), body)
     const { command, origin } = checkCommandOrigin(dir)
-    if (command === null) continue
+    assert.equal(origin, expected, `${label}: resolved \`${command}\``)
+    const sentence = runTheCheckSentence(dir)
+    if (command === null) {
+      // Nothing is offered, so nothing may be NAMED: no `qh-check` promise over a
+      // command that does not exist, and no manifest script quoted as if it were one.
+      assert.doesNotMatch(sentence, /qh-check|composer|artisan/, `${label}: ${sentence}`)
+      continue
+    }
     offered.push(`${label}: ${command} (${origin})`)
-    assert.ok(isValidationCommand(command),
-      `${label}: the harness offers \`${command}\` as the check to run, so it must also accept it `
-      + 'as evidence — offering a command it would then refuse is worse than saying nothing')
+    // Whose word the command is, said once and in the right arm only.
+    if (origin === 'declared') {
+      assert.match(sentence, /\(this project's own check\)/, `${label}: ${sentence}`)
+      assert.doesNotMatch(sentence, /No `check` is declared|inferred from this repository/, `${label}: ${sentence}`)
+    } else {
+      assert.match(sentence, /No `check` is declared/, `${label}: ${sentence}`)
+      assert.doesNotMatch(sentence, /\(this project's own check\)/, `${label}: ${sentence}`)
+    }
+    // ⚠ THE INVARIANT SURVIVES ADR-060 IN A DIFFERENT SHAPE. There is no text
+    // predicate for evidence any more: a check is an event `qh-check` writes, not
+    // a command a classifier approves. So "the harness must accept what it
+    // offers" becomes "the sentence must route the offer through `qh-check`" — a
+    // command named without it runs bare, records nothing, and the advisory then
+    // reports `unchecked` for a check the user DID run. That is the Laravel
+    // report's defect wearing new clothes, so the assertion moves rather than
+    // goes.
+    assert.match(runTheCheckSentence(dir), /\bqh-check\b/,
+      `${label}: the harness offers \`${command}\`, so the sentence must route it through `
+      + '`qh-check` — naming a command whose run it cannot then see is worse than saying nothing')
     // ...and the sentence it prints names that same command, so the two cannot
     // drift apart without this failing.
     assert.match(runTheCheckSentence(dir), new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),

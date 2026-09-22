@@ -1,10 +1,10 @@
-// BACKLOG §135 — a read-only reviewer cannot write through Bash.
+// BACKLOG §135, ADR-060 — a read-only reviewer cannot edit, commit or push.
 //
-// Dirty before clean: the guard refuses a write, a commit, and an Edit call
-// with exit 2 and a reason; it passes reads, diffs, checks and scratch writes;
-// it passes a payload it cannot read. And every agent whose description says
-// "never edits" declares the guard in its own frontmatter, on the tools that
-// can write — otherwise the contract is a sentence.
+// Dirty before clean: the guard refuses an editing tool and any Bash command that
+// names commit or push as a word, wrapped or not, with exit 2 and a reason; it
+// passes every other command, writes included, because those are reported when
+// the reviewer finishes; it passes a payload it cannot read. And every agent whose
+// description says "never edits" declares the guard in its own frontmatter.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -21,66 +21,32 @@ const guard = join(root, 'scripts', 'reviewer-guard.mjs')
 const run = input => spawnSync(process.execPath, [guard], { input, encoding: 'utf8', timeout: 30_000 })
 const bash = command => ({ hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repoRoot, tool_input: { command } })
 
-test('the guard reads through a shell payload, a command substitution, and an editor (review bypasses)', () => {
-  for (const command of ["bash -c 'printf x > outside.txt'", 'echo "$(printf x > outside.txt)"', 'cat `printf x > outside.txt`',
-    'vim plugin/README.md', 'nano README.md', 'code plugin/README.md', "sh -c \"sed -i 's/a/b/' README.md\""]) {
-    const out = run(JSON.stringify(bash(command)))
-    assert.equal(out.status, 2, `${command}: must be refused\n${out.stderr}`)
-  }
-  for (const command of ['vim plugin/README.md', 'nano README.md', 'code plugin/README.md']) {
-    const out = run(JSON.stringify(bash(command)))
-    assert.match(out.stderr, /editor is not available/,
-      `${command}: EDITORS is the reason; unrecognised would still deny\n${out.stderr}`)
-  }
-  // The same shapes with no write inside still pass.
-  for (const command of ["bash -c 'git diff HEAD'", 'echo "$(git rev-parse HEAD)"', 'ls `git rev-parse --show-toplevel`']) {
-    assert.equal(run(JSON.stringify(bash(command))).status, 0, `${command}: must pass`)
-  }
-})
-
-test('the guard refuses a write, a publish, and an editing tool, and says why', () => {
-  for (const command of ["sed -i 's/a/b/' plugin/scripts/lifecycle.mjs", 'cat > README.md <<EOF\nx\nEOF', 'rm -rf plugin/skills', 'git commit -m x', 'git push origin main']) {
+test('the guard refuses a command that names commit or push, wrapped or not', () => {
+  for (const command of ['git commit -m x', 'git push origin main', "bash -c 'git commit -m x'",
+    'echo "$(git push)"', "pwsh -Command 'git push'", 'python3 -c \'import subprocess; subprocess.run(["git","push"])\'']) {
     const out = run(JSON.stringify(bash(command)))
     assert.equal(out.status, 2, `${command}: must be refused\n${out.stderr}`)
     assert.match(out.stderr, /read-only/, command)
     assert.equal(out.stdout, '')
   }
+})
+
+test('the guard refuses an editing tool, and says why', () => {
   const edit = run(JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Edit', cwd: repoRoot, tool_input: { file_path: 'x' } }))
   assert.equal(edit.status, 2)
   assert.match(edit.stderr, /Edit is not available/)
 })
 
-test('the guard passes reads, diffs, checks, and scratch writes under the temp roots', () => {
-  const scratch = join(tmpdir(), 'qh-reviewer-scratch')
-  for (const command of ['git diff HEAD', 'grep -rn TODO plugin/', 'node --test tests/reviewer-guard.test.mjs', 'git log --oneline -5', `printf x > "${scratch}/notes.txt"`, 'ls -la']) {
+test('the guard passes every command that names neither word, writes included', () => {
+  for (const command of ['git diff HEAD', 'grep -rn TODO plugin/', 'node --test tests/reviewer-guard.test.mjs', 'git log --oneline -5',
+    'ls -la', 'echo hi', 'bash scripts/selftest.sh', "sed -i 's/a/b/' README.md", 'rm -rf build', 'vim README.md',
+    'grep -n pre-commit README.md', 'git commit-tree HEAD^{tree}']) {
     const out = run(JSON.stringify(bash(command)))
     assert.equal(out.status, 0, `${command}: must pass\n${out.stderr}`)
     assert.equal(out.stderr, '', command)
   }
   // Tools other than the writing ones are not this guard's business.
   assert.equal(run(JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: 'x' } })).status, 0)
-})
-
-test('a reviewer is denied Remove-Item and pwsh -Command rm', () => {
-  for (const command of [
-    'Remove-Item -Recurse build',
-    'pwsh -Command rm -rf build',
-    'cmd /c rmdir /s /q build',
-    'rm -rf build',
-  ]) {
-    const out = run(JSON.stringify(bash(command)))
-    assert.equal(out.status, 2, `${command}: must be refused\n${out.stderr}`)
-    assert.match(out.stderr, /read-only/, command)
-  }
-})
-
-test('echo and selftest are not denied as unrecognised', () => {
-  for (const command of ['echo hi', 'bash scripts/selftest.sh', 'ls -la']) {
-    const out = run(JSON.stringify(bash(command)))
-    assert.equal(out.status, 0, `${command}: must pass\n${out.stderr}`)
-  }
-  const dirty = run(JSON.stringify(bash('Remove-Item -Recurse build')))
-  assert.equal(dirty.status, 2, dirty.stderr)
 })
 
 test('a payload the guard cannot read passes: a guard broken on its own bug must not stop a reviewer reading', () => {

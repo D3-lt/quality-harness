@@ -2,9 +2,9 @@
 
 import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -16,20 +16,18 @@ import {
 } from './standalone-link.mjs'
 
 import { ARTIFACT_OUTPUT_LIMIT } from './run-shell-hook.mjs'
+import { findGitDir } from './git-directory.mjs'
+// ADR-060's event log is shared with run-shell-hook.mjs's per-edit gate, so it
+// lives in a leaf module both can import (T6).
 import {
-  classifyCommand as classifyCommandWithHooks,
-  POSIX_NESTED_SHELLS,
-} from './classify-command.mjs'
+  appendEvent, canonical, canonicalFile, nearestExistingDirectory, readEvents, sessionLogFile, stateDir,
+} from './event-log.mjs'
+export { appendEvent, readEvents, sessionLogFile, stateDir } from './event-log.mjs'
+import { contentId } from './event-log.mjs'
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   || path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
-// Executed 2026-09-10: these names were UNPROVEN but must not Advise (ADR-042).
-// Anything else unknown stays UNPROVEN — not-recognised is not known-not-a-write.
-const KNOWN_NON_WRITE_TOOLS = new Set([
-  'Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Task', 'TodoWrite',
-  'Skill', 'Agent', 'mcp__mrw__mrw_read',
-])
 const DOC_EXTENSIONS = new Set(['.md', '.mdx', '.rst', '.txt'])
 const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
 // Per artifact, at the commit and completion boundaries. The per-edit boundary
@@ -41,75 +39,22 @@ const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
 // to be raisable by whoever owns the corpus.
 const ARTIFACT_GATE_TIMEOUT_MS = 30_000
 export const ARTIFACT_GATE_KILL_MARGIN_MS = 5_000
-const VALIDATION_PATTERNS = [
-  // ⚠ THE VERB IS A WHOLE TOKEN. It ended `\b`, and a hyphen and a colon are both
-  // word boundaries — so `test-data`, `test:seed` and `test-fixtures` all counted
-  // as the `test` script. A different script is a different command; a name that
-  // merely BEGINS with a verb has not run that verb. Found 2026-09-18 by a
-  // different-lineage review, and it had been wrong for npm since this line was
-  // written.
-  //
-  // ⚠ `composer` IS DELIBERATELY NOT HERE. It was added, and review found that
-  // accepting it cost more than it bought: the family it needed in the read-only
-  // classifier turned `composer update` — which writes composer.lock — from
-  // `unrecognised` into `neither`. The rung that made it necessary was removed
-  // instead (see `checkCommandOrigin`), which satisfies the same invariant by
-  // OFFERING LESS. §16: a classifier that permits more needs stronger evidence.
-  /^(?:npm|pnpm|yarn|bun)\s+(?:run(?:-script)?\s+)?(?:test|lint|check|typecheck|build|verify|validate)(?:\s|$)/i,
-  /^(?:cargo\s+(?:test|check|build|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)|swift\s+test)\b/i,
-  // `php artisan test` is how a Laravel project runs its tests, and it was not
-  // here: a session with 286 passing tests kept being asked for a check.
-  // vendor/bin/phpunit needed its path prefix allowed for the same reason —
-  // requiring the bare name meant only a globally installed runner counted.
-  /^(?:pytest|python(?:3)?\s+-m\s+(?:pytest|unittest)|(?:php\s+)?(?:\S*\/)?(?:phpunit|pest)|(?:php\s+)?artisan\s+test|rspec|bundle\s+exec\s+rspec)\b/i,
-  /^(?:npx\s+)?(?:tsc|eslint|ruff|mypy|pyright|shellcheck)\b/i,
-  /^(?:node\s+(?:--check|--test)|bash\s+-n|php\s+-l|jq\s+empty|claude\s+plugin\s+validate)\b/i,
-  /^(?:make|just)\s+(?:test|check|lint|build|verify|validate)\b/i,
-  /^(?!test(?:\s|$))(?!\S*(?:adr-verify|create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))(?=\S*(?:test|lint|check|verify|validate|selftest))\S+(?:\s|$)/i,
-  /^(?:node\s+)?(?:\S*\/)?verify\.mjs\s+--cwd\s+/i,
-  /^(?:python(?:3)?|node|ruby|perl|php)\s+(?!\S*(?:create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))\S*(?:check|lint|verify|test|validate)\S*\.(?:py|mjs|js|ts|rb|pl|php)\s+(?:verify|check|lint|test|validate|audit|census|status|spine|evals)\b/i,
-  /^(?:python(?:3)?|node|ruby|perl|php)\s+\S*derive_shapes\.(?:py|mjs|js|ts|rb|pl|php)\s+(?:verify|check|audit|census|status)\b/i,
-  /^(?:python(?:3)?\s+)?\S*(?:adr-lint|adr-debt|spec-verify|arch-lint|postmortem-verify|adr-retire-check)\b/i,
-  // `bash scripts/selftest.sh` is the same run as `./scripts/selftest.sh`, and
-  // only the second was evidence: the pattern above needs the validator's own
-  // name as the first word. Running a repository's own gate the obvious way left
-  // the hook asking for a validation that had just passed. Hit live repeatedly on
-  // 2026-08-25. The shell name is a wrapper, so look past it at the script — with
-  // the same authoring-verb exclusions, and `(?!-)` so `bash -n` keeps its own
-  // rule above and `bash -c "…"` stays outside this one.
-  /^(?:bash|sh|zsh|ksh)\s+(?!-)(?!\S*(?:adr-verify|create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))\S*(?:test|lint|check|verify|validate|selftest)\S*(?:\s|$)/i,
-]
-
-// A redirect that writes somewhere: `> f`, `2>> f`, `&> f`. `>&1` and `>&2`
-// duplicate a descriptor and `/dev/null` discards, so neither is a write. One
-// definition because two copies of this policy drift: the branch guard and the
-// exception list must agree on what counts as writing.
-// Three ways this regex was wrong, all of them live on 2026-08-26.
+// ⚠ THE VALIDATION PATTERN TABLE WENT WITH THE CLASSIFIERS (ADR-060 T7), and two
+// lessons it held are worth keeping even though its code is not — both bought in
+// the 2.100.0 release, days before this branch landed:
 //
-// `\s*` backtracked past its own exclusion: with `cmd > /dev/null` it matched the
-// space, the exclusion failed, the engine handed the space back, and the
-// lookahead was re-tried against " /dev/null" — which does not START with
-// /dev/null. So `gh run watch 123 > /dev/null` was authorship, and on a
-// protected branch it demanded a task branch. JavaScript has no possessive
-// quantifier; `(?=(\s*))\1` is how one is spelled.
+//   - A verb must be a WHOLE TOKEN. The table ended each verb with `\b`, and a
+//     hyphen and a colon are both word boundaries, so `test-data`, `test:seed`
+//     and `test-fixtures` all counted as the `test` script. Wrong for npm since
+//     the line was first written.
+//   - `composer` must not be in such a table at all. Admitting it forced a family
+//     into the read-only classifier that turned `composer update` — which
+//     rewrites composer.lock — from `unrecognised` into `neither`, a fail-open
+//     introduced while fixing a fail-closed.
 //
-// `&-` closes a descriptor and writes nothing: `git fsck 2>&-` was a mutation.
-//
-// And a GLUED redirect was invisible: `printf x>out.txt` writes a file, but the
-// `(?:^|\s)` prefix required whitespace before it, so the evidence gate never
-// saw the write. That is a fail-open, and the two above are false blocks — the
-// same regex managed both directions at once.
-//
-// Quoted segments are removed before the test rather than excluded inside it: a
-// `>` inside `python3 -c 'a>b'` is a comparison in someone else's language, not
-// a redirect, and stripping quotes is a rule instead of a guess.
-const WRITE_REDIRECT = /(?<![-=<>!])(?:\d*|&)>>?(?=(\s*))\1(?!&\d|&-|\/dev\/null(?![^\s;|&<>]))/
-
-// A redirect inside quotes is not a redirect. Removing quoted runs keeps the
-// glued-redirect fix above from reading shell operators out of inline code.
-function withoutQuotedSegments(command) {
-  return command.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, ' ')
-}
+// Neither has a consumer here any more: nothing on this branch decides what
+// happened by reading a command's text. They survive in docs/BACKLOG.md and in
+// this record's Consequences, which is where a lesson outlives its code.
 
 function walk(value, visit) {
   if (!value || typeof value !== 'object') return
@@ -149,845 +94,7 @@ function reportsZeroTestWork(text, command) {
   return /\b(?:no tests? (?:found|ran|collected|matched|to run)|ran 0 tests?|running 0 tests?|collected 0 items|0 tests? (?:run|executed|collected|passed)|0 passing|tests\s+0|no test files)\b/i.test(text)
 }
 
-function nearestExistingDirectory(candidate) {
-  let current = candidate
-  try {
-    if (!statSync(current).isDirectory()) current = path.dirname(current)
-  } catch {
-    current = path.dirname(current)
-  }
-  while (!existsSync(current)) {
-    const parent = path.dirname(current)
-    if (parent === current) return null
-    current = parent
-  }
-  return current
-}
 
-function resolveToolPath(value, cwd) {
-  if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) return null
-  if (value.startsWith('~/')) return path.join(os.homedir(), value.slice(2))
-  return path.resolve(cwd, value)
-}
-
-function gitCommandDirectory(command, cwd) {
-  const invocation = gitInvocation(command)
-  if (!invocation) return cwd
-
-  let directory = cwd
-  let gitDirectory = null
-  let workTree = null
-  for (const option of invocation.globalOptions) {
-    const value = option.value?.replace(/^\$HOME\//, `${os.homedir()}/`)
-    if (!value) continue
-    if (option.name === '-C') {
-      directory = resolveToolPath(value, directory) ?? directory
-    } else if (option.name === '--git-dir') {
-      gitDirectory = resolveToolPath(value, directory)
-    } else if (option.name === '--work-tree') {
-      workTree = resolveToolPath(value, directory)
-    }
-  }
-  if (workTree) return workTree
-  if (gitDirectory) {
-    return path.basename(gitDirectory) === '.git' ? path.dirname(gitDirectory) : gitDirectory
-  }
-  return directory
-}
-
-export function shellSegments(command) {
-  const segments = []
-  let segment = ''
-  let quote = null
-  let escaped = false
-  // Last unquoted, unescaped, non-blank character of the segment being built.
-  // `&` splitting is not `&&` splitting: an `&` glued to a redirect belongs to
-  // the operator. Splitting `2>&1` there left a first segment ending in `2>`,
-  // which every write-redirect rule reads as a write, so the branch guard
-  // blocked read-only commands whenever the addressed repository was protected.
-  let previous = null
-
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index]
-    if (escaped) {
-      segment += character
-      escaped = false
-      previous = null
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      segment += character
-      escaped = true
-      previous = null
-      continue
-    }
-    if (quote) {
-      segment += character
-      if (character === quote) quote = null
-      previous = null
-      continue
-    }
-    if (character === "'" || character === '"') {
-      quote = character
-      segment += character
-      previous = null
-      continue
-    }
-    // `2>&1`, `>&2` and `>&-` close over the preceding redirect; `&>f` and
-    // `&>>f` open one. Everything else keeps `&` as a separator, so a genuine
-    // background job still ends its segment.
-    const redirectAmpersand = character === '&'
-      && (previous === '>' || previous === '<' || command[index + 1] === '>')
-    if (!redirectAmpersand
-        && (character === ';' || character === '\n' || character === '|' || character === '&')) {
-      if (segment.trim()) segments.push(segment.trim())
-      segment = ''
-      previous = null
-      if ((character === '|' || character === '&') && command[index + 1] === character) {
-        index += 1
-      }
-      continue
-    }
-    segment += character
-    if (!/\s/.test(character)) previous = character
-  }
-
-  if (segment.trim()) segments.push(segment.trim())
-  return segments
-}
-
-function heredocDeclarations(line, initialQuote = null) {
-  const declarations = []
-  let quote = initialQuote
-  let escaped = false
-  let arithmeticDepth = 0
-
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index]
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      escaped = true
-      continue
-    }
-    if (quote) {
-      if (character === quote) quote = null
-      continue
-    }
-    if (arithmeticDepth > 0) {
-      if (character === '(') arithmeticDepth += 1
-      else if (character === ')') arithmeticDepth -= 1
-      continue
-    }
-    if (line.startsWith('$((', index)) {
-      arithmeticDepth = 2
-      index += 2
-      continue
-    }
-    if (line.startsWith('((', index)) {
-      arithmeticDepth = 2
-      index += 1
-      continue
-    }
-    if (character === "'" || character === '"') {
-      quote = character
-      continue
-    }
-    if (character !== '<' || line[index + 1] !== '<' || line[index + 2] === '<') continue
-
-    index += 2
-    const stripTabs = line[index] === '-'
-    if (stripTabs) index += 1
-    while (/\s/.test(line[index] ?? '')) index += 1
-    const start = index
-    let delimiterQuote = null
-    let delimiterEscaped = false
-    while (index < line.length) {
-      const delimiterCharacter = line[index]
-      if (delimiterEscaped) {
-        delimiterEscaped = false
-        index += 1
-        continue
-      }
-      if (delimiterCharacter === '\\' && delimiterQuote !== "'") {
-        delimiterEscaped = true
-        index += 1
-        continue
-      }
-      if (delimiterQuote) {
-        if (delimiterCharacter === delimiterQuote) delimiterQuote = null
-        index += 1
-        continue
-      }
-      if (delimiterCharacter === "'" || delimiterCharacter === '"') {
-        delimiterQuote = delimiterCharacter
-        index += 1
-        continue
-      }
-      if (/[\s;&|<>]/.test(delimiterCharacter)) break
-      index += 1
-    }
-    const delimiter = shellWords(line.slice(start, index))[0] ?? ''
-    index -= 1
-    if (delimiter) declarations.push({ delimiter, stripTabs })
-  }
-  return { declarations, quote }
-}
-
-function withoutHeredocBodies(command) {
-  const executableLines = []
-  const pending = []
-  let active = null
-  let quote = null
-
-  for (const line of command.split('\n')) {
-    if (active) {
-      const candidate = active.stripTabs ? line.replace(/^\t+/, '') : line
-      if (candidate === active.delimiter) active = pending.shift() ?? null
-      continue
-    }
-
-    executableLines.push(line)
-    const scanned = heredocDeclarations(line, quote)
-    pending.push(...scanned.declarations)
-    quote = scanned.quote
-    if (pending.length > 0) active = pending.shift()
-  }
-
-  return executableLines.join('\n')
-}
-
-function commandSubstitutionEnd(source, openIndex) {
-  let depth = 1
-  let quote = null
-  let escaped = false
-
-  for (let index = openIndex + 1; index < source.length; index += 1) {
-    const character = source[index]
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      escaped = true
-      continue
-    }
-    if (quote === "'") {
-      if (character === "'") quote = null
-      continue
-    }
-    if (character === '"') {
-      quote = quote === '"' ? null : (quote ?? '"')
-      continue
-    }
-    if (character === "'") {
-      if (quote === null) quote = "'"
-      continue
-    }
-    if (source.startsWith('$(', index)) {
-      depth += 1
-      index += 1
-      continue
-    }
-    if (character === ')' && quote === null) {
-      depth -= 1
-      if (depth === 0) return index
-    }
-  }
-  return -1
-}
-
-function shellCommandRegions(command) {
-  const regions = [command]
-  const seen = new Set(regions)
-
-  function add(region) {
-    const trimmed = region.trim()
-    if (!trimmed || seen.has(trimmed)) return
-    seen.add(trimmed)
-    regions.push(trimmed)
-    scan(trimmed)
-  }
-
-  function scan(source) {
-    let quote = null
-    let escaped = false
-    for (let index = 0; index < source.length; index += 1) {
-      const character = source[index]
-      if (escaped) {
-        escaped = false
-        continue
-      }
-      if (character === '\\' && quote !== "'") {
-        escaped = true
-        continue
-      }
-      if (quote === "'") {
-        if (character === "'") quote = null
-        continue
-      }
-      if (source.startsWith('$(', index)) {
-        const end = commandSubstitutionEnd(source, index + 1)
-        if (end < 0) continue
-        add(source.slice(index + 2, end))
-        index = end
-        continue
-      }
-      if (character === '`') {
-        let end = index + 1
-        for (; end < source.length; end += 1) {
-          if (source[end] === '\\') {
-            end += 1
-            continue
-          }
-          if (source[end] === '`') break
-        }
-        if (end < source.length) {
-          add(source.slice(index + 1, end))
-          index = end
-        }
-        continue
-      }
-      if (character === '"') quote = quote === '"' ? null : (quote ?? '"')
-      else if (character === "'" && quote === null) quote = "'"
-    }
-  }
-
-  scan(command)
-  for (let index = 0; index < regions.length; index += 1) {
-    for (const segment of shellSegments(regions[index])) {
-      const nested = nestedShellScript(segment)
-      if (nested) add(nested)
-    }
-  }
-  return regions
-}
-
-function inPlaceEditorCommand(command) {
-  return /\bsed\b[^\n]*\s(?:-i\S*|--in-place(?:=\S*)?)(?:\s|$)/.test(command)
-    || /\bperl\b[^\n]*\s-[A-Za-z]*i\S*(?:\s|$)/.test(command)
-}
-
-function shellWords(command) {
-  const words = []
-  let word = ''
-  let wordStarted = false
-  let quote = null
-
-  const finishWord = () => {
-    if (!wordStarted) return
-    words.push(word)
-    word = ''
-    wordStarted = false
-  }
-
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index]
-    if (quote === "'") {
-      if (character === "'") quote = null
-      else word += character
-      continue
-    }
-    if (quote === '"') {
-      if (character === '"') {
-        quote = null
-      } else if (character === '\\') {
-        const next = command[index + 1]
-        if (next && '$`"\\\n'.includes(next)) word += command[++index]
-        else word += character
-      } else {
-        word += character
-      }
-      continue
-    }
-    if (/\s/.test(character)) {
-      finishWord()
-      continue
-    }
-    wordStarted = true
-    if (character === "'" || character === '"') {
-      quote = character
-    } else if (character === '\\' && index + 1 < command.length) {
-      word += command[++index]
-    } else {
-      word += character
-    }
-  }
-  finishWord()
-  return words
-}
-
-function executableName(token) {
-  return token?.replaceAll('\\', '/').split('/').pop()?.replace(/\.exe$/i, '') ?? ''
-}
-
-function optionConsumesNext(token, options) {
-  return options.has(token) && !token.includes('=')
-}
-
-function commandInvocation(command, depth = 0) {
-  if (depth > 4) return null
-  const words = shellWords(command.trim())
-  let index = 0
-
-  while (index < words.length) {
-    words[index] = words[index].replace(/^[({]+/, '')
-    if (!words[index] || words[index] === '!' || words[index] === '{') {
-      index += 1
-      continue
-    }
-    while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[index] ?? '')) index += 1
-    const wrapper = executableName(words[index])
-    if (wrapper === 'command') {
-      index += 1
-      while (words[index]?.startsWith('-')) {
-        if (['-v', '-V'].includes(words[index])) return null
-        if (words[index] === '--') { index += 1; break }
-        index += 1
-      }
-      continue
-    }
-    if (wrapper === 'env') {
-      index += 1
-      const envValueOptions = new Set(['-a', '--argv0', '-u', '--unset', '-C', '--chdir'])
-      while (words[index]?.startsWith('-')) {
-        const option = words[index]
-        if (option === '--') { index += 1; break }
-        let splitString = null
-        if (option === '-S' || option === '--split-string') {
-          splitString = words[index + 1] ?? ''
-          index += 2
-        } else if (option.startsWith('--split-string=')) {
-          splitString = option.slice('--split-string='.length)
-          index += 1
-        } else if (option.startsWith('-S') && option.length > 2) {
-          splitString = option.slice(2)
-          index += 1
-        }
-        if (splitString !== null) {
-          return commandInvocation([splitString, ...words.slice(index)].join(' '), depth + 1)
-        }
-        index += optionConsumesNext(option, envValueOptions) ? 2 : 1
-      }
-      continue
-    }
-    if (wrapper === 'sudo') {
-      index += 1
-      const sudoValueOptions = new Set([
-        '-C', '--close-from', '-D', '--chdir', '-g', '--group', '-h', '--host',
-        '-p', '--prompt', '-R', '--chroot', '-r', '--role', '-T', '--command-timeout',
-        '-t', '--type', '-U', '--other-user', '-u', '--user',
-      ])
-      while (words[index]?.startsWith('-')) {
-        const option = words[index]
-        if (option === '--') { index += 1; break }
-        index += optionConsumesNext(option, sudoValueOptions) ? 2 : 1
-      }
-      continue
-    }
-    if (wrapper === 'exec') {
-      index += 1
-      while (words[index]?.startsWith('-')) {
-        const option = words[index]
-        if (option === '--') { index += 1; break }
-        index += option === '-a' ? 2 : 1
-      }
-      continue
-    }
-    if (wrapper === 'time') {
-      index += 1
-      const timeValueOptions = new Set(['-f', '--format', '-o', '--output'])
-      while (words[index]?.startsWith('-')) {
-        if (words[index] === '--') { index += 1; break }
-        index += optionConsumesNext(words[index], timeValueOptions) ? 2 : 1
-      }
-      continue
-    }
-    // ADR-058 T1. `gtimeout 590 bash scripts/selftest.sh` runs the check and carries
-    // its exit status (124 on timeout; measured against a shell 2026-09-16), so the
-    // command inside is the command. Options, then exactly one duration. Any other
-    // shape leaves `timeout` itself as the family, which is unrecognised (§16).
-    if (wrapper === 'timeout' || wrapper === 'gtimeout') {
-      const at = index
-      index += 1
-      const timeoutValueOptions = new Set(['-k', '--kill-after', '-s', '--signal'])
-      while (words[index]?.startsWith('-')) {
-        if (words[index] === '--') { index += 1; break }
-        index += optionConsumesNext(words[index], timeoutValueOptions) ? 2 : 1
-      }
-      if (!/^\d+(?:\.\d+)?[smhd]?$/.test(words[index] ?? '')) { index = at; break }
-      index += 1
-      continue
-    }
-    break
-  }
-  return { index, words }
-}
-
-function nestedShellScript(command) {
-  const invocation = commandInvocation(command)
-  if (!invocation) return null
-  const { index, words } = invocation
-  if (!POSIX_NESTED_SHELLS.has(executableName(words[index]))) return null
-  const shellValueOptions = new Set(['-o', '-O', '--init-file', '--rcfile'])
-  for (let optionIndex = index + 1; optionIndex < words.length; optionIndex += 1) {
-    const option = words[optionIndex]
-    if (option === '--') return null
-    if (!option.startsWith('-')) return null
-    if (option.slice(1).includes('c')) return words[optionIndex + 1] ?? null
-    if (optionConsumesNext(option, shellValueOptions)) optionIndex += 1
-  }
-  return null
-}
-
-function gitInvocation(command) {
-  const invocation = commandInvocation(command)
-  if (!invocation) return null
-  const { words } = invocation
-  let { index } = invocation
-
-  if (executableName(words[index]) !== 'git') return null
-  index += 1
-  const gitValueOptions = new Set([
-    '-C', '-c', '--attr-source', '--config-env', '--exec-path', '--git-dir',
-    '--namespace', '--super-prefix', '--work-tree',
-  ])
-  const globalOptions = []
-  while (index < words.length) {
-    const option = words[index]
-    if (option === '--') {
-      index += 1
-      break
-    }
-    if (!option.startsWith('-')) break
-    const attached = option.match(/^(--(?:git-dir|work-tree))=(.*)$/)
-    if (attached) {
-      globalOptions.push({ name: attached[1], value: attached[2] })
-      index += 1
-      continue
-    }
-    if (optionConsumesNext(option, gitValueOptions)) {
-      globalOptions.push({ name: option, value: words[index + 1] })
-      index += 2
-      continue
-    }
-    index += 1
-  }
-  return {
-    globalOptions,
-    subcommand: words[index] ?? null,
-    subcommandIndex: index,
-    words,
-  }
-}
-
-function gitSubcommand(command) {
-  return gitInvocation(command)?.subcommand ?? null
-}
-
-export function isGitPublishCommand(command) {
-  if (typeof command !== 'string') return false
-  const executable = withoutHeredocBodies(command)
-  for (const region of shellCommandRegions(executable)) {
-    for (const segment of shellSegments(region)) {
-      if (['commit', 'push'].includes(gitSubcommand(segment))) return true
-    }
-  }
-  return false
-}
-// Bound to the matched git invocation. `[\s\S]*$` ate a later `|| git push`
-// / `; git push` as if they were still the `&&` suffix (Codex P1, 2026-09-14).
-// Quote-aware peel: last unquoted `&&` or newline, then wrappers, then git
-// commit/push whose args may contain quoted `|` / `;`. Unquoted `|` / `;` /
-// `||` still refuse the tail (ADR-054 F-3 / ADR-056).
-// Wrapper flags/assignments that still invoke git (`sudo -n`, `env FOO=bar`,
-// `command --`, `time -p`). `command -v` is not an invocation.
-// Operand class is `[^\s|;]+`, not `\S+`: `FOO=bar||` / `-u ci||` swallowed
-// the attached loud joiner (Codex P1, 2026-09-15).
-const PUBLISH_WRAPPER = /^(?:(?:command(?:\s+--)?|env(?:\s+(?:-u\s+[^\s|;]+|[A-Za-z_][\w]*=[^\s|;]+))*|sudo(?:\s+(?:-n|-u\s+[^\s|;]+))*|exec|time(?:\s+-p)?)\s+)*/
-
-function hashStartsComment(text, index) {
-  if (index <= 0) return true
-  const prev = text[index - 1]
-  if (prev === ' ' || prev === '\t'
-      || prev === '&' || prev === '|' || prev === ';' || prev === '('
-      || prev === ')' || prev === '<' || prev === '>') {
-    let slashes = 0
-    for (let i = index - 2; i >= 0 && text[i] === '\\'; i -= 1) slashes += 1
-    return slashes % 2 === 0
-  }
-  return prev === '\n' || prev === '\r'
-}
-
-
-function quoteAwarePublishArgsOk(text) {
-  // Replaces quote-blind [^|;\n]* : unquoted | ; newline stop; quoted do not.
-  let quote = null
-  let escaped = false
-  let inComment = false
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index]
-    if (inComment) {
-      if (character === '\n' || character === '\r') {
-        return false
-      }
-      continue
-    }
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      escaped = true
-      continue
-    }
-    if (quote) {
-      if (character === quote) quote = null
-      continue
-    }
-    if (character === "'" || character === '"') {
-      quote = character
-      continue
-    }
-    if (character === '#' && hashStartsComment(text, index)) {
-      inComment = true
-      continue
-    }
-    if (character === '|' || character === ';' || character === '\n' || character === '\r') {
-      return false
-    }
-  }
-  return quote === null
-}
-
-function wrapperQuotesClosed(text) {
-  let quote = null
-  let escaped = false
-  for (const character of text) {
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      escaped = true
-      continue
-    }
-    if (quote) {
-      if (character === quote) quote = null
-      continue
-    }
-    if (character === "'" || character === '"') quote = character
-  }
-  return quote === null
-}
-
-function gitPublishTail(text) {
-  const trimmed = text.trimStart()
-  const wrap = trimmed.match(PUBLISH_WRAPPER)
-  if (wrap && !wrapperQuotesClosed(wrap[0])) return false
-  const after = wrap ? trimmed.slice(wrap[0].length) : trimmed
-  const git = after.match(/^git\s+(?:commit|push)\b/)
-  if (!git) return false
-  return quoteAwarePublishArgsOk(after.slice(git[0].length))
-}
-
-function lastSilentPublishJoiner(command) {
-  let quote = null
-  let escaped = false
-  let inComment = false
-  let last = -1
-  let lastLen = 0
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index]
-    if (inComment) {
-      if (character === '\n') {
-        inComment = false
-        last = index
-        lastLen = 1
-        continue
-      }
-      if (character === '\r' && command[index + 1] === '\n') {
-        inComment = false
-        last = index
-        lastLen = 2
-        index += 1
-        continue
-      }
-      continue
-    }
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      escaped = true
-      continue
-    }
-    if (quote) {
-      if (character === quote) quote = null
-      continue
-    }
-    if (character === "'" || character === '"') {
-      quote = character
-      continue
-    }
-    if (character === '#' && hashStartsComment(command, index)) {
-      inComment = true
-      continue
-    }
-    if (character === '&' && command[index + 1] === '&') {
-      last = index
-      lastLen = 2
-      index += 1
-      continue
-    }
-    if (character === '\n') {
-      last = index
-      lastLen = 1
-      continue
-    }
-    if (character === '\r' && command[index + 1] === '\n') {
-      last = index
-      lastLen = 2
-      index += 1
-    }
-  }
-  if (last < 0) return null
-  return { at: last, len: lastLen }
-}
-
-export function publishPrecededByValidation(command) {
-  if (typeof command !== 'string' || !isGitPublishCommand(command)) return false
-  let rest = command.trim()
-  let stripped = false
-  for (;;) {
-    const join = lastSilentPublishJoiner(rest)
-    if (!join) break
-    const suffix = rest.slice(join.at + join.len)
-    if (!gitPublishTail(suffix)) break
-    const joiner = rest.slice(join.at, join.at + join.len)
-    rest = rest.slice(0, join.at).trim()
-    stripped = true
-    if (joiner === '\n' || joiner === '\r\n') {
-      if (rest.endsWith('&&')) rest = rest.slice(0, -2).trim()
-    }
-  }
-  if (!stripped || !rest) return false
-  if (isValidationCommand(rest)) return true
-  const lastLine = rest.split(/\r?\n/).filter(Boolean).at(-1) ?? ''
-  const lastAnd = lastLine.split(/\s*&&\s*/).filter(Boolean).at(-1) ?? ''
-  return isValidationCommand(lastAnd)
-}
-
-
-function commandSucceeded(result) {
-  if (result === undefined) return false
-  if (result.is_error === true || result.interrupted === true) return false
-  let exitCode = null
-  walk(result, object => {
-    for (const [key, value] of Object.entries(object)) {
-      if (/^(?:exit_code|exitCode)$/.test(key) && Number.isInteger(value) && exitCode === null) {
-        exitCode = value
-      }
-    }
-  })
-  return exitCode === null || exitCode === 0
-}
-
-function sameDirectory(left, right) {
-  return underDirectory(left, right) && underDirectory(right, left)
-}
-
-// lastPublish is this project's publish, not "a git commit/push ran".
-// gitCommandDirectory already resolves -C / --git-dir / --work-tree; the
-// mutation side's segmentDirectories trail supplies the cd. Conservative:
-// unknown directory is not a this-project publish.
-function gitPublishTargetsThisProject(command, cwd) {
-  if (typeof command !== 'string' || typeof cwd !== 'string') return false
-  const here = nearestExistingDirectory(path.resolve(cwd))
-  if (!here) return false
-  const project = gitRepositoryRoot(here) ?? here
-  let targetsThis = false
-  for (const { segment, dir } of segmentDirectories(command, cwd)) {
-    if (!['commit', 'push'].includes(gitSubcommand(segment))) continue
-    if (dir === null) continue
-    const target = gitCommandDirectory(segment, dir)
-    const targetHere = nearestExistingDirectory(path.resolve(target))
-    if (!targetHere) continue
-    const targetRoot = gitRepositoryRoot(targetHere) ?? targetHere
-    if (sameDirectory(targetRoot, project)) targetsThis = true
-  }
-  return targetsThis
-}
-
-// ADR-058 T4. True only when every commit or push segment names a directory that
-// exists inside a git repository other than this project's. A segment whose
-// directory cannot be followed — `cd "$X"`, a `-C` that does not exist, a
-// directory that is not a repository — is unresolved, and unresolved is never
-// read as another repository (CLAUDE.md §16), so the commit advisory still
-// speaks for it. Stricter than gitPublishTargetsThisProject on purpose: that one
-// may round a missing directory up to its nearest existing parent, which is fine
-// for "did this project publish" and wrong for "may this project stay silent".
-function gitPublishTargetsOnlyOtherRepositories(command, cwd) {
-  if (typeof command !== 'string' || typeof cwd !== 'string') return false
-  const here = nearestExistingDirectory(path.resolve(cwd))
-  const project = here ? gitRepositoryRoot(here) ?? here : null
-  if (!project) return false
-  let publishes = 0
-  for (const { segment, dir } of segmentDirectories(command, cwd)) {
-    if (!['commit', 'push'].includes(gitSubcommand(segment))) continue
-    publishes += 1
-    if (dir === null) return false
-    // ADR-058 T7: `GIT_DIR=<this>/.git git -C <other> commit` and
-    // `--git-dir=<this>/.git --work-tree=<other>` publish HERE (git rev-parse
-    // --absolute-git-dir, 2026-09-17), so a repository override is unresolved.
-    const invocation = commandInvocation(segment)
-    if (invocation?.words.slice(0, invocation.index).some(word => /^GIT_[A-Za-z0-9_]*=/.test(word))) return false
-    if (gitInvocation(segment)?.globalOptions.some(option => option.name === '--git-dir' || option.name === '--work-tree')) return false
-    const target = path.resolve(dir, gitCommandDirectory(segment, dir))
-    const root = isDirectory(target) ? gitRepositoryRoot(target) : null
-    if (!root || sameDirectory(root, project)) return false
-  }
-  // ADR-058 T7: a publish inside `bash -c`, `$(…)` or a heredoc body is one the
-  // walk above never resolved, so it cannot be called another repository's.
-  let reachable = 0
-  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
-    for (const segment of shellSegments(region)) {
-      if (['commit', 'push'].includes(gitSubcommand(segment))) reachable += 1
-    }
-  }
-  if (reachable > publishes || isGitPublishCommand(heredocBodies(command))) return false
-  return publishes > 0
-}
-
-
-function isGitMutationCommand(command) {
-  if (typeof command !== 'string') return false
-  const mutating = new Set([
-    'add', 'apply', 'checkout', 'cherry-pick', 'clean', 'commit', 'merge', 'pull',
-    'rebase', 'reset', 'restore', 'stash', 'switch',
-  ])
-  const executable = withoutHeredocBodies(command)
-  for (const region of shellCommandRegions(executable)) {
-    for (const segment of shellSegments(region)) {
-      if (mutating.has(gitSubcommand(segment))) return true
-    }
-  }
-  return false
-}
-
-// `git checkout <name>` is a branch switch or a working-tree overwrite depending
-// on what <name> is, and only the repository knows which. Ask it rather than
-// guessing from the spelling.
-function localBranchExists(directory, name) {
-  if (!directory || typeof name !== 'string' || !/^[A-Za-z0-9._\-\/]+$/.test(name)) return false
-  const run = spawnSync('git', ['-C', directory, 'rev-parse', '--verify', '--quiet', `refs/heads/${name}`], {
-    encoding: 'utf8', timeout: 5_000,
-  })
-  return run.status === 0
-}
 
 // Why a validation did not clear, not merely that it did not.
 //
@@ -1002,7 +109,6 @@ function localBranchExists(directory, name) {
 // first is a finding about the change. The same mistake was fixed one layer
 // down in 2.5.0 — the harness failing to RUN is not a verdict about the edit —
 // and never applied to the project's own check.
-export const VALIDATION_VERDICTS = ['passed', 'failed', 'timeout', 'unstarted', 'running', 'no-work']
 
 // A command that never got a status. 127 is "not found" and 126 is "found but
 // not executable" in every POSIX shell; the rest is what the tools themselves
@@ -1026,6 +132,9 @@ const NEVER_STARTED = new RegExp([
   'access is denied',
   // Docker on either platform
   'cannot connect to the docker daemon', 'is the docker daemon running',
+  // PHP, when the script it was handed is absent. Exit 1 and this one line —
+  // measured twice on 2026-09-19 by two Laravel sessions, in clones with no vendor/.
+  'could not open input file',
 ].join('|'), 'i')
 const KILLED_ON_TIME = new RegExp([
   'timed out', 'timeout exceeded', 'deadline exceeded', 'ETIMEDOUT',
@@ -1037,7 +146,24 @@ const KILLED_ON_TIME = new RegExp([
 // POSIX's "found but not executable".
 const NEVER_STARTED_EXITS = new Set([126, 127, 9009])
 
-export function validationVerdict(result, command) {
+// ⚠ THESE PHRASES ARE READ ONLY FROM A PROCESS THAT SAID LITTLE. They are what a
+// shell or an interpreter prints when the thing it was asked to run is absent —
+// and also what any suite that TESTS file or permission errors prints all day. A
+// Go suite ran, failed forty-one tests and exited 1, and was recorded `unstarted`
+// because one failing assertion quoted "no such file or directory"; the next
+// session read "never checked" about a check that was red (peer-measured
+// 2026-09-19). A process that never started says almost nothing else; a suite that
+// ran says a great deal. The exit codes above need no such help and are not
+// subject to it.
+const SAID_LITTLE_LINES = 8
+function saidLittle(text) {
+  return String(text).split('\n').filter(line => line.trim()).length <= SAID_LITTLE_LINES
+}
+
+// `anyCommand`: the caller already knows the command is the project's check
+// (`qh-check`, ADR-060 T2), so a zero-test summary is read whatever the command is
+// spelled. Without it, `sh check.sh` printing `tests 0` read as passed.
+export function validationVerdict(result, command, { anyCommand = false } = {}) {
   const text = collectStrings(result).join('\n')
   const serialized = JSON.stringify(result)
   let exitCode = null
@@ -1060,995 +186,29 @@ export function validationVerdict(result, command) {
   // widening the patterns for Windows buys a fail-open in one direction by
   // selling a false alarm in the other.
   if (exitCode === 0) {
-    return testCommand(command) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'
+    return (anyCommand || testCommand(command)) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'
   }
-  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'
-  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'
+  // ⚠ AN EXIT CODE IS EVIDENCE THAT A COMMAND NEVER STARTED; A PHRASE IS NOT. The
+  // phrases used to return `unstarted` — a statement that the check never ran —
+  // and a real one-line assertion failure, `FAIL testOpenFile: permission denied`
+  // at exit 1, was recorded that way: a red check filed as an environment problem
+  // (different-lineage review, 2026-09-19). The line count cannot settle it
+  // either: the same missing script read `unstarted` or `failed` as its preamble
+  // crossed eight lines. So a phrase from a process that said little is UNPROVEN
+  // — it did not pass, and whether it ran is not known (ADR-005).
+  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'
+  if (exitCode === 124) return 'timeout'
+  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'
   if (result.is_error === true || result.interrupted === true) return 'failed'
   if (exitCode !== null && exitCode !== 0) return 'failed'
   if (/["\']exit_code["\']\s*:\s*[1-9]\d*/i.test(serialized)
       || /\b(?:process|command)\b.{0,80}\bexit(?:ed)?(?: with)?(?: code)?\s+[1-9]\d*/i.test(text)) {
     return 'failed'
   }
-  if (testCommand(command) && reportsZeroTestWork(text, command)) return 'no-work'
+  if ((anyCommand || testCommand(command)) && reportsZeroTestWork(text, command)) return 'no-work'
   return 'passed'
 }
 
-const CD_ONLY = /^cd\s+(?:"[^"]*"|'[^']*'|\S+)$/
-
-// A command substitution inside a `cd` argument still runs a command, so it
-// cannot be waved past the guard on faith — but `cd "$(git rev-parse
-// --show-toplevel)" && ./verify.sh` is how a script finds its own repository
-// root, and the whole-command guard rejected it as if the `$(` were hiding
-// something. The project's check had just run and the gate asked for it again.
-// Reported from blueprints, 2026-08-26. An explicit list of read-only idioms,
-// not an inference: anything else keeps failing the guard.
-const INERT_SUBSTITUTION = /^\s*(?:git\s+rev-parse\s+--show-toplevel|pwd|dirname\s+[^;&|`$()]*|realpath\s+[^;&|`$()]*|basename\s+[^;&|`$()]*)\s*$/
-
-// A segment that only moves, and moves somewhere it can name without side
-// effects. Carries no verdict, so it neither counts as validation nor spoils it.
-function inertNavigation(segment) {
-  if (!CD_ONLY.test(segment)) return false
-  for (const match of segment.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) {
-    if (!INERT_SUBSTITUTION.test(match[1] ?? match[2] ?? '')) return false
-  }
-  return true
-}
-
-// Everything the whole-command guard used to reject: a second command hiding
-// behind a separator, a redirect, a pipe, a background job, a substitution.
-// Applied per segment now rather than to the whole string, so navigation can be
-// dropped first without letting anything ride along with the validation itself.
-const UNSAFE_SEGMENT = /[;`>]|\|\||\$\(|(?:^|[^|])\|(?:[^|]|$)|(?:^|[^&])&(?:[^&]|$)/
-const ASSIGNMENT_ONLY = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s*)+$/
-const ASSIGNMENT_PREFIX = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+)+/
-// ADR-058 T1. One leading timeout wrapper, stripped the same way as the assignment
-// prefix: after UNSAFE_SEGMENT has seen the whole segment, so it launders nothing.
-const TIMEOUT_PREFIX = /^g?timeout\s+(?:(?:-k|--kill-after|-s|--signal)(?:=\S+|\s+\S+)\s+|(?:--preserve-status|--foreground|-v|--verbose)\s+)*\d+(?:\.\d+)?[smhd]?\s+/
-
-// A command run inside a container is still that command.
-//
-// `docker compose exec -T app php artisan test` was not validation, so a project
-// whose tests run in a container produced no evidence the gate could see — 286
-// passing tests, and the completion gate still asking for a check. Reported from
-// a live session on 2026-08-26.
-//
-// Peels one container-runner prefix and one `sh -c '…'` wrapper, which together
-// cover the shape people actually type:
-//   docker compose run --rm --no-deps node sh -c 'cd /var/www && npm run build'
-//
-// Deliberately narrow. The runner words are fixed, the flag skip stops at the
-// first non-flag token (the service or image), and only ONE layer of each is
-// peeled — guessing deeper is how a wrapper starts laundering a mutation.
-const CONTAINER_RUNNER = /^(?:sudo\s+)?(?:docker|podman)(?:\s+compose)?\s+(?:run|exec)\b/
-const FLAG_WITH_VALUE = /^(?:-e|--env|-u|--user|-w|--workdir|-v|--volume|--entrypoint|-p|--publish)$/
-
-export function commandInsideWrappers(command) {
-  let text = String(command ?? '').trim()
-  if (CONTAINER_RUNNER.test(text)) {
-    const tokens = text.split(/\s+/)
-    let index = tokens[0] === 'sudo' ? 1 : 0
-    index += tokens[index + 1] === 'compose' ? 3 : 2   // runner [compose] run|exec
-    while (index < tokens.length && tokens[index].startsWith('-')) {
-      index += FLAG_WITH_VALUE.test(tokens[index]) ? 2 : 1
-    }
-    index += 1                                          // the service or image
-    text = tokens.slice(index).join(' ').trim()
-  }
-  const shell = text.match(/^(?:\S*\/)?(?:ba|z|k|da)?sh\s+-[a-z]*c\s+('([^']*)'|"([^"]*)")$/)
-  if (shell) text = (shell[2] ?? shell[3] ?? '').trim()
-  return text
-}
-
-export function isValidationCommand(command) {
-  if (typeof command !== 'string') return false
-  // A containerised run is judged by what it runs. Checked first so the guard
-  // below sees the inner command's characters rather than the wrapper's.
-  const inner = commandInsideWrappers(command)
-  if (inner && inner !== command.trim()) return isValidationCommand(inner)
-  if (typeof command !== 'string') return false
-  // Rejecting every multi-line command meant the project's own gate did not
-  // count as evidence: setting a tool path on one line and running the gate on
-  // the next is the ordinary shape, and the run went unseen while the hook kept
-  // asking for a validation the user had already produced. Judge each line
-  // instead. Assignment-only and `cd` lines carry no verdict; every remaining
-  // line must be a validation, so a mutation cannot ride along above a passing
-  // test. UNSAFE_SEGMENT applies to each surviving segment, so none of them can
-  // hide a redirect, a pipe, a background job or a substitution — it moved off
-  // the whole command precisely so that navigation can be dropped first.
-  const lines = command.split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !inertNavigation(line))
-  return lines.length > 0 && lines.every(line => {
-    const segments = line.split(/\s*&&\s*/)
-      .map(segment => segment.trim())
-      .filter(segment => !inertNavigation(segment))
-    return segments.length > 0
-      && segments.every(segment => !UNSAFE_SEGMENT.test(segment)
-        // `BLUEPRINT_VENV=.venv ./verify.sh` is the same run as `./verify.sh`.
-        // Every pattern is anchored, so the environment prefix hid the command
-        // from all of them. UNSAFE_SEGMENT has already seen the whole segment,
-        // so nothing is laundered by trimming it here.
-        && VALIDATION_PATTERNS.some(pattern => pattern.test(segment.replace(ASSIGNMENT_PREFIX, '').replace(TIMEOUT_PREFIX, ''))))
-  })
-}
-const MRW_CHECK_FLAG = /(?:^|\s)--check(?:\s|$)/
-
-function isMrwWriteCheckSegment(segment) {
-  if (UNSAFE_SEGMENT.test(segment)) return false
-  const invocation = commandInvocation(segment)
-  if (!invocation) return false
-  const { index, words } = invocation
-  // commandInvocation skips `!`; a failed check then becomes exit 0 (Codex P1).
-  if (words.slice(0, index).includes('!')) return false
-  if (executableName(words[index]) !== 'mrw') return false
-  const rest = words.slice(index + 1)
-  return rest.includes('write') && rest.some(word => word === '--check')
-}
-
-// `mrw read` prints ranges and changes no repository file. Measured 2026-09-16
-// on mrw v1.22.0: `git status --porcelain --ignored` stays empty after
-// `mrw read a.md` and `mrw --root DIR read a.md`, because the read ledger lives
-// outside the tree. Only that subcommand is admitted, at its real position after
-// the global options (`--root DIR`, `-C DIR`), so `mrw --root read write` is not
-// a read; `write`, `check`, `iter` and the rest stay unrecognised (ADR-058 T2,
-// CLAUDE.md §16).
-const MRW_GLOBAL_VALUE_OPTIONS = new Set(['--root', '-C'])
-
-function isRecognisedReadInvocation(segment) {
-  const invocation = commandInvocation(segment)
-  if (!invocation || executableName(invocation.words[invocation.index]) !== 'mrw') return false
-  const { words } = invocation
-  let index = invocation.index + 1
-  while (words[index]?.startsWith('-')) {
-    index += optionConsumesNext(words[index], MRW_GLOBAL_VALUE_OPTIONS) ? 2 : 1
-  }
-  return words[index] === 'read'
-}
-
-// `wc`, `grep`, `git ls-files` and `mrw read` read their arguments and change no
-// file. Measured 2026-09-17 in a scratch repository: `git status --porcelain
-// --ignored` and a newer-than scan stayed unchanged after `wc -l`, `wc -c`,
-// coreutils `gwc -l`, `grep -n`, `grep -rn`, `grep -c`, `git ls-files '<glob>'`,
-// `git ls-files -m` and `mrw read`. Once ADR-058 T1 and T2 recognised the commands
-// around them, their `.md` arguments were named as changed paths (BACKLOG §213),
-// so they contribute only a redirect target, as echo and printf do (ADR-058 T5).
-// Claude Code's shell runs `grep` as ugrep, which writes or runs a command through
-// these options, so a grep segment naming one keeps every candidate. Every other
-// read-only family waits on its own measured write channels (BACKLOG §220).
-const GREP_WRITE_OPTION = /^--(?:save-config|filter|pager|view|format-open)/
-
-// Read-only families: each maps to the test for the channel through which that
-// family can write or run a command. Without the channel, a segment contributes
-// only its redirect target. ADR-059 T1 measured the channel-free families on
-// 2026-09-17 (macOS BSD userland, jq 1.7.1): `cat`, `head`, `tail`, `cut`, `tr`,
-// `ls`, `stat`, `which`, `basename`, `dirname`, `realpath`, `readlink`, `diff`,
-// `cmp`, `md5sum`, `sha256sum`, `jq`, `column` and `nl` changed nothing in a
-// scratch repository. Only names MEASURED_FAMILIES recognises belong here: any
-// other name makes the command unrecognised, and the extractor never sees it.
-const NO_WRITE_CHANNEL = () => false
-const argumentsOf = invocation => invocation.words.slice(invocation.index + 1)
-const prefixOf = invocation => invocation.words.slice(0, invocation.index)
-
-// ADR-059 T2 measured these channels on 2026-09-17: each wrote or ran a command
-// in a scratch repository, while the same family without it changed nothing.
-// BSD sort takes `--ou` for --output and `-uo F` as `-u -o F`, and lists
-// --compress-program, so any short cluster holding `o` and any `--o…`/`--co…`
-// counts; git and rg refuse abbreviations.
-const SORT_OUTPUT_OPTION = /^(?:-[^-]*o|--o)/
-const SORT_PROGRAM_OPTION = /^--co/
-const FILE_WRITE_OPTION = /^(?:-[^-]*C|--c)/
-const RG_COMMAND_OPTION = /^--(?:pre|pre-glob|hostname-bin)(?:$|=)/
-const GIT_DIFF_CHANNEL = /^--(?:output|ext-diff|textconv)(?:$|=)/
-const GIT_FILTER_CHANNEL = /^--(?:textconv|filters)(?:$|=)/
-const GIT_READ_SUBCOMMANDS = new Map([
-  ['ls-files', null],
-  ['diff', GIT_DIFF_CHANNEL], ['log', GIT_DIFF_CHANNEL], ['show', GIT_DIFF_CHANNEL],
-  ['status', GIT_FILTER_CHANNEL], ['rev-parse', GIT_FILTER_CHANNEL], ['cat-file', GIT_FILTER_CHANNEL],
-  ['grep', /^(?:-O|--open-files-in-pager|--textconv)/],
-])
-
-// `uniq IN OUT` writes OUT: two operands use the channel. `-` is an operand
-// (stdin), and -f, -s, -w take a value.
-function uniqWritesOutput(invocation) {
-  const words = argumentsOf(invocation)
-  let operands = 0
-  for (let index = 0; index < words.length; index += 1) {
-    const word = words[index]
-    if (word === '--') {
-      operands += words.length - index - 1
-      break
-    }
-    if (word !== '-' && word.startsWith('-')) {
-      if (/^-[fsw]$/.test(word)) index += 1
-      continue
-    }
-    operands += 1
-  }
-  return operands >= 2
-}
-
-// A git read runs a configured program when the command line chooses one
-// (`-c diff.external=…`, `--config-env`, a `GIT_…=` prefix) or when the
-// subcommand's own option asks for it.
-function gitUsesWriteChannel(invocation, segment) {
-  const subcommand = gitSubcommand(segment)
-  if (!GIT_READ_SUBCOMMANDS.has(subcommand)) return true
-  if (prefixOf(invocation).some(word => /^GIT_[A-Za-z0-9_]*=/.test(word))) return true
-  const words = argumentsOf(invocation)
-  if (words.some(word => /^(?:-c|--config-env)(?:$|=)/.test(word))) return true
-  const channel = GIT_READ_SUBCOMMANDS.get(subcommand)
-  return channel !== null && words.some(word => channel.test(word))
-}
-
-const READ_ARGUMENT_FAMILIES = new Map([
-  ...['cat', 'head', 'tail', 'cut', 'tr', 'ls', 'stat', 'which', 'basename', 'dirname', 'realpath', 'readlink',
-    'diff', 'cmp', 'md5sum', 'sha256sum', 'jq', 'column', 'nl', 'wc'].map(family => [family, NO_WRITE_CHANNEL]),
-  ['grep', invocation => argumentsOf(invocation).some(word => GREP_WRITE_OPTION.test(word))],
-  ['git', gitUsesWriteChannel],
-  ['sort', invocation => argumentsOf(invocation).some(word => SORT_OUTPUT_OPTION.test(word) || SORT_PROGRAM_OPTION.test(word))],
-  ['uniq', uniqWritesOutput],
-  ['find', invocation => FIND_WRITES.test(' ' + argumentsOf(invocation).join(' '))],
-  ['file', invocation => argumentsOf(invocation).some(word => FILE_WRITE_OPTION.test(word))],
-  ['rg', invocation => prefixOf(invocation).some(word => /^RIPGREP_CONFIG_PATH=/.test(word))
-    || argumentsOf(invocation).some(word => RG_COMMAND_OPTION.test(word))],
-])
-
-// ADR-059 T4 (Codex review, 2026-09-17): the classifier called every measured
-// write channel above `neither`, so a successful `uniq IN OUT` or
-// `gtimeout 5 sort -o F …` recorded no authorship and the reviewer guard let it
-// run. An output channel is a mutation; a channel that runs a program is not
-// known not to write, so it is unrecognised (ADR-047).
-const FIND_OUTPUT_PRIMARY = /(?:^|\s)-(?:delete|fls|fprint|fprint0|fprintf)(?:\s|$)/
-const FILE_COMPILE_OPTION = /^(?:-[^-]*C|--comp)/
-
-function segmentWriteChannel(segment) {
-  const invocation = commandInvocation(segment)
-  if (!invocation) return null
-  const words = argumentsOf(invocation)
-  const uses = pattern => words.some(word => pattern.test(word))
-  switch (executableName(invocation.words[invocation.index])) {
-    case 'sort': return uses(SORT_PROGRAM_OPTION) ? 'unrecognised' : uses(SORT_OUTPUT_OPTION) ? 'mutation' : null
-    case 'uniq': return uniqWritesOutput(invocation) ? 'mutation' : null
-    case 'find': return FIND_OUTPUT_PRIMARY.test(' ' + words.join(' ')) ? 'mutation' : null
-    case 'file': return uses(FILE_COMPILE_OPTION) ? 'mutation' : null
-    case 'rg': return uses(RG_COMMAND_OPTION) ? 'unrecognised' : null
-    case 'git': {
-      const subcommand = gitSubcommand(segment)
-      if (['diff', 'log', 'show'].includes(subcommand) && uses(/^--output(?:$|=)/)) return 'mutation'
-      if (subcommand === 'grep' && uses(/^(?:-O|--open-files-in-pager)/)) return 'unrecognised'
-      return null
-    }
-    default: return null
-  }
-}
-
-function writeChannelOf(command) {
-  let found = null
-  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
-    for (const segment of shellSegments(region)) {
-      const channel = segmentWriteChannel(segment)
-      if (channel === 'unrecognised') return channel
-      if (channel === 'mutation') found = channel
-    }
-  }
-  return found
-}
-
-function readsOnlyItsArguments(segment, invocation) {
-  const usesWriteChannel = READ_ARGUMENT_FAMILIES.get(executableName(invocation.words[invocation.index]))
-  if (usesWriteChannel) return !usesWriteChannel(invocation, segment)
-  return isRecognisedReadInvocation(segment)
-}
-
-// Whether a segment only reads, so only its redirect target can be a changed
-// path. `echo` and `printf` write only through a redirect (ADR-058 T3); the
-// families in READ_ARGUMENT_FAMILIES read their arguments (ADR-058 T5, ADR-059).
-// A wrapper and its operands come before the command it runs:
-// `/usr/bin/time -o docs/timing.md wc -l a.md` writes docs/timing.md (measured
-// 2026-09-17), so a Markdown word there means the segment writes (ADR-058 T6).
-function segmentOnlyReads(segment) {
-  const invocation = commandInvocation(segment)
-  if (!invocation) return false
-  if (invocation.words.slice(0, invocation.index).some(word => /\.md(?:$|[),\]])/i.test(word))) return false
-  return /^(?:echo|printf)$/.test(executableName(invocation.words[invocation.index]))
-    || readsOnlyItsArguments(segment, invocation)
-}
-
-function withoutSingleQuoted(text) {
-  let kept = ''
-  let quote = null
-  for (let index = 0; index < text.length; index++) {
-    const character = text[index]
-    if (quote === "'") {
-      if (character === "'") quote = null
-      continue
-    }
-    // Outside single quotes a backslash escapes the next character, so `\'` and
-    // `\"` open no quote and hide no redirect after them (ADR-059 T7).
-    if (character === '\\') {
-      kept += character + (text[index + 1] ?? '')
-      index++
-      continue
-    }
-    if (character === "'" && quote === null) {
-      quote = "'"
-      continue
-    }
-    if (character === '"') quote = quote === '"' ? null : '"'
-    kept += character
-  }
-  return kept
-}
-
-// Whether position `at` sits inside the operand of a `>`/`>>` redirect: the
-// shell word around `at`, quoted runs and backslash escapes included, preceded
-// by `>`. `> "./$T"` and `> ./"$T"` write $T; `>out "$T"` does not (ADR-059 T5,
-// Codex review 2026-09-17: an immediate-prefix test missed `"./$T"`). An escaped
-// quote is part of a word, not a quote (ADR-059 T7: `printf \" > "$T"`).
-function isRedirectOperand(text, at) {
-  // `\\[\s\S]`, not `\\.`: an escaped newline continues the word (ADR-059 T10).
-  for (const word of text.matchAll(/(?:\\[\s\S]|"(?:[^"\\]|\\[\s\S])*"|'[^']*'|[^\s;&|<>"'\\])+/g)) {
-    if (word.index <= at && at < word.index + word[0].length) return />\s*$/.test(text.slice(0, word.index))
-  }
-  return false
-}
-
-// ADR-059 T3: the assigned names whose `.md` values stay changed paths. A name is
-// dropped only when it is referenced and every reference is a plain argument of
-// a segment that only reads. References are found with the same traversal the
-// assignment loop uses, so a `$(…)` body is its own segment and no segment is
-// skipped for an unknown directory. A reference inside a `>`/`>>` operand is a
-// write in any segment. A heredoc body, `${!…}`, or an export can use a name the scan
-// cannot see, so each of those keeps every name.
-function assignedNamesAWriterMayUse(command, executable, names) {
-  if (heredocBodies(command) !== '' || executable.includes('${!')
-      || /(?:^|[\s;&|(])(?:export|declare\s+-\w*x|set\s+-\w*a|set\s+-o\s+allexport)(?:\s|$|;)/.test(executable)) {
-    return new Set(names)
-  }
-  const referenced = new Set()
-  const written = new Set()
-  for (const region of shellCommandRegions(executable)) {
-    for (const segment of shellSegments(region)) {
-      const text = withoutSingleQuoted(segment)
-      const reads = segmentOnlyReads(segment)
-      for (const name of names) {
-        for (const match of text.matchAll(new RegExp('\\$\\{?' + name + '(?![A-Za-z0-9_])', 'g'))) {
-          referenced.add(name)
-          if (!reads || isRedirectOperand(text, match.index)) written.add(name)
-        }
-      }
-    }
-  }
-  return new Set(names.filter(name => written.has(name) || !referenced.has(name)))
-}
-
-function isMrwWriteCheckCommand(command) {
-  if (typeof command !== 'string') return false
-  const inner = commandInsideWrappers(command)
-  if (inner && inner !== command.trim()) return isMrwWriteCheckCommand(inner)
-  // A word match anywhere counted `printf mrw write --check` and
-  // `mrw write --check || true` as a completed check (Codex P1, 2026-09-14).
-  // T2 is an mrw write --check invocation whose result is that check's:
-  // `||` / `;` / `|` hide the exit, and a later newline command supplies it
-  // the same way (Codex P1). Every remaining segment must be the check.
-  const lines = inner.split(/\r?\n/)
-    .map(line => line.trim())
-    .filter(line => Boolean(line) && !ASSIGNMENT_ONLY.test(line) && !inertNavigation(line))
-  if (lines.length === 0) return false
-  let found = false
-  for (const line of lines) {
-    const segments = line.split(/\s*&&\s*/)
-      .map(segment => segment.trim())
-      .filter(segment => segment && !inertNavigation(segment))
-    if (segments.length === 0) continue
-    for (const segment of segments) {
-      if (UNSAFE_SEGMENT.test(segment) || !isMrwWriteCheckSegment(segment)) return false
-      found = true
-    }
-  }
-  return found
-}
-
-function isMrwWriteCheck(use) {
-  if (use.name === 'mcp__mrw__mrw_write') {
-    if (use.input?.check === true) return true
-    const command = typeof use.input?.command === 'string' ? use.input.command : ''
-    const args = Array.isArray(use.input?.args) ? use.input.args.join(' ') : ''
-    return MRW_CHECK_FLAG.test(`${command} ${args}`)
-  }
-  if (use.name === 'Bash') return isMrwWriteCheckCommand(use.input?.command)
-  return false
-}
-
-
-const INTERPRETER_WORD = /\b(?:python3?|node|ruby|perl|php)\b/
-
-// True when an interpreter is the COMMAND of some region or segment, not merely
-// a word inside one. Measured 2026-08-25: a repository whose record was named
-// `docs/adr/0015-rq-for-queued-work-in-both-python-stacks.md` had every `cat`,
-// `grep` and `head` of that file classified as a python run, so reading a record
-// advanced the mutation cursor and put the record itself into the artifact gate
-// while `git diff` showed it unchanged. Regions are walked so `bash -c "python
-// rewrite.py"` and `$(python rewrite.py)` still count.
-function hasInterpreterCommand(text) {
-  for (const region of shellCommandRegions(text)) {
-    for (const segment of shellSegments(region)) {
-      // `python -m unittest discover` is a test run whichever way it is piped.
-      // Reported 2026-08-25: piping one to `tail` disqualified the whole command
-      // as evidence — correct, a pipe hides the exit code — and then the
-      // interpreter rule below recorded it as a MUTATION, so running the project's
-      // own tests raised the evidence bar instead of clearing it. A segment that
-      // matches a validation pattern is not an interpreter mutation.
-      if (VALIDATION_PATTERNS.some(pattern => pattern.test(segment.trim()))) continue
-      const invocation = commandInvocation(segment)
-      if (!invocation) continue
-      if (INTERPRETER_WORD.test(executableName(invocation.words[invocation.index]))) return true
-    }
-  }
-  return false
-}
-const VISIBLE_CODE_MUTATION_TOKENS = new RegExp([
-  'write_text', 'write_bytes', 'writeFile', 'appendFile', 'createWriteStream',
-  'unlink', 'remove', 'rmtree', 'rmdir', 'rmSync', 'mkdir', 'makedirs',
-  'copyfile', 'copytree', 'rename', 'replace', 'chmod', 'chown', 'shutil',
-  // A USE of subprocess, not its import: a read-only argv is stripped above,
-  // and `import re,pathlib,subprocess,json` on its own writes nothing.
-  'subprocess\\.', 'os\\.system', 'popen', '\\bexec\\b', '\\beval\\b',
-  '__import__', 'importlib', 'runpy', 'child_process', 'urlopen', 'requests',
-  '\\bfetch\\b', 'axios', '\\bsocket\\b', '\\bdump\\s*\\(', 'to_csv',
-  '\\bdel\\s+', '\\bunlink\\s+', '\\bFile\\.write\\b',
-].join('|'), 'i')
-const SAFE_VISIBLE_CALLS = new Set([
-  'all', 'any', 'bool', 'console.error', 'console.log', 'dict', 'enumerate',
-  'float', 'int', 'JSON.parse', 'JSON.stringify', 'json.dumps', 'json.loads',
-  'len', 'list', 'map', 'max', 'min', 'Object.entries', 'Object.keys',
-  'Object.values', 'Path', 'Path.cwd', 'Path.home', 'print', 'printf', 'puts',
-  'range', 'read_bytes', 'read_text', 'repr', 'set', 'sorted', 'str', 'sum',
-  'tuple', 'type', 'zip',
-  // Introspection. Asking an object what it is writes nothing, and the default
-  // here is "an unrecognised call is a mutation" — so `python -c "import
-  // inspect; print(inspect.signature(X.__init__))"` was authorship, and looking
-  // something up meant re-running the project's check. Reported 2026-08-26 from
-  // redash-api, where the whole command was a `print` of a signature.
-  'dir', 'getattr', 'hasattr', 'id', 'inspect.getmembers', 'inspect.getmodule',
-  'inspect.getsource', 'inspect.isclass', 'inspect.isfunction',
-  'inspect.signature', 'isinstance', 'issubclass', 'getmembers', 'getsource',
-  'isclass', 'isfunction', 'signature', 'vars',
-  // Pure string, regex, container and path-READ calls. Reported 2026-09-08 from
-  // an outside corpus (BACKLOG §175): a heredoc that grepped the tree and printed
-  // a JSON summary was a MUTATION on the strength of `re.findall(` and
-  // `s.strip(`, because the default here is that an unrecognised call writes.
-  'findall', 'search', 'match', 'fullmatch', 'compile', 'sub', 'split', 'strip',
-  'lstrip', 'rstrip', 'join', 'lower', 'upper', 'startswith', 'endswith', 'format',
-  'get', 'items', 'keys', 'values', 'append', 'extend', 'add', 'group', 'groups',
-  'count', 'index', 'splitlines', 'encode', 'decode', 'glob', 'rglob', 'iterdir',
-  'exists', 'is_file', 'is_dir', 'relative_to', 'resolve', 'stat', 'as_posix',
-  'read', 'readline', 'readlines', 'loads', 'setdefault', 'pop', 'sort', 'reversed',
-  'abs', 'round', 'hex', 'chr', 'ord', 'frozenset', 'filter', 'iter', 'next',
-])
-
-export function heredocBodies(command) {
-  const bodies = []
-  const pending = []
-  let active = null
-  let quote = null
-  for (const line of command.split('\n')) {
-    if (active) {
-      const candidate = active.stripTabs ? line.replace(/^\t+/, '') : line
-      if (candidate === active.delimiter) active = pending.shift() ?? null
-      else bodies.push(line)
-      continue
-    }
-    const scanned = heredocDeclarations(line, quote)
-    pending.push(...scanned.declarations)
-    quote = scanned.quote
-    if (pending.length > 0) active = pending.shift()
-  }
-  return bodies.join('\n')
-}
-
-// Commands positively KNOWN to read and not write. ⚠ AN ALLOWLIST, NOT THE
-// ABSENCE OF A DENYLIST. The first version stripped any subprocess whose argv
-// `isPotentialMutationCommand` did not recognise as mutating, which treats "I do
-// not know this command" as "it is safe" — the could-not-look-is-not-a-verdict
-// rule (ADR-005) inverted, inside the gate that enforces it. Codex found four
-// that slipped through: `tar -xf` extracts, `find -exec` runs anything, a
-// computed argv element hides the executable, and `stdout=open(...)` writes a
-// file the argv never names (BACKLOG §180).
-// ⚠ `sed`, `tee` and `awk` WERE IN THIS LIST AND ALL THREE WRITE. `sed -i` edits
-// in place, `tee` writes every file it is given, and an awk program can redirect
-// with `print > "f"`. They were typed here as "text utilities" — the exact error
-// CLAUDE.md §16 is about, made by the author of §16 in the same day's work, and
-// found by a different-lineage review (BACKLOG §187). A name is not a behaviour.
-const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|jq|column|nl)$/
-// `find` is read-only only while it neither executes nor deletes.
-const FIND_WRITES = /(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fls|fprint|fprint0|fprintf|fputs)(?:\s|$)/
-
-function withoutReadOnlySubprocessCalls(code) {
-  return code.replace(
-    /\bsubprocess\.(?:run|check_output|check_call|call|Popen)\s*\(\s*\[((?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\]])*)\]([^)]*)\)/g,
-    (whole, argv, rest) => {
-      // Any keyword that can open a file handle, or a shell, keeps the call.
-      if (/\b(?:shell\s*=\s*True|stdout\s*=|stderr\s*=|stdin\s*=|input\s*=)/.test(rest)) return whole
-      // EVERY element must be a string literal. A bare name is a value this
-      // cannot see — `cmd = "rm"; subprocess.run([cmd, "-rf", "build"])` used to
-      // yield ["-rf", "build"], which names no command at all and read as safe.
-      const elements = argv.split(',').map(e => e.trim()).filter(Boolean)
-      if (elements.length === 0) return whole
-      const words = []
-      for (const element of elements) {
-        const literal = element.match(/^(?:[rbuRBU]{0,2})(["'])((?:(?!\1).)*)\1$/)
-        if (!literal) return whole
-        words.push(literal[2])
-      }
-      if (/[$`]/.test(words.join(' '))) return whole
-      const executable = (words[0] ?? '').split('/').pop()
-      if (!READ_ONLY_CHILD.test(executable)) return whole
-      if (executable === 'find' && FIND_WRITES.test(' ' + words.slice(1).join(' '))) return whole
-      // A redirect written into the argv itself is not a redirect to the OS, but
-      // this gate does not model that; keep the call rather than reason about it.
-      if (words.some(word => /^>>?|^\d?>/.test(word))) return whole
-      return '""'
-    })
-}
-
-function visibleCodeLooksMutating(rawCode) {
-  const code = withoutReadOnlySubprocessCalls(rawCode)
-  if (VISIBLE_CODE_MUTATION_TOKENS.test(code)) return true
-  // Calls are read from CODE, not from string literals: `re.search(r"def (test_\\w+)")`
-  // carries `def (` inside its pattern, and that is not a call to `def`.
-  const withoutStrings = code.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""')
-  const calls = [...withoutStrings.matchAll(/\b([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*\(/g)]
-  return calls.some(([, call]) => !SAFE_VISIBLE_CALLS.has(call)
-    && !SAFE_VISIBLE_CALLS.has(call.split('.').at(-1)))
-}
-
-export function interpreterCommandLooksMutating(command, executable) {
-  if (!INTERPRETER_WORD.test(executable)) return false
-  const visible = []
-  let sawStdin = false
-  let stripped = executable.replace(
-    // `.exe` because a Windows venv interpreter is `./.venv/Scripts/python.exe`,
-    // and without it the `-c` body was never lifted out: the script went unread
-    // and the command counted as a mutation on its interpreter name alone.
-    // Reported 2026-08-26 from redash-api.
-    /\b(?:python3?|node|ruby|perl|php)(?:\.exe)?\b((?:\s+-[A-Za-bd-z]\w*)*\s+-[ce]\s+)('[^']*'|"(?:[^"\\]|\\.)*")/g,
-    (whole, options, code) => {
-      visible.push(code.slice(1, -1))
-      return `inline_script${options}""`
-    })
-  stripped = stripped.replace(
-    /\b(?:python3?|node|ruby|perl|php)(?:\.exe)?\b(\s+(?:-\s*)?<<)/g,
-    (whole, redirect) => {
-      sawStdin = true
-      return `stdin_script${redirect}`
-    })
-  if (sawStdin) visible.push(heredocBodies(command))
-  if (hasInterpreterCommand(stripped)) return true
-  return visible.some(visibleCodeLooksMutating)
-}
-
-// adr-verify writes a Verification Log entry into the record it is given, so it
-// is authorship. Naming it is not running it.
-function runsAdrVerify(executable) {
-  for (const region of shellCommandRegions(executable)) {
-    for (const segment of shellSegments(region)) {
-      const invocation = commandInvocation(segment)
-      if (!invocation) continue
-      if (/^adr-verify$/i.test(executableName(invocation.words[invocation.index]))) return true
-    }
-  }
-  return false
-}
-
-export function isPotentialMutationCommand(command) {
-  if (typeof command !== 'string' || isValidationCommand(command)) return false
-  const executable = withoutHeredocBodies(command)
-  if (WRITE_REDIRECT.test(withoutQuotedSegments(executable))) return true
-  // (?<![-\w]) not \b: a hyphen is a word boundary, so `--rm` matched the `rm`
-  // command. `docker compose run --rm app npm run build` was therefore a
-  // DELETION, and since no containerised command counted as validation either,
-  // every build demanded another build — a closed loop reported from a live
-  // session on 2026-08-26. The same trap sits under --move, --copy, --install,
-  // --patch and --link.
-  return /(?<![-\w])(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)(?![-\w])/.test(executable)
-    || inPlaceEditorCommand(executable)
-    || interpreterCommandLooksMutating(command, executable)
-    // As the COMMAND, not as an argument: `which adr-lint adr-verify arch-lint`
-    // asks where the gates are and runs none of them, and `(?:^|\s)` counted the
-    // mention. Reported 2026-08-26.
-    || runsAdrVerify(executable)
-    || /\b(?:npm|pnpm|yarn|bun)\s+(?:install|add|remove|update|exec)\b/.test(executable)
-    || /\b(?:cargo\s+fmt|go\s+generate|gofmt|black|ruff\s+format)\b/.test(executable)
-    || /\bprettier\b[^\n]*\s--write\b/.test(executable)
-    || /\bfind\b[^\n]*\s-delete\b/.test(executable)
-    || isGitMutationCommand(executable)
-}
-
-export function classifyCommand(command) {
-  return classifyCommandWithHooks(command, {
-    shellSegments,
-    nestedShellScript,
-    commandInvocation,
-    executableName,
-    isValidationCommand,
-    isPotentialMutationCommand,
-    withoutHeredocBodies,
-    isRecognisedReadInvocation,
-    writeChannelOf,
-  })
-}
-
-function globComponentPattern(component) {
-  let pattern = '^'
-  for (let index = 0; index < component.length; index += 1) {
-    const character = component[index]
-    if (character === '*') {
-      pattern += '.*'
-    } else if (character === '?') {
-      pattern += '.'
-    } else if (character === '[') {
-      const end = component.indexOf(']', index + 1)
-      if (end < 0) return null
-      let contents = component.slice(index + 1, end)
-      if (contents.startsWith('!')) contents = `^${contents.slice(1)}`
-      pattern += `[${contents.replaceAll('\\', '\\\\')}]`
-      index = end
-    } else {
-      pattern += character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-    }
-  }
-  try {
-    return new RegExp(`${pattern}$`)
-  } catch {
-    return null
-  }
-}
-
-function expandExistingGlob(candidate, cwd) {
-  const expanded = candidate.replace(/\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g,
-    (match, braced, plain) => process.env[braced ?? plain] ?? match)
-  if (/[`$]/.test(expanded) || expanded.includes('://') || /[{}\\]/.test(expanded)) return []
-  if (!/[*?[\]]/.test(expanded)) {
-    const resolved = resolveToolPath(expanded, cwd)
-    return resolved ? [resolved] : []
-  }
-
-  const absolute = path.resolve(cwd, expanded)
-  const root = path.parse(absolute).root
-  const components = absolute.slice(root.length).split(path.sep).filter(Boolean)
-  let candidates = [root]
-  for (const component of components) {
-    if (!/[*?[\]]/.test(component)) {
-      candidates = candidates.map(base => path.join(base, component))
-      continue
-    }
-    const pattern = globComponentPattern(component)
-    if (!pattern) return []
-    const matches = []
-    for (const base of candidates) {
-      try {
-        for (const entry of readdirSync(base)) {
-          if (pattern.test(entry)) matches.push(path.join(base, entry))
-        }
-      } catch {}
-    }
-    candidates = matches
-  }
-  return candidates.filter(candidatePath => existsSync(candidatePath))
-}
-// A command whose write targets this gate can actually READ: a direct file
-// utility, not an interpreter. ⚠ THE MARKER MAY ONLY BE WITHHELD FOR THESE.
-// Withholding it for anything else launders a code write through the docs-only
-// escape: `python3 -c "open(\"plugin/bin/adr-lint\",\"w\").write(\"x\")"
-// docs/BACKLOG.md` names one Markdown file and writes a gate, and the Stop
-// notice was suppressed for it (Codex review, 2026-09-08 — BACKLOG §180).
-const DIRECT_FILE_WRITER = /^(?:cp|mv|touch|rm|ln|cat|tee|sed|printf|echo|mkdir|rmdir)$/
-
-// Whether every path this command writes resolves to Markdown. Conservative by
-// construction: an interpreter, a heredoc, a wrapper or an unrecognised command
-// answers false, because then the write targets are not knowable from the text.
-export function namesOnlyMarkdownFiles(command, cwd = process.cwd()) {
-  if (typeof command !== 'string') return false
-  if (heredocBodies(command).trim().length > 0) return false
-  const executable = withoutHeredocBodies(command)
-  let markdown = false
-  for (const region of shellCommandRegions(executable)) {
-    for (const segment of shellSegments(region)) {
-      const trimmed = segment.trim()
-      if (trimmed === '' || /^(?:cd|pushd|popd)\b/.test(trimmed)) continue
-      const invocation = commandInvocation(trimmed)
-      if (!invocation) return false
-      const name = executableName(invocation.words[invocation.index]).split('/').pop()
-      if (!DIRECT_FILE_WRITER.test(name)) return false
-      const commandWord = invocation.words[invocation.index]
-      for (const match of trimmed.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
-        const candidate = match[1] ?? match[2] ?? match[3]
-        if (candidate === commandWord) continue
-        if (candidate.startsWith('-') || SHELL_ASSIGNMENT.test(candidate) || /^.{2,}:/.test(candidate)) continue
-        if (/\.md$/i.test(candidate)) {
-          markdown = true
-          continue
-        }
-        if (candidate === '.' || candidate === '..') continue
-        // ⚠ A BARE WORD CAN BE A DIRECTORY, AND `cp docs/BACKLOG.md plugin` WRITES
-        // INTO IT. Requiring a `/` or a `.` before checking meant a bare directory
-        // name was skipped entirely, so copying a document into a CODE directory
-        // classified as docs-only and withheld the mutation marker — the same
-        // laundering §180 closed for interpreters, through a plainer door. Found
-        // 2026-09-08 by probing this function directly (BACKLOG §183). `plugin/`
-        // with a slash was held; `plugin` without one was not.
-        if (expandExistingGlob(candidate, cwd).some(resolved => existsSync(resolved))) return false
-      }
-    }
-  }
-  return markdown
-}
-
-
-// The directory each top-level segment of a command runs in, following its own
-// `cd`/`pushd`. Reported 2026-09-08 from an outside corpus (BACKLOG §175): a
-// command that `cd`-ed into the session's memory directory under the user's
-// Claude config, outside the repository, and appended to a
-// Markdown file there was reported as a change to `<repo>/<that file>` — a path
-// that has never existed — because every relative token was resolved against
-// the session's cwd. `dir` is null once a `cd` cannot be followed (`cd -`, a
-// variable, `popd`), and a null directory resolves nothing rather than guessing.
-export function segmentDirectories(command, cwd) {
-  const trail = []
-  let here = cwd
-  for (const segment of shellSegments(withoutHeredocBodies(String(command ?? '')))) {
-    const navigation = segment.trim().match(/^(cd|pushd|popd)(?:\s+(?:"([^"]*)"|'([^']*)'|([^\s;&|<>]+)))?\s*$/)
-    if (navigation) {
-      const [, verb, dq, sq, bare] = navigation
-      const target = dq ?? sq ?? bare
-      if (verb === 'popd' || target === '-' || (target !== undefined && /[$`]/.test(target))) {
-        here = null
-      } else if (target === undefined || target === '~') {
-        here = os.homedir()
-      } else if (here !== null) {
-        // A `cd` to a directory that does not exist FAILS, and the shell stays
-        // where it was — which is also what keeps a fixture's `cd /repo` inside
-        // the project it stands for.
-        const next = path.resolve(here, target.replace(/^~\//, `${os.homedir()}/`))
-        // ⚠ A DIRECTORY, not merely something that exists. `cd /etc/passwd` fails
-        // in bash ("Not a directory") and the shell stays where it was; this
-        // followed it into the file's path and then judged every later write
-        // against that (Codex review, 2026-09-08 — BACKLOG §180).
-        if (isDirectory(next)) here = next
-      }
-      trail.push({ segment, dir: here, navigation: true })
-      continue
-    }
-    trail.push({ segment, dir: here, navigation: false })
-  }
-  return trail
-}
-
-// Canonical form of a directory, so a symlink cannot make an inside path look
-function isDirectory(candidate) {
-  try {
-    return statSync(candidate).isDirectory()
-  } catch {
-    return false
-  }
-}
-
-// outside. Falls back to the lexical path when it cannot be resolved.
-function canonical(candidate) {
-  try {
-    // Native first: the JS realpath leaves Windows 8.3 names in place while
-    // Git answers with the long form (run-shell-hook.mjs; BACKLOG §188).
-    let resolved
-    try { resolved = realpathSync.native(candidate) } catch { resolved = realpathSync(candidate) }
-    if (resolved.startsWith('\\\\?\\UNC\\')) return '\\\\' + resolved.slice(8)
-    if (resolved.startsWith('\\\\?\\')) return resolved.slice(4)
-    return resolved
-  } catch {
-    return candidate
-  }
-}
-
-// ⚠ LEXICAL CONTAINMENT IS NOT ENOUGH ON ITS OWN. `path.relative` is sound only
-// for canonical absolute paths under the right root, so both sides are resolved
-// first: a symlink pointing back into the project used to read as outside it
-// (Codex review, 2026-09-08 — BACKLOG §180).
-function underDirectory(candidate, root) {
-  // ⚠ CANONICALISING ONLY THE SIDE THAT EXISTS IS WORSE THAN NOT CANONICALISING.
-  // `realpathSync` resolves a path that exists and throws for one that does not,
-  // so a not-yet-created target stayed lexical while the root came back resolved
-  // — and on Windows, where the resolved form can differ in case or drive
-  // mapping, the two stopped sharing a prefix. An in-repository write then read
-  // as OUTSIDE the project and was exempted from the evidence gate entirely: the
-  // `windows` job caught it as `other: 0` where 1 was expected (BACKLOG §188).
-  //
-  // Both comparisons are made and EITHER counts as inside. That is the safe
-  // direction on purpose: saying "inside" keeps the mutation marker and demands
-  // evidence, while a wrong "outside" silently drops the requirement.
-  const lexical = path.relative(root, candidate)
-  const resolved = path.relative(canonical(root), canonical(candidate))
-  const inside = value => value === '' || (!value.startsWith('..') && !path.isAbsolute(value))
-  return inside(lexical) || inside(resolved)
-}
-
-// Whether every segment that does work runs OUTSIDE the project, with nothing
-// reaching back in by an absolute path or a variable this cannot follow. A
-// write made there is not a change to this project, the same way a write under
-// the temp root is not (`mutatesOnlyTempPaths`). Conservative on purpose: one
-// segment whose directory is unknown, or one token that could name the
-// project, keeps the command a mutation.
-export function writesOutsideProject(command, cwd) {
-  if (typeof command !== 'string' || typeof cwd !== 'string') return false
-  // ⚠ THE PROJECT IS ITS GIT ROOT, NOT THE CWD. With the session standing in a
-  // subdirectory, `cd ../docs && touch BACKLOG.md` wrote to the repository and
-  // this read it as outside, because the boundary was wherever the session
-  // happened to be (Codex review, 2026-09-08 — BACKLOG §180).
-  const here = nearestExistingDirectory(path.resolve(cwd))
-  if (!here) return false
-  const project = gitRepositoryRoot(here) ?? here
-  // ⚠ A COMMAND THAT NEVER NAVIGATES RUNS WHERE THE SESSION IS, AND THAT IS THE
-  // PROJECT — so it cannot be outside it, whatever any path comparison says. This
-  // guard is the invariant; everything below is the harder question of where a
-  // `cd` actually landed. Without it the answer depended on two paths agreeing,
-  // and on Windows they did not: `printf x > notes.txt`, with no `cd` anywhere,
-  // was exempted from the evidence gate and its mutation marker dropped —
-  // `other: 0` where 1 was expected, on a runner where the temp directory's short
-  // and long forms do not compare equal (BACKLOG §188). Canonicalising both sides
-  // was the first fix and it was not enough; this states the thing that is true
-  // by construction instead of computing it.
-  const trail = segmentDirectories(command, cwd)
-  if (!trail.some(step => step.navigation)) return false
-  let work = 0
-  for (const { segment, dir, navigation } of trail) {
-    if (navigation) continue
-    if (dir === null || underDirectory(dir, project)) return false
-    for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
-      const token = match[1] ?? match[2] ?? match[3]
-      if (/[$`]/.test(token)) return false
-      // ⚠ `~` IS EXPANDED BY THE SHELL AND WAS NOT EXPANDED HERE, so
-      // `cd /tmp && touch ~/<repo>/plugin/bin/adr-lint` resolved the token
-      // against /tmp, landed outside, and EXEMPTED a write bash makes inside the
-      // repository. `$HOME` was already held because `$` marks a token this
-      // cannot follow; `~` carries no such mark (BACKLOG §183).
-      const expanded = token.startsWith('~/') ? path.join(os.homedir(), token.slice(2))
-        : (token === '~' ? os.homedir() : token)
-      // Relative tokens are resolved against the directory the segment RUNS IN,
-      // so `../..`-style traversal back into the project is caught. Anything
-      // path-shaped counts; a bare word cannot be judged and is left alone.
-      const resolved = path.isAbsolute(expanded) ? expanded
-        : (/[/.]/.test(expanded) && expanded !== '.' && expanded !== '..' ? path.resolve(dir, expanded) : null)
-      if (resolved !== null && underDirectory(resolved, project)) return false
-    }
-    work += 1
-  }
-  return work > 0
-}
-
-export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
-  if (typeof command !== 'string') return []
-  const executable = withoutHeredocBodies(command)
-  if (!/\.md\b/i.test(executable)) return []
-  const paths = []
-  // `A=docs/adr/X.md; tee "$A"` names the file through an assignment. The
-  // first shape of this unwrapped any `NAME=value` TOKEN, which resolved
-  // `printf 'file=docs/BACKLOG.md'` — data, not an assignment — to a real file
-  // (Codex review, 2026-09-05); before that the token was resolved as a path
-  // literally called `A=docs/…` and reported as changed on every commit
-  // (owner's terminal, same day). So assignments are read the way the deletion
-  // parser reads them: in assignment POSITION, one per shell segment, through
-  // the quote-aware tokenizer, which is also what makes `DOC='docs/My File.md'`
-  // one value rather than two tokens.
-  const assignments = new Map()
-  const assignedMarkdown = []
-  for (const region of shellCommandRegions(executable)) {
-    for (const segment of shellSegments(region)) {
-      const assignment = segment.match(SHELL_ASSIGNMENT)
-      if (!assignment) continue
-      const value = expandShellToken(assignment[2], assignments, false)
-      if (value === null) continue
-      assignments.set(assignment[1], value)
-      if (/\.md$/i.test(value)) assignedMarkdown.push([assignment[1], value])
-    }
-  }
-  if (assignedMarkdown.length > 0) {
-    const kept = assignedNamesAWriterMayUse(command, executable, [...new Set(assignedMarkdown.map(([name]) => name))])
-    for (const [name, value] of assignedMarkdown) {
-      if (kept.has(name)) paths.push(...expandExistingGlob(value, cwd))
-    }
-  }
-  for (const { segment, dir } of segmentDirectories(executable, cwd)) {
-    // A segment whose directory cannot be followed resolves nothing: a guessed
-    // path is what produced the never-existed file above.
-    if (dir === null) continue
-    // A segment that only reads contributes only the token right after `>` or
-    // `>>` (segmentOnlyReads: ADR-058 T3, T5, T6; ADR-059).
-    const printsOnly = segmentOnlyReads(segment)
-    for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
-      let candidate = match[1] ?? match[2] ?? match[3]
-      if (printsOnly && !/>\s*$/.test(segment.slice(0, match.index))) continue
-      // A `key=value` token that is not an assignment is an argument, and an
-      // argument is not a path this gate can check.
-      if (SHELL_ASSIGNMENT.test(candidate)) continue
-      if (!/\.md(?:$|[),\]])/i.test(candidate)) continue
-      // `origin/main:docs/adr/BACKLOG.md` is a git revision, not a file: `git show
-      // <rev>:<path>` reads out of history and writes nothing, but the token was
-      // resolved against the working directory and a path that has never existed
-      // was reported as changed. A colon past the first two characters cannot be a
-      // Windows drive letter, so it is not a path this gate can check.
-      if (/^.{2,}:/.test(candidate)) continue
-      candidate = candidate.replace(/[),\]]+$/g, '')
-      if (candidate.includes('=') && candidate.startsWith('-')) {
-        candidate = candidate.slice(candidate.lastIndexOf('=') + 1)
-      }
-      // Resolved against the directory the segment runs in, and kept only when
-      // that lands inside the project: a file written elsewhere is not a change
-      // to this tree, and reporting it under the tree's root was the defect.
-      paths.push(...expandExistingGlob(candidate, dir).filter(resolved => underDirectory(resolved, cwd)))
-    }
-  }
-  return [...new Set(paths)]
-}
-
-export function bashDeletionMutationPaths(command, cwd = process.cwd(), platform = process.platform) {
-  if (typeof command !== 'string' || !/\brm\b/.test(command)) return []
-  const paths = []
-  let unresolved = false
-  // `W=/tmp/scratch; rm -rf "$W"` names its own path: the value is in the
-  // command, in front of the use. Without this the sentinel armed on every
-  // scratch cleanup written that way, and — since a publish after an unresolved
-  // deletion fails closed — bricked committing for the rest of the session.
-  // Measured 2026-08-26 on this repository, mid-session.
-  //
-  // Only assignments made EARLIER in the same command count, and never the
-  // ambient environment: an expansion here disarms the sentinel, so a value this
-  // command did not set is not evidence of what was deleted.
-  const assignments = new Map()
-  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
-    for (const segment of shellSegments(region)) {
-      const assignment = segment.match(SHELL_ASSIGNMENT)
-      if (assignment) {
-        const value = expandShellToken(assignment[2], assignments, false)
-        if (value !== null) assignments.set(assignment[1], value)
-        continue
-      }
-      const match = segment.match(/^(?:(?:sudo|command)\s+)*(?:\/\S+\/)?rm\b(.*)$/)
-      if (!match) continue
-      const args = [...match[1].matchAll(/"([^"]*)"|'([^']*)'|([^\s]+)/g)]
-        .map(token => token[1] ?? token[2] ?? token[3])
-      let operands = 0
-      let optionsEnded = false
-      for (const raw of args) {
-        if (!optionsEnded && raw === '--') {
-          optionsEnded = true
-          continue
-        }
-        if (!optionsEnded && raw.startsWith('-')) continue
-        operands += 1
-        const operand = /\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw
-        // `\` is a shell escape on POSIX and a path separator on Windows, where
-        // treating it as unresolvable made EVERY literal path deletion unresolved
-        // — which is why the sticky sentinel bit hardest there. Measured on
-        // windows-latest 2026-08-26: `rm -rf C:\Users\…\scratch` reported
-        // <Unresolved Bash deletion>.
-        const ambiguous = platform === 'win32' ? '*?[]{}' : '*?[]{}\\'
-        if (!operand || /[`$]/.test(operand) || operand.includes('://')
-            || [...operand].some(character => ambiguous.includes(character))) {
-          unresolved = true
-          continue
-        }
-        const resolved = resolveToolPath(operand, cwd)
-        if (resolved) paths.push(resolved)
-        else unresolved = true
-      }
-      if (operands === 0) unresolved = true
-    }
-  }
-  return [...new Set([
-    ...paths,
-    ...(unresolved ? [UNRESOLVED_DELETION_MUTATION] : []),
-  ])]
-}
 
 // The OS temp roots, symlink-resolved once per call. `/tmp` is a symlink to
 // `/private/tmp` on macOS and os.tmpdir() points into /var/folders, so the
@@ -2078,506 +238,6 @@ function underTempRoot(candidate, depth = 0) {
     } catch {}
   }
   return tempRoots().some(root => resolved === root || resolved.startsWith(root + path.sep))
-}
-
-// Words whose written targets are their operands, so a temp-only claim about
-// them can actually be checked. Everything else mutating stays a mutation.
-const TEMP_ACCOUNTABLE_WORDS = new Set(['rm', 'mv', 'cp', 'mkdir', 'rmdir', 'touch', 'truncate', 'tee'])
-// Mutators whose targets this function cannot enumerate; their presence
-// disqualifies the whole command from the exemption.
-const TEMP_UNACCOUNTABLE = /\b(?:install|dd|patch|apply_patch|rsync|chmod|chown|ln)\b|\b(?:npm|pnpm|yarn|bun)\s+(?:install|add|remove|update|exec)\b|\b(?:cargo\s+fmt|go\s+generate|gofmt|black|ruff\s+format)\b|\bprettier\b[^\n]*\s--write\b|\bfind\b[^\n]*\s-delete\b|(?:^|\s)(?:\S*[\\/])?adr-verify(?:\s|$)/i
-
-// Matches the glued form (`x>file`) as well as the spaced one, because the
-// exemption must account for every `>` in the command, not only the ones the
-// mutation classifier recognizes. Over-matching inside quotes is deliberate:
-// an over-match can only fail the exemption, never widen it.
-const REDIRECT_TARGET = />>?\s*("[^"]*"|'[^']*'|[^\s;|&<>]+)/g
-
-// `fromEnvironment` is false wherever expanding a variable WIDENS what the gate
-// will accept. In mutatesOnlyTempPaths a wrong expansion can only fail the temp
-// exemption, so the ambient environment is a safe last resort. In
-// bashDeletionMutationPaths it is the reverse: resolving `$W` turns an
-// unresolved deletion into a named path and disarms the sentinel, so only a
-// value this command set itself may be trusted.
-// `$(mktemp -d)` is a directory under the OS temp root by construction — that is
-// the entire contract of the command. Its exact name cannot be known statically
-// and does not need to be: every question this file asks of the value is "is it
-// under the temp root". Without this, the standard way to make a scratch
-// directory armed the unresolved-deletion sentinel AND counted as repository
-// authorship, so `W=$(mktemp -d); …; rm -rf "$W"` invalidated a check that had
-// already passed and put <Unresolved Bash deletion> in the changed-path list.
-const mktempDirectoryValue = () => path.join(os.tmpdir(), '<mktemp -d>')
-
-// Only the spellings that cannot name somewhere else. `-p` and `--tmpdir` point
-// wherever they are told, and a bare template operand is created relative to the
-// working directory by GNU mktemp — `mktemp -d buildXXXXXX` writes into the
-// repository. `-t <prefix>` is safe on both: BSD reads it as a prefix under
-// $TMPDIR and GNU interpolates its template there too.
-function mktempDirectoryCommand(inner) {
-  const words = String(inner).trim().split(/\s+/).filter(Boolean)
-  if (words.shift() !== 'mktemp') return false
-  let directory = false
-  for (let index = 0; index < words.length; index += 1) {
-    const word = words[index]
-    if (!word.startsWith('-')) return false
-    if (/^(?:-p|--tmpdir)/.test(word)) return false
-    if (word === '-t') { index += 1; continue }
-    if (word === '--directory' || /^-[A-Za-z]*d[A-Za-z]*$/.test(word)) directory = true
-  }
-  return directory
-}
-
-// One definition, because two copies of this pattern drift. The command
-// substitution alternative is what lets `W=$(mktemp -d)` be seen as an
-// assignment at all: `\S*` stops at the space inside the substitution, so the
-// segment matched nothing and the value was never recorded.
-const SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\$\([^()]*\)|`[^`]*`|\S*)$/
-
-function expandShellToken(token, assignments, fromEnvironment = true) {
-  let value = token
-  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
-    value = value.slice(1, -1)
-  }
-  const expanded = value.replace(/\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g,
-    (match, braced, plain) => assignments.get(braced ?? plain)
-      ?? (fromEnvironment ? process.env[braced ?? plain] : undefined)
-      ?? match)
-  const substituted = expanded.replace(/\$\(([^()]*)\)|`([^`]*)`/g,
-    (match, parenthesised, backticked) => (mktempDirectoryCommand(parenthesised ?? backticked ?? '')
-      ? mktempDirectoryValue()
-      : match))
-  return /[`$]/.test(substituted) ? null : substituted
-}
-
-// True only when every write this command performs provably lands under the OS
-// temp directories. A scratch note, a probe script, a heredoc-built commit
-// message — none of them is the repository's work, so none of them should
-// demand repository evidence or a task branch. Measured 2026-08-25: a session
-// spent on writing THIS harness was nagged at every Stop for scratchpad writes
-// under /private/tmp. Anything unprovable keeps today's answer: a mutation.
-export function mutatesOnlyTempPaths(command, cwd) {
-  if (typeof command !== 'string' || typeof cwd !== 'string') return false
-  const base = nearestExistingDirectory(path.resolve(cwd))
-  // A project that itself lives under a temp root gets no exemption — there the
-  // "scratch" writes ARE the repository's files. This also keeps the test
-  // suite's own temp fixtures under full strictness.
-  if (!base || underTempRoot(base)) return false
-
-  const executable = withoutHeredocBodies(command)
-  if (TEMP_UNACCOUNTABLE.test(executable)
-      || inPlaceEditorCommand(executable)
-      || interpreterCommandLooksMutating(command, executable)
-      || isGitMutationCommand(executable)) return false
-
-  // Assignments made inside the command are the only variable values this
-  // function trusts, and only in the order they were made: a use may see the
-  // assignments before it, never one after it, or `S=<repo>; write $S; S=/tmp`
-  // would classify the repo write as scratch.
-  const assignments = new Map()
-  let accounted = 0
-  for (const region of shellCommandRegions(executable)) {
-    for (const segment of shellSegments(region)) {
-      const assignment = segment.match(SHELL_ASSIGNMENT)
-      if (assignment) {
-        const value = expandShellToken(assignment[2], assignments)
-        if (value !== null) assignments.set(assignment[1], value)
-        continue
-      }
-      const targets = []
-      // Every redirect in every segment is accounted, even in a segment the
-      // mutation classifier does not flag: `echo x>f` writes f all the same.
-      for (const match of segment.matchAll(REDIRECT_TARGET)) {
-        const raw = match[1]
-        if (raw.startsWith('&') || raw === '-' || raw === '/dev/null') continue
-        targets.push(raw)
-      }
-      const mutating = isPotentialMutationCommand(segment)
-      if (!mutating && targets.length === 0) continue
-      const invocation = commandInvocation(segment)
-      const word = invocation ? executableName(invocation.words[invocation.index]) : ''
-      if (TEMP_ACCOUNTABLE_WORDS.has(word)) {
-        // `cp` READS its sources and WRITES only its destination, so copying a
-        // repository file into scratch mutates nothing in the repository —
-        // requiring every operand to be under the temp root made
-        // `cp notes.md "$S/"` look like repository authorship. `mv` is not the
-        // same shape: it removes the source, so both ends are mutations.
-        const operands = []
-        let optionsEnded = false
-        for (const argument of invocation.words.slice(invocation.index + 1)) {
-          if (!optionsEnded && argument === '--') { optionsEnded = true; continue }
-          if (!optionsEnded && argument.startsWith('-')) {
-            // An option can smuggle the DESTINATION: `cp -tDIR` and
-            // `--target-directory=DIR` write into DIR while looking like flags.
-            // A '='-attached value is checked as a target; the -t forms are
-            // beyond safe accounting, so they disqualify outright.
-            if (word === 'cp' || word === 'mv') {
-              if (/^-t/.test(argument) || /^--target-directory/.test(argument)) return false
-            }
-            const attached = argument.match(/^--?[A-Za-z][A-Za-z-]*=(.+)$/)
-            if (attached) targets.push(attached[1])
-            continue
-          }
-          if (word === 'cp') operands.push(argument)
-          else targets.push(argument)
-        }
-        // The destination is the last operand. With only one, it is the only
-        // thing named and stays accountable.
-        if (operands.length > 0) targets.push(operands[operands.length - 1])
-      } else if (mutating && targets.length === 0) {
-        // Mutating for a reason this function did not identify: keep it a mutation.
-        return false
-      }
-      if (mutating && targets.length === 0) return false
-      for (const target of targets) {
-        const expanded = expandShellToken(target, assignments)
-        if (expanded === null || expanded.length === 0
-            || [...expanded].some(character => '*?[]{}'.includes(character))) return false
-        const resolved = resolveToolPath(expanded, cwd)
-        if (!resolved || !underTempRoot(resolved)) return false
-      }
-      if (mutating) accounted += 1
-    }
-  }
-  return accounted > 0
-}
-
-// Classifies one git segment for the evidence gate. 'refresh' changes which
-// tree the session is on without authoring anything (a branch switch, a
-// fast-forward integration); 'inert' changes neither (creating a branch where
-// you stand); null is everything else.
-function gitTreeRefreshKind(segment, cwd) {
-  const trimmed = segment.trim()
-  const invocation = gitInvocation(trimmed)
-  if (!invocation || /`|\$\(/.test(trimmed) || WRITE_REDIRECT.test(trimmed)) return null
-  const { subcommand, subcommandIndex, words } = invocation
-  const args = []
-  let separated = false
-  for (const argument of words.slice(subcommandIndex + 1)) {
-    if (argument === '--') { separated = true; break }
-    args.push(argument)
-  }
-  // A non-fast-forward pull can CREATE a merge commit — that is authorship,
-  // not navigation, and it stays a mutation like it always was.
-  if (subcommand === 'pull') return args.includes('--ff-only') ? 'refresh' : null
-  if (subcommand === 'merge') return args.includes('--ff-only') ? 'refresh' : null
-  if (subcommand === 'switch') {
-    if (!args.some(argument => ['-c', '-C', '--orphan'].includes(argument))) return 'refresh'
-    // Creating a branch with an explicit start point lands on that tree.
-    return args.filter(argument => !argument.startsWith('-')).length > 1 ? 'refresh' : 'inert'
-  }
-  if (subcommand === 'checkout') {
-    const operands = args.filter(argument => !argument.startsWith('-'))
-    if (args.some(argument => ['-b', '-B', '--orphan'].includes(argument))) {
-      return operands.length > 1 ? 'refresh' : 'inert'
-    }
-    if (separated) return null
-    if (operands.length === 1 && localBranchExists(gitCommandDirectory(trimmed, cwd), operands[0])) {
-      return 'refresh'
-    }
-    return null
-  }
-  return null
-}
-
-// Whole-command navigation verdict: 'refresh' when the command only navigates
-// and at least one segment changes which tree the session stands on; 'inert'
-// when it only creates a branch in place; null when any segment does real work.
-// The evidence gate treats a refresh as STALENESS, not authorship — it
-// invalidates prior evidence because the tested tree is no longer the current
-// tree, but a session that only navigated authored nothing and owes nothing.
-// That is the second reading of the gate's question, decided 2026-08-25
-// ("working, not blocking") while keeping the stale-evidence pins
-// (tests/lifecycle.test.mjs: edit, test, pull is still unverified).
-export function bashNavigationImpact(command, cwd) {
-  if (typeof command !== 'string') return null
-  let refreshSeen = false
-  let inertSeen = false
-  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
-    for (const segment of shellSegments(region)) {
-      const kind = gitTreeRefreshKind(segment, cwd)
-      if (kind === 'refresh') { refreshSeen = true; continue }
-      if (kind === 'inert') { inertSeen = true; continue }
-      if (isPotentialMutationCommand(segment)) return null
-    }
-  }
-  return refreshSeen ? 'refresh' : inertSeen ? 'inert' : null
-}
-
-// A one-line, readable stand-in for a Bash command whose writes could not be
-// resolved to a path.
-//
-// It used to be the command's first 120 characters verbatim. A heredoc or a
-// shell function definition then put raw newlines and a mid-token truncation
-// into the completion message, and five of them joined by ", " made the sentence
-// that is supposed to say WHAT CHANGED unreadable. Reported from a live 2.1.7
-// session on 2026-08-26:
-//
-//   Changed paths include: …, <Bash mutation: cd /repo
-//   python3 - <<'PY'
-//   import io
-//   p="tests/Unit/Notifications/CustomerEmailTest.p>, <Bash mutation: cd /repo
-//
-// A reader needs to recognize the command, not re-read it: one line, cut at a
-// word boundary. The marker only has to stay a non-absolute string —
-// runArtifactGates skips it by `path.isAbsolute`, which is what keeps an
-// unresolvable command out of the gate rather than into it.
-//
-// Taking the FIRST line was the wrong line. An agent's Bash call almost always
-// opens by moving to the repository, so line one is `cd <somewhere>` and naming
-// it names the one segment that changed nothing. Reported from a live 2.3.0
-// session on 2026-08-26, where the advisory read:
-//
-//   Changed paths include: <Bash mutation: cd /src/the-project>,
-//   <Bash mutation: cd /src/the-project>, …
-//
-// — five markers, all the same, none of them the write. Peel the navigation and
-// describe what is left.
-//
-// A leading echo / ls / validation probe is the same hole one class over.
-// Isolated those names are already not mutations; describeCommand still named
-// the echo/ls prefix of `…; rm -rf build` because it peeled only cd. Live
-// 2026-09-10 Stop. Peel only those executed names, and only when the segment
-// itself is not a mutation. Unknown `neither` verbs are not known read-only
-// (ADR-005 / CLAUDE.md §16). This is not READ_ONLY_CHILD — that list strips
-// Python subprocess argv.
-function isKnownProbePrefix(segment) {
-  if (typeof segment !== 'string' || !segment.trim()) return false
-  if (classifyCommand(segment) === 'unrecognised') return false
-  if (isPotentialMutationCommand(segment)) return false
-  if (isValidationCommand(segment)) return true
-  const invocation = commandInvocation(segment)
-  if (!invocation) return false
-  const name = executableName(invocation.words[invocation.index])
-  return name === 'echo' || name === 'ls'
-}
-
-function peelOneLeadingProbe(remainder) {
-  const trimmed = remainder.replace(/^\s+/, '')
-  const segments = shellSegments(remainder)
-  if (segments.length < 2) return remainder
-  const first = segments[0]
-  if (!isKnownProbePrefix(first) || !trimmed.startsWith(first)) return remainder
-  return trimmed.slice(first.length).replace(/^\s*(?:&&|\|\||[;&|\n])\s*/, '')
-}
-
-export function describeCommand(command, limit = 72) {
-  // A heredoc body is input to a command, not the command. Splicing it in is
-  // what put raw newlines and mid-token truncation into the sentence before.
-  const script = withoutHeredocBodies(String(command ?? ''))
-  let remainder = script
-  while (true) {
-    const afterNav = remainder.replace(NAVIGATION_PREFIX, '')
-    if (afterNav !== remainder) {
-      remainder = afterNav
-      continue
-    }
-    const afterProbe = peelOneLeadingProbe(remainder)
-    if (afterProbe !== remainder) {
-      remainder = afterProbe
-      continue
-    }
-    break
-  }
-  // All navigation/probes and nothing else: describe the original rather than nothing.
-  const line = collapse(remainder) || collapse(script)
-  if (line.length <= limit) return line
-  const cut = line.slice(0, limit)
-  const boundary = cut.lastIndexOf(' ')
-  return `${(boundary > limit / 2 ? cut.slice(0, boundary) : cut).trimEnd()}…`
-}
-
-// `cd <dir>` (or pushd/popd) followed by a separator — newline included, since
-// that is how a multi-line Bash call is written. The argument separator is
-// [ \t]+ and not \s+ deliberately: \s crosses the newline, so `cd /repo\ngit add
-// -A && git commit` had its `git add -A &&` eaten as further arguments to cd and
-// the marker named the wrong half of the command.
-const NAVIGATION_PREFIX = /^\s*(?:cd|pushd|popd)(?:[ \t]+(?:"[^"]*"|'[^']*'|[^\s;&|<>]+))*[ \t]*(?:&&|;|\n)/
-
-const collapse = text => text.replace(/\s+/g, ' ').trim()
-
-export function analyzeTranscript(raw, cwd = process.cwd()) {
-  if (typeof raw === 'string' && raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1)
-
-  const uses = []
-  const results = new Map()
-  let position = 0
-
-  for (const line of raw.split('\n')) {
-    if (!line.trim()) continue
-    let entry
-    try {
-      entry = JSON.parse(line)
-    } catch {
-      continue
-    }
-    walk(entry, object => {
-      if (object.type === 'tool_use' && typeof object.name === 'string') {
-        uses.push({
-          id: typeof object.id === 'string' ? object.id : `anonymous-${position}`,
-          name: object.name,
-          input: object.input && typeof object.input === 'object' ? object.input : {},
-          position: position++,
-        })
-      }
-      if (object.type === 'tool_result' && typeof object.tool_use_id === 'string') {
-        results.set(object.tool_use_id, object)
-      }
-    })
-  }
-
-  let lastMutation = -1
-  let authorship = 'none'
-  let lastTreeRefresh = -1
-  let lastValidation = -1
-  let lastSuccessfulValidation = -1
-  // Why the most recent attempt did not clear, so the advisory can tell an
-  // environment apart from a finding rather than accusing the work either way.
-  let lastVerdict = null
-  let lastVerdictCommand = null
-  let lastUnresolvedDeletion = -1
-  let lastPublish = -1
-  // Write-shaped unknown as a position. authorship is one session-wide scalar:
-  // Bash mutation (git commit included) sets 'bash', native Write sets 'native',
-  // and UNPROVEN is assigned only while authorship is still 'none'. After the
-  // first of those, an MCP write can never become UNPROVEN again. Gate Advise
-  // on unprovenWritePending (ADR-048): lastUnprovenWrite > lastPublish, and no
-  // passing recognised check after that write. lastMutation stays -1 (F-24).
-  let lastUnprovenWrite = -1
-  const mutationPaths = []
-  // Where each path was recorded, so a boundary can ask for the ones that matter
-  // to it. The flat list above keeps its meaning for every existing consumer.
-  const mutationPositions = []
-  const record = (position, ...values) => {
-    for (const value of values) {
-      mutationPaths.push(value)
-      mutationPositions.push(position)
-    }
-  }
-
-  const executed = use => {
-    const result = results.get(use.id)
-    if (result === undefined) return false
-    if (result.is_error !== true) return true
-    const detail = JSON.stringify(result)
-    return !/(?:PreToolUse[^\n]*hook error|hook blocked|Quality gate blocked)/i.test(detail)
-  }
-
-  for (const use of uses) {
-    if (MUTATION_TOOLS.has(use.name) && executed(use)) {
-      const filePath = use.input.file_path ?? use.input.notebook_path
-      if (!(typeof filePath === 'string' && isGitignoredUntracked(filePath, cwd))) {
-        authorship = 'native'
-        lastMutation = Math.max(lastMutation, use.position)
-        if (typeof filePath === 'string') record(use.position, filePath)
-      }
-    }
-    if (use.name === 'Bash' && executed(use)) {
-      const kind = classifyCommand(use.input.command)
-      const navigation = bashNavigationImpact(use.input.command, cwd)
-      if (navigation === 'refresh') {
-        // Navigation is not authorship, but it does change which tree the
-        // session stands on, so it stales prior evidence without demanding new
-        // evidence of its own. 'inert' (creating a branch in place) does
-        // neither.
-        lastTreeRefresh = Math.max(lastTreeRefresh, use.position)
-      } else if (navigation !== 'inert'
-          // A failed call whose other part is unrecognised still wrote what it
-          // visibly wrote: `printf x > f; rg --pre false x` (ADR-059 T6).
-          && (kind === 'mutation' || (kind === 'unrecognised' && !commandSucceeded(results.get(use.id))
-            && isPotentialMutationCommand(use.input.command)))
-          && !mutatesOnlyTempPaths(use.input.command, cwd)
-          && !writesOutsideProject(use.input.command, cwd)) {
-        if (authorship !== 'native') authorship = 'bash'
-        lastMutation = Math.max(lastMutation, use.position)
-        const markdown = bashMarkdownMutationPaths(use.input.command, cwd)
-        record(use.position, ...markdown)
-        const deletions = bashDeletionMutationPaths(use.input.command, cwd)
-        if (deletions.includes(UNRESOLVED_DELETION_MUTATION)) {
-          lastUnresolvedDeletion = Math.max(lastUnresolvedDeletion, use.position)
-        }
-        record(use.position, ...deletions)
-        // The marker stands in for a write that could NOT be resolved to a path.
-        // When the command names Markdown files and nothing else that exists, it
-        // adds nothing a reader needs and costs something real: `docsOnly` reads
-        // it as a non-document path, so `sed -i` over fourteen Markdown files
-        // demanded the full test run a Markdown-only change is exempt from.
-        // Reported 2026-09-08 from an outside corpus (BACKLOG §174).
-        if (markdown.length === 0 || !namesOnlyMarkdownFiles(use.input.command, cwd)) {
-          record(use.position, `<Bash mutation: ${describeCommand(use.input.command)}>`)
-        }
-      }
-      // Unrecognised Bash is UNPROVEN, not authorship none. Same scalar
-      // mcp__mrw__mrw_write already sets (ADR-047 F-2).
-      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))
-          && !isMrwWriteCheckCommand(use.input.command)) {
-        lastUnprovenWrite = Math.max(lastUnprovenWrite, use.position)
-        if (authorship === 'none') authorship = 'UNPROVEN'
-      }
-      // Did this project get published? executed() is true for an is_error
-      // result unless a hook blocked it, so a failed commit used to move the
-      // boundary. A commit in another repository did too (stress, 2026-09-10).
-      if (commandSucceeded(results.get(use.id))
-          && gitPublishTargetsThisProject(use.input.command, cwd)) {
-        lastPublish = Math.max(lastPublish, use.position)
-      }
-
-    }
-    if (use.name === 'Bash' && classifyCommand(use.input.command) === 'validation'
-        && use.input.run_in_background !== true) {
-      lastValidation = Math.max(lastValidation, use.position)
-      if (results.has(use.id)) {
-        lastVerdict = validationVerdict(results.get(use.id), use.input.command)
-        lastVerdictCommand = describeCommand(use.input.command)
-        if (lastVerdict === 'passed') {
-          lastSuccessfulValidation = Math.max(lastSuccessfulValidation, use.position)
-        }
-      }
-    }
-    if (executed(use) && commandSucceeded(results.get(use.id)) && isMrwWriteCheck(use)
-        && use.input.run_in_background !== true) {
-      lastValidation = Math.max(lastValidation, use.position)
-      lastSuccessfulValidation = Math.max(lastSuccessfulValidation, use.position)
-      lastVerdict = 'passed'
-      lastVerdictCommand = use.name === 'Bash'
-        ? describeCommand(use.input.command)
-        : 'mrw --check'
-    } else if (executed(use) && commandSucceeded(results.get(use.id)) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)
-        && !KNOWN_NON_WRITE_TOOLS.has(use.name)) {
-      lastUnprovenWrite = Math.max(lastUnprovenWrite, use.position)
-      if (authorship === 'none') authorship = 'UNPROVEN'
-    }
-  }
-
-  return {
-    authorship,
-    hasMutations: lastMutation >= 0 || authorship === 'UNPROVEN',
-    verifiedAfterLastMutation: lastMutation >= 0
-      && lastSuccessfulValidation > Math.max(lastMutation, lastTreeRefresh)
-      && lastSuccessfulValidation === lastValidation,
-    lastMutation,
-    lastPublish,
-    lastUnprovenWrite,
-    lastSuccessfulValidation,
-    mutationPaths,
-    // Paths recorded after a given position. A commit gates what is being
-    // published now, not everything the session has ever touched: mutationPaths
-    // is append-only across the whole transcript, so re-gating all of it at every
-    // commit meant an ADR-heavy session eventually exceeded the boundary's 45s
-    // window and then EVERY commit failed, whatever was staged. Reported from a
-    // live 2.1.7 session on 2026-08-26 and reproduced here.
-    lastVerdict,
-    lastVerdictCommand,
-    mutationPathsSince: position => mutationPaths.filter((_, index) => mutationPositions[index] > position),
-    // Whether anything authored AFTER `position` is still unchecked. The commit
-    // gate asks about what it is publishing now; the completion gate asks about
-    // the whole session, which is what verifiedAfterLastMutation answers.
-    unverifiedSince: position => lastMutation > position
-      && !(lastSuccessfulValidation > Math.max(lastMutation, lastTreeRefresh)
-        && lastSuccessfulValidation === lastValidation),
-    unprovenWritePending: () => lastUnprovenWrite > lastPublish
-      && !(lastSuccessfulValidation > lastUnprovenWrite && lastSuccessfulValidation === lastValidation),
-    lastUnresolvedDeletion,
-  }
 }
 
 // An unresolved deletion records that something was removed, not what. The
@@ -2627,7 +287,7 @@ export function budgetExhausted(detail, error) {
   return /timed out after \d+ms/.test(detail) || error?.code === 'ETIMEDOUT'
 }
 
-export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000) {
+export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000, { bases = [], gated = null } = {}) {
   const hook = path.join(PLUGIN_ROOT, 'scripts', 'facts-gate-dispatch.sh')
   if (!existsSync(hook)) return null
   const runner = path.join(PLUGIN_ROOT, 'scripts', 'run-shell-hook.mjs')
@@ -2672,7 +332,7 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
       if (remaining < 1_000) {
         failures.push(`The boundary's ${Math.round(windowMs / 1000)}s window was exhausted before ${uniqueTargets[0]} was gated. `
           + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.\n'
-          + 'All remaining artifacts were not checked:\n' + uniqueTargets.join('\n'))
+          + 'UNRUN — all remaining artifacts were not checked:\n' + uniqueTargets.join('\n'))
       } else {
         const timeoutMs = artifactGateTimeoutMs()
         const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh', '--batch'], {
@@ -2680,9 +340,22 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
           encoding: 'utf8',
           // Each shell is capped separately; leave room for its diagnostic framing too.
           maxBuffer: uniqueTargets.length * ARTIFACT_OUTPUT_LIMIT * 2,
-          env: { ...process.env, QUALITY_HARNESS_ADR_LEDGER: ledger },
+          env: { ...process.env, QUALITY_HARNESS_ADR_LEDGER: ledger,
+            // The revisions a deleted path is looked up in, nearest first
+            // (ADR-060 T6). Unset means HEAD, in both lookups.
+            ...(bases.length ? { QUALITY_HARNESS_HISTORY_BASES: bases.join(' ') } : {}) },
           timeout: remaining + ARTIFACT_GATE_KILL_MARGIN_MS,
         })
+        // Which paths the pass actually answered for. The findings are on
+        // stderr; this is the per-path record rule A keeps.
+        if (gated) {
+          for (const line of (run.stdout || '').split('\n')) {
+            if (!line.trim()) continue
+            let result
+            try { result = JSON.parse(line) } catch { continue }
+            if (typeof result?.gated === 'string') gated.set(result.gated, result.complete === true)
+          }
+        }
         // Advisory findings arrive on stderr with exit zero; status alone loses them.
         const said = (run.stderr || '').trim()
         if (run.status !== 0 || said) {
@@ -2705,33 +378,6 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
     }
   }
   return failures.length ? `Artifact validation failed:\n${failures.join('\n')}` : null
-}
-
-// A proven path is a repository path under cwd, not a `<…>` stand-in and not a
-// path outside the project. Advise that lists a command, a home file, or a host
-// scratchpad as a changed path is inventing a write
-// (docs/specs/2026-09-12-unproven-advise-does-not-invent-writes.md).
-export function provenMutationPaths(paths, cwd) {
-  if (!Array.isArray(paths)) return []
-  const root = path.resolve(cwd ?? process.cwd())
-  const seen = new Set()
-  const out = []
-  for (const entry of paths) {
-    if (typeof entry !== 'string' || !entry || entry.startsWith('<')) continue
-    const resolved = path.resolve(root, entry)
-    const rel = path.relative(root, resolved)
-    if (rel === '' || path.isAbsolute(rel) || rel.startsWith('..')) continue
-    if (seen.has(entry)) continue
-    seen.add(entry)
-    out.push(entry)
-  }
-  return out
-}
-
-function displayProvenPath(entry, cwd) {
-  const root = path.resolve(cwd ?? process.cwd())
-  const rel = path.relative(root, path.resolve(root, entry))
-  return rel || entry
 }
 
 function docsOnly(paths) {
@@ -2830,23 +476,12 @@ function hasBackgroundWork(input) {
     || (Array.isArray(input.session_crons) && input.session_crons.length > 0)
 }
 
-async function readTranscript(input) {
-  const candidate = input.agent_transcript_path ?? input.transcript_path
-  if (typeof candidate !== 'string' || !path.isAbsolute(candidate) || candidate.includes('\0')) {
-    return null
-  }
-  try {
-    return await readFile(candidate, 'utf8')
-  } catch {
-    return null
-  }
-}
-
 // Discovery, in the order a person would try: the repository's own script, then
-// its package manifest, then its build file, then the language's default. Only
-// commands VALIDATION_PATTERNS already accepts as evidence are offered — telling
-// someone to run something the gate would then refuse is worse than saying
-// nothing. Returns null when the project names no check; the gate must not
+// its package manifest, then its build file, then the language's default. The
+// offer is routed through `qh-check`, which is the only thing here that records
+// evidence — naming a command without it leaves a run nothing can see, which is
+// worse than saying nothing. Returns null when the project names no check; the
+// gate must not
 // invent one.
 const PROJECT_CHECKS = [
   { file: 'scripts/selftest.sh', command: 'bash scripts/selftest.sh' },
@@ -2974,7 +609,7 @@ export function checkCommandOrigin(cwd = process.cwd()) {
   //
   // ⚠ THE `composer test` RUNG IS GONE, and removing it is the SAFE way to satisfy
   // the invariant it broke. It offered `composer test` as the project's own check
-  // while `isValidationCommand` refused that string, and the two attempts to fix
+  // while the evidence check refused that string, and the two attempts to fix
   // that by ACCEPTING more each produced a P1 in review: first `--help` and
   // `test-data` passing the publish guard, then a whole `composer` family turning
   // `composer update` — which writes composer.lock — from `unrecognised` into
@@ -3012,17 +647,6 @@ function gitRepositoryRoot(directory) {
   return canonical(run.stdout.trim())
 }
 
-function isGitignoredUntracked(filePath, cwd) {
-  if (typeof filePath !== 'string' || !filePath) return false
-  const root = gitRepositoryRoot(cwd)
-  if (!root) return false
-  const gitOpts = { encoding: 'utf8', timeout: 5_000 }
-  const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', filePath], gitOpts)
-  if (ignored.status !== 0) return false
-  const tracked = spawnSync('git', ['-C', root, 'ls-files', '--error-unmatch', '--', filePath], gitOpts)
-  return tracked.status !== 0
-}
-
 // Names the project's own check when there is one, so the gate asks for
 // something specific instead of leaving the reader to guess which invocation
 // counts. Falls back to the general phrasing when the project names none.
@@ -3040,8 +664,8 @@ export function runTheCheckSentence(cwd) {
   // cause teaches distrust of the gate, which is what let an earlier wrong
   // command survive so long (docs/BACKLOG.md §59).
   if (origin === 'declared') {
-    return `Run \`${command}\` (this project's own check) after the final edit and report the exact `
-      + 'command and result.'
+    return `Run \`qh-check\` — it runs \`${command}\` (this project's own check) and records what it `
+      + 'observed — after the final edit and report the exact command and result.'
   }
   // The word "environment" is deliberately NOT used here. It is reserved for a
   // run that actually failed that way, and a standing note carrying it in every
@@ -3054,36 +678,8 @@ export function runTheCheckSentence(cwd) {
     + `repository rather than from a declaration: \`${command}\`, so that is not this `
     + 'project\'s own check. If it is red on an unmodified tree the finding is about this '
     + 'machine and not about your change — say which, and declare the real command as `check`. '
-    + `Run \`${command}\` after the final edit and report the exact command and result.`
-}
-
-// What the last attempt was, when it was not a pass. An environment that could
-// not run the check is not a finding about the change, and saying so is the
-// difference between guidance and an accusation.
-function environmentExcuse(state) {
-  if (state.lastVerdict === 'unstarted') {
-    return `\`${state.lastVerdictCommand}\` never started — the command or something it needs is `
-      + 'missing here. That is this environment, not your change; nothing is wrong with the work '
-      + 'that this can see.'
-  }
-  if (state.lastVerdict === 'timeout') {
-    return `\`${state.lastVerdictCommand}\` was killed on its time budget rather than reporting. `
-      + 'That is not a verdict about your change either — raise the budget or narrow the run.'
-  }
-  return null
-}
-
-function missingEvidenceReason(state, cwd, paths = state.mutationPaths) {
-  // Distinct proven paths, because the list is five slots wide and repeats spend
-  // them saying the same thing. A live session filled all five with one identical
-  // marker and the sentence that exists to say WHAT CHANGED said nothing.
-  const proven = provenMutationPaths(paths, cwd)
-  const changed = proven.length
-    ? `Changed paths include: ${proven.slice(-5).map(entry => displayProvenPath(entry, cwd)).join(', ')}.`
-    : 'I could not prove a repository path for those edits (could not classify the command, or could not resolve a path).'
-  const excuse = environmentExcuse(state)
-  if (excuse) return `${changed} ${excuse}`
-  return `${changed} ${runTheCheckSentence(cwd)} Do not add cleanup or new scope.`
+    + `Run \`qh-check\` (it runs \`${command}\` and records what it observed) after the final `
+    + 'edit and report the exact command and result.'
 }
 
 // ADR-035. One line per completion event, machine-local, append-only.
@@ -3121,6 +717,9 @@ function recordClaim(input, claim, evidence, mutations) {
       phrase: claim.phrase,
       evidence,
       mutations,
+      // ADR-060: the row's vocabulary is unchanged and its computation is not, so
+      // a reader can tell which model produced it.
+      version: 'events/1',
     })}\n`, 'utf8')
   } catch (failure) {
     process.stderr.write(`[quality-harness] could not append to the claims ledger (${failure.code
@@ -3189,6 +788,12 @@ function subagentContract(input) {
 // nothing, 2026-09-05); above SLOW_HOOK_MS the run names itself on both
 // channels, as one more line, never instead of the finding.
 let pendingOutput = null
+// Rule actions a hook collects; main() delivers them with any legacy output in one
+// composed result (ADR-060 T1's deliver).
+const pendingActions = []
+function queueAction(action) {
+  pendingActions.push(action)
+}
 function emitJson(value) {
   pendingOutput = value
 }
@@ -3199,12 +804,22 @@ export function slowHookThresholdMs(env = process.env) {
   return Number.isSafeInteger(configured) && configured >= 0 ? configured : SLOW_HOOK_MS
 }
 
+// The whole sentence. A silence check removes this line and nothing that shares
+// the channel with it. flushOutput builds the note with slowHookNote, so a
+// wording change that stops matching this pattern fails the slow-hook test on
+// a fast machine.
+export const SLOW_HOOK_NOTE = /^quality-harness: the \S+ hook took \d+\.\ds — the pause has this name$/
+
+export function slowHookNote(eventName, elapsedMs) {
+  return `quality-harness: the ${eventName ?? 'hook'} hook took ${(elapsedMs / 1000).toFixed(1)}s — the pause has this name`
+}
+
 export function flushOutput(startedAt, input, env = process.env, now = Date.now()) {
   const elapsed = now - startedAt
   let out = pendingOutput
   pendingOutput = null
   if (elapsed >= slowHookThresholdMs(env)) {
-    const note = `quality-harness: the ${input?.hook_event_name ?? 'hook'} hook took ${(elapsed / 1000).toFixed(1)}s — the pause has this name`
+    const note = slowHookNote(input?.hook_event_name, elapsed)
     process.stderr.write(`${note}\n`)
     out = { ...(out ?? {}), systemMessage: out?.systemMessage ? `${out.systemMessage}\n${note}` : note }
   }
@@ -3231,42 +846,14 @@ export function flushOutput(startedAt, input, env = process.env, now = Date.now(
 // to know a finding was made and where it went, not to read the instruction.
 function advisoryHeadline(reason) {
   const first = String(reason).split('\n').find(line => line.trim()) ?? String(reason)
-  const sentence = first.trim().split(/(?<=[.:])\s/)[0]
+  // ⚠ EVERY ADVISORY BEGINS `quality-harness: `, so "the first sentence", split
+  // after a `.` or a `:`, was always that prefix and nothing else: the person read
+  // "quality-harness advised the agent: quality-harness: (full text…)" — told a
+  // finding was made and nothing about it. Two peer sessions flagged the line on
+  // 2026-09-19. The caller already says who is speaking, so the prefix goes; and
+  // only a FULL STOP ends the sentence, since these messages use `:` and `—` mid-clause.
+  const sentence = first.trim().replace(/^quality-harness:\s*/i, '').split(/(?<=\.)\s/)[0]
   return sentence.length > 140 ? `${sentence.slice(0, 137)}…` : sentence
-}
-
-function advise(reason, input = null) {
-  // BOTH channels, because each alone can hide the finding. Exit-0 stderr is
-  // surfaced only in transcript view, so a finding written there alone reaches
-  // nobody — advisory-that-nobody-sees is concealment, which the owner has
-  // named as worse than having no plugin at all. stderr keeps it in the
-  // transcript; what the session shows depends on the event.
-  process.stderr.write(`${reason}\n`)
-  if (input?.hook_event_name !== 'PreToolUse') {
-    emitJson({ systemMessage: reason })
-    return
-  }
-  // At a tool boundary the reader is the agent, and `systemMessage` is rendered
-  // to the PERSON, one "PreToolUse:Bash says:" line per line of text — a
-  // twelve-line adr-lint report became twelve of them, on every commit attempt,
-  // in the owner's terminal (2026-09-05). So the instruction goes where the
-  // agent reads, `additionalContext`, and the person gets one line saying a
-  // finding was made and where the rest is. Said in full once per finding per
-  // session; a repeat of the same finding is one line for the agent and nothing
-  // for the person, because the second reading of an unchanged report is the
-  // nag every advisory here exists not to be.
-  const key = `advisory:${createHash('sha256').update(String(reason)).digest('hex').slice(0, 32)}`
-  const first = firstMentionThisSession(input.session_id, key)
-  const headline = advisoryHeadline(reason)
-  emitJson({
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      additionalContext: first
-        ? reason
-        : `quality-harness: the same finding as earlier this session still stands — ${headline}`,
-    },
-    ...(first ? { systemMessage: `quality-harness advised the agent: ${headline} (full text in the transcript)` } : {}),
-  })
 }
 
 const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|tests?|spec|fixtures?|testdata|examples?)$/i
@@ -3302,24 +889,133 @@ function listedAbsolute(root, rel) {
   return parts.length ? path.join(root, ...parts) : root
 }
 
+// The exact line `adr-retire-check`, `facts-gate-dispatch.sh`, `run-shell-hook.mjs`
+// and `adr-lint` recognise an archive by. Whole-line, so prose ABOUT archives in a
+// sibling directory's README does not freeze that directory.
+const ARCHIVE_LIFECYCLE_LINE = '**Lifecycle:** Frozen historical ADR records'
+
+// Whether a listed directory sits under a frozen archive. Asked only of candidate
+// `tasks/` directories and cached per ancestor, so the orientation does not open a
+// README for every directory git lists.
+// ⚠ ONLY A README THE LISTING HOLDS. This read whatever was on disk, so an
+// ignored or untracked README carrying the marker hid a tracked record's tasks
+// from every session on that machine and no other (CLAUDE.md §8).
+// The README a directory's archive marker is read from: `README.md`, exactly, as
+// the listing spells it — which is also all the bash dispatcher's
+// `[ -f "$dir/README.md" ]`, `adr-retire-check` and the archive template know.
+//
+// ⚠ A LISTED CASE-VARIANT (`readme.md`) IS UNKNOWN, AND THAT IS THE WHOLE RULE.
+// Whether it IS this directory's README depends on whether the filesystem folds
+// case, and this function spent three review passes trying to find out: first
+// `existsSync(exact)` (an unlisted scratch `README.md` switched the listed variant
+// on and retired a tracked record), then dev+inode identity (an EIO made a frozen
+// record govern; inode 0 made two files one), then a three-valued identity (a
+// variant absent from the working tree read as "proven different", and unknown
+// became "not frozen", which offered a frozen record's task as READY). Each repair
+// was a smaller guess. It does not guess now: the record's effect is UNPROVEN and
+// its tasks are UNPROVEN, with the remedy — name the catalog `README.md` — said
+// where either would have been (fifth review; ADR-005).
+const README_UNKNOWN = Symbol('a README is listed here under another spelling')
+
+// ⚠ AND ONLY A VARIANT THAT CARRIES THE MARKER IS THE AMBIGUOUS CASE. The rule above
+// was first applied to every `readme.md`, and an ordinary project keeps one in
+// `docs/`: every task directory beneath it went UNPROVEN and every record beside it
+// governed nothing — a false could-not-look on each session of a normal repository,
+// found by probing the change before its review ran. The listed variant is read
+// under its LISTED spelling, which opens that file on any filesystem and needs no
+// folding at all: without the marker it is a README and nothing more.
+// ⚠ TOTAL OVER ONE TABLE, AND THE COUNT COMES FIRST. `names` is every basename the
+// listing holds in this directory; the READMEs among them are those that equal
+// `readme.md` ignoring case — the exact `README.md` INCLUDED:
+//
+//   none listed                      null      not an archive question
+//   more than one listed             UNKNOWN   on a filesystem that folds case they
+//                                              open ONE file, so which entry's bytes
+//                                              were read cannot be established —
+//                                              whichever spelling was asked for
+//   exactly `README.md`              its path  the caller reads it and decides
+//   one other spelling, marked       UNKNOWN   whether it is the catalog depends on
+//      or unreadable                           the filesystem; this does not guess
+//   one other spelling, ordinary     null      a README and nothing more
+//
+// It reached this shape one cell at a time, over five reviews: the first variant
+// only; an exact-name shortcut that returned BEFORE the collision count, so
+// `README.md` + `readme.md` gave a definite answer in either direction (eighth
+// review); and three ways of asking the filesystem, all deleted. Each cell is a
+// case in tests/archive-not-in-flight.test.mjs.
+export function listedReadme(directory, names, read) {
+  const spellings = names.filter(name => name.toLowerCase() === 'readme.md')
+  if (spellings.length === 0) return null
+  if (spellings.length > 1) return README_UNKNOWN
+  if (spellings[0] === 'README.md') return path.join(directory, 'README.md')
+  try { return read(path.join(directory, spellings[0])).split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN : null } catch { return README_UNKNOWN }
+}
+
+// true, false, or 'unknown' — a listed README that could not be read is unknown
+// too: it may carry the marker, and `false` there offered retired work as READY.
+function underFrozenArchive(root, dirParts, cache, listed) {
+  let unknown = false
+  // ⚠ FROM THE REPOSITORY ROOT, depth 0. The walk began one level down, so a
+  // repository whose root IS the archive — `README.md` with the marker beside
+  // `tasks/` — froze nothing: the record side called its record withdrawn while
+  // this side offered its task as READY (ninth review; the record side reads the
+  // root already, so the two disagreed about one directory). The root's prefix is
+  // the empty string, not `/`.
+  for (let depth = 0; depth < dirParts.length; depth++) {
+    const key = dirParts.slice(0, depth).join('/')
+    const prefix = depth === 0 ? '' : `${key}/`
+    if (!cache.has(key)) {
+      let frozen = false
+      const readme = listedReadme(path.join(root, ...dirParts.slice(0, depth)),
+        [...listed].filter(rel => rel.startsWith(prefix) && !rel.slice(prefix.length).includes('/')).map(rel => rel.slice(prefix.length)),
+        file => readFileSync(file, 'utf8'))
+      if (readme === README_UNKNOWN) frozen = 'unknown'
+      else if (readme !== null) {
+        try { frozen = readFileSync(readme, 'utf8').split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE) } catch { frozen = 'unknown' }
+      }
+      cache.set(key, frozen)
+    }
+    if (cache.get(key) === true) return true
+    if (cache.get(key) === 'unknown') unknown = true
+  }
+  return unknown ? 'unknown' : false
+}
+
 // ADR task directories from the git listing, not a disk walk. A gitignored
 // tasks/ dir is not in flight; git-fail is UNPROVEN at the caller.
+// ⚠ AND NEITHER IS A RETIRED ONE. A frozen archive is "historical evidence, never
+// an executable plan" (adr-execute), and this walked it anyway: the day this
+// repository retired its first records, every session was offered their tasks as
+// READY with the command to run. Skipped BEFORE the cap below, or three frozen
+// task sets would also crowd three live ones out of the orientation.
 function taskDirectories(root, listing) {
   if (listing == null) return []
   const found = []
   const seen = new Set()
+  const frozen = new Map()
+  const listed = new Set(listing.map(rel => posixListed(rel)))
   for (const rel of listing) {
     if (found.length >= 6) break
     const norm = posixListed(rel)
     const parts = norm.split('/').filter(Boolean)
     const index = parts.indexOf('tasks')
     if (index < 0) continue
+    // ⚠ `tasks` IS ANSIBLE'S WORD TOO. Every role has a `roles/<name>/tasks/main.yml`,
+    // and any listed path with a `tasks` component qualified — so an infrastructure
+    // repository spent half its six orientation entries on `roles/admins/tasks:
+    // UNPROVEN — no task files`, alphabetically ahead of a READY task, at every
+    // session start (peer-measured 2026-09-19). `adr-next` reads the `*.md` directly
+    // under the directory and nothing else, so that is what makes one a candidate.
+    if (parts.length !== index + 2 || !/\.md$/i.test(parts[index + 1])) continue
     const dirParts = parts.slice(0, index + 1)
     if (dirParts.some((part, i) => i < dirParts.length - 1 && UNINTERESTING_DIRECTORY.test(part))) continue
+    const archived = underFrozenArchive(root, dirParts, frozen, listed)
+    if (archived === true) continue
     const key = dirParts.join('/')
     if (seen.has(key)) continue
     seen.add(key)
-    found.push(listedAbsolute(root, key))
+    // `archive: 'unknown'` travels WITH the directory, as a field on the entry.
+    found.push({ directory: listedAbsolute(root, key), archive: archived === 'unknown' ? 'unknown' : 'no' })
   }
   return found
 }
@@ -3431,7 +1127,15 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
   const tool = path.join(PLUGIN_ROOT, 'bin', 'adr-next')
   if (!existsSync(tool)) return { look: 'ok', lines: [] }
   const lines = []
-  for (const directory of taskDirectories(root, listing)) {
+  for (const { directory, archive } of taskDirectories(root, listing)) {
+    if (archive === 'unknown') {
+      // No READY line for a directory that may be a frozen archive: `adr-next` reads
+      // the record and its tasks, never the catalog, so it cannot settle this.
+      lines.push(`  ${posixListed(path.relative(root, directory) || directory)}: UNPROVEN — a README above it is listed under another `
+        + 'spelling or could not be read, so whether this is a frozen archive is unknown. Name the catalog `README.md`. '
+        + 'Ready tasks there are not known.')
+      continue
+    }
     const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
     // posixListed: path.relative is native separators; SessionStart text and
     // the Windows CI structural-path rule need a listed form (ADR-046 T5).
@@ -3532,6 +1236,95 @@ function statusKind(status) {
   if (/^accepted\b/i.test(status)) return 'governing'
   if (/^(?:superseded|withdrawn|rejected|deprecated)\b/i.test(status)) return 'graveyard'
   return null
+}
+
+// What the archive catalog beside a frozen record says its decision's effect is
+// NOW: `governing`, `withdrawn`, or `superseded by ADR-NNN` — or null when the
+// directory is not an archive, or lists no row for this record.
+//
+// ⚠ THE CATALOG, NOT THE FILE, IS THE AUTHORITY FOR A FROZEN RECORD. A retired file
+// is never edited — that is what frozen means — so one withdrawn in 2026 says
+// `Status: Accepted` for ever. This reader took the file's word, and on a session's
+// first edit of a governed file `adr-context` answered, unprompted, that three
+// withdrawn and superseded records GOVERN lifecycle.mjs, each "caught by" a test
+// that had been deleted with them. Found 2026-09-19, the day after this repository
+// first retired anything; the comment above quoted half the rule and not this half.
+//
+// ⚠ AND A CATALOG THAT DOES NOT ESTABLISH THE EFFECT LEAVES IT UNPROVEN — it does
+// not hand authority back to the frozen file. A missing row, a duplicate row, an
+// effect spelled `**withdrawn**`, or a title holding `\|` that shifted the columns
+// each fell through to `Status: Accepted` and came back `governing`, `look: ok`;
+// a row whose LINK named another file retired a record it was not about
+// (different-lineage review, 2026-09-19). One row, targeting this file, carrying
+// one of the three effects `adr-retire-check` accepts — or `{ unproven }`.
+// Returns null when the directory is not a LISTED archive: the file's own status
+// stands there, and an unlisted README on this disk governs nothing (CLAUDE.md §8).
+const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by ADR-\d+)$/i
+
+function catalogCells(line) {
+  const cells = []
+  let cell = ''
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] === '\\' && line[index + 1] === '|') { cell += '|'; index += 1 }
+    else if (line[index] === '|') { cells.push(cell.trim()); cell = '' }
+    else cell += line[index]
+  }
+  cells.push(cell.trim())
+  return cells.slice(1, -1)
+}
+
+function archiveDecisionEffect(file, reader, cache, listed) {
+  const directory = path.dirname(file)
+  if (!cache.has(directory)) {
+    let rows = null
+    const readme = listedReadme(directory,
+      [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)),
+      candidate => reader.text(candidate))
+    if (readme === README_UNKNOWN) rows = 'unknown-readme'
+    else if (readme !== null) {
+      try {
+        const lines = reader.text(readme).split(/\r?\n/)
+        if (lines.includes(ARCHIVE_LIFECYCLE_LINE)) {
+          rows = new Map()
+          for (const line of lines) {
+            if (!line.startsWith('|')) continue
+            const cells = catalogCells(line)
+            const link = /^\[ADR-0*\d+\]\(([^)]*)\)$/.exec(cells[0] ?? '')
+            if (!link) continue
+            // ⚠ A ROW SPEAKS FOR THE FILE ITS LINK RESOLVES TO, not for any file that
+            // shares a basename. Keyed by basename, `../b/ADR-001-x.md` and a remote
+            // URL ending in the name both retired the local record, while the local
+            // `ADR-001-x.md#decision` was refused. A fragment is dropped, as
+            // `adr-retire-check` drops it.
+            // ⚠ AN ALLOWLIST, NOT A BLOCKLIST — this is a classifier over open input,
+            // and "not recognised as remote" is not "known to be local" (CLAUDE.md
+            // §16). It was a blocklist three times: no check at all, then a scheme
+            // test removed as "redundant", then a scheme-and-root test that a
+            // LEADING SPACE and an angle-wrapped `<https://…>` both walked past —
+            // `https://host/../../ADR-007-x.md` normalises onto the record, and each
+            // retired it with `look: ok`. So a link is a plain relative path in the
+            // characters a record's filename is made of, or the row says nothing.
+            // A legal but unusual name (a colon, a space) costs an UNPROVEN, which is
+            // the direction a wrong guess here is allowed to fail in.
+            const href = link[1].split('#')[0]
+            if (!/^(?:\.\.?\/)*[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/.test(href)) continue
+            const target = path.resolve(directory, ...href.split('/'))
+            rows.set(target, [...(rows.get(target) ?? []), cells[2] ?? ''])
+          }
+        }
+      } catch { rows = 'unread' }
+    }
+    cache.set(directory, rows)
+  }
+  const rows = cache.get(directory)
+  if (rows === null) return null
+  if (rows === 'unread') return { unproven: 'the README beside it is listed and could not be read, so whether this is an archive is unknown' }
+  if (rows === 'unknown-readme') return { unproven: 'a README is listed beside it under another spelling, and whether that is this directory\'s catalog is not something this reader guesses — name it `README.md`' }
+  const effects = rows.get(file) ?? []
+  if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }
+  if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }
+  if (!ARCHIVE_EFFECT.test(effects[0])) return { unproven: `its archive catalog gives an effect this reader does not know: ${effects[0].slice(0, 60)}` }
+  return { effect: effects[0] }
 }
 
 // One glob component at a time, so `**` can cross separators and `*` cannot.
@@ -3831,6 +1624,7 @@ export function trackedPaths(root) {
  * no files. Nothing here writes, and nothing here runs a check.
  */
 export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
+  const archiveEffects = new Map()
   const records = []
   const unreadable = []
   Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })
@@ -3839,6 +1633,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   })
   if (tracked == null) return records
   const reader = corpusReader()
+  const listedFiles = new Set(tracked.map(rel => listedAbsolute(root, rel)))
   const files = recordFilesFromListing(root, tracked, reader)
   const recordsPerDirectory = new Map()
   for (const file of files) {
@@ -3863,7 +1658,14 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       records.look = 'PARTIAL'
       continue
     }
-    const status = recordStatus(text)
+    // A frozen record's effect comes from its archive's catalog; `governing` there
+    // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
+    // and the record then governs nothing here rather than whatever it last said.
+    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles)
+    if (archived?.unproven) records.look = 'PARTIAL'
+    const effect = archived?.effect
+    const retired = typeof effect === 'string' && /^(?:withdrawn|superseded\b)/i.test(effect)
+    const status = archived?.unproven ? `frozen, effect UNPROVEN — ${archived.unproven}` : retired ? effect : recordStatus(text)
     const kind = statusKind(status)
     if (!kind) {
       // A file that looks like a record and carries no status this reader knows
@@ -3879,7 +1681,19 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // has only two options, both wrong: treat them as executable (§48, where
       // the router offered an unaccepted record's tasks) or ignore them and
       // report a corpus with unfinished work as finished.
-      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader) })
+      // A frozen record whose effect could not be established still says what it
+      // would govern; `decisionsGoverning` needs that to name it where it matters.
+      // The SAME two sources a governing record's paths come from — its `Governs:`
+      // header and its tasks' Affected Files — because a record with task tables
+      // and no header matched nothing and was dropped in silence (seventh review).
+      // Every task file in its directories counts here, not only the attributed
+      // ones: naming an uncertain record once too often is the direction to err in.
+      const recordTasks = taskFilesFor(file, text, reader)
+      const wouldGovern = () => [...new Set([...declaredGoverns(text).paths,
+        ...recordTasks.flatMap(task => { try { return affectedFiles(reader.text(task)) } catch { return [] } })])]
+      unreadable.push({ file, status: status || null, taskFiles: recordTasks,
+        ...(archived?.unproven ? { unproven: archived.unproven, governs: wouldGovern(),
+          title: (text.match(/^#\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })
       continue
     }
     const declared = declaredGoverns(text)
@@ -4026,14 +1840,16 @@ export function decisionsGoverning(paths, root, corpus = adrCorpus(root)) {
   return {
     governing: corpus.filter(record => record.kind === 'governing' && hits(record)),
     graveyard: corpus.filter(record => record.kind === 'graveyard' && hits(record)),
+    // Records that DECLARE these paths and whose standing could not be established.
+    unproven: (corpus.unreadable ?? []).filter(record => typeof record.unproven === 'string' && Array.isArray(record.governs) && hits(record)),
     look: corpus.look ?? 'ok',
   }
 }
 
 /** The same answer as prose, or '' when the corpus has nothing to say. */
 export function decisionContext(paths, root) {
-  const { governing, graveyard } = decisionsGoverning(paths, root)
-  if (!governing.length && !graveyard.length) return ''
+  const { governing, graveyard, unproven } = decisionsGoverning(paths, root)
+  if (!governing.length && !graveyard.length && !unproven.length) return ''
   const lines = []
   const name = record => `${path.relative(root, record.file) || record.file} — ${record.title}`
   // The hook and `adr-context` render the SAME answer from the same resolver.
@@ -4053,6 +1869,16 @@ export function decisionContext(paths, root) {
       lines.push(`  ${name(record)} [${record.status}]`)
     }
     if (graveyard.length > 5) lines.push(`  (+${graveyard.length - 5} more)`)
+  }
+  // ⚠ "NOTHING GOVERNS THIS" AND "COULD NOT TELL WHAT GOVERNS THIS" ARE NOT ONE
+  // SILENCE. A frozen record whose catalog cannot establish its effect left both
+  // lists empty, and this returned '' — so the edit hook said nothing about a file a
+  // record DECLARES, where one commit earlier it had named a withdrawn decision
+  // (sixth review; ADR-005).
+  if (unproven.length) {
+    lines.push('UNPROVEN — these records declare what you are about to change, and whether they still govern could not be established:')
+    for (const record of unproven.slice(0, 5)) lines.push(`  ${name(record)} [${record.unproven}]`)
+    if (unproven.length > 5) lines.push(`  (+${unproven.length - 5} more)`)
   }
   const unresolved = [...new Set([...governing, ...graveyard].flatMap(record => record.unresolved))]
   if (unresolved.length) {
@@ -4085,39 +1911,131 @@ export function bumpSessionGeneration(sessionId) {
   return next
 }
 
-// What a session was doing, in the words the NEXT context needs: paths edited
-// since the last publish and whether anything has checked them, the last check
-// and its verdict, the ADR task in flight. Written at PreCompact and handed back
-// by the compact SessionStart — compaction keeps the summary the model wrote
-// and drops the state the gates measured, and the two are not the same thing.
-// Also the row SessionEnd writes, so the next session in the same directory
-// starts knowing what the last one left unverified.
-export function sessionStateNote(state, cwd, root, insideRepository, now = new Date(), { tasks = true } = {}) {
-  const edited = state.mutationPathsSince(state.lastPublish)
-  const files = provenMutationPaths(edited, cwd)
-  const other = edited.length - files.length
+// What a session was doing, in the words the NEXT context needs: the paths that
+// changed and whether a `qh-check` has passed on them, the last check event, the
+// ADR task in flight. Written at PreCompact and handed back by the compact
+// SessionStart — compaction keeps the summary the model wrote and drops the
+// state the gates measured, and the two are not the same thing. Also the row
+// SessionEnd writes, so the next session in the same directory starts knowing
+// what the last one left unchecked.
+//
+// ADR-060 T6: its input is the event log's reading of the tree, not a
+// transcript, so what it reports is what git and the tool events show.
+export function observedFacts(log, root, observation) {
+  const writes = unobservableWrites(log)
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const status = observation?.ok === true ? statusPaths(root) : []
+  // By when it RAN, like the verdict: this kept `.at(-1)` after `latestCheckFor`
+  // stopped trusting append order, so a stale re-imported pass landing last made
+  // the note print — and SessionEnd persist — "Last check: … passed" beside
+  // `checked: false` (different-lineage review, 2026-09-19).
+  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), { unresolved: 'say-so' })
+  const treeUnchecked = observation?.ok === true && !treeChecked(log, observation.tree)
+    && (baseline?.ok !== true || observation.tree !== baseline.tree)
+  // ⚠ ONE REASON NOTHING HERE MAY BE READ AS A VERDICT, OR NONE. The tree that
+  // could not be observed had its arm; a `git status` that FAILED and a log that
+  // could not be read whole did not, and both arrived below as an empty list and
+  // a surviving pass — "nothing has changed" and `verified`, persisted to
+  // `sessions.jsonl` for the next session to believe (audit 2026-09-18, B2 and
+  // B4). `tests/evidence-flip.test.mjs` holds this for every reader at once.
+  const why = observation?.ok !== true ? 'the working tree could not be observed'
+    : status.ok === false ? 'git could not list the working tree'
+      : logIncomplete(log) ? 'the session log could not be read whole'
+        : null
+  return {
+    files: root ? status.map(relative => path.join(root, relative)) : [],
+    other: writes.length,
+    pending: treeUnchecked || writes.length > 0,
+    // ⚠ THREE QUESTIONS, NOT ONE. `pending` answers "is there outstanding work".
+    // It was also doing duty for "did a check pass" and for "was anything
+    // observed", and it answers neither: an INHERITED dirty tree is not
+    // `treeUnchecked` (its tree equals the baseline's), so `pending` was false
+    // with no check ever run, and an unobservable tree yields an empty file list,
+    // which read as stillness. Found by a different-lineage review, 2026-09-18.
+    // The LAST check about this tree by when it RAN, for the same reason
+    // `treeChecked` no longer trusts log position.
+    checked: latestCheckFor(log, observation?.tree)?.event === 'check.passed',
+    // Whose word the pass is. A check this tool GUESSED from a manifest may be
+    // green while the project is red — `pnpm test` over a monorepo whose PHP half
+    // holds the invariants — and the caveat that leads every message BEFORE the
+    // check was gone AFTER it, which is when the guess starts certifying things.
+    checkOrigin: latestCheckFor(log, observation?.tree)?.origin ?? null,
+    checkCommand: latestCheckFor(log, observation?.tree)?.command ?? null,
+    observed: why === null,
+    // Whether the LOG was whole, apart from whether the tree was seen: "Last
+    // check" is read from the log alone, and a torn one may have lost the newer
+    // check — so neither "passed" nor "no check has run" may be said from it.
+    whole: !logIncomplete(log),
+    why,
+    // Whether the baseline was adopted partway through the session. "Nothing has
+    // changed" then means "since watching began", and says nothing about a commit
+    // made before it — the note and the status line have to carry that, or the
+    // once-only R4 line is the only place it was ever said.
+    late: log.find(entry => entry.event === 'session.started')?.late === true,
+    // Null from a torn log, not merely unprinted: SessionEnd persists this as
+    // `lastVerdict`, and a row is read by a session that never saw the log.
+    lastCheck: check && !logIncomplete(log)
+      ? { command: check.command ?? null, verdict: check.event.slice('check.'.length) } : null,
+  }
+}
+
+export function sessionStateNote(facts, cwd, root, insideRepository, now = new Date(), { tasks = true } = {}) {
+  const files = Array.isArray(facts?.files) ? facts.files : []
+  const other = Number(facts?.other) || 0
   const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)
   if (files.length > shown.length) shown.push(`+${files.length - shown.length} more`)
-  const unprovenWrite = state.unprovenWritePending()
-  const pending = state.unverifiedSince(state.lastPublish) || unprovenWrite
-  // Three states, not two: 'neutral' is a session that edited nothing since its
-  // last publish, which says nothing about what an EARLIER session left — a
-  // reader walking back must not stop on it (Codex review, 2026-09-05).
-  const status = edited.length === 0 && !unprovenWrite ? 'neutral' : pending ? 'unverified' : 'verified'
+  const pending = facts?.pending === true
+  const late = facts?.late === true
+  // Three states, not two: 'neutral' is a session that changed nothing, which
+  // says nothing about what an EARLIER session left — a reader walking back must
+  // not stop on it (Codex review, 2026-09-05).
+  // A tree nothing could observe is never 'neutral' and never 'verified': those
+  // are claims about a tree that was looked at.
+  const observed = facts?.observed !== false
+  // Credit a check only when one is ON RECORD as having passed. `pending` being
+  // false is not evidence that anything ran — an inherited dirty tree is not
+  // `treeUnchecked`, so it arrives here with pending false and no check at all.
+  // ⚠ ONLY the check for THIS tree can credit it. `lastCheck` is the newest check
+  // event whatever tree it was about, so `|| lastCheck.verdict === 'passed'` let a
+  // pass for an UNRELATED tree certify these paths. It stays descriptive — the
+  // note prints it as "Last check:" — and certifies nothing.
+  const passed = facts?.checked === true
+  // ⚠ `neutral` IS A CLAIM THAT NOTHING IS OUTSTANDING, so `pending` gates it too.
+  // A turn that COMMITS its work has no uncommitted file and an unchecked tree:
+  // it took this arm, persisted `neutral`, and the next session was told nothing
+  // — while R1, same session, same tree, named the commit by sha (audit B1).
+  const status = !observed ? 'unverified'
+    // ...and a LATE baseline cannot make that claim for the session: it covers
+    // only what followed it (different-lineage review, 2026-09-19).
+    : files.length === 0 && other === 0 && !pending ? (late ? 'unverified' : 'neutral')
+      : pending || !passed ? 'unverified' : 'verified'
   const parts = []
-  if (edited.length) {
-    // The observation, narrowly: whether a recognised check passed after the
-    // edits. The commit gate also runs artifact gates, so this is not its verdict.
-    parts.push(`${files.length} path(s) edited since the last publish${other ? ` and ${other} shell mutation(s)` : ''}; `
-      + `${pending ? 'no recognised check has passed since' : 'a recognised check passed after them'}${shown.length ? `: ${shown.join(', ')}` : ''}.`)
-  } else if (unprovenWrite) {
-    parts.push('UNPROVEN write since the last publish; no recognised check has proven it.')
+  if (files.length && observed) {
+    const verdict = pending ? 'no `qh-check` has passed on them'
+      : passed ? `a \`qh-check\` passed on them${facts?.checkOrigin === 'inferred'
+        ? ` — using an INFERRED check (\`${facts.checkCommand ?? 'unknown'}\`), guessed from a manifest and not declared, so it may not be this project's whole gate; declare the real command as \`check\` in .quality-harness.json`
+        : ''}`
+        : 'nothing here changed them since the session began, and no `qh-check` has passed on them'
+    parts.push(`${files.length} changed path(s)${other ? ` and ${other} write(s) git cannot see` : ''}; `
+      + `${verdict}${shown.length ? `: ${shown.join(', ')}` : ''}.`)
+  } else if (other) {
+    parts.push(`${other} write(s) git cannot see since the last passing check.`)
+  } else if (!observed) {
+    parts.push(`${facts?.why ?? 'the working tree could not be observed'}, so what changed here is unknown.`
+      + (files.length ? ` Git lists ${files.length} changed path(s): ${shown.join(', ')}.` : ''))
+  } else if (pending) {
+    parts.push('nothing is uncommitted, and the tree at HEAD is one no `qh-check` has passed on.')
   } else {
-    parts.push('nothing edited since the last publish.')
+    parts.push(late
+      ? 'nothing has changed in the working tree since this plugin began watching — which was partway through this '
+        + 'session, so what happened before that, a commit included, is unknown here (ADR-005).'
+      : 'nothing has changed in the working tree.')
   }
-  parts.push(state.lastVerdictCommand
-    ? `Last check: \`${state.lastVerdictCommand}\` ${state.lastVerdict ?? 'unknown'}.`
-    : 'No check has run this session.')
+  parts.push(facts?.whole === false ? 'Which check ran last is unknown.'
+    : facts?.lastCheck?.verdict === 'unresolved' ? 'Which check ran last could not be established: the records disagree and cannot be ordered.'
+      : facts?.lastCheck
+        ? `Last check: \`${facts.lastCheck.command ?? 'qh-check'}\` ${facts.lastCheck.verdict}.`
+        : 'No check has run this session.')
   if (tasks) {
     const listing = insideRepository ? trackedPaths(root) : null
     const ready = readyTaskLines(root, insideRepository, listing)
@@ -4136,9 +2054,38 @@ function sessionNotePath(sessionId) {
   return path.join(os.tmpdir(), `quality-harness-note-${stamp}`)
 }
 
-function readSessionNote(sessionId) {
+export function readSessionNote(sessionId) {
   if (typeof sessionId !== 'string' || !sessionId) return null
   try { return JSON.parse(readFileSync(sessionNotePath(sessionId), 'utf8')) } catch { return null }
+}
+
+/**
+ * Replace this session's state note, or leave NONE. Null removes it.
+ *
+ * The old note goes first, so a replace that fails cannot leave a stale one behind
+ * to be handed back as current (Codex review, 2026-09-05): a note from an EARLIER
+ * compaction read as this one's is worse than no note. `write` is a parameter
+ * because nothing outside can make a real write fail on demand, and a branch with
+ * no injectable seam has no test (CLAUDE.md §7) — this one lost its only test when
+ * PreCompact stopped reading transcripts, and its mutant survived until 2026-09-19.
+ */
+export function replaceSessionNote(sessionId, note, write = writeFileSync) {
+  if (typeof sessionId !== 'string' || !sessionId) return false
+  // ⚠ "OR LEAVE NONE" HAS TO BE TRUE WHEN THE UNLINK FAILS TOO. This swallowed
+  // every unlink error, so EACCES followed by a failed write left the OLD note in
+  // place and readable, and with `note === null` it even returned true over it.
+  // A missing file is the only failure that means "there is none".
+  let cleared = true
+  try { unlinkSync(sessionNotePath(sessionId)) } catch (failure) { cleared = failure?.code === 'ENOENT' }
+  if (note === null) {
+    if (!cleared) process.stderr.write('[quality-harness] PreCompact: an earlier state note could not be removed; it is older than this compaction.\n')
+    return cleared
+  }
+  try { write(sessionNotePath(sessionId), JSON.stringify(note)); return true } catch (failure) {
+    process.stderr.write(`[quality-harness] PreCompact: could not keep the state note (${failure.code ?? failure.message})`
+      + `${cleared ? '' : ', and an earlier one could not be removed; it is older than this compaction'}.\n`)
+    return false
+  }
 }
 
 // "Here" is the repository (or the directory, outside one), realpath'd so
@@ -4181,6 +2128,21 @@ function previousSessionNotice(cwd, platform = process.platform) {
   const other = Number(row.other) || 0
   const what = [row.files?.length ? `${row.files.length} edit(s)` : '', other ? `${other} shell mutation(s)` : ''].filter(Boolean).join(' and ') || 'edits'
   const check = projectCheckCommand(cwd)
+  // ⚠ AN `unverified` ROW IS NOT ALWAYS A ROW ABOUT EDITS. A session whose tree
+  // could not be observed, or that was watched only from partway through, is
+  // persisted `unverified` with NO files — and `|| 'edits'` above then told the
+  // next session it "ended with edits after which no recognised check passed":
+  // an observation nobody made, about work that may not exist (ADR-005).
+  if (typeof row.unknown === 'string' && row.unknown) {
+    return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with its state `
+      + `UNKNOWN to this plugin — ${row.unknown}.${files.length ? ` Git listed: ${files.join(', ')}.` : ''}`
+      // What IS known stays said: a write recorded with no passing check after it
+      // does not stop being outstanding because the tree could not be seen. Worded
+      // as what is ON RECORD — the row may come from a log that lost a line, and
+      // "no check passed" would be a verdict about the line that was lost.
+      + `${other ? ` ${other} write(s) git cannot see were recorded, and no passing check after them is on record.` : ''} `
+      + (check ? `\`${check}\` is this project's check.` : 'No check is declared here.')
+  }
   return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with `
     + `${what} after which no recognised check passed${files.length ? `: ${files.join(', ')}` : ''}. `
     + (check ? `Run \`${check}\` before building on them.` : 'Nothing has checked them since.')
@@ -4504,8 +2466,15 @@ export function sessionOrientation(cwd) {
       ? `this project's own check is \`${check}\``
       : `no \`check\` is declared in \`.quality-harness.json\`; inferred \`${check}\` from a manifest — that is not this project's own check`
     lines.push(`Verification: ${named}. `
-      + 'The completion and commit gates accept it as evidence when it runs after your last edit; '
-      + 'a piped or `|| true` run does not count, because it hides the exit code.')
+      // ADR-060: a check is an EVENT `qh-check` writes, so how the command is
+      // spelled, piped or redirected no longer decides anything — but running it
+      // any other way now leaves no record at all, and the orientation has to say
+      // so. A peer session testing this branch ran its check directly and was
+      // still told the tree was unchecked, which is correct and was not said
+      // anywhere (2026-09-18).
+      + 'Run it through `qh-check`: that is what records the result where the '
+      + 'completion and commit advisories read it. The same command run any other '
+      + 'way still proves the work to you, and leaves them nothing to see.')
   }
 
   const stale = staleVersionNotice()
@@ -4575,45 +2544,13 @@ function decisionContextFor(input) {
 // entry with a top-level await pending (Node: "unsettled top-level await").
 const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
-// Interactive editors and anything that opens a file to write it. A reviewer
-// has no business in one; the classifier reads none of them as a mutation.
-const EDITORS = /(?:^|[\s;&|(])(?:vim?|nvim|nano|emacs|ed|ex|pico|micro|code|subl|open\s+-e)\b/
-
-// Payloads a shell would run: `bash -c '…'`, `$(…)`, backticks. The classifier
-// looks at the outer command; these are the inner ones, each judged as a
-// command of its own (Codex review, 2026-09-05: all three passed the first
-// shape of this guard).
-function innerCommands(command) {
-  const inner = []
-  for (const match of command.matchAll(/\b(?:ba|z|da)?sh\s+(?:-[a-zA-Z]*\s+)*-c\s+(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')/g)) {
-    inner.push(match[1] ?? match[2])
-  }
-  for (const match of command.matchAll(/\$\(((?:[^()]|\([^()]*\))*)\)/g)) inner.push(match[1])
-  for (const match of command.matchAll(/`([^`]*)`/g)) inner.push(match[1])
-  return inner.filter(text => text && text.trim())
-}
-
-function bashVerdict(command, cwd, depth = 0) {
-  if (isGitPublishCommand(command)) {
-    return 'This role is read-only: it does not commit, push, or stage. Name the commit you would make in the review.'
-  }
-  if (EDITORS.test(command)) {
-    return 'This role is read-only: an editor is not available to it. Read the file and report the change you would make.'
-  }
-  const kind = classifyCommand(command)
-  if (kind === 'unrecognised') {
-    return 'This role is read-only: that command\'s executable family is unrecognised, so it is not known not to write. Read, grep, diff and run checks; report the edit rather than making it.'
-  }
-  if (kind === 'mutation' && !mutatesOnlyTempPaths(command, cwd)) {
-    return 'This role is read-only: that command writes outside the temp roots. Read, grep, diff and run checks; report the edit rather than making it.'
-  }
-  if (depth < 3) {
-    for (const inner of innerCommands(command)) {
-      const reason = bashVerdict(inner, cwd, depth + 1)
-      if (reason) return reason
-    }
-  }
-  return null
+// The one reading of a command's text that stays (ADR-060): whether it names
+// `commit` or `push` as a word — no letter, digit, `_` or `-` directly before or
+// after. Nothing else is parsed, so a wrapped publish (`pwsh -Command 'git push'`,
+// a Python subprocess) is caught, and `pre-commit` is not.
+const COMMIT_OR_PUSH_WORD = /(?<![A-Za-z0-9_-])(?:commit|push)(?![A-Za-z0-9_-])/
+export function containsCommitOrPush(command) {
+  return typeof command === 'string' && COMMIT_OR_PUSH_WORD.test(command)
 }
 
 export function readOnlyVerdict(input) {
@@ -4623,9 +2560,8 @@ export function readOnlyVerdict(input) {
   }
   if (tool !== 'Bash') return null
   const command = input?.tool_input?.command
-  if (typeof command !== 'string' || !command.trim()) return null
-  const cwd = typeof input?.cwd === 'string' ? input.cwd : process.cwd()
-  return bashVerdict(command, cwd)
+  if (!containsCommitOrPush(command)) return null
+  return 'This role is read-only: a command naming commit or push is not available to it. Name the commit you would make in the review. Any other change you make is reported when you finish.'
 }
 
 export const READ_ONLY_ROLES = ['qh-correctness-reviewer', 'qh-scope-reviewer', 'qh-synthesis']
@@ -4635,9 +2571,964 @@ export function readOnlyRole(agentType) {
   return READ_ONLY_ROLES.includes(bare) ? bare : null
 }
 
+// ---- ADR-060: hooks are named events, each observed and appended to a log.
+// The state directory and the log itself are in `event-log.mjs`, imported above.
+
+// The working tree, the index and HEAD as content hashes. Both hashes are taken
+// over a COPY of the index with objects written to a temporary directory, the
+// repository's own objects as alternate: measured 2026-09-17, the repository's
+// objects, index and status are unchanged by it (ADR-060 Context).
+const OBSERVE_BUDGET_MS = 5_000
+export function observe(cwd, budgetMs = OBSERVE_BUDGET_MS) {
+  const started = Date.now()
+  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
+  if (!directory) return { ok: false, reason: 'the working directory does not exist' }
+  let scratch = null
+  const git = (args, env = null, allowed = [0]) => {
+    const remaining = budgetMs - (Date.now() - started)
+    if (remaining <= 0) throw new Error(`git took more than ${budgetMs} ms`)
+    const run = spawnSync('git', ['-C', directory, ...args], {
+      encoding: 'utf8', timeout: remaining, maxBuffer: 16 * 1024 * 1024,
+      env: env ? { ...process.env, ...env } : process.env,
+    })
+    if (run.error?.code === 'ETIMEDOUT') throw new Error(`git took more than ${budgetMs} ms`)
+    if (run.error) throw new Error(`git could not run (${run.error.code ?? run.error.message})`)
+    if (!allowed.includes(run.status)) throw new Error(`git ${args[0]} exited ${run.status}`)
+    return { status: run.status, out: run.stdout.trim() }
+  }
+  try {
+    const root = git(['rev-parse', '--show-toplevel']).out
+    const indexPath = path.resolve(directory, git(['rev-parse', '--git-path', 'index']).out)
+    const objects = path.resolve(directory, git(['rev-parse', '--git-path', 'objects']).out)
+    const head = git(['rev-parse', '--verify', '-q', 'HEAD'], null, [0, 1])
+    scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-observe-'))
+    const index = path.join(scratch, 'index')
+    if (existsSync(indexPath)) copyFileSync(indexPath, index)
+    mkdirSync(path.join(scratch, 'objects'))
+    const env = { GIT_INDEX_FILE: index, GIT_OBJECT_DIRECTORY: path.join(scratch, 'objects'), GIT_ALTERNATE_OBJECT_DIRECTORIES: objects }
+    const indexTree = git(['write-tree'], env).out
+    git(['add', '-A', ...harnessPathspecs(root)], env)
+    const tree = git(['write-tree'], env).out
+    return { ok: true, tree, index: indexTree, head: head.status === 0 ? head.out : null }
+  } catch (failure) {
+    return { ok: false, reason: failure.message }
+  } finally {
+    if (scratch) {
+      try { rmSync(scratch, { recursive: true, force: true }) } catch { /* a leftover temp copy is not a finding */ }
+    }
+  }
+}
+
+// ADR-005: an observation that could not be made never matches anything.
+// A `qh-check` record becomes exactly one event, the first rule that applies
+// (ADR-060 Decision). Outside git no observation can be ok, so a pass there is
+// not unproven: it clears only unobservable writes recorded before it started.
+export function checkEventName(record) {
+  if (record?.verdict === 'unstarted') return 'check.unstarted'
+  // Inside git the evidence is about the TREE: a check that stages or commits has
+  // not changed what it checked, and a not-ok side never matches (ADR-005).
+  const treeOnly = observation => observation?.ok === true ? { ok: true, tree: observation.tree, index: null, head: null } : observation
+  if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'
+  // AFTER the signal: `unproven` is read from a phrase, and a recorded SIGTERM is
+  // an observation. "deadline exceeded" at exit 1 with a signal is a timeout.
+  if (record?.verdict === 'unproven') return 'check.unproven'
+  if (record?.exit !== 0) return 'check.failed'
+  if (record?.git == null) return 'check.unproven'
+  if (record.git === true && !sameObservation(treeOnly(record.before), treeOnly(record.after))) return 'check.unproven'
+  if (record.verdict === 'no-work') return 'check.no-work'
+  return 'check.passed'
+}
+
+/**
+ * Import what `qh-check` wrote, and say whether the source could be read WHOLE.
+ *
+ * ⚠ THE SIBLING READER OF THE OTHER APPEND-ONLY FILE. `readEvents` was taught that
+ * an incomplete read must not supply a positive verdict; this one still swallowed
+ * a torn line with `catch { continue }` and had its return value discarded by the
+ * caller. So a newer FAILURE whose line is truncated never reached the session log
+ * at all — and `latestCheckFor` cannot refuse an order it cannot establish when
+ * the event is simply absent. The older pass stood, and the note said a check had
+ * passed. Found by a re-review and independently by an adversarial reader, both on
+ * 2026-09-18.
+ *
+ * ⚠ A TORN APPEND LOSES TWO RECORDS, NOT ONE, and the file never repairs: a
+ * truncated write leaves no trailing newline, so the NEXT record lands on the same
+ * line and is unparseable with it. Measured by the reader. That is why this
+ * reports a state rather than trying to recover the tail.
+ */
+function importCheckRecords(cwd, session) {
+  let text
+  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch (error) {
+    // Never written is not the same as could-not-read.
+    return { imported: 0, complete: error?.code === 'ENOENT' }
+  }
+  const seen = new Set(readEvents(cwd, session).filter(entry => typeof entry.record === 'string').map(entry => entry.record))
+  let imported = 0
+  let whole = true
+  // ⚠ `checks.jsonl` IS THE AUTHORITY ON THE ORDER CHECKS RAN. It is append-only,
+  // written by qh-check, so a record's INDEX in it is the one ordering nothing can
+  // race. Stamping it here is what lets `latestCheckFor` refuse to be fooled by the
+  // order two interleaved importers happen to append in — a wall clock can tie and
+  // can run backwards, so `startedAt` could never be the authority.
+  let sequence = 0
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    let record
+    try { record = JSON.parse(line) } catch { whole = false; continue }
+    if (typeof record?.id !== 'string') { whole = false; continue }
+    sequence += 1
+    if (seen.has(record.id)) continue
+    appendEvent(cwd, session, {
+      event: checkEventName(record), record: record.id, seq: sequence,
+      startedAt: record.before?.at ?? null,
+      before: record.before ?? null, after: record.after ?? null, exit: record.exit ?? null,
+      signal: record.signal ?? null, command: record.command ?? null, origin: record.origin ?? null,
+    })
+    seen.add(record.id)
+    imported += 1
+  }
+  return { imported, complete: whole }
+}
+
+export function sameObservation(a, b) {
+  return a?.ok === true && b?.ok === true && a.tree === b.tree && a.index === b.index && a.head === b.head
+}
+
+const OBSERVED_HOOK_EVENTS = {
+  TaskCompleted: 'task.completed',
+  PreCompact: 'context.compacting',
+  SessionEnd: 'session.ending',
+  SubagentStart: 'subagent.started',
+  SubagentStop: 'subagent.ended',
+}
+
+function recordFileWritten(input) {
+  const target = input.tool_input?.file_path ?? input.tool_input?.notebook_path
+  if (typeof target !== 'string' || !target) return null
+  // Canonical, so this path and rule A's candidate for the same file are one key.
+  const absolute = canonicalFile(path.resolve(input.cwd, target))
+  const entry = { event: 'file.written', path: absolute, observable: false }
+  const directory = nearestExistingDirectory(path.resolve(input.cwd))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  const parent = nearestExistingDirectory(absolute)
+  if (root && parent) {
+    const resolved = path.join(canonical(parent), path.relative(parent, absolute))
+    const relative = path.relative(root, resolved)
+    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+      const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', relative], { encoding: 'utf8', timeout: 5_000 })
+      if (!ignored.error && ignored.status === 1) {
+        const hashed = spawnSync('git', ['-C', root, 'hash-object', '--', relative], { encoding: 'utf8', timeout: 5_000 })
+        entry.observable = true
+        entry.blob = !hashed.error && hashed.status === 0 ? hashed.stdout.trim() : null
+      }
+    }
+  }
+  appendEvent(input.cwd, input.session_id, entry)
+  return entry
+}
+
+// Whether git lists nothing changed under an observation that succeeded. A listing
+// that FAILED is not a clean tree (ADR-005), so it answers false.
+function observedClean(cwd, observation) {
+  if (observation?.ok !== true) return false
+  const directory = nearestExistingDirectory(path.resolve(cwd))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  if (!root) return false
+  const status = statusPaths(root)
+  return status.ok !== false && status.length === 0
+}
+
+// Translate one hook into its named event, observe, and append both. Reads no
+// command text. A payload without a session or a directory records nothing,
+// because the log is per session.
+export function recordHookEvent(input) {
+  const session = input?.session_id
+  if (typeof session !== 'string' || !session || typeof input.cwd !== 'string') return null
+  const hook = input.hook_event_name
+  if (hook === 'PostToolUse') return MUTATION_TOOLS.has(input.tool_name) ? recordFileWritten(input) : null
+  let name = null
+  const extra = {}
+  // A read-only role's PreToolUse is decided by the reviewer deny and never
+  // observed; outside one, a Bash command naming commit or push is a publish request.
+  if (hook === 'PreToolUse') {
+    if (readOnlyRole(input.agent_type) || input.tool_name !== 'Bash' || !containsCommitOrPush(input.tool_input?.command)) return null
+    name = 'publish.requested'
+  }
+  if (hook === 'SessionStart') {
+    // ⚠ ONLY AN EMPTY LOG GETS A BASELINE HERE. A `compact` or `resume` SessionStart
+    // arrives in the middle of a session: with no `session.started` on record it
+    // was taken as the beginning, and a session whose committed, unchecked write
+    // had just been refused a late baseline was handed a fresh, un-`late` one —
+    // `neutral`, "nothing has changed", no check ever run (different-lineage
+    // review, 2026-09-19). A log with history and no baseline is the late case,
+    // and the late rules below decide it.
+    // ...nor does a log that could not be read whole: its real baseline may be the line that was lost.
+    const existing = readEvents(input.cwd, session)
+    if (existing.length > 0 || existing.complete !== true) return null
+    name = 'session.started'
+  } else if (hook === 'Stop') {
+    if (input.stop_hook_active === true || hasBackgroundWork(input)) return null
+    name = 'turn.ended'
+  } else if (OBSERVED_HOOK_EVENTS[hook]) {
+    name = OBSERVED_HOOK_EVENTS[hook]
+    // What ties a state note to THIS compaction (see SessionStart's compact arm).
+    if (hook === 'PreCompact') extra.compactionId = randomUUID()
+    if (hook === 'SubagentStart' || hook === 'SubagentStop') {
+      extra.agentId = typeof input.agent_id === 'string' ? input.agent_id : null
+      extra.agentType = typeof input.agent_type === 'string' ? input.agent_type : null
+    }
+  }
+  if (!name) return null
+  const entry = { event: name, ...extra, observation: observe(input.cwd) }
+  // ⚠ A SESSION THIS PLUGIN BEGAN WATCHING LATE HAS NO `session.started`, and every
+  // "is this tree unchecked" test then read a missing baseline as "everything is
+  // unchecked" — so a Stop on a PRISTINE tree said "work no `qh-check` has passed
+  // on. Git reports no changed path", and asked a session that had edited nothing to
+  // boot its project's test suite. That is every adopter's first turn after
+  // installing or UPGRADING mid-session (peer-reproduced 2026-09-19). The first
+  // observation becomes the baseline, marked `late`.
+  // ONLY FROM A LOG READ WHOLE: a torn log that lost its real `session.started`
+  // must not be handed a new one — a baseline re-found after the work measures that
+  // work against itself. There the completeness guard answers instead.
+  // AND ONLY OVER A CLEAN TREE. The accusation was false only there. On a dirty
+  // tree "these paths changed and nothing has checked them" is simply true, and
+  // adopting that tree as the baseline would forgive it: the first version of this
+  // did, and a `git commit` over an edited file lost its publish warning.
+  let lateBaseline = false
+  if (name !== 'session.started') {
+    const log = readEvents(input.cwd, session)
+    // AND NOT OVER A WRITE ALREADY ON RECORD. PostToolUse can log a `file.written`
+    // before any observing hook runs; commit it, and the first Stop sees a clean
+    // tree. Adopting that as the baseline would call a session with a known,
+    // unchecked write `neutral`. Only a write GIT CAN SEE counts: one outside the
+    // repository says nothing about this tree, stays outstanding on its own, and
+    // refusing the baseline over it accused a repository nothing had touched.
+    if (!logIncomplete(log) && !log.some(event => event.event === 'session.started' || (event.event === 'file.written' && event.observable !== false))
+      && observedClean(input.cwd, entry.observation)) {
+      lateBaseline = appendEvent(input.cwd, session, { event: 'session.started', late: true, observation: entry.observation }) !== false
+    }
+  }
+  // ⚠ A TORN CHECK SOURCE IS RECORDED, not returned and dropped. The readers all
+  // consult the session log, so that is where the fact has to live — and it is
+  // durable, because the file does not repair itself: the next boundary would
+  // otherwise re-discover it and nothing downstream would ever hear. Deduped on
+  // the source's size so a growing-but-still-torn file says it once per change
+  // rather than once per boundary.
+  const source = importCheckRecords(input.cwd, session)
+  if (source.complete === false) {
+    let size = null
+    try { size = statSync(path.join(stateDir(input.cwd), 'checks.jsonl')).size } catch { size = null }
+    const key = `checks.jsonl:${size}`
+    const log = readEvents(input.cwd, session)
+    if (!log.some(event => event.event === 'check.source-unreadable' && event.key === key)) {
+      appendEvent(input.cwd, session, { event: 'check.source-unreadable', key })
+    }
+  }
+  if (!appendEvent(input.cwd, session, entry)) {
+    return { ...entry, observation: { ok: false, reason: 'the event log could not be appended' } }
+  }
+  return lateBaseline ? { ...entry, lateBaseline: true } : entry
+}
+
+// ONE output per hook. A deny is delivered alone, and a legacy deny as well;
+// otherwise every advisory is joined, beside any legacy output passed in, so no
+// finding overwrites another. `action.emitted` is appended only for what was
+// delivered (ADR-060 revision 3 review: `emitJson` kept only the last output).
+export function deliver(actions, input, { legacy = null } = {}) {
+  const event = input?.hook_event_name
+  const denials = actions.filter(action => action.deny)
+  let delivered
+  let output
+  if (denials.length) {
+    delivered = [denials[0]]
+    output = {
+      hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: denials[0].text },
+    }
+    process.stderr.write(`${denials[0].text}\n`)
+  } else if (legacy?.hookSpecificOutput?.permissionDecision === 'deny') {
+    delivered = []
+    output = legacy
+  } else {
+    delivered = actions.filter(action => typeof action.text === 'string' && action.text)
+    output = legacy ? JSON.parse(JSON.stringify(legacy)) : null
+    if (delivered.length) {
+      const texts = delivered.map(action => action.text)
+      for (const text of texts) process.stderr.write(`${text}\n`)
+      const joined = texts.join('\n\n')
+      output ??= {}
+      if (event === 'PreToolUse') {
+        const specific = output.hookSpecificOutput ?? { hookEventName: 'PreToolUse' }
+        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\n\n${joined}` : joined
+        output.hookSpecificOutput = specific
+        const headline = `quality-harness advised the agent: ${advisoryHeadline(texts[0])} (full text in the transcript)`
+        output.systemMessage = output.systemMessage ? `${output.systemMessage}\n${headline}` : headline
+      } else {
+        output.systemMessage = output.systemMessage ? `${output.systemMessage}\n\n${joined}` : joined
+      }
+    }
+  }
+  pendingOutput = output
+  for (const action of delivered) {
+    if (action.rule) {
+      appendEvent(input.cwd, input.session_id, {
+        event: 'action.emitted', rule: action.rule, key: action.key ?? null, ...(action.detail ? { detail: action.detail } : {}),
+      })
+    }
+  }
+  return { output, delivered }
+}
+
+// "Checked" for a tree: its latest check event is check.passed. A check event
+// belongs to the tree of its `after` observation, and the evidence revision of a
+// tree is how many check events it has, so a later check re-opens a finding.
+function checkEventsFor(log, tree) {
+  if (typeof tree !== 'string' || !tree) return []
+  return log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.') && entry.after?.tree === tree)
+}
+
+/**
+ * The check that ran LAST about this tree.
+ *
+ * ⚠ NOT `.at(-1)`. Two hooks importing the same `checks.jsonl` are not atomic:
+ * the importer reads what it has already seen, then appends what it has not, and
+ * an interleaving lands them in an order the checks never happened in. The
+ * review's probe produced `older-pass, newer-fail, older-pass` and `checked:
+ * true` — a stale re-append beat a real failure purely by arriving later.
+ *
+ * `checks.jsonl` is the authority on when a check ran, and every imported event
+ * carries that check's `startedAt`. Ordering by it means a duplicate import can
+ * never change WHICH check is latest, which is the guarantee a lock would have
+ * bought, without one. Log position remains the tie-break, so a log whose events
+ * carry no timestamps behaves exactly as before rather than worse.
+ * Found by a different-lineage review of this branch, 2026-09-18.
+ */
+export function latestCheckFor(log, tree) {
+  // ⚠ THE ONE PLACE A PASS BECOMES A VERDICT, SO THE ONE PLACE A TORN LOG IS
+  // REFUSED. `ledgerEvidence` guarded this for itself and two other readers did
+  // not, which is how `verified` and `QH ✓ checked` were produced from a log with
+  // a line missing. A pass that survived may be older than a failure that did not
+  // (ADR-005), so an incomplete log cannot certify — for ANY caller.
+  const latest = latestRecordedCheck(log, tree)
+  return latest?.event === 'check.passed' && logIncomplete(log) ? LOG_INCOMPLETE : latest
+}
+
+const LOG_INCOMPLETE = Object.freeze({ event: 'check.unproven', why: 'the log could not be read whole' })
+
+function latestRecordedCheck(log, tree) {
+  return latestOf(checkEventsFor(log, tree))
+}
+
+// The newest of some check events by when they RAN. One ordering, for the
+// verdict about a tree and for the descriptive "Last check:" alike.
+const ORDER_UNRESOLVED = Object.freeze({ event: 'check.unresolved', command: null })
+
+function latestOf(events, { unresolved = 'not-a-pass' } = {}) {
+  if (!events.length) return null
+
+  // 1. A RE-IMPORT IS NOT A NEW CHECK. Two hooks reading the same `checks.jsonl`
+  //    can each append the same record, so dedupe by the record it came from.
+  const seen = new Set()
+  const unique = []
+  for (const entry of events) {
+    const id = typeof entry.record === 'string' && entry.record ? entry.record : null
+    if (id !== null && seen.has(id)) continue
+    if (id !== null) seen.add(id)
+    unique.push(entry)
+  }
+  if (unique.length === 1) return unique[0]
+
+  // 2. ORDER BY THE AUTHORITY. `checks.jsonl` is append-only and its order IS the
+  //    order the checks ran, so the importer stamps each event with that index as
+  //    `seq`. `startedAt` is the fallback for logs written before `seq` existed —
+  //    a wall clock can tie, and it can go BACKWARDS, so it is not the authority.
+  const rankOf = entry => {
+    if (Number.isInteger(entry.seq)) return ['seq', entry.seq]
+    if (typeof entry.startedAt === 'string' && entry.startedAt) return ['at', entry.startedAt]
+    return null
+  }
+  const ranks = unique.map(rankOf)
+  const kinds = new Set(ranks.map(rank => rank?.[0] ?? 'none'))
+  let candidates = unique
+  if (kinds.size === 1 && !kinds.has('none')) {
+    let best = null
+    for (const rank of ranks) if (best === null || rank[1] > best) best = rank[1]
+    candidates = unique.filter((_, index) => ranks[index][1] === best)
+  }
+  if (candidates.length === 1) return candidates[0]
+
+  // ⚠ AN ORDER WE CANNOT ESTABLISH MUST NOT CERTIFY. Ties, a mix of stamped and
+  // unstamped events, or nothing to order by at all: any of these could be the
+  // newest, so if they disagree the one that is NOT a pass is the answer. Taking
+  // the last-appended instead is what let a stale re-import beat a real failure
+  // (ADR-005 — an unresolved order is could-not-look, not a verdict).
+  // That is the right answer for a VERDICT. For the descriptive "Last check:" it
+  // is a second unobserved claim — "the failure ran last" — so that caller asks
+  // to be told the order could not be established instead.
+  if (unresolved === 'say-so' && new Set(candidates.map(entry => entry.event)).size > 1) return ORDER_UNRESOLVED
+  return candidates.find(entry => entry.event !== 'check.passed') ?? candidates[0]
+}
+
+function treeChecked(log, tree) {
+  return latestCheckFor(log, tree)?.event === 'check.passed'
+}
+
+function checkRevision(log, tree) {
+  return checkEventsFor(log, tree).length
+}
+
+function inferredCheckCaveat(cwd) {
+  const { command, origin } = checkCommandOrigin(cwd)
+  return origin === 'inferred'
+    ? ` The check \`${command}\` was inferred from a manifest, not declared; declare it as \`check\` in .quality-harness.json.`
+    : ''
+}
+
+// P `publish-unchecked` (ADR-060): before a command naming commit or push runs,
+// when the tree or the index is unchecked and differs from the session's start.
+// It says the command is about to run while this repository is unchecked; it
+// does not claim the command publishes this repository, which it may not.
+function publishUnchecked(input, requested) {
+  if (requested?.event !== 'publish.requested' || requested.observation?.ok !== true) return
+  if (!projectCheckCommand(input.cwd)) return
+  const now = requested.observation
+  const log = readEvents(input.cwd, input.session_id)
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const treeUnchecked = !treeChecked(log, now.tree) && (baseline?.ok !== true || now.tree !== baseline.tree)
+  const indexUnchecked = !treeChecked(log, now.index) && (baseline?.ok !== true || now.index !== baseline.index)
+  if (!treeUnchecked && !indexUnchecked) return
+  const revision = checkRevision(log, now.tree)
+  const key = `${now.tree}:${now.index}:${revision}`
+  if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
+  queueAction({
+    rule: 'P', key, detail: { tree: now.tree, revision },
+    // On a torn log this still warns — it must — but says UNKNOWN, not "no check
+    // has": a check may have succeeded and its record be what was lost (ADR-005).
+    text: (logIncomplete(log)
+      ? 'quality-harness: whether this repository is checked is unknown — the session log could not be read whole, so whether `qh-check` succeeded on its current tree cannot be shown — and the command '
+      : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
+      + 'about to run names commit or push. Run `qh-check` first. This says what state the repository is in, not what '
+      + `the command publishes.${inferredCheckCaveat(input.cwd)}`,
+  })
+}
+// R3 `review-changed-state` (ADR-060): a read-only role's run is bracketed by its
+// SubagentStart and SubagentStop observations, paired by agent id. A change in
+// tree, index or HEAD between them is reported — as having happened DURING that
+// run, never as done by the reviewer, since overlapping agents and the user share
+// the tree. An observation that could not be made is R4's to report, not this.
+// ⚠ AN ENUMERATION THAT FAILED IS NOT ONE THAT FOUND NOTHING. This returned `[]`
+// for a nonzero exit, a timeout and a spawn error alike, and its callers read that
+// as "no commits" and "no paths" — so a history query that could not run suppressed
+// R2 and left the ledger saying `verified`, a clean answer assembled from a
+// question nobody managed to ask. ADR-005 governs exactly this, and the branch was
+// applying it to observations while its own git reads failed open underneath.
+// Found by a different-lineage review of this branch, 2026-09-18.
+//
+// The result is still an array, so every existing `.length`, `.map` and spread
+// keeps working; it carries `ok` beside them, and `mark` re-attaches that through a
+// map so a transform cannot silently drop the one field that says the answer is
+// real. `ok === false` is the only failure signal — an absent `ok` means a caller
+// that never asked git anything, not a failure.
+function mark(lines, ok, why = '') {
+  const out = [...lines]
+  out.ok = ok
+  out.why = why
+  return out
+}
+
+// ⚠ A PATH GIT PRINTS IS QUOTED UNLESS IT IS ASKED NOT TO BE. Every call here that
+// returns paths passes `nul` and a `-z`, which has no quoting at all; the class was
+// enumerated by command on 2026-09-19 and four of seven sites were still quoted
+// after the first was fixed (CLAUDE.md §5). `nul` splits on NUL and trims nothing —
+// a name may end in a space.
+function gitLines(root, args, { nul = false } = {}) {
+  const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000 })
+  if (run.error || run.status !== 0) {
+    const verb = args.find(arg => /^[a-z][a-z-]*$/.test(arg)) ?? args[0]
+    const why = run.error ? run.error.message : `git ${verb} exited ${run.status}`
+    return mark([], false, why)
+  }
+  if (nul) return mark(run.stdout.split('\0').filter(Boolean), true)
+  return mark(run.stdout.split('\n').map(line => line.trimEnd()).filter(Boolean), true)
+}
+
+function reviewChangedState(input, ended) {
+  const role = readOnlyRole(input.agent_type)
+  if (!role || ended?.event !== 'subagent.ended' || typeof input.agent_id !== 'string') return
+  const log = readEvents(input.cwd, input.session_id)
+  const started = log.filter(entry => entry.event === 'subagent.started' && entry.agentId === input.agent_id).at(-1)
+  const before = started?.observation
+  const after = ended.observation
+  if (before?.ok !== true || after?.ok !== true) {
+    // ⚠ A BRACKET THAT COULD NOT BE OBSERVED IS NOT A RUN WHERE NOTHING CHANGED.
+    // This returned, under a comment elsewhere saying "an observation that could
+    // not be made is R4's to report" — and a read-only role's end SKIPS the
+    // completion rules, so R4 never runs here. A failed `git` at either end of a
+    // review, or a torn `subagent.started` line (audit B5), was reported nowhere.
+    // ONE arm for every way a bracket goes missing: the torn-log case had an arm of
+    // its own above this one, and once this existed a mutant deleting that arm
+    // survived in CI — this one answered for it. The torn line never repairs, so
+    // each is said once per agent.
+    const unobservedKey = `${input.agent_id}:unobserved`
+    // Told-already is read from the action's DETAIL, not from the shape of its key.
+    // A key is `<agent>:<word>` and an agent id is free text: honouring the old
+    // arm's `<agent>:unknown` key silenced agent `a` because agent `a:unknown` had
+    // a state-change finding on record (fourth review). A session upgraded mid-way
+    // may therefore hear this once more — said twice is the direction to fail in.
+    const told = entry => entry.detail?.kind === 'unobserved' && entry.detail.agent === input.agent_id
+    if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && told(entry))) {
+      const why = !started
+        ? (logIncomplete(log)
+          ? 'this session\'s event log could not be read whole, and the record of where that run began may be among what was lost'
+          : 'where that run began was never recorded')
+        : before?.ok !== true ? `the repository could not be observed when it began (${before?.reason ?? 'no reason was recorded'})`
+          : `the repository could not be observed when it ended (${after?.reason ?? 'no reason was recorded'})`
+      queueAction({ rule: 'R3', key: unobservedKey, detail: { kind: 'unobserved', agent: input.agent_id }, text: `quality-harness: whether the repository changed during the ${role} `
+        + `run (agent ${input.agent_id}) is unknown — ${why}. That is a statement about what could be looked at, not about `
+        + 'the review (ADR-005).' })
+    }
+    return
+  }
+  if (sameObservation(before, after)) return
+  const key = input.agent_id
+  if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === key && entry.detail?.kind !== 'unobserved')) return
+  const directory = nearestExistingDirectory(path.resolve(input.cwd))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  if (!root) return
+  const status = gitLines(root, ['-c', 'core.quotePath=false', 'status', '--porcelain'])
+  const staged = gitLines(root, ['-c', 'core.quotePath=false', 'diff', '--cached', '--name-only'])
+  const commits = before.head && after.head && before.head !== after.head
+    ? gitLines(root, ['rev-list', '--oneline', `${before.head}..${after.head}`]) : []
+  const lines = [`quality-harness: the repository's state changed during the ${role} run (agent ${key}). `
+    + 'This says what changed during that run, not who changed it.']
+  if (status.length) lines.push(`Working tree now:\n${status.map(line => `  ${line}`).join('\n')}`)
+  if (staged.length) lines.push(`Staged now:\n${staged.map(line => `  ${line}`).join('\n')}`)
+  if (commits.length) lines.push(`New commits:\n${commits.map(line => `  ${line}`).join('\n')}`)
+  queueAction({ rule: 'R3', key, text: lines.join('\n') })
+}
+
+// ---- ADR-060's completion rules. They read the event log and git, never the
+// transcript. R1 is work no check has passed on, R2 is a newly reachable commit
+// whose tree nothing checked, R4 is an observation that could not be made. Each
+// speaks once per rule and evidence state, so a finding does not repeat while
+// nothing has moved.
+function emittedFor(log, rule, key) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key)
+}
+
+// R2's own dedupe: one delivered action carries several commit keys in its
+// detail, and a commit named in any of them has been said.
+function namedByReview(log, key) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R2'
+    && (entry.key === key || entry.detail?.commits?.includes(key)))
+}
+
+// P already said this tree is unchecked, before the command ran. Saying it again
+// at the end of the same turn is the repetition ADR-060 closed (BACKLOG §217).
+function namedByPublish(log, tree, revision) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P'
+    && entry.detail?.tree === tree && entry.detail?.revision === revision)
+}
+
+// A write git cannot see — outside the repository, ignored, or with no git at
+// all. The last passing check observed the work as it was when it STARTED, so a
+// write made while it ran is not covered by it.
+function unobservableWrites(log) {
+  const since = log.filter(entry => entry.event === 'check.passed').at(-1)?.startedAt ?? null
+  return log.filter(entry => entry.event === 'file.written' && entry.observable === false
+    && (typeof since !== 'string' || typeof entry.at !== 'string' || entry.at > since))
+}
+
+// The evidence revision where nothing can be observed: every check event is one,
+// since there is no tree to attach it to (ADR-005 — unknown is not "the same").
+function revisionFor(log, observation) {
+  return observation?.ok === true
+    ? checkRevision(log, observation.tree)
+    : log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).length
+}
+
+// The harness's own bookkeeping is not the session's work. CLAUDE_PLUGIN_DATA is
+// wherever the host puts it, and a host that puts it inside the repository makes
+// every hook dirty the tree it is watching — the ledger row appears as a changed
+// path and moves the tree, so the same finding is made again with a new key.
+// Found by a peer session's test of this branch, 2026-09-18.
+function harnessPathspecs(root) {
+  const home = process.env.CLAUDE_PLUGIN_DATA
+  if (!root || typeof home !== 'string' || !home) return []
+  const relative = path.relative(canonical(path.resolve(root)), canonical(path.resolve(home)))
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return []
+  return ['--', ':(top)', `:(top,exclude)${relative.split(path.sep).join('/')}`]
+}
+
+// `-uall` lists every untracked FILE. Without it git collapses an untracked
+// directory to `name/`, which the artifact dispatcher cannot classify — it
+// answers UNPROVEN, which is not a verdict, so the path is retried at every
+// boundary for ever (same peer test).
+function statusPaths(root) {
+  if (!root) return mark([], true)
+  // ⚠ `-z`, NOT A QUOTE STRIP. Porcelain v1 quotes an unusual name and escapes its
+  // bytes as octal; stripping the quotes left `na\303\257ve.md`, a path that is
+  // not on disk — shown to the user, persisted to `sessions.jsonl`, and gated by
+  // rule A at every boundary for ever, since a missing file never gets an
+  // identity (audit C2, reproduced in the field 2026-09-19). `core.quotePath=false`
+  // fixes the octal and leaves an embedded quote, backslash or newline wrong.
+  // `-z` quotes nothing: NUL-terminated, and a rename's ORIGINAL path follows as
+  // its own field, which is skipped — the new name is the path that exists.
+  const run = spawnSync('git', ['-C', root, 'status', '--porcelain', '-z', '-uall', ...harnessPathspecs(root)],
+    { encoding: 'utf8', timeout: 5_000 })
+  if (run.error || run.status !== 0) {
+    return mark([], false, run.error ? run.error.message : `git status exited ${run.status}`)
+  }
+  const fields = run.stdout.split('\0')
+  const paths = []
+  for (let index = 0; index < fields.length; index++) {
+    const entry = fields[index]
+    if (entry.length < 4) continue
+    paths.push(entry.slice(3))
+    if (entry[0] === 'R' || entry[0] === 'C' || entry[1] === 'R' || entry[1] === 'C') index++
+  }
+  return mark(paths, true)
+}
+
+// Commits reachable now that were not reachable when the session started. NOT
+// "authored here": a fetch, a merge or a checkout makes commits reachable too,
+// and this says only that no check has passed on their trees.
+function sessionCommits(log, root, head) {
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const first = baseline?.head
+  if (!root || typeof head !== 'string') return mark([], true)
+  // ⚠ AN UNBORN BASELINE IS OBSERVED-AND-EMPTY, NOT UNKNOWN. `observe()` records a
+  // repository with no commits as `{ ok: true, head: null }` — looked at, and
+  // positively empty. Requiring a STRING baseline here collapsed that into "no
+  // information", so a session that started in a fresh repository and then gained
+  // its whole history reported NO new commits: R2 silent in the one case where
+  // every commit is new. `git init` then work is how a project starts, and a
+  // scaffold that commits as it goes reaches it every time.
+  const unborn = baseline?.ok === true && first === null
+  if (!unborn && (typeof first !== 'string' || first === head)) return mark([], true)
+  // Everything reachable from HEAD is new when the session began with nothing.
+  const range = unborn ? [head] : [`${first}..${head}`]
+  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range])
+  return mark(lines.map(line => {
+    const [sha, tree, ...subject] = line.split('\t')
+    return { sha, tree, subject: subject.join('\t') }
+  }).filter(commit => commit.sha && commit.tree), lines.ok, lines.why)
+}
+
+function unseenPathNote(count) {
+  if (!count) return ''
+  return ` ${count} path${count === 1 ? '' : 's'} written outside this repository `
+    + `${count === 1 ? 'is' : 'are'} not named here.`
+}
+
+// ⚠ NAME WHAT IS ACTUALLY UNCHECKED. A turn that ended in a commit has an
+// unchecked tree and NO uncommitted change, and saying "work no `qh-check` has
+// passed on" beside "git reports no changed path" made a reader decide which
+// half to believe — reported by a peer session testing this branch, 2026-09-18,
+// as the old commit-loop shape surviving in a quieter form. R2 is silent for
+// that commit on purpose (its tree is the observed tree, which is R1's to speak
+// for), so R1 is the one that has to say the commit.
+function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = false } = {}) {
+  const shown = paths.slice(0, 8)
+  const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
+  const listed = paths.length
+    ? `Changed paths: ${shown.join(', ')}${paths.length > shown.length ? `, and ${paths.length - shown.length} more` : ''}.`
+    : held
+      ? `Nothing is uncommitted: what no \`qh-check\` has passed on is the tree at HEAD, committed as ${held}.`
+      : 'Git reports no changed path in the working tree.'
+  // ⚠ A TORN LOG CANNOT SUPPORT "NO CHECK HAS", ONLY "NONE CAN BE SHOWN". Since a
+  // surviving record no longer certifies (`latestCheckFor`), this rule fires on a
+  // torn log where a check DID succeed — and its old opening then accused in the
+  // vocabulary of an observation. It must keep firing: R4 speaks once per session
+  // and a torn line never repairs, so silence here would be silence for good.
+  const opening = logTorn
+    ? 'this turn ends with work whose check state is unknown — the session log could not be read whole, '
+      + 'so whether `qh-check` succeeded on it cannot be shown.'
+    : paths.length || !held
+      ? 'this turn ends with work no `qh-check` has passed on.'
+      : 'this turn ends on an unchecked tree.'
+  return `quality-harness: ${opening} ${listed}`
+    + `${unseenPathNote(outside)} ${runTheCheckSentence(cwd)}`
+}
+
+// ONE finding per boundary, however many commits it names. A fetch, a merge or a
+// branch switch makes dozens newly reachable at once, and a message per commit
+// would be dozens of joined advisories in a single hook — each of them asking
+// git for the check command again. Dedupe stays per commit and evidence revision
+// (ADR-060's key), carried in the action's detail.
+const NAMED_COMMIT_LIMIT = 5
+function uncheckedCommitsReason(cwd, commits, { logTorn = false } = {}) {
+  const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
+  const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
+  const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
+  // The same correction P and R1 already carry: over a log that could not be
+  // read whole, "no `qh-check` has passed" is a verdict nobody observed — the
+  // lost line may be the pass. R2 kept saying it beside R4's could-not-look.
+  const head = logTorn
+    ? `whether a \`qh-check\` passed on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} `
+      + 'is UNKNOWN — this session\'s log could not be read whole, and the record of a pass may be among what was lost:'
+    : commits.length === 1
+      ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
+      : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`
+  return `quality-harness: ${head}\n${listed}${rest}\nThis says they are reachable from HEAD and `
+    + `${logTorn ? 'not known to be checked' : 'unchecked'}, not that this session authored them. ${runTheCheckSentence(cwd)}`
+}
+
+function couldNotLookReason(cwd, reason) {
+  return `quality-harness: this repository could not be observed (${reason}), so its tree, index `
+    + 'and HEAD are unknown to this hook. That is a statement about what could be looked at, not '
+    + 'about your work (ADR-005). Edit and Write paths are still tracked, and `qh-check` still '
+    + `records what it observed. ${runTheCheckSentence(cwd)}`
+}
+
+/**
+ * Whether what this session recorded could not be read whole.
+ *
+ * Two ways, one answer. `complete === false` is a session log with a torn line.
+ * `check.source-unreadable` is `checks.jsonl` found unreadable in part — recorded
+ * as an EVENT rather than returned, because the condition is durable: a torn
+ * append leaves no trailing newline, so the next record lands on the same line
+ * and the file never repairs itself. Either way a history missing records cannot
+ * support a positive answer (ADR-005). Exported so the status line applies the
+ * same precondition instead of a comment claiming it does.
+ */
+export function logIncomplete(log) {
+  // ⚠ WHOLE IS SOMETHING A LOG HAS TO SAY, NOT SOMETHING ITS SILENCE IMPLIES.
+  // This read `complete === false`, and `complete` is a property hung on an ARRAY:
+  // `[...log]`, `.filter`, `.map`, `.slice` and a JSON round trip all drop it, and
+  // the copy of a torn log then certified — `verified`, `QH ✓ checked` — through
+  // every exported reader (different-lineage review, 2026-09-19). No production
+  // site makes such a copy today; the next one would have been invisible.
+  return log?.complete !== true
+    || (Array.isArray(log) && log.some(event => event?.event === 'check.source-unreadable'))
+}
+
+// The ledger's evidence, computed from the tree, the commits and the writes
+// THEMSELVES — never from whether a rule spoke. A P warning, a dedupe or a
+// suppression must not be able to turn an unchecked state into `verified`
+// (ADR-035, ADR-060 revision 4 review).
+function ledgerEvidence(log, observation, baseline, commits, writes, check, status) {
+  if (observation?.ok !== true) return 'could-not-look'
+  // ⚠ AN ENUMERATION THAT FAILED IS COULD-NOT-LOOK TOO. The observation can be
+  // fine while the follow-up git query that lists the paths or the commits is not,
+  // and reading those empty results as "nothing changed" is how a failed question
+  // became `verified` (ADR-005). `ok === false` is set only by a query that really
+  // ran and really failed; an absent `ok` is a caller that asked git nothing.
+  if (commits?.ok === false || status?.ok === false) return 'could-not-look'
+  // ⚠ AND A LOG READ WHOLE IS A PRECONDITION OF EVERY POSITIVE ANSWER BELOW.
+  // `treeChecked` asks the log whether a check passed on these bytes; asked of a
+  // log with a torn line it can only answer from what survived, so an older pass
+  // outliving a newer failure reads as `verified`. `complete === false` is set
+  // only by a read that really happened and really lost something.
+  if (logIncomplete(log)) return 'could-not-look'
+  if (!check) return 'no-check'
+  const treeUnchecked = !treeChecked(log, observation.tree)
+    && (baseline?.ok !== true || observation.tree !== baseline.tree)
+  if (treeUnchecked || writes.length > 0) return 'unverified'
+  if (commits.some(commit => !treeChecked(log, commit.tree))) return 'unverified'
+  return 'verified'
+}
+
+// Rule A `artifact-invalid` (ADR-060): the artifact gates over everything this
+// session changed — committed since its first HEAD, uncommitted, and written by
+// a tool — minus every path a gate has already answered for THIS content. It has
+// no check gate: a malformed record is malformed whether or not the project
+// named a test command.
+const ARTIFACT_BUDGETS = { 'publish.requested': 45_000, 'context.compacting': 20_000 }
+function artifactBudgetMs(eventName) {
+  // The seam the zero-budget case needs; anything but a number of milliseconds
+  // is ignored, so a typo cannot silently disable the pass.
+  const configured = Number(process.env.QUALITY_HARNESS_ARTIFACT_BUDGET_MS)
+  if (Number.isFinite(configured) && configured >= 0) return configured
+  return ARTIFACT_BUDGETS[eventName] ?? 90_000
+}
+
+/**
+ * Whether a COMPLETE verdict already covers this file's current content.
+ *
+ * ⚠ AN UNKNOWN IDENTITY MATCHES NOTHING, INCLUDING ANOTHER UNKNOWN. `contentId`
+ * documents exactly this — "Null means unreadable, which a reader must treat as
+ * unknown and not as 'the same as last time'" — and the reader contradicted its
+ * own contract with `answered.get(file) === contentId(file)`, where `null ===
+ * null` is true. A path whose bytes could not be read when it was gated and
+ * cannot be read now was therefore suppressed for ever, on the strength of two
+ * non-answers agreeing. Found by a different-lineage review of this branch,
+ * 2026-09-18.
+ *
+ * Re-gating is the safe direction: it costs a repeated check, while suppressing
+ * costs a file nobody ever looks at again (ADR-005).
+ */
+export function alreadyAnswered(answered, file, identity) {
+  if (!answered.has(file)) return false
+  const recorded = answered.get(file)
+  if (recorded === null || recorded === undefined || identity === null || identity === undefined) return false
+  return recorded === identity
+}
+
+function artifactRule(input, recorded) {
+  if (typeof input.session_id !== 'string' || !input.session_id) return
+  const log = readEvents(input.cwd, input.session_id)
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const first = baseline?.head
+  const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  const paths = new Set()
+  if (root && typeof first === 'string') {
+    for (const relative of gitLines(root, ['diff', '--name-only', '-z', first], { nul: true })) paths.add(path.join(root, relative))
+  } else if (root && baseline?.ok === true && first === null) {
+    // The session began with an unborn HEAD, so every tracked path at HEAD arrived
+    // during it and every one of them is a candidate. `diff` has no base to take.
+    for (const relative of gitLines(root, ['ls-tree', '-r', '--name-only', '-z', 'HEAD'], { nul: true })) {
+      paths.add(path.join(root, relative))
+    }
+  }
+  if (root) for (const relative of statusPaths(root)) paths.add(path.join(root, relative))
+  for (const entry of log) {
+    if (entry.event === 'file.written' && entry.observable === true && typeof entry.path === 'string') {
+      paths.add(entry.path)
+    }
+  }
+  // A COMPLETE result about the same content is the only reason to leave a path
+  // out: a timeout, an UNRUN or an UNPROVEN is not an answer, so the next
+  // boundary asks again (ADR-005).
+  const answered = new Map()
+  for (const entry of log) {
+    if (entry.event === 'artifact.gated' && typeof entry.path === 'string' && entry.complete === true) {
+      answered.set(entry.path, entry.blob ?? null)
+    }
+  }
+  // ⚠ IDENTITIES BEFORE THE GATES RUN, for the same reason the per-edit gate takes
+  // its identity first: a file edited WHILE the batch is gating it would otherwise
+  // be filed under the NEW content carrying the OLD content's verdict, and rule A
+  // would suppress the one edit nothing had looked at. Computed once here and
+  // reused below, so the filter and the record cannot disagree about what was
+  // gated. Found by a re-review, 2026-09-18 — the per-edit fix had left this
+  // sibling untouched (CLAUDE.md §5).
+  const identities = new Map([...paths].map(file => [file, contentId(file)]))
+  const targets = [...paths].filter(file => !alreadyAnswered(answered, file, identities.get(file) ?? null))
+  if (!targets.length) return
+  // Nearest first: the session's own starting point, then HEAD. A record deleted
+  // and committed during the session is in neither the working tree nor HEAD.
+  const head = recorded?.observation?.ok === true ? recorded.observation.head : null
+  const bases = [...new Set([first, head, 'HEAD'].filter(base => typeof base === 'string' && base))]
+  const gated = new Map()
+  const failure = runArtifactGates(targets, input.cwd, artifactBudgetMs(recorded?.event), { bases, gated })
+  for (const file of targets) {
+    // Only an answer is recorded. A path the budget cut gets no event, which is
+    // exactly what makes the next boundary retry it.
+    if (gated.get(file) !== true) continue
+    const before = identities.get(file) ?? null
+    const after = contentId(file)
+    appendEvent(input.cwd, input.session_id, {
+      event: 'artifact.gated', path: file, blob: before,
+      // If the bytes moved under the gate, its verdict is about content that is
+      // no longer there, so the next boundary asks again (ADR-005).
+      complete: before !== null && before === after,
+    })
+  }
+  if (!failure) return
+  const tree = recorded?.observation?.ok === true ? recorded.observation.tree : 'unobserved'
+  const key = `${tree}:${createHash('sha256').update(failure).digest('hex').slice(0, 16)}`
+  if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'A' && entry.key === key)) return
+  queueAction({ rule: 'A', key, text: failure })
+}
+
+function completionRules(input, ended) {
+  if (!ended || typeof input.session_id !== 'string' || !input.session_id) return
+  const log = readEvents(input.cwd, input.session_id)
+  const observation = ended.observation
+  const check = projectCheckCommand(input.cwd)
+  const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const writes = unobservableWrites(log)
+  const status = observation?.ok === true ? statusPaths(root) : []
+  const commits = observation?.ok === true ? sessionCommits(log, root, observation.head) : []
+  recordClaim(input, completionClaim(input.last_assistant_message),
+    ledgerEvidence(log, observation, baseline, commits, writes, check, status), status.length + writes.length)
+  // The opt-in today's advice already requires: a project that named no check
+  // cannot be asked to run one (reported from redash-api, 2026-08-26).
+  if (!check) return
+
+  const changed = [...status.map(relative => path.join(root ?? path.resolve(input.cwd), relative)),
+    ...writes.map(entry => entry.path).filter(candidate => typeof candidate === 'string')]
+  const quiet = (docsOnly(changed) && evidenceLimited(input.last_assistant_message))
+    || (input.hook_event_name === 'Stop' && interimResponse(input.last_assistant_message))
+  const revision = revisionFor(log, observation)
+  const treeUnchecked = observation?.ok === true && !treeChecked(log, observation.tree)
+    && (baseline?.ok !== true || observation.tree !== baseline.tree)
+  if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {
+    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`
+    if (!emittedFor(log, 'R1', key)) {
+      // The commits R2 leaves to R1: their tree IS the tree being reported.
+      const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
+      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor, { logTorn: logIncomplete(log) }) })
+    }
+  }
+  const unchecked = commits.filter(commit => {
+    // The observed working tree is R1's to speak for, and a tree P has already
+    // named at this revision has been said once.
+    if (treeChecked(log, commit.tree)) return false
+    if (observation?.ok === true && commit.tree === observation.tree) return false
+    const commitRevision = checkRevision(log, commit.tree)
+    if (namedByPublish(log, commit.tree, commitRevision)) return false
+    return !namedByReview(log, `${commit.sha}:${commitRevision}`)
+  })
+  if (unchecked.length) {
+    const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
+    queueAction({
+      rule: 'R2', key: keys.join(' '), detail: { commits: keys },
+      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log) }),
+    })
+  }
+  if (observation?.ok !== true || status?.ok === false || commits?.ok === false
+    || logIncomplete(log)) {
+    // Once per session and cwd, read from the log rather than from a marker file
+    // under os.tmpdir() (ADR-060 replaces sessionGenerationPath here).
+    const key = canonical(root ?? path.resolve(input.cwd ?? process.cwd()))
+    if (!emittedFor(log, 'R4', key)) {
+      // NAME what could not be looked at. A failed enumeration has a reason of its
+      // own — the observation may have succeeded and the follow-up query failed —
+      // and "no reason was recorded" would report the wrong could-not-look.
+      const why = observation?.ok !== true
+        ? (observation?.reason ?? 'no reason was recorded')
+        : logIncomplete(log)
+          ? 'this session’s event log could not be read whole — at least one record is torn or unreadable'
+          : (status?.why || commits?.why || 'a git query failed without saying why')
+      queueAction({ rule: 'R4', key, text: couldNotLookReason(input.cwd, why) })
+    }
+  }
+  // The check passed and a task file changed: the corpus wants that recorded,
+  // not asserted. Not a rule — it repeats while the state it is about holds.
+  if (observation?.ok === true && treeChecked(log, observation.tree)) {
+    const nudge = evidenceNudge(input.cwd, changed)
+    if (nudge) queueAction({ text: nudge })
+  }
+}
+
 
 export async function handleHook(input) {
   const event = input.hook_event_name
+  // ADR-060 T1: every hook first appends its named, observed event. The log is
+  // additive here; a failure in it must never change an existing advisory.
+  let recorded = null
+  try { recorded = recordHookEvent(input) } catch (failure) {
+    process.stderr.write(`[quality-harness] the event log was not written (${failure?.message ?? failure}).\n`)
+  }
+  // What a late baseline leaves genuinely unknown, said ONCE and as a limit on what
+  // could be seen — never as an accusation about work nobody observed (ADR-005).
+  if (recorded?.lateBaseline && projectCheckCommand(input.cwd)) {
+    queueAction({
+      rule: 'R4', key: `late-baseline:${input.session_id}`,
+      text: 'quality-harness: began watching this session at this turn, not at its start — it was installed, enabled '
+        + 'or updated while the session was running. Anything changed or committed before now was not observed, so '
+        + 'nothing here speaks for it (ADR-005). From here on the working tree is measured against what it is now.',
+    })
+  }
+  if (event === 'SubagentStop') {
+    try { reviewChangedState(input, recorded) } catch (failure) {
+      process.stderr.write(`[quality-harness] the reviewer state check did not run (${failure?.message ?? failure}).\n`)
+    }
+  }
 
   if (event === 'SessionStart') {
     // After compaction the session has none of the context the once-per-session
@@ -4651,7 +3542,26 @@ export async function handleHook(input) {
       // PreCompact measured, so the next context knows what is unverified and
       // what task was in flight without re-deriving either.
       const note = readSessionNote(input.session_id)
-      if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)
+      // ⚠ A NOTE IS SERVED ONLY WHEN IT CAN BE TIED TO THIS COMPACTION. A replace that
+      // fails twice leaves an earlier note behind. Ownership was first a comparison
+      // of wall clocks (a clock stepping backwards refused a correct note), then a
+      // COUNT of compactions — which a torn compacting line, a note with no count,
+      // and two overlapping PreCompacts each defeated (third review). It is now the
+      // id PreCompact put on its own event, and it has to be the LAST compacting
+      // event in a log that was read whole. Anything else is unknown, not "older".
+      // ⚠ AND IT IS SERVED ONCE. The last recorded compaction stays the last one until
+      // another PreCompact runs — and when one does not (a disabled hook, a host
+      // crash), the NEXT compact SessionStart matched the same id and handed back a
+      // note about work long since moved on (fourth review). Serving is recorded in
+      // the log, and a serve that cannot be recorded is not made.
+      const events = readEvents(input.cwd, input.session_id)
+      const owner = events.filter(entry => entry.event === 'context.compacting').at(-1)?.compactionId
+      const tied = !logIncomplete(events) && typeof owner === 'string' && note?.compaction === owner
+        && !events.some(entry => entry.event === 'note.served' && entry.compactionId === owner)
+        && appendEvent(input.cwd, input.session_id, { event: 'note.served', compactionId: owner }) !== false
+      if (note && !tied) sections.push('quality-harness: the state note kept for this session could not be tied to this compaction, '
+        + 'so what was unverified before it is unknown here (ADR-005).')
+      else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)
     } else if (input.source === 'startup' || input.source === undefined) {
       const previous = previousSessionNotice(input.cwd)
       if (previous) sections.push(previous)
@@ -4668,43 +3578,36 @@ export async function handleHook(input) {
   }
 
   if (event === 'PreCompact' || event === 'SessionEnd') {
-    // Both read the transcript the way the completion gates do — ONCE. A
-    // transcript this hook cannot read is said and nothing is written (ADR-005):
-    // a row that says "could not look" would be walked over as if it had, and
-    // a note left from an earlier compaction would be handed back as current.
-    // Neither event has a decision to make, so neither blocks.
-    if (event === 'PreCompact' && typeof input.session_id === 'string' && input.session_id) {
-      // The old note goes first, so a PreCompact that fails below cannot leave
-      // a stale one behind to be handed back (Codex review, 2026-09-05).
-      try { unlinkSync(sessionNotePath(input.session_id)) } catch {}
-    }
-    const raw = await readTranscript(input)
-    if (!raw) {
-      process.stderr.write(`[quality-harness] ${event}: the session transcript could not be read, so nothing was recorded about this session's state.\n`)
-      return
-    }
+    // ADR-060 T6: both observed above, before anything here writes, so the note
+    // is about the tree as it is NOW — not about the last turn end, which in a
+    // long turn may never have happened. Neither event has a decision to make,
+    // so neither blocks.
     const cwd = typeof input.cwd === 'string' ? input.cwd : process.cwd()
     const directory = nearestExistingDirectory(path.resolve(cwd))
     const repositoryRoot = directory ? gitRepositoryRoot(directory) : null
     const root = repositoryRoot ?? directory ?? cwd
-    const state = analyzeTranscript(raw, cwd)
+    const facts = observedFacts(readEvents(cwd, input.session_id), repositoryRoot, recorded?.observation)
     if (event === 'PreCompact') {
-      const note = sessionStateNote(state, cwd, root, repositoryRoot !== null)
       if (typeof input.session_id === 'string' && input.session_id) {
-        try { writeFileSync(sessionNotePath(input.session_id), JSON.stringify(note)) } catch (failure) {
-          process.stderr.write(`[quality-harness] PreCompact: could not keep the state note (${failure.code ?? failure.message}).\n`)
-        }
+        replaceSessionNote(input.session_id, { ...sessionStateNote(facts, cwd, root, repositoryRoot !== null), compaction: recorded?.compactionId ?? null })
       }
+      artifactRule(input, recorded)
       return
     }
     // SessionEnd runs under the host's own short budget, so nothing here spawns
-    // a gate: the row is the transcript's reading and the location key, no more.
+    // a gate: the row is the log's reading and the location key, no more.
     const home = process.env.CLAUDE_PLUGIN_DATA
     if (!home) {
-      process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this session\'s end was NOT recorded; the next session here starts knowing nothing about it.\n')
+      process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this session\'s end was NOT recorded.\n')
       return
     }
-    const note = sessionStateNote(state, cwd, root, false, new Date(), { tasks: false })
+    const note = sessionStateNote(facts, cwd, root, false, new Date(), { tasks: false })
+    // Why the row says `unverified` when it is not about unchecked edits: the next
+    // session reads this field INSTEAD of the sentence about edits.
+    const unknown = facts.observed === false ? (facts.why ?? 'the working tree could not be observed')
+      : facts.late === true && note.files.length === 0 && !note.other && facts.pending !== true
+        ? 'it was watched only from partway through, and nothing changed after that; what happened before is not known'
+        : null
     try {
       mkdirSync(home, { recursive: true })
       appendFileSync(path.join(home, 'sessions.jsonl'), `${JSON.stringify({
@@ -4714,9 +3617,10 @@ export async function handleHook(input) {
         location: locationKey(root),
         reason: input.reason ?? null,
         status: note.status,
+        unknown,
         files: note.files,
         other: note.other,
-        lastVerdict: state.lastVerdict ?? null,
+        lastVerdict: facts.lastCheck?.verdict ?? null,
       })}\n`, 'utf8')
     } catch (failure) {
       process.stderr.write(`[quality-harness] could not append to the sessions ledger (${failure.code ?? failure.message}).\n`)
@@ -4777,148 +3681,19 @@ export async function handleHook(input) {
     // guard fired on a command whose FIRST act was `git switch -c task/…`, the
     // very escape it was demanding.
     if (input.tool_name !== 'Bash') return
-    const command = input.tool_input?.command
-    if (!isGitPublishCommand(command)) return
-
-    // The one case the transcript cannot cover: a command that deletes by an
-    // unresolved path AND publishes, in that order, inside itself. This hook runs
-    // BEFORE the command does, so the deletion is not in the transcript yet and
-    // deletedTrackedPaths would answer about a tree the command has not touched.
-    // Afterwards HEAD has moved and the answer is gone.
-    //
-    // The rule this replaces asked the transcript whether a publish had landed
-    // after an unresolved deletion. Measured 2026-08-26, that is exactly
-    // backwards: `rm -rf "$X" && git commit` in ONE command did NOT arm it —
-    // both land at the same tool-use position and the comparison was strict —
-    // while a deletion followed by a SEPARATE commit did, on every commit for the
-    // rest of the session. But a separate commit runs this hook first, and
-    // runArtifactGates resolves the deletion through deletedTrackedPaths while
-    // HEAD still answers. So the old rule fired only on deletions that had
-    // already been checked, and never on the one that had not. It blocked real
-    // work in three different sessions and caught nothing.
-    if (isGitPublishCommand(command)
-        && bashDeletionMutationPaths(command, input.cwd).includes(UNRESOLVED_DELETION_MUTATION)) {
-      advise('This command deletes by an unresolved path and commits in the same breath, so '
-        + 'nothing can establish what was removed: before it runs the deletion has not happened, and '
-        + 'after it HEAD no longer shows the difference. Name the deleted paths explicitly, or delete '
-        + 'and commit as two commands — a separate commit is checked against the repository.', input)
-      return
-    }
-    // A commit in another repository publishes nothing of this one, so this
-    // session's unverified edits are not what it would publish (ADR-058 T4).
-    if (gitPublishTargetsOnlyOtherRepositories(command, input.cwd)) return
-
-    const raw = await readTranscript(input)
-    if (!raw) {
-      advise('Quality gate could not read the session transcript, so it cannot tell whether this '
-        + 'change was checked. Nothing is wrong with your change and nothing is blocked — the gate '
-        + `is blind here, not unhappy. ${runTheCheckSentence(input.cwd)} If this repeats, the `
-        + 'transcript path the hook was given does not exist.', input)
-      return
-    }
-    const state = analyzeTranscript(raw, input.cwd)
-    // The PreToolUse hook has a 60s deadline (hooks.json) and a hook killed on
-    // its deadline blocks nothing, so the artifact pass gets a window that fits
-    // inside it.
-    // What is being published now, not everything the session has touched. A
-    // publish is the boundary at which authored work was submitted; re-gating it
-    // at every later commit is what made a long session unable to commit at all.
-    // A commit that bypassed this gate (--no-verify) still moves the boundary —
-    // the override was the author's, and punishing every later commit for it is
-    // the "fights you" behaviour this gate exists to avoid.
-    const artifactFailure = runArtifactGates(state.mutationPathsSince(state.lastPublish), input.cwd, 45_000)
-    if (artifactFailure) {
-      advise(artifactFailure, input)
-      return
-    }
-    // Since the last publish, for the same reason the artifact pass is: a commit
-    // that itself counts as a mutation (`git add -A && git commit …`) made the
-    // NEXT commit demand a check of the previous one, and no amount of testing
-    // could satisfy it — the loop closed on the publish itself. Reported from a
-    // live 2.3.0 session on 2026-08-26.
-    // Same rule as the completion gates: with no check to name, this has nothing
-    // to ask for.
-    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending())
-        && projectCheckCommand(input.cwd)
-        && !publishPrecededByValidation(command)) {
-      advise('Nothing has verified the work since your last change, so this commit would publish '
-        + `unchecked. ${missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))} `
-        + 'Nothing is blocked — this is what the gate sees before you commit.', input)
-    }
+    if (!containsCommitOrPush(input.tool_input?.command)) return
+    publishUnchecked(input, recorded)
+    artifactRule(input, recorded)
     return
   }
 
   if (!['SubagentStop', 'TaskCompleted', 'Stop'].includes(event)) return
   if (input.stop_hook_active === true || (event === 'Stop' && hasBackgroundWork(input))) return
-
-  const claim = completionClaim(input.last_assistant_message)
-  const raw = await readTranscript(input)
-  if (!raw) {
-    // ADR-005: the hook could not look. That is its own bucket, in neither half
-    // of any rate — never a claim about the work, and never silence either.
-    recordClaim(input, claim, 'could-not-look', 0)
-    const reason = 'Quality gate could not read the session transcript; completion evidence is '
-      + 'unavailable. This is an environment problem, not a finding about your work: the hook was '
-      + 'given a transcript path it cannot read.'
-    if (event === 'TaskCompleted') advise(reason)
-    else emitJson({ systemMessage: reason })
-    return
-  }
-  const state = analyzeTranscript(raw, input.cwd)
-  // ADR-035. ONE row per completion event, written here because this is the one
-  // point every path below has already passed and none has yet returned. The
-  // rate's denominator is only honest if nothing can reach an exit without being
-  // counted, so this must not be pushed down into the branches that follow.
-  const check = projectCheckCommand(input.cwd)
-  const unverified = state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()
-  recordClaim(input, claim, !check ? 'no-check' : unverified ? 'unverified' : 'verified',
-    state.mutationPathsSince(state.lastPublish).length)
-  if (event !== 'Stop') {
-    const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 100_000)
-    if (artifactFailure) {
-      if (event === 'TaskCompleted') advise(artifactFailure)
-      else emitJson({ systemMessage: artifactFailure })
-      return
-    }
-  }
-  // Since the last publish, like the commit gate. `git add -A && git commit` is
-  // itself a git mutation, so a session that edited, checked, and committed
-  // ended its turn being told nothing had verified the work — the check had run,
-  // it just ran before the commit that came after it. Reported from blueprints,
-  // 2026-08-26. Work authored AFTER the publish still counts, which is the case
-  // this gate is actually for.
-  if (!unverified) {
-    // The check passed, so there is no finding. If an ADR task is waiting on
-    // exactly this kind of evidence, say so — a V-Log entry written by
-    // adr-verify is the difference between a claim and a record.
-    if (state.verifiedAfterLastMutation && event !== 'TaskCompleted') {
-      const nudge = evidenceNudge(input.cwd, state.mutationPaths)
-      if (nudge) emitJson({ systemMessage: nudge })
-    }
-    return
-  }
-  // Same window as `unverified`: a Markdown path published earlier is not a
-  // reason to treat a later unproven write as docs-only.
-  if (docsOnly(provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd)) && evidenceLimited(input.last_assistant_message)) return
-  if (event === 'Stop' && interimResponse(input.last_assistant_message)) return
-  // No check to name, nothing to ask for. This gate's whole question is "did you
-  // run THE check", and in a project that declares none it degrades into "run the
-  // smallest repository-owned test, lint, build, or validation command" at the
-  // end of every single turn — advice that names nothing, cannot be satisfied,
-  // and fires in repositories that never opted into this harness. Reported from
-  // redash-api on 2026-08-26: "this is useless.. repeats everywhere even when we
-  // do not work with quality harness".
-  if (!check) return
-
-
-  // One arm only: `completionClaim` cannot return `asserted` any more, so a
-  // `claim.kind === 'asserted'` ternary here was a branch nothing could take.
-  const reason = missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))
-  if (event === 'TaskCompleted') {
-    advise(reason)
-    return
-  }
-  emitJson({ systemMessage: reason })
+  // A read-only role's end is R3's to report; the completion rules are about the
+  // session's own work, and a reviewer authored none of it.
+  if (event === 'SubagentStop' && readOnlyRole(input.agent_type)) return
+  completionRules(input, recorded)
+  artifactRule(input, recorded)
 }
 
 async function readStdin() {
@@ -4943,6 +3718,9 @@ async function main() {
   try {
     await handleHook(input)
   } finally {
+    // Every hook's output leaves through deliver(), so a rule's action and a
+    // legacy emitJson output are composed, never one overwriting the other.
+    deliver(pendingActions.splice(0), input ?? {}, { legacy: pendingOutput })
     flushOutput(startedAt, input)
   }
 }

@@ -3874,6 +3874,59 @@ def record_files(root, corpus_dir, tracked):
 
 
 
+# The exact line `adr-retire-check`, `facts-gate-dispatch.sh` and
+# `run-shell-hook.mjs` already recognise an archive by. Matched as a whole line on
+# purpose: a looser marker would make any sibling directory holding prose about
+# archives part of the corpus.
+ARCHIVE_LIFECYCLE_RE = re.compile(r"^\*\*Lifecycle:\*\* Frozen historical ADR records\s*$", re.M)
+
+
+def archived_record_numbers(root, corpus_dir, tracked):
+    """Numbers of the records retired into a sibling archive of this corpus.
+
+    ⚠ FOR CITATIONS ONLY. `record_files` stays the ACTIVE corpus, because it also
+    feeds the dependency graph and the cycle check, and a task must not be able to
+    depend on a frozen one. A citation is different: `Cross-references:` and
+    `Invalidates:` name HISTORY, and a record `adr-retire` moved is still the
+    record that was written. Found the day this repository first retired one —
+    the decision that superseded three records cited them, and each read as "not
+    a record in this corpus", so retiring made the retiring decision look broken.
+
+    An unreadable catalog contributes nothing rather than an error: this only ever
+    ADDS resolvable numbers, so could-not-look here costs an advisory, never a
+    false resolve (CLAUDE.md §16).
+    """
+    prefix = corpus_prefix(root, corpus_dir)
+    if not prefix or tracked is None:
+        return set()
+    parent = prefix.rstrip("/").rpartition("/")[0]
+    parent = f"{parent}/" if parent else ""
+    siblings = {}
+    for entry in tracked:
+        if not entry.startswith(parent) or entry.startswith(prefix):
+            continue
+        directory, separator, name = entry[len(parent):].partition("/")
+        if separator and "/" not in name:
+            siblings.setdefault(directory, []).append(name)
+    numbers = set()
+    for directory, names in siblings.items():
+        if "README.md" not in names:
+            continue
+        try:
+            catalog = (Path(root) / parent / directory / "README.md").read_text(
+                encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if not ARCHIVE_LIFECYCLE_RE.search(catalog):
+            continue
+        for name in names:
+            shaped = RECORD_FILE_RE.match(name)
+            if (shaped and name.lower().endswith(".md") and not DATE_SHAPED_RE.match(name)
+                    and not TASK_SHAPED_RE.match(name[:-len(".md")])):
+                numbers.add(int(shaped.group(1)))
+    return numbers
+
+
 def resolve_record_number(pointer, root, corpus_dir, tracked):
     """Whether `ADR-001` names a record in this corpus. None when it could not look.
 
@@ -3888,7 +3941,9 @@ def resolve_record_number(pointer, root, corpus_dir, tracked):
     if records is None:
         return None
     number = int(found.group(1))
-    return any(candidate_number == number for _, candidate_number in records)
+    if any(candidate_number == number for _, candidate_number in records):
+        return True
+    return number in archived_record_numbers(root, corpus_dir, tracked)
 
 
 # A file extension as a person writes one: short, alphanumeric, no underscore.

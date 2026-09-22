@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""qh-check — run this project's check and record what it observed.
+
+Usage: qh-check
+
+ADR-060 T2. Advisories count a check only when it was run through this gate: it
+runs the project's check at the repository root (the `check` declared in
+`.quality-harness.json`, or the one inferred from a manifest), observes the tree
+before and after, and appends one record to `checks.jsonl` in the worktree's
+state directory. The record is tool-written evidence (CLAUDE.md §4); a check run
+any other way leaves none.
+
+The work is `plugin/scripts/qh-check.mjs`, because the observation and the check
+resolution live in `lifecycle.mjs`. This file is the gate `bin/` exposes, like
+every other: a Python entry with a `.cmd` shim, forwarded by `sync-standalone.mjs
+--link`.
+
+Exit: 0 the check passed · otherwise the check's own exit code · 1 when a signal
+ended the check · 2 = the project has no check, or a usage error such as an
+argument this gate does not take · 4 = could not run: `node` is not on PATH or
+plugin/scripts/qh-check.mjs is not beside this gate's bin/.
+
+`--version` prints this gate's name, the version read from the manifest beside
+IT, and that root (ADR-031).
+"""
+
+# Windows defaults stdout/stderr to the ANSI codepage, and this gate prints `—`
+# and `·`. Under cp1252 they reach the terminal as mojibake: a Windows 11 session
+# on 2026-09-18 read `qh-check ? run this project's check` from `--help`.
+# ⚠ THIS GATE EXISTS ONLY ON THIS BRANCH, which is why it was the one file the
+# same fix on `main` could not reach — adr-judge, qh-mcp and qh-root got it there
+# and qh-check is not there to get it. A merge without this line reintroduces the
+# defect in the file that produced the report.
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+import json
+import os
+import shutil
+import subprocess
+import sys
+from pathlib import Path
+
+
+def gate_identity():
+    """Who is answering: this gate's name, version and plugin root (ADR-031).
+
+    ADR-005: an unreadable manifest is said in those words, never guessed.
+    """
+    here = Path(__file__).resolve()
+    manifest = here.parent.parent / ".claude-plugin" / "plugin.json"
+    try:
+        version = json.loads(manifest.read_text(encoding="utf-8"))["version"]
+    except Exception as exc:
+        return f"{here.name} (version unreadable: {manifest} — {exc})"
+    return f"{here.name} {version} ({here.parent.parent})"
+
+
+def main(argv):
+    if "--help" in argv or "-h" in argv:
+        print(__doc__)
+        return 0
+    if "--version" in argv:
+        print(gate_identity())
+        return 0
+    script = Path(__file__).resolve().parent.parent / "scripts" / "qh-check.mjs"
+    node = shutil.which("node")
+    if node is None or not script.is_file():
+        sys.stderr.write(
+            f"[qh-check] could not run: needs `node` on PATH and {script} beside this gate's bin/.\n"
+        )
+        return 4
+    args = [node, str(script), *argv]
+    if os.name == "posix":
+        # Replaced, not wrapped: a signal sent to qh-check reaches the process that
+        # forwards it to the check and records it.
+        os.execv(node, args)
+    # The script bounds the check itself; this bound only outlives it.
+    try:
+        seconds = float(os.environ.get("QUALITY_HARNESS_CHECK_TIMEOUT", "3600"))
+    except ValueError:
+        seconds = 3600.0
+    try:
+        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60)
+    except subprocess.TimeoutExpired:
+        return 1
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

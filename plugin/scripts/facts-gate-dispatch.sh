@@ -164,12 +164,20 @@ git_archive_catalog_for() {
     candidates+=("$rel_dir/README.md")
     rel_dir=$(dirname "$rel_dir")
   done
-  # One history read, scoped to these exact paths. NUL framing and literal
-  # pathspecs preserve spaces, brackets and non-ASCII names without Git quoting.
-  while IFS= read -r -d '' match; do
-    matches+=("${match#HEAD:}")
-  done < <(git -C "$repo" --literal-pathspecs grep -l -z -G --threads=1 --no-textconv \
-    -e '^\*\*Lifecycle:\*\* Frozen historical ADR records$' HEAD -- "${candidates[@]}" 2>/dev/null)
+  # One history read per base, scoped to these exact paths. NUL framing and
+  # literal pathspecs preserve spaces, brackets and non-ASCII names without Git
+  # quoting. The bases are the session's first HEAD and then HEAD (ADR-060 T6):
+  # a record deleted AND COMMITTED this session is gone from HEAD, and only an
+  # earlier revision can still say which archive owned it. Unset means HEAD, so
+  # every caller that passes nothing keeps the behaviour it had.
+  local bases="${QUALITY_HARNESS_HISTORY_BASES:-HEAD}" base
+  for base in $bases; do
+    while IFS= read -r -d '' match; do
+      matches+=("${match#"$base":}")
+    done < <(git -C "$repo" --literal-pathspecs grep -l -z -G --threads=1 --no-textconv \
+      -e '^\*\*Lifecycle:\*\* Frozen historical ADR records$' "$base" -- "${candidates[@]}" 2>/dev/null)
+    [ "${#matches[@]}" -gt 0 ] && break
+  done
   [ "${#matches[@]}" -gt 0 ] || return 1
   # git grep orders paths lexically; ownership still belongs to the nearest catalog.
   for candidate in "${candidates[@]}"; do
@@ -305,9 +313,18 @@ elif [[ "$base_lc" == "architecture.md" ]] \
 fi
 
 if [ -z "$gate" ]; then
-  # A miss is a named state (not-recognised / UNPROVEN) at commit and Core, never
-  # a PostToolUse finding for a file that is not a QH record (ADR-053 T4).
-  # Corpus gates do not run.
+  # Two different misses, on two different streams, and the stream is the contract.
+  #   UNPROVEN        could-not-look. STDERR, via say_unproven, so it survives the
+  #                   batch boundary, which takes its findings from stderr.
+  #   not-recognised  a real observation: this file was read and is not a QH record.
+  #                   STDOUT, for a caller that asks about one file directly. The
+  #                   batch boundary parses stdout as JSON lines ONLY and so drops it
+  #                   — deliberately: on stderr, every commit touching any Markdown
+  #                   file would report a "failure" about a file that is fine.
+  # ⚠ This comment used to say a miss "is a named state … at commit". For
+  # not-recognised it was named to nobody there, and every test merged the two
+  # streams, so nothing could tell (audit 2026-09-18, B8). Never a PostToolUse
+  # finding for a file that is not a QH record (ADR-053 T4). Corpus gates do not run.
   if [ ! -e "$f" ] || [ ! -r "$f" ]; then
     say_unproven "$(printf 'UNPROVEN: could not classify %s' "$f")"
     exit 0

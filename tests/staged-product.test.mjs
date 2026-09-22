@@ -8,11 +8,11 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { analyzeTranscript, adrCorpus, decisionsGoverning } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, decisionsGoverning } from '../plugin/scripts/lifecycle.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')
-const testTmp = realpathSync(mkdtempSync(path.join(
+const testTmp = realpathSync.native(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-staged-')))
 after(() => {
   try { rmSync(testTmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
@@ -620,6 +620,10 @@ test('session_id from the payload reaches the facts-gate dispatcher', () => {
   mkdirSync(scripts, { recursive: true })
   cpSync(path.join(pluginDir, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
   cpSync(path.join(pluginDir, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
+  // ADR-060 T6: the runner records what the per-edit gate answered, so a staged
+  // copy needs the event log's module and the git-directory walk it uses.
+  cpSync(path.join(pluginDir, 'scripts', 'event-log.mjs'), path.join(scripts, 'event-log.mjs'))
+  cpSync(path.join(pluginDir, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
   writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
     '#!/bin/bash',
     'printf "session=%s\\n" "${QUALITY_HARNESS_SESSION_ID-UNSET}"',
@@ -663,30 +667,6 @@ test('post-edit-check still runs on unclassified files', () => {
     encoding: 'utf8', timeout: 30_000,
   })
   assert.ok(run.status === 0 || run.stdout || run.stderr === '')
-})
-
-test('an MCP write is UNPROVEN authorship, not no mutation', () => {
-  const state = analyzeTranscript(toolTranscript([
-    { id: 'm1', name: 'mcp__mrw__mrw_write', input: { plan: 'docs/a.md' } },
-  ]))
-  assert.equal(state.authorship, 'UNPROVEN')
-  assert.equal(state.lastMutation, -1)
-  assert.deepEqual(state.mutationPaths, [])
-  assert.notEqual(state.hasMutations, false)
-  assert.ok(state.hasMutations === true || state.authorship === 'UNPROVEN')
-})
-
-test('a native Edit or Write is still a mutation', () => {
-  const edit = analyzeTranscript(toolTranscript([
-    { id: 'e1', name: 'Edit', input: { file_path: '/tmp/x.md' } },
-  ]))
-  assert.notEqual(edit.authorship, 'UNPROVEN')
-  assert.notEqual(edit.lastMutation, -1)
-  assert.ok(edit.hasMutations)
-  const write = analyzeTranscript(toolTranscript([
-    { id: 'w1', name: 'Write', input: { file_path: '/tmp/y.md' } },
-  ]))
-  assert.notEqual(write.lastMutation, -1)
 })
 
 test('no in-process plugin registry was added', () => {

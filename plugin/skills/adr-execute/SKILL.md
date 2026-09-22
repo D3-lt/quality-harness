@@ -137,8 +137,12 @@ into the middle of a sequence:
 ```bash
 T=docs/adr/<record>/tasks/<task>.md
 # ...make the edit set for this task in one plan, then:
-<the project's check> && python3 "$CLAUDE_PLUGIN_ROOT/bin/adr-verify" "$T"
+qh-check && python3 "$CLAUDE_PLUGIN_ROOT/bin/adr-verify" "$T"
 ```
+
+`qh-check` runs this project's declared check and records what it observed, which is
+what the completion advisories read. Running the command yourself still proves the
+work; it just leaves no record for them.
 
 ⚠ **Chaining is for what does not need a decision between steps.** The check and the evidence run
 belong together — `adr-verify` runs the fence itself and records what it observed, so nothing is

@@ -251,14 +251,19 @@ test('no acceptance fence discards its runner exit status', () => {
 
 test('a fence whose runner never starts must fail', () => {
   // The behavioural half: run both forms against a runner that does not exist.
-  // ⚠ QUOTED, AND THE QUOTING IS THE POINT. A Windows absolute path interpolated
-  // bare into a `bash -c` string loses its backslashes: `tee` then wrote a file
-  // literally named `C:Users<user>AppDataLocalTempqh-fence-…` into the REPOSITORY
-  // ROOT, the test still passed because tee and grep agreed on the same mangled
-  // relative path, and it left an untracked file behind that this project's own
-  // commit gates would trip on. Found unprompted by a Windows session on
-  // 2026-09-18 — the same root cause as the spaced-path defect: a Windows path
-  // crossing into bash without quotes.
+  //
+  // ⚠ QUOTE `out`. Unquoted, MSYS bash eats the backslashes of a Windows temp path
+  // and `tee` writes a RELATIVE file into the REPOSITORY ROOT, literally named
+  // `C:Users<user>AppDataLocalTempqh-fence-XXXo` with the colon stored as
+  // U+F03A because NTFS cannot hold a real one. The test still PASSED, because tee
+  // and grep agreed on the same mangled name — the assertion was satisfied by a
+  // file neither of them meant to create — and it left an untracked file behind on
+  // every run, which this project's own commit gates would trip on (CLAUDE.md §9:
+  // a test must not write into the tree it is testing).
+  // Fixed on main 2026-09-18 and carried here after a Windows session found the
+  // branch still creating them: three untracked copies in one worktree, a third
+  // produced while investigating. Same root cause as the spaced-path defect — a
+  // Windows path crossing into bash without quotes.
   const out = join(mkdtempSync(join(tmpdir(), 'qh-fence-')), 'o')
   const broken = `nosuchrunner --test x 2>&1 | tee "${out}"; ! grep -qE "no tests to run|^FAIL" "${out}"`
   const fixed = `set -o pipefail\nnosuchrunner --test x 2>&1 | tee "${out}" && ! grep -qE "no tests to run|^FAIL" "${out}"`
@@ -883,19 +888,20 @@ test('manifest and hook configuration expose the bundled components', () => {
   // hold: the installer orders cached versions with it.
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/, 'the plugin version must be semver')
   assert.equal(manifest.license, 'MIT')
-  assert.ok(statSync(join(repoRoot, 'tests', 'classify.test.mjs')).isFile())
+  assert.ok(statSync(join(repoRoot, 'tests', 'observed-events.test.mjs')).isFile())
 
   const hooks = JSON.parse(readFileSync(join(root, 'hooks', 'hooks.json'), 'utf8'))
   const post = hooks.hooks.PostToolUse.flatMap(group => group.hooks)
   assert.ok(post.every(hook => hook.command === 'node'))
-  assert.ok(post.every(hook => hook.args?.[0] === '${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs'))
+  // ADR-060 T1: lifecycle.mjs joins the per-edit shell hooks to record file.written.
+  assert.ok(post.every(hook => ['${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs', '${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs'].includes(hook.args?.[0])))
   assert.ok(post.some(hook => hook.args?.includes('facts-gate-dispatch.sh')))
   assert.ok(post.some(hook => hook.args?.includes('post-edit-check.sh')))
 
   // Every event lifecycle.mjs handles must actually be declared, or the handler
   // is dead in production while its tests stay green. SubagentStart was the one
   // nothing had ever fired.
-  for (const event of ['SessionStart', 'SubagentStart', 'SubagentStop', 'Stop', 'TaskCompleted', 'PreToolUse', 'PreCompact', 'SessionEnd']) {
+  for (const event of ['SessionStart', 'SubagentStart', 'SubagentStop', 'Stop', 'TaskCompleted', 'PreToolUse', 'PreCompact', 'SessionEnd', 'PostToolUse']) {
     const declared = (hooks.hooks[event] ?? []).flatMap(group => group.hooks)
     assert.ok(declared.length > 0, `${event} is handled but not declared`)
     assert.ok(declared.some(hook => hook.args?.some(arg => arg.endsWith('lifecycle.mjs'))),
@@ -1410,7 +1416,11 @@ test('every shipped gate carries at least one mutation', () => {
   // A forwarder has no behaviour to assert. Each entry is a claim someone can
   // check, and a file that stops being trivial has to be removed from the list
   // deliberately -- which is the point.
-  const trivial = new Set([])
+  // ADR-060 T7: classify-command.mjs is a TOMBSTONE — it ships as comments only,
+  // kept so ADR-041's and ADR-047's `Governs:` pointers still resolve while those
+  // records await retirement under ADR-060. There is no mechanism in it to
+  // mutate, and tests/classify.test.mjs asserts it stays that way.
+  const trivial = new Set(['plugin/scripts/classify-command.mjs'])
   const bareScripts = scriptPaths.filter(p => !covered.has(p) && !trivial.has(p))
   // Shown capable of naming one, for the same reason the bin/ predicate is.
   assert.deepEqual(['plugin/scripts/ghost.sh'].filter(p => !new Set(['plugin/scripts/real.sh']).has(p)),

@@ -24,6 +24,8 @@
 | `plugin/scripts/reviewer-guard.mjs` | edit | header comment: the guard reads one word rule, and a payload it cannot read still passes. Its recorded "a command this hook cannot parse … passes" no longer describes anything, because nothing is parsed |
 | `plugin/agents/qh-correctness-reviewer.md`, `plugin/agents/qh-scope-reviewer.md`, `plugin/agents/qh-synthesis.md` | edit | guard comments match |
 | `tests/reviewer-guard.test.mjs` | edit | Bash refusal cases the word rule does not match are removed; wrapped publishes are added |
+| `tests/lifecycle.test.mjs` | edit | its two reviewer-guard tests and the §135 PreToolUse test pinned the classifier guard; they now pin the word rule. Found by running the suite, a gap in this task's original file list |
+| `tests/read-only-arguments.test.mjs`, ADR-059 T4–T7 and T10 task files | edit | two ADR-059 tests asserted the classifier guard refuses plain writes; those assertions go. The body change moves ADR-059 T4–T7 and T10 locks, so each was re-locked with `adr-verify --relock --replace-hashes` (weaker than first-red, and adr-lint says so) and its fence re-run to exit 0. Found by the selftest, a gap in this task's original file list |
 
 ## Ordered Steps
 
@@ -64,6 +66,13 @@ for name in 'a read-only role cannot commit or push and its other changes are re
 | 4 — it is used | every quality-cycle and review-ring run |
 
 ## Mutation Log
+- 2026-09-17 · 4850fa0* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · push is dropped from the word rule, so a reviewer's git push runs · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · covers:the word rule
+- 2026-09-17 · 4850fa0* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · Edit is no longer denied by tool name · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · covers:the reviewer deny of Edit and Write by tool name
+- 2026-09-17 · 4850fa0* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a PreToolUse is observed and logged before the guard decides, so a denied call leaves an event · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · covers:the deny decided before observation
+- 2026-09-17 · 4850fa0* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · R3 pairs by agent type, so an overlapping reviewer's start hides the change · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · covers:R3 over tree, index and HEAD by agent id
+- 2026-09-17 · 4850fa0* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · R3 ignores the index, so a reviewer's git add goes unreported · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · covers:R3 over tree, index and HEAD by agent id
+- 2026-09-17 · 4850fa0* · mutant killed · exit 1 · `tests/observed-events.test.mjs` · a renamed test selects nothing and the per-name ok grep must refuse it · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · covers:each named test actually running
+- 2026-09-17 · 4850fa0* · mutant killed · exit 1 · `plugin/scripts/reviewer-guard.mjs` · the frontmatter guard CLI never refuses, which only the reviewer-guard suite pins · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · covers:the regression suites that pin the reviewer guard
 
 ## Invariants
 
@@ -86,3 +95,24 @@ Stop and ask if the SubagentStart or SubagentStop payload lacks `agent_id` or `a
 - A per-subagent sandbox (permanent: boundary: no such host setting is measured here)
 
 ## Verification Log
+- 2026-09-17 · 4850fa0* · exit 1 · `set -o pipefail …` · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · ms:110 · test-lock-sha256:0de3de0237da43c77a4f19f4fc658cca2d5b37fbdfd6c8064327f2994de04760 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIGNoZWNrIGV2ZW50IGlzIHdyaXR0ZW4gYnkgcWgtY2hlY2sJZjgwMzk5YmMxY2EyZTlkMDI5MTRjYWM2NDlkNzYwNWEzMzljZTU4YTY0MTFkNDZiOGU0MWRkOWZiNGI1ZTc4Ywpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIHJlYWQtb25seSByb2xlIGNhbm5vdCBjb21taXQgb3IgcHVzaCBhbmQgaXRzIG90aGVyIGNoYW5nZXMgYXJlIHJlcG9ydGVkCTllYjY2ZmU5ZmI2YTVmYmI0OWIxODA1ODgxM2E3ZjQ0Y2FhNDg4NmQyZjFiMjY0YWRkNWIzMjIxMjZmNDQxNWEKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSB0dXJuIGVuZCBvYnNlcnZlcyB0aGUgdHJlZSB3aXRob3V0IHJlYWRpbmcgYW55IGNvbW1hbmQJZDc4ZDQyY2MwZjhiYWM3YWZkYjgxYmE3N2M1MzlkMmY0YWZjOGVhZDFkOTU3MDZjYmYyYzQzY2IxN2U4M2ZmYQpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlvYnNlcnZpbmcgd3JpdGVzIG5vdGhpbmcgaW50byB0aGUgcmVwb3NpdG9yeQlkNjVlMmY0Njc0MzcyNDgzZmZmMDM4ZDRmZWJhZWEyZDgyYWE3MzQwNGEyZDVhZjlhMjEwZWQ4YjAzMTJmNmJhCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCW9uZSBob29rIGRlbGl2ZXJzIGV2ZXJ5IGFjdGlvbiBpdCByZWNvcmRzCTc4ZWZhNTY4ZjMxZThhOTE0YzdkZDRkMGYyNmFmNDgzODFlNDhjMWUzZmFlMmFjNGM1NTZmNDI4MzRmZjQ0MmQ
+  ```
+  --- last 10 line(s) of stdout (of 36 after folding 36 raw)
+    ...
+  1..1
+  # tests 1
+  # suites 0
+  # pass 0
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 46.912292
+  ```
+- 2026-09-17 · 4850fa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · ms:2222
+- 2026-09-17 · 4850fa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · ms:2378
+- 2026-09-17 · 4850fa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · ms:2512
+- 2026-09-17 · 4850fa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · ms:2279
+- 2026-09-17 · 4850fa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · ms:2265
+- 2026-09-17 · 4850fa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · ms:2112
+- 2026-09-17 · 4850fa0* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ab9fad393ff4d58158d8924af8ae9c6122f7a98276951c1d8e7b74f21c2eb0b · ms:2321

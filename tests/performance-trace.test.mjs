@@ -60,7 +60,7 @@ test('an exhausted real artifact batch records unchecked work without a clean ve
       windowMs: 1000, timeoutMs: 100 }), env: { ...process.env, ...env }, encoding: 'utf8', timeout: 10_000,
   })
   assert.equal(result.status, 0, result.stderr)
-  assert.match(result.stderr, /All remaining artifacts were not checked/)
+  assert.match(result.stderr, /UNRUN — all remaining artifacts were not checked/)
   const report = analyzeTrace(readFileSync(env.QUALITY_HARNESS_TRACE_FILE, 'utf8'))
   assert.deepEqual(report.problems, [])
   assert.equal(report.handlers[0].outcomes['budget-exhausted'], 1)
@@ -97,7 +97,7 @@ test('trace destinations cannot modify a checkout, a gated file or its aliases',
     env: { ...process.env, ...env, QUALITY_HARNESS_TRACE_FILE: gated }, encoding: 'utf8', timeout: 10_000,
   })
   assert.equal(result.status, 0, result.stderr)
-  assert.match(result.stderr, /All remaining artifacts were not checked/)
+  assert.match(result.stderr, /UNRUN — all remaining artifacts were not checked/)
   assert.equal(readFileSync(gated, 'utf8'), original, 'the real batch passes its gated paths to the recorder')
   const inputAlias = path.join(root, 'input-alias')
   symlinkSync(root, inputAlias, process.platform === 'win32' ? 'junction' : 'dir')

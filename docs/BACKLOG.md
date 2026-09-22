@@ -12943,6 +12943,8 @@ repeats until the state changes, and report the count once at Stop; a cadence (e
 fits ambient context such as the branch-state brief but not event-bound gates like the commit
 advisory. It changes every gate's behaviour, so it needs its own record — after ADR-058's replay.
 
+**Measured for ADR-060, 2026-09-22, beside §213's 21.** The installed claims ledger has no `events/1` row, so no chat has run these hooks. A session was driven on the branch at `365706b`: `SessionStart`, one edit, `Stop`, one `qh-check`, `Stop`, then a commit of that edit. It spoke twice — the SessionStart named the project's check, and the first Stop delivered R1 for the edited file. The Stop after `qh-check` (exit 0, `check.passed`) said nothing. `action.emitted` was R1 once. Commits in that repository: 2. `qh-check` runs: 1. This is a driven session of the landed hooks, not a replay of the transcript behind the 21.
+
 ## 218. Shell grammar words make a loop or a conditional an unrecognised family (2026-09-16)
 
 Found by ADR-058 T2's class audit ("a family outside `MEASURED_FAMILIES` whose invocation is a
@@ -13791,3 +13793,91 @@ requests, a retracted linter incident, an audit's completeness-loop results. §6
 material derived from another repository's corpus, and rounding a figure hides its origin without
 removing it. The methods in it are good and the contributor's work is real; it needs a rewrite from
 the procedures alone, by someone who did not read that audit, and that is not a release-day edit.
+
+## 246. The status line's header says it never spawns a process, and it does (2026-09-17)
+
+`plugin/scripts/statusline.mjs` opens with "NEVER spawns a process: a status line renders constantly
+and a command that waits on git or a gate freezes the prompt for as long as they take". Found while
+pointing it at ADR-060's event log: `reading()` calls `projectCheckCommand(cwd)`, which reaches
+`gitRepositoryRoot` and runs `git -C <dir> rev-parse --show-toplevel` with a 5s timeout. That has
+been true since the check name entered the segment; the claim was written when it was not.
+
+ADR-060 T5 leaves the call where it is and narrows the claim in the header, because the reading it
+needs — is there a check at all — has no spawn-free source today, and the per-session cache keeps it
+off most renders. What would close this: resolve the declared check from `.quality-harness.json` at
+the nearest ancestor with `findGitDir`'s walk, which starts nothing, and reserve
+`projectCheckCommand` for the hooks.
+
+Also open from the same task: the status line speaks for the tree and the writes only. It cannot see
+an unchecked COMMIT, because the log holds no commit history — so a session whose tree is checked and
+whose new commit is not renders `QH ✓ checked` while R2 has something to say at the next turn end.
+Storing the last completion's evidence in the log would close it, at the cost of putting a verdict
+into a file of observations.
+
+## 247. §213, §216, §217, §218, §219, §220 and §221 close with the classifiers (2026-09-18)
+
+ADR-060 T7 deleted every rule that read a command's text to decide what happened, so seven entries
+have nothing left to fix. Closed here rather than edited in place, because the entries are history
+and what closed them is a decision, not a repair:
+
+- **§213** (a wrapped selftest missed, `mrw read` counted as a write) and **§216** (the same, sighted
+  live in workflow-spawned reviewers): there is no command classifier to miss a wrapper. A check is
+  an event `qh-check` writes, and a write is a `file.written` event or a tree that moved.
+- **§217** (a per-session counter for repeated advisories): replaced by one advisory per rule and
+  evidence state. The key carries the tree, the evidence revision and the count of writes git cannot
+  see, so the same finding is made once and re-opens when the state moves.
+- **§218** (shell grammar words make a loop or a conditional an unrecognised family) and **§219**
+  (the foreign-shell check survives its deletion): nothing classifies a family any more.
+- **§220** (arguments of read-only families read as changed paths) and **§221**: changed paths come
+  from `git status --porcelain` and from Edit/Write events, so a command's arguments reach no list.
+
+⚠ **These closures are on the ADR-060 trial branch and describe its tree.** Four of the defects
+(§223's over-reports, §224, §227, §228) are about the released 2.99.7 classifiers and stay open
+there until ADR-060 is accepted and released.
+
+## 248. A Windows install sat twenty minors behind, and nothing said so (2026-09-18)
+
+Asked to test, a Windows 11 Pro (26200) session reported `quality-harness` at **2.79.0** while the
+published release was **2.99.7**. `claude plugin update quality-harness` fetched cleanly from the
+marketplace, so nothing was broken — the install had simply never been updated, and no surface said
+it was behind. Every fix between those versions, including the ADR-053/054/055/056/058/059 advisory
+corrections, reached that machine only because somebody asked today.
+
+Two consequences, and the second is the one that bites:
+
+- **A stale install measures the wrong build.** That session was about to give a Windows baseline
+  with 2.79.0 hooks and said so itself rather than reporting it as 2.99.7 — which is the only reason
+  the comparison is not already poisoned. Any cross-platform claim has to carry the version of each
+  side, and a Windows-vs-macOS difference is old-build-vs-new-build until the versions are shown.
+- **`claude plugin update` needs a restart to apply**, and the session that ran it keeps running the
+  old code. A session that updates mid-flight and then reports is reporting the previous version.
+
+What would close it: something that says, once, when the running plugin is behind the marketplace's
+newest — `staleVersionNotice()` already exists for a related question, and this is the case it does
+not cover. Unknown and worth finding out first: how that install was made (marketplace, manual, a
+clone), because an update mechanism that does not notify is a different defect from a machine nobody
+updated.
+
+Recorded because it is an ADOPTION fact, not a code defect: the corpus can only be judged against
+what people are actually running.
+
+## 249. The Windows fixes from a real machine, carried onto this branch (2026-09-18)
+
+Three defects a Windows 11 Pro session found by running the suite on a real machine, fixed on `main`
+as `f266411` and cherry-picked here so this branch can be tested on Windows without drowning in them.
+Their evidence and reasoning are in `main`'s §229-§232; this entry exists so a reader of THIS branch
+knows the fixes are here and where the argument lives.
+
+- **A space in the checkout path made a run where NO test ran a passing baseline.** `leafTestsRun`
+  discounted node's file-level line by absence of whitespace. Confirmed on macOS, so never a Windows
+  defect: `~/My Projects/` does it. `leafTestsRun(stdout, files)` and `baselineOf(run, files)` now
+  take the file list `testArgs` passed, so the wrapper line is known rather than inferred.
+- **Six tests failed on a stock Windows account** (symlink EPERM, no Developer Mode) where three
+  others already skipped with a stated reason. `tests/symlink-support.mjs`: a junction for every
+  directory link, so the test RUNS; a stated skip only where a real symlink is the fixture.
+- **MAX_PATH**: documented in `docs/INSTALL.md` (`git clone -c core.longpaths=true`), not fixed by
+  renaming, because the longest paths are task files inside accepted records.
+
+⚠ THE PATH CEILING IS THIS BRANCH'S PROBLEM TOO. ADR-060's longest task filename is 134 characters
+against ADR-059's ceiling of 149, so this branch does not raise it — but every new task file written
+here spends the same 110-character budget a Windows clone has for its checkout root.

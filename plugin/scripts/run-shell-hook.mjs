@@ -5,6 +5,7 @@ import { existsSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { startPerformanceTrace } from './performance-trace.mjs'
+import { appendEvent, canonicalFile, contentId } from './event-log.mjs'
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const HOOK_SCRIPTS = new Set(['facts-gate-dispatch.sh', 'post-edit-check.sh'])
@@ -55,6 +56,35 @@ export function hookFilePathFromPayload(raw, platform = process.platform) {
     ?? payload?.tool_input?.notebook_path
     ?? payload?.tool_response?.filePath
   return typeof candidate === 'string' && candidate.length > 0 ? candidate : null
+}
+
+/**
+ * The spelling a path gets when it is PERSISTED as an event key.
+ *
+ * ⚠ `windowsPathForBash` rewrites `C:\x` to `C:/x` (and `\\server\share` to
+ * `//server/share`) so a path can be handed to a bash gate. That is correct at
+ * the shell boundary and must stay. What must NOT happen is that bash-shaped
+ * string escaping into durable state — and it did: `runEditGate` recorded it
+ * verbatim as an `artifact.gated` key, while rule A at the turn end rebuilds its
+ * candidates with `path.join(root, relative)`, which is NATIVE. The two spellings
+ * never compare equal, so `answered` was always empty and EVERY artifact a
+ * per-edit gate had already answered COMPLETE was re-gated and re-reported. The
+ * dedup rule A exists to provide has never worked on Windows.
+ *
+ * Reported and root-caused 2026-09-18 by two Windows sessions, who also found the
+ * precedent: `recordFileWritten` (lifecycle.mjs) already does `path.resolve` before
+ * recording. ⚠ THIS COMMENT THEN CALLED `file.written` "immune", AND THAT WAS
+ * MEASURED FALSE (audit 2026-09-18): resolving fixes the SEPARATOR and not the
+ * spelling, so a symlink or an 8.3 short name still produced a key rule A never
+ * looked up. The caller now passes this result through `canonicalFile`.
+ * `path.win32.resolve` re-normalizes both separators and the UNC form, so the
+ * mapped-drive case nobody can test is covered by the same line.
+ *
+ * `platform` is a parameter because the whole defect is win32-only and a
+ * win32-only branch with no injectable seam has no test (CLAUDE.md §7).
+ */
+export function persistedEventPath(file, cwd, platform = process.platform) {
+  return (platform === 'win32' ? path.win32 : path.posix).resolve(cwd, file)
 }
 
 export function hookArguments(scriptName, raw, platform) {
@@ -213,11 +243,11 @@ export function runWithTimeout(executable, args, options = {}) {
     child.stderr?.on('data', chunk => capture('stderr', chunk))
     child.on('error', error => { spawnError = error })
 
-    const settle = (status, closed) => {
+    const settle = (status, closed, signal = null) => {
       clearTimeout(timer)
       clearTimeout(grace)
       resolve({
-        error: spawnError, status, stderr, stdout, timedOut, outputLimitExceeded, pid: child.pid,
+        error: spawnError, status, signal, stderr, stdout, timedOut, outputLimitExceeded, pid: child.pid,
         // `closed` is the only observation that the tree is gone; a kill that
         // was issued is not one that landed (ADR-005).
         cleanupConfirmed: timedOut || outputLimitExceeded ? closed : null,
@@ -243,7 +273,10 @@ export function runWithTimeout(executable, args, options = {}) {
       stop()
     }, timeoutMs)
 
-    child.on('close', status => settle(status, true))
+    // ⚠ KEEP THE SIGNAL. A child the OS killed closes with `status: null` and the
+    // signal name beside it; discarding the second argument left `null` standing in
+    // for "no status yet" and for "killed", which are not the same observation.
+    child.on('close', (status, signal) => settle(status, true, signal))
     child.stdin?.on('error', () => {})
     child.stdin?.end(input)
   })
@@ -278,7 +311,13 @@ export async function runShellHook(scriptName, raw, options = {}) {
     return 2
   }
 
-  const { timeoutMs = shellHookTimeoutMs(), maxOutputBytes, windowMs } = options
+  const { timeoutMs = shellHookTimeoutMs(), maxOutputBytes, windowMs, verdict } = options
+  // ADR-060 T6: `verdict.complete` says whether the gate REACHED a verdict about
+  // this content. Every arm below that is the harness failing to run — a
+  // timeout, a truncated report, a crashed shell, unconfirmed cleanup — leaves
+  // it false, so the next boundary asks again instead of treating silence as a
+  // pass (ADR-005). It defaults to false and is set true only at the end.
+  if (verdict) verdict.complete = false
   const scriptPath = process.platform === 'win32'
     ? windowsPathForBash(path.join(SCRIPT_DIR, scriptName))
     : path.join(SCRIPT_DIR, scriptName)
@@ -335,6 +374,9 @@ export async function runShellHook(scriptName, raw, options = {}) {
   // Direct hooks stay advisory. A batch must stop if the prior shell may still
   // be running, especially because its completed-command ledger is shared.
   const batchStatus = run.cleanupConfirmed === false && windowMs !== undefined ? 1 : 0
+  // `UNPROVEN` and `UNRUN` are the dispatcher's own words for a gate that could
+  // not answer, so a report carrying either is not a verdict about this content.
+  const unproven = /\b(?:UNPROVEN|UNRUN)\b/.test(`${run.stderr ?? ''}${run.stdout ?? ''}`)
   if (run.cleanupConfirmed === false) {
     process.stderr.write(`\nquality-harness: process cleanup could not be confirmed for `
       + `${hookFilePathFromPayload(raw) || 'this edit'}; its checker may still be running.\n`)
@@ -370,14 +412,42 @@ export async function runShellHook(scriptName, raw, options = {}) {
       + 'could report, so treat this edit as unchecked rather than clean. Nothing is blocked.\n')
     return 0
   }
+  // ⚠ A CHILD THE OS KILLED IS COULD-NOT-LOOK, NOT A CLEAN GATE. It closes with
+  // `status: null` and a signal name, so a guard written as
+  // `Number.isInteger(run.status) && run.status !== 0` never fires for it — and
+  // `complete` was then set from cleanup alone, after which rule A treats the
+  // artifact as answered and never gates it again. A gate that was killed made no
+  // observation (ADR-005; CLAUDE.md §3). Found by a different-lineage review of
+  // this branch, reproduced with a real `bash -c 'kill -TERM $$'`.
+  if (run.signal) {
+    process.stderr.write(`quality-harness: ${scriptName} was killed by ${run.signal} before it could `
+      + 'report, so treat this edit as unchecked rather than clean. Nothing is blocked.\n')
+    return 0
+  }
   // The hook scripts are advisory by construction and exit 0 even when they have
   // findings. A non-zero here is one of them breaking, which is still not a
   // reason to refuse the user's edit.
   if (Number.isInteger(run.status) && run.status !== 0) {
     process.stderr.write(`quality-harness: ${scriptName} exited ${run.status}, which it should `
       + 'never do — the gates report, they do not refuse. Nothing is blocked; please report this.\n')
+    return 0
   }
+  // `complete` requires an OBSERVED zero exit. Anything else — a signal, a null
+  // from a grace-period settle, an undefined from a seam — is not an answer.
+  if (verdict) verdict.complete = run.status === 0 && run.cleanupConfirmed !== false && !unproven
   return 0
+}
+
+/**
+ * historyBases reads the revisions a deletion is looked up in, nearest first.
+ * ADR-060 T6: a record deleted AND COMMITTED during a session is gone from HEAD,
+ * so HEAD alone cannot say which archive owned it — the session's first HEAD can.
+ * Defaults to HEAD, which is what every caller that sets nothing still gets.
+ */
+export function historyBases(env = process.env) {
+  const raw = typeof env.QUALITY_HARNESS_HISTORY_BASES === 'string' ? env.QUALITY_HARNESS_HISTORY_BASES : ''
+  const bases = raw.split(/[\s,]+/).filter(base => /^[A-Za-z0-9._/^~-]{1,200}$/.test(base))
+  return bases.length ? bases : ['HEAD']
 }
 
 /**
@@ -432,17 +502,36 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
     // Keep the optimization within Windows argv limits; large sets keep the
     // original scoped lookup rather than widening to a repository-wide scan.
     if (candidates.join(' ').length > 16_000) continue
-    const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', 'HEAD', '--', ...candidates])
-    if (tree === null || (tree.length && tree.at(-1) !== 0)) continue
-    const blobs = new Map()
+    // ⚠ PER BASE, NOT MERGED. This kept ONE map, "the first base that knows a
+    // candidate owns it" — the first base in which a README EXISTS. The dispatcher's
+    // `git_archive_catalog_for` breaks at the first base in which a README IS A
+    // CATALOG. They differ whenever a README lost its Lifecycle marker between the
+    // session's first HEAD and HEAD: bash then finds the historical catalog and runs
+    // `adr-retire-check`, this answered "none", and because this only engages in a
+    // batch the SAME record got a different gate at the boundary meant to be
+    // authoritative (audit 2026-09-18, B7; tests/archive-history-parity.test.mjs).
+    const perBase = []
     let valid = true
-    for (const row of tree.toString('utf8').split('\0').filter(Boolean)) {
-      const entry = /^(\d{6}) (\w+) ([a-f0-9]+)\t([\s\S]+)$/.exec(row)
-      if (!entry) { valid = false; break }
-      if (entry[2] === 'blob' && /^100/.test(entry[1])) blobs.set(entry[4], entry[3])
+    for (const base of historyBases()) {
+      const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', base, '--', ...candidates])
+      // ⚠ A BASE THAT COULD NOT BE READ IS NOT A BASE WITH NO CATALOG. This said
+      // `continue`, so a failed or truncated `ls-tree` on the base that HELD the
+      // catalog fell through to one that did not, and `''` — "observed: none" —
+      // was cached for every file, suppressing the dispatcher's own lookup, which
+      // may well have succeeded (different-lineage review, 2026-09-19). Any base
+      // unread leaves the whole group unanswered; absent means "look yourself".
+      if (tree === null || (tree.length && tree.at(-1) !== 0)) { valid = false; break }
+      const blobs = new Map()
+      for (const row of tree.toString('utf8').split('\0').filter(Boolean)) {
+        const entry = /^(\d{6}) (\w+) ([a-f0-9]+)\t([\s\S]+)$/.exec(row)
+        if (!entry) { valid = false; break }
+        if (entry[2] === 'blob' && /^100/.test(entry[1])) blobs.set(entry[4], entry[3])
+      }
+      if (!valid) break
+      perBase.push(blobs)
     }
     if (!valid) continue
-    const ids = [...new Set(blobs.values())]
+    const ids = [...new Set(perBase.flatMap(blobs => [...blobs.values()]))]
     const catalogs = new Set()
     if (ids.length) {
       // ls-tree and cat-file both exit zero for a completed empty answer. Unlike
@@ -464,7 +553,13 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
       if (!valid || offset !== data.length) continue
     }
     for (const { file, candidates: nearestFirst } of files) {
-      const catalog = nearestFirst.find(candidate => catalogs.has(blobs.get(candidate)))
+      // The nearest base in which ANY of this file's candidates is a catalog, and
+      // within it the nearest such candidate — the dispatcher's rule, in its order.
+      let catalog
+      for (const blobs of perBase) {
+        catalog = nearestFirst.find(candidate => catalogs.has(blobs.get(candidate)))
+        if (catalog) break
+      }
       answers.set(file, catalog ? path.join(root, catalog) : '')
     }
   }
@@ -488,6 +583,9 @@ export async function runArtifactBatch(raw) {
     return 2
   }
   const finish = startPerformanceTrace('artifact-batch', raw, process.env, batch.paths)
+  // The per-path result the caller records as `artifact.gated` (ADR-060 T6).
+  // stdout, because the findings themselves own stderr.
+  const report = (filePath, complete) => process.stdout.write(`${JSON.stringify({ gated: filePath, complete })}\n`)
   const history = archiveHistory(batch.paths, batch.deadline)
   for (const [index, filePath] of batch.paths.entries()) {
     const remaining = batch.deadline - Date.now()
@@ -495,19 +593,24 @@ export async function runArtifactBatch(raw) {
       process.stderr.write('The boundary\'s ' + Math.round(batch.windowMs / 1000)
         + 's window was exhausted before ' + filePath + ' was gated. '
         + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.\n'
-        + 'All remaining artifacts were not checked:\n' + batch.paths.slice(index).join('\n') + '\n')
+        + 'UNRUN — all remaining artifacts were not checked:\n' + batch.paths.slice(index).join('\n') + '\n')
+      for (const unchecked of batch.paths.slice(index)) report(unchecked, false)
       finish('budget-exhausted', { status: 0 })
       break
     }
+    const verdict = {}
     const status = await runShellHook('facts-gate-dispatch.sh',
       JSON.stringify({ tool_input: { file_path: filePath } }), {
         timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT,
         windowMs: batch.windowMs,
         archiveCatalog: history.get(filePath),
+        verdict,
       })
+    report(filePath, verdict.complete === true)
     if (status !== 0) {
-      process.stderr.write('The batch stopped after unconfirmed process cleanup. Unchecked artifacts:\n'
-        + batch.paths.slice(index).join('\n') + '\n')
+      process.stderr.write('The batch stopped after unconfirmed process cleanup. UNRUN artifacts:\n'
+        + batch.paths.slice(index + 1).join('\n') + '\n')
+      for (const unchecked of batch.paths.slice(index + 1)) report(unchecked, false)
       finish('cleanup-unconfirmed', { status, cleanupConfirmed: false })
       break
     }
@@ -517,8 +620,42 @@ export async function runArtifactBatch(raw) {
   return 0
 }
 
+// ADR-060 T6: the per-edit gate records what it gated, so rule A does not gate
+// the same content again at the turn end — and DOES when this gate reached no
+// verdict. The event is written here rather than by the lifecycle hook because
+// this process is the only one that knows what the gate answered.
+export async function runEditGate(raw) {
+  const payload = raw ?? await readStdin()
+  const file = hookFilePathFromPayload(payload)
+  let parsed
+  try { parsed = JSON.parse(payload) } catch {}
+  const key = file && typeof parsed?.cwd === 'string' ? canonicalFile(persistedEventPath(file, parsed.cwd)) : null
+  // ⚠ HASH THE BYTES THE GATE IS ABOUT TO READ, NOT THE ONES LEFT AFTERWARDS.
+  // This recorded `contentId` AFTER the gate ran, so a file edited while the gate
+  // was running was filed under the NEW content with the OLD content's verdict —
+  // and rule A then suppressed the very edit nothing had looked at. Taking the
+  // identity first means a concurrent edit produces a MISMATCH at the next
+  // boundary, which re-gates. Re-gating is the safe direction (ADR-005).
+  // Found by a different-lineage review of this branch, 2026-09-18.
+  const before = key ? contentId(key) : null
+  const verdict = {}
+  const status = await runShellHook('facts-gate-dispatch.sh', payload, { verdict })
+  if (key && typeof parsed?.session_id === 'string' && typeof parsed?.cwd === 'string') {
+    // And if the bytes MOVED under the gate, its verdict is about content that is
+    // no longer there: record it as incomplete so the next boundary asks again.
+    const after = contentId(key)
+    const steady = before !== null && before === after
+    appendEvent(parsed.cwd, parsed.session_id, {
+      event: 'artifact.gated', path: key, blob: before, complete: verdict.complete === true && steady,
+    })
+  }
+  return status
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exitCode = process.argv[3] === '--batch' && process.argv[2] === 'facts-gate-dispatch.sh'
     ? await runArtifactBatch(await readStdin())
-    : await runShellHook(process.argv[2])
+    : process.argv[2] === 'facts-gate-dispatch.sh'
+      ? await runEditGate()
+      : await runShellHook(process.argv[2])
 }

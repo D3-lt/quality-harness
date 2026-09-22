@@ -9391,7 +9391,7 @@
       "tests": [
         "tests/record-identity.test.mjs"
       ],
-      "only": "a supersession by a bare number",
+      "only": "an underscore-prefixed token",
       "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)",
       "to": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)"
     }

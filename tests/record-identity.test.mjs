@@ -647,10 +647,18 @@ test('a supersession by a bare number is the first reference too', () => {
   writeTree(root, {
     'adr/ADR-002-kept.md': record('ADR-002: Kept', 'Accepted'),
     'adr/ADR-010-a.md': record('ADR-010: A', 'Superseded by 999 (see ADR-002)'),
-    'adr/ADR-011-b.md': record('ADR-011: B', 'Superseded by not_ADR-002'),
   })
   const byId = new Map(lifecycle.adrCorpus(root, { tracked: listing(root) }).map(entry => [entry.id, entry]))
   assert.equal(byId.get('ADR-010')?.supersededBy, 'ADR-999')
-  // R6 of round 3: `not_ADR-002` is not a reference to ADR-002.
-  assert.notEqual(byId.get('ADR-011')?.supersededBy, 'ADR-002')
+})
+
+test('an underscore-prefixed token is not a numbered supersession', () => {
+  // R6 of round 3, through an archive catalog effect: a record's own status line
+  // has its underscores stripped before this reader sees it, so the catalog is
+  // where `not_ADR-002` reaches the rule intact.
+  const root = dateCorpus({ effect: 'superseded by not_ADR-002' })
+  writeTree(root, { 'adr/ADR-002-kept.md': record('ADR-002: Kept', 'Accepted') })
+  const records = lifecycle.adrCorpus(root, { tracked: listing(root) })
+  assert.equal(records.look, 'PARTIAL', 'not_ADR-002 names no record')
+  assert.ok(!records.some(entry => entry.id === OLD && entry.kind === 'graveyard'))
 })

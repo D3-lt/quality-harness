@@ -1,6 +1,6 @@
 # ADR-063: A record is its number, or its stem
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-22
 **Owner:** zy
 **Spec:** None — no spec stage. On 2026-09-22 the owner decided to accept an adopter's record naming instead of requiring it to be converted, with no configuration option, and scoped this to the retire family and its readers. After the cold review the owner decided the identity rule: only a date-shaped name is identified by its stem; an `NNN-slug` name keeps its number.

@@ -38,7 +38,7 @@ same defect appeared inside code written to fix an ADR-005 violation: `Path.glob
 `OSError`, so an unreadable record read as an empty one and "nothing is ready" was reported as a
 verdict from a directory nothing had looked inside.
 
-## The one sanctioned refusal, and why it has an off switch
+## The sanctioned refusals, and why the publish one has an off switch
 
 On 2026-09-22 the owner accepted ADR-061: a command naming commit or push, on a tree no `qh-check`
 has passed on, is refused when the session log was read whole. The reason is the one this section
@@ -58,3 +58,8 @@ Here the opt-out is `"publish": "warn"` in `.quality-harness.json`. Only that ex
 any other value is reported as ignored and keeps the refusal, so a typo cannot silently turn it
 off. Every could-not-look — a torn log, an unordered check, a check that timed out or could not
 observe its tree, a root git would not name — warns and never refuses (ADR-005).
+
+The other sanctioned refusal predates this one: ADR-060's reviewer guard denies a role spawned
+read-only any edit, commit or push. It has no off switch because it fences a role the caller
+chose to make read-only, never the caller's own work. A third-round review caught the docs calling
+ADR-061's refusal "the one", which the guard made false.

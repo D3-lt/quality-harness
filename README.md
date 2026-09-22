@@ -81,12 +81,14 @@ to fake:
 - **It checks that your tests can actually fail.** A test that passes no matter
   what is worse than no test, because it looks like safety. The plugin breaks each
   piece of your code on purpose and reports any test that did not notice.
-- **It does not block you, with one exception you can turn off.** Every check gives
+- **It does not block your work, with one exception you can turn off.** Every check gives
   advice and lets the work continue. The exception: a `git commit` or `git push` on a
   tree no `qh-check` has passed on is refused, because a warning a model treats as
   noise still publishes. `"publish": "warn"` in `.quality-harness.json` makes it a
-  warning again. It does still exit non-zero when a check fails — nothing seizes your
-  session, and the exit code stays honest for the CI step that reads it.
+  warning again. (A reviewer agent the plugin starts read-only is also stopped from
+  editing, committing or pushing; that fences the reviewer, not you.) It does still exit
+  non-zero when a check fails — nothing seizes your session, and the exit code stays
+  honest for the CI step that reads it.
 - **It says "I do not know" when it does not know.** If a check could not run, it
   says so, rather than reporting a clean result it never actually observed.
 - **It keeps decisions where you can find them.** Why something was built a

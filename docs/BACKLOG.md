@@ -13915,3 +13915,55 @@ Not measured: whether any user of this plugin runs a case-sensitive APFS volume.
 this can only produce a wrong ADVISORY, never a refusal. What would close it: ask the filesystem
 instead of the OS (for example, whether the path with its case flipped resolves to the same inode),
 behind the existing `platform` seam so a test can drive both answers.
+
+## 253. A build diagnostic anywhere in a failing fence makes a real kill inconclusive (2026-09-22)
+
+`adr-verify` classifies a mutant run as `inconclusive` when any `BUILD_BROKE` pattern matches
+anywhere in the fence output (`plugin/bin/adr-verify`, the `elif any(re.search(pat, out, re.M) for pat
+in BUILD_BROKE)` arm, checked before a failing assertion is recognised). A fence whose test ASSERTS
+that a nested build fails prints Go's `[build failed]` as part of a correct, failing assertion, so the
+kill is recorded as "the fence failed on a build/parse error, not an assertion". Reported from
+memory-runtime (ADR-015 T8, adr-verify 2.100.0, 2026-09-20): its `TestLiveFilesCompile` mutant could not
+bind a killed row. Confirmed at `849a80f` by reading the arm; not reproduced here.
+
+Open design question, as the reporter framed it: telling a top-level broken test build apart from a
+build-check assertion. Do not solve it by suppressing compiler diagnostics or weakening either fence.
+The direction that fails safe matters: a false `inconclusive` is an annoyance, a false `killed` is the
+defect the list exists to stop (the list's own comment).
+
+## 254. `adr-debt` reports follow-ups that a later Accepted record disposes of (2026-09-22)
+
+Reported from memory-runtime (adr-debt 2.100.0, 2026-09-20): eleven open follow-up rows from frozen
+ADR-008 to ADR-014, while its BACKLOG Follow-ups section is empty and Accepted ADR-015's Out of Scope
+disposes of the exact texts. The frozen records are SHA-pinned and must not be edited to silence the
+tool. The question for this project: should a superseding record's disposition suppress or qualify a
+historical row, and in what grammar. Not reproduced here.
+
+## 255. Peer-probe leads from 2026-09-18 to 2026-09-22 that nothing has confirmed or closed (2026-09-22)
+
+Moved out of the `wing_quality-harness` inbox so they are tracked in this file. Each is a lead from
+another repository's session, not a measurement here. The inbox items that were fixed or already had
+an entry here were closed rather than copied: the quality-cycle `externalReviews` reason (`9f206ad`),
+the date-slug retire gate (ADR-063), the `composer test` rung (removed), `qh-doctor` dropping the
+unidentified count, `branch-state` leaking child stderr, the vitest `-t` row (`.claude/rules/16`), the
+inferred check narrower than a husky gate (§244), the `adr-audit` handoff (§245), and Ansible
+`roles/*/tasks` directories read as ADR task directories (the `lifecycle.mjs` task-directory scan now
+requires a `*.md` directly under `tasks/`).
+
+- **`absent:<base>:<owning ADR>`.** On the ADR-060 trial a deletion under an archive-owned path was
+  filed under an `ABSENT` key carrying no owner, so editing the owner could not re-open the question.
+  Deferred there on purpose, because it changes what a persisted key means. Not re-read at `849a80f`:
+  the names the report used are no longer in `plugin/`.
+- **The errno table** from the same review: EISDIR read as null, `contentId` following symlinks, and a
+  FIFO blocking `readFileSync` outside the budget window. The suggested fix was `statSync` plus
+  `isFile()` first. Recorded there, not done.
+- **`./vendor/bin/pint --test` is not a validation command.** Laravel's first-party linter in dry-run
+  mode, where a first-token pattern finds no test/lint/check word. Reported on 2.99.6.
+- **An Acceptance fence that pipes its runner, or `cd`s outside the record's repository**, is linted by
+  nothing, and `work-next` reports readiness for a tree no gate read. The reporter was unsure whether
+  that is the gate's problem or the author's.
+- **`qh-check` exit 2 writes no row**, so "a session tried and there was nothing to run" looks the same
+  as "nobody ran it". It is conservative, since an advisory still says `unchecked`. The open question is
+  whether the next session should see the attempt.
+- **The peer-probe script changed between a peer reading it and running it** (2026-09-19). A request for
+  a peer run should carry the script's sha256, so the peer can show which version it ran.

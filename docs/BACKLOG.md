@@ -13967,3 +13967,24 @@ requires a `*.md` directly under `tasks/`).
   whether the next session should see the attempt.
 - **The peer-probe script changed between a peer reading it and running it** (2026-09-19). A request for
   a peer run should carry the script's sha256, so the peer can show which version it ran.
+
+## 256. An inherited `FORCE_COLOR` makes the mutation runner read no test output (2026-09-22)
+
+`childEnv` (`scripts/mutate.mjs`) strips two inherited variables because each changes what a child
+`node --test` prints: `NODE_TEST_CONTEXT` and a `--test-reporter` in `NODE_OPTIONS`. `FORCE_COLOR` is a
+third member of the same class and is not stripped. With it set, the spec reporter's lines carry ANSI
+codes, the baseline parser finds none, and every baseline is `unrun` ("the test output carried no spec
+reporter lines"). That errs toward UNPROVEN, not a false verdict, but a campaign run from such a shell
+measures nothing.
+
+Found 2026-09-22 when a restarted session's environment carried `FORCE_COLOR=3` and three tests failed:
+`tests/mutate-runner.test.mjs` "end to end: a nonsense pattern under an inherited dot reporter is
+unrun, and a matching one passes" and "a checkout path with a space is still an unrun baseline when
+nothing matched", and `tests/mutation-cache-merge.test.mjs` "the runner records what it MEASURED, and
+records nothing when it reused". They failed identically on the released `849a80f` in a clean
+worktree, and all 40 tests in those two files passed with `env -u FORCE_COLOR`. So `selftest.sh` is red
+in any shell that exports it; CI does not.
+
+What would close it: strip `FORCE_COLOR` in `childEnv` beside the other two, and add a test that runs
+the end-to-end case with `FORCE_COLOR=3` in the parent environment. Not checked: whether `NO_COLOR` or
+`NODE_DISABLE_COLORS` interact, and whether any other script in `scripts/` parses child test output.

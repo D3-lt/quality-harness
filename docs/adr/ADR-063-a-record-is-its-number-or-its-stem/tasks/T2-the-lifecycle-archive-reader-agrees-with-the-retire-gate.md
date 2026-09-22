@@ -8,7 +8,7 @@
 **Consumes:** the fixture corpora and the identity table in `tests/record-identity.test.mjs` (T1); `record_id` and the reference rule (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the date shape in the name guard`, `admission under a frozen archive`, `the catalog found at the archive root`, `the supersession id`, `adr-state keyed by id`, `the JS identity rule`
+**Rests-on:** `admission under a frozen archive`, `the catalog found at the archive root`, `the supersession id`, `adr-state keyed by id`, `the JS identity rule`
 
 ## Goal
 
@@ -70,6 +70,15 @@ for name in 'the corpus reader lists dated records, active and archived' 'the li
 | 4 — it is used | the tests call the exported `adrCorpus` and run `adr-state.mjs` on T1's fixtures |
 
 ## Mutation Log
+- 2026-09-22 · 2d27d9b* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · an archived dated record must be listed · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · covers:admission under a frozen archive
+- 2026-09-22 · 2d27d9b* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a withdrawn archived record must not govern · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · covers:the catalog found at the archive root
+- 2026-09-22 · 2d27d9b* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a dated supersession must not become 2026 · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · covers:the supersession id
+- 2026-09-22 · 2d27d9b* · mutant killed · exit 1 · `plugin/scripts/adr-state.mjs` · a supersession by stem must resolve in adr-state · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · covers:adr-state keyed by id
+- 2026-09-22 · 2d27d9b* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the JS rule must agree with record.py · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · covers:the JS identity rule
+- 2026-09-22 · 2d27d9b* · mutant inconclusive · exit 1 · `plugin/scripts/lifecycle.mjs` · a dated name must not match the record-name guard · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · covers:the date shape in the name guard
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
 
 ## Invariants
 
@@ -79,6 +88,7 @@ for name in 'the corpus reader lists dated records, active and archived' 'the li
 ## Risks
 
 - `supersededBy`'s callers compare a number. Each is checked before it can receive a stem; a caller that needs a number keeps `number`, and only the supersession link moves to `id`.
+- The name guard's date shape (`ADR_FILE`) is not in **Rests-on:** because `adr-verify --mutant` graded its mutant inconclusive: the suite output that kills it carries a build/parse diagnostic, which is BACKLOG §253. The campaign mutant "corpus: an ISO-dated file is not a decision record" in `tests/mutations.json` still covers that line.
 
 ## Stop Condition
 
@@ -103,3 +113,23 @@ Stop and ask if S1 finds the missing records are dropped for a reason ADR-063 di
   # todo 0
   # duration_ms 1202.146542
   ```
+- 2026-09-22 · 2d27d9b · exit 1 · `set -o pipefail …` · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · ms:81411
+  ```
+  --- last 10 line(s) of stdout (of 2307 after folding 2311 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: 3,
+      expected: 4,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-09-22 · 2d27d9b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · ms:80022
+- 2026-09-22 · 2d27d9b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · ms:80177
+- 2026-09-22 · 2d27d9b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · ms:79923
+- 2026-09-22 · 2d27d9b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · ms:80205
+- 2026-09-22 · 2d27d9b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · ms:80004
+- 2026-09-22 · 2d27d9b* · exit 0 · `set -o pipefail …` · acceptance-sha256:e89ed958f9d55758e466941a56ae052a1abfbf220d47a3689e7ac744ccd48bc4 · ms:80273

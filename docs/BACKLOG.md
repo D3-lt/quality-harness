@@ -13881,3 +13881,37 @@ knows the fixes are here and where the argument lives.
 ⚠ THE PATH CEILING IS THIS BRANCH'S PROBLEM TOO. ADR-060's longest task filename is 134 characters
 against ADR-059's ceiling of 149, so this branch does not raise it — but every new task file written
 here spends the same 110-character budget a Windows clone has for its checkout root.
+
+## 250. `selftest.sh` no longer says whether it was a PASS or a PARTIAL (2026-09-22)
+
+`scripts/selftest.sh` still assigns `verdict="PASS — …"` and, when the Claude CLI is absent,
+`verdict="PARTIAL — tests and syntax checks passed; plugin validation was skipped."`. Nothing prints
+it. `39abcf1` (2026-09-05, the §130 leak check) deleted the closing `printf '%s\n' "$verdict"` line,
+and nothing failed, because the exit code did not change. Found by reading the tail of a green run on
+2026-09-22: it ends at the node summary and `QH-PARSE-COMPLETE`, with no verdict line.
+
+Why it matters: a run on a machine without the CLI skipped every `claude plugin validate`. Its output
+now reads the same as a full pass, apart from one `SKIPPED —` line near the top. That is a
+could-not-look rendered as silence at the end of the output, which is where a reader looks (ADR-005).
+
+Found by: `grep -n 'verdict' scripts/selftest.sh` (two assignments, no use) and
+`git show 39abcf1 -- scripts/selftest.sh` (the removed `printf`). Not measured: whether any test
+asserts the verdict line. None failed when it went, so none does. What would close it: print it
+again, and add a test that runs the PARTIAL arm with the CLI absent from `PATH` and asserts the
+PARTIAL line.
+
+## 251. The session-ledger location key folds case on every macOS volume (2026-09-22)
+
+`locationKey` (`plugin/scripts/lifecycle.mjs`) realpaths a root and lowercases it whenever
+`platform` is `darwin` or `win32`. `previousSessionHere` compares only keys built the same way, so
+the case folding never mismatches `files` or `cwd`. A peer (depozitas_laravel, via the ADR-061
+probe) raised that possibility, and the source rules it out. The residue is the assumption itself:
+APFS can be formatted case-SENSITIVE. On such a volume `~/src/App` and `~/src/app` are two
+repositories with one key, so one can inherit the other's "previous session ended with edits"
+notice. `CLAUDE.md` §7 says case sensitivity is a parameter, not an assumption. Here it is keyed on
+the OS name.
+
+Not measured: whether any user of this plugin runs a case-sensitive APFS volume. It is rare, and
+this can only produce a wrong ADVISORY, never a refusal. What would close it: ask the filesystem
+instead of the OS (for example, whether the path with its case flipped resolves to the same inode),
+behind the existing `platform` seam so a test can drive both answers.

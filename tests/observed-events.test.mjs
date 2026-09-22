@@ -191,8 +191,8 @@ test('one hook delivers every action it records', () => {
     { rule: 'P', key: 'p1', text: RULE_ONE_TEXT },
   ], pre)
   assert.equal(denied.output?.hookSpecificOutput?.permissionDecision, 'deny')
-  assert.equal(JSON.stringify(denied.output).includes(RULE_ONE_TEXT), false)
-  assert.deepEqual(named(eventsIn(lifecycle.stateDir(dir), pre.session_id), 'action.emitted').map(entry => entry.rule), ['deny'])
+  assert.equal(JSON.stringify(denied.output).includes(RULE_ONE_TEXT), true)
+  assert.deepEqual(named(eventsIn(lifecycle.stateDir(dir), pre.session_id), 'action.emitted').map(entry => entry.rule), ['deny', 'P'])
 
   const quiet = { hook_event_name: 'Stop', session_id: sessionId('quiet'), cwd: dir }
   assert.equal(lifecycle.deliver([], quiet).output, null)
@@ -362,7 +362,7 @@ test('a command naming commit or push is warned before it runs', () => {
   assert.ok(first.includes(PUBLISH_WARNING), first)
   assert.ok(first.includes('qh-check'), first)
   assert.equal(first.includes(OLD_COMMIT_ADVISORY), false, first)
-  assert.equal(pre('git push').includes(PUBLISH_WARNING), false)
+  assert.ok(pre('git push').includes(PUBLISH_WARNING), 'the same unchecked tree is refused again')
 
   writeFileSync(path.join(dir, 'b.md'), 'b\n')
   assert.ok(pre("pwsh -Command 'git push'").includes(PUBLISH_WARNING))
@@ -547,6 +547,10 @@ test('the scripted session advises as its step table lists', () => {
   for (const [index, entry] of run.steps.entries()) {
     if (SCENARIO[index][1].length === 0) assert.ok(entry.quiet, entry.label + ' said: ' + entry.said)
   }
+  // An unchecked commit is refused when the log was read. The same command after
+  // a passing qh-check is not.
+  assert.equal(run.steps[4].said.includes('"permissionDecision":"deny"'), false, run.steps[4].said)
+  assert.match(run.steps[8].said, /"permissionDecision":"deny"/, run.steps[8].said)
   // Step 14 names the commit whose tree nothing checked, and not the one whose
   // tree is the checked working tree.
   const fourteen = run.steps[16]
@@ -726,9 +730,9 @@ test('writes the tree cannot see re-open the finding', () => {
   hook({ hook_event_name: 'Stop', session_id: plainSession, cwd: plain })
   assert.deepEqual(plainRules(), ['R1', 'R4'])
   // A write DURING a passing check is not cleared by it: the check observed the
-  // work as it was when it started. This test body is synchronous, so the check
-  // is waited for through the file it writes, never through an exit event the
-  // event loop has no chance to deliver.
+  // work as it was when it started, so the pass is recorded after the write but
+  // STARTED before it. The pause is waited out through the file the check
+  // writes, never through an exit event the event loop cannot deliver.
   const records = () => {
     try { return readFileSync(path.join(plainState, 'checks.jsonl'), 'utf8').split('\n').filter(Boolean).length }
     catch { return 0 }
@@ -1198,7 +1202,7 @@ test('a git query that FAILED is not a git query that found nothing', () => {
   const state = path.join(dir, '.git', 'quality-harness')
   // The rules return early for a project that declared no check, so declare one:
   // this test is about what happens when a git QUERY fails, not about that arm.
-  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
   git(dir, 'add', '-A')
   git(dir, 'commit', '-q', '-m', 'declare a check')
   hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })

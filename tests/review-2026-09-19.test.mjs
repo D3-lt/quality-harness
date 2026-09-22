@@ -131,7 +131,7 @@ function fixture(top, label) {
   mkdirSync(repo, { recursive: true })
   git('init', '-q')
   writeFileSync(join(repo, 'a.md'), 'a\n')
-  writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+  writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
   git('add', '-A')
   git('commit', '-q', '-m', 'base')
   const logFile = join(repo, '.git', 'quality-harness', 'sessions', `${session}.jsonl`)
@@ -375,7 +375,7 @@ test('an UNKNOWN previous session still says what was independently known to be 
     // Not a repository at all: no tree can be observed, and the write is still on record.
     const place = join(top, 'plain')
     mkdirSync(place, { recursive: true })
-    writeFileSync(join(place, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+    writeFileSync(join(place, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
     const env = { ...process.env, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top }
     const hook = (session, payload) => {
       const out = spawnSync(process.execPath, [lifecycleScript], { cwd: top, encoding: 'utf8', timeout: 120_000, env,

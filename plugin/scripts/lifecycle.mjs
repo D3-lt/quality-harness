@@ -1294,6 +1294,8 @@ const TITLE_TASK_RE = /^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+/i
 const TITLE_ADR_RE = /^﻿?#\s*ADR[-_ ]?(\d.*)$/i
 const TITLE_NUMBER_RE = /^(\d{1,4})(?!\d)/
 const HEADING_LINE_RE = /^﻿?#\s/
+// A reference that is nothing but a date, `(2026-07-12)` beside a path: never a record.
+const BARE_DATE_RE = /^\d{4}[-_.]\d{1,2}[-_.]\d{1,2}$/
 const NUMBERED_REF_RE = /(?<![A-Za-z0-9_])ADR-(\d+)(?![A-Za-z0-9_])/gi
 const REF_CHUNK_RE = /[A-Za-z0-9._/\\-]+/g
 
@@ -1489,6 +1491,12 @@ function archiveDecisionEffect(file, reader, cache, listed, root) {
   if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }
   if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }
   if (!ARCHIVE_EFFECT.test(effects[0])) return { unproven: `its archive catalog gives an effect this reader does not know: ${effects[0].slice(0, 60)}` }
+  // ⚠ A SUPERSESSION MUST NAME A RECORD. `superseded by banana` satisfied the effect
+  // pattern and became an authoritative graveyard with no replacement, which
+  // nothing downstream could call dangling (Codex, 2026-09-22).
+  if (/^superseded\b/i.test(effects[0]) && supersessionTarget(effects[0]) === null) {
+    return { unproven: `its archive catalog says it was superseded but names no record: ${effects[0].slice(0, 60)}` }
+  }
   return { effect: effects[0] }
 }
 
@@ -1745,7 +1753,10 @@ function recordFilesFromListing(root, tracked, reader) {
   const listed = new Set(tracked.map(rel => posixListed(rel)))
   const frozen = new Map()
   const frozenRecord = (parts, absolute) => {
-    if (underFrozenArchive(root, parts, frozen, listed) !== true) return false
+    // ⚠ `unknown` IS NOT `false`: an unreadable or oddly spelled catalog must
+    // leave the record listed, so its catalog lookup reports PARTIAL, rather than
+    // drop it and report a corpus with nothing archived (Codex, 2026-09-22).
+    if (underFrozenArchive(root, parts, frozen, listed) === false) return false
     try { return readsAsRecord(reader.text(absolute)) } catch { return true }
   }
   for (const rel of tracked) {
@@ -1976,8 +1987,18 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
 // ADR-063 rule, or a bare number (`Superseded by 0004`) that is not a date.
 function supersessionTarget(status) {
   const rest = status.replace(/^superseded\s+by\s*/i, '')
-  const named = referencesIn(rest)
-  if (named.length) return named[0]
+  // Numbered, in every spelling a status line uses: `ADR-004`, `ADR 004`,
+  // `ADR_004`, `ADR004`. This read them all before ADR-063, and the hyphenated
+  // reference rule alone dropped three (Codex, 2026-09-22). Not when the number is
+  // the start of a date, `ADR 2026-07-15`.
+  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\d{1,4})(?!\d)/i.exec(rest)
+  const numbered = loose && !DATE_SHAPED_RE.test(rest.slice(loose.index + loose[0].length - loose[1].length))
+    ? { at: loose.index, id: numberId(loose[1]) } : null
+  const stem = referencesIn(rest).find(name => !name.startsWith('ADR-') && !BARE_DATE_RE.test(name))
+  const dated = stem ? { at: rest.indexOf(stem), id: stem } : null
+  // The FIRST record named, never whichever one exists: `ADR-999 (see ADR-002)`.
+  const first = [numbered, dated].filter(Boolean).sort((a, b) => a.at - b.at)[0]
+  if (first) return first.id
   const bare = /^0*(\d{1,4})\b/.exec(rest)
   return bare && !DATE_SHAPED_RE.test(rest) ? numberId(bare[1]) : null
 }

@@ -8,7 +8,7 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the exit status of the named test run`, `the TAP line printed for each named test`, `the test output printed when a named test fails`, `each named test actually running`, `the full selftest`
+**Rests-on:** `the dated stem`, `the date shape checked before the number`, `the stem reference`, `whole-token receipt matching`, `supersession by a dated record`, `enumeration by content`, `advice for an unidentified record`
 
 ## Goal
 
@@ -83,6 +83,20 @@ for name in 'a date-slug archive passes adr-retire-check with each record named 
 | 4 — it is used | the tests run `adr-retire-check` and `facts-gate-dispatch.sh` themselves on each fixture |
 
 ## Mutation Log
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/lib/record.py` · a dated name must never become ADR-2026 · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/lib/record.py` · a receipt must name a dated record by its stem · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · a longer stem must not satisfy a shorter one · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · superseded by a dated record must resolve · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · NNN-slug and dated records must be enumerated · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · an unidentified record must be named as advice · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/lib/record.py` · a dated name must give its stem · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/lib/record.py` · a dated name must give its stem · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · covers:the dated stem
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/lib/record.py` · a dated name must never become ADR-2026 · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · covers:the date shape checked before the number
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/lib/record.py` · a receipt must name a dated record by its stem · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · covers:the stem reference
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · a longer stem must not satisfy a shorter one · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · covers:whole-token receipt matching
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · superseded by a dated record must resolve · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · covers:supersession by a dated record
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · NNN-slug and dated records must be enumerated · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · covers:enumeration by content
+- 2026-09-22 · 9a237d6* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · an unidentified record must be named as advice · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · covers:advice for an unidentified record
 
 ## Invariants
 
@@ -120,3 +134,59 @@ Stop and ask if any existing numbered or `NNN-slug` test changes its output. Tha
   # todo 0
   # duration_ms 343.923125
   ```
+- 2026-09-22 · 9a237d6 · exit 1 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:81038
+  ```
+  --- last 10 line(s) of stdout (of 2302 after folding 2306 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: 3,
+      expected: 4,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:80291
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:80753
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:85544
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:86006
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:82220
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:80236
+- 2026-09-22 · 9a237d6* · exit 1 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:81782
+  ```
+  --- last 10 line(s) of stdout (of 2302 after folding 2306 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: 3,
+      expected: 4,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:82359
+- 2026-09-22 · 9a237d6* · exit 1 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:701
+  ```
+  --- last 10 line(s) of stdout (of 224 after folding 226 raw)
+    ...
+  1..9
+  # tests 9
+  # suites 0
+  # pass 3
+  # fail 6
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 660.099791
+  ```
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:81709
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:82622
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:79510
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:79597
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:79071
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:79672
+- 2026-09-22 · 9a237d6* · exit 0 · `set -o pipefail …` · acceptance-sha256:f4d3a820bdafffa07fe96a886a6a214ca2f5337ad62b1579fb8e1ba35a3907a5 · ms:79164

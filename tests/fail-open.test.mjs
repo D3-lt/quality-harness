@@ -117,6 +117,39 @@ test('a constant success is not a check and an unchecked publish is refused', ()
   assert.doesNotMatch(hookSaid(torn.stdout, torn.stderr).text, /no `qh-check` has passed/)
 })
 
+// Found live by a peer on 2026-09-22: a check passes on the working tree, which
+// includes an untracked file, while the index holds only the staged change. The
+// index then equals no checked tree, and a deny on it repeated on every attempt.
+test('a passing check on the tree is not refused because the index differs from it', () => {
+  const dir = repository('index-')
+  writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = 'fail-open-index-' + process.pid
+  hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+  writeFileSync(path.join(dir, 'a.md'), 'staged\n')
+  git(dir, 'add', 'a.md')
+  writeFileSync(path.join(dir, 'scratch.txt'), 'untracked\n')
+  const passed = spawnSync('python3', [qhCheck], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(passed.status, 0, passed.stderr)
+  const run = hook(dir, {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+    tool_input: { command: 'git commit -m staged' },
+  })
+  assert.notEqual(decision(run), 'deny', run.stdout)
+  // The staged tree itself was never checked, so the warning still says so.
+  assert.match(hookSaid(run.stdout, run.stderr).text, /unchecked/)
+
+  // A tree that changed after the pass is still refused.
+  writeFileSync(path.join(dir, 'scratch.txt'), 'changed after the check\n')
+  const moved = hook(dir, {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+    tool_input: { command: 'git commit -m staged' },
+  })
+  assert.equal(decision(moved), 'deny', moved.stdout)
+})
+
 test('a write stays outstanding by log order, not by its timestamp', () => {
   const laterInTheLog = whole([
     { event: 'check.passed', startedAt: '2026-01-02T00:00:00.000Z' },

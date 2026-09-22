@@ -8045,6 +8045,15 @@
       "to": "model: 'opus'"
     },
     {
+      "label": "fail-open: only an unchecked tree refuses a publish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && origin.origin !== 'unproven'",
+      "to": "  const deny = !logIncomplete(log) && !unordered && origin.origin !== 'unproven'"
+    },
+    {
       "label": "routing stress: a requested host with no result is unavailable",
       "file": "plugin/workflows/quality-cycle.js",
       "tests": [

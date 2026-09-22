@@ -417,15 +417,16 @@ def number_id(number):
     return f"ADR-{int(number):03d}"
 
 
-def first_number_id(text):
+def first_number_id(text, skip_dates=False):
     """The first `ADR-N` token in `text` as an id, or None.
 
-    A token whose number starts a date is not one: `# ADR-2026-07-15: X` is a dated
-    title, and reading it as ADR-2026 gave a dated record's obligations to a record
-    that does not exist (Codex, 2026-09-22, round 4; BACKLOG §66's rule, applied to
-    this reader too)."""
+    `skip_dates` is for a HEADING only: `# ADR-2026-07-15: X` is a dated title, and
+    reading it as ADR-2026 gave a dated record's obligations to a record that does
+    not exist (Codex, 2026-09-22, round 4; BACKLOG §66's rule). A filename or a path
+    keeps the token rule this gate always used, because narrowing it there moved
+    `notes-ADR-0001-12-factor.txt` out of ADR-001's sealed unit (round 5)."""
     for found in _FIRST_NUMBER.finditer(text):
-        if not DATE_SHAPED_RE.match(text[found.start(1):]):
+        if not (skip_dates and DATE_SHAPED_RE.match(text[found.start(1):])):
             return number_id(found.group(1))
     return None
 

@@ -10,13 +10,14 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { runPython } from '../scripts/python-interpreter.mjs'
+import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
 import { resolveBashExecutable } from '../plugin/scripts/run-shell-hook.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -109,7 +110,7 @@ const DEFER = '2026-06-30-db-doctor-backup-window-defer'
 const FLOCK = '2026-06-30-db-doctor-backup-window-defer-flock'
 const NEW = '2026-07-12-boundary-hardening'
 
-function dateCorpus({ receipt, effect, row } = {}) {
+function dateCorpus({ receipt, effect, row, oldStatus } = {}) {
   const root = scratch('date')
   writeTree(root, {
     'adr/README.md': '# Decisions\n\n'
@@ -120,7 +121,7 @@ function dateCorpus({ receipt, effect, row } = {}) {
     [`adr/${NEW}.md`]: record('Boundary hardening', 'Accepted'),
     'adr/BACKLOG.md': '# Backlog\n\n## Follow-ups\n\n'
       + (receipt ?? `- [ ] Carry the app-tier probe (from \`docs/adr-archive/${OLD}/${OLD}.md\`) (ADR 2026-07-15 app-tier-provisioning).\n`),
-    [`adr-archive/${OLD}/${OLD}.md`]: record('App tier provisioning', `Superseded by ${NEW}`,
+    [`adr-archive/${OLD}/${OLD}.md`]: record('App tier provisioning', oldStatus ?? `Superseded by ${NEW}`,
       '\n## Out of Scope\n\n- Carry the app-tier probe (deferred: active BACKLOG)\n'),
     [`adr-archive/${OLD}/tasks/T1-provision.md`]: '# Task T1: provision\n\n**Status:** done\n',
     [`adr-archive/${OLD}/WAVE3-PLAN.md`]: '# Wave 3 plan\n\nNotes.\n',
@@ -288,4 +289,109 @@ test('a file with no identity is advice, not a failure', () => {
   assert.equal(got.status, 0, got.out)
   assert.match(got.out, RESEARCH_ADVICE)
   assert.doesNotMatch(got.out, FAIL_LINE)
+})
+
+// --- T2: the lifecycle corpus reader agrees with the retire gate ---------------
+//
+// `adrCorpus` is what the session notes, `adr-context` and `adr-state` read. It
+// never listed a dated record under `adr-archive/`, read a catalog only beside the
+// file, and turned `Superseded by 2026-…` into record 2026.
+const IDENTITY_TABLE = [
+  ['ADR-012-x.md', '# Something'], ['012-color-contrast.md', '# Color contrast'],
+  ['001-tool-contract.md', '# ADR-001: Tool contract'], ['adr_12_x.md', null],
+  ['2026-07-15-x.md', '# X'], ['2026_07_15_x.md', '# X'], ['2026.7.15.x.md', null],
+  ['0012-3-tier-cache.md', '# Cache tiers'], ['2026-07-15-y.md', '# ADR 2026-07-15: y'],
+  ['2026-07-15-z.md', '# ADR-5: z'], ['003-T2-plan.md', null], ['T1-provision.md', '# Task T1: provision'],
+  ['notes.md', '# Notes'], ['ADR-001', null], ['2026-07-15-app-tier', null],
+  ['ADR-063-a-record.md', '# ADR-063: A record is its number, or its stem'],
+  ['x.md', '# Task ADR-063-T1: The retire gate'], ['ADR-2026-07-15-x.md', null],
+]
+const REFERENCE_TABLE = [
+  `from \`docs/adr-archive/${OLD}/${OLD}.md\`) (ADR 2026-07-15 app-tier-provisioning).`,
+  `superseded by \`docs/adr/${NEW}.md\` (2026-07-12)`,
+  `docs\\adr\\${NEW}.md, ADR-012-T3 and ADR-7/notes`,
+  `only \`${FLOCK}.md\`.`,
+]
+
+/** A JSON value as a Python literal: the tables hold strings and null only. */
+const pyLiteral = value => JSON.stringify(value).replace(/null/g, 'None')
+
+/** Every file under `root` as a repository-relative POSIX path: the listing seam. */
+function listing(root, at = root) {
+  return readdirSync(at, { withFileTypes: true }).flatMap(entry => {
+    const full = join(at, entry.name)
+    return entry.isDirectory() ? listing(root, full) : [relative(root, full).split(sep).join('/')]
+  })
+}
+
+function gitRepository(root) {
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid',
+    GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid' }
+  for (const args of [['init', '-q'], ['add', '-A'], ['-c', 'gc.auto=0', 'commit', '-q', '-m', 'fixture']]) {
+    const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 30_000, env })
+    assert.equal(run.status, 0, `git ${args.join(' ')}: ${run.stderr}`)
+  }
+  return root
+}
+
+function adrState(root) {
+  const run = spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'adr-state.mjs'), '--json', root],
+    { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(run.status, 0, run.stderr)
+  return JSON.parse(run.stdout)
+}
+
+test('the corpus reader lists dated records, active and archived', () => {
+  const root = dateCorpus()
+  const records = lifecycle.adrCorpus(root, { tracked: listing(root) })
+  assert.deepEqual(records.map(record => record.id).sort(), [DEFER, FLOCK, NEW, OLD].sort())
+  // The control: the numbered corpus lists the same records with the same numbers.
+  const numbered = numberedCorpus()
+  const control = lifecycle.adrCorpus(numbered, { tracked: listing(numbered) })
+  assert.deepEqual(control.map(record => [record.id, record.number]).sort(), [['ADR-001', 1], ['ADR-002', 2]])
+})
+
+test('the lifecycle archive reader reads a record by its stem', () => {
+  const superseded = dateCorpus()
+  const old = lifecycle.adrCorpus(superseded, { tracked: listing(superseded) }).find(record => record.id === OLD)
+  assert.ok(old, 'the archived dated record is listed at all')
+  assert.equal(old.kind, 'graveyard', `a superseded archived record is not governing: ${old.status}`)
+  // The catalog, not the frozen file, is the authority: a file that still says
+  // Accepted, catalogued as withdrawn, is withdrawn.
+  const withdrawn = dateCorpus({ effect: 'withdrawn', oldStatus: 'Accepted' })
+  const frozen = lifecycle.adrCorpus(withdrawn, { tracked: listing(withdrawn) }).find(record => record.id === OLD)
+  assert.ok(frozen, 'the withdrawn archived record is listed at all')
+  assert.equal(frozen.kind, 'graveyard', `a withdrawn archived record read as ${frozen.status}`)
+})
+
+test('a dated supersession is never record 2026', () => {
+  const root = dateCorpus()
+  writeTree(root, {
+    'adr/2026-07-01-first.md': record('First', 'Superseded by 2026-07-20-second'),
+    'adr/2026-07-20-second.md': record('Second', 'Accepted'),
+    'adr/ADR-003-old.md': record('ADR-003: Old', 'Superseded by ADR-0004'),
+    'adr/ADR-004-new.md': record('ADR-004: New', 'Accepted'),
+  })
+  const byId = new Map(lifecycle.adrCorpus(root, { tracked: listing(root) }).map(entry => [entry.id, entry]))
+  assert.ok(byId.has(OLD), 'the archived dated record is listed at all')
+  assert.equal(byId.get(OLD).supersededBy, NEW)
+  assert.equal(byId.get('2026-07-01-first').supersededBy, '2026-07-20-second')
+  assert.equal(byId.get('ADR-003').supersededBy, 'ADR-004')
+})
+
+test('adr-state resolves a supersession by stem', () => {
+  const clean = adrState(gitRepository(dateCorpus()))
+  assert.deepEqual(clean.danglingSupersession, [])
+  // The dirty control: a supersession naming a stem no record has still dangles.
+  const dirty = adrState(gitRepository(dateCorpus({ effect: 'superseded by `docs/adr/2026-08-01-nothing.md`' })))
+  assert.deepEqual(dirty.danglingSupersession.map(entry => entry.id), [OLD])
+})
+
+test('the JS and Python identity rules agree on one table', () => {
+  assert.equal(typeof lifecycle.recordId, 'function', 'lifecycle exports the identity rule')
+  assert.equal(typeof lifecycle.referencesIn, 'function', 'lifecycle exports the reference rule')
+  const python = recordLib(`[record.record_id(n, t) for n, t in ${pyLiteral(IDENTITY_TABLE)}]`)
+  assert.deepEqual(IDENTITY_TABLE.map(([name, title]) => lifecycle.recordId(name, title)), python)
+  const pyRefs = recordLib(`[sorted(record.references_in(t)) for t in ${JSON.stringify(REFERENCE_TABLE)}]`)
+  assert.deepEqual(REFERENCE_TABLE.map(text => [...lifecycle.referencesIn(text)].sort()), pyRefs)
 })

@@ -13956,6 +13956,12 @@ build-check assertion. Do not solve it by suppressing compiler diagnostics or we
 The direction that fails safe matters: a false `inconclusive` is an annoyance, a false `killed` is the
 defect the list exists to stop (the list's own comment).
 
+Reproduced in this repository on 2026-09-22 (ADR-063 T2): the mutant that removes `ADR_FILE`'s date
+guard in `plugin/scripts/lifecycle.mjs` failed the fence and was graded `inconclusive`, "the fence
+failed on a build/parse error, not an assertion", because the full suite's output contains a
+`BUILD_BROKE` pattern somewhere. The same mutant is RED in `scripts/mutate.mjs`'s campaign, which
+grades by the named test file.
+
 ## 254. `adr-debt` reports follow-ups that a later Accepted record disposes of (2026-09-22)
 
 Reported from memory-runtime (adr-debt 2.100.0, 2026-09-20): eleven open follow-up rows from frozen

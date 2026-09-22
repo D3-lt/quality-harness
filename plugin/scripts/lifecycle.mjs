@@ -528,6 +528,55 @@ function declaredCheckCommand(directory) {
   return typeof check === 'string' && check.trim() ? check.trim() : null
 }
 
+/**
+ * Whether a project turned ADR-061's refusal back into its warning, with
+ * `"publish": "warn"` in `.quality-harness.json` (the owner's decision,
+ * 2026-09-22). Only that exact value counts. Anything else present is reported
+ * as ignored and keeps the refusal, so a typo cannot silently switch it off.
+ * An unreadable file keeps the refusal too, and says nothing: it declares nothing.
+ *
+ * `discovery` is the root lookup the refusal was decided on. Reading the file
+ * from a SECOND lookup let the two disagree: a second lookup that failed fell
+ * back to the current directory, missed the root's opt-out and refused (Codex
+ * review round 3). A lookup that could not answer is unknown, never "here".
+ */
+export function publishSetting(cwd, discovery = null) {
+  const directory = nearestExistingDirectory(path.resolve(cwd))
+  if (!directory) return { warn: false, ignored: false, unknown: true }
+  const found = discovery ?? gitRepositoryLookup(directory)
+  if (!found.ok) return { warn: false, ignored: false, unknown: true }
+  let config
+  try {
+    config = JSON.parse(readFileSync(path.join(found.root ?? directory, '.quality-harness.json'), 'utf8'))
+  } catch { return { warn: false, ignored: false, unknown: false } }
+  if (!config || typeof config !== 'object' || !Object.hasOwn(config, 'publish')) return { warn: false, ignored: false, unknown: false }
+  return config.publish === 'warn' ? { warn: true, ignored: false, unknown: false } : { warn: false, ignored: true, unknown: false }
+}
+
+function publishSettingNote(setting) {
+  if (setting.warn) return ' Refusal is off for this project: `"publish": "warn"` in .quality-harness.json makes this a warning.'
+  if (setting.ignored) return ' The `"publish"` value in .quality-harness.json was ignored: only `"publish": "warn"` turns this refusal into a warning.'
+  return ''
+}
+// A declaration that cannot fail does not certify. Measured 2026-09-22: `true`,
+// `:`, `exit 0`, `sh -c true` and `bash -c 'exit 0'` each exit 0. One layer of
+// `sh -c` or `bash -c` around those is the same command. `sh check.sh` is not.
+const CONSTANT_SUCCESS = /^(?:true|:|exit 0)$/
+
+export function constantSuccessCheck(command) {
+  if (typeof command !== 'string') return false
+  let text = command.trim()
+  const wrapped = /^(?:sh|bash)\s+-c\s+([\s\S]+)$/.exec(text)
+  if (wrapped) {
+    text = wrapped[1].trim()
+    if ((text.startsWith("'") && text.endsWith("'")) || (text.startsWith('"') && text.endsWith('"'))) {
+      text = text.slice(1, -1).trim()
+    }
+  }
+  return CONSTANT_SUCCESS.test(text)
+}
+
+
 
 function packageManagerCommand(directory) {
   let manifest
@@ -574,7 +623,9 @@ export function projectCheckCommand(cwd = process.cwd()) {
 /**
  * The check for `cwd` AND where it came from: `declared` when the project said
  * so in `.quality-harness.json`, `inferred` when this tool read it off a
- * manifest, `none` when neither.
+ * manifest, `none` when neither, `refused` when the declaration cannot fail,
+ * `unproven` when the repository root could not be read. `discovery`, when a
+ * test passes one, is that lookup's answer instead of asking git again.
  *
  * One resolver, two callers. `runTheCheckSentence` needs the provenance to say
  * whether a red on a clean tree is a finding about the environment, and
@@ -582,10 +633,12 @@ export function projectCheckCommand(cwd = process.cwd()) {
  * spellings that drift — which cost this project a defect the same day
  * (docs/BACKLOG.md §66).
  */
-export function checkCommandOrigin(cwd = process.cwd()) {
+export function checkCommandOrigin(cwd = process.cwd(), discovery = null) {
   const directory = nearestExistingDirectory(path.resolve(cwd))
   if (!directory) return { command: null, origin: 'none' }
-  const root = gitRepositoryRoot(directory) ?? directory
+  const found = discovery ?? gitRepositoryLookup(directory)
+  if (!found.ok) return { command: null, origin: 'unproven' }
+  const root = found.root ?? directory
   // WHAT THE PROJECT SAYS, before any guess. Every rung below infers a command
   // from a manifest, and an inferred command can fail to DISCRIMINATE: measured
   // 2026-08-29 in a real Laravel repository, the derived `php vendor/bin/phpunit`
@@ -600,6 +653,7 @@ export function checkCommandOrigin(cwd = process.cwd()) {
   // the project's own, visible in a file someone can fix, rather than this tool
   // guessing and being wrong on the project's behalf.
   const declared = declaredCheckCommand(root)
+  if (declared && constantSuccessCheck(declared)) return { command: null, origin: 'refused' }
   if (declared) return { command: declared, origin: 'declared' }
   // A script the repository NAMES FOR ITSELF beats a manifest guess, the same
   // reason `scripts/verify.sh` sits above `go test ./...`: `php vendor/bin/phpunit`
@@ -635,16 +689,29 @@ export function checkCommandOrigin(cwd = process.cwd()) {
   return { command: null, origin: 'none' }
 }
 
-function gitRepositoryRoot(directory) {
-  const run = spawnSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], {
+// A spawn error or a timeout is not "this directory is not a repository".
+// `gitRepositoryRoot` stays null for both, for callers that only need a path.
+// Callers that would certify or go silent on that null use `gitRepositoryLookup`.
+export function gitRepositoryLookup(directory, spawnResult) {
+  const run = spawnResult !== undefined ? spawnResult : spawnSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], {
     encoding: 'utf8', timeout: 5_000,
   })
-  if (run.status !== 0) return null
+  if (!run || run.error || run.status == null) {
+    return { ok: false, root: null, reason: run?.error?.message ?? 'git produced no status' }
+  }
+  if (run.status !== 0) return { ok: true, root: null, reason: 'not a repository' }
+  const printed = String(run.stdout ?? '').trim()
+  if (!printed) return { ok: false, root: null, reason: 'git printed no root' }
   // Git's spelling and Node's path.resolve of the same tree can disagree
   // (C:/ vs C:\, 8.3 vs long, /tmp vs /private/tmp). An un-realpathed root
   // made relativeWithinRoot filter every path as outside, so the hook
   // delivered empty context (CLAUDE.md §7).
-  return canonical(run.stdout.trim())
+  return { ok: true, root: canonical(printed), reason: '' }
+}
+
+function gitRepositoryRoot(directory) {
+  const found = gitRepositoryLookup(directory)
+  return found.ok ? found.root : null
 }
 
 // Names the project's own check when there is one, so the gate asks for
@@ -652,6 +719,14 @@ function gitRepositoryRoot(directory) {
 // counts. Falls back to the general phrasing when the project names none.
 export function runTheCheckSentence(cwd) {
   const { command, origin } = checkCommandOrigin(cwd ?? process.cwd())
+  if (origin === 'refused') {
+    return 'The check declared in `.quality-harness.json` is a constant success and was refused. '
+      + 'Declare a command that can fail.'
+  }
+  if (origin === 'unproven') {
+    return 'The repository root could not be read, so no check is named. '
+      + 'That is not the same as this project having no check.'
+  }
   if (!command) {
     return 'Run the smallest repository-owned test, lint, build, or validation command after the '
       + 'final edit and report the exact command and result.'
@@ -1955,6 +2030,7 @@ export function observedFacts(log, root, observation) {
     // The LAST check about this tree by when it RAN, for the same reason
     // `treeChecked` no longer trusts log position.
     checked: latestCheckFor(log, observation?.tree)?.event === 'check.passed',
+    treeOrder: observation?.ok === true ? checkStanding(log, observation.tree) : null,
     // Whose word the pass is. A check this tool GUESSED from a manifest may be
     // green while the project is red — `pnpm test` over a monorepo whose PHP half
     // holds the invariants — and the caveat that leads every message BEFORE the
@@ -2010,8 +2086,13 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
     : files.length === 0 && other === 0 && !pending ? (late ? 'unverified' : 'neutral')
       : pending || !passed ? 'unverified' : 'verified'
   const parts = []
+  const unordered = facts?.treeOrder === 'unresolved'
+  // A check that could not look after a pass is not "no check passed" (ADR-061).
+  const unobserved = facts?.treeOrder === 'could-not-look'
   if (files.length && observed) {
-    const verdict = pending ? 'no `qh-check` has passed on them'
+    const verdict = unordered ? 'which check ran last on this tree could not be established'
+      : unobserved ? 'the latest `qh-check` on this tree could not observe it, so it is not known to be checked'
+      : pending ? 'no `qh-check` has passed on them'
       : passed ? `a \`qh-check\` passed on them${facts?.checkOrigin === 'inferred'
         ? ` — using an INFERRED check (\`${facts.checkCommand ?? 'unknown'}\`), guessed from a manifest and not declared, so it may not be this project's whole gate; declare the real command as \`check\` in .quality-harness.json`
         : ''}`
@@ -2024,7 +2105,11 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
     parts.push(`${facts?.why ?? 'the working tree could not be observed'}, so what changed here is unknown.`
       + (files.length ? ` Git lists ${files.length} changed path(s): ${shown.join(', ')}.` : ''))
   } else if (pending) {
-    parts.push('nothing is uncommitted, and the tree at HEAD is one no `qh-check` has passed on.')
+    parts.push(unordered
+      ? 'nothing is uncommitted, and which check ran last on the tree at HEAD could not be established.'
+      : unobserved
+        ? 'nothing is uncommitted, and the latest `qh-check` on the tree at HEAD could not observe it.'
+        : 'nothing is uncommitted, and the tree at HEAD is one no `qh-check` has passed on.')
   } else {
     parts.push(late
       ? 'nothing has changed in the working tree since this plugin began watching — which was partway through this '
@@ -2255,6 +2340,28 @@ export function firstMentionThisSession(sessionId, key) {
   try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return error?.code !== 'EEXIST' }
   return true
 }
+// One compact SessionStart serves the note. Two readers can both see the log
+// before either appends note.served, so the claim is an exclusive create.
+// EEXIST means the other reader won. Any other failure does not serve the note.
+export function claimCompaction(sessionId, compactionId, tmp = os.tmpdir()) {
+  if (typeof sessionId !== 'string' || !sessionId || typeof compactionId !== 'string' || !compactionId) {
+    return { claimed: false, reason: 'missing id' }
+  }
+  const directory = saidMarkerDirectory(tmp)
+  try { mkdirSync(directory, { recursive: true }) } catch (error) {
+    return { claimed: false, reason: error?.code ?? 'mkdir failed' }
+  }
+  const stamp = createHash('sha256').update(`${sessionId}#${compactionId}`).digest('hex').slice(0, 32)
+  const marker = path.join(directory, stamp)
+  try {
+    writeFileSync(marker, '', { flag: 'wx' })
+    return { claimed: true, reason: '' }
+  } catch (error) {
+    if (error?.code === 'EEXIST') return { claimed: false, reason: 'claimed' }
+    return { claimed: false, reason: error?.code ?? 'create failed' }
+  }
+}
+
 
 // A second, older copy of this toolkit answering instead of the plugin.
 //
@@ -2456,12 +2563,18 @@ export function hasDecisionCorpus(root, listing = trackedPaths(root)) {
 export function sessionOrientation(cwd) {
   const directory = nearestExistingDirectory(path.resolve(cwd ?? process.cwd()))
   if (!directory) return ''
-  const repositoryRoot = gitRepositoryRoot(directory)
+  const found = gitRepositoryLookup(directory)
+  const repositoryRoot = found.ok ? found.root : null
   const root = repositoryRoot ?? directory
   const lines = []
+  if (!found.ok) {
+    lines.push(`could-not-look: the repository root could not be read (${found.reason}). Whether this directory is a repository, and which check it declares, is unknown.`)
+  }
 
-  const { command: check, origin } = checkCommandOrigin(root)
-  if (check) {
+  const { command: check, origin } = found.ok ? checkCommandOrigin(root) : { command: null, origin: 'unproven' }
+  if (origin === 'refused') {
+    lines.push('Verification: the check declared in `.quality-harness.json` is a constant success and was refused. Declare a command that can fail.')
+  } else if (check) {
     const named = origin === 'declared'
       ? `this project's own check is \`${check}\``
       : `no \`check\` is declared in \`.quality-harness.json\`; inferred \`${check}\` from a manifest — that is not this project's own check`
@@ -2528,7 +2641,9 @@ function decisionContextFor(input) {
   // remain eligible when a governing record is added later in the same session.
   if (alreadyMentionedThisSession(input.session_id, resolved)) return ''
   const directory = nearestExistingDirectory(path.resolve(cwd))
-  const root = directory ? canonical(gitRepositoryRoot(directory) ?? directory) : null
+  const found = directory ? gitRepositoryLookup(directory) : { ok: false, root: null, reason: 'no directory' }
+  if (directory && !found.ok) return 'could-not-look: the repository root could not be read, so which decisions govern this edit is unknown.'
+  const root = directory ? canonical(found.root ?? directory) : null
   if (!root) return ''
   let context
   try { context = decisionContext([resolved], root) } catch { return '' }
@@ -2707,7 +2822,9 @@ function recordFileWritten(input) {
   if (typeof target !== 'string' || !target) return null
   // Canonical, so this path and rule A's candidate for the same file are one key.
   const absolute = canonicalFile(path.resolve(input.cwd, target))
-  const entry = { event: 'file.written', path: absolute, observable: false }
+  // How many check records existed when this write happened. Only a pass recorded
+  // AFTER it can cover it; the importer may append an earlier pass later in the log.
+  const entry = { event: 'file.written', path: absolute, observable: false, checksSeen: checkRecordCount(input.cwd) }
   const directory = nearestExistingDirectory(path.resolve(input.cwd))
   const root = directory ? gitRepositoryRoot(directory) : null
   const parent = nearestExistingDirectory(absolute)
@@ -2725,6 +2842,22 @@ function recordFileWritten(input) {
   }
   appendEvent(input.cwd, input.session_id, entry)
   return entry
+}
+
+// The number of records in `checks.jsonl`, counted the way `importCheckRecords`
+// numbers `seq`. Null when the file exists and cannot be read: a count that was
+// not taken is not zero (ADR-005).
+function checkRecordCount(cwd) {
+  let text
+  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch (error) {
+    return error?.code === 'ENOENT' ? 0 : null
+  }
+  let count = 0
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    try { if (typeof JSON.parse(line)?.id === 'string') count += 1 } catch { /* the importer skips it too */ }
+  }
+  return count
 }
 
 // Whether git lists nothing changed under an observation that succeeded. A listing
@@ -2830,21 +2963,25 @@ export function recordHookEvent(input) {
   return lateBaseline ? { ...entry, lateBaseline: true } : entry
 }
 
-// ONE output per hook. A deny is delivered alone, and a legacy deny as well;
-// otherwise every advisory is joined, beside any legacy output passed in, so no
-// finding overwrites another. `action.emitted` is appended only for what was
-// delivered (ADR-060 revision 3 review: `emitJson` kept only the last output).
+// ONE output per hook. A denial is the permission decision. Other findings from
+// the same hook stay in the reason, so a refusal does not hide them. A legacy
+// deny is passed through. Otherwise every advisory is joined. `action.emitted`
+// is appended only for what was delivered.
 export function deliver(actions, input, { legacy = null } = {}) {
   const event = input?.hook_event_name
   const denials = actions.filter(action => action.deny)
   let delivered
   let output
   if (denials.length) {
-    delivered = [denials[0]]
+    const denial = denials[0]
+    const rest = actions.filter(action => action !== denial && typeof action.text === 'string' && action.text)
+    const text = [denial.text, ...rest.map(action => action.text)].join('\n\n')
+    delivered = [denial, ...rest]
     output = {
-      hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: denials[0].text },
+      hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: text },
+      systemMessage: `quality-harness refused the command: ${advisoryHeadline(denial.text)}`,
     }
-    process.stderr.write(`${denials[0].text}\n`)
+    process.stderr.write(`${text}\n`)
   } else if (legacy?.hookSpecificOutput?.permissionDecision === 'deny') {
     delivered = []
     output = legacy
@@ -2971,6 +3108,22 @@ function latestOf(events, { unresolved = 'not-a-pass' } = {}) {
 function treeChecked(log, tree) {
   return latestCheckFor(log, tree)?.event === 'check.passed'
 }
+// 'passed' certifies. 'unresolved' is an order that could not be established:
+// it must not be said as "no check has passed", and it must not clear the tree.
+// 'unknown' is a log that was not read whole.
+function checkStanding(log, tree) {
+  if (logIncomplete(log)) return 'unknown'
+  const descriptive = latestOf(checkEventsFor(log, tree), { unresolved: 'say-so' })
+  if (!descriptive) return 'none'
+  if (descriptive.event === 'check.unresolved') return 'unresolved'
+  if (descriptive.event === 'check.passed') return 'passed'
+  // A check that timed out, never started, or could not observe its tree said
+  // nothing about the tree. It is not a failure, and it must not refuse (ADR-061).
+  if (COULD_NOT_LOOK.has(descriptive.event)) return 'could-not-look'
+  return 'not-passed'
+}
+const COULD_NOT_LOOK = new Set(['check.unproven', 'check.timeout', 'check.unstarted'])
+
 
 function checkRevision(log, tree) {
   return checkEventsFor(log, tree).length
@@ -2989,25 +3142,65 @@ function inferredCheckCaveat(cwd) {
 // does not claim the command publishes this repository, which it may not.
 function publishUnchecked(input, requested) {
   if (requested?.event !== 'publish.requested' || requested.observation?.ok !== true) return
-  if (!projectCheckCommand(input.cwd)) return
+  // ONE root lookup for this decision: the check and the opt-out are read from
+  // the same answer, so they cannot disagree about which project this is.
+  const place = nearestExistingDirectory(path.resolve(input.cwd))
+  const found = place ? gitRepositoryLookup(place) : { ok: false, root: null, reason: 'the working directory does not exist' }
+  const origin = checkCommandOrigin(input.cwd, found)
+  if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven') return
   const now = requested.observation
   const log = readEvents(input.cwd, input.session_id)
   const baseline = log.find(entry => entry.event === 'session.started')?.observation
-  const treeUnchecked = !treeChecked(log, now.tree) && (baseline?.ok !== true || now.tree !== baseline.tree)
-  const indexUnchecked = !treeChecked(log, now.index) && (baseline?.ok !== true || now.index !== baseline.index)
+  const treeStanding = checkStanding(log, now.tree)
+  const indexStanding = checkStanding(log, now.index)
+  const treeUnchecked = treeStanding !== 'passed' && (baseline?.ok !== true || now.tree !== baseline.tree)
+  const indexUnchecked = indexStanding !== 'passed' && (baseline?.ok !== true || now.index !== baseline.index)
   if (!treeUnchecked && !indexUnchecked) return
+  // ⚠ THE TREE'S STANDING DECIDES THE REFUSAL, and only the tree's. An index whose
+  // check could not look is a finding about the index; folding it in here let it
+  // rescue a working tree that FAILED (Codex review round 2, 2026-09-22).
+  const unordered = treeStanding === 'unresolved'
+  const couldNotLook = treeStanding === 'could-not-look'
+  const indexUnknown = indexStanding === 'unresolved' || indexStanding === 'could-not-look'
   const revision = checkRevision(log, now.tree)
   const key = `${now.tree}:${now.index}:${revision}`
-  if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
+  // A denial has to happen on every attempt. Saying it once and then allowing
+  // the same command is the warning's dedupe applied to a refusal.
+  // ⚠ ONLY THE TREE CAN REFUSE. A check runs on the working tree, and the index is
+  // compared against those trees, so a staged change beside an untracked file
+  // equals no checked tree and was denied after every pass (found live by a peer,
+  // 2026-09-22). The index still warns: its exact bytes were never checked.
+  // A project may opt out with `"publish": "warn"` (ADR-061 revision 3); the
+  // warning below is then all it gets, on every attempt the dedupe allows.
+  const setting = publishSetting(input.cwd, found)
+  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn
+  if (!deny && log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
   queueAction({
-    rule: 'P', key, detail: { tree: now.tree, revision },
+    rule: 'P', key, detail: { tree: now.tree, revision }, deny,
     // On a torn log this still warns — it must — but says UNKNOWN, not "no check
     // has": a check may have succeeded and its record be what was lost (ADR-005).
+    // An order that cannot be established is the same kind of could-not-look.
     text: (logIncomplete(log)
       ? 'quality-harness: whether this repository is checked is unknown — the session log could not be read whole, so whether `qh-check` succeeded on its current tree cannot be shown — and the command '
-      : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
+      : unordered
+        ? 'quality-harness: whether this repository is checked is unknown — the order of its check events could not be established — and the command '
+        : couldNotLook
+          ? 'quality-harness: whether this repository is checked is unknown — the latest `qh-check` on its current tree could not observe it (it timed out, did not start, or its observation failed) — and the command '
+        : origin.origin === 'unproven'
+          ? 'quality-harness: whether this repository is checked is unknown — the repository root could not be read — and the command '
+          : origin.origin === 'refused'
+            ? 'quality-harness: this repository is unchecked — the check declared in .quality-harness.json is a constant success and was refused — and the command '
+            : !treeUnchecked && indexUnknown && treeStanding === 'passed'
+              ? 'quality-harness: the staged index is not known to be checked — `qh-check` passed on the working tree, but the index holds different content and whether a check passed on it cannot be established — and the command '
+            : !treeUnchecked && treeStanding === 'passed'
+              ? 'quality-harness: the staged index is unchecked — `qh-check` passed on the working tree, but the index holds different content (a partial stage, or files the check saw that are not staged) — and the command '
+            : !treeUnchecked && indexUnknown
+              ? 'quality-harness: the staged index is not known to be checked — the working tree is unchanged since the session started, but the index has moved and whether a `qh-check` passed on the staged content cannot be established — and the command '
+            : !treeUnchecked
+              ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
+              : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
       + 'about to run names commit or push. Run `qh-check` first. This says what state the repository is in, not what '
-      + `the command publishes.${inferredCheckCaveat(input.cwd)}`,
+      + `the command publishes.${inferredCheckCaveat(input.cwd)}${publishSettingNote(setting)}`,
   })
 }
 // R3 `review-changed-state` (ADR-060): a read-only role's run is bracketed by its
@@ -3092,7 +3285,15 @@ function reviewChangedState(input, ended) {
   const key = input.agent_id
   if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === key && entry.detail?.kind !== 'unobserved')) return
   const directory = nearestExistingDirectory(path.resolve(input.cwd))
-  const root = directory ? gitRepositoryRoot(directory) : null
+  const found = directory ? gitRepositoryLookup(directory) : { ok: false, root: null, reason: 'no directory' }
+  if (!found.ok) {
+    const rootKey = `${key}:root`
+    if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === rootKey)) {
+      queueAction({ rule: 'R3', key: rootKey, text: `quality-harness: whether the repository changed during the ${role} run (agent ${key}) is unknown — the repository root could not be read (${found.reason}). That is a statement about what could be looked at, not about the review (ADR-005).` })
+    }
+    return
+  }
+  const root = found.root
   if (!root) return
   const status = gitLines(root, ['-c', 'core.quotePath=false', 'status', '--porcelain'])
   const staged = gitLines(root, ['-c', 'core.quotePath=false', 'diff', '--cached', '--name-only'])
@@ -3129,13 +3330,28 @@ function namedByPublish(log, tree, revision) {
     && entry.detail?.tree === tree && entry.detail?.revision === revision)
 }
 
-// A write git cannot see — outside the repository, ignored, or with no git at
-// all. The last passing check observed the work as it was when it STARTED, so a
-// write made while it ran is not covered by it.
-function unobservableWrites(log) {
-  const since = log.filter(entry => entry.event === 'check.passed').at(-1)?.startedAt ?? null
-  return log.filter(entry => entry.event === 'file.written' && entry.observable === false
-    && (typeof since !== 'string' || typeof entry.at !== 'string' || entry.at > since))
+// A write git cannot see stays outstanding until a check.passed in a log that
+// was read whole covers it, and a pass covers it only when BOTH orders agree.
+// The record order: a write that counted the check records it saw needs a pass
+// with a higher `seq`, because the importer can append an older pass after the
+// write (Codex review, 2026-09-22); a write with no count falls back to log
+// position, and a count that was taken and failed (`checksSeen: null`) is
+// unknown, so that write stays outstanding. And the start order: the pass must
+// have STARTED after the write, because a check that was already running did
+// not see it. Either order alone failed open: the timestamp alone when a clock
+// stepped backwards, the record order alone when a check spanned the write (CI
+// mutation campaign on 0150376). Together, only a clock stepping backwards
+// DURING a check can still hide a write. An incomplete log leaves every such
+// write outstanding.
+export function unobservableWrites(log) {
+  const writes = (entry) => entry.event === 'file.written' && entry.observable === false
+  if (logIncomplete(log)) return log.filter(writes)
+  const recordedAfter = (write, pass) => write.checksSeen === undefined
+    || (Number.isInteger(write.checksSeen) && Number.isInteger(pass.seq) && pass.seq > write.checksSeen)
+  const startedAfter = (write, pass) => typeof write.at !== 'string' || typeof pass.startedAt !== 'string'
+    || pass.startedAt > write.at
+  return log.filter((entry, index) => writes(entry) && !log.some((later, at) => at > index
+    && later.event === 'check.passed' && recordedAfter(entry, later) && startedAfter(entry, later)))
 }
 
 // The evidence revision where nothing can be observed: every check event is one,
@@ -3227,25 +3443,34 @@ function unseenPathNote(count) {
 // as the old commit-loop shape surviving in a quieter form. R2 is silent for
 // that commit on purpose (its tree is the observed tree, which is R1's to speak
 // for), so R1 is the one that has to say the commit.
-function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = false } = {}) {
+function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = false, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = paths.slice(0, 8)
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   const listed = paths.length
     ? `Changed paths: ${shown.join(', ')}${paths.length > shown.length ? `, and ${paths.length - shown.length} more` : ''}.`
     : held
-      ? `Nothing is uncommitted: what no \`qh-check\` has passed on is the tree at HEAD, committed as ${held}.`
+      ? (orderUnknown
+        ? `Nothing is uncommitted: which check ran last on the tree at HEAD could not be established; it was committed as ${held}.`
+        : couldNotLook
+          ? `Nothing is uncommitted: the latest \`qh-check\` on the tree at HEAD could not observe it; it was committed as ${held}.`
+          : `Nothing is uncommitted: what no \`qh-check\` has passed on is the tree at HEAD, committed as ${held}.`)
       : 'Git reports no changed path in the working tree.'
   // ⚠ A TORN LOG CANNOT SUPPORT "NO CHECK HAS", ONLY "NONE CAN BE SHOWN". Since a
   // surviving record no longer certifies (`latestCheckFor`), this rule fires on a
   // torn log where a check DID succeed — and its old opening then accused in the
   // vocabulary of an observation. It must keep firing: R4 speaks once per session
   // and a torn line never repairs, so silence here would be silence for good.
+  // An order that cannot be established is the same: not an accusation.
   const opening = logTorn
     ? 'this turn ends with work whose check state is unknown — the session log could not be read whole, '
       + 'so whether `qh-check` succeeded on it cannot be shown.'
-    : paths.length || !held
-      ? 'this turn ends with work no `qh-check` has passed on.'
-      : 'this turn ends on an unchecked tree.'
+    : orderUnknown
+      ? 'which check ran last on this turn\'s work could not be established, so it is not known to be checked.'
+      : couldNotLook
+        ? 'the latest `qh-check` on this turn\'s work could not observe it (it timed out, did not start, or its observation failed), so it is not known to be checked.'
+      : paths.length || !held
+        ? 'this turn ends with work no `qh-check` has passed on.'
+        : 'this turn ends on an unchecked tree.'
   return `quality-harness: ${opening} ${listed}`
     + `${unseenPathNote(outside)} ${runTheCheckSentence(cwd)}`
 }
@@ -3256,7 +3481,8 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
 // git for the check command again. Dedupe stays per commit and evidence revision
 // (ADR-060's key), carried in the action's detail.
 const NAMED_COMMIT_LIMIT = 5
-function uncheckedCommitsReason(cwd, commits, { logTorn = false } = {}) {
+// Exported so its wording is tested without building newly reachable commits.
+export function uncheckedCommitsReason(cwd, commits, { logTorn = false, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
   const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
   const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
@@ -3266,11 +3492,17 @@ function uncheckedCommitsReason(cwd, commits, { logTorn = false } = {}) {
   const head = logTorn
     ? `whether a \`qh-check\` passed on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} `
       + 'is UNKNOWN — this session\'s log could not be read whole, and the record of a pass may be among what was lost:'
-    : commits.length === 1
-      ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
-      : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`
+    // The flags say at least one tree is so, not that all are (Codex review
+    // round 3): a plural never claims the reason for every commit it lists.
+    : orderUnknown
+      ? `which check ran last on ${commits.length === 1 ? 'a newly reachable commit' : `at least one of ${commits.length} newly reachable commits`} could not be established:`
+      : couldNotLook
+        ? `the latest \`qh-check\` on ${commits.length === 1 ? 'a newly reachable commit' : `at least one of ${commits.length} newly reachable commits`} could not observe it:`
+      : commits.length === 1
+        ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
+        : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`
   return `quality-harness: ${head}\n${listed}${rest}\nThis says they are reachable from HEAD and `
-    + `${logTorn ? 'not known to be checked' : 'unchecked'}, not that this session authored them. ${runTheCheckSentence(cwd)}`
+    + `${logTorn || orderUnknown || couldNotLook ? 'not known to be checked' : 'unchecked'}, not that this session authored them. ${runTheCheckSentence(cwd)}`
 }
 
 function couldNotLookReason(cwd, reason) {
@@ -3436,17 +3668,24 @@ function completionRules(input, ended) {
   if (!ended || typeof input.session_id !== 'string' || !input.session_id) return
   const log = readEvents(input.cwd, input.session_id)
   const observation = ended.observation
-  const check = projectCheckCommand(input.cwd)
+  const origin = checkCommandOrigin(input.cwd)
+  const check = origin.command || (origin.origin === 'refused' ? 'refused' : null)
   const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
-  const root = directory ? gitRepositoryRoot(directory) : null
+  const found = directory ? gitRepositoryLookup(directory) : { ok: false, root: null, reason: 'no directory' }
+  const root = found.ok ? found.root : null
   const baseline = log.find(entry => entry.event === 'session.started')?.observation
   const writes = unobservableWrites(log)
-  const status = observation?.ok === true ? statusPaths(root) : []
-  const commits = observation?.ok === true ? sessionCommits(log, root, observation.head) : []
+  const status = observation?.ok !== true ? []
+    : !found.ok ? mark([], false, found.reason)
+    : statusPaths(root)
+  const commits = observation?.ok !== true ? []
+    : !found.ok ? mark([], false, found.reason)
+    : sessionCommits(log, root, observation.head)
   recordClaim(input, completionClaim(input.last_assistant_message),
     ledgerEvidence(log, observation, baseline, commits, writes, check, status), status.length + writes.length)
   // The opt-in today's advice already requires: a project that named no check
-  // cannot be asked to run one (reported from redash-api, 2026-08-26).
+  // cannot be asked to run one (reported from redash-api, 2026-08-26). A refused
+  // declaration is a check that does not count, not a project that named none.
   if (!check) return
 
   const changed = [...status.map(relative => path.join(root ?? path.resolve(input.cwd), relative)),
@@ -3461,7 +3700,7 @@ function completionRules(input, ended) {
     if (!emittedFor(log, 'R1', key)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
-      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor, { logTorn: logIncomplete(log) }) })
+      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor, { logTorn: logIncomplete(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look' }) })
     }
   }
   const unchecked = commits.filter(commit => {
@@ -3477,7 +3716,7 @@ function completionRules(input, ended) {
     const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
     queueAction({
       rule: 'R2', key: keys.join(' '), detail: { commits: keys },
-      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log) }),
+      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),
     })
   }
   if (observation?.ok !== true || status?.ok === false || commits?.ok === false
@@ -3558,10 +3797,13 @@ export async function handleHook(input) {
       const owner = events.filter(entry => entry.event === 'context.compacting').at(-1)?.compactionId
       const tied = !logIncomplete(events) && typeof owner === 'string' && note?.compaction === owner
         && !events.some(entry => entry.event === 'note.served' && entry.compactionId === owner)
+      const claim = tied ? claimCompaction(input.session_id, owner) : { claimed: false, reason: 'untied' }
+      const served = tied && claim.claimed
         && appendEvent(input.cwd, input.session_id, { event: 'note.served', compactionId: owner }) !== false
-      if (note && !tied) sections.push('quality-harness: the state note kept for this session could not be tied to this compaction, '
+      if (served && note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)
+      else if (tied && claim.reason !== 'claimed') sections.push('quality-harness: the state note for this compaction could not be claimed, so it is not served here.')
+      else if (!tied && note) sections.push('quality-harness: the state note kept for this session could not be tied to this compaction, '
         + 'so what was unverified before it is unknown here (ADR-005).')
-      else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)
     } else if (input.source === 'startup' || input.source === undefined) {
       const previous = previousSessionNotice(input.cwd)
       if (previous) sections.push(previous)

@@ -158,6 +158,63 @@ test('quality-cycle cannot synthesize a required evidence-limited review into cl
   assert.equal(result.reviews[0].status, 'evidence-limited')
 })
 
+// Codex review, 2026-09-22 (F3): a requested host's result must BE a review.
+test('quality-cycle is unavailable when a requested host result is not the review schema', async () => {
+  let calls = 0
+  const agent = async () => { calls += 1; return { status: 'clean', findings: [] } }
+  const blockingFinding = { file: 'a.js', problem: 'p', impact: 'i', evidence: 'a.js:1', minimal_fix: 'f', severity: 'blocking' }
+  for (const external of [
+    { host: 'codex' },
+    { host: 'codex', status: 'clean', findings: 'none' },
+    { host: 'codex', status: 'blocking', findings: [] },
+    { host: 'codex', status: 'clean', findings: [blockingFinding] },
+  ]) {
+    const result = await runWorkflow(qualityCycle, {
+      repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true, externalReviews: [external],
+    }, agent)
+    assert.equal(result.status, 'reviewer-unavailable', JSON.stringify(external))
+  }
+  assert.equal(calls, 0)
+  const control = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true,
+    externalReviews: [{ host: 'codex', status: 'clean', findings: [] }],
+  }, agent)
+  assert.equal(control.status, 'clean')
+})
+
+// Reported by a peer on 2026-09-22: `codex: true` with no externalReviews
+// returned reviewer-unavailable in milliseconds, with no reason, while the
+// Skill listing still advertised `codex` as the whole argument. From outside
+// that reads as "review is impossible", which invites shipping unreviewed.
+test('a requested host with no result says what to run, and the listing names externalReviews', async () => {
+  const source = await readFile(qualityCycle, 'utf8')
+  const whenToUse = source.split('whenToUse:')[1]?.split('\n')[0] ?? ''
+  assert.match(whenToUse, /externalReviews/)
+  assert.match(whenToUse, /host-review\.mjs/)
+
+  const missing = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true,
+  }, async () => { throw new Error('no reviewer may start') })
+  assert.equal(missing.status, 'reviewer-unavailable')
+  assert.match(missing.reason, /codex/)
+  assert.match(missing.reason, /host-review\.mjs --host codex/)
+  assert.match(missing.reason, /externalReviews/)
+
+  const malformed = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true, externalReviews: [{ host: 'codex' }],
+  }, async () => { throw new Error('no reviewer may start') })
+  assert.equal(malformed.status, 'reviewer-unavailable')
+  assert.match(malformed.reason, /not the review schema/)
+
+  // A reviewer that answers unavailable is named too, not only a missing host.
+  const replies = [{ status: 'clean', findings: [] }, { status: 'unavailable', findings: [], notes: 'reviewer failed' }]
+  const silent = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence,
+  }, async () => replies.shift())
+  assert.equal(silent.status, 'reviewer-unavailable')
+  assert.match(silent.reason, /reviewer/)
+})
+
 test('Codex review and advice skills mark spawned sessions as non-recursive leaves', async () => {
   const review = await readFile(path.join(bundledSkills, 'codex-review/SKILL.md'), 'utf8')
   const advise = await readFile(path.join(bundledSkills, 'codex-advise/SKILL.md'), 'utf8')
@@ -195,7 +252,7 @@ test('every spawned role declares the capability it needs', () => {
 
   const calls = sources.flatMap(({ file, text }) =>
     [...text.matchAll(AGENT_CALL)].map(m => ({ file, at: m.index })))
-  assert.ok(calls.length >= 10,
+  assert.ok(calls.length >= 9,
     `the sweep must find the real calls, not a subset: ${calls.length}`)
 
   // A call's options object is the text from the call to the end of its statement;
@@ -281,17 +338,26 @@ function recordingAgent(replyFor) {
 test('quality-cycle runs its reviewers and synthesis as the shipped agents', async () => {
   const { calls, agent } = recordingAgent(() => ({ status: 'clean', findings: [] }))
   const result = await runWorkflow(qualityCycle, {
-    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true,
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence,
   }, agent)
   assert.equal(result.status, 'clean')
 
   const byLabel = new Map(calls.map(options => [options.label, options]))
   assert.equal(byLabel.get('correctness').agentType, 'quality-harness:qh-correctness-reviewer')
+  assert.equal(byLabel.get('correctness').model, 'opus')
   assert.equal(byLabel.get('scope-simplicity').agentType, 'quality-harness:qh-scope-reviewer')
+  assert.equal(byLabel.get('scope-simplicity').model, 'haiku')
   assert.equal(byLabel.get('synthesis').agentType, 'quality-harness:qh-synthesis')
-  // The Codex role invokes a skill, so it cannot run as a definition without the Skill tool.
-  assert.equal(byLabel.get('codex-external').agentType, undefined)
+  assert.equal(byLabel.get('synthesis').model, 'opus')
+  assert.equal(calls.some(options => options.label === 'codex-external'), false)
   for (const options of calls) assert.ok(options.model, options.label + ' must keep its declared capability (ADR-029)')
+
+  const missing = recordingAgent(() => ({ status: 'clean', findings: [] }))
+  const refused = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true,
+  }, missing.agent)
+  assert.equal(refused.status, 'reviewer-unavailable')
+  assert.equal(missing.calls.length, 0)
 })
 
 test('review-ring runs its fixer as the shipped agent and keeps its reviewer inline', async () => {

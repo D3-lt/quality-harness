@@ -60,16 +60,26 @@ path, not the inventory.
 
 ## The gates
 
-`${CLAUDE_PLUGIN_ROOT}/bin/` holds them. They **advise and never halt the work.** A
+`${CLAUDE_PLUGIN_ROOT}/bin/` holds them. They **advise and do not halt the work**, with one exception below. A
 gate that stops an agent produces a user who cannot tell what to do next, which is
 worse than no gate — so a finding tells you what is wrong and lets you proceed.
 
 **They do still exit non-zero on a failing finding**, and that is not a contradiction:
-"never block" is about not seizing control of your session, not about pretending
+"not blocking" is about not seizing control of your session, not about pretending
 everything passed. The exit code is what a CI step or a stage precondition reads.
 `qh-doctor` prints how many findings fail versus how many only advise — and the
 difference between those two words is the thing to read, because "the gate
 complained" and "the gate refused" are not the same statement.
+
+**One exception, and it can be turned off.** Before a command that names `commit` or
+`push` runs, a working tree no `qh-check` has passed on is refused (ADR-061), when the
+session log was read whole. A torn log, an unordered check, or a check that could not
+look only warns. `"publish": "warn"` in `.quality-harness.json` makes the refusal a
+warning; any other value is ignored and said to be. A command that merely MENTIONS
+either word, such as a heredoc body, is refused too. That is a known false refusal.
+The only other refusal is the reviewer guard (ADR-060): a role spawned read-only, such
+as `qh-scope-reviewer`, may not edit, commit or push. It has no opt-out, because it
+fences a role the workflow made read-only, not your own work.
 
 Two of them carry the evidence chain and are worth knowing by name:
 
@@ -94,6 +104,8 @@ Run that check through `qh-check`: it runs the command your project declared as
 the tree before and after, and writes the result where the hooks read it. A check
 run any other way is not recorded, so the advisories cannot see it.
 
+`.quality-harness.json` also takes `"publish": "warn"`, which turns the one refusal
+above back into a warning for projects that want the old contract.
 At an artifact-verification boundary, tasks that resolve to the same ADR command
 share that check within the pass. Findings are retained, and the next boundary
 checks again. The harness's own selftests run in its development repository and CI;

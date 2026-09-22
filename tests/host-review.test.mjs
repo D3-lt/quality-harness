@@ -88,6 +88,7 @@ test('a host result missing the schema is unavailable, and the host is told the 
     })
     assert.equal(result.status, 'clean', host)
     const prompt = argv.at(-1)
+    assert.match(prompt, /"\/repo"/, host)
     assert.match(prompt, /commit abc123/, host)
     assert.match(prompt, /reject empty input/, host)
     assert.match(prompt, /"exitCode":0/, host)
@@ -98,14 +99,14 @@ test('a host result missing the schema is unavailable, and the host is told the 
 // following it returned unavailable every time.
 test('every documented host-review command names the repository and the scope', () => {
   const skills = ['plugin/skills/quality-policy/SKILL.md', 'plugin/skills/work/SKILL.md']
-  let seen = 0
   for (const file of skills) {
     const text = readFileSync(new URL(`../${file}`, import.meta.url), 'utf8')
+    let seen = 0
     for (const [command] of text.matchAll(/`node \$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/host-review\.mjs[^`]*`/g)) {
       seen += 1
       assert.match(command, /--repo /, `${file}: ${command}`)
       assert.match(command, /--scope /, `${file}: ${command}`)
     }
+    assert.ok(seen >= 1, `${file} documents the command`)
   }
-  assert.ok(seen >= 2, 'both skills document the command')
 })

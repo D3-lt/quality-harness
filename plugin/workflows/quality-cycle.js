@@ -69,6 +69,11 @@ const wellFormed = review => review && typeof review === 'object' && typeof revi
     && FINDING.required.every(key => key === 'severity'
       ? FINDING.properties.severity.enum.includes(finding.severity)
       : typeof finding[key] === 'string'))
+  // The status must agree with the findings, as host-review.mjs `validReview`
+  // requires: blocking with no blocking finding, or clean with one, is not a
+  // review (Codex review round 2). The workflow cannot import that module.
+  && (review.status === 'blocking' ? review.findings.some(finding => finding.severity === 'blocking')
+    : review.status === 'clean' ? !review.findings.some(finding => finding.severity === 'blocking') : true)
 if (!externalReviews.every(wellFormed)
     || requested.some(host => !externalReviews.some(review => review.host === host))) {
   return { status: 'reviewer-unavailable', evidence, reviews: externalReviews }

@@ -8077,8 +8077,35 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "    && (!Number.isInteger(entry.checksSeen) || (Number.isInteger(later.seq) && later.seq > entry.checksSeen))))",
-      "to": "    && true))"
+      "from": "      || (Number.isInteger(entry.checksSeen) && Number.isInteger(later.seq) && later.seq > entry.checksSeen))))",
+      "to": "      || true)))"
+    },
+    {
+      "label": "fail-open: only the tree's could-not-look exempts a refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const couldNotLook = treeStanding === 'could-not-look'",
+      "to": "  const couldNotLook = treeStanding === 'could-not-look' || indexStanding === 'could-not-look'"
+    },
+    {
+      "label": "fail-open: a check that could not look is not worded as no check passing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const unobserved = facts?.treeOrder === 'could-not-look'",
+      "to": "  const unobserved = false"
+    },
+    {
+      "label": "quality-cycle: a host result whose status contradicts its findings is unavailable",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "  && (review.status === 'blocking' ? review.findings.some(finding => finding.severity === 'blocking')",
+      "to": "  && (true ? true"
     },
     {
       "label": "fail-open: an unchecked index warning does not invent a passing check",
@@ -8618,7 +8645,7 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved') }),",
+      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),",
       "to": "      text: uncheckedCommitsReason(input.cwd, unchecked),"
     },
     {

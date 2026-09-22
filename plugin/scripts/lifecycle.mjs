@@ -527,6 +527,31 @@ function declaredCheckCommand(directory) {
   const check = config?.check
   return typeof check === 'string' && check.trim() ? check.trim() : null
 }
+
+/**
+ * Whether a project turned ADR-061's refusal back into its warning, with
+ * `"publish": "warn"` in `.quality-harness.json` (the owner's decision,
+ * 2026-09-22). Only that exact value counts. Anything else present is reported
+ * as ignored and keeps the refusal, so a typo cannot silently switch it off.
+ * An unreadable file keeps the refusal too, and says nothing: it declares nothing.
+ */
+export function publishSetting(cwd) {
+  const directory = nearestExistingDirectory(path.resolve(cwd))
+  if (!directory) return { warn: false, ignored: false }
+  const found = gitRepositoryLookup(directory)
+  let config
+  try {
+    config = JSON.parse(readFileSync(path.join((found.ok && found.root) || directory, '.quality-harness.json'), 'utf8'))
+  } catch { return { warn: false, ignored: false } }
+  if (!config || typeof config !== 'object' || !Object.hasOwn(config, 'publish')) return { warn: false, ignored: false }
+  return config.publish === 'warn' ? { warn: true, ignored: false } : { warn: false, ignored: true }
+}
+
+function publishSettingNote(setting) {
+  if (setting.warn) return ' Refusal is off for this project: `"publish": "warn"` in .quality-harness.json makes this a warning.'
+  if (setting.ignored) return ' The `"publish"` value in .quality-harness.json was ignored: only `"publish": "warn"` turns this refusal into a warning.'
+  return ''
+}
 // A declaration that cannot fail does not certify. Measured 2026-09-22: `true`,
 // `:`, `exit 0`, `sh -c true` and `bash -c 'exit 0'` each exit 0. One layer of
 // `sh -c` or `bash -c` around those is the same command. `sh check.sh` is not.
@@ -3126,7 +3151,10 @@ function publishUnchecked(input, requested) {
   // compared against those trees, so a staged change beside an untracked file
   // equals no checked tree and was denied after every pass (found live by a peer,
   // 2026-09-22). The index still warns: its exact bytes were never checked.
-  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'
+  // A project may opt out with `"publish": "warn"` (ADR-061 revision 3); the
+  // warning below is then all it gets, on every attempt the dedupe allows.
+  const setting = publishSetting(input.cwd)
+  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn
   if (!deny && log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
   queueAction({
     rule: 'P', key, detail: { tree: now.tree, revision }, deny,
@@ -3149,7 +3177,7 @@ function publishUnchecked(input, requested) {
               ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
               : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
       + 'about to run names commit or push. Run `qh-check` first. This says what state the repository is in, not what '
-      + `the command publishes.${inferredCheckCaveat(input.cwd)}`,
+      + `the command publishes.${inferredCheckCaveat(input.cwd)}${publishSettingNote(setting)}`,
   })
 }
 // R3 `review-changed-state` (ADR-060): a read-only role's run is bracketed by its

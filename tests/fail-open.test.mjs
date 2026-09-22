@@ -150,6 +150,41 @@ test('a passing check on the tree is not refused because the index differs from 
   assert.equal(decision(moved), 'deny', moved.stdout)
 })
 
+// The owner's decision, 2026-09-22: the refusal is the default, and a project
+// may turn it back into the warning. Anything but the exact value keeps the
+// default, so a typo cannot silently disable it, and the hook says so.
+test('a project can turn the publish refusal back into a warning, and only on purpose', () => {
+  const attempt = (label, config) => {
+    const dir = repository(`publish-${label}-`)
+    writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+    writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', ...config }))
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', 'config')
+    const session = `fail-open-publish-${label}-` + process.pid
+    hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+    writeFileSync(path.join(dir, 'a.md'), 'unchecked\n')
+    const run = hook(dir, {
+      hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+      tool_input: { command: 'git commit -am unchecked' },
+    })
+    return { decision: decision(run), said: hookSaid(run.stdout, run.stderr).text }
+  }
+
+  const warned = attempt('warn', { publish: 'warn' })
+  assert.notEqual(warned.decision, 'deny', warned.said)
+  assert.match(warned.said, /unchecked/)
+  assert.match(warned.said, /"publish": "warn"/)
+
+  const refused = attempt('default', {})
+  assert.equal(refused.decision, 'deny', refused.said)
+
+  for (const [label, publish] of [['boolean', true], ['off', 'off'], ['case', 'Warn']]) {
+    const typo = attempt(label, { publish })
+    assert.equal(typo.decision, 'deny', `${label}: ${typo.said}`)
+    assert.match(typo.said, /"publish".*ignored/, label)
+  }
+})
+
 // Codex review, 2026-09-22 (F1): a later check that could not look is not a
 // failure. It must not turn an earlier pass into a refusal.
 test('a check that could not look after a pass warns and does not refuse', () => {

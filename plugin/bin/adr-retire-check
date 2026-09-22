@@ -186,7 +186,7 @@ def adr_id_for_file(path, root, known=frozenset()):
     """
     text = _read(path)
     relative = path.relative_to(root)
-    found = first_number_id(" ".join(text.splitlines()[:2]))
+    found = first_number_id(" ".join(text.splitlines()[:2]), skip_dates=True)
     if found:
         return found
     for part in reversed(relative.parts):

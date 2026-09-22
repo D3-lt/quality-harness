@@ -1,14 +1,38 @@
-// What a test that spawns the hooks puts in their environment.
+// A silence check is about an advisory. The pause line is a different sentence
+// on the same channel: flushOutput appends it to systemMessage and stderr when
+// the hook took at least 5 seconds. Windows run 35439248428 failed a scripted
+// session because that line was the only thing PreToolUse said.
 //
-// ⚠ A HOOK THAT TAKES LONGER THAN QUALITY_HARNESS_SLOW_HOOK_MS SAYS SO — "the
-// PreToolUse hook took 6.0s — the pause has this name" — and that is the product
-// working. It is also a line of output, and a test asserting that a hook was SILENT
-// then fails on any runner slow enough to cross the threshold. It did: run
-// 35439248428, Windows, in a scripted-session test about completion advisories,
-// over a commit that had changed nothing on that path. A test that passes only on
-// a fast machine is asserting the machine.
-//
-// So every test about something OTHER than the slow-hook notice switches the notice
-// off for the hooks it spawns. The notice has its own test
-// (tests/lifecycle.test.mjs, which sets the threshold to 0 to force it).
-export const SLOW_HOOK_OFF = String(24 * 60 * 60 * 1000)
+// hookSaid removes that one sentence and leaves everything else. The notice
+// itself is tested in tests/lifecycle.test.mjs, which sets the threshold to 0.
+import { SLOW_HOOK_NOTE } from '../plugin/scripts/lifecycle.mjs'
+
+export function stripPauseLines(text) {
+  return String(text ?? '')
+    .split('\n')
+    .filter(line => !SLOW_HOOK_NOTE.test(line.trim()))
+    .join('\n')
+    .trim()
+}
+
+// stdout is one JSON object. A systemMessage that is only the pause line is
+// silence; any other key, or any other line, is still something the hook said.
+export function hookSaid(stdout, stderr = '') {
+  const raw = String(stdout ?? '').trim()
+  let spoken = stripPauseLines(raw)
+  if (raw.startsWith('{')) {
+    try {
+      const parsed = JSON.parse(raw)
+      if (typeof parsed.systemMessage === 'string') {
+        const rest = stripPauseLines(parsed.systemMessage)
+        if (rest) parsed.systemMessage = rest
+        else delete parsed.systemMessage
+      }
+      spoken = Object.keys(parsed).length === 0 ? '' : JSON.stringify(parsed)
+    } catch {
+      spoken = stripPauseLines(raw)
+    }
+  }
+  const err = stripPauseLines(stderr)
+  return { stdout: spoken, stderr: err, text: `${spoken}${err}`.trim() }
+}

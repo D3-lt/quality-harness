@@ -541,3 +541,65 @@ test('both identity rules read ASCII digits only', () => {
   assert.deepEqual(texts.map(text => [...lifecycle.referencesIn(text)].sort()),
     recordLib(`[sorted(record.references_in(t)) for t in ${JSON.stringify(texts)}]`))
 })
+
+// --- Round 2 of the different-lineage review: one test per finding ------------
+const NESTED_OBLIGATIONS = /ADR-001: archive has 3 obligation\(s\), active receipt has 2/
+
+/** `adr_id_for_file` from the real gate, loaded as a module (it runs nothing on import). */
+function ownerOf(root, rel, known) {
+  const code = [
+    'import importlib.machinery, importlib.util, json, sys',
+    `sys.path.insert(0, ${JSON.stringify(lib)})`,
+    `loader = importlib.machinery.SourceFileLoader('retire', ${JSON.stringify(join(bin, 'adr-retire-check'))})`,
+    'spec = importlib.util.spec_from_loader("retire", loader)',
+    'gate = importlib.util.module_from_spec(spec)',
+    'loader.exec_module(gate)',
+    'from pathlib import Path',
+    `print(json.dumps(gate.adr_id_for_file(Path(${JSON.stringify(join(root, ...rel.split('/')))}), Path(${JSON.stringify(root)}), frozenset(${JSON.stringify(known)}))))`,
+  ].join('\n')
+  const run = runPython(['-c', code], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(run.status, 0, run.stderr)
+  return JSON.parse(run.stdout)
+}
+
+test('a directory inside a record directory is not a record by its ADR token', () => {
+  // R1: `notes-ADR-999/` under ADR-001's directory must not take ADR-001's note.
+  const root = numberedCorpus({ 'adr-archive/ADR-001-history/notes-ADR-999/plan.md': OPEN_ITEM })
+  assert.match(retire(root).out, NESTED_OBLIGATIONS)
+})
+
+test('a record is its own record, not a companion of a shorter stem', () => {
+  // R2: `2026-07-15-old.v2.md` is a record; it must not belong to `2026-07-15-old`.
+  const root = scratch('owner')
+  writeTree(root, {
+    '2026-07-15-old.v2.md': record('Old, version two', 'Accepted'),
+    '2026-07-15-old.queries.md': '# Queries\n\nSELECT 1;\n',
+  })
+  const known = ['2026-07-15-old', '2026-07-15-old.v2']
+  assert.equal(ownerOf(root, '2026-07-15-old.v2.md', known), '2026-07-15-old.v2')
+  // The control: a non-record companion still belongs to the record it extends.
+  assert.equal(ownerOf(root, '2026-07-15-old.queries.md', known), '2026-07-15-old')
+})
+
+test('a dated filename in a supersession is a name, not a prose date', () => {
+  // R3: `docs/adr/2026-08-01.md` names a record that is missing; ADR-063's
+  // replacement check must not skip it and take the existing record after it.
+  const got = retire(dateCorpus({ effect: `superseded by docs/adr/2026-08-01.md (see \`docs/adr/${NEW}.md\`)` }))
+  assert.equal(got.status, 1, got.out)
+  assert.match(got.out, NO_REPLACEMENT)
+})
+
+test('a numbered supersession needs a whole identifier', () => {
+  // R4: `ADR-004oops` is not record 4.
+  const root = dateCorpus({ effect: 'superseded by ADR-004oops' })
+  const records = lifecycle.adrCorpus(root, { tracked: listing(root) })
+  assert.equal(records.look, 'PARTIAL')
+  assert.ok(!records.some(entry => entry.id === OLD && entry.kind === 'graveyard'))
+})
+
+test('both identity rules read a title the same way whatever its whitespace', () => {
+  // R5: `re.ASCII` changed `\s` too, so a no-break space split the two copies.
+  const table = [['notes.md', '# ADR-012: X'], ['2026-07-15-x.md', '# ADR-012: X'], ['notes.md', '#\tADR-7: y']]
+  assert.deepEqual(table.map(([name, title]) => lifecycle.recordId(name, title)),
+    recordLib(`[record.record_id(n, t) for n, t in ${pyLiteral(table)}]`))
+})

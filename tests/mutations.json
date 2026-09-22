@@ -4676,8 +4676,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
-      "to": "      else void note"
+      "from": "      if (served && note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
+      "to": "      if (false && note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)"
     },
     {
       "label": "lifecycle: SessionEnd writes the sessions ledger row",
@@ -8045,13 +8045,23 @@
       "to": "model: 'opus'"
     },
     {
-      "label": "routing stress: quality-cycle Codex role stays inline",
+      "label": "routing stress: a requested host with no result is unavailable",
       "file": "plugin/workflows/quality-cycle.js",
       "tests": [
-        "tests/routing-stress.test.mjs"
+        "tests/routing-stress.test.mjs",
+        "tests/workflows.test.mjs"
       ],
-      "from": "{ label: 'codex-external', phase: 'Review', schema: REVIEW, model: 'sonnet' }",
-      "to": "{ label: 'codex-external', phase: 'Review', schema: REVIEW, model: 'sonnet', agentType: 'quality-harness:qh-correctness-reviewer' }"
+      "from": "if (requested.some(host => !externalReviews.some(review => review?.host === host))) {",
+      "to": "if (false && requested.some(host => !externalReviews.some(review => review?.host === host))) {"
+    },
+    {
+      "label": "host-review: a missing cursor agent is not a clean review",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": "  if (!bin) return unavailable('cursor', null, 'cursor agent binary is absent', model)",
+      "to": "  if (!bin) return { status: 'clean', host: 'cursor', model, effort: null, bound: 'reported', findings: [], reason: '' }"
     },
     {
       "label": "routing stress: review-ring fixer runs as qh-narrow-fixer",
@@ -8104,8 +8114,8 @@
       "tests": [
         "tests/routing.test.mjs"
       ],
-      "from": "when Codex is installed (`command -v codex`), `/quality-harness:codex-review`; when it is not, `/quality-harness:quality-cycle`.",
-      "to": "when Codex is installed (`command -v codex`), `/quality-harness:quality-cycle`; when it is not, `/quality-harness:codex-review`."
+      "from": "when Codex is installed (`command -v codex`), `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex`; when it is not, `/quality-harness:quality-cycle`.",
+      "to": "when Codex is installed (`command -v codex`), `/quality-harness:quality-cycle`; when it is not, `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex`."
     },
     {
       "label": "routing: the Moderate tier names a whole agent",
@@ -8518,7 +8528,7 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log) }),",
+      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved') }),",
       "to": "      text: uncheckedCommitsReason(input.cwd, unchecked),"
     },
     {
@@ -8527,8 +8537,8 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      if (note && !tied) sections.push(",
-      "to": "      if (false) sections.push("
+      "from": "      else if (!tied && note) sections.push(",
+      "to": "      else if (false && note) sections.push("
     },
     {
       "label": "ledger: an unverified row with no edits is read back as unknown, not as edits",

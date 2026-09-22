@@ -240,6 +240,7 @@ test('every reader of the session log is driven above, or says why a lost line c
     observedFacts: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
     latestCheckFor: { driven: 'latestCheckFor' },
     logIncomplete: 'is the qualifier itself',
+    unobservableWrites: 'ordered by the log; an incomplete log leaves every such write outstanding',
   }
   const naming = []
   const taking = []
@@ -285,7 +286,8 @@ test('a really torn log, read by the real hooks, does not persist a verified row
       run('mkdir', ['-p', dir])
       git('init', '-q')
       writeFileSync(join(dir, 'a.md'), 'a\n')
-      writeFileSync(join(dir, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+      writeFileSync(join(dir, 'check.sh'), 'exit 0\n')
+      writeFileSync(join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
       git('add', '-A')
       git('commit', '-q', '-m', 'base')
       const session = `flip-e2e-${label}-${process.pid}`
@@ -354,7 +356,8 @@ test('at every hook boundary a torn log is never quieter than a whole one, howev
       run('mkdir', ['-p', dir])
       git('init', '-q')
       writeFileSync(join(dir, 'a.md'), 'a\n')
-      writeFileSync(join(dir, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+      writeFileSync(join(dir, 'check.sh'), 'exit 0\n')
+      writeFileSync(join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
       git('add', '-A')
       git('commit', '-q', '-m', 'base')
       const session = `flip-tbl-${label}-${process.pid}`

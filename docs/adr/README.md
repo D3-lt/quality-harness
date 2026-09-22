@@ -66,3 +66,5 @@ whose catalog says what each one's decision effect is now.
 | [ADR-055](ADR-055-an-escaped-quote-is-still-the-name.md) | An escaped quote is still the name | Accepted |
 | [ADR-057](ADR-057-every-shipped-element-has-a-named-route.md) | Every shipped element has a named route | Accepted |
 | [ADR-060](ADR-060-advisories-react-to-observed-events.md) | Advisories react to observed events, not to parsed commands | Accepted |
+| [ADR-061](ADR-061-an-unchecked-publish-is-refused.md) | An unchecked publish is refused | Accepted |
+| [ADR-062](ADR-062-a-review-is-a-host-result.md) | A review is a host result | Accepted |

@@ -47,7 +47,7 @@ function fixture(top, label) {
   run('mkdir', ['-p', repo])
   git('init', '-q')
   writeFileSync(join(repo, 'a.md'), 'a\n')
-  writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+  writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
   git('add', '-A')
   git('commit', '-q', '-m', 'base')
   const log = () => readFileSync(join(repo, '.git', 'quality-harness', 'sessions', `${session}.jsonl`), 'utf8')

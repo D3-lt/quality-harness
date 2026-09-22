@@ -1,7 +1,7 @@
 ---
 name: qh-scope-reviewer
 description: Read-only review of scope and design economy — duplicated knowledge, real ownership seams, speculative complexity. Use alongside a correctness pass when a change may be larger or more abstract than the requirement it serves. Returns findings; never edits.
-model: sonnet
+model: haiku
 tools: Read, Grep, Glob, Bash
 # Read-only by contract, and the contract is checked: the guard refuses an editing
 # tool, and a Bash command naming commit or push; any other change is reported when

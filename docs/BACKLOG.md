@@ -12943,6 +12943,8 @@ repeats until the state changes, and report the count once at Stop; a cadence (e
 fits ambient context such as the branch-state brief but not event-bound gates like the commit
 advisory. It changes every gate's behaviour, so it needs its own record — after ADR-058's replay.
 
+**Measured for ADR-060, 2026-09-22, beside §213's 21.** The installed claims ledger has no `events/1` row, so no chat has run these hooks. A session was driven on the branch at `365706b`: `SessionStart`, one edit, `Stop`, one `qh-check`, `Stop`, then a commit of that edit. It spoke twice — the SessionStart named the project's check, and the first Stop delivered R1 for the edited file. The Stop after `qh-check` (exit 0, `check.passed`) said nothing. `action.emitted` was R1 once. Commits in that repository: 2. `qh-check` runs: 1. This is a driven session of the landed hooks, not a replay of the transcript behind the 21.
+
 ## 218. Shell grammar words make a loop or a conditional an unrecognised family (2026-09-16)
 
 Found by ADR-058 T2's class audit ("a family outside `MEASURED_FAMILIES` whose invocation is a

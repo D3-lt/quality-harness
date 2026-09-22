@@ -1374,7 +1374,10 @@ function markdownSection(text, heading) {
 // `**Status:** Accepted`, `Status: Accepted`, or a `## Status` section's first line.
 function recordStatus(text) {
   const inline = text.match(/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$/im)
-  if (inline) return inline[1].replace(/[*_`]/g, '').trim()
+  // Emphasis is stripped, not every underscore: `2026_07_15_new` and
+  // `2026-07-15-new_cache` are record names, and removing their underscores made a
+  // supersession name nothing, or a different record (Codex, 2026-09-22, round 4).
+  if (inline) return inline[1].replace(/[*`]/g, '').replace(/(^|[\s(])_+|_+(?=[\s).,;:]|$)/g, '$1').trim()
   const section = markdownSection(text, 'Status')
   return section.split('\n').map(line => line.trim()).find(Boolean) ?? ''
 }

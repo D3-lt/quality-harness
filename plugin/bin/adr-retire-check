@@ -206,7 +206,12 @@ def adr_id_for_file(path, root, known=frozenset()):
         found = record_id(part)
         if found:
             return found
-    return record_id(path.name, title_line(text))
+    # A NON-record's own name counts only as a dated stem. A bare number, `001-notes.txt`
+    # in a flat numbered archive, belonged to no record before ADR-063, and giving it to
+    # ADR-001 changed that record's seal (Codex, 2026-09-22, round 4). An `NNN-slug`
+    # RECORD was already resolved by its content above.
+    found = record_id(path.name, title_line(text))
+    return found if found and not found.startswith("ADR-") else None
 
 
 def meaningful_obligations(root, known=frozenset()):

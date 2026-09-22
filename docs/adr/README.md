@@ -68,3 +68,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-060](ADR-060-advisories-react-to-observed-events.md) | Advisories react to observed events, not to parsed commands | Accepted |
 | [ADR-061](ADR-061-an-unchecked-publish-is-refused.md) | An unchecked publish is refused | Accepted |
 | [ADR-062](ADR-062-a-review-is-a-host-result.md) | A review is a host result | Accepted |
+| [ADR-063](ADR-063-a-record-is-its-number-or-its-stem.md) | A record is its number, or its stem | Proposed |

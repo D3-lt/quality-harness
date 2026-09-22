@@ -804,12 +804,22 @@ export function slowHookThresholdMs(env = process.env) {
   return Number.isSafeInteger(configured) && configured >= 0 ? configured : SLOW_HOOK_MS
 }
 
+// The whole sentence. A silence check removes this line and nothing that shares
+// the channel with it. flushOutput builds the note with slowHookNote, so a
+// wording change that stops matching this pattern fails the slow-hook test on
+// a fast machine.
+export const SLOW_HOOK_NOTE = /^quality-harness: the \S+ hook took \d+\.\ds — the pause has this name$/
+
+export function slowHookNote(eventName, elapsedMs) {
+  return `quality-harness: the ${eventName ?? 'hook'} hook took ${(elapsedMs / 1000).toFixed(1)}s — the pause has this name`
+}
+
 export function flushOutput(startedAt, input, env = process.env, now = Date.now()) {
   const elapsed = now - startedAt
   let out = pendingOutput
   pendingOutput = null
   if (elapsed >= slowHookThresholdMs(env)) {
-    const note = `quality-harness: the ${input?.hook_event_name ?? 'hook'} hook took ${(elapsed / 1000).toFixed(1)}s — the pause has this name`
+    const note = slowHookNote(input?.hook_event_name, elapsed)
     process.stderr.write(`${note}\n`)
     out = { ...(out ?? {}), systemMessage: out?.systemMessage ? `${out.systemMessage}\n${note}` : note }
   }

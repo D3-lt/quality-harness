@@ -18,7 +18,7 @@ import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realp
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
-import { SLOW_HOOK_OFF } from './hook-env.mjs'
+import { hookSaid } from './hook-env.mjs'
 import { fileURLToPath } from 'node:url'
 import { checkEventName, observedFacts, readSessionNote, replaceSessionNote, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
@@ -116,7 +116,7 @@ test('a state note that could not be removed is not reported as removed', () => 
 
 function fixture(top, label) {
   const repo = join(top, label)
-  const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF }
+  const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top }
   const run = (command, args, options = {}) => {
     const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
     assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)
@@ -126,7 +126,7 @@ function fixture(top, label) {
   const session = `review-${label}-${process.pid}`
   const hook = payload => {
     const out = run(process.execPath, [lifecycleScript], { cwd: top, input: JSON.stringify({ ...payload, session_id: session, cwd: repo }) })
-    return `${out.stdout}${out.stderr}`.trim()
+    return hookSaid(out.stdout, out.stderr).text
   }
   mkdirSync(repo, { recursive: true })
   git('init', '-q')
@@ -274,10 +274,10 @@ test('the next session is not told of edits nobody observed', () => {
       during(repo, hook)
       hook({ hook_event_name: 'SessionEnd', reason: 'other' })
       const out = spawnSync(process.execPath, [lifecycleScript], { cwd: top, encoding: 'utf8', timeout: 120_000,
-        env: { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(home, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF },
+        env: { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(home, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top },
         input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: `next-${label}-${process.pid}`, cwd: repo }) })
       assert.equal(out.status, 0, out.stderr)
-      return `${out.stdout}${out.stderr}`
+      return hookSaid(out.stdout, out.stderr).text
     }
     // The control: real unchecked edits ARE reported as edits, by path.
     const edited = next('row-edited', (repo, hook) => {
@@ -376,12 +376,12 @@ test('an UNKNOWN previous session still says what was independently known to be 
     const place = join(top, 'plain')
     mkdirSync(place, { recursive: true })
     writeFileSync(join(place, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
-    const env = { ...process.env, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF }
+    const env = { ...process.env, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top }
     const hook = (session, payload) => {
       const out = spawnSync(process.execPath, [lifecycleScript], { cwd: top, encoding: 'utf8', timeout: 120_000, env,
         input: JSON.stringify({ ...payload, session_id: session, cwd: place }) })
       assert.equal(out.status, 0, out.stderr)
-      return `${out.stdout}${out.stderr}`
+      return hookSaid(out.stdout, out.stderr).text
     }
     const first = `unknown-a-${process.pid}`
     hook(first, { hook_event_name: 'SessionStart', source: 'startup' })

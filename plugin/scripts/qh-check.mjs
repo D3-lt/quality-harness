@@ -23,11 +23,17 @@ function checkTimeoutMs(env) {
   const seconds = Number(env.QUALITY_HARNESS_CHECK_TIMEOUT)
   return (Number.isFinite(seconds) && seconds > 0 ? seconds : CHECK_TIMEOUT_SECONDS) * 1_000
 }
+// A spawn error or a missing status is not "this directory is not a repository".
+// That reading is the non-git exemption, and a pass then skips the tree comparison.
+export function repositoryDiscovery(spawnResult) {
+  if (!spawnResult || spawnResult.error || spawnResult.status == null) return null
+  return spawnResult.status === 0 && String(spawnResult.stdout ?? '').trim() !== ''
+}
 
 export async function runCheck({ cwd = process.cwd(), env = process.env, stdout = process.stdout, stderr = process.stderr } = {}) {
   const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000 })
-  const git = !top.error && top.status === 0 && top.stdout.trim() !== ''
-  const root = git ? top.stdout.trim() : realpathSync(cwd)
+  const git = repositoryDiscovery(top)
+  const root = git === true ? top.stdout.trim() : realpathSync(cwd)
   const { command, origin } = checkCommandOrigin(root)
   if (!command) {
     stderr.write('qh-check: this project has no check to run. Declare one as `check` in .quality-harness.json.\n')

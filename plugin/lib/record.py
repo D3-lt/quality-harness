@@ -73,6 +73,7 @@ __all__ = [
     "title_line",
     "record_id",
     "references_in",
+    "first_reference",
     "looks_like_record",
 ]
 
@@ -370,27 +371,32 @@ def acceptance_digest(command):
 
 # --- Record identity (ADR-063) ------------------------------------------------
 # A record is its ADR number, or the exact stem of a date-shaped name. The three
-# name regexes moved here from adr-lint UNCHANGED, so every gate reads one
-# spelling; adr-lint imports them. Why a date is a name shape at all, and why a
+# name regexes moved here from adr-lint, so every gate reads one spelling;
+# adr-lint imports them. ⚠ Every identity regex is re.ASCII: Python's `\d` also
+# matches Unicode digits, so `ADR-٠١٢-x.md` was record 12 here and nothing in
+# lifecycle.mjs, whose copy of this rule has only ASCII digits (Codex, 2026-09-22). Why a date is a name shape at all, and why a
 # `(?:19|20)` year anchor was rejected in both directions, is adr-lint's comment
 # above `record_files` and BACKLOG §193.
-RECORD_FILE_RE = re.compile(r"^(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
+RECORD_FILE_RE = re.compile(r"^(?:adr[-_]?)?(\d{1,4})[-._]", re.I | re.ASCII)
 # `003-T2.md`, `003-T2-plan.md` — a task file, or a record with a slug of `t2`.
-TASK_SHAPED_RE = re.compile(r"^(?:adr[-_]?)?\d{1,4}[-._]T\d+(?:[-._]|$)", re.I)
+TASK_SHAPED_RE = re.compile(r"^(?:adr[-_]?)?\d{1,4}[-._]T\d+(?:[-._]|$)", re.I | re.ASCII)
 # `2026-07-12-x.md` in every separator and width — a dated note, or an ADR-2026.
 # ⚠ The owner KEPT this shape on 2026-09-22, so a four-digit number with a
 # numeric slug (`0012-3-tier-cache.md`) is date-shaped too, and is a stem
 # (ADR-063 Risks). A title `# ADR-12` still gives it 12.
-DATE_SHAPED_RE = re.compile(r"^\d{4}[-_.]\d{1,2}[-_.]")
-_TITLE_TASK = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I)
-_TITLE_ADR = re.compile(r"^﻿?#\s*ADR[-_ ]?(?P<rest>\d.*)$", re.I)
-_TITLE_NUMBER = re.compile(r"(\d{1,4})(?!\d)")
+DATE_SHAPED_RE = re.compile(r"^\d{4}[-_.]\d{1,2}[-_.]", re.ASCII)
+# A reference that is nothing but a date, `(2026-07-12)` beside a path: a date,
+# never the name of a record.
+_BARE_DATE = re.compile(r"\d{4}[-_.]\d{1,2}[-_.]\d{1,2}", re.ASCII)
+_TITLE_TASK = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I | re.ASCII)
+_TITLE_ADR = re.compile(r"^﻿?#\s*ADR[-_ ]?(?P<rest>\d.*)$", re.I | re.ASCII)
+_TITLE_NUMBER = re.compile(r"(\d{1,4})(?!\d)", re.ASCII)
 _HEADING_LINE = re.compile(r"^﻿?#\s")
 # The numbered token every retire-check spelling already used: `ADR-12`, `ADR012`.
-_FIRST_NUMBER = re.compile(r"(?<!\w)ADR-?(\d+)(?!\w)", re.I)
+_FIRST_NUMBER = re.compile(r"(?<!\w)ADR-?(\d+)(?!\w)", re.I | re.ASCII)
 # A numbered REFERENCE keeps adr-retire-check's receipt rule, hyphen required, so
 # `ADR-012-T3` and `ADR-012/…` still name record 12.
-_NUMBERED_REF = re.compile(r"(?<![A-Za-z0-9_])ADR-(\d+)(?![A-Za-z0-9_])", re.I)
+_NUMBERED_REF = re.compile(r"(?<![A-Za-z0-9_])ADR-(\d+)(?![A-Za-z0-9_])", re.I | re.ASCII)
 # A stem reference is a run of the characters a record's filename is made of, split
 # at either path separator (CLAUDE.md §7). Backticks, spaces and parentheses end it.
 _REF_CHUNK = re.compile(r"[A-Za-z0-9._/\\-]+")
@@ -450,23 +456,41 @@ def record_id(name, title=None):
 
 
 def references_in(text):
-    """Every record a piece of prose names: `ADR-NNN` ids, and dated stems.
+    """Every record a piece of prose names, in the order it names them:
+    `ADR-NNN` ids and dated stems, each once.
 
     A stem is named only as a whole token or a whole path component, after
     trailing punctuation and a `.md` suffix are stripped, so `…-defer` is never
     read out of `…-defer-flock`. A date-shaped token that names no record (a
-    `(2026-07-12)` beside a path) is returned too; the caller intersects with
-    the records that exist.
+    `(2026-07-12)` beside a path) is returned too; `first_reference` skips it.
+    The ORDER is what lets a supersession name its replacement: the first
+    reference, not whichever one happens to exist.
     """
-    found = {number_id(match.group(1)) for match in _NUMBERED_REF.finditer(text)}
-    for chunk in _REF_CHUNK.findall(text):
-        for part in _REF_SEPARATOR.split(chunk):
-            part = part.rstrip(".,;:)")
+    found = [(match.start(), number_id(match.group(1))) for match in _NUMBERED_REF.finditer(text)]
+    for chunk in _REF_CHUNK.finditer(text):
+        offset = chunk.start()
+        for raw in _REF_SEPARATOR.split(chunk.group()):
+            part = raw.rstrip(".,;:)")
             if part.lower().endswith(".md"):
                 part = part[:-len(".md")].rstrip(".,;:)")
             if part and DATE_SHAPED_RE.match(part):
-                found.add(part)
-    return found
+                found.append((offset, part))
+            offset += len(raw) + 1
+    ordered = []
+    for _offset, name in sorted(found, key=lambda item: item[0]):
+        if name not in ordered:
+            ordered.append(name)
+    return ordered
+
+
+def first_reference(text):
+    """The record a `superseded by …` names: its first reference that is not a
+    bare date, or None. Taking the first is the point — `superseded by ADR-999
+    (see ADR-002)` names ADR-999, and must not pass because ADR-002 exists."""
+    for name in references_in(text):
+        if not _BARE_DATE.fullmatch(name):
+            return name
+    return None
 
 
 def looks_like_record(text):

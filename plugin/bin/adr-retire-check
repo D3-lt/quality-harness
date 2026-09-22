@@ -56,7 +56,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of  # noqa: E402
-from record import first_number_id, looks_like_record, record_id, references_in, title_line  # noqa: E402
+from record import first_number_id, first_reference, looks_like_record, record_id, references_in, title_line  # noqa: E402
 
 
 PLACEHOLDERS = {"", "none", "none.", "_none._", "(empty at authoring)"}
@@ -167,11 +167,21 @@ def adr_files(root, unidentified=None):
 
 
 def adr_id_for_file(path, root, known=frozenset()):
-    """Which record a file belongs to (ADR-063): its own heading first (its
-    first two lines, as before), then a record whose stem it extends
-    (`<stem>.queries.md`), then its own name, then the nearest directory below
-    `root` whose name carries an id. The walk stops at `root`: a directory
-    above the corpus says nothing about a file in it."""
+    """Which record a file belongs to (ADR-063), in order: its own heading (its
+    first two lines, as before); a record whose stem it extends
+    (`<stem>.queries.md`); its own name, but only if it reads as a record; the
+    nearest directory below `root` whose name carries an id; and last, a
+    non-record's own name. The walk stops at `root`: a directory above the
+    corpus says nothing about a file in it.
+
+    ⚠ A NOTE IS NOT ITS OWN RECORD. `ADR-001-x/2026-07-15-notes.md` or
+    `ADR-001-x/002-plan.md` carries an id-shaped name, and taking it first gave
+    the note an identity no catalog row has, so its open obligation escaped the
+    check (Codex, 2026-09-22). A directory's id wins over a note's name. And a
+    name falls back to the ADR-N token anywhere in it (`notes-ADR-001.txt`),
+    which is what this gate read before ADR-063, so a numbered decision unit
+    keeps every file it sealed.
+    """
     text = _read(path)
     found = first_number_id(" ".join(text.splitlines()[:2]))
     if found:
@@ -180,14 +190,14 @@ def adr_id_for_file(path, root, known=frozenset()):
     for adr_id in known:
         if not adr_id.startswith("ADR-") and stem.startswith(f"{adr_id}."):
             return adr_id
-    found = record_id(path.name, title_line(text))
-    if found:
-        return found
+    by_name = record_id(path.name, title_line(text)) or first_number_id(path.name)
+    if by_name and looks_like_record(text):
+        return by_name
     for part in reversed(path.relative_to(root).parent.parts):
-        found = record_id(part)
+        found = record_id(part) or first_number_id(part)
         if found:
             return found
-    return None
+    return by_name
 
 
 def meaningful_obligations(root, known=frozenset()):
@@ -354,7 +364,8 @@ def adoption_report(active_root, archive_root):
     elif active_root.parent != archive_root.parent:
         errors.append("active and archive roots must be sibling directories")
 
-    active_records, archive_records = adr_files(active_root), adr_files(archive_root)
+    unidentified = []
+    active_records, archive_records = adr_files(active_root, unidentified), adr_files(archive_root, unidentified)
     for adr_id in sorted(set(active_records) | set(archive_records)):
         total = len(active_records.get(adr_id, [])) + len(archive_records.get(adr_id, []))
         if total != 1:
@@ -404,6 +415,11 @@ def adoption_report(active_root, archive_root):
         print(f"  {error}")
     if len(errors) > 100:
         print(f"  ... {len(errors) - 100} more migration issue(s) omitted")
+    # The same advice the catalog check prints: an adoption report that dropped
+    # these in silence would call a corpus adopted with records nothing counted.
+    for path in unidentified:
+        print(f"  advice: {path.relative_to(active_root.parent).as_posix()}: reads as a record (a Status line "
+              f"and a ## Context or ## Decision) but carries no ADR number and no dated name, so it is not counted")
     raise SystemExit(0 if not errors else 1)
 
 
@@ -567,16 +583,16 @@ def main():
                 errors.append(
                     f"{adr_id}: archived governing decision is not Accepted")
         elif effect.startswith("superseded by "):
-            # ADR-063: the replacement is an ADR id or a dated record, named by
-            # the reference rule. A date beside a path, `(2026-07-12)`, names no
-            # record, so only the names that ARE records count; none, or more
-            # than one, is reported below as a replacement that does not exist.
-            named = references_in(row["effect"][len("superseded by "):])
+            # ADR-063: the replacement is the FIRST record the effect names, an
+            # ADR id or a dated record, and a bare date beside a path is not one.
+            # Checked for existence below. Taking whichever reference resolved
+            # let `superseded by ADR-999 (see ADR-002)` pass on ADR-002 (Codex,
+            # 2026-09-22).
+            named = first_reference(row["effect"][len("superseded by "):])
             if not named:
                 errors.append(f"{adr_id}: bad Decision effect '{row['effect']}'")
             else:
-                hits = sorted(named & known)
-                replacements[adr_id] = hits[0] if len(hits) == 1 else ", ".join(hits or sorted(named))
+                replacements[adr_id] = named
         elif effect != "withdrawn":
             errors.append(f"{adr_id}: bad Decision effect '{row['effect']}'")
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", row["retired"]):

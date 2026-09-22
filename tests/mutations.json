@@ -9072,7 +9072,7 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a date-slug archive passes",
-      "from": "                found.add(part)",
+      "from": "                found.append((offset, part))",
       "to": "                pass"
     },
     {
@@ -9092,8 +9092,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a date-slug archive passes",
-      "from": "hits = sorted(named & known)",
-      "to": "hits = sorted(named & {k for k in known if k.startswith(\"ADR-\")})"
+      "from": "                replacements[adr_id] = named",
+      "to": "                replacements[adr_id] = named if named.startswith(\"ADR-\") else None"
     },
     {
       "label": "ADR-063: a record is found by its content, not only by an ADR- name",
@@ -9214,6 +9214,86 @@
       "only": "adr-verify reads no record number",
       "from": "            mark = \" [strictFrom]\" if task in demoted else \"\"",
       "to": "            mark = \"\""
+    },
+    {
+      "label": "ADR-063: a note in a record's directory belongs to that record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a note inside a record directory",
+      "from": "    if by_name and looks_like_record(text):",
+      "to": "    if by_name:"
+    },
+    {
+      "label": "ADR-063: a numbered attachment keeps its ADR token",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a numbered attachment keeps",
+      "from": "    by_name = record_id(path.name, title_line(text)) or first_number_id(path.name)",
+      "to": "    by_name = record_id(path.name, title_line(text))"
+    },
+    {
+      "label": "ADR-063: a supersession names its first reference",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a supersession names its first reference",
+      "from": "            named = first_reference(row[\"effect\"][len(\"superseded by \"):])",
+      "to": "            named = next(iter(sorted(set(references_in(row[\"effect\"][len(\"superseded by \"):])) & known)), None)"
+    },
+    {
+      "label": "ADR-063: --adopt names an unidentified record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "--adopt names an unidentified record",
+      "from": "    for path in unidentified:\n        print(f\"  advice: {path.relative_to(active_root.parent)",
+      "to": "    for path in []:\n        print(f\"  advice: {path.relative_to(active_root.parent)"
+    },
+    {
+      "label": "ADR-063: an unreadable catalog leaves a dated record listed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a catalog this reader cannot read",
+      "from": "    if (underFrozenArchive(root, parts, frozen, listed) === false) return false",
+      "to": "    if (underFrozenArchive(root, parts, frozen, listed) !== true) return false"
+    },
+    {
+      "label": "ADR-063: a supersession must name a record to be an effect",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a supersession that names no record",
+      "from": "  if (/^superseded\\b/i.test(effects[0]) && supersessionTarget(effects[0]) === null) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-063: numbered supersession spellings are read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a numbered supersession is read in every spelling",
+      "from": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?!\\d)/i.exec(rest)",
+      "to": "  const loose = /(?<![A-Za-z0-9])ADR-(\\d{1,4})(?!\\d)/i.exec(rest)"
+    },
+    {
+      "label": "ADR-063: the identity regexes are ASCII",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "both identity rules read ASCII digits only",
+      "from": "RECORD_FILE_RE = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I | re.ASCII)",
+      "to": "RECORD_FILE_RE = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)"
     }
   ]
 }

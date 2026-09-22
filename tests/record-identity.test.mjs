@@ -10,7 +10,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import test from 'node:test'
@@ -164,7 +164,7 @@ function slugCorpus() {
 }
 
 // --- the numbered control: the shipped `ok` fixture, plus two spellings ---------
-function numberedCorpus() {
+function numberedCorpus(extra = {}) {
   const root = scratch('numbered')
   const source = join(repoRoot, 'tests', 'fixtures', 'ok')
   cpSync(join(source, 'adr'), join(root, 'adr'), { recursive: true })
@@ -179,8 +179,11 @@ function numberedCorpus() {
       + '- [ ] Preserve the historical compatibility arm (from ADR-001).\n'
       + '- [ ] Revisit the historical operator sign-off (from ADR-001-T3).\n',
   })
-  const unit = ['ADR-001-history.md', 'ADR-001-attachment.txt', 'history-appendix.md']
-  const digest = unitDigest(archive, unit.map(name => join(archive, name)))
+  // Extra files, and those under the archive join ADR-001's sealed unit.
+  writeTree(root, extra)
+  const unit = ['ADR-001-history.md', 'ADR-001-attachment.txt', 'history-appendix.md',
+    ...Object.keys(extra).filter(rel => rel.startsWith('adr-archive/')).map(rel => rel.slice('adr-archive/'.length))]
+  const digest = unitDigest(archive, unit.map(name => join(archive, ...name.split('/'))))
   const catalog = join(archive, 'README.md')
   writeFileSync(catalog, readFileSync(catalog, 'utf8').replace(/[0-9a-f]{64}/, digest))
   return root
@@ -451,4 +454,90 @@ test('adr-verify reads no record number from a date in any separator', () => {
     const line = lineFor(numbered)
     assert.ok(line && line.endsWith(STRICT_MARK), `record ${numbered} is below 2100 and demoted: ${line}`)
   }
+})
+
+// --- The different-lineage review of 2026-09-22: one test per finding -----------
+//
+// Codex read the branch and built a probe for each defect below against both the
+// base and the target. Each test is that probe through the real gate or reader.
+const NOTE_OBLIGATIONS = /ADR-001: archive has 4 obligation\(s\), active receipt has 2/
+const OPEN_ITEM = '# A note\n\n## Follow-ups\n\n- [ ] An item the archive still owes.\n'
+
+test('a note inside a record directory belongs to that record', () => {
+  // F1: a note named like a dated record, and one named like record 2, inside
+  // ADR-001's directory. Each owes an item, and ADR-001 has only two receipts.
+  const root = numberedCorpus({
+    'adr-archive/ADR-001-history/2026-07-15-notes.md': OPEN_ITEM,
+    'adr-archive/ADR-001-history/002-plan.md': OPEN_ITEM,
+  })
+  assert.match(retire(root).out, NOTE_OBLIGATIONS)
+})
+
+test('a numbered attachment keeps its place in the decision unit', () => {
+  // F5: `notes-ADR-001.txt` has no numbered heading and no dated name. The gate read
+  // its ADR-001 token before ADR-063, and a seal taken then must still match.
+  const got = retire(numberedCorpus({ 'adr-archive/notes-ADR-001.txt': 'kept with the record\n' }))
+  assert.equal(got.status, 0, got.out)
+})
+
+test('a supersession names its first reference, not any that resolves', () => {
+  // F2: the replacement is missing; a second reference that does exist must not
+  // stand in for it.
+  const got = retire(dateCorpus({ effect: `superseded by \`docs/adr/2026-08-01-nothing.md\` (see \`docs/adr/${NEW}.md\`)` }))
+  assert.equal(got.status, 1, got.out)
+  assert.match(got.out, NO_REPLACEMENT)
+})
+
+test('adr-retire-check --adopt names an unidentified record as advice', () => {
+  // F7: the catalog check named it; adoption dropped it in silence.
+  const root = numberedCorpus()
+  writeTree(root, { 'adr/research.md': record('Research on caching', 'Draft') })
+  assert.match(retire(root, '--adopt', 'adr', 'adr-archive').out, RESEARCH_ADVICE)
+})
+
+test('a catalog this reader cannot read leaves a dated record unproven, not absent', () => {
+  // F3: a catalog listed under another spelling is one this reader cannot trust.
+  const root = dateCorpus()
+  const readme = join(root, 'adr-archive', 'README.md')
+  // A rename, not a copy and a delete: on a case-insensitive filesystem the copy
+  // would land on README.md itself and the delete would remove the catalog.
+  renameSync(readme, join(root, 'adr-archive', 'readme.md'))
+  const records = lifecycle.adrCorpus(root, { tracked: listing(root) })
+  assert.equal(records.look, 'PARTIAL', 'an unreadable catalog is could-not-look')
+  const seen = [...records, ...records.unreadable].map(entry => entry.file)
+  assert.ok(seen.some(file => file.endsWith(`${OLD}.md`) && file.includes('adr-archive')), 'the archived record is still listed')
+})
+
+test('a supersession that names no record is unproven, not a graveyard', () => {
+  // F4: `superseded by banana` was an authoritative effect with no replacement.
+  const root = dateCorpus({ effect: 'superseded by banana' })
+  const records = lifecycle.adrCorpus(root, { tracked: listing(root) })
+  assert.equal(records.look, 'PARTIAL')
+  assert.ok(!records.some(entry => entry.id === OLD && entry.kind === 'graveyard'), 'banana names no replacement')
+})
+
+test('a numbered supersession is read in every spelling a status uses', () => {
+  // F6: these three resolved to record 4 before ADR-063 and to nothing after it.
+  const root = dateCorpus()
+  writeTree(root, {
+    'adr/ADR-004-new.md': record('ADR-004: New', 'Accepted'),
+    'adr/ADR-005-a.md': record('ADR-005: A', 'Superseded by ADR 004'),
+    'adr/ADR-006-b.md': record('ADR-006: B', 'Superseded by ADR_004'),
+    'adr/ADR-007-c.md': record('ADR-007: C', 'Superseded by ADR004'),
+    'adr/ADR-008-d.md': record('ADR-008: D', 'Superseded by ADR 2026-07-15 app-tier'),
+  })
+  const byId = new Map(lifecycle.adrCorpus(root, { tracked: listing(root) }).map(entry => [entry.id, entry]))
+  for (const id of ['ADR-005', 'ADR-006', 'ADR-007']) assert.equal(byId.get(id)?.supersededBy, 'ADR-004', id)
+  // A date after `ADR` is still never a record number.
+  assert.notEqual(byId.get('ADR-008')?.supersededBy, 'ADR-2026')
+})
+
+test('both identity rules read ASCII digits only', () => {
+  // F8: Python's `\d` matched Unicode digits, so the two copies disagreed.
+  const names = [['ADR-٠١٢-x.md', null], ['٢٠٢٦-07-15-x.md', null], ['ADR-012-x.md', null]]
+  assert.deepEqual(names.map(([name, title]) => lifecycle.recordId(name, title)),
+    recordLib(`[record.record_id(n, t) for n, t in ${pyLiteral(names)}]`))
+  const texts = ['see ADR-１２ and ADR-12']
+  assert.deepEqual(texts.map(text => [...lifecycle.referencesIn(text)].sort()),
+    recordLib(`[sorted(record.references_in(t)) for t in ${JSON.stringify(texts)}]`))
 })

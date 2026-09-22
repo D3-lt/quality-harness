@@ -244,7 +244,7 @@ function routesEachBranch(unit, whenInstalled, whenNot) {
 test('each branch of a Codex route sends the change to its own destination', () => {
   const rows = units(skillText('quality-policy'))
   const high = rows.find(unit => unit.startsWith('| High')) ?? ''
-  assert.ok(routesEachBranch(high, '/quality-harness:codex-review', '/quality-harness:quality-cycle'),
+  assert.ok(routesEachBranch(high, 'host-review.mjs --host codex', '/quality-harness:quality-cycle'),
     'High: codex-review only when Codex is installed, quality-cycle only when it is not')
 
   const open = codexBranches(rows.find(unit => unit.startsWith('| Open decision')) ?? '')
@@ -254,7 +254,7 @@ test('each branch of a Codex route sends the change to its own destination', () 
   const classF = units(skillText('work')).find(unit => unit.startsWith('| F —')) ?? ''
   const cut = classF.search(CODEX_INSTALLED)
   assert.ok(cut !== -1 && classF.slice(0, cut).includes('/quality-harness:review') && !classF.slice(0, cut).includes('codex-review')
-    && classF.slice(cut).includes('/quality-harness:codex-review'), 'class F: review always, codex-review only once Codex is installed')
+    && classF.slice(cut).includes('host-review.mjs --host codex'), 'class F: review always, the Codex host only once Codex is installed')
 
   assert.equal(routesEachBranch(HIGH_ROW_BRANCHES_SWAPPED_PROBE, '/quality-harness:codex-review', '/quality-harness:quality-cycle'), false,
     'a High row with its branches swapped must be reported')

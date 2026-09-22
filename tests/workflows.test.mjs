@@ -195,7 +195,7 @@ test('every spawned role declares the capability it needs', () => {
 
   const calls = sources.flatMap(({ file, text }) =>
     [...text.matchAll(AGENT_CALL)].map(m => ({ file, at: m.index })))
-  assert.ok(calls.length >= 10,
+  assert.ok(calls.length >= 9,
     `the sweep must find the real calls, not a subset: ${calls.length}`)
 
   // A call's options object is the text from the call to the end of its statement;
@@ -281,17 +281,26 @@ function recordingAgent(replyFor) {
 test('quality-cycle runs its reviewers and synthesis as the shipped agents', async () => {
   const { calls, agent } = recordingAgent(() => ({ status: 'clean', findings: [] }))
   const result = await runWorkflow(qualityCycle, {
-    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true,
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence,
   }, agent)
   assert.equal(result.status, 'clean')
 
   const byLabel = new Map(calls.map(options => [options.label, options]))
   assert.equal(byLabel.get('correctness').agentType, 'quality-harness:qh-correctness-reviewer')
+  assert.equal(byLabel.get('correctness').model, 'opus')
   assert.equal(byLabel.get('scope-simplicity').agentType, 'quality-harness:qh-scope-reviewer')
+  assert.equal(byLabel.get('scope-simplicity').model, 'haiku')
   assert.equal(byLabel.get('synthesis').agentType, 'quality-harness:qh-synthesis')
-  // The Codex role invokes a skill, so it cannot run as a definition without the Skill tool.
-  assert.equal(byLabel.get('codex-external').agentType, undefined)
+  assert.equal(byLabel.get('synthesis').model, 'opus')
+  assert.equal(calls.some(options => options.label === 'codex-external'), false)
   for (const options of calls) assert.ok(options.model, options.label + ' must keep its declared capability (ADR-029)')
+
+  const missing = recordingAgent(() => ({ status: 'clean', findings: [] }))
+  const refused = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true,
+  }, missing.agent)
+  assert.equal(refused.status, 'reviewer-unavailable')
+  assert.equal(missing.calls.length, 0)
 })
 
 test('review-ring runs its fixer as the shipped agent and keeps its reviewer inline', async () => {

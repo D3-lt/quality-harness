@@ -19,13 +19,19 @@ work lives in the active corpus `BACKLOG.md` under `## Follow-ups`, never only i
 | [ADR-NNN](ADR-NNN-title.md) | <title> | superseded by ADR-NNN | YYYY-MM-DD | <why> | `../adr/BACKLOG.md` | <SHA-256> |
 
 `SHA-256` is the deterministic digest of the archived decision unit: relative file paths plus file
-bytes. `Decision effect` is exactly `governing`, `superseded by ADR-NNN`, or `withdrawn`.
+bytes. `Decision effect` is exactly `governing`, `superseded by <record>`, or `withdrawn`, where
+`<record>` is `ADR-NNN` or a dated record's stem or path.
+
+A record whose name carries no ADR number, such as `YYYY-MM-DD-slug.md`, is named by its stem
+(ADR-063): its row links to it, `[YYYY-MM-DD-slug](YYYY-MM-DD-slug/YYYY-MM-DD-slug.md)`, and a
+receipt or a `superseded by` names that stem or a path to the record. A four-digit name followed by
+a month and a separator reads as a date, so name such a record with an `# ADR-N` title instead.
 
 `Obligations` is:
 
 - `none` only when the retired decision unit has no meaningful deferred or unchecked item;
 - the path to the active corpus's canonical `BACKLOG.md`, whose `## Follow-ups` unchecked
-  bullets name the source ADR exactly; or
+  bullets name the source ADR exactly, by its ADR id or, for a dated record, its stem or path; or
 - `disposed: <reason>` when every apparent item is a placeholder, completed, or deliberately
   abandoned.
 

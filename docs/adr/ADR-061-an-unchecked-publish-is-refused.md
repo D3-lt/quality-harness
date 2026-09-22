@@ -42,6 +42,8 @@ What would make the deny fail: a whole log, a tree that differs from the session
 
 **Revision 5, 2026-09-22, before release (third Codex review; the owner chose to fix all and push).** The opt-out is now read from the same root lookup the refusal was decided on. A second lookup that failed fell back to the current directory, which missed the root's `"publish": "warn"` and refused, or honoured a nested file instead. A failed lookup is now unknown and never refuses. When the working tree passed and the index could not be checked, the warning now says "not known to be checked" instead of "unchecked". R2 over several commits says "at least one of" when only some trees could not be established. The documentation no longer calls this "the one" refusal: ADR-060's reviewer guard also refuses, for read-only roles only.
 
+**Revision 6, 2026-09-22, before release (the CI mutation campaign on 0150376).** The move from timestamp order to log order also let a check that was already running cover a write made during it. The test that asserted the opposite had been weakened in the first commit of this work, and that removed the only assertion keeping an R1 mutant RED; CI reported that mutant GREEN. A pass now covers a git-invisible write only when both orders agree: its record is newer (`seq`), and it started after the write (`startedAt`). The residual named in revisions 2 and 4 narrows to a clock that steps backwards during a check. A backward step at any other time now leaves the write outstanding, which is the cautious direction.
+
 ## Alternatives Considered
 
 - **Keep warning.** Rejected because a model that treats the warning as noise still publishes.

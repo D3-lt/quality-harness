@@ -8104,8 +8104,18 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "      || (Number.isInteger(entry.checksSeen) && Number.isInteger(later.seq) && later.seq > entry.checksSeen))))",
-      "to": "      || true)))"
+      "from": "    || (Number.isInteger(write.checksSeen) && Number.isInteger(pass.seq) && pass.seq > write.checksSeen)",
+      "to": "    || true"
+    },
+    {
+      "label": "fail-open: a pass that started before an unobservable write does not cover it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs",
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    || pass.startedAt > write.at",
+      "to": "    || true"
     },
     {
       "label": "fail-open: only the tree's could-not-look exempts a refusal",

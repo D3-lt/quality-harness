@@ -729,9 +729,10 @@ test('writes the tree cannot see re-open the finding', () => {
   assert.equal(qhCheckRun(plain, 'pass').status, 0)
   hook({ hook_event_name: 'Stop', session_id: plainSession, cwd: plain })
   assert.deepEqual(plainRules(), ['R1', 'R4'])
-  // The pass is recorded after this write, so it sits later in the log and covers
-  // it. A timestamp is not that order. The pause is still waited out through the
-  // file the check writes, never through an exit event the event loop cannot deliver.
+  // A write DURING a passing check is not cleared by it: the check observed the
+  // work as it was when it started, so the pass is recorded after the write but
+  // STARTED before it. The pause is waited out through the file the check
+  // writes, never through an exit event the event loop cannot deliver.
   const records = () => {
     try { return readFileSync(path.join(plainState, 'checks.jsonl'), 'utf8').split('\n').filter(Boolean).length }
     catch { return 0 }
@@ -747,7 +748,7 @@ test('writes the tree cannot see re-open the finding', () => {
   writeFileSync(path.join(plain, PAUSE_RELEASE), 'go\n')
   waitFor(() => records() > before, 'the paused check to record its run')
   hook({ hook_event_name: 'Stop', session_id: plainSession, cwd: plain })
-  assert.deepEqual(plainRules(), ['R1', 'R4'])
+  assert.deepEqual(plainRules(), ['R1', 'R4', 'R1'])
 
   // The status line reads the same log, and says when it was last observed.
   const rendered = statusline.render(statusline.reading({ session_id: session, cwd: dir }))

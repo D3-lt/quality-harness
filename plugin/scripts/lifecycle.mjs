@@ -1330,18 +1330,27 @@ export function recordId(name, title = null) {
  * and dated stems, a stem only as a whole token or path component.
  */
 export function referencesIn(text) {
+  return [...new Set(referencesWithProvenance(text).map(entry => entry.id))]
+}
+
+// Each reference in text order, with where it is and whether it was written as a
+// file or a path (`x.md`, `docs/adr/x`) rather than a bare token: record.py's
+// `_references`, so a date written as a filename is a name, not prose.
+function referencesWithProvenance(text) {
   const found = []
-  for (const match of text.matchAll(NUMBERED_REF_RE)) found.push([match.index, numberId(match[1])])
+  for (const match of text.matchAll(NUMBERED_REF_RE)) found.push({ at: match.index, id: numberId(match[1]), explicit: true })
   for (const chunk of text.matchAll(REF_CHUNK_RE)) {
     let offset = chunk.index
+    const pathlike = /[/\\]/.test(chunk[0])
     for (const raw of chunk[0].split(/[/\\]/)) {
       let part = raw.replace(/[.,;:)]+$/, '')
-      if (part.toLowerCase().endsWith('.md')) part = part.slice(0, -'.md'.length).replace(/[.,;:)]+$/, '')
-      if (part && DATE_SHAPED_RE.test(part)) found.push([offset, part])
+      const filename = part.toLowerCase().endsWith('.md')
+      if (filename) part = part.slice(0, -'.md'.length).replace(/[.,;:)]+$/, '')
+      if (part && DATE_SHAPED_RE.test(part)) found.push({ at: offset, id: part, explicit: filename || pathlike })
       offset += raw.length + 1
     }
   }
-  return [...new Set(found.sort((a, b) => a[0] - b[0]).map(([, id]) => id))]
+  return found.sort((a, b) => a.at - b.at)
 }
 
 // A `## Heading` section's body. Written as a scan rather than one regex because
@@ -1991,11 +2000,12 @@ function supersessionTarget(status) {
   // `ADR_004`, `ADR004`. This read them all before ADR-063, and the hyphenated
   // reference rule alone dropped three (Codex, 2026-09-22). Not when the number is
   // the start of a date, `ADR 2026-07-15`.
-  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\d{1,4})(?!\d)/i.exec(rest)
+  // A whole identifier: `ADR-004oops` is not record 4 (Codex, 2026-09-22, round 2).
+  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)
   const numbered = loose && !DATE_SHAPED_RE.test(rest.slice(loose.index + loose[0].length - loose[1].length))
     ? { at: loose.index, id: numberId(loose[1]) } : null
-  const stem = referencesIn(rest).find(name => !name.startsWith('ADR-') && !BARE_DATE_RE.test(name))
-  const dated = stem ? { at: rest.indexOf(stem), id: stem } : null
+  const dated = referencesWithProvenance(rest)
+    .find(entry => !entry.id.startsWith('ADR-') && (entry.explicit || !BARE_DATE_RE.test(entry.id))) ?? null
   // The FIRST record named, never whichever one exists: `ADR-999 (see ADR-002)`.
   const first = [numbered, dated].filter(Boolean).sort((a, b) => a.at - b.at)[0]
   if (first) return first.id

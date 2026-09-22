@@ -6,6 +6,7 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'n
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
+import { hookSaid, stripPauseLines } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   artifactGateTimeoutMs,
@@ -36,6 +37,7 @@ import {
   completionClaim,
   saidMarkerDirectory,
   sweepStaleMarkers,
+  SLOW_HOOK_NOTE,
 } from '../plugin/scripts/lifecycle.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { NEVER_MIRRORED, SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
@@ -605,11 +607,11 @@ test('reported: a project that names no check hears nothing from the evidence ga
   for (const event of ['Stop', 'TaskCompleted', 'SubagentStop']) {
     const run = runLifecycleHook({ hook_event_name: event, cwd: bare, session_id: session })
     assert.equal(run.status, 0)
-    assert.equal(`${run.stdout}${run.stderr}`.trim(), '', `${event} should be silent`)
+    assert.equal(hookSaid(run.stdout, run.stderr).text, '', `${event} should be silent`)
   }
   const commit = publishAttempt('git commit -m x', bare, session)
   assert.equal(commit.status, 0)
-  assert.equal(`${commit.stdout}${commit.stderr}`.trim(), '')
+  assert.equal(hookSaid(commit.stdout, commit.stderr).text, '')
 
   // Declare one and the same session gets the same finding it always did, by name.
   await writeFile(path.join(bare, 'package.json'), JSON.stringify({ scripts: { test: 'pytest' } }))
@@ -852,8 +854,8 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
   assert.equal(commit.status, 0, commit.stderr)
   const said = JSON.parse(commit.stdout)
   assert.match(said.systemMessage ?? '', /^quality-harness advised the agent: /, 'the person must still see that a finding was made')
-  assert.doesNotMatch(said.systemMessage, /\n/, 'and see it as one line')
-  assert.equal(said.hookSpecificOutput?.additionalContext, commit.stderr.trim(),
+  assert.doesNotMatch(stripPauseLines(said.systemMessage), /\n/, 'and see it as one line')
+  assert.equal(said.hookSpecificOutput?.additionalContext, stripPauseLines(commit.stderr),
     'the agent gets the WHOLE finding, byte for byte what the transcript holds')
   assert.equal(said.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.match(commit.stderr, /names commit or push/, 'the transcript keeps the full text')
@@ -861,14 +863,14 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
   // The same state again says nothing at all: the publish warning speaks once per
   // tree, index and evidence revision (ADR-060), so there is no repeat to litter.
   const again = publishAttempt('git commit -m y', held, session)
-  assert.equal(again.stdout.trim(), '', 'the same state must not speak twice')
+  assert.equal(hookSaid(again.stdout).stdout, '', 'the same state must not speak twice')
 
   // A changed state is news again.
   await writeFile(path.join(held, 'other.py'), 'print(1)\n')
   const changed = publishAttempt('git commit -m z', held, session)
   const fresh = JSON.parse(changed.stdout)
   assert.match(fresh.systemMessage ?? '', /^quality-harness advised the agent: /, 'a changed state is news again')
-  assert.equal(fresh.hookSpecificOutput.additionalContext, changed.stderr.trim())
+  assert.equal(fresh.hookSpecificOutput.additionalContext, stripPauseLines(changed.stderr))
   // And a clean state stays silent — guidance, not noise.
   const clean = await mkdtemp(path.join(testTmp, 'quality-visible-clean-'))
   const cleanFile = path.join(clean, 'agent.jsonl')
@@ -880,7 +882,7 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
     hook_event_name: 'TaskCompleted', transcript_path: cleanFile, cwd: clean,
   })
   assert.equal(quiet.status, 0)
-  assert.doesNotMatch(quiet.stdout, /"systemMessage"/)
+  assert.doesNotMatch(hookSaid(quiet.stdout).stdout, /"systemMessage"/)
 })
 
 test('a slow hook names itself; a fast one says nothing about its time', async () => {
@@ -901,6 +903,7 @@ test('a slow hook names itself; a fast one says nothing about its time', async (
   assert.equal(slow.status, 0, slow.stderr)
   const said = JSON.parse(slow.stdout)
   assert.match(said.systemMessage, /the PreToolUse hook took \d+\.\ds/, 'the pause is named to the person')
+  assert.match(said.systemMessage.split('\n').at(-1), SLOW_HOOK_NOTE, 'the pause is one whole line, the only one a silence check may ignore')
   assert.match(said.systemMessage, /^quality-harness advised the agent/, 'and the finding is still first')
   assert.match(slow.stderr, /hook took \d+\.\ds/, 'and in the transcript')
   assert.match(said.hookSpecificOutput?.additionalContext ?? '', /names commit or push/, 'the finding itself is untouched')
@@ -911,7 +914,7 @@ test('a slow hook names itself; a fast one says nothing about its time', async (
   assert.doesNotMatch(fast.systemMessage ?? '', /hook took/, 'a fast run does not talk about its time')
   // With nothing to say and nothing slow, nothing is written at all.
   const quiet = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: await mkdtemp(path.join(testTmp, 'quality-quiet-')) })
-  assert.equal(quiet.stdout.trim(), '', 'no finding, no time: no output')
+  assert.equal(hookSaid(quiet.stdout).stdout, '', 'no finding, and a pause line is not one')
 })
 
 test('PreCompact records what the gates measured, and the compact SessionStart hands it back', async () => {
@@ -924,7 +927,7 @@ test('PreCompact records what the gates measured, and the compact SessionStart h
   await writeFile(path.join(repo, 'other.py'), 'print(1)\n')
   const pre = runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'auto', cwd: repo, session_id: session })
   assert.equal(pre.status, 0, pre.stderr)
-  assert.equal(pre.stdout.trim(), '', 'PreCompact has nothing to say to the model; it writes')
+  assert.equal(hookSaid(pre.stdout).stdout, '', 'PreCompact has nothing to say to the model; it writes')
 
   const compact = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session })
   assert.equal(compact.status, 0, compact.stderr)
@@ -1924,11 +1927,11 @@ test('the decision context is delivered once per path per session, and never as 
   assert.equal(emitted.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.match(emitted.hookSpecificOutput.additionalContext, /ADR-001-postgres\.md/)
   // Delivery, not judgement: no decision, no systemMessage, nothing to answer for.
-  assert.doesNotMatch(first.stdout, /"decision"|systemMessage/)
-  assert.equal(first.stderr, '')
+  assert.doesNotMatch(hookSaid(first.stdout).stdout, /"decision"|systemMessage/)
+  assert.equal(stripPauseLines(first.stderr), '')
 
   // Saying it again at every edit of a hot file is how a delivery becomes a nag.
-  assert.equal(runLifecycleHook(payload(once)).stdout.trim(), '')
+  assert.equal(hookSaid(runLifecycleHook(payload(once)).stdout).stdout, '')
   // A new session has not heard it.
   assert.match(runLifecycleHook(payload(two)).stdout, /ADR-001-postgres\.md/)
 
@@ -1938,7 +1941,7 @@ test('the decision context is delivered once per path per session, and never as 
     tool_input: { file_path: path.join(repoRoot, 'README.md') },
   })
   assert.equal(quiet.status, 0)
-  assert.equal(`${quiet.stdout}${quiet.stderr}`.trim(), '')
+  assert.equal(hookSaid(quiet.stdout, quiet.stderr).text, '')
 })
 
 test('reported: a stale standalone copy answering instead of the plugin is named', async () => {

@@ -10,7 +10,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
-import { SLOW_HOOK_OFF } from './hook-env.mjs'
+import { hookSaid } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
 import * as statusline from '../plugin/scripts/statusline.mjs'
@@ -36,7 +36,6 @@ const GIT_IDENTITY = {
 const HOOK_ENV = {
   ...process.env, ...GIT_IDENTITY,
   CLAUDE_PLUGIN_DATA: path.join(testTmp, 'plugin-data'), TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp,
-  QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF,
 }
 const RULE_ONE_TEXT = 'first finding for the probe'
 const RULE_TWO_TEXT = 'second finding for the probe'
@@ -439,7 +438,7 @@ function scriptedSession(withCheck) {
   const said = []
   const fire = (payload, collect = true) => {
     const run = hook({ ...payload, session_id: session, cwd: a })
-    if (collect) said.push(run.stdout.trim())
+    if (collect) said.push(hookSaid(run.stdout).stdout)
     return run
   }
   const stop = () => fire({ hook_event_name: 'Stop', last_assistant_message: 'a turn of work' })
@@ -911,7 +910,7 @@ test('a committed artifact is still validated', () => {
   // Everything now carries a complete result, so the next turn end gates nothing.
   const before = gatedPaths(eventsIn(state, session)).length
   const quiet = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
-  assert.equal(quiet.stdout.trim(), '', quiet.stdout)
+  assert.equal(hookSaid(quiet.stdout).stdout, '', quiet.stdout)
   assert.equal(gatedPaths(eventsIn(state, session)).length, before, 'no path is gated twice for the same content')
 
   // A budget that ends before the gates run names what it did not check, and the
@@ -1063,7 +1062,7 @@ test('the harness does not observe its own ledger', () => {
   // Nothing the session did has moved, so the same finding is not made twice —
   // the harness's own write must not count as a change of state.
   const again = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' }, inside)
-  assert.equal(again.stdout.trim(), '', again.stdout)
+  assert.equal(hookSaid(again.stdout).stdout, '', again.stdout)
 })
 
 // Found by a second peer session's test of this branch, 2026-09-18: after a
@@ -1127,14 +1126,14 @@ test('a check that finishes in a later turn clears the finding then', () => {
   // The turn ends while it is still running: nothing has passed yet, and the
   // finding already stands, so this turn says nothing new.
   const during = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
-  assert.equal(during.stdout.trim(), '', during.stdout)
+  assert.equal(hookSaid(during.stdout).stdout, '', during.stdout)
   assert.deepEqual(rules(), ['R1'])
 
   writeFileSync(path.join(flags, PAUSE_RELEASE), 'go\\n')
   waitFor(() => records() > before, 'the backgrounded check to record its run')
   // The next turn imports it, and the tree it passed on is this one.
   const after = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
-  assert.equal(after.stdout.trim(), '', after.stdout)
+  assert.equal(hookSaid(after.stdout).stdout, '', after.stdout)
   assert.deepEqual(rules(), ['R1'])
   assert.ok(checkEvents(eventsIn(state, session)).some(entry => entry.event === 'check.passed'),
     'the record became a check.passed event at the next hook')
@@ -1669,7 +1668,7 @@ test('a torn checks.jsonl cannot leave an older pass standing as the verdict', (
   // The control: with a whole source this tree really is verified, so the
   // assertion below cannot be satisfied by a reader that never says verified.
   const clean = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
-  assert.equal(`${clean.stdout}${clean.stderr}`.trim(), '',
+  assert.equal(hookSaid(clean.stdout, clean.stderr).text, '',
     `a clean checked tree says nothing: ${clean.stdout}${clean.stderr}`)
 
   // Now a second check is written and its line is torn, exactly as a truncated

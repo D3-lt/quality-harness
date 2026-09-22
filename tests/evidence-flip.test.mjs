@@ -30,7 +30,7 @@ import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
-import { SLOW_HOOK_OFF } from './hook-env.mjs'
+import { hookSaid } from './hook-env.mjs'
 import { fileURLToPath } from 'node:url'
 import { latestCheckFor, observedFacts, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
@@ -274,7 +274,7 @@ test('a really torn log, read by the real hooks, does not persist a verified row
       const label = torn ? 'torn' : 'whole'
       const dir = join(top, label)
       const data = join(top, `${label}-data`)
-      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: data, TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF }
+      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: data, TMPDIR: top, TMP: top, TEMP: top }
       const run = (command, args, options = {}) => {
         const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
         assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)
@@ -343,7 +343,7 @@ test('at every hook boundary a torn log is never quieter than a whole one, howev
     const said = (boundary, tear) => {
       const label = `s${count++}`
       const dir = join(top, label)
-      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF }
+      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top }
       const run = (command, args, options = {}) => {
         const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
         assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)
@@ -370,7 +370,7 @@ test('at every hook boundary a torn log is never quieter than a whole one, howev
         writeFileSync(log, TEARS[tear](readFileSync(log, 'utf8')))
       }
       const out = hook({ ...boundary.payload, session_id: session, cwd: dir })
-      return `${out.stdout}${out.stderr}`.trim()
+      return hookSaid(out.stdout, out.stderr).text
     }
     const quieter = []
     for (const [name, boundary] of Object.entries(BOUNDARIES)) {

@@ -346,5 +346,5 @@ Revert the task commits. The persistent state is `<git-dir>/quality-harness/` in
 
 ## Follow-ups
 
-- [ ] After T1–T7 land, count the advisories one real working session receives and record them in BACKLOG §217 beside §213's 21, with the session's commit count and the number of `qh-check` runs.
-- [ ] Run a Codex review of the executed record before any tag (CLAUDE.md §12).
+- [x] After T1–T7 land, count the advisories one real working session receives and record them in BACKLOG §217 beside §213's 21, with the session's commit count and the number of `qh-check` runs. Measured 2026-09-22: the installed claims ledger has no `events/1` row, so a session was driven on `365706b`. It spoke twice, made 2 commits and 1 `qh-check` run.
+- [x] Run a Codex review of the executed record before any tag (CLAUDE.md §12). 2026-09-22, gpt-6-astra, xhigh, exit 0, REQUEST CHANGES on `115948b`. A root query that does not answer no longer certifies a pass (`365706b`; CI run 35700491224 succeeded). The acceptance line names the tombstone. Overlapping compact SessionStarts can both serve one note; that stays the named limit.

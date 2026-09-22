@@ -3099,7 +3099,11 @@ function publishUnchecked(input, requested) {
   const key = `${now.tree}:${now.index}:${revision}`
   // A denial has to happen on every attempt. Saying it once and then allowing
   // the same command is the warning's dedupe applied to a refusal.
-  const deny = !logIncomplete(log) && !unordered && origin.origin !== 'unproven'
+  // ⚠ ONLY THE TREE CAN REFUSE. A check runs on the working tree, and the index is
+  // compared against those trees, so a staged change beside an untracked file
+  // equals no checked tree and was denied after every pass (found live by a peer,
+  // 2026-09-22). The index still warns: its exact bytes were never checked.
+  const deny = treeUnchecked && !logIncomplete(log) && !unordered && origin.origin !== 'unproven'
   if (!deny && log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
   queueAction({
     rule: 'P', key, detail: { tree: now.tree, revision }, deny,
@@ -3114,7 +3118,9 @@ function publishUnchecked(input, requested) {
           ? 'quality-harness: whether this repository is checked is unknown — the repository root could not be read — and the command '
           : origin.origin === 'refused'
             ? 'quality-harness: this repository is unchecked — the check declared in .quality-harness.json is a constant success and was refused — and the command '
-            : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
+            : !treeUnchecked
+              ? 'quality-harness: the staged index is unchecked — `qh-check` passed on the working tree, but the index holds different content (a partial stage, or files the check saw that are not staged) — and the command '
+              : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
       + 'about to run names commit or push. Run `qh-check` first. This says what state the repository is in, not what '
       + `the command publishes.${inferredCheckCaveat(input.cwd)}`,
   })

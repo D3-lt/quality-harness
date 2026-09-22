@@ -9251,7 +9251,7 @@
       "tests": [
         "tests/record-identity.test.mjs"
       ],
-      "only": "--adopt names an unidentified record",
+      "only": "names an unidentified record as advice",
       "from": "    for path in unidentified:\n        print(f\"  advice: {path.relative_to(active_root.parent)",
       "to": "    for path in []:\n        print(f\"  advice: {path.relative_to(active_root.parent)"
     },

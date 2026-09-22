@@ -446,8 +446,12 @@ test('reported: no advisory claims to have blocked anything', async () => {
       assert.match(message, /names commit or push/,
         `the publish warning must be present, or a mutant that calls it a block is silent\n${message}`)
     }
-    // "nothing is blocked" is the disclaimer, not the offence.
-    const claims = message.replace(/[Nn]othing (?:is|was) blocked/g, '')
+    let decision = null
+    try { decision = JSON.parse(run.stdout).hookSpecificOutput?.permissionDecision ?? null } catch { decision = null }
+    // A command that was actually refused may say so. A warning must not describe
+    // itself as a refusal: that is the false belief this test was written for.
+    const spoken = decision === 'deny' ? message.replace(/quality-harness refused the command/g, '') : message
+    const claims = spoken.replace(/[Nn]othing (?:is|was) blocked/g, '')
       .match(/\b(?:blocked|blocking|refus\w*|denied|prevented|not allowed|disallowed)\b/gi) ?? []
     assert.deepEqual(claims, [], `${JSON.stringify(payload)} -> ${message}`)
   }
@@ -853,24 +857,25 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
   const commit = publishAttempt('git commit -m x', held, session)
   assert.equal(commit.status, 0, commit.stderr)
   const said = JSON.parse(commit.stdout)
-  assert.match(said.systemMessage ?? '', /^quality-harness advised the agent: /, 'the person must still see that a finding was made')
+  assert.equal(said.hookSpecificOutput?.permissionDecision, 'deny')
+  assert.match(said.systemMessage ?? '', /^quality-harness refused the command: /, 'the person must still see that a finding was made')
   assert.doesNotMatch(stripPauseLines(said.systemMessage), /\n/, 'and see it as one line')
-  assert.equal(said.hookSpecificOutput?.additionalContext, stripPauseLines(commit.stderr),
+  assert.equal(said.hookSpecificOutput?.permissionDecisionReason, stripPauseLines(commit.stderr),
     'the agent gets the WHOLE finding, byte for byte what the transcript holds')
   assert.equal(said.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.match(commit.stderr, /names commit or push/, 'the transcript keeps the full text')
 
-  // The same state again says nothing at all: the publish warning speaks once per
-  // tree, index and evidence revision (ADR-060), so there is no repeat to litter.
+  // The same unchecked tree is refused again. Saying it once and then allowing
+  // the command is how a warning let the publish through.
   const again = publishAttempt('git commit -m y', held, session)
-  assert.equal(hookSaid(again.stdout).stdout, '', 'the same state must not speak twice')
+  assert.equal(JSON.parse(again.stdout).hookSpecificOutput?.permissionDecision, 'deny')
 
   // A changed state is news again.
   await writeFile(path.join(held, 'other.py'), 'print(1)\n')
   const changed = publishAttempt('git commit -m z', held, session)
   const fresh = JSON.parse(changed.stdout)
-  assert.match(fresh.systemMessage ?? '', /^quality-harness advised the agent: /, 'a changed state is news again')
-  assert.equal(fresh.hookSpecificOutput.additionalContext, stripPauseLines(changed.stderr))
+  assert.match(fresh.systemMessage ?? '', /^quality-harness refused the command: /, 'a changed state is refused too')
+  assert.equal(fresh.hookSpecificOutput.permissionDecisionReason, stripPauseLines(changed.stderr))
   // And a clean state stays silent — guidance, not noise.
   const clean = await mkdtemp(path.join(testTmp, 'quality-visible-clean-'))
   const cleanFile = path.join(clean, 'agent.jsonl')
@@ -904,9 +909,9 @@ test('a slow hook names itself; a fast one says nothing about its time', async (
   const said = JSON.parse(slow.stdout)
   assert.match(said.systemMessage, /the PreToolUse hook took \d+\.\ds/, 'the pause is named to the person')
   assert.match(said.systemMessage.split('\n').at(-1), SLOW_HOOK_NOTE, 'the pause is one whole line, the only one a silence check may ignore')
-  assert.match(said.systemMessage, /^quality-harness advised the agent/, 'and the finding is still first')
+  assert.match(said.systemMessage, /^quality-harness refused the command/, 'and the finding is still first')
   assert.match(slow.stderr, /hook took \d+\.\ds/, 'and in the transcript')
-  assert.match(said.hookSpecificOutput?.additionalContext ?? '', /names commit or push/, 'the finding itself is untouched')
+  assert.match(said.hookSpecificOutput?.permissionDecisionReason ?? '', /names commit or push/, 'the finding itself is untouched')
 
   // A fast run in a state the warning has not spoken for yet.
   await writeFile(path.join(held, 'third.py'), 'print(2)\n')

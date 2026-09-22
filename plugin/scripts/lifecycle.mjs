@@ -534,17 +534,23 @@ function declaredCheckCommand(directory) {
  * 2026-09-22). Only that exact value counts. Anything else present is reported
  * as ignored and keeps the refusal, so a typo cannot silently switch it off.
  * An unreadable file keeps the refusal too, and says nothing: it declares nothing.
+ *
+ * `discovery` is the root lookup the refusal was decided on. Reading the file
+ * from a SECOND lookup let the two disagree: a second lookup that failed fell
+ * back to the current directory, missed the root's opt-out and refused (Codex
+ * review round 3). A lookup that could not answer is unknown, never "here".
  */
-export function publishSetting(cwd) {
+export function publishSetting(cwd, discovery = null) {
   const directory = nearestExistingDirectory(path.resolve(cwd))
-  if (!directory) return { warn: false, ignored: false }
-  const found = gitRepositoryLookup(directory)
+  if (!directory) return { warn: false, ignored: false, unknown: true }
+  const found = discovery ?? gitRepositoryLookup(directory)
+  if (!found.ok) return { warn: false, ignored: false, unknown: true }
   let config
   try {
-    config = JSON.parse(readFileSync(path.join((found.ok && found.root) || directory, '.quality-harness.json'), 'utf8'))
-  } catch { return { warn: false, ignored: false } }
-  if (!config || typeof config !== 'object' || !Object.hasOwn(config, 'publish')) return { warn: false, ignored: false }
-  return config.publish === 'warn' ? { warn: true, ignored: false } : { warn: false, ignored: true }
+    config = JSON.parse(readFileSync(path.join(found.root ?? directory, '.quality-harness.json'), 'utf8'))
+  } catch { return { warn: false, ignored: false, unknown: false } }
+  if (!config || typeof config !== 'object' || !Object.hasOwn(config, 'publish')) return { warn: false, ignored: false, unknown: false }
+  return config.publish === 'warn' ? { warn: true, ignored: false, unknown: false } : { warn: false, ignored: true, unknown: false }
 }
 
 function publishSettingNote(setting) {
@@ -3136,7 +3142,11 @@ function inferredCheckCaveat(cwd) {
 // does not claim the command publishes this repository, which it may not.
 function publishUnchecked(input, requested) {
   if (requested?.event !== 'publish.requested' || requested.observation?.ok !== true) return
-  const origin = checkCommandOrigin(input.cwd)
+  // ONE root lookup for this decision: the check and the opt-out are read from
+  // the same answer, so they cannot disagree about which project this is.
+  const place = nearestExistingDirectory(path.resolve(input.cwd))
+  const found = place ? gitRepositoryLookup(place) : { ok: false, root: null, reason: 'the working directory does not exist' }
+  const origin = checkCommandOrigin(input.cwd, found)
   if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven') return
   const now = requested.observation
   const log = readEvents(input.cwd, input.session_id)
@@ -3162,7 +3172,7 @@ function publishUnchecked(input, requested) {
   // 2026-09-22). The index still warns: its exact bytes were never checked.
   // A project may opt out with `"publish": "warn"` (ADR-061 revision 3); the
   // warning below is then all it gets, on every attempt the dedupe allows.
-  const setting = publishSetting(input.cwd)
+  const setting = publishSetting(input.cwd, found)
   const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn
   if (!deny && log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
   queueAction({
@@ -3180,6 +3190,8 @@ function publishUnchecked(input, requested) {
           ? 'quality-harness: whether this repository is checked is unknown — the repository root could not be read — and the command '
           : origin.origin === 'refused'
             ? 'quality-harness: this repository is unchecked — the check declared in .quality-harness.json is a constant success and was refused — and the command '
+            : !treeUnchecked && indexUnknown && treeStanding === 'passed'
+              ? 'quality-harness: the staged index is not known to be checked — `qh-check` passed on the working tree, but the index holds different content and whether a check passed on it cannot be established — and the command '
             : !treeUnchecked && treeStanding === 'passed'
               ? 'quality-harness: the staged index is unchecked — `qh-check` passed on the working tree, but the index holds different content (a partial stage, or files the check saw that are not staged) — and the command '
             : !treeUnchecked && indexUnknown
@@ -3463,7 +3475,8 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
 // git for the check command again. Dedupe stays per commit and evidence revision
 // (ADR-060's key), carried in the action's detail.
 const NAMED_COMMIT_LIMIT = 5
-function uncheckedCommitsReason(cwd, commits, { logTorn = false, orderUnknown = false, couldNotLook = false } = {}) {
+// Exported so its wording is tested without building newly reachable commits.
+export function uncheckedCommitsReason(cwd, commits, { logTorn = false, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
   const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
   const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
@@ -3473,10 +3486,12 @@ function uncheckedCommitsReason(cwd, commits, { logTorn = false, orderUnknown = 
   const head = logTorn
     ? `whether a \`qh-check\` passed on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} `
       + 'is UNKNOWN — this session\'s log could not be read whole, and the record of a pass may be among what was lost:'
+    // The flags say at least one tree is so, not that all are (Codex review
+    // round 3): a plural never claims the reason for every commit it lists.
     : orderUnknown
-      ? `which check ran last on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} could not be established:`
+      ? `which check ran last on ${commits.length === 1 ? 'a newly reachable commit' : `at least one of ${commits.length} newly reachable commits`} could not be established:`
       : couldNotLook
-        ? `the latest \`qh-check\` on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} could not observe it:`
+        ? `the latest \`qh-check\` on ${commits.length === 1 ? 'a newly reachable commit' : `at least one of ${commits.length} newly reachable commits`} could not observe it:`
       : commits.length === 1
         ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
         : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`

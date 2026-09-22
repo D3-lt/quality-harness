@@ -395,3 +395,60 @@ test('the JS and Python identity rules agree on one table', () => {
   const pyRefs = recordLib(`[sorted(record.references_in(t)) for t in ${JSON.stringify(REFERENCE_TABLE)}]`)
   assert.deepEqual(REFERENCE_TABLE.map(text => [...lifecycle.referencesIn(text)].sort()), pyRefs)
 })
+
+// --- T3: adr-verify never reads a date as a record number ----------------------
+//
+// `record_number_of` read `2026-07-15-x` as record 2026. With `strictFrom` at 100
+// that erred strict, and nobody noticed; a guard that stays unanchored reads 26 and
+// demotes the task. So the cutoff here is 2100, ABOVE 2026: today a dated record
+// is demoted, which is the red, and after the fix it has no number and is not.
+const STRICT_MARK = ' [strictFrom]'
+
+/** Drop the ` · ms:N` run time from a task's evidence rows, keeping each digest. */
+function stripRunTime(file) {
+  writeFileSync(file, readFileSync(file, 'utf8').replace(/( · acceptance-sha256:[0-9a-f]{64}) · ms:\d+$/gm, '$1'))
+}
+
+function sweepCorpus() {
+  const root = scratch('sweep')
+  writeTree(root, { '.quality-harness.json': '{"strictFrom": 2100}\n', 'ok.flag': 'present\n' })
+  gitRepository(root)
+  // Three controls, each numbered by ONE route: its name (`012-x`), only its title
+  // (`control-x`, `# ADR-004`), and only a title found by the record's FULL name
+  // (`v1.2-notes`, whose `Path.with_suffix` would be `v1.md`).
+  const titles = { 'control-x': 'ADR-004: control', 'v1.2-notes': 'ADR-007: dotted' }
+  const names = ['2026-07-15-x', '2026_07_15_x', '2026.07.15.x', '012-x', 'control-x', 'v1.2-notes']
+  for (const name of names) {
+    writeTree(root, {
+      [`docs/adr/${name}.md`]: record(titles[name] ?? name, 'Accepted'),
+      [`docs/adr/${name}/tasks/T1-a.md`]: `# Task T1: a\n\n## Acceptance\n\n\`\`\`bash\ntest -f ok.flag\n\`\`\`\n\n## Verification Log\n\n`,
+    })
+    const run = runPython([join(bin, 'adr-verify'), join(root, 'docs', 'adr', name, 'tasks', 'T1-a.md')],
+      { cwd: root, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.status, 0, `the claim for ${name} must be recorded: ${run.stdout}${run.stderr}`)
+    // ⚠ The sweep's CLAIM_RE ends the row at the digest, so a row carrying the
+    // ` · ms:N` suffix adr-verify now writes is not a claim to it (BACKLOG §257).
+    // Strip the suffix and leave the digest: the row the sweep has always read.
+    stripRunTime(join(root, 'docs', 'adr', name, 'tasks', 'T1-a.md'))
+  }
+  // Every claim now fails on its own terms, so the sweep lists each as FALSE and
+  // marks the ones strictFrom demotes.
+  rmSync(join(root, 'ok.flag'))
+  const sweep = runPython([join(bin, 'adr-verify'), '--sweep', join(root, 'docs')], { cwd: root, encoding: 'utf8', timeout: 120_000 })
+  return `${sweep.stdout}${sweep.stderr}`.split('\n').filter(line => line.startsWith('FALSE'))
+}
+
+test('adr-verify reads no record number from a date in any separator', () => {
+  const lines = sweepCorpus()
+  const lineFor = name => lines.find(line => line.includes(`${sep}${name}${sep}tasks${sep}`) || line.includes(`/${name}/tasks/`))
+  for (const dated of ['2026-07-15-x', '2026_07_15_x', '2026.07.15.x']) {
+    const line = lineFor(dated)
+    assert.ok(line, `the sweep lists the false claim of ${dated}: ${lines.join(' | ')}`)
+    assert.ok(!line.endsWith(STRICT_MARK), `a dated record has no number, so strictFrom cannot demote it: ${line}`)
+  }
+  // The controls: a numbered record below the cutoff IS demoted, by each route.
+  for (const numbered of ['012-x', 'control-x', 'v1.2-notes']) {
+    const line = lineFor(numbered)
+    assert.ok(line && line.endsWith(STRICT_MARK), `record ${numbered} is below 2100 and demoted: ${line}`)
+  }
+})

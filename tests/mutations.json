@@ -2426,8 +2426,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    name = re.search(r\"(?:adr[-_]?)?(\\d{3,4})[-._]\", directory.name, re.I)",
-      "to": "    name = re.search(r\"(?:adr[-_]?)?(\\d{1,4})[-._]\", str(directory), re.I)"
+      "from": "    found = record_id(directory.name, title)",
+      "to": "    found = next((record_id(part) for part in reversed(directory.parts) if record_id(part)), None)"
     },
     {
       "label": "verify: zero is a record number, not an absent one",
@@ -9164,6 +9164,56 @@
       "only": "the JS and Python identity rules agree",
       "from": "  if (DATE_SHAPED_RE.test(shaped)) return stem",
       "to": "  if (false) return stem"
+    },
+    {
+      "label": "ADR-063: adr-verify reads a record number through record_id",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "    found = record_id(directory.name, title)",
+      "to": "    found = f\"ADR-{m.group(1)}\" if (m := re.search(r\"(\\d{3,4})[-._]\", directory.name)) else record_id(directory.name, title)"
+    },
+    {
+      "label": "ADR-063: adr-verify reads the owning record's title",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "        title = title_line(record.read_text(errors=\"replace\", encoding=\"utf-8\"))",
+      "to": "        title = None"
+    },
+    {
+      "label": "ADR-063: adr-verify finds the record file by its full name",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "    record = directory.parent / f\"{directory.name}.md\"",
+      "to": "    record = directory.with_suffix(\".md\")"
+    },
+    {
+      "label": "ADR-063: an unnumbered record is never demoted",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "        # demoting it would be silent and permanent.\n        return False",
+      "to": "        # demoting it would be silent and permanent.\n        return True"
+    },
+    {
+      "label": "ADR-063: the sweep marks a demoted false claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "            mark = \" [strictFrom]\" if task in demoted else \"\"",
+      "to": "            mark = \"\""
     }
   ]
 }

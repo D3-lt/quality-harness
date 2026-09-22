@@ -14019,3 +14019,33 @@ in any shell that exports it; CI does not.
 What would close it: strip `FORCE_COLOR` in `childEnv` beside the other two, and add a test that runs
 the end-to-end case with `FORCE_COLOR=3` in the parent environment. Not checked: whether `NO_COLOR` or
 `NODE_DISABLE_COLORS` interact, and whether any other script in `scripts/` parses child test output.
+
+## 257. `adr-verify --sweep` cannot see a claim recorded with its run time (2026-09-22)
+
+`CLAIM_RE` in `plugin/bin/adr-verify` ends a claim row at its digest, `acceptance-sha256:<64 hex>\s*$`.
+ADR-020 T1 (`dab3afe`) made every row `adr-verify` writes end in ` · ms:<N>`, so no row recorded
+since then is a claim to the sweep. It re-checks only legacy rows and reports its rate over those
+alone, while the claims it cannot see leave both halves of the ratio in silence, which is the
+could-not-look-reported-as-clean shape ADR-005 exists against.
+
+Measured on this repository on 2026-09-22: 388 exit-0 rows under `docs/adr/*/tasks/` carry the
+suffix and 73 do not, and `adr-verify --sweep docs/adr --timeout 1` accounted for 52 claims
+(`0/6 recorded claims no longer hold (15 superseded, 31 unrunnable`). Found while writing ADR-063
+T3's test, whose fixture now strips the suffix so the sweep can observe the demotion.
+
+What would close it: let `CLAIM_RE` accept the optional ` · ms:<N>` suffix (and any later field
+the writer adds), with a test that records a row through `adr-verify` and asserts the sweep counts
+it. Then re-read what the corrected rate says about this corpus before trusting it.
+
+## 258. The observed-events object count fails about one run in three, in a linked worktree under load (2026-09-22)
+
+`tests/observed-events.test.mjs` "observing writes nothing into the repository" counts the files
+under the test repository's `.git/objects` before and after `lifecycle.observe`, and asserts they
+are equal. On 2026-09-22 it failed 3 of about 10 full-suite runs in a linked worktree (`3 !== 4`,
+an object gone rather than added), passed 6 of 6 run alone, and passed every full-suite run in the
+main checkout that day.
+
+Unverified hypothesis: the test builds its repository with a plain `git commit`, and git 2.55 can
+start detached auto-maintenance after a commit, so a background process may be tidying
+`.git/objects` while the test counts. What would settle it: run the repository helper with
+`-c gc.auto=0 -c maintenance.auto=false` and see whether the failure stops under the same load.

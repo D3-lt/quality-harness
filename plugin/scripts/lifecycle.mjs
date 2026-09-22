@@ -2633,6 +2633,7 @@ export function checkEventName(record) {
   // an observation. "deadline exceeded" at exit 1 with a signal is a timeout.
   if (record?.verdict === 'unproven') return 'check.unproven'
   if (record?.exit !== 0) return 'check.failed'
+  if (record?.git == null) return 'check.unproven'
   if (record.git === true && !sameObservation(treeOnly(record.before), treeOnly(record.after))) return 'check.unproven'
   if (record.verdict === 'no-work') return 'check.no-work'
   return 'check.passed'

@@ -1288,8 +1288,10 @@ const RECORD_BUDGET = 200
 // A record is `ADR-NNN` when its title or a non-date name carries a number, the
 // exact stem of a date-shaped name otherwise, and nothing else by name.
 const RECORD_FILE_RE = /^(?:adr[-_]?)?(\d{1,4})[-._]/i
-const TASK_SHAPED_RE = /^(?:adr[-_]?)?\d{1,4}[-._]T\d+(?:[-._]|$)/i
-const DATE_SHAPED_RE = /^\d{4}[-_.]\d{1,2}[-_.]/
+// The exclusion guards match any decimal digit, as Python's `\d` does in record.py;
+// a NUMBER is read with ASCII `\d` below. Two classes, on purpose (record.py says why).
+const TASK_SHAPED_RE = /^(?:adr[-_]?)?\p{Nd}{1,4}[-._]T\p{Nd}+(?:[-._]|$)/iu
+const DATE_SHAPED_RE = /^\p{Nd}{4}[-_.]\p{Nd}{1,2}[-_.]/u
 const TITLE_TASK_RE = /^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+/i
 const TITLE_ADR_RE = /^﻿?#\s*ADR[-_ ]?(\d.*)$/i
 const TITLE_NUMBER_RE = /^(\d{1,4})(?!\d)/
@@ -2001,16 +2003,18 @@ function supersessionTarget(status) {
   // reference rule alone dropped three (Codex, 2026-09-22). Not when the number is
   // the start of a date, `ADR 2026-07-15`.
   // A whole identifier: `ADR-004oops` is not record 4 (Codex, 2026-09-22, round 2).
-  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)
+  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)
   const numbered = loose && !DATE_SHAPED_RE.test(rest.slice(loose.index + loose[0].length - loose[1].length))
     ? { at: loose.index, id: numberId(loose[1]) } : null
   const dated = referencesWithProvenance(rest)
     .find(entry => !entry.id.startsWith('ADR-') && (entry.explicit || !BARE_DATE_RE.test(entry.id))) ?? null
-  // The FIRST record named, never whichever one exists: `ADR-999 (see ADR-002)`.
-  const first = [numbered, dated].filter(Boolean).sort((a, b) => a.at - b.at)[0]
-  if (first) return first.id
-  const bare = /^0*(\d{1,4})\b/.exec(rest)
-  return bare && !DATE_SHAPED_RE.test(rest) ? numberId(bare[1]) : null
+  // `Superseded by 0004` names record 4 by a bare number at the very start.
+  const bareMatch = /^0*(\d{1,4})(?![0-9A-Za-z_])/.exec(rest)
+  const bare = bareMatch && !DATE_SHAPED_RE.test(rest) ? { at: 0, id: numberId(bareMatch[1]) } : null
+  // The FIRST record named, never whichever one exists: `ADR-999 (see ADR-002)`,
+  // and `999 (see ADR-002)` (Codex, 2026-09-22, round 3).
+  const first = [bare, numbered, dated].filter(Boolean).sort((a, b) => a.at - b.at)[0]
+  return first ? first.id : null
 }
 
 // `/tmp` is a symlink to `/private/tmp` on macOS, and git answers with the real

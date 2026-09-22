@@ -543,7 +543,6 @@ test('both identity rules read ASCII digits only', () => {
 })
 
 // --- Round 2 of the different-lineage review: one test per finding ------------
-const NESTED_OBLIGATIONS = /ADR-001: archive has 3 obligation\(s\), active receipt has 2/
 
 /** `adr_id_for_file` from the real gate, loaded as a module (it runs nothing on import). */
 function ownerOf(root, rel, known) {
@@ -561,12 +560,6 @@ function ownerOf(root, rel, known) {
   assert.equal(run.status, 0, run.stderr)
   return JSON.parse(run.stdout)
 }
-
-test('a directory inside a record directory is not a record by its ADR token', () => {
-  // R1: `notes-ADR-999/` under ADR-001's directory must not take ADR-001's note.
-  const root = numberedCorpus({ 'adr-archive/ADR-001-history/notes-ADR-999/plan.md': OPEN_ITEM })
-  assert.match(retire(root).out, NESTED_OBLIGATIONS)
-})
 
 test('a record is its own record, not a companion of a shorter stem', () => {
   // R2: `2026-07-15-old.v2.md` is a record; it must not belong to `2026-07-15-old`.
@@ -602,4 +595,62 @@ test('both identity rules read a title the same way whatever its whitespace', ()
   const table = [['notes.md', '# ADR-012: X'], ['2026-07-15-x.md', '# ADR-012: X'], ['notes.md', '#\tADR-7: y']]
   assert.deepEqual(table.map(([name, title]) => lifecycle.recordId(name, title)),
     recordLib(`[record.record_id(n, t) for n, t in ${pyLiteral(table)}]`))
+})
+
+// --- Round 3 of the different-lineage review --------------------------------------
+test('a numbered attachment keeps its ADR token over an ADR-named directory', () => {
+  // R4 of round 3: the token in the file's own name came first before ADR-063.
+  const root = scratch('owner-numbered')
+  writeTree(root, { 'ADR-999-notes/notes-ADR-001.txt': 'kept\n', 'ADR-001-old/2026-07-15-notes.md': '# A note\n' })
+  assert.equal(ownerOf(root, 'ADR-999-notes/notes-ADR-001.txt', []), 'ADR-001')
+  assert.equal(ownerOf(root, 'ADR-001-old/2026-07-15-notes.md', []), 'ADR-001')
+})
+
+test('a record-shaped file under tasks belongs to its record, not to its own name', () => {
+  // R1 of round 3: a task is not enumerated as a record, so its own name would
+  // take its obligations out of every count.
+  const root = scratch('owner-task')
+  writeTree(root, { '2026-07-15-old/tasks/2026-07-15-old.T1.md': record('Task one', 'done') })
+  assert.equal(ownerOf(root, '2026-07-15-old/tasks/2026-07-15-old.T1.md', ['2026-07-15-old']), '2026-07-15-old')
+})
+
+test('a companion belongs to the longest stem it extends, whatever the set order', () => {
+  // R3 of round 3: the first prefix a frozenset yields depended on the hash seed.
+  const root = scratch('owner-longest')
+  writeTree(root, { '2026-07-15-old.v2.queries.md': '# Queries\n' })
+  for (const known of [['2026-07-15-old', '2026-07-15-old.v2'], ['2026-07-15-old.v2', '2026-07-15-old']]) {
+    assert.equal(ownerOf(root, '2026-07-15-old.v2.queries.md', known), '2026-07-15-old.v2')
+  }
+})
+
+test('a Unicode-digit title names no record in either rule', () => {
+  // R2 of round 3: the heading token read `# ADR-٠١٢` as record 12 while the
+  // record itself was enumerated by its dated stem.
+  const root = scratch('owner-unicode')
+  writeTree(root, { '2026-07-15-x.md': record('ADR-٠١٢: X', 'Accepted') })
+  assert.equal(ownerOf(root, '2026-07-15-x.md', ['2026-07-15-x']), '2026-07-15-x')
+  assert.equal(recordLib('record.first_number_id("# ADR-٠١٢: X")'), null)
+})
+
+test('the exclusion guards read any decimal digit, in both copies', () => {
+  // R7 of round 3: adr-lint excluded these names before, and still must.
+  assert.equal(recordLib('bool(record.TASK_SHAPED_RE.match("003-T٢-plan"))'), true)
+  assert.equal(recordLib('bool(record.DATE_SHAPED_RE.match("2026-٠٧-15-notes.md"))'), true)
+  const names = [['003-T٢-plan.md', null], ['2026-٠٧-15-notes.md', null]]
+  assert.deepEqual(names.map(([name, title]) => lifecycle.recordId(name, title)),
+    recordLib(`[record.record_id(n, t) for n, t in ${pyLiteral(names)}]`))
+})
+
+test('a supersession by a bare number is the first reference too', () => {
+  // R5 of round 3: `999 (see ADR-002)` named 999 before ADR-063.
+  const root = dateCorpus()
+  writeTree(root, {
+    'adr/ADR-002-kept.md': record('ADR-002: Kept', 'Accepted'),
+    'adr/ADR-010-a.md': record('ADR-010: A', 'Superseded by 999 (see ADR-002)'),
+    'adr/ADR-011-b.md': record('ADR-011: B', 'Superseded by not_ADR-002'),
+  })
+  const byId = new Map(lifecycle.adrCorpus(root, { tracked: listing(root) }).map(entry => [entry.id, entry]))
+  assert.equal(byId.get('ADR-010')?.supersededBy, 'ADR-999')
+  // R6 of round 3: `not_ADR-002` is not a reference to ADR-002.
+  assert.notEqual(byId.get('ADR-011')?.supersededBy, 'ADR-002')
 })

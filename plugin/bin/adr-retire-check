@@ -167,45 +167,46 @@ def adr_files(root, unidentified=None):
 
 
 def adr_id_for_file(path, root, known=frozenset()):
-    """Which record a file belongs to (ADR-063), in order: its own heading (its
-    first two lines, as before); its own name, if it reads as a record; a record
-    whose stem it extends (`<stem>.queries.md`); the nearest directory below
-    `root` whose name is an id by the structural rule; and last, a non-record's
-    own name, falling back to an ADR-N token in it. The walk stops at `root`: a
-    directory above the corpus says nothing about a file in it.
+    """Which record a file belongs to. Two layers, and the order is the contract.
 
-    ⚠ A NOTE IS NOT ITS OWN RECORD. `ADR-001-x/2026-07-15-notes.md` or
-    `ADR-001-x/002-plan.md` carries an id-shaped name, and taking it first gave
-    the note an identity no catalog row has, so its open obligation escaped the
-    check (Codex, 2026-09-22). A directory's id wins over a note's name. And a
-    name falls back to the ADR-N token anywhere in it (`notes-ADR-001.txt`),
-    which is what this gate read before ADR-063, so a numbered decision unit
-    keeps every file it sealed.
+    FIRST, THE NUMBERED RULE THIS GATE HAS ALWAYS USED, UNCHANGED: an ADR-N token in
+    the file's first two lines, then in its own name, then in each directory up to
+    `root`. A numbered corpus therefore attributes every file as it did before
+    ADR-063, which is that record's failure criterion; three review rounds found
+    each departure from it hiding an obligation or breaking a seal (Codex,
+    2026-09-22). `ADR-001-x/2026-07-15-notes.md`, `ADR-001-x/002-plan.md` and
+    `ADR-999-notes/notes-ADR-001.txt` all resolve here, as they always did.
 
-    ⚠ BUT A RECORD IS ITS OWN RECORD, AND A DIRECTORY IS NOT A NOTE. A real record
-    `2026-07-15-old.v2.md` beside `2026-07-15-old` was taken as the older one's
-    companion, and `ADR-001-old/notes-ADR-999/plan.md` belonged to ADR-999 through
-    the token fallback, and both hid an obligation (Codex, 2026-09-22, round 2).
-    So a record's own name comes before the companion rule, and directories use
-    only the structural rule; the token fallback is a file's own name, last.
+    THEN, ONLY WHERE NO ADR-N TOKEN EXISTS ANYWHERE, ADR-063's names: a record's own
+    name (never a file under `tasks/`, which is not enumerated as a record and would
+    otherwise take its obligations with it); else the LONGEST known stem it extends
+    (`<stem>.queries.md`; longest, so `x.v2.queries.md` is x.v2's, whatever order a
+    set iterates in); else the nearest directory below `root` that is an id; else
+    the file's own name. The walk stops at `root`.
     """
     text = _read(path)
+    relative = path.relative_to(root)
     found = first_number_id(" ".join(text.splitlines()[:2]))
     if found:
         return found
-    is_record = looks_like_record(text)
-    by_name = record_id(path.name, title_line(text))
-    if is_record and by_name:
-        return by_name
+    for part in reversed(relative.parts):
+        found = first_number_id(part)
+        if found:
+            return found
+    in_tasks = "tasks" in {part.lower() for part in relative.parts[:-1]}
+    if not in_tasks and looks_like_record(text):
+        found = record_id(path.name, title_line(text))
+        if found:
+            return found
     stem = path.name[:-len(".md")] if path.name.lower().endswith(".md") else path.name
-    for adr_id in known:
-        if not adr_id.startswith("ADR-") and stem.startswith(f"{adr_id}."):
-            return adr_id
-    for part in reversed(path.relative_to(root).parent.parts):
+    companions = [adr_id for adr_id in known if not adr_id.startswith("ADR-") and stem.startswith(f"{adr_id}.")]
+    if companions:
+        return max(companions, key=len)
+    for part in reversed(relative.parts[:-1]):
         found = record_id(part)
         if found:
             return found
-    return by_name or first_number_id(path.name)
+    return record_id(path.name, title_line(text))
 
 
 def meaningful_obligations(root, known=frozenset()):

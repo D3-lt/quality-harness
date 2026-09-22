@@ -375,18 +375,22 @@ def acceptance_digest(command):
 # adr-lint imports them. Why a date is a name shape at all, and why a
 # `(?:19|20)` year anchor was rejected in both directions, is adr-lint's comment
 # above `record_files` and BACKLOG §193.
-# ⚠ DIGITS ARE WRITTEN `[0-9]`, NOT `\d`. Python's `\d` also matches Unicode digits,
-# so `ADR-٠١٢-x.md` was record 12 here and nothing in lifecycle.mjs, whose copy of
-# this rule matches ASCII only. `re.ASCII` fixed that and broke `\s`, so a title
-# `#<NBSP>ADR-012` then disagreed instead (Codex, 2026-09-22, two rounds).
-RECORD_FILE_RE = re.compile(r"^(?:adr[-_]?)?([0-9]{1,4})[-._]", re.I)
+# ⚠ TWO DIGIT CLASSES, ON PURPOSE (Codex, 2026-09-22, three rounds). A NUMBER is
+# read with `[0-9]`: Python's `\d` also matches Unicode digits, so `ADR-٠١٢-x.md` was
+# record 12 here and nothing in lifecycle.mjs. An EXCLUSION guard keeps `\d`, as
+# adr-lint always had it, so `003-T٢-plan.md` stays a task and `2026-٠٧-15-x.md` a
+# date; the JS copy matches those with `\p{Nd}`. `re.ASCII` is not the fix: it
+# also narrows `\s`, and a title `#<NBSP>ADR-012` then split the two copies.
+RECORD_FILE_RE = re.compile(r"^(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
+# The same shape, read as a NUMBER: ASCII digits only, for `record_id`.
+_RECORD_NUMBER = re.compile(r"^(?:adr[-_]?)?([0-9]{1,4})[-._]", re.I)
 # `003-T2.md`, `003-T2-plan.md` — a task file, or a record with a slug of `t2`.
-TASK_SHAPED_RE = re.compile(r"^(?:adr[-_]?)?[0-9]{1,4}[-._]T[0-9]+(?:[-._]|$)", re.I)
+TASK_SHAPED_RE = re.compile(r"^(?:adr[-_]?)?\d{1,4}[-._]T\d+(?:[-._]|$)", re.I)
 # `2026-07-12-x.md` in every separator and width — a dated note, or an ADR-2026.
 # ⚠ The owner KEPT this shape on 2026-09-22, so a four-digit number with a
 # numeric slug (`0012-3-tier-cache.md`) is date-shaped too, and is a stem
 # (ADR-063 Risks). A title `# ADR-12` still gives it 12.
-DATE_SHAPED_RE = re.compile(r"^[0-9]{4}[-_.][0-9]{1,2}[-_.]")
+DATE_SHAPED_RE = re.compile(r"^\d{4}[-_.]\d{1,2}[-_.]")
 # A reference that is nothing but a date, `(2026-07-12)` beside a path: a date,
 # never the name of a record.
 _BARE_DATE = re.compile(r"[0-9]{4}[-_.][0-9]{1,2}[-_.][0-9]{1,2}")
@@ -395,7 +399,7 @@ _TITLE_ADR = re.compile(r"^﻿?#\s*ADR[-_ ]?(?P<rest>[0-9].*)$", re.I)
 _TITLE_NUMBER = re.compile(r"([0-9]{1,4})(?![0-9])")
 _HEADING_LINE = re.compile(r"^﻿?#\s")
 # The numbered token every retire-check spelling already used: `ADR-12`, `ADR012`.
-_FIRST_NUMBER = re.compile(r"(?<!\w)ADR-?(\d+)(?!\w)", re.I)
+_FIRST_NUMBER = re.compile(r"(?<!\w)ADR-?([0-9]+)(?!\w)", re.I)
 # A numbered REFERENCE keeps adr-retire-check's receipt rule, hyphen required, so
 # `ADR-012-T3` and `ADR-012/…` still name record 12.
 _NUMBERED_REF = re.compile(r"(?<![A-Za-z0-9_])ADR-([0-9]+)(?![A-Za-z0-9_])", re.I)
@@ -453,7 +457,7 @@ def record_id(name, title=None):
         return stem
     if TASK_SHAPED_RE.match(stem):
         return None
-    found = RECORD_FILE_RE.match(shaped)
+    found = _RECORD_NUMBER.match(shaped)
     return number_id(found.group(1)) if found else None
 
 

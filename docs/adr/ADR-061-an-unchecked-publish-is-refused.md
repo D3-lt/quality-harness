@@ -32,6 +32,8 @@ A compact SessionStart claims the compaction id with an exclusive create before 
 
 What would make the deny fail: a whole log, a tree that differs from the session start, and no `check.passed` for it, followed by `git commit` still running. That fixture can be built today in a temporary repository.
 
+**Revision, 2026-09-22, before release (owner's decision).** Only the tree refuses. An index that differs from the session start and matches no checked tree warns, and the warning says the staged index is unchecked, not that no check passed. A check runs on the working tree, and `tree` includes unstaged and untracked files. So a staged change beside an untracked file equals no checked tree, and the first form denied it after every passing check. A peer found this live on PlayTrix; it was reproduced in a temporary repository, and `tests/fail-open.test.mjs::a passing check on the tree is not refused because the index differs from it` pins it. The word match on `commit` and `push` is unchanged: a command that merely mentions either word is still refused on an unchecked tree. The session that wrote this revision was refused that way itself, on a Bash command whose heredoc body contained the word. That is a known false refusal. Narrowing it needs command parsing, which ADR-060 retired.
+
 ## Alternatives Considered
 
 - **Keep warning.** Rejected because a model that treats the warning as noise still publishes.

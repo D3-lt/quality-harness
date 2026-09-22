@@ -17,6 +17,7 @@ import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
+import { SLOW_HOOK_OFF } from './hook-env.mjs'
 import { fileURLToPath } from 'node:url'
 import { readSessionNote, replaceSessionNote } from '../plugin/scripts/lifecycle.mjs'
 
@@ -25,7 +26,7 @@ const lifecycleScript = join(resolve(dirname(fileURLToPath(import.meta.url)), '.
 test('a finding is first once per session, and a compaction or /clear makes the session new', () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-said-once-')))
   try {
-    const env = { ...process.env, TMPDIR: top, TMP: top, TEMP: top, CLAUDE_PLUGIN_DATA: join(top, 'data') }
+    const env = { ...process.env, TMPDIR: top, TMP: top, TEMP: top, CLAUDE_PLUGIN_DATA: join(top, 'data'), QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF }
     const session = `said-once-${process.pid}`
     const first = key => spawnSync(process.execPath, [lifecycleScript, '--first-mention', session, key],
       { encoding: 'utf8', timeout: 60_000, env }).status === 0

@@ -23,6 +23,7 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from '
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
+import { SLOW_HOOK_OFF } from './hook-env.mjs'
 import { fileURLToPath } from 'node:url'
 
 const lifecycleScript = join(resolve(dirname(fileURLToPath(import.meta.url)), '..'), 'plugin', 'scripts', 'lifecycle.mjs')
@@ -31,7 +32,7 @@ const IDENTITY = { GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid'
 
 function fixture(top, label) {
   const repo = join(top, label)
-  const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top }
+  const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF }
   const run = (command, args, options = {}) => {
     const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
     assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)

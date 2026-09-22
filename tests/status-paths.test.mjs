@@ -17,6 +17,7 @@ import { existsSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
+import { SLOW_HOOK_OFF } from './hook-env.mjs'
 import { observedFacts } from '../plugin/scripts/lifecycle.mjs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -75,7 +76,7 @@ test('no hook names, or tries to gate, a path spelled in octal escapes', () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-status-hooks-')))
   try {
     const repo = join(top, 'repo')
-    const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top }
+    const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF }
     const run = (command, args, options = {}) => {
       const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
       assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)

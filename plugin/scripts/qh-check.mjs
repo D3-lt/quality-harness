@@ -35,6 +35,14 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, stdout 
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
   const { command, origin } = checkCommandOrigin(root)
+  if (origin === 'refused') {
+    stderr.write('qh-check: the check declared in .quality-harness.json is a constant success and was refused.\n')
+    return 2
+  }
+  if (origin === 'unproven') {
+    stderr.write('qh-check: the repository root could not be read, so no check is named.\n')
+    return 2
+  }
   if (!command) {
     stderr.write('qh-check: this project has no check to run. Declare one as `check` in .quality-harness.json.\n')
     return 2

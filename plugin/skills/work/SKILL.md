@@ -55,7 +55,7 @@ Restate one outcome, explicit non-goals, and observable completion evidence. Cla
 | C — undecided | Required behavior or product choice is genuinely unresolved | `spec-write` → user Ready-for-ADR gate when a durable decision follows |
 | D — durable decision | New public contract, persistent-state shape, trust boundary, cross-component ownership, costly-to-reverse architecture, or reversal of an accepted ADR | `/quality-harness:arch-write` first when the change is structural and the repository has no architecture document → the Open decision route in `quality-harness:quality-policy` when two credible designs remain → `adr-write` → user Accepted gate → `adr-execute` |
 | E — bounded change | Requirements are decided and no durable decision is being introduced | `execution` directly |
-| F — review | Verdict or audit requested | `/quality-harness:review`; when Codex is installed and the change is substantive or an external pass is asked for, also `/quality-harness:codex-review`; repeated fix loop only when explicitly requested |
+| F — review | Verdict or audit requested | `/quality-harness:review`. When Codex is installed, `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex --repo <repository root> --scope <uncommitted, commit SHA, or base REF> --requirements <text> --evidence <caller-observed JSON>` and pass that JSON as `externalReviews`. On Cursor use `--host cursor`. Repeated fix loop only when explicitly requested. |
 | N — north star | Several independently shippable outcomes | milestone ledger; classify and finish one milestone at a time |
 
 File count alone does not create an ADR, panel, or workflow. A large mechanical migration may be

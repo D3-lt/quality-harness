@@ -4676,8 +4676,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
-      "to": "      else void note"
+      "from": "      if (served && note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
+      "to": "      if (false && note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)"
     },
     {
       "label": "lifecycle: SessionEnd writes the sessions ledger row",
@@ -8045,13 +8045,186 @@
       "to": "model: 'opus'"
     },
     {
-      "label": "routing stress: quality-cycle Codex role stays inline",
+      "label": "fail-open: a failed root lookup makes the publish opt-out unknown",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  if (!found.ok) return { warn: false, ignored: false, unknown: true }",
+      "to": "  if (false) return { warn: false, ignored: false, unknown: true }"
+    },
+    {
+      "label": "fail-open: a passed tree does not make an unknown index read as unchecked",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "            : !treeUnchecked && indexUnknown && treeStanding === 'passed'",
+      "to": "            : false"
+    },
+    {
+      "label": "R2: several commits say at least one could not be established",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "`at least one of ${commits.length} newly reachable commits`} could not observe it:`",
+      "to": "`${commits.length} newly reachable commits`} could not observe it:`"
+    },
+    {
+      "label": "fail-open: \"publish\": \"warn\" turns the refusal into a warning",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'"
+    },
+    {
+      "label": "fail-open: only the exact \"warn\" value opts out of the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  return config.publish === 'warn' ? { warn: true, ignored: false, unknown: false } : { warn: false, ignored: true, unknown: false }",
+      "to": "  return { warn: true, ignored: false, unknown: false }"
+    },
+    {
+      "label": "fail-open: a check that could not look does not refuse",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  if (COULD_NOT_LOOK.has(descriptive.event)) return 'could-not-look'",
+      "to": "  if (false) return 'could-not-look'"
+    },
+    {
+      "label": "fail-open: a pass recorded before an unobservable write does not cover it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    || (Number.isInteger(write.checksSeen) && Number.isInteger(pass.seq) && pass.seq > write.checksSeen)",
+      "to": "    || true"
+    },
+    {
+      "label": "fail-open: a pass that started before an unobservable write does not cover it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs",
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    || pass.startedAt > write.at",
+      "to": "    || true"
+    },
+    {
+      "label": "fail-open: only the tree's could-not-look exempts a refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const couldNotLook = treeStanding === 'could-not-look'",
+      "to": "  const couldNotLook = treeStanding === 'could-not-look' || indexStanding === 'could-not-look'"
+    },
+    {
+      "label": "fail-open: a check that could not look is not worded as no check passing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const unobserved = facts?.treeOrder === 'could-not-look'",
+      "to": "  const unobserved = false"
+    },
+    {
+      "label": "quality-cycle: a host result whose status contradicts its findings is unavailable",
       "file": "plugin/workflows/quality-cycle.js",
       "tests": [
-        "tests/routing-stress.test.mjs"
+        "tests/workflows.test.mjs"
       ],
-      "from": "{ label: 'codex-external', phase: 'Review', schema: REVIEW, model: 'sonnet' }",
-      "to": "{ label: 'codex-external', phase: 'Review', schema: REVIEW, model: 'sonnet', agentType: 'quality-harness:qh-correctness-reviewer' }"
+      "from": "  && (review.status === 'blocking' ? review.findings.some(finding => finding.severity === 'blocking')",
+      "to": "  && (true ? true"
+    },
+    {
+      "label": "fail-open: an unchecked index warning does not invent a passing check",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "            : !treeUnchecked && treeStanding === 'passed'",
+      "to": "            : !treeUnchecked"
+    },
+    {
+      "label": "host-review: a result without a findings array is not a review",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": " || !Array.isArray(parsed.findings)) return false",
+      "to": ") return false"
+    },
+    {
+      "label": "host-review: the host is told the repository and scope",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": "    `Repository: ${JSON.stringify(repo)}. Scope: ${JSON.stringify(scope)}.`,",
+      "to": "    '',"
+    },
+    {
+      "label": "quality-cycle: a host result that is not the review schema is unavailable",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "const malformed = externalReviews.filter(review => !wellFormed(review)).length",
+      "to": "const malformed = 0"
+    },
+    {
+      "label": "routing: the documented host-review command names the repository",
+      "file": "plugin/skills/work/SKILL.md",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": "host-review.mjs --host codex --repo <repository root>",
+      "to": "host-review.mjs --host codex"
+    },
+    {
+      "label": "fail-open: only an unchecked tree refuses a publish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
+      "to": "  const deny = !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'"
+    },
+    {
+      "label": "routing stress: a requested host with no result is unavailable",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/routing-stress.test.mjs",
+        "tests/workflows.test.mjs"
+      ],
+      "from": "const missingHosts = requested.filter(host => !externalReviews.some(review => wellFormed(review) && review.host === host))",
+      "to": "const missingHosts = []"
+    },
+    {
+      "label": "quality-cycle: an unavailable cycle says which host result is missing and what to run",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "  return { status: 'reviewer-unavailable', reason: reasons.join('; '), evidence, reviews: externalReviews }",
+      "to": "  return { status: 'reviewer-unavailable', evidence, reviews: externalReviews }"
+    },
+    {
+      "label": "host-review: a missing cursor agent is not a clean review",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": "  if (!bin) return unavailable('cursor', null, 'cursor agent binary is absent', model)",
+      "to": "  if (!bin) return { status: 'clean', host: 'cursor', model, effort: null, bound: 'reported', findings: [], reason: '' }"
     },
     {
       "label": "routing stress: review-ring fixer runs as qh-narrow-fixer",
@@ -8104,8 +8277,8 @@
       "tests": [
         "tests/routing.test.mjs"
       ],
-      "from": "when Codex is installed (`command -v codex`), `/quality-harness:codex-review`; when it is not, `/quality-harness:quality-cycle`.",
-      "to": "when Codex is installed (`command -v codex`), `/quality-harness:quality-cycle`; when it is not, `/quality-harness:codex-review`."
+      "from": "when Codex is installed (`command -v codex`), `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex --repo <repository root> --scope <uncommitted, commit SHA, or base REF> --requirements <text> --evidence <caller-observed JSON>`; when it is not, `/quality-harness:quality-cycle`.",
+      "to": "when Codex is installed (`command -v codex`), `/quality-harness:quality-cycle`; when it is not, `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex --repo <repository root> --scope <uncommitted, commit SHA, or base REF> --requirements <text> --evidence <caller-observed JSON>`."
     },
     {
       "label": "routing: the Moderate tier names a whole agent",
@@ -8518,7 +8691,7 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log) }),",
+      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),",
       "to": "      text: uncheckedCommitsReason(input.cwd, unchecked),"
     },
     {
@@ -8527,8 +8700,8 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      if (note && !tied) sections.push(",
-      "to": "      if (false) sections.push("
+      "from": "      else if (!tied && note) sections.push(",
+      "to": "      else if (false && note) sections.push("
     },
     {
       "label": "ledger: an unverified row with no edits is read back as unknown, not as edits",

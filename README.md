@@ -81,10 +81,14 @@ to fake:
 - **It checks that your tests can actually fail.** A test that passes no matter
   what is worse than no test, because it looks like safety. The plugin breaks each
   piece of your code on purpose and reports any test that did not notice.
-- **It never blocks you.** Every check gives advice and lets the work continue. A
-  tool that stops you without explaining leaves you worse off than no tool. It does
-  still exit non-zero when a check fails — nothing seizes your session, and the exit
-  code stays honest for the CI step that reads it.
+- **It does not block your work, with one exception you can turn off.** Every check gives
+  advice and lets the work continue. The exception: a `git commit` or `git push` on a
+  tree no `qh-check` has passed on is refused, because a warning a model treats as
+  noise still publishes. `"publish": "warn"` in `.quality-harness.json` makes it a
+  warning again. (A reviewer agent the plugin starts read-only is also stopped from
+  editing, committing or pushing; that fences the reviewer, not you.) It does still exit
+  non-zero when a check fails — nothing seizes your session, and the exit code stays
+  honest for the CI step that reads it.
 - **It says "I do not know" when it does not know.** If a check could not run, it
   says so, rather than reporting a clean result it never actually observed.
 - **It keeps decisions where you can find them.** Why something was built a
@@ -369,7 +373,7 @@ a column for findings it negated, left empty because it has negated none.
 |---|---|
 | An agent writing "✅ all tests pass" into a task file | `adr-verify` **runs the fence itself** and writes the date, git sha, exit code, duration and a SHA-256 of the fence it ran. Edit the fence and every entry taken under the old one is invalidated. |
 | A green suite you hope means something | A **mutation campaign** that breaks each mechanism on purpose and fails if nothing notices. A test that cannot fail is found before you trust it. |
-| A gate that blocks you and cannot say why | Gates that **advise and never block**. A blocked agent produces a user who cannot tell what to do next, which is worse than not having the plugin. |
+| A gate that blocks you and cannot say why | Gates that **advise**, with one refusal that says why and can be turned off: an unchecked commit or push. A blocked agent that cannot tell what to do next is worse than not having the plugin, so the refusal names the command to run (`qh-check`). |
 | "I checked, it's fine" | A check that **cannot determine something says so** — `UNRUN`, `PARTIAL`, `UNPROVEN` — and never borrows the vocabulary of a verdict. A filter that matched nothing is "I could not look", not "the thing is absent". |
 | Decisions living in a chat log | An **executable ADR corpus** — Architecture Decision Records, one file per decision — whose readiness, coverage, dangling pointers and open debt are computed from the task files by `adr-next`, `adr-state.mjs` and `adr-debt`, not from a status column somebody typed. |
 

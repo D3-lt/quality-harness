@@ -86,7 +86,7 @@ test('no hook names, or tries to gate, a path spelled in octal escapes', () => {
     run('mkdir', ['-p', repo])
     git('init', '-q')
     writeFileSync(join(repo, 'a.md'), 'a\n')
-    writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+    writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
     git('add', '-A')
     git('commit', '-q', '-m', 'base')
     const session = `status-hooks-${process.pid}`

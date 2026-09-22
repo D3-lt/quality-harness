@@ -241,7 +241,6 @@ const AGENT_FOR_LABEL = {
   correctness: 'quality-harness:qh-correctness-reviewer',
   'scope-simplicity': 'quality-harness:qh-scope-reviewer',
   synthesis: 'quality-harness:qh-synthesis',
-  'codex-external': undefined,
   'review:fresh': undefined,
   'fix:once': 'quality-harness:qh-narrow-fixer',
 }
@@ -303,8 +302,8 @@ test('every role quality-cycle and review-ring spawn carries the agentType the D
       recordRoles(random, () => REVIEW_REPLIES, cycleCalls))
     const cycleContext = 'quality-cycle seed ' + SEED + ' iteration ' + iteration + ' ' + JSON.stringify(cycleArgs) + ' -> ' + cycle.status
     assertRoles(cycleCalls, cycleContext)
-    assert.equal(cycleCalls.some(options => options.label === 'codex-external'),
-      Boolean(cycleArgs.codex) && cycleArgs.evidence.exitCode !== 1, 'the Codex role runs only when asked for: ' + cycleContext)
+    assert.equal(cycleCalls.some(options => options.label === 'codex-external'), false, cycleContext)
+    if (cycleArgs.codex && cycleArgs.evidence.exitCode !== 1) assert.equal(cycle.status, 'reviewer-unavailable', cycleContext)
 
     const ringCalls = []
     const ringArgs = { repo: '/repo', evidence: pick(random, EVIDENCE), reviewer: pick(random, ['claude', 'codex']) }

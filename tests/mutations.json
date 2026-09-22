@@ -9394,6 +9394,36 @@
       "only": "an underscore-prefixed token",
       "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)",
       "to": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)"
+    },
+    {
+      "label": "ADR-063: a heading token never reads a date as a number",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a dated title never gives its record a number",
+      "from": "        if not DATE_SHAPED_RE.match(text[found.start(1):]):",
+      "to": "        if True:"
+    },
+    {
+      "label": "ADR-063: a non-record's bare number names no record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a non-record with a bare-number name",
+      "from": "    return found if found and not found.startswith(\"ADR-\") else None",
+      "to": "    return found"
+    },
+    {
+      "label": "ADR-063: a status keeps the underscores in a record name",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a supersession keeps the underscores",
+      "from": "  if (inline) return inline[1].replace(/[*`]/g, '').replace(/(^|[\\s(])_+|_+(?=[\\s).,;:]|$)/g, '$1').trim()",
+      "to": "  if (inline) return inline[1].replace(/[*_`]/g, '').trim()"
     }
   ]
 }

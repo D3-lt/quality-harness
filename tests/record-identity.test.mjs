@@ -662,3 +662,37 @@ test('an underscore-prefixed token is not a numbered supersession', () => {
   assert.equal(records.look, 'PARTIAL', 'not_ADR-002 names no record')
   assert.ok(!records.some(entry => entry.id === OLD && entry.kind === 'graveyard'))
 })
+
+// --- Round 4 of the different-lineage review ---------------------------------------
+test('a dated title never gives its record a number', () => {
+  // Q1: `# ADR-2026-07-15: X` is a dated title, not record 2026.
+  const root = scratch('owner-dated-title')
+  writeTree(root, { '2026-07-15-x.md': record('ADR-2026-07-15: X', 'Accepted') })
+  assert.equal(ownerOf(root, '2026-07-15-x.md', ['2026-07-15-x']), '2026-07-15-x')
+  assert.equal(recordLib('record.first_number_id("# ADR-2026-07-15: X")'), null)
+  assert.equal(recordLib('record.first_number_id("see ADR-2026-07-15 and ADR-7")'), 'ADR-007')
+})
+
+test('a non-record with a bare-number name belongs to no record', () => {
+  // Q2: `001-notes.txt` in a flat numbered archive was nobody's before ADR-063.
+  const root = scratch('owner-bare')
+  writeTree(root, { '001-notes.txt': 'notes\n', '2026-07-15-notes.md': '# notes\n' })
+  assert.equal(ownerOf(root, '001-notes.txt', []), null)
+  // The control: a dated non-record still names its stem.
+  assert.equal(ownerOf(root, '2026-07-15-notes.md', []), '2026-07-15-notes')
+})
+
+test('a supersession keeps the underscores in a record name', () => {
+  // Q3: the status reader stripped every underscore.
+  const root = dateCorpus()
+  writeTree(root, {
+    'adr/2026_07_15_new.md': record('New', 'Accepted'),
+    'adr/2026-07-15-new_cache.md': record('Cache', 'Accepted'),
+    'adr/2026-07-01-a.md': record('A', 'Superseded by 2026_07_15_new'),
+    'adr/2026-07-01-b.md': record('B', '_Superseded_ by 2026-07-15-new_cache'),
+  })
+  const byId = new Map(lifecycle.adrCorpus(root, { tracked: listing(root) }).map(entry => [entry.id, entry]))
+  assert.equal(byId.get('2026-07-01-a')?.supersededBy, '2026_07_15_new')
+  assert.equal(byId.get('2026-07-01-b')?.supersededBy, '2026-07-15-new_cache')
+  assert.equal(byId.get('2026-07-01-b')?.kind, 'graveyard', 'emphasis around the status word is still stripped')
+})

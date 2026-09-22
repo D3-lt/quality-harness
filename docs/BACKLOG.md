@@ -14049,3 +14049,17 @@ Unverified hypothesis: the test builds its repository with a plain `git commit`,
 start detached auto-maintenance after a commit, so a background process may be tidying
 `.git/objects` while the test counts. What would settle it: run the repository helper with
 `-c gc.auto=0 -c maintenance.auto=false` and see whether the failure stops under the same load.
+
+## 259. An ADR-named directory takes a note from the record around it (2026-09-22, pre-existing)
+
+`adr-retire-check` attributes a file by the first ADR-N token in its heading, its own name, or any
+directory up to the archive root, walking inward-out. So `ADR-001-old/notes-ADR-999/plan.md`
+belongs to ADR-999, not ADR-001: with no ADR-999 record and no receipt, its open obligation is
+counted against nothing and the gate passes. Codex found it on 2026-09-22 while reviewing ADR-063,
+and it holds at `d39cc9e`, before ADR-063. ADR-063 kept this rule unchanged, because its failure
+criterion is that a numbered corpus attributes every file exactly as before, and changing it broke
+an existing seal (`ADR-999-notes/notes-ADR-001.txt`, which the same walk gives to ADR-001).
+
+What would close it: decide which of the two the rule should honour, the token nearest the file or
+the outermost record directory, and re-seal any archive the change moves a file in; that needs its
+own record, since it changes what a seal covers.

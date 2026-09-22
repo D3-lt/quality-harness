@@ -8045,6 +8045,24 @@
       "to": "model: 'opus'"
     },
     {
+      "label": "fail-open: \"publish\": \"warn\" turns the refusal into a warning",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'"
+    },
+    {
+      "label": "fail-open: only the exact \"warn\" value opts out of the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  return config.publish === 'warn' ? { warn: true, ignored: false } : { warn: false, ignored: true }",
+      "to": "  return { warn: true, ignored: false }"
+    },
+    {
       "label": "fail-open: a check that could not look does not refuse",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [

@@ -37,3 +37,24 @@ in one day before the record was written. If a check cannot determine something,
 same defect appeared inside code written to fix an ADR-005 violation: `Path.glob` swallows
 `OSError`, so an unreadable record read as an empty one and "nothing is ready" was reported as a
 verdict from a directory nothing had looked inside.
+
+## The one sanctioned refusal, and why it has an off switch
+
+On 2026-09-22 the owner accepted ADR-061: a command naming commit or push, on a tree no `qh-check`
+has passed on, is refused when the session log was read whole. The reason is the one this section
+was written against, seen from the other side. A warning is advice, and a model that has learned
+to skip advice still publishes. That is the "unread output" failure above, and it reaches a remote.
+
+The cost of a refusal was paid within an hour of it going live. This repository's working tree is
+the plugin every session on the machine loads, so a peer session met the refusal before any
+release. It was denied a correct commit after a passing check, on every retry. The cause was the
+index being looked up among checked trees; that is fixed, and only the tree can refuse now. The
+session that fixed it was refused once too, by a heredoc whose body contained the word "commit".
+That false refusal is kept by the owner's choice, because narrowing it needs command parsing, which
+ADR-060 retired.
+
+So the exception comes with its own rule: **a refusal needs an Accepted record and an opt-out.**
+Here the opt-out is `"publish": "warn"` in `.quality-harness.json`. Only that exact value counts;
+any other value is reported as ignored and keeps the refusal, so a typo cannot silently turn it
+off. Every could-not-look — a torn log, an unordered check, a check that timed out or could not
+observe its tree, a root git would not name — warns and never refuses (ADR-005).

@@ -24,6 +24,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { checkEventName, validationVerdict } from '../plugin/scripts/lifecycle.mjs'
+import { repositoryDiscovery } from '../plugin/scripts/qh-check.mjs'
 
 const verdict = (exit_code, stdout, command = 'sh check.sh') =>
   validationVerdict({ exit_code, stdout }, command, { anyCommand: true })
@@ -61,6 +62,15 @@ test('a check that could not start is `unstarted` by its EXIT CODE; by words alo
   assert.equal(verdict(1, 'the run timed out'), 'unproven', 'and the same for a kill reported only in words')
   // Neither word certifies anything: only `check.passed` does.
   for (const word of ['unstarted', 'unproven']) assert.notEqual(checkEventName({ verdict: word, exit: 0, git: false }), 'check.passed')
+})
+
+test('a root query that did not answer is not a confirmed non-git repository', () => {
+  assert.equal(repositoryDiscovery({ error: { code: 'ETIMEDOUT' }, status: null, stdout: '' }), null)
+  assert.equal(repositoryDiscovery({ status: 128, stdout: '' }), false)
+  assert.equal(repositoryDiscovery({ status: 0, stdout: '/repo\n' }), true)
+  assert.equal(checkEventName({ verdict: 'passed', exit: 0, git: null }), 'check.unproven')
+  assert.equal(checkEventName({ verdict: 'passed', exit: 0, git: false }), 'check.passed')
+  assert.equal(checkEventName({ verdict: 'failed', exit: 1, git: null }), 'check.failed')
 })
 
 test('an explicit zero is a pass even when the output quotes an error', () => {

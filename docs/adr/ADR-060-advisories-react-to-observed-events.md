@@ -222,7 +222,7 @@ A command that masks its own failure (`… || true`) is the project's declared c
 | 14 | Outside any hook, commit a new `d.md` as `five`, then remove it as `six`, so the tree equals step 13's checked tree; Stop | R2 naming `five` |
 | 15 | `qh-check` fails on the same tree; Stop | R1 |
 
-The same steps in a repository with no check deliver nothing. Step 14 cannot catch R2 skipping a commit whose tree equals the session start; T5's `an unchecked commit is named even when its tree equals the session start` does. T5 also runs the revision 4 reviews' cases: a check passing in another worktree, and the ledger after a warned, unchecked commit. T1 records the observation cost, and fails if observation writes any repository object or changes the index. T7 fails if `classify-command.mjs` exists, or if any deleted parsing symbol is still defined or imported under `plugin/`.
+The same steps in a repository with no check deliver nothing. Step 14 cannot catch R2 skipping a commit whose tree equals the session start; T5's `an unchecked commit is named even when its tree equals the session start` does. T5 also runs the revision 4 reviews' cases: a check passing in another worktree, and the ledger after a warned, unchecked commit. T1 records the observation cost, and fails if observation writes any repository object or changes the index. T7 fails if `classify-command.mjs` is missing or exports a symbol — it stays, emptied, so earlier records' `Governs:` paths still resolve — or if any deleted parsing symbol is still defined or imported under `plugin/`.
 
 ## Alternatives Considered
 

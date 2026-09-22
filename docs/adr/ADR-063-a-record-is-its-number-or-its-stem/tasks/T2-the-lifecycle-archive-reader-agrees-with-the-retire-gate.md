@@ -80,6 +80,15 @@ for name in 'the corpus reader lists dated records, active and archived' 'the li
   the fence failed on a build/parse error, not an assertion
   ```
 
+## S1 finding
+
+⚠ Measured AFTER the implementation, not before it as S1 required; the step was skipped and is
+recorded late rather than reported as done in order. On 2026-09-22, run read-only against the
+TakeOnline infrastructure corpus with this task's reader: `adrCorpus` lists 20 records, the 19
+classified active records and the archived one (`governing`, from its catalog), and puts 5 in
+`unreadable`: each is `Proposed`, which governs nothing by design. So the "19 of 24" the cold
+review saw was those 5 Proposed records, not a defect. No change to this task followed from it.
+
 ## Invariants
 
 - `tests/archive-not-in-flight.test.mjs`, `tests/archive-history-parity.test.mjs` and the `adrCorpus` tests in `tests/lifecycle.test.mjs` pass unchanged.

@@ -9072,7 +9072,7 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a date-slug archive passes",
-      "from": "                found.append((offset, part))",
+      "from": "                found.append((offset, part, filename or pathlike))",
       "to": "                pass"
     },
     {
@@ -9222,7 +9222,7 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a note inside a record directory",
-      "from": "    if by_name and looks_like_record(text):",
+      "from": "    if is_record and by_name:",
       "to": "    if by_name:"
     },
     {
@@ -9232,8 +9232,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a numbered attachment keeps",
-      "from": "    by_name = record_id(path.name, title_line(text)) or first_number_id(path.name)",
-      "to": "    by_name = record_id(path.name, title_line(text))"
+      "from": "    return by_name or first_number_id(path.name)",
+      "to": "    return by_name"
     },
     {
       "label": "ADR-063: a supersession names its first reference",
@@ -9282,8 +9282,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a numbered supersession is read in every spelling",
-      "from": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?!\\d)/i.exec(rest)",
-      "to": "  const loose = /(?<![A-Za-z0-9])ADR-(\\d{1,4})(?!\\d)/i.exec(rest)"
+      "from": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)",
+      "to": "  const loose = /(?<![A-Za-z0-9])ADR-(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)"
     },
     {
       "label": "ADR-063: the identity regexes are ASCII",
@@ -9292,8 +9292,58 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "both identity rules read ASCII digits only",
-      "from": "RECORD_FILE_RE = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I | re.ASCII)",
+      "from": "RECORD_FILE_RE = re.compile(r\"^(?:adr[-_]?)?([0-9]{1,4})[-._]\", re.I)",
       "to": "RECORD_FILE_RE = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)"
+    },
+    {
+      "label": "ADR-063: a directory is a record only by the structural rule",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a directory inside a record directory",
+      "from": "        found = record_id(part)\n        if found:\n            return found\n    return by_name or first_number_id(path.name)",
+      "to": "        found = record_id(part) or first_number_id(part)\n        if found:\n            return found\n    return by_name or first_number_id(path.name)"
+    },
+    {
+      "label": "ADR-063: a record's own name comes before the companion rule",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a record is its own record",
+      "from": "    is_record = looks_like_record(text)",
+      "to": "    is_record = False"
+    },
+    {
+      "label": "ADR-063: a dated filename is a name in a supersession",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a dated filename in a supersession",
+      "from": "        if explicit or not _BARE_DATE.fullmatch(name):",
+      "to": "        if not _BARE_DATE.fullmatch(name):"
+    },
+    {
+      "label": "ADR-063: a numbered supersession needs a whole identifier",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a numbered supersession needs a whole identifier",
+      "from": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)",
+      "to": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?!\\d)/i.exec(rest)"
+    },
+    {
+      "label": "ADR-063: a title's whitespace is read alike in both copies",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "whatever its whitespace",
+      "from": "_TITLE_ADR = re.compile(r\"^﻿?#\\s*ADR[-_ ]?(?P<rest>[0-9].*)$\", re.I)",
+      "to": "_TITLE_ADR = re.compile(r\"^﻿?#\\s*ADR[-_ ]?(?P<rest>[0-9].*)$\", re.I | re.ASCII)"
     }
   ]
 }

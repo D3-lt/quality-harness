@@ -418,9 +418,16 @@ def number_id(number):
 
 
 def first_number_id(text):
-    """The first `ADR-N` token in `text` as an id, or None."""
-    found = _FIRST_NUMBER.search(text)
-    return number_id(found.group(1)) if found else None
+    """The first `ADR-N` token in `text` as an id, or None.
+
+    A token whose number starts a date is not one: `# ADR-2026-07-15: X` is a dated
+    title, and reading it as ADR-2026 gave a dated record's obligations to a record
+    that does not exist (Codex, 2026-09-22, round 4; BACKLOG §66's rule, applied to
+    this reader too)."""
+    for found in _FIRST_NUMBER.finditer(text):
+        if not DATE_SHAPED_RE.match(text[found.start(1):]):
+            return number_id(found.group(1))
+    return None
 
 
 def title_line(text):

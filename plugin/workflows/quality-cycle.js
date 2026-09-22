@@ -1,7 +1,7 @@
 export const meta = {
   name: 'quality-cycle',
   description: 'Read-only high-risk review: correctness and scope/simplicity passes, optional Codex, then one evidence-bound synthesis',
-  whenToUse: 'After caller-observed validation for high-risk changes. args: {repo, scope, requirements, nonGoals, evidence, codex}. Not for tiny or routine changes.',
+  whenToUse: 'After caller-observed validation for high-risk changes. args: {repo, scope, requirements, nonGoals, evidence, codex, cursor, pi, externalReviews}. codex/cursor/pi each REQUEST a host review: first run node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host <host> --repo <root> --scope <scope> and pass its JSON in externalReviews, or the cycle is reviewer-unavailable. Not for tiny or routine changes.',
   phases: [{ title: 'Review' }, { title: 'Synthesize' }],
 }
 
@@ -74,28 +74,41 @@ const wellFormed = review => review && typeof review === 'object' && typeof revi
   // review (Codex review round 2). The workflow cannot import that module.
   && (review.status === 'blocking' ? review.findings.some(finding => finding.severity === 'blocking')
     : review.status === 'clean' ? !review.findings.some(finding => finding.severity === 'blocking') : true)
-if (!externalReviews.every(wellFormed)
-    || requested.some(host => !externalReviews.some(review => review.host === host))) {
-  return { status: 'reviewer-unavailable', evidence, reviews: externalReviews }
+// ⚠ AN UNAVAILABLE CYCLE SAYS WHY, and what to run. It returned in milliseconds
+// with no reason when `codex: true` came without its result, which reads from
+// outside as "review is impossible" (reported by a peer, 2026-09-22).
+const malformed = externalReviews.filter(review => !wellFormed(review)).length
+const missingHosts = requested.filter(host => !externalReviews.some(review => wellFormed(review) && review.host === host))
+if (malformed || missingHosts.length) {
+  const reasons = []
+  if (malformed) reasons.push(`${malformed} externalReviews entr${malformed === 1 ? 'y is' : 'ies are'} not the review schema`)
+  for (const host of missingHosts) {
+    reasons.push('no result for the requested ' + host + ' review: run `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host ' + host
+      + ' --repo <root> --scope <scope>` and pass its JSON in externalReviews, or drop `' + host + ': true`')
+  }
+  return { status: 'reviewer-unavailable', reason: reasons.join('; '), evidence, reviews: externalReviews }
 }
 
 phase('Review')
-const agentReviews = (await parallel(reviewerTasks)).filter(Boolean)
+const reviewerLabels = ['correctness', 'scope-simplicity']
+const returned = await parallel(reviewerTasks)
+const agentReviews = returned.filter(Boolean)
 const reviews = [...externalReviews, ...agentReviews]
 if (agentReviews.length !== reviewerTasks.length) {
-  return { status: 'reviewer-unavailable', evidence, reviews }
+  const silent = reviewerLabels.filter((_, index) => !returned[index])
+  return { status: 'reviewer-unavailable', reason: `reviewer returned nothing: ${silent.join(', ')}`, evidence, reviews }
 }
 if (reviews.some(review => review.status === 'unavailable')) {
-  return { status: 'reviewer-unavailable', evidence, reviews }
+  return { status: 'reviewer-unavailable', reason: 'a reviewer reported itself unavailable; its review is in `reviews`', evidence, reviews }
 }
 const reviewerEvidenceLimited = reviews.some(review => review.status === 'evidence-limited')
 
 phase('Synthesize')
 const synthesis = await agent(`${LEAF}\n${TARGET}\nIndependent reviews: ${JSON.stringify(reviews)}. Deduplicate findings. A finding is blocking only if all are true: in stated scope or caused by the diff; material to correctness/security/data/required behavior/concrete maintainability; exact evidence; minimal in-scope remedy; and an explanation of why passing checks do not settle it. Downgrade style, future-proofing, architecture alternatives, speculative edges, and optional cleanup. Do not invent findings.`, { label: 'synthesis', phase: 'Synthesize', schema: REVIEW, model: 'opus', agentType: 'quality-harness:qh-synthesis' })
 
-if (!synthesis) return { status: 'reviewer-unavailable', evidence, reviews }
+if (!synthesis) return { status: 'reviewer-unavailable', reason: 'the synthesis reviewer returned nothing', evidence, reviews }
 if (synthesis.status === 'unavailable') {
-  return { status: 'reviewer-unavailable', evidence, reviews }
+  return { status: 'reviewer-unavailable', reason: 'the synthesis reviewer reported itself unavailable', evidence, reviews }
 }
 const blockers = synthesis.findings.filter(finding => finding.severity === 'blocking')
 if (reviewerEvidenceLimited

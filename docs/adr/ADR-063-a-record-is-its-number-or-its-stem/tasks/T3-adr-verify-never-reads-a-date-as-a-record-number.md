@@ -57,6 +57,11 @@ for name in 'adr-verify reads no record number from a date in any separator'; do
 | 4 — it is used | the test runs `adr-verify` itself |
 
 ## Mutation Log
+- 2026-09-22 · b8c098c · mutant killed · exit 1 · `plugin/bin/adr-verify` · a dated record must not be read as 2026 · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · covers:the shared record_id in record_number_of
+- 2026-09-22 · b8c098c* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a dotted record file must be found by its full name · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · covers:the owning record file by its full name
+- 2026-09-22 · b8c098c* · mutant killed · exit 1 · `plugin/bin/adr-verify` · an unnumbered record must stay strict · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · covers:an unnumbered record is never demoted
+- 2026-09-22 · b8c098c* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a demoted false claim must be marked · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · covers:the sweep marks a demoted false claim
+- 2026-09-22 · b8c098c* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a title-only number must be read · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · covers:the owning record's title
 
 ## Invariants
 
@@ -90,3 +95,36 @@ Stop and ask if the test cannot observe the demotion through `adr-verify`'s own 
   # todo 0
   # duration_ms 1721.7495
   ```
+- 2026-09-22 · b8c098c · exit 0 · `set -o pipefail …` · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · ms:80800
+- 2026-09-22 · b8c098c* · exit 1 · `set -o pipefail …` · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · ms:79721
+  ```
+  --- last 10 line(s) of stdout (of 2308 after folding 2312 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: 3,
+      expected: 4,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-09-22 · b8c098c* · exit 1 · `set -o pipefail …` · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · ms:79735
+  ```
+  --- last 10 line(s) of stdout (of 2308 after folding 2312 raw)
+        at Test.postRun (node:internal/test_runner/test:1542:19)
+        at Test.run (node:internal/test_runner/test:1467:12)
+        at async startSubtestAfterBootstrap (node:internal/test_runner/harness:387:3) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: 3,
+      expected: 4,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-09-22 · b8c098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · ms:79672
+- 2026-09-22 · b8c098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · ms:79985
+- 2026-09-22 · b8c098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · ms:79928
+- 2026-09-22 · b8c098c* · exit 0 · `set -o pipefail …` · acceptance-sha256:5109467e37465f044cda67bde665fef84da3a22d8236dd4584d47bb58f034155 · ms:80570

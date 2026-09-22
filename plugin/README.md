@@ -77,6 +77,9 @@ session log was read whole. A torn log, an unordered check, or a check that coul
 look only warns. `"publish": "warn"` in `.quality-harness.json` makes the refusal a
 warning; any other value is ignored and said to be. A command that merely MENTIONS
 either word, such as a heredoc body, is refused too. That is a known false refusal.
+The only other refusal is the reviewer guard (ADR-060): a role spawned read-only, such
+as `qh-scope-reviewer`, may not edit, commit or push. It has no opt-out, because it
+fences a role the workflow made read-only, not your own work.
 
 Two of them carry the evidence chain and are worth knowing by name:
 

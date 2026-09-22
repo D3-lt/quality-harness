@@ -8045,6 +8045,33 @@
       "to": "model: 'opus'"
     },
     {
+      "label": "fail-open: a failed root lookup makes the publish opt-out unknown",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  if (!found.ok) return { warn: false, ignored: false, unknown: true }",
+      "to": "  if (false) return { warn: false, ignored: false, unknown: true }"
+    },
+    {
+      "label": "fail-open: a passed tree does not make an unknown index read as unchecked",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "            : !treeUnchecked && indexUnknown && treeStanding === 'passed'",
+      "to": "            : false"
+    },
+    {
+      "label": "R2: several commits say at least one could not be established",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "`at least one of ${commits.length} newly reachable commits`} could not observe it:`",
+      "to": "`${commits.length} newly reachable commits`} could not observe it:`"
+    },
+    {
       "label": "fail-open: \"publish\": \"warn\" turns the refusal into a warning",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -8059,8 +8086,8 @@
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "  return config.publish === 'warn' ? { warn: true, ignored: false } : { warn: false, ignored: true }",
-      "to": "  return { warn: true, ignored: false }"
+      "from": "  return config.publish === 'warn' ? { warn: true, ignored: false, unknown: false } : { warn: false, ignored: true, unknown: false }",
+      "to": "  return { warn: true, ignored: false, unknown: false }"
     },
     {
       "label": "fail-open: a check that could not look does not refuse",

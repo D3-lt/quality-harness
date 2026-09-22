@@ -440,3 +440,61 @@ test('a root query that did not answer is not a pass', () => {
   assert.equal(lifecycle.checkCommandOrigin(dir, unanswered).origin, 'unproven')
   assert.match(lifecycle.runTheCheckSentence(dir), /sh check\.sh/)
 })
+
+// Codex review round 3 (1): the opt-out is read from the root the refusal was
+// decided on. A second lookup that failed fell back to the current directory,
+// missed the root's opt-out and refused, or honoured a nested file instead.
+test('the publish opt-out is read from the root the decision used, or is unknown', () => {
+  const dir = repository('publish-sub-')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh', publish: 'warn' }))
+  mkdirSync(path.join(dir, 'sub'))
+  writeFileSync(path.join(dir, 'sub', '.quality-harness.json'), JSON.stringify({ publish: 'nope' }))
+  const sub = path.join(dir, 'sub')
+  assert.equal(lifecycle.publishSetting(sub, { ok: true, root: dir }).warn, true)
+  const failed = lifecycle.publishSetting(sub, { ok: false, root: null, reason: 'git took too long' })
+  assert.equal(failed.warn, false)
+  assert.equal(failed.unknown, true)
+  assert.equal(failed.ignored, false, 'a nested file is not the project config')
+})
+
+// Codex review round 3 (2): a passed working tree does not make an index that
+// could not be checked read as "unchecked".
+test('an index that could not be checked says unknown even when the tree passed', () => {
+  const dir = repository('passed-tree-unknown-index-')
+  writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = 'fail-open-passed-unknown-' + process.pid
+  hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+  writeFileSync(path.join(dir, 'a.md'), 'staged\n')
+  git(dir, 'add', 'a.md')
+  const staged = lifecycle.observe(dir)
+  const at = new Date().toISOString()
+  appendFileSync(path.join(lifecycle.stateDir(dir), 'checks.jsonl'), `${JSON.stringify({
+    id: 'staged-timeout', at, git: true, command: 'sh check.sh', origin: 'declared',
+    before: { ...staged, at }, after: { ...staged, at }, exit: null, signal: 'SIGTERM', verdict: 'failed',
+  })}\n`)
+  writeFileSync(path.join(dir, 'a.md'), 'working tree differs\n')
+  const passed = spawnSync('python3', [qhCheck], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(passed.status, 0, passed.stderr)
+  const run = hook(dir, {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+    tool_input: { command: 'git commit -m staged' },
+  })
+  assert.notEqual(decision(run), 'deny', run.stdout)
+  const said = hookSaid(run.stdout, run.stderr).text
+  assert.match(said, /not known to be checked/)
+  assert.doesNotMatch(said, /staged index is unchecked/)
+})
+
+// Codex review round 3 (3): one commit's could-not-look is not every commit's.
+test('R2 over several commits says at least one could not be established', () => {
+  const commits = [{ sha: 'a'.repeat(40), subject: 'one' }, { sha: 'b'.repeat(40), subject: 'two' }]
+  for (const flags of [{ couldNotLook: true }, { orderUnknown: true }]) {
+    const text = lifecycle.uncheckedCommitsReason(testTmp, commits, flags)
+    assert.match(text, /at least one of 2 newly reachable commits/, JSON.stringify(flags))
+    assert.match(text, /not known to be checked/)
+  }
+  assert.doesNotMatch(lifecycle.uncheckedCommitsReason(testTmp, commits.slice(0, 1), { couldNotLook: true }), /at least one/)
+})

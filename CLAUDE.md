@@ -57,10 +57,11 @@ Why: `.claude/rules/02-running-the-checks.md`
 
 - A gate advises and never prevents an attempt. `errors.advise(...)` is advisory,
   `errors.append(...)` is blocking; moving a finding between them is a behaviour change.
-- **The one sanctioned refusal is ADR-061's:** a command naming commit or push on a tree no
-  `qh-check` has passed on, when the session log was read whole. A project turns it back into a
-  warning with `"publish": "warn"` in `.quality-harness.json`. A new refusal needs an Accepted
-  record and the same kind of opt-out.
+- **Two refusals are sanctioned, and no others.** ADR-061's publish refusal: a command naming
+  commit or push on a tree no `qh-check` has passed on, when the session log was read whole; a
+  project turns it back into a warning with `"publish": "warn"` in `.quality-harness.json`. And
+  ADR-060's reviewer guard: a role spawned read-only may not edit, commit or push. A new refusal
+  needs an Accepted record, and an opt-out unless it only fences a role the caller made read-only.
 - **A gate never reports an observation it did not make.** Could-not-look is `UNRUN`, `PARTIAL`,
   `UNPROVEN` — never the vocabulary of a verdict. (ADR-005)
 - **Unread always-on output is work we action.** Classify each advise line, unchanged branch-state brief, and host recalled-memory block this turn: act, or name it dangling only when the action needs a human decision (Accept a Proposed record; push a release). Treating a class as noise after one look, then never reading it again, is how a finding the gate did emit goes unnoticed across commits.

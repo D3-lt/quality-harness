@@ -8045,13 +8045,76 @@
       "to": "model: 'opus'"
     },
     {
+      "label": "fail-open: a check that could not look does not refuse",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  if (COULD_NOT_LOOK.has(descriptive.event)) return 'could-not-look'",
+      "to": "  if (false) return 'could-not-look'"
+    },
+    {
+      "label": "fail-open: a pass recorded before an unobservable write does not cover it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    && (!Number.isInteger(entry.checksSeen) || (Number.isInteger(later.seq) && later.seq > entry.checksSeen))))",
+      "to": "    && true))"
+    },
+    {
+      "label": "fail-open: an unchecked index warning does not invent a passing check",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "            : !treeUnchecked && treeStanding === 'passed'",
+      "to": "            : !treeUnchecked"
+    },
+    {
+      "label": "host-review: a result without a findings array is not a review",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": " || !Array.isArray(parsed.findings)) return false",
+      "to": ") return false"
+    },
+    {
+      "label": "host-review: the host is told the repository and scope",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": "    `Repository: ${JSON.stringify(repo)}. Scope: ${JSON.stringify(scope)}.`,",
+      "to": "    '',"
+    },
+    {
+      "label": "quality-cycle: a host result that is not the review schema is unavailable",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "if (!externalReviews.every(wellFormed)",
+      "to": "if (false"
+    },
+    {
+      "label": "routing: the documented host-review command names the repository",
+      "file": "plugin/skills/work/SKILL.md",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": "host-review.mjs --host codex --repo <repository root>",
+      "to": "host-review.mjs --host codex"
+    },
+    {
       "label": "fail-open: only an unchecked tree refuses a publish",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/fail-open.test.mjs"
       ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && origin.origin !== 'unproven'",
-      "to": "  const deny = !logIncomplete(log) && !unordered && origin.origin !== 'unproven'"
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
+      "to": "  const deny = !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'"
     },
     {
       "label": "routing stress: a requested host with no result is unavailable",
@@ -8060,8 +8123,8 @@
         "tests/routing-stress.test.mjs",
         "tests/workflows.test.mjs"
       ],
-      "from": "if (requested.some(host => !externalReviews.some(review => review?.host === host))) {",
-      "to": "if (false && requested.some(host => !externalReviews.some(review => review?.host === host))) {"
+      "from": "    || requested.some(host => !externalReviews.some(review => review.host === host))) {",
+      "to": "    || false) {"
     },
     {
       "label": "host-review: a missing cursor agent is not a clean review",
@@ -8123,8 +8186,8 @@
       "tests": [
         "tests/routing.test.mjs"
       ],
-      "from": "when Codex is installed (`command -v codex`), `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex`; when it is not, `/quality-harness:quality-cycle`.",
-      "to": "when Codex is installed (`command -v codex`), `/quality-harness:quality-cycle`; when it is not, `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex`."
+      "from": "when Codex is installed (`command -v codex`), `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex --repo <repository root> --scope <uncommitted, commit SHA, or base REF> --requirements <text> --evidence <caller-observed JSON>`; when it is not, `/quality-harness:quality-cycle`.",
+      "to": "when Codex is installed (`command -v codex`), `/quality-harness:quality-cycle`; when it is not, `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex --repo <repository root> --scope <uncommitted, commit SHA, or base REF> --requirements <text> --evidence <caller-observed JSON>`."
     },
     {
       "label": "routing: the Moderate tier names a whole agent",

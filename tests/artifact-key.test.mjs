@@ -19,6 +19,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
+import { SLOW_HOOK_OFF } from './hook-env.mjs'
 import { fileURLToPath } from 'node:url'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -35,7 +36,7 @@ test('a verdict recorded through a symlinked path is found again at the turn end
   try {
     const real = join(top, 'real')
     const linked = join(top, 'linked')
-    const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top }
+    const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF }
     const run = (command, args, options = {}) => spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
     const git = (...args) => { const out = run('git', ['-C', real, ...args]); assert.equal(out.status, 0, out.stderr); return out }
     mkdirSync(join(real, 'docs', 'adr'), { recursive: true })

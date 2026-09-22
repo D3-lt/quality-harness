@@ -10,6 +10,7 @@ import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSyn
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
+import { SLOW_HOOK_OFF } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
 import * as statusline from '../plugin/scripts/statusline.mjs'
@@ -35,6 +36,7 @@ const GIT_IDENTITY = {
 const HOOK_ENV = {
   ...process.env, ...GIT_IDENTITY,
   CLAUDE_PLUGIN_DATA: path.join(testTmp, 'plugin-data'), TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp,
+  QUALITY_HARNESS_SLOW_HOOK_MS: SLOW_HOOK_OFF,
 }
 const RULE_ONE_TEXT = 'first finding for the probe'
 const RULE_TWO_TEXT = 'second finding for the probe'

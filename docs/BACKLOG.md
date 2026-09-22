@@ -13916,6 +13916,31 @@ this can only produce a wrong ADVISORY, never a refusal. What would close it: as
 instead of the OS (for example, whether the path with its case flipped resolves to the same inode),
 behind the existing `platform` seam so a test can drive both answers.
 
+## 252. The id rules ADR-063 left per gate, and the members a grep cannot see (2026-09-22)
+
+ADR-063 moved record identity into `plugin/lib/record.py` for `adr-retire-check`, and T2 and T3 carry
+it into `lifecycle.mjs`, `adr-state.mjs` and `adr-verify`. Every other gate still reads a record
+number its own way, and these are deferred here rather than changed, because each works for numbered
+and `NNN-slug` corpora today and rewriting it risks reopening §66 or §190:
+
+- `adr-lint`'s cross-reference enumeration (`record_files`): name-based, so a dated record is not a
+  resolvable citation target, and a date-shaped name titled `# ADR-5` is dropped where ADR-063's rule
+  gives 5.
+- `adr-next`: `RECORD_NUMBER` and `glob("ADR-*.md")`; `adr_12_x.md` is not read as 12.
+- `adr-debt`: its record-number regexes.
+- `plugin/scripts/corpus-report.mjs:76` and `plugin/scripts/eval-fixture.mjs:68` (`/^ADR[-_]?\d/`).
+- `plugin/scripts/facts-gate-dispatch.sh:258` (`ADR-*.md`): a dated record reaches `adr-lint` only by its
+  content test.
+
+Found with, on 2026-09-22:
+
+    git grep -nE 'ADR[-_ ]?\??\??[(\[]?\\d|ADR-\\d|\(\\d\{[0-9],?[0-9]?\}\)|\(\?:adr\[' -- plugin/bin plugin/lib plugin/scripts
+
+That returned 27 lines in 7 files, one of them a false positive (`run-shell-hook.mjs:526`, a git file
+mode). It cannot see a glob or a regex built from a template; two cold reviews of ADR-063 found those
+members by reading. What would close this: route each gate through `record.record_id` (and lifecycle's
+pinned copy), one gate per change, each with the numbered corpora as its control.
+
 ## 253. A build diagnostic anywhere in a failing fence makes a real kill inconclusive (2026-09-22)
 
 `adr-verify` classifies a mutant run as `inconclusive` when any `BUILD_BROKE` pattern matches

@@ -8,7 +8,7 @@
 **Consumes:** `record_id` in `plugin/lib/record.py` and the identity table in `tests/record-identity.test.mjs` (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the exit status of the named test run`, `the TAP line printed for each named test`, `the test output printed when a named test fails`, `each named test actually running`, `the full selftest`
+**Rests-on:** `the shared record_id in record_number_of`, `the owning record file by its full name`
 
 ## Goal
 

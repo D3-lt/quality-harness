@@ -36,11 +36,12 @@ export function main(argv) {
     return 0
   }
   const relative = record => path.relative(root, record.file) || record.file
-  const label = record => `ADR-${String(record.number ?? '?').padStart(3, '0')}`
+  const label = record => record.id ?? `ADR-${String(record.number ?? '?').padStart(3, '0')}`
 
   const governing = corpus.filter(record => record.kind === 'governing')
-  const byNumber = new Map(corpus.filter(record => record.number !== null)
-  .map(record => [String(record.number), record]))
+  // Keyed by id (ADR-063), so a supersession by a dated record's stem resolves.
+  const byId = new Map(corpus.filter(record => record.id !== null && record.id !== undefined)
+  .map(record => [record.id, record]))
 
   // One entry per governed path, naming the accepted record that holds it and
   // whatever it replaced. A path claimed by two accepted records is contested:
@@ -61,7 +62,7 @@ export function main(argv) {
   const replaced = new Map()
   for (const record of corpus) {
   if (!record.supersededBy) continue
-  const target = byNumber.get(record.supersededBy)
+  const target = byId.get(record.supersededBy)
   if (!target) continue
   if (!replaced.has(target.file)) replaced.set(target.file, [])
   replaced.get(target.file).push(record)
@@ -70,7 +71,7 @@ export function main(argv) {
   const contested = [...areas].filter(([, records]) => records.length > 1)
   const orphans = governing.filter(record => record.governs.length === 0)
   const SHOWN = 12
-  const dangling = corpus.filter(record => record.supersededBy && !byNumber.has(record.supersededBy))
+  const dangling = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))
 
   if (json) {
     const look = corpus.look ?? ((corpus.unreadable ?? []).length ? 'PARTIAL' : 'ok')

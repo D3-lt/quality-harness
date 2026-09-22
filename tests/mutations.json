@@ -877,7 +877,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "const dangling = corpus.filter(record => record.supersededBy && !byNumber.has(record.supersededBy))",
+      "from": "const dangling = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))",
       "to": "const dangling = []"
     },
     {
@@ -913,7 +913,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "const ADR_FILE = /^(?!\\d{4}-\\d{2}-\\d{2})(?:adr[-_]?)?\\d{3,4}[-._]/i",
+      "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?)?\\d{3,4}[-._]/i",
       "to": "const ADR_FILE = /^(?:adr[-_]?)?\\d{3,4}[-._]/i"
     },
     {
@@ -8745,7 +8745,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by ADR-\\d+)$/i",
+      "from": "const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by \\S.*)$/i",
       "to": "const ARCHIVE_EFFECT = /./"
     },
     {
@@ -8754,8 +8754,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "      [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)),",
-      "to": "      ['README.md'],"
+      "from": "  [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate))",
+      "to": "  ['README.md']"
     },
     {
       "label": "catalog: a row speaks for the file its link names",
@@ -9114,6 +9114,56 @@
       "only": "a file with no identity is advice",
       "from": "unidentified.append(path)",
       "to": "pass"
+    },
+    {
+      "label": "ADR-063: a record under a frozen archive is listed by its content",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the corpus reader lists dated records",
+      "from": "    else if (frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)",
+      "to": "    else if (false && frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)"
+    },
+    {
+      "label": "ADR-063: the catalog is found at the archive root",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the lifecycle archive reader reads a record by its stem",
+      "from": "  const directory = catalogDirectoryFor(file, root, reader, listed)",
+      "to": "  const directory = path.dirname(file)"
+    },
+    {
+      "label": "ADR-063: a supersession names an id, never a date's digits",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a dated supersession is never record 2026",
+      "from": "        ? supersessionTarget(status)",
+      "to": "        ? (/(\\d{1,4})/.exec(status)?.[1] ?? null)"
+    },
+    {
+      "label": "ADR-063: adr-state keys supersession by id",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-state resolves a supersession by stem",
+      "from": "  .map(record => [record.id, record]))",
+      "to": "  .map(record => [String(record.number), record]))"
+    },
+    {
+      "label": "ADR-063: lifecycle's identity rule gives a dated name its stem",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the JS and Python identity rules agree",
+      "from": "  if (DATE_SHAPED_RE.test(shaped)) return stem",
+      "to": "  if (false) return stem"
     }
   ]
 }

@@ -362,9 +362,17 @@ test('a write stays outstanding by log order, not by its timestamp', () => {
     { event: 'file.written', observable: false, path: 'a', at: '2020-01-01T00:00:00.000Z' },
   ])
   assert.equal(lifecycle.unobservableWrites(laterInTheLog).length, 1)
-  const covered = whole([
+  // A pass that STARTED before the write did not see it, whatever the log order:
+  // with a clock that stepped backwards this stays outstanding, which is the
+  // cautious direction (CI mutation campaign on 0150376).
+  const startedBefore = whole([
     { event: 'file.written', observable: false, path: 'a', at: '2099-01-01T00:00:00.000Z' },
     { event: 'check.passed', startedAt: '2020-01-01T00:00:00.000Z' },
+  ])
+  assert.equal(lifecycle.unobservableWrites(startedBefore).length, 1)
+  const covered = whole([
+    { event: 'file.written', observable: false, path: 'a', at: '2026-01-01T00:00:00.000Z' },
+    { event: 'check.passed', startedAt: '2026-01-02T00:00:00.000Z' },
   ])
   assert.equal(lifecycle.unobservableWrites(covered).length, 0)
   const torn = [

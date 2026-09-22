@@ -9142,7 +9142,7 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a dated supersession is never record 2026",
-      "from": "        ? supersessionTarget(status)",
+      "from": "        ? supersessionTarget(retired ? status : rawStatus(text))",
       "to": "        ? (/(\\d{1,4})/.exec(status)?.[1] ?? null)"
     },
     {
@@ -9402,7 +9402,7 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a dated title never gives its record a number",
-      "from": "        if not DATE_SHAPED_RE.match(text[found.start(1):]):",
+      "from": "        if not (skip_dates and DATE_SHAPED_RE.match(text[found.start(1):])):",
       "to": "        if True:"
     },
     {
@@ -9422,8 +9422,18 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a supersession keeps the underscores",
-      "from": "  if (inline) return inline[1].replace(/[*`]/g, '').replace(/(^|[\\s(])_+|_+(?=[\\s).,;:]|$)/g, '$1').trim()",
-      "to": "  if (inline) return inline[1].replace(/[*_`]/g, '').trim()"
+      "from": "  return inline ? inline[1].replace(/[*`]/g, '').trim() : recordStatus(text)",
+      "to": "  return inline ? inline[1].replace(/[*_`]/g, '').trim() : recordStatus(text)"
+    },
+    {
+      "label": "ADR-063: only a heading skips a dated token",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "keeps a token that looks like a date",
+      "from": "def first_number_id(text, skip_dates=False):",
+      "to": "def first_number_id(text, skip_dates=True):"
     }
   ]
 }

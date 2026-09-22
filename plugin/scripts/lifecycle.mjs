@@ -1372,12 +1372,18 @@ function markdownSection(text, heading) {
 }
 
 // `**Status:** Accepted`, `Status: Accepted`, or a `## Status` section's first line.
+// The status line as written, for reading WHICH record it names. `recordStatus`
+// strips every underscore, which is right for classifying the status and wrong for
+// a record name inside it: `2026_07_15_new` named nothing, `…-new_` another record
+// (Codex, 2026-09-22, rounds 4 and 5). Only `*` and backticks are markup here.
+function rawStatus(text) {
+  const inline = text.match(/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$/im)
+  return inline ? inline[1].replace(/[*`]/g, '').trim() : recordStatus(text)
+}
+
 function recordStatus(text) {
   const inline = text.match(/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$/im)
-  // Emphasis is stripped, not every underscore: `2026_07_15_new` and
-  // `2026-07-15-new_cache` are record names, and removing their underscores made a
-  // supersession name nothing, or a different record (Codex, 2026-09-22, round 4).
-  if (inline) return inline[1].replace(/[*`]/g, '').replace(/(^|[\s(])_+|_+(?=[\s).,;:]|$)/g, '$1').trim()
+  if (inline) return inline[1].replace(/[*_`]/g, '').trim()
   const section = markdownSection(text, 'Status')
   return section.split('\n').map(line => line.trim()).find(Boolean) ?? ''
 }
@@ -1964,7 +1970,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // `superseded by ADR-4`, `Superseded by 0004`, and since ADR-063 a dated
       // record's stem or path, which was read as record 2026.
       supersededBy: /^superseded\s+by\b/i.test(status)
-        ? supersessionTarget(status)
+        ? supersessionTarget(retired ? status : rawStatus(text))
         : null,
       governs: [...governs],
       // What FAILS when this decision is violated, or null. `Governs:` on its
@@ -2000,7 +2006,8 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
 // The record a `superseded by …` status names: the first reference in it, by the
 // ADR-063 rule, or a bare number (`Superseded by 0004`) that is not a date.
 function supersessionTarget(status) {
-  const rest = status.replace(/^superseded\s+by\s*/i, '')
+  // `_Superseded_ by x` from a raw status line: emphasis around the words is not a name.
+  const rest = status.replace(/^[_\s]*superseded_*\s+by_*\s*/i, '')
   // Numbered, in every spelling a status line uses: `ADR-004`, `ADR 004`,
   // `ADR_004`, `ADR004`. This read them all before ADR-063, and the hyphenated
   // reference rule alone dropped three (Codex, 2026-09-22). Not when the number is

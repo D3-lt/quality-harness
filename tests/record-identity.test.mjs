@@ -669,8 +669,9 @@ test('a dated title never gives its record a number', () => {
   const root = scratch('owner-dated-title')
   writeTree(root, { '2026-07-15-x.md': record('ADR-2026-07-15: X', 'Accepted') })
   assert.equal(ownerOf(root, '2026-07-15-x.md', ['2026-07-15-x']), '2026-07-15-x')
-  assert.equal(recordLib('record.first_number_id("# ADR-2026-07-15: X")'), null)
-  assert.equal(recordLib('record.first_number_id("see ADR-2026-07-15 and ADR-7")'), 'ADR-007')
+  // The heading reader skips a dated token; a name or path does not (round 5).
+  assert.equal(recordLib('record.first_number_id("# ADR-2026-07-15: X", skip_dates=True)'), null)
+  assert.equal(recordLib('record.first_number_id("see ADR-2026-07-15 and ADR-7", skip_dates=True)'), 'ADR-007')
 })
 
 test('a non-record with a bare-number name belongs to no record', () => {
@@ -695,4 +696,26 @@ test('a supersession keeps the underscores in a record name', () => {
   assert.equal(byId.get('2026-07-01-a')?.supersededBy, '2026_07_15_new')
   assert.equal(byId.get('2026-07-01-b')?.supersededBy, '2026-07-15-new_cache')
   assert.equal(byId.get('2026-07-01-b')?.kind, 'graveyard', 'emphasis around the status word is still stripped')
+})
+
+// --- Round 5 of the different-lineage review ---------------------------------------
+test('a numbered attachment keeps a token that looks like a date', () => {
+  // Round 5, 1: the heading's date guard must not reach filenames.
+  const root = scratch('owner-token-date')
+  writeTree(root, { 'notes-ADR-0001-12-factor.txt': 'kept\n' })
+  assert.equal(ownerOf(root, 'notes-ADR-0001-12-factor.txt', []), 'ADR-001')
+})
+
+test('a status classifies as before, and names its record exactly', () => {
+  // Round 5, 2: `_Accepted_(date)` governs as it did; `…-new_` is not `…-new`.
+  const root = dateCorpus()
+  writeTree(root, {
+    'adr/2026-07-15-kept.md': record('Kept', '_Accepted_(2026-07-15)'),
+    'adr/2026-07-15-new_.md': record('New, underscored', 'Accepted'),
+    'adr/2026-07-15-new.md': record('New', 'Accepted'),
+    'adr/2026-07-01-c.md': record('C', 'Superseded by `docs/adr/2026-07-15-new_.md`'),
+  })
+  const byId = new Map(lifecycle.adrCorpus(root, { tracked: listing(root) }).map(entry => [entry.id, entry]))
+  assert.equal(byId.get('2026-07-15-kept')?.kind, 'governing')
+  assert.equal(byId.get('2026-07-01-c')?.supersededBy, '2026-07-15-new_')
 })

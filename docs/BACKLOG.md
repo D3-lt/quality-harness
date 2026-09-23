@@ -14628,3 +14628,20 @@ matches at it (one char or an escape, then `'`); a lifetime is code. `impl<'a>`,
 `'\''`, `'\u{1F600}'` and a `'{'` char literal are in the fixture. Test in
 `tests/test-lock.test.mjs`, mutant in the catalogue. §268's open item (two Rust tests read as having
 no failure call) is from the same corpus and may share this cause; reproduce it before assuming so.
+
+## 272. A mutation campaign in this checkout is live in every session that runs this checkout as its plugin (2026-09-24)
+
+A peer session on this machine reported that at b149b50 the mention advisory BLOCKED a Bash
+command — the advisory's own text, "Advisory; nothing is refused", delivered as a denial, the
+command never started. Not reproducible at any committed revision: fed the same command shape, the
+hook exits 0 with `additionalContext`. What fits every detail: that session's hooks execute
+`lifecycle.mjs` from THIS working checkout, and in that window `scripts/mutate.mjs --case "only a
+proven invocation is refused"` was running here — a case whose mutant drops `invoked !== null` from
+the deny, so a mention on an unchecked tree is denied with the advisory's text. Each case rewrites
+the file in place for its duration; the two later mentions in that session passed once it was
+restored. CLAUDE.md §2 already says never to run a mutation tool and edit the tree at the same time;
+the reach is wider than one session's own edits. **Open:** say it in §2's rule file, and consider
+having `mutate.mjs` refuse or warn when another live session's plugin root resolves to this checkout
+(`claude plugin list` in that session, or a marker file) — a measurement first: how many sessions on
+this machine run the checkout rather than the cache. Inconclusive by the peer's own account; the
+correlation is the clock and the case list, not a reproduction.

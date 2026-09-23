@@ -9823,6 +9823,24 @@
       ],
       "from": "        elif rust_raw and text[i] == \"'\" and not _RUST_CHAR_LITERAL.match(text, i):",
       "to": "        elif False:"
+    },
+    {
+      "label": "test-lock: a Rust label's quote is blanked, so the brace matcher does not pair it and cut the body (§271 round 2)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            out[i] = \" \"  # a lifetime's or label's quote is blanked for the brace matcher",
+      "to": "            pass"
+    },
+    {
+      "label": "test-lock: a Rust '\\xNN' escape is a char literal, not a lifetime (§271 round 2)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{[0-9a-fA-F_]{1,6}\\}|[^xu\\n]))'\")",
+      "to": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:u\\{[0-9a-fA-F_]{1,6}\\}|[^u\\n]))'\")"
     }
   ]
 }

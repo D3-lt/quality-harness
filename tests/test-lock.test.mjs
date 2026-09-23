@@ -1093,6 +1093,67 @@ test('a Rust lifetime does not swallow every test after it', () => {
   }
 })
 
+test('a Rust loop label does not cut the body before its assertion', () => {
+  // `'outer: loop { break 'outer; }` then the assertion. The masker kept the
+  // label's quotes as code and the brace matcher paired them as a string, so
+  // the `{` between them went uncounted and the body closed at `}` — a lock over
+  // a body with no assertion in it, which inverting could not move (Codex, c7da73b).
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.rs'
+  const named = [['lock_dirty', rel]]
+  const rowLine = '| `lock_dirty` | `tests/lock_subject.rs` | lock | F-1 |'
+  const source = assertion => '#[test]\n'
+    + 'fn lock_dirty() {\n'
+    + "    'outer: loop { break 'outer; }\n"
+    + `    ${assertion}\n`
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('assert_eq!(2, 2);'))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/, suffix)
+    const row = `- 2026-09-24 · no-git · exit 2 · \`cargo test\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source('assert_eq!(2, 1);'))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('lock_dirty') && b.includes('hash moved')),
+      `the assertion after the label is inside the hashed body: ${moved.blocks.join('\n')}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a Rust hex char escape beside a quote char literal does not swallow the next test', () => {
+  // `['\x41','"']` before the test — no space, as the reviewer wrote it. Unrecognised,
+  // `'\x41'` was a lifetime, its closing quote and the comma made the literal `','`,
+  // and the `"` left over opened a string to the end of the file — the test after it
+  // had no name (Codex, c7da73b). A space after the comma lets the old regex re-sync
+  // and turned the mutant GREEN; the fixture keeps the reviewer's exact bytes.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.rs'
+  const named = [['lock_dirty', rel]]
+  const rowLine = '| `lock_dirty` | `tests/lock_subject.rs` | lock | F-1 |'
+  const source = assertion => "const CHARS: [char; 2] = ['\\x41','\"'];\n"
+    + '#[test]\n'
+    + 'fn lock_dirty() {\n'
+    + `    ${assertion}\n`
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('assert_eq!(2, 2);'))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/, `the test after the escapes is hashed, not unproven: ${suffix}`)
+    const row = `- 2026-09-24 · no-git · exit 2 · \`cargo test\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    assert.deepEqual(findings(dir, [row], named).blocks, [])
+    writeFileSync(join(dir, rel), source('assert_eq!(2, 1);'))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('lock_dirty') && b.includes('hash moved')), moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('a shell heredoc does not keep the first-red hash after the assertion moves', () => {
   const dir = tmpRepo()
   const rel = 'tests/lock_subject.sh'

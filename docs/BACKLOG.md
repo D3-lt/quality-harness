@@ -14460,3 +14460,16 @@ task in a directory, and a directory an Accepted and a Proposed record SHARE han
 record's task back. Restored, with the shared-directory fixture no corpus here had. Residual, named
 by the reviewer and left: a bare drive-relative root (`C:` with no separator) resolves against that
 drive's current directory before `readinessFrom` can anchor it.
+
+**From the Codex review of `abd5a13`, three findings, and a decision.** The quoted-path pass stopped
+at ANY quote character, so `"/opt/Example's secret/x"` leaked past the apostrophe and a quoted
+`file:` URL was not quoted-path at all; an unquoted `D:\Projects\Example Person\x` leaked ` Person\x`;
+`//server/share/x` (a UNC share spelled forward) and `->/opt/x` went out whole because `>` was
+excluded to protect placeholders. All fixed: a quoted path runs to its own closing delimiter, an
+unquoted path continues past a space when the next word is followed by a separator, only this
+function's placeholders are protected. The third finding — a regex literal (`/foo\/bar/i`) and a
+URL's query path (`?q=/api/v1`) are redacted too — is **accepted as the design**: this is a
+classifier over free text (§16), three rounds each found a leak where the boundary had been made
+cleverer, and §6's direction is that over-scrubbing costs a question while a leak cannot be recalled.
+Pinned in the test as a decision. No fourth round is planned on this boundary; a leak found in the
+field goes here as a new item.

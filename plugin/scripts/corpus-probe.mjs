@@ -82,15 +82,29 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
     .filter(([prefix]) => prefix)
     .map(([prefix, placeholder]) => [
       new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)`, 'g'), placeholder])
-  // A quoted path is consumed to its closing quote, spaces and all: `"D:\Projects
-  // \Example Person\x"` used to leave ` Person\x"` behind (Codex, 1032720, P1).
-  const QUOTED = /(["'`])((?:[A-Za-z]:[\\/]|\\\\|\/(?!\/))[^"'`\n]*)\1/g
-  // Any other absolute path — a drive letter, a UNC share, a file: URL, or a
-  // POSIX root, not only five named ones — becomes `<path>`. Not preceded by a
-  // path character or a placeholder's `>`, so `docs/var/x`, `./tmp/x` and
-  // `<tmp>/qh-1` are untouched; a colon may precede it (`error:/Users/x`); a
+  // A quoted path is consumed to ITS closing delimiter, whatever other quote
+  // characters it holds: `"D:\Projects\Example Person\x"` used to leave
+  // ` Person\x"` behind, and `"/opt/Example's secret/x"` stopped at the
+  // apostrophe (Codex, 1032720 P1 and abd5a13 P1).
+  const QUOTED = /(["'`])((?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\|\/(?!\/))(?:(?!\1)[^\n])*)\1/g
+  // The tail of an unquoted path: to the next space, quote or paren — and on
+  // past a space when the word after it is followed by a separator, so
+  // `Example Person\x` is one path and `task.md failed` is not.
+  const TAIL = /[^\s'"`)]*(?:[ \t]+[^\s'"`)\\/]+(?=[\\/])[^\s'"`)]*)*/.source
+  // Any other absolute path — a drive letter, a UNC share in either spelling, a
+  // file: URL, or a POSIX root — becomes `<path>`. Not preceded by a path
+  // character or by one of this function's own placeholders, so `docs/var/x`,
+  // `./tmp/x` and `<tmp>/qh-1` are untouched; a colon or `->` may precede it; a
   // URL's `//` may not, and a bare `/` between words is not a path.
-  const ABSOLUTE = /(?<![\w.\\/>-])(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|\/(?!\/))[^\s'"`)\\/][^\s'"`)]*/g
+  //
+  // ⚠ THE SAFE DIRECTION IS OVER-SCRUBBING, BY DECISION. This is a classifier
+  // over free text (CLAUDE.md §16) and it cannot be made exact: a regex literal
+  // in a diagnostic (`/foo\/bar/i`) and a URL's query path (`?q=/api/v1`) are
+  // redacted too, and three review rounds found a leak each time the boundary
+  // was made cleverer. A report that lost a reproduction hint costs one
+  // question; a report that shipped a home directory cannot be recalled (§6).
+  const HEAD = /(?<![\w.\\/-])(?<!<(?:tmp|home|plugin|path)>)(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|(?<!:)\/\/[^\s'"`)\/]+\/|\/(?!\/))/.source
+  const ABSOLUTE = new RegExp(`${HEAD}[^\\s'"\`)\\\\/]${TAIL}`, 'g')
   return text => {
     let out = String(text)
     for (const [pattern, placeholder] of known) out = out.replace(pattern, placeholder)

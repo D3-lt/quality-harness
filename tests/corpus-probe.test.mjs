@@ -38,6 +38,19 @@ test('scrubber: every absolute path is a placeholder, and a repository-relative 
   assert.equal(scrub(prose), prose, 'a URL, a line number, a bare drive letter and a slash between words are not paths')
   const linux = scrubber({ root: '/srv/repo', pluginRoot: '/srv/plug', tmp: '/tmp', home: '/home/me' })
   assert.equal(linux('docs/tmp/x ./tmp/x /tmp/qh-1/x /home/me/y'), 'docs/tmp/x ./tmp/x <tmp>/qh-1/x <home>/y')
+  // Codex review of abd5a13: an apostrophe inside a quoted path, a quoted file:
+  // URL, an UNQUOTED path with a space, a forward-slash UNC share, a `->` before
+  // the path — and the over-scrub the design accepts, pinned so it is a decision
+  // and not a surprise.
+  assert.equal(scrub("\"/opt/Example's secret/private/task.md\""), '"<path>"')
+  assert.equal(scrub('"file:///opt/Example Person/private/task.md"'), '"<path>"')
+  assert.equal(scrub('D:\\Projects\\Example Person\\private\\task.md failed'), '<path> failed')
+  assert.equal(scrub('/Users/Example Person/private/task.md was read'), '<path> was read')
+  assert.equal(scrub('//server/share/private/task.md'), '<path>')
+  assert.equal(scrub('at ->/opt/private/task.md'), 'at -><path>')
+  assert.equal(scrub('Invalid regular expression: /foo\\/bar/i'), 'Invalid regular expression: <path>',
+    'over-scrubbed on purpose: a slash-rooted token in free text is a path until proven otherwise (§6)')
+  assert.equal(scrub('https://example.invalid/?q=/api/v1'), 'https://example.invalid/?q=<path>', 'same decision')
 })
 
 test('compareReaders: a directory work-next could not read is not a disagreement, and a crashed reader compares nothing', () => {

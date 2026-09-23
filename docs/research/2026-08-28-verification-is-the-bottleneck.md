@@ -249,6 +249,18 @@ deterministically, that the action violates a stated policy. This project curren
 action-boundary gates at all — every gate reads artifacts after the fact — so the tension is
 latent rather than live. It becomes live the day one is added.
 
+**STATUS 2026-09-23 — the tension went live, and was decided the way this section said.** ADR-061
+(Accepted 2026-09-22) added the first action-boundary gate: a command whose text names `commit` or
+`push`, on a tree no `qh-check` has passed on, when the session log was read whole, is **refused**.
+The reconciliation above is the one it applied — the refusal fires on a deterministic fact about the
+tree, never on a judgement; every could-not-look (a torn log, an unordered check, a check that timed
+out) warns instead of refusing (ADR-005); and a project turns it back into a warning with
+`"publish": "warn"` in `.quality-harness.json`. The paragraph above is left as written because it
+predicted the shape correctly and said the cost plainly: the false refusal it also predicted arrived
+within an hour (a heredoc whose body contained the word "commit"), and is kept by the owner's choice
+because narrowing it needs command parsing that ADR-060 retired. `.claude/rules/03-gates-advise.md`
+carries the account.
+
 ---
 
 ## Sources
@@ -292,6 +304,11 @@ latent rather than live. It becomes live the day one is added.
 | 35 | `obra/superpowers` — read from the installed 6.3.0 copy | [github.com](https://github.com/obra/superpowers) |
 | 36 | `github/spec-kit` | [github.com](https://github.com/github/spec-kit) |
 | 37 | SonarQube plugins for Claude Code, Copilot, Codex, Cursor (2026-07-01) | [securityboulevard.com](https://securityboulevard.com/2026/07/sonarqube-plugins-bring-trusted-verification-to-claude-code-copilot-codex-cursor-and-beyond/) |
+| 38 | Pan, Zhou & Hu — Self-Reports Are Not Verification: Environment-Grounded Auditing of LLM Operators in Evolutionary Search (2026-09-01) | [arXiv 2609.00652](https://arxiv.org/abs/2609.00652) |
+| 39 | Compaction as Epistemic Failure: How Agentic LLM Tools Fabricate Confirmed Results from Killed Processes (2026-07-11) | [arXiv 2607.13071](https://arxiv.org/abs/2607.13071) |
+| 40 | `obra/superpowers` PR #2324 — "verification-before-completion: evidence needs provenance, not just freshness" (open, 2026-09) | [github.com](https://github.com/obra/superpowers/pull/2324) |
+| 41 | `github/spec-kit` discussion #1662 — `/speckit.verify` proposal | [github.com](https://github.com/github/spec-kit/discussions/1662) |
+| 42 | `ncoevoet/claude-workflow-kit` — "evidence-first" Claude Code plugin | [github.com](https://github.com/ncoevoet/claude-workflow-kit) |
 
 ## 9. A counterweight: the harness as a trainable artifact
 
@@ -576,3 +593,75 @@ of one until somebody else runs the sweep on their corpus and reports the bucket
 project's check itself, (b) writes the exit code and a digest of what it ran into the record, and (c)
 refuses a completion status without it. Any of the spec-driven tools could add that in a week; none
 has, and the reason is worth knowing before assuming it is oversight.
+
+---
+
+## 13. Round three: 2026-09-23 — the literature, the tools and the four gaps, re-read
+
+**Retrieved 2026-09-23.** Same rule as the top of this file. Star counts are from `gh api
+repos/<owner>/<repo>` on this date; each tool's mechanism was read from the linked page on this date
+by a summariser, which is a weaker source than a file on disk, and none of the tools was installed or
+run. Where a sentence is this repository's reading, it says so.
+
+### What the literature added
+
+- **Self-reports overstate by a measured factor** (source 38, submitted 2026-09-01). LLM operators in
+  an evolutionary-search setting, where every intermediate proposal receives an exact outcome,
+  *"overstate top-100 success by factors of 4.8 to 9.3"*; stated confidence was not calibrated. Their
+  conclusion is this project's premise in one sentence: *"Agent self-reports should therefore be
+  treated as claims to verify against the environment, not as evidence of their own reliability."*
+  What this repository does about it: `adr-verify` records the environment's answer (exit code,
+  digest of what ran) and `adr-lint` refuses `done` without it. Nothing new to build; one more
+  citation for the mechanism.
+- **A killed process reads as a confirmed result after compaction** (source 39, submitted 2026-07-11;
+  abstract only, and the abstract carries no numbers). The failure named is specific to the host this
+  plugin runs in: partial stdout from a command that timed out (exit 143) *"is recorded in compaction
+  summaries as confirmed results"*, and the false positive persists across sessions. Root cause in
+  their words: *"conflation of observation and persistence."* What this repository does about it: a
+  `qh-check` that times out is recorded as `check.timeout`, never as a pass; a check that did not start
+  is `unstarted`; the completion advisories read the recorded event, not the transcript's prose; and
+  the re-ground wake makes a session re-read its ground after a compaction instead of trusting the
+  summary. None of that was designed against this paper — it was designed against ADR-005 — and the
+  paper is the first outside measurement of the shape. **Not verified here:** whether the host's
+  compaction summary still records a 143 as confirmed on the current Claude Code; the paper is two
+  months old.
+
+### The four gaps, re-checked against the code (method as §8's STATUS rows: read the code, run the tool)
+
+| # | Gap as written 2026-08-28 | Verified state 2026-09-23 |
+|---|---|---|
+| 1 | No false-success rate is reported | Unchanged since 2026-09-04: the recorded-claim rate is answerable on demand (`adr-verify --sweep`); the agent-claim rate is withdrawn pending a fresh measurement. |
+| 2 | Trajectory evaluation is thin | Closed 2026-09-04 (`trajectory-metrics.mjs`); unchanged. |
+| 3 | Pointers resolve to nothing | Closed (ADR-011); unchanged. |
+| 4 | Evals measure the skills, not the harness's effect on false success | Closed 2026-09-04; unchanged. Fifteen cases today, still mostly "does a skill fire". |
+
+**A fifth gap, not in the 2026-08-28 list, and the one this round adds:** the mechanism is not
+reachable where adopters are. ADR-012 (Accepted) rules out exposing `adr-verify` over MCP *"in any
+form"* as permanent, so a Desktop, Cursor or Codex user can be told a record is dirty and cannot
+record the evidence that is the product (ADR-012's own words at its line 184-186: *"A Desktop user
+can be told what is wrong and cannot record that they fixed it"*). The owner's decision on
+2026-09-23 is to revisit after the adoption work below ships, with measured onboarding numbers.
+
+### §12 re-read: the falsifier has not fired
+
+| Tool | Stars 2026-09-04 → 2026-09-23 | What moved |
+|---|---|---|
+| `obra/superpowers` | 281,656 → 290,476 | PR #2324 (open) adds "evidence needs provenance" to `verification-before-completion`: three more rules in the SKILL.md and a shell test of the *prose*. The field is converging on this project's problem statement; the mechanism is still an instruction to the model. |
+| `github/spec-kit` | 133,420 → 138,520 | `/speckit.verify` (discussion #1662): three tiers, a `VERIFICATION_REPORT.md`. A proposal; the maintainer asked for it as an extension first (2026-02-24); the design is agent-driven — the agent parses `TESTING.md` and performs "semantic evaluation". PR #4621 clarifies that `/speckit.converge` must assess rather than trust checkbox state. |
+| `Fission-AI/OpenSpec` | 67,282 → 69,965 | Not re-read. |
+| `bmad-code-org/BMAD-METHOD` | 52,671 → 53,381 | Not re-read. |
+| `ncoevoet/claude-workflow-kit` | — → 1 | New in this table. "Evidence-first … claim-class proofs, adversarial spec review, a pre-commit review gate." Its README (read by a summariser): standards are injected as context; `prove.sh` breaks a file to show a check goes red, run by hand; the commit gate blocks on a review finding, not on a recorded exit code. Nearest neighbour in *vocabulary* found so far; not in mechanism. |
+| **quality-harness** | 1 → 2 | 1 fork, 1 external adopter. Since 09-04: ADR-060 (advisories react to observed events), ADR-061 (the publish refusal), ADR-063 (record identity), and eleven releases. |
+
+**Position, restated so it can still be wrong.** The falsifier stands as written in §12: a tool that
+(a) runs the project's check itself, (b) writes the exit code and a digest of what ran into the
+record, and (c) refuses a completion status without it. None of the tools above did that on
+2026-09-23. Two of them wrote down, in their own issue trackers, the problem it solves.
+
+**On adoption, the distance widened in absolute terms and the honest framing has not changed:** the
+mechanism has now run on four foreign corpora, all owned by this project's owner, and every product
+defect found this month — fixtures read as records, archived records offered for retirement, a CLI
+that went silent through a symlink, a check that could not start under cmd.exe — was found by a peer
+session or a probe, not by the 1216-test suite. That is the gap the adoption work is aimed at, and it
+is the number to report next time: how many corpora nobody here owns have run `adr-verify --sweep`
+and pasted the buckets.

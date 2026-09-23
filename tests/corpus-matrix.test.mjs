@@ -77,8 +77,11 @@ for (const [name, dir] of corpora) {
     assert.equal(report.look, expected.look, `${name}: look`)
     assert.deepEqual(report.corpora, expected.corpora, `${name}: corpus directories`)
     assert.deepEqual(report.records.map(r => [r.file, r.kind, r.frozen]), expected.records, `${name}: records read, with kind and frozen:\n${JSON.stringify(report.records, null, 2)}`)
+    // `readinessUnproven` is asserted: a valid exit-3 answer was read as unproven
+    // for a whole review round because nothing here looked (Codex, bdeba73).
     assert.deepEqual({ records: report.workNext.records, accepted: report.workNext.accepted, tasks: report.workNext.tasks,
-      ready: report.workNext.ready, unbacked: report.workNext.unbacked, retirable: report.workNext.retirable, next: report.workNext.next?.id ?? null },
+      ready: report.workNext.ready, unbacked: report.workNext.unbacked, retirable: report.workNext.retirable,
+      readinessUnproven: report.workNext.readinessUnproven, next: report.workNext.next?.id ?? null },
     expected.workNext, `${name}: work-next:\n${JSON.stringify(report.workNext, null, 2)}`)
     assert.deepEqual({ read: report.adrState.read, governing: report.adrState.governing }, expected.adrState, `${name}: adr-state`)
     assert.deepEqual(report.adrNext.map(entry => ({ tasksDir: entry.tasksDir, ready: entry.ready?.map(task => task.id) ?? null })), expected.adrNext, `${name}: adr-next:\n${JSON.stringify(report.adrNext, null, 2)}`)

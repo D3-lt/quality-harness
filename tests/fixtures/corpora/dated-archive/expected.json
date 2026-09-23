@@ -39,6 +39,7 @@
       "archive-service/docs/adr/ADR-004-archive-service-retention.md",
       "docs/adr/archive-policy.md"
     ],
+    "readinessUnproven": [],
     "next": "adr-retire"
   },
   "adrState": {

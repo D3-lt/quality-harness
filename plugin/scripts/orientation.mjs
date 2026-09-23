@@ -12,7 +12,7 @@
 // either way; a directory that does not exist is exit 2 with the reason.
 import { statSync } from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 import { sessionOrientation } from './lifecycle.mjs'
 
 export function main(argv = process.argv.slice(2), stdout = process.stdout, stderr = process.stderr) {
@@ -30,6 +30,6 @@ export function main(argv = process.argv.slice(2), stdout = process.stdout, stde
   return 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = main()
 }

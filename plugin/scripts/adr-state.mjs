@@ -15,7 +15,7 @@
 import path from 'node:path'
 import { adrCorpus, trackedPaths } from './lifecycle.mjs'
 
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 // The CLI is behind an import guard (BACKLOG §27). It used to run at module
 // scope, so importing this file read the whole corpus and printed a report as a
@@ -239,6 +239,6 @@ export function main(argv) {
   return 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2))
 }

@@ -9,7 +9,7 @@
 // context can never drift apart.
 import { realpathSync } from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 import { adrCorpus, decisionsGoverning, trackedPaths } from './lifecycle.mjs'
 
@@ -134,6 +134,6 @@ export function main(argv, root = process.cwd()) {
   return 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = main(process.argv.slice(2))
 }

@@ -6,7 +6,7 @@
 // until a command that prints its interface has been run; nothing here guesses argv.
 import { spawnSync } from 'node:child_process'
 import { existsSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 export const CODEX_MODEL = 'gpt-6-astra'
 export const EFFORTS = new Set(['high', 'xhigh', 'ultra'])
@@ -148,7 +148,7 @@ function arg(name) {
   return index >= 0 ? process.argv[index + 1] : undefined
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const result = hostReview({
     host: arg('--host'), effort: arg('--effort') ?? 'high', model: arg('--model') ?? null, repo: arg('--repo'),
     scope: arg('--scope'), requirements: arg('--requirements') ?? '', evidence: arg('--evidence') ?? '',

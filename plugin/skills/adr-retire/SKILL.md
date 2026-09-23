@@ -21,11 +21,13 @@ decision effect controls whether a choice still governs. Archive is not a synony
   records; do not rerun acceptance merely to manufacture present-day evidence for old work.
 - An archived `Accepted` ADR may still govern. The archive catalog's `Decision effect` is the
   current authority sidecar for frozen records: `governing`, `superseded by ADR-NNN`, or `withdrawn`.
+  A record named `YYYY-MM-DD-slug.md` has no ADR number and is named by its stem there and
+  everywhere else a record is referenced (ADR-063); `NNN-slug.md` keeps its number.
 - The active corpus `README.md` is the compact discovery surface. It links every governing ADR,
   including governing records in the archive, so routine grounding need not load historical tasks
   and verification logs.
 - Every meaningful deferred item or unchecked follow-up leaves a receipt in the active
-  root's canonical `BACKLOG.md` before retirement. Receipts name the source ADR exactly; archive
+  root's canonical `BACKLOG.md` before retirement. Receipts name the source ADR exactly, by ADR id or a dated record's stem or path; archive
   pointers and unrelated external files are never backlog destinations.
 
 ## Workflow

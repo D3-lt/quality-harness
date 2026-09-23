@@ -183,6 +183,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON  # noqa: E402,E501
+from record import record_id, title_line  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock  # noqa: E402
 
 
@@ -1997,14 +1998,17 @@ def record_number_of(task):
     directory = task.resolve().parent
     if directory.name.lower() == "tasks":
         directory = directory.parent
-    record = directory.with_suffix(".md")
+    # The record FILE is named for the whole directory: `with_suffix(".md")` turned
+    # `v1.2-notes` into `v1.md` and `2026.07.15.x` into `2026.07.15.md`.
+    record = directory.parent / f"{directory.name}.md"
+    title = None
     if record.is_file():
-        title = re.search(r"^#\s+ADR[-_ ]?(\d{1,4})\b",
-                          record.read_text(errors="replace", encoding="utf-8"), re.M | re.I)
-        if title:
-            return int(title.group(1))
-    name = re.search(r"(?:adr[-_]?)?(\d{3,4})[-._]", directory.name, re.I)
-    return int(name.group(1)) if name else None
+        title = title_line(record.read_text(errors="replace", encoding="utf-8"))
+    # ADR-063: the shared rule, so a dated directory has no number. An unanchored
+    # search read `2026-07-15-x` as 2026, and any guard that stayed unanchored read
+    # 26 instead, below every realistic cutoff: the fail-open direction.
+    found = record_id(directory.name, title)
+    return int(found[len("ADR-"):]) if found and found.startswith("ADR-") else None
 
 
 def demoted_by(number, cutoff):

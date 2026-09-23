@@ -13915,3 +13915,181 @@ Not measured: whether any user of this plugin runs a case-sensitive APFS volume.
 this can only produce a wrong ADVISORY, never a refusal. What would close it: ask the filesystem
 instead of the OS (for example, whether the path with its case flipped resolves to the same inode),
 behind the existing `platform` seam so a test can drive both answers.
+
+## 252. The id rules ADR-063 left per gate, and the members a grep cannot see (2026-09-22)
+
+ADR-063 moved record identity into `plugin/lib/record.py` for `adr-retire-check`, and T2 and T3 carry
+it into `lifecycle.mjs`, `adr-state.mjs` and `adr-verify`. Every other gate still reads a record
+number its own way, and these are deferred here rather than changed, because each works for numbered
+and `NNN-slug` corpora today and rewriting it risks reopening §66 or §190:
+
+- `adr-lint`'s cross-reference enumeration (`record_files`): name-based, so a dated record is not a
+  resolvable citation target, and a date-shaped name titled `# ADR-5` is dropped where ADR-063's rule
+  gives 5.
+- `adr-next`: `RECORD_NUMBER` and `glob("ADR-*.md")`; `adr_12_x.md` is not read as 12.
+- `adr-debt`: its record-number regexes.
+- `plugin/scripts/corpus-report.mjs:76` and `plugin/scripts/eval-fixture.mjs:68` (`/^ADR[-_]?\d/`).
+- `plugin/scripts/facts-gate-dispatch.sh:258` (`ADR-*.md`): a dated record reaches `adr-lint` only by its
+  content test.
+
+Found with, on 2026-09-22:
+
+    git grep -nE 'ADR[-_ ]?\??\??[(\[]?\\d|ADR-\\d|\(\\d\{[0-9],?[0-9]?\}\)|\(\?:adr\[' -- plugin/bin plugin/lib plugin/scripts
+
+That returned 27 lines in 7 files, one of them a false positive (`run-shell-hook.mjs:526`, a git file
+mode). It cannot see a glob or a regex built from a template; two cold reviews of ADR-063 found those
+members by reading. What would close this: route each gate through `record.record_id` (and lifecycle's
+pinned copy), one gate per change, each with the numbered corpora as its control.
+
+## 253. A build diagnostic anywhere in a failing fence makes a real kill inconclusive (2026-09-22)
+
+`adr-verify` classifies a mutant run as `inconclusive` when any `BUILD_BROKE` pattern matches
+anywhere in the fence output (`plugin/bin/adr-verify`, the `elif any(re.search(pat, out, re.M) for pat
+in BUILD_BROKE)` arm, checked before a failing assertion is recognised). A fence whose test ASSERTS
+that a nested build fails prints Go's `[build failed]` as part of a correct, failing assertion, so the
+kill is recorded as "the fence failed on a build/parse error, not an assertion". Reported from
+memory-runtime (ADR-015 T8, adr-verify 2.100.0, 2026-09-20): its `TestLiveFilesCompile` mutant could not
+bind a killed row. Confirmed at `849a80f` by reading the arm; not reproduced here.
+
+Open design question, as the reporter framed it: telling a top-level broken test build apart from a
+build-check assertion. Do not solve it by suppressing compiler diagnostics or weakening either fence.
+The direction that fails safe matters: a false `inconclusive` is an annoyance, a false `killed` is the
+defect the list exists to stop (the list's own comment).
+
+Reproduced in this repository on 2026-09-22 (ADR-063 T2): the mutant that removes `ADR_FILE`'s date
+guard in `plugin/scripts/lifecycle.mjs` failed the fence and was graded `inconclusive`, "the fence
+failed on a build/parse error, not an assertion", because the full suite's output contains a
+`BUILD_BROKE` pattern somewhere. The same mutant is RED in `scripts/mutate.mjs`'s campaign, which
+grades by the named test file.
+
+## 254. `adr-debt` reports follow-ups that a later Accepted record disposes of (2026-09-22)
+
+Reported from memory-runtime (adr-debt 2.100.0, 2026-09-20): eleven open follow-up rows from frozen
+ADR-008 to ADR-014, while its BACKLOG Follow-ups section is empty and Accepted ADR-015's Out of Scope
+disposes of the exact texts. The frozen records are SHA-pinned and must not be edited to silence the
+tool. The question for this project: should a superseding record's disposition suppress or qualify a
+historical row, and in what grammar. Not reproduced here.
+
+## 255. Peer-probe leads from 2026-09-18 to 2026-09-22 that nothing has confirmed or closed (2026-09-22)
+
+Moved out of the `wing_quality-harness` inbox so they are tracked in this file. Each is a lead from
+another repository's session, not a measurement here. The inbox items that were fixed or already had
+an entry here were closed rather than copied: the quality-cycle `externalReviews` reason (`9f206ad`),
+the date-slug retire gate (ADR-063), the `composer test` rung (removed), `qh-doctor` dropping the
+unidentified count, `branch-state` leaking child stderr, the vitest `-t` row (`.claude/rules/16`), the
+inferred check narrower than a husky gate (§244), the `adr-audit` handoff (§245), and Ansible
+`roles/*/tasks` directories read as ADR task directories (the `lifecycle.mjs` task-directory scan now
+requires a `*.md` directly under `tasks/`).
+
+- **`absent:<base>:<owning ADR>`.** On the ADR-060 trial a deletion under an archive-owned path was
+  filed under an `ABSENT` key carrying no owner, so editing the owner could not re-open the question.
+  Deferred there on purpose, because it changes what a persisted key means. Not re-read at `849a80f`:
+  the names the report used are no longer in `plugin/`.
+- **The errno table** from the same review: EISDIR read as null, `contentId` following symlinks, and a
+  FIFO blocking `readFileSync` outside the budget window. The suggested fix was `statSync` plus
+  `isFile()` first. Recorded there, not done.
+- **`./vendor/bin/pint --test` is not a validation command.** Laravel's first-party linter in dry-run
+  mode, where a first-token pattern finds no test/lint/check word. Reported on 2.99.6.
+- **An Acceptance fence that pipes its runner, or `cd`s outside the record's repository**, is linted by
+  nothing, and `work-next` reports readiness for a tree no gate read. The reporter was unsure whether
+  that is the gate's problem or the author's.
+- **`qh-check` exit 2 writes no row**, so "a session tried and there was nothing to run" looks the same
+  as "nobody ran it". It is conservative, since an advisory still says `unchecked`. The open question is
+  whether the next session should see the attempt.
+- **The peer-probe script changed between a peer reading it and running it** (2026-09-19). A request for
+  a peer run should carry the script's sha256, so the peer can show which version it ran.
+
+## 256. An inherited `FORCE_COLOR` makes the mutation runner read no test output (2026-09-22)
+
+`childEnv` (`scripts/mutate.mjs`) strips two inherited variables because each changes what a child
+`node --test` prints: `NODE_TEST_CONTEXT` and a `--test-reporter` in `NODE_OPTIONS`. `FORCE_COLOR` is a
+third member of the same class and is not stripped. With it set, the spec reporter's lines carry ANSI
+codes, the baseline parser finds none, and every baseline is `unrun` ("the test output carried no spec
+reporter lines"). That errs toward UNPROVEN, not a false verdict, but a campaign run from such a shell
+measures nothing.
+
+Found 2026-09-22 when a restarted session's environment carried `FORCE_COLOR=3` and three tests failed:
+`tests/mutate-runner.test.mjs` "end to end: a nonsense pattern under an inherited dot reporter is
+unrun, and a matching one passes" and "a checkout path with a space is still an unrun baseline when
+nothing matched", and `tests/mutation-cache-merge.test.mjs` "the runner records what it MEASURED, and
+records nothing when it reused". They failed identically on the released `849a80f` in a clean
+worktree, and all 40 tests in those two files passed with `env -u FORCE_COLOR`. So `selftest.sh` is red
+in any shell that exports it; CI does not.
+
+What would close it: strip `FORCE_COLOR` in `childEnv` beside the other two, and add a test that runs
+the end-to-end case with `FORCE_COLOR=3` in the parent environment. Not checked: whether `NO_COLOR` or
+`NODE_DISABLE_COLORS` interact, and whether any other script in `scripts/` parses child test output.
+
+## 257. `adr-verify --sweep` cannot see a claim recorded with its run time (2026-09-22)
+
+`CLAIM_RE` in `plugin/bin/adr-verify` ends a claim row at its digest, `acceptance-sha256:<64 hex>\s*$`.
+ADR-020 T1 (`dab3afe`) made every row `adr-verify` writes end in ` · ms:<N>`, so no row recorded
+since then is a claim to the sweep. It re-checks only legacy rows and reports its rate over those
+alone, while the claims it cannot see leave both halves of the ratio in silence, which is the
+could-not-look-reported-as-clean shape ADR-005 exists against.
+
+Measured on this repository on 2026-09-22: 388 exit-0 rows under `docs/adr/*/tasks/` carry the
+suffix and 73 do not, and `adr-verify --sweep docs/adr --timeout 1` accounted for 52 claims
+(`0/6 recorded claims no longer hold (15 superseded, 31 unrunnable`). Found while writing ADR-063
+T3's test, whose fixture now strips the suffix so the sweep can observe the demotion.
+
+What would close it: let `CLAIM_RE` accept the optional ` · ms:<N>` suffix (and any later field
+the writer adds), with a test that records a row through `adr-verify` and asserts the sweep counts
+it. Then re-read what the corrected rate says about this corpus before trusting it.
+
+## 258. The observed-events object count fails about one run in three, in a linked worktree under load (2026-09-22)
+
+`tests/observed-events.test.mjs` "observing writes nothing into the repository" counts the files
+under the test repository's `.git/objects` before and after `lifecycle.observe`, and asserts they
+are equal. On 2026-09-22 it failed 3 of about 10 full-suite runs in a linked worktree (`3 !== 4`,
+an object gone rather than added), passed 6 of 6 run alone, and passed every full-suite run in the
+main checkout that day.
+
+Unverified hypothesis: the test builds its repository with a plain `git commit`, and git 2.55 can
+start detached auto-maintenance after a commit, so a background process may be tidying
+`.git/objects` while the test counts. What would settle it: run the repository helper with
+`-c gc.auto=0 -c maintenance.auto=false` and see whether the failure stops under the same load.
+
+## 259. An ADR-named directory takes a note from the record around it (2026-09-22, pre-existing)
+
+`adr-retire-check` attributes a file by the first ADR-N token in its heading, its own name, or any
+directory up to the archive root, walking inward-out. So `ADR-001-old/notes-ADR-999/plan.md`
+belongs to ADR-999, not ADR-001: with no ADR-999 record and no receipt, its open obligation is
+counted against nothing and the gate passes. Codex found it on 2026-09-22 while reviewing ADR-063,
+and it holds at `d39cc9e`, before ADR-063. ADR-063 kept this rule unchanged, because its failure
+criterion is that a numbered corpus attributes every file exactly as before, and changing it broke
+an existing seal (`ADR-999-notes/notes-ADR-001.txt`, which the same walk gives to ADR-001).
+
+What would close it: decide which of the two the rule should honour, the token nearest the file or
+the outermost record directory, and re-seal any archive the change moves a file in; that needs its
+own record, since it changes what a seal covers.
+
+## 260. A decision unit's seal order depended on the host's filesystem case rule (2026-09-23, pre-existing)
+
+Windows CI on PR #15 (run 35818555302, job 107045283739) failed three ADR-063 tests with
+`2026-07-15-app-tier-provisioning: SHA-256 does not match the frozen decision unit`. The cause
+predates ADR-063: `decision_unit_files` returned `sorted(paths)`, and Windows `Path` ordering folds
+case, so a unit holding `WAVE3-PLAN.md` beside `tasks/` hashed in a different order there than on
+macOS or Linux. A catalog sealed on one platform failed on the other. Fixed by `unit_order`, which
+sorts by `path.parts`, and that is POSIX's existing order: this repository's archive and the retire
+branch's both still PASS unchanged. A seal written ON Windows over a unit whose names order
+differently by case will now read as a mismatch there, and needs re-sealing once.
+
+The test catches it on every host through `PureWindowsPath`. A call site that bypassed `unit_order`
+would be caught only on Windows CI.
+
+Sweep for the class, as `grep -rnE "sorted\([^)]*(rglob|glob|iterdir|files)" plugin/bin plugin/lib`
+plus every `hashlib.sha256()` / `createHash('sha256')` in `plugin/`. The retire digest is the only
+hash taken over an ordered file set. The remaining Path sorts order output or iteration, not bytes:
+`adr-retire-check` lines 152 and 219 (checked; not seal-affecting), `adr-next`, `adr-debt` and
+`adr-lint`. One sibling is left for later: `adr-next`'s `sorted(record_dir.parent.glob("*.md"))[:200]`
+keeps a platform-dependent 200 when a directory holds more.
+
+The same run found a second, test-only defect in the same file: `sweepCorpus` split CRLF stdout
+on `\n`. On Windows every line then kept a trailing `\r`, so the numbered controls failed, and the
+negative assertion on dated records passed without looking at anything. It now splits on `/\r?\n/`.
+
+Still not portable, and older than this fix (Codex review of `d14d597`): the relative path is hashed
+without Unicode normalisation, so a composed `é.md` and a decomposed one hash differently, and HFS+
+stores names decomposed. Unit files whose names differ only by case collide on Windows as well.
+Normalising names would move existing seals, so it needs its own decision.

@@ -1273,12 +1273,87 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
 // the edit boundary would rebuild the artifact-gate budget problem somewhere
 // much hotter.
 
-// A record's filename, and NOT an ISO-dated one: `2026-03-08-retrospective.md`
+// A record's filename, and NOT a dated one: `2026-03-08-retrospective.md`
 // begins with four digits and a dash like every `0043-thing.md` does, so a
 // postmortem or a journal entry was read as ADR-2026. Measured on a real corpus,
-// 2026-08-26.
-const ADR_FILE = /^(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?\d{3,4}[-._]/i
+// 2026-08-26. The guard is the shared date shape since ADR-063, so `2026_03_08`
+// and `2026.3.8` are dates too, not only the hyphen spelling.
+const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?)?\d{3,4}[-._]/i
 const RECORD_BUDGET = 200
+
+// --- Record identity (ADR-063) ------------------------------------------------
+// The same rule as plugin/lib/record.py's `record_id` and `references_in`, kept
+// here because this hook cannot import the gate library. One fixture table in
+// tests/record-identity.test.mjs runs both, so a divergence is a failing test.
+// A record is `ADR-NNN` when its title or a non-date name carries a number, the
+// exact stem of a date-shaped name otherwise, and nothing else by name.
+const RECORD_FILE_RE = /^(?:adr[-_]?)?(\d{1,4})[-._]/i
+// The exclusion guards match any decimal digit, as Python's `\d` does in record.py;
+// a NUMBER is read with ASCII `\d` below. Two classes, on purpose (record.py says why).
+const TASK_SHAPED_RE = /^(?:adr[-_]?)?\p{Nd}{1,4}[-._]T\p{Nd}+(?:[-._]|$)/iu
+const DATE_SHAPED_RE = /^\p{Nd}{4}[-_.]\p{Nd}{1,2}[-_.]/u
+const TITLE_TASK_RE = /^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+/i
+const TITLE_ADR_RE = /^﻿?#\s*ADR[-_ ]?(\d.*)$/i
+const TITLE_NUMBER_RE = /^(\d{1,4})(?!\d)/
+const HEADING_LINE_RE = /^﻿?#\s/
+// A reference that is nothing but a date, `(2026-07-12)` beside a path: never a record.
+const BARE_DATE_RE = /^\d{4}[-_.]\d{1,2}[-_.]\d{1,2}$/
+const NUMBERED_REF_RE = /(?<![A-Za-z0-9_])ADR-(\d+)(?![A-Za-z0-9_])/gi
+const REF_CHUNK_RE = /[A-Za-z0-9._/\\-]+/g
+
+const numberId = number => `ADR-${String(Number(number)).padStart(3, '0')}`
+
+/** The first `# ` heading line of a record's text, or null. */
+export function titleLine(text) {
+  for (const line of text.split(/\r\n|\r|\n/)) if (HEADING_LINE_RE.test(line)) return line
+  return null
+}
+
+/** A record's identity (ADR-063): `ADR-NNN`, a dated stem, or null. */
+export function recordId(name, title = null) {
+  if (title !== null && !TITLE_TASK_RE.test(title)) {
+    const found = TITLE_ADR_RE.exec(title)
+    if (found && !DATE_SHAPED_RE.test(found[1])) {
+      const number = TITLE_NUMBER_RE.exec(found[1])
+      if (number) return numberId(number[1])
+    }
+  }
+  const isMarkdown = name.toLowerCase().endsWith('.md')
+  const stem = isMarkdown ? name.slice(0, -'.md'.length) : name
+  const shaped = isMarkdown ? name : `${name}.`
+  if (DATE_SHAPED_RE.test(shaped)) return stem
+  if (TASK_SHAPED_RE.test(stem)) return null
+  const found = RECORD_FILE_RE.exec(shaped)
+  return found ? numberId(found[1]) : null
+}
+
+/**
+ * Every record a piece of prose names, in the order it names them: `ADR-NNN` ids
+ * and dated stems, a stem only as a whole token or path component.
+ */
+export function referencesIn(text) {
+  return [...new Set(referencesWithProvenance(text).map(entry => entry.id))]
+}
+
+// Each reference in text order, with where it is and whether it was written as a
+// file or a path (`x.md`, `docs/adr/x`) rather than a bare token: record.py's
+// `_references`, so a date written as a filename is a name, not prose.
+function referencesWithProvenance(text) {
+  const found = []
+  for (const match of text.matchAll(NUMBERED_REF_RE)) found.push({ at: match.index, id: numberId(match[1]), explicit: true })
+  for (const chunk of text.matchAll(REF_CHUNK_RE)) {
+    let offset = chunk.index
+    const pathlike = /[/\\]/.test(chunk[0])
+    for (const raw of chunk[0].split(/[/\\]/)) {
+      let part = raw.replace(/[.,;:)]+$/, '')
+      const filename = part.toLowerCase().endsWith('.md')
+      if (filename) part = part.slice(0, -'.md'.length).replace(/[.,;:)]+$/, '')
+      if (part && DATE_SHAPED_RE.test(part)) found.push({ at: offset, id: part, explicit: filename || pathlike })
+      offset += raw.length + 1
+    }
+  }
+  return found.sort((a, b) => a.at - b.at)
+}
 
 // A `## Heading` section's body. Written as a scan rather than one regex because
 // JavaScript has no `\Z`: `(?=^##\s|\Z)` requires a literal Z, so the lookahead
@@ -1297,6 +1372,15 @@ function markdownSection(text, heading) {
 }
 
 // `**Status:** Accepted`, `Status: Accepted`, or a `## Status` section's first line.
+// The status line as written, for reading WHICH record it names. `recordStatus`
+// strips every underscore, which is right for classifying the status and wrong for
+// a record name inside it: `2026_07_15_new` named nothing, `…-new_` another record
+// (Codex, 2026-09-22, rounds 4 and 5). Only `*` and backticks are markup here.
+function rawStatus(text) {
+  const inline = text.match(/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$/im)
+  return inline ? inline[1].replace(/[*`]/g, '').trim() : recordStatus(text)
+}
+
 function recordStatus(text) {
   const inline = text.match(/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$/im)
   if (inline) return inline[1].replace(/[*_`]/g, '').trim()
@@ -1313,9 +1397,9 @@ function statusKind(status) {
   return null
 }
 
-// What the archive catalog beside a frozen record says its decision's effect is
-// NOW: `governing`, `withdrawn`, or `superseded by ADR-NNN` — or null when the
-// directory is not an archive, or lists no row for this record.
+// What the archive catalog of a frozen record says its decision's effect is
+// NOW: `governing`, `withdrawn`, or `superseded by <record>` — or null when the
+// record is under no archive, or its catalog lists no row for it.
 //
 // ⚠ THE CATALOG, NOT THE FILE, IS THE AUTHORITY FOR A FROZEN RECORD. A retired file
 // is never edited — that is what frozen means — so one withdrawn in 2026 says
@@ -1334,7 +1418,7 @@ function statusKind(status) {
 // one of the three effects `adr-retire-check` accepts — or `{ unproven }`.
 // Returns null when the directory is not a LISTED archive: the file's own status
 // stands there, and an unlisted README on this disk governs nothing (CLAUDE.md §8).
-const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by ADR-\d+)$/i
+const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by \S.*)$/i
 
 function catalogCells(line) {
   const cells = []
@@ -1348,12 +1432,40 @@ function catalogCells(line) {
   return cells.slice(1, -1)
 }
 
-function archiveDecisionEffect(file, reader, cache, listed) {
-  const directory = path.dirname(file)
+// ⚠ THE CATALOG SITS AT THE ARCHIVE'S ROOT, which is not always the file's own
+// directory: the per-record layout `<archive>/<stem>/<stem>.md` keeps the record
+// one level down, and this reader looked only beside the file, found no catalog,
+// and let a withdrawn record's frozen `Status: Accepted` govern (ADR-063; the
+// comment above warns of exactly that). So walk up, to the corpus root and no
+// further, to the nearest listed directory whose README carries the Lifecycle
+// marker — or whose README cannot be read, which the caller reports as unproven.
+// No such directory is the file's own, where the old answer, not an archive, stands.
+// The names git lists directly in `directory`: what `listedReadme` chooses among.
+const listedNamesIn = (directory, listed) =>
+  [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate))
+
+function catalogDirectoryFor(file, root, reader, listed) {
+  const top = path.join(root)
+  for (let directory = path.dirname(file); ; directory = path.dirname(directory)) {
+    const readme = listedReadme(directory,
+      listedNamesIn(directory, listed),
+      candidate => reader.text(candidate))
+    if (readme === README_UNKNOWN) return directory
+    if (readme !== null) {
+      try {
+        if (reader.text(readme).split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)) return directory
+      } catch { return directory }
+    }
+    if (directory === top || path.dirname(directory) === directory) return path.dirname(file)
+  }
+}
+
+function archiveDecisionEffect(file, reader, cache, listed, root) {
+  const directory = catalogDirectoryFor(file, root, reader, listed)
   if (!cache.has(directory)) {
     let rows = null
     const readme = listedReadme(directory,
-      [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)),
+      listedNamesIn(directory, listed),
       candidate => reader.text(candidate))
     if (readme === README_UNKNOWN) rows = 'unknown-readme'
     else if (readme !== null) {
@@ -1364,7 +1476,7 @@ function archiveDecisionEffect(file, reader, cache, listed) {
           for (const line of lines) {
             if (!line.startsWith('|')) continue
             const cells = catalogCells(line)
-            const link = /^\[ADR-0*\d+\]\(([^)]*)\)$/.exec(cells[0] ?? '')
+            const link = /^\[[^\]]+\]\(([^)]*)\)$/.exec(cells[0] ?? '')
             if (!link) continue
             // ⚠ A ROW SPEAKS FOR THE FILE ITS LINK RESOLVES TO, not for any file that
             // shares a basename. Keyed by basename, `../b/ADR-001-x.md` and a remote
@@ -1399,6 +1511,12 @@ function archiveDecisionEffect(file, reader, cache, listed) {
   if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }
   if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }
   if (!ARCHIVE_EFFECT.test(effects[0])) return { unproven: `its archive catalog gives an effect this reader does not know: ${effects[0].slice(0, 60)}` }
+  // ⚠ A SUPERSESSION MUST NAME A RECORD. `superseded by banana` satisfied the effect
+  // pattern and became an authoritative graveyard with no replacement, which
+  // nothing downstream could call dangling (Codex, 2026-09-22).
+  if (/^superseded\b/i.test(effects[0]) && supersessionTarget(effects[0]) === null) {
+    return { unproven: `its archive catalog says it was superseded but names no record: ${effects[0].slice(0, 60)}` }
+  }
   return { effect: effects[0] }
 }
 
@@ -1518,15 +1636,12 @@ function affectedFiles(text) {
   return paths
 }
 
-// ADR-014, 014-thing.md, `# ADR-14: …` — the number, however this corpus spells it.
+// ADR-014, 014-thing.md, `# ADR-14: …` — the number, however this corpus spells
+// it, by the shared rule (ADR-063): a dated name has none, whatever digits it
+// starts with, and neither does a title whose number is itself a date.
 function adrNumber(file, text) {
-  const fromTitle = text.match(/^#\s+ADR[-_ ]?(\d{1,4})\b/im)
-  // Anchored, and the bare form only at the START of the basename: unanchored,
-  // `(\d{3,4})[-._]` read the `2026` of a date as an ADR number and the corpus
-  // grew an ADR-2026. Measured on a real corpus, 2026-08-26.
-  const fromName = path.basename(file).match(/^(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?(\d{1,4})[-._]/i)
-  const raw = fromTitle?.[1] ?? fromName?.[1]
-  return raw === undefined ? null : Number(raw)
+  const id = recordId(path.basename(file), titleLine(text))
+  return id !== null && id.startsWith('ADR-') ? Number(id.slice('ADR-'.length)) : null
 }
 
 // Shared task directories are read by several records. Keep one observation per
@@ -1641,12 +1756,29 @@ function looksLikeRecord(file, directory, reader) {
   if (/(^|[\\/])tasks([\\/]|$)/i.test(directory)) return false
   let text
   try { text = reader.text(file) } catch { return 'unreadable' }
+  return readsAsRecord(text)
+}
+
+// The content half of `looksLikeRecord`, shared with the frozen-archive arm below.
+function readsAsRecord(text) {
   return /^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S/im.test(text)
     && /^##\s+(Context|Decision)\b/im.test(text)
 }
 
 function recordFilesFromListing(root, tracked, reader) {
   const files = []
+  // A record under a frozen archive is found by its content too (ADR-063): the
+  // `adr` directory rule never admits `docs/adr-archive/<stem>/<stem>.md`, so a
+  // dated archive produced no archived records at all.
+  const listed = new Set(tracked.map(rel => posixListed(rel)))
+  const frozen = new Map()
+  const frozenRecord = (parts, absolute) => {
+    // ⚠ `unknown` IS NOT `false`: an unreadable or oddly spelled catalog must
+    // leave the record listed, so its catalog lookup reports PARTIAL, rather than
+    // drop it and report a corpus with nothing archived (Codex, 2026-09-22).
+    if (underFrozenArchive(root, parts, frozen, listed) === false) return false
+    try { return readsAsRecord(reader.text(absolute)) } catch { return true }
+  }
   for (const rel of tracked) {
     if (files.length >= RECORD_BUDGET) break
     const norm = posixListed(rel)
@@ -1657,6 +1789,7 @@ function recordFilesFromListing(root, tracked, reader) {
     const dirNorm = slash < 0 ? '' : norm.slice(0, slash)
     const absolute = listedAbsolute(root, rel)
     if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader) !== false) files.push(absolute)
+    else if (frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)
   }
   return files
 }
@@ -1736,7 +1869,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     // A frozen record's effect comes from its archive's catalog; `governing` there
     // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
     // and the record then governs nothing here rather than whatever it last said.
-    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles)
+    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles, root)
     if (archived?.unproven) records.look = 'PARTIAL'
     const effect = archived?.effect
     const retired = typeof effect === 'string' && /^(?:withdrawn|superseded\b)/i.test(effect)
@@ -1786,6 +1919,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     // names its ADR in its title (`# Task ADR-001-T1: …`); where no task does,
     // the directory is attributed only if this is the one record beside it.
     const number = adrNumber(file, text)
+    const id = recordId(path.basename(file), titleLine(text))
     // The task files attributed to this record, PATHS included. The paths are
     // what lets a caller ask "whose task is this?" — `work-next` needs it to stop
     // calling an unaccepted record's tasks ready (docs/BACKLOG.md §48), and
@@ -1814,7 +1948,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     }
     const claimed = number
       ? texts.filter(entry => new RegExp(`ADR[-_ ]?0*${number}\\b`, 'i').test(entry.text))
-      : []
+      : id ? texts.filter(entry => referencesIn(entry.text).includes(id)) : []
     // Only when this is the one record beside them: a shared tasks/ directory
     // whose files name no ADR cannot be attributed, and guessing would make
     // every record claim its neighbours' files.
@@ -1826,14 +1960,17 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     records.push({
       file,
       number,
+      // ADR-063: `ADR-NNN`, or a dated record's stem; null for neither.
+      id,
       title: (text.match(/^#\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim(),
       status,
       kind,
-      // Which record replaced this one, when the status says so. The number
-      // alone, because a corpus spells the reference every way there is:
-      // `Superseded by ADR-0004`, `superseded by ADR-4`, `Superseded by 0004`.
+      // Which record replaced this one, when the status says so, as an id: a
+      // corpus spells the reference every way there is — `Superseded by ADR-0004`,
+      // `superseded by ADR-4`, `Superseded by 0004`, and since ADR-063 a dated
+      // record's stem or path, which was read as record 2026.
       supersededBy: /^superseded\s+by\b/i.test(status)
-        ? (/(\d{1,4})/.exec(status)?.[1] ?? null) && String(Number(/(\d{1,4})/.exec(status)[1]))
+        ? supersessionTarget(retired ? status : rawStatus(text), status)
         : null,
       governs: [...governs],
       // What FAILS when this decision is violated, or null. `Governs:` on its
@@ -1864,6 +2001,48 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     })
   }
   return records
+}
+
+// The record a `superseded by …` status names: the first reference in it, by the
+// ADR-063 rule, or a bare number (`Superseded by 0004`) that is not a date.
+// The index in `raw` of the character at `index` once `raw`'s underscores are removed.
+function rawIndex(raw, index) {
+  let seen = 0
+  for (let at = 0; at < raw.length; at += 1) {
+    if (raw[at] === '_') continue
+    if (seen === index) return at
+    seen += 1
+  }
+  return raw.length
+}
+
+// `status` is the line as written (underscores kept, for record names); `classified`
+// is the same line with every underscore stripped, as `recordStatus` returns it.
+function supersessionTarget(status, classified = status) {
+  // `_Superseded_ by x` from a raw status line: emphasis around the words is not a name.
+  const rest = status.replace(/^[_\s]*superseded_*\s+by_*\s*/i, '')
+  // ⚠ A NUMBER IS READ FROM THE CLASSIFIED LINE, as it was before ADR-063, so emphasis
+  // does not hide it: `_Superseded by ADR-004_` and `Superseded by _ADR-999_` name
+  // records 4 and 999 (Codex, 2026-09-22, round 6). A dated stem is read from the
+  // raw line, where its underscores survive.
+  const plain = classified.replace(/^superseded\s+by\s*/i, '')
+  // Numbered, in every spelling a status line uses: `ADR-004`, `ADR 004`,
+  // `ADR_004`, `ADR004`. This read them all before ADR-063, and the hyphenated
+  // reference rule alone dropped three (Codex, 2026-09-22). Not when the number is
+  // the start of a date, `ADR 2026-07-15`.
+  // A whole identifier: `ADR-004oops` is not record 4 (Codex, 2026-09-22, round 2).
+  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)
+  const numbered = loose && !DATE_SHAPED_RE.test(plain.slice(loose.index + loose[0].length - loose[1].length))
+    ? { at: rawIndex(rest, loose.index), id: numberId(loose[1]) } : null
+  const dated = referencesWithProvenance(rest)
+    .find(entry => !entry.id.startsWith('ADR-') && (entry.explicit || !BARE_DATE_RE.test(entry.id))) ?? null
+  // `Superseded by 0004` names record 4 by a bare number at the very start.
+  const bareMatch = /^0*(\d{1,4})(?![0-9A-Za-z_])/.exec(plain)
+  const bare = bareMatch && !DATE_SHAPED_RE.test(plain) ? { at: 0, id: numberId(bareMatch[1]) } : null
+  // The FIRST record named, never whichever one exists: `ADR-999 (see ADR-002)`,
+  // and `999 (see ADR-002)` (Codex, 2026-09-22, round 3).
+  const first = [bare, numbered, dated].filter(Boolean).sort((a, b) => a.at - b.at)[0]
+  return first ? first.id : null
 }
 
 // `/tmp` is a symlink to `/private/tmp` on macOS, and git answers with the real

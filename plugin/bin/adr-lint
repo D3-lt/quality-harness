@@ -3777,11 +3777,11 @@ def invalidates_pointer(text):
 # a claim about the world (CLAUDE.md §16), and the world here answers: a record's
 # TITLE says which it is. Only the two ambiguous shapes are read, so the corpus
 # is not opened for a check that runs per record (BACKLOG §162, §192).
-RECORD_FILE_RE = re.compile(r"^(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
-# `003-T2.md`, `003-T2-plan.md` — a task file, or a record with a slug of `t2`.
-TASK_SHAPED_RE = re.compile(r"^(?:adr[-_]?)?\d{1,4}[-._]T\d+(?:[-._]|$)", re.I)
-# `2026-07-12-x.md` in every separator and width — a dated note, or an ADR-2026.
-DATE_SHAPED_RE = re.compile(r"^\d{4}[-_.]\d{1,2}[-_.]")
+# The three name shapes live in plugin/lib/record.py since ADR-063, unchanged,
+# so the retire gate and this one read one spelling: RECORD_FILE_RE,
+# TASK_SHAPED_RE (`003-T2.md`, a task file) and DATE_SHAPED_RE (`2026-07-12-x.md`
+# in every separator and width — a dated note, or an ADR-2026).
+from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE  # noqa: E402
 # Checked in this order: `# ADR-003-T2` is both, and it is a task.
 TITLE_TASK_RE = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I)
 TITLE_RECORD_RE = re.compile(r"^﻿?#\s*ADR[-_ ]?\d", re.I)

@@ -51,7 +51,9 @@ wrong or cannot discriminate — a suite that needs a container, a runner whose 
 on a clean tree, a monorepo where the root manifest is not the thing to run. A command that is red
 without your change carries no information about your change, so a project that knows its own answer
 should say it here rather than let the tool guess. Anything that is not a non-empty string is
-ignored and the inferred rungs still answer.
+ignored and the inferred rungs still answer. Write it in POSIX shell syntax: `qh-check` runs it with
+`/bin/sh` on POSIX and with Git Bash on Windows (`CLAUDE_CODE_GIT_BASH_PATH` names one explicitly),
+never with cmd.exe. A Windows machine with no bash gets "could not start" and exit 127, not a verdict.
 
 - Run `adr-lint <adr.md>` and paste the run. It mechanically checks template conformance,
   shell-command acceptance, TDD step 1, README↔task-file consistency, and spec coverage. A finding

@@ -1675,6 +1675,33 @@ test('an evidenced task whose Affected Files git ignores is reported, with the p
     `a check that did not run must say so:\n${unasked.stdout}`)
 })
 
+// A task path that would break a default Windows clone is advised at authoring
+// time (BACKLOG §231): MAX_PATH is 260, Git for Windows does not set
+// core.longpaths, and retiring a record adds eight characters (`docs/adr` →
+// `docs/adr-archive`), which is how the ceiling here rose from 149 to 157 with
+// no task written. Measured as the ARCHIVED length, so a name that fits today
+// and breaks on retirement is caught while it can still be renamed.
+test('a task whose archived path would exceed the Windows ceiling is advised, one under it is not', () => {
+  const { repo, adr, tasks } = agedCorpus('quality-harness-long-task-', null)
+  const template = readFileSync(join(tasks, 'T1-fixture.md'), 'utf8')
+  // `docs/adr/tasks/` is 15 characters and the archive shift 8, so a 118-character
+  // name lands at 141 and a 116-character one at 139.
+  const named = length => `T2-${'a'.repeat(length - 6)}.md`
+  const over = named(118)
+  writeFileSync(join(tasks, over), template)
+  const advised = run('adr-lint', [adr, tasks], repo)
+  // Not `expectExit(…, 0)`: agedCorpus empties Alternatives Considered on purpose, so the run
+  // fails for that; the `advice:` prefix is what says this finding blocks nothing.
+  assert.match(advised.stdout, new RegExp(`advice: ${over}: its repository path is 141 characters \\(133 now, \\+8`),
+    `the archived length, and how it was computed:\n${advised.stdout}`)
+  // The control: two characters shorter and the gate says nothing about length.
+  rmSync(join(tasks, over))
+  writeFileSync(join(tasks, named(116)), template)
+  const quiet = run('adr-lint', [adr, tasks], repo)
+  assert.doesNotMatch(quiet.stdout, /repository path is \d+ characters/, `a name under the ceiling is not advised:\n${quiet.stdout}`)
+  rmSync(repo, { recursive: true, force: true })
+})
+
 test('strictFrom lets a corpus adopt these gates without failing on its own history', () => {
   // A project that adopts the gates late lights up on every record written
   // before the decision to adopt them, and a gate that fails on day one over

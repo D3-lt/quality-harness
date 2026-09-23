@@ -168,11 +168,14 @@ git clone -c core.longpaths=true https://github.com/D3-lt/quality-harness.git
 ```
 
 Measured 2026-09-18 on Windows 11 with a default Git for Windows (which does not set `core.longpaths`):
-the longest tracked path in this repository is 149 characters, so MAX_PATH leaves **110 characters for
+the longest tracked path in this repository was 149 characters, so MAX_PATH left **110 characters for
 the checkout root**, and a clone under a longer root fails with `Filename too long ... unable to
-checkout working tree`. A GitHub `windows-latest` runner checks out at `D:\a\quality-harness\quality-harness`
-— about 36 characters — so CI cannot see this; a profile path, an OneDrive-redirected Documents folder
-or any nested workspace can. The flag is per-clone and needs no global configuration.
+checkout working tree`. It is 157 since 2026-09-22, because retiring a record moves it from `docs/adr/`
+to `docs/adr-archive/` (eight characters more); `adr-lint` now advises on a new task whose archived
+path would pass 140, so the ceiling stops rising. A GitHub `windows-latest` runner checks out at
+`D:\a\quality-harness\quality-harness` — about 36 characters — so CI cannot see this; a profile
+path, an OneDrive-redirected Documents folder or any nested workspace can. The flag is per-clone and
+needs no global configuration.
 
 ```bash
 python3 plugin/bin/adr-lint docs/adr/ADR-001-skills-are-never-linked.md          # from a clone

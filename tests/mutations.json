@@ -9679,6 +9679,51 @@
       ],
       "from": "  const TAIL = /[^\\s'\"`)]*(?:[ \\t]+[^\\s'\"`)\\\\/]+(?=[\\\\/])[^\\s'\"`)]*)*/.source",
       "to": "  const TAIL = /[^\\s'\"`)]*/.source"
+    },
+    {
+      "label": "release-evidence: readers changed since the tag with no outside run attested is UNPROVEN, not cleared (§18)",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  if (attested.length === 0) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "release-evidence: a run AT the last tag ran the old readers and attests nothing",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "      if (git(['rev-parse', `${tag}^{commit}`]) === git(['rev-parse', `${at}^{commit}`])) return false",
+      "to": "      if (false) return false"
+    },
+    {
+      "label": "SessionStart: the read-but-capped count prints before the not-read count, each saying what it counts",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (unread >= 0) shown.splice(unread, 0, note)",
+      "to": "    if (false) shown.splice(unread, 0, note)"
+    },
+    {
+      "label": "adr-lint: a red run's quoted output inside the excerpt fence is not a Verification Log entry",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    vlog = [ln.strip() for ln in unfenced_lines(secs.get(\"Verification Log\", []))",
+      "to": "    vlog = [ln.strip() for ln in secs.get(\"Verification Log\", [])"
+    },
+    {
+      "label": "record.unfenced_lines: a fence closes, so the rows after it are read again",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif _fence_closes(line, fence):\n            fence = None\n    return out",
+      "to": "        elif False:\n            fence = None\n    return out"
     }
   ]
 }

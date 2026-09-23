@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-23",
+  "at": "159f47eacb6511a4eafe4df03901d7d8bb2952b5",
+  "plugin": "2.105.0",
+  "kind": "hand",
+  "probeSha256": null,
+  "platform": "Windows 11 (10.0.26200)",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": { "records": 72, "tasks": 209, "taskDirectories": 19 },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "a second peer Claude Code session on the same Windows desktop, readers run by hand (SessionStart hook on stdin, work-next, adr-next --json over 19 directories, adr-lint)",
+  "found": "the three defects this session reported at 2.104.0 are fixed (SessionStart names 13 unread directories; 197 done tasks with no unproven note; adr-lint's changed-Acceptance sentence gone); nothing new; the same count-order ambiguity."
+}

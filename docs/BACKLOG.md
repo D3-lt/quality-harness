@@ -14473,3 +14473,44 @@ classifier over free text (§16), three rounds each found a leak where the bound
 cleverer, and §6's direction is that over-scrubbing costs a question while a leak cannot be recalled.
 Pinned in the test as a decision. No fourth round is planned on this boundary; a leak found in the
 field goes here as a new item.
+
+## 267. The outside run is release evidence now, not a rule (2026-09-23)
+
+§18 says a reader is not shipped until somebody else has run it; the day it was written, nothing
+enforced it — the same shape as every rule this repository has had to turn into a gate. Now
+`scripts/release-evidence.mjs` asks a second question after the campaign is green: did any file under
+`plugin/scripts/` or `plugin/bin/` change since the newest tag before the sha, and if so, does
+`docs/corpus-reports/` hold an attestation whose `at` revision is after that tag and reachable from
+the sha? No attestation is `UNPROVEN`, exit 2 — could not look, not cleared. The attestation is a
+small JSON (date, revision, plugin version, platform, counts) and never the report: a probe report
+over another repository is that repository's content (§6). The first two, from the Windows desktop
+runs over the 72-record corpus at v2.105.0, are filed; they are AT the tag, so the next release with
+a reader change needs a fresh one — which is the rule doing its job on its first day.
+
+Also fixed here, reported twice from that desktop: SessionStart printed `(+3 more record set(s))`
+after `(+13 more task directories: UNPROVEN — not read; …)`, and both peers read the two counts as
+one overlapping figure. The read-but-capped line prints first and says what it counts.
+
+Open: `branch-state` does not yet say on every prompt whether an outside run exists since the tag;
+the release check is the enforcement, the prompt line would be the reminder.
+
+## 268. adr-lint read a red run's quoted output as log entries (2026-09-23, reported from a Rust corpus)
+
+A fence that prints `  - <problem>` on failure, one red `adr-verify` run, and `adr-lint` refused the
+log `adr-verify` had just written: every captured output line — indented, inside the excerpt fence
+`adr-verify` writes for the last lines of stdout — was read as a Verification Log entry off-grammar,
+one error per line. `plugin/bin/adr-lint` collected `- `-prefixed lines of the section with nothing
+that skipped a fence (the Mutation Log scan had the same shape). A tool-written log that nobody may
+edit, refused by the tool's own sibling; the reporter correctly left the task red rather than touch
+the log. Same class as §197's fence-blind readers. Fixed: `record.unfenced_lines` walks the section
+with the same fence grammar as `_sections`, and both scans read through it. A peer session on this
+machine reported it with a reproduction the same evening a Windows desktop was closing out §266 —
+the third repository in one day to say something a reader printed that this corpus never would.
+
+**Open, from the same report:** `adr-lint`'s first-red test-body reader says "no failure call was
+recognised in its body" on two Rust tests that call `assert_eq!` — one holding a raw string
+(`r#"{...}"#`), one a struct literal (`TokenTotals { ... }`) — and names a call before the asserts
+(`from_str`, `fixture_record`) as the only one it saw. The reporter's guess, unconfirmed: the body
+extractor stops at a `}` inside the raw string or the struct literal before the asserts are reached.
+Both tests killed a mutant through `adr-verify --mutant`, so they can fail; the advisory is a false
+UNPROVEN. Reproduce on a Rust fixture with those two shapes before changing the extractor.

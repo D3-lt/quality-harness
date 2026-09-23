@@ -6,7 +6,12 @@
 // plus the vacuous one that would let anything through.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyArgument, evaluateRun, fetchRun, runListArgv, selectRun } from '../scripts/release-evidence.mjs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import { join } from 'node:path'
+import {
+  classifyArgument, evaluateRun, fetchRun, outsideRun, outsideRunEvidence, readAttestations, runListArgv, selectRun,
+} from '../scripts/release-evidence.mjs'
 
 const job = (name, conclusion, status = 'completed') => ({ name, status, conclusion })
 const NINE = [
@@ -279,4 +284,114 @@ test('a short sha is EXPANDED before gh is asked, at the boundary that shells ou
   // Shown able to answer the other way in the same test: a sha this checkout does
   // not know is "could not look", not an empty run list (CLAUDE.md §4).
   assert.equal(fetchRun('nope', () => { throw new Error('unknown revision') }), null)
+})
+
+// CLAUDE.md §18. A green campaign clears the code; it says nothing about what the
+// readers SAY over a corpus this repository does not own, and every defect that
+// reached an adopter was of that kind. The evidence is an attestation naming the
+// commit the outside run was at, and it counts only after the last tag.
+test('a release whose readers changed since the last tag needs an outside run attested after it', () => {
+  const newer = at => at === 'bbbb'
+  const changed = ['plugin/scripts/lifecycle.mjs']
+  const none = outsideRun(changed, [], newer)
+  assert.equal(none.verdict, 'unproven')
+  assert.equal(none.kind, 'missing')
+  assert.match(none.reason, /§18/)
+  // A run AT the tag (or before it) ran the old readers: it attests nothing for this release.
+  assert.equal(outsideRun(changed, [{ file: 'old.json', at: 'aaaa' }], newer).verdict, 'unproven')
+  const yes = outsideRun(changed, [{ file: 'old.json', at: 'aaaa' }, { file: 'new.json', at: 'bbbb' }], newer)
+  assert.equal(yes.verdict, 'attested')
+  assert.match(yes.reason, /new\.json at bbbb/)
+  assert.doesNotMatch(yes.reason, /old\.json/)
+  assert.equal(outsideRun([], [], newer).verdict, 'not-required', 'no reader changed: nothing to attest')
+  // A diff that could not be taken is could-not-look, never "not required" — and
+  // never "nobody ran it": the two could-not-looks are told apart by `kind`.
+  const unlisted = outsideRun(null, [{ file: 'new.json', at: 'bbbb' }], newer)
+  assert.equal(unlisted.verdict, 'unproven')
+  assert.equal(unlisted.kind, 'unlisted')
+  assert.match(unlisted.reason, /could not be established/)
+  assert.doesNotMatch(unlisted.reason, /holds no attestation/, 'an unknown is not an asserted absence')
+})
+
+test('attestations are read from the directory, and an unparsable one attests nothing', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-attest-'))
+  try {
+    writeFileSync(join(dir, '2026-09-23-b.json'), JSON.stringify({ at: 'bbbb', kind: 'probe' }))
+    writeFileSync(join(dir, '2026-09-23-a.json'), '{ not json')
+    writeFileSync(join(dir, 'README.md'), '# not an attestation')
+    assert.deepEqual(readAttestations(dir), [{ file: '2026-09-23-b.json', at: 'bbbb', kind: 'probe' }])
+    assert.deepEqual(readAttestations(join(dir, 'missing')), [], 'no directory is no attestation, not a crash')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('outsideRunEvidence anchors on the tag before the sha and refuses a run that did not see every reader change', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-attest-git-'))
+  try {
+    const TAG = 't'.repeat(40); const AT = 'b'.repeat(40); const EARLY = 'e'.repeat(40); const SHA = 's'.repeat(40)
+    // Reader edits, by revision: the tag..sha diff names three files; a run at EARLY
+    // predates the lib edit, a run at AT carries everything.
+    const exec = (bin, argv) => {
+      const line = argv.join(' ')
+      if (line.startsWith('describe')) return 'v2.105.0\n'
+      if (line.startsWith(`diff --name-only ${EARLY}..${SHA}`)) return 'plugin/lib/record.py\n'
+      if (line.startsWith(`diff --name-only ${AT}..${SHA}`)) return ''
+      if (line.startsWith('diff')) return 'plugin/scripts/lifecycle.mjs\nplugin/bin/adr-lint\nplugin/lib/record.py\n'
+      if (line.startsWith('rev-parse v2.105.0')) return `${TAG}\n`
+      if (line.startsWith('rev-parse')) return `${argv[1].replace('^{commit}', '')}\n`
+      if (line.startsWith('merge-base')) return ''
+      throw new Error(`unexpected: git ${line}`)
+    }
+    writeFileSync(join(dir, 'at-tag.json'), JSON.stringify({ at: TAG }))
+    const atTag = outsideRunEvidence(SHA, exec, dir)
+    assert.equal(atTag.verdict, 'unproven', 'a run at the tag ran the old readers')
+    assert.equal(atTag.tag, 'v2.105.0')
+    // A run after the tag but BEFORE the last reader edit did not run that edit
+    // (Codex review of 013149e, P1): still unproven.
+    writeFileSync(join(dir, 'early.json'), JSON.stringify({ at: EARLY }))
+    const early = outsideRunEvidence(SHA, exec, dir)
+    assert.equal(early.verdict, 'unproven', 'a lib edit after the run is a reader nobody outside has run')
+    assert.equal(early.kind, 'missing')
+    writeFileSync(join(dir, 'after.json'), JSON.stringify({ at: AT }))
+    const after = outsideRunEvidence(SHA, exec, dir)
+    assert.equal(after.verdict, 'attested')
+    assert.match(after.reason, /after\.json at bbbbbbb/)
+    // git that cannot describe a tag is could-not-look.
+    assert.equal(outsideRunEvidence(SHA, () => { throw new Error('no tags') }, dir).verdict, 'unproven')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('an attestation git cannot check is coverage unknown, never coverage absent', () => {
+  // Pure arm: `covers` answering null for one report and false for another.
+  const changed = ['plugin/lib/record.py']
+  const unknown = outsideRun(changed, [{ file: 'old.json', at: 'aaaa' }, { file: 'far.json', at: 'ffff' }],
+    at => (at === 'ffff' ? null : false))
+  assert.equal(unknown.verdict, 'unproven')
+  assert.equal(unknown.kind, 'unverified')
+  assert.match(unknown.reason, /far\.json/)
+  assert.doesNotMatch(unknown.reason, /holds no attestation/)
+  // A true beside a null is still attested — the check answers on what it could see.
+  assert.equal(outsideRun(changed, [{ file: 'far.json', at: 'ffff' }, { file: 'ok.json', at: 'bbbb' }],
+    at => (at === 'bbbb' ? true : null)).verdict, 'attested')
+  // Git arm: a revision this checkout cannot resolve (merge-base exits 128) is
+  // null; a definite non-ancestor (exit 1) is false; a diff that fails is null.
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-attest-unk-'))
+  try {
+    const SHA = 's'.repeat(40); const FAR = 'f'.repeat(40); const OLD = 'o'.repeat(40)
+    const fail = status => { const e = new Error(`git exit ${status}`); e.status = status; throw e }
+    const exec = (bin, argv) => {
+      const line = argv.join(' ')
+      if (line.startsWith('describe')) return 'v2.105.0\n'
+      if (line.startsWith('diff --name-only v2.105.0')) return 'plugin/lib/record.py\n'
+      if (line.startsWith(`merge-base --is-ancestor v2.105.0 ${FAR}`)) fail(128)
+      if (line.startsWith(`merge-base --is-ancestor v2.105.0 ${OLD}`)) fail(1)
+      if (line.startsWith('merge-base')) return ''
+      throw new Error(`unexpected: git ${line}`)
+    }
+    writeFileSync(join(dir, 'far.json'), JSON.stringify({ at: FAR }))
+    writeFileSync(join(dir, 'old.json'), JSON.stringify({ at: OLD }))
+    const r = outsideRunEvidence(SHA, exec, dir)
+    assert.equal(r.kind, 'unverified', `an unresolvable revision is unknown, an old one is a definite no: ${r.reason}`)
+    assert.match(r.reason, /far\.json/)
+    assert.doesNotMatch(r.reason, /old\.json/)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })

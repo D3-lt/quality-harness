@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-24",
+  "at": "f14e4cd58e2142a27a562b5ff1c3468f30e822f9",
+  "plugin": "branch outside-run-evidence (banner still 2.105.0; not yet bumped)",
+  "kind": "hand",
+  "probeSha256": "631a8f07c8c4db9f951cf5b9eeb42d194199572de8c9d55639a94ff76d52b1eb",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 158, "tasks": 505, "taskDirectories": 68 },
+  "couldNotRun": 2,
+  "disagreements": 5,
+  "readinessUnproven": null,
+  "runner": "a peer Claude Code session on this machine, read-only, over a private Rust corpus (the one that reported BACKLOG §268); fifth run of the night, after the artifact gate was taken off the mention path",
+  "found": "The hook printed NOTHING on the same grep over the same unchecked tree state as the f67cede run: the artifact-gate noise is gone, and the state warning was deduplicated (said once per tree state per session; the f67cede run had said it for this exact tree). Probe counts identical to the f67cede run; probe sha256 identical because corpus-probe.mjs did not change between the two commits. The same 5 disagreements and 2 couldNotRun as §270."
+}

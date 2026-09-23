@@ -9690,15 +9690,6 @@
       "to": "  if (false) {"
     },
     {
-      "label": "release-evidence: a run AT the last tag ran the old readers and attests nothing",
-      "file": "scripts/release-evidence.mjs",
-      "tests": [
-        "tests/release-evidence.test.mjs"
-      ],
-      "from": "      if (git(['rev-parse', `${tag}^{commit}`]) === git(['rev-parse', `${at}^{commit}`])) return false",
-      "to": "      if (false) return false"
-    },
-    {
       "label": "SessionStart: the read-but-capped count prints before the not-read count, each saying what it counts",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -9706,6 +9697,15 @@
       ],
       "from": "    if (unread >= 0) shown.splice(unread, 0, note)",
       "to": "    if (false) shown.splice(unread, 0, note)"
+    },
+    {
+      "label": "ADR-061: the refusal matches an invocation of git commit or git push, never the bare words (§269)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  return publishCommandIn(command) !== null",
+      "to": "  return typeof command === 'string' && /(?<![A-Za-z0-9_-])(?:commit|push)(?![A-Za-z0-9_-])/.test(command)"
     },
     {
       "label": "adr-lint: a red run's quoted output inside the excerpt fence is not a Verification Log entry",
@@ -9724,6 +9724,15 @@
       ],
       "from": "        elif _fence_closes(line, fence):\n            fence = None\n    return out",
       "to": "        elif False:\n            fence = None\n    return out"
+    },
+    {
+      "label": "release-evidence: an outside run counts only when it carries every reader change up to the sha",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "      return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === ''",
+      "to": "      return true"
     }
   ]
 }

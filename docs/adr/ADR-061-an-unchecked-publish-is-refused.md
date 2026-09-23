@@ -96,3 +96,17 @@ Revert the commit. The deny is a host permission on one command; no stored forma
 ## Follow-ups
 
 - [ ] A publish that does not contain `commit` or `push` is still not refused before it runs.
+- [ ] A publish launched from a script file (`sh do-it.sh`, `python3 helper.py`) is not observed at
+  all. The honest refusal is a git `pre-commit`/`pre-push` hook reading the same ledger (BACKLOG §269).
+
+## Amended 2026-09-23 — what the refusal matches
+
+The word match this record accepted ("a command that merely mentions either word is still refused …
+a known false refusal") was measured for one day (BACKLOG §269): each false refusal taught the session
+to put the text in a script file, and the same file then carried a real publish through unobserved —
+fifteen such scripts in one session, one of which pushed a version bump on a tree no check had passed.
+The classifier now matches an INVOCATION of `git commit` or `git push` — `git`, its options and their
+values, the verb, through the quoting of `bash -c`, `pwsh -Command` and an argv list — and the
+refusal names the invocation it saw. Scope (commit and push; the text of the Bash command; the
+`"publish": "warn"` opt-out) is unchanged. What a script file launches was unobserved before and
+still is; that is the follow-up above, and it is the honest one.

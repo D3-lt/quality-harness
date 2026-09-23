@@ -223,30 +223,35 @@ export function fetchRun(sha, exec = execFileSync) {
 }
 
 /**
- * Has anybody outside this repository run the readers that changed since the
- * last tag? CLAUDE.md §18: every defect that reached an adopter was in what a
- * reader SAID about a corpus we do not own, and the suite cannot read the whole
- * output over a shape it has never seen. The evidence is an attestation in
- * `docs/corpus-reports/` naming the commit the run was at (`at`); it counts only
- * when that commit is AFTER the last tag and reachable from the sha — a run at the
- * tag itself ran the old readers.
+ * Has anybody outside this repository run the readers being released? CLAUDE.md
+ * §18: every defect that reached an adopter was in what a reader SAID about a
+ * corpus we do not own, and the suite cannot read the whole output over a shape
+ * it has never seen. The evidence is an attestation in `docs/corpus-reports/`
+ * naming the revision the run was at (`at`); it counts only when that revision
+ * is after the last tag, reachable from the sha, AND carries every reader change
+ * the sha carries — a run at the tag ran the old readers, and a run followed by
+ * another reader edit did not run that edit (Codex review of 013149e, P1).
  *
- * Pure: `changed` is the reader files changed since the tag (null when the diff
- * could not be taken), `reports` the parsed attestations, `newerThanTag(at)` the
- * ancestry question. A diff that could not be taken is could-not-look, never
- * "not required" (ADR-005).
+ * Pure: `changed` is the reader files changed since the tag (null when git could
+ * not answer), `reports` the parsed attestations, `covers(at)` the ancestry and
+ * content question. A diff that could not be taken is could-not-look, never "not
+ * required" and never "nobody ran it" (ADR-005) — `kind` tells the two apart.
  */
-export function outsideRun(changed, reports, newerThanTag) {
+export function outsideRun(changed, reports, covers) {
   if (!Array.isArray(changed)) {
-    return { verdict: 'unproven', reason: 'could not list the reader files changed since the last tag' }
+    return {
+      verdict: 'unproven', kind: 'unlisted',
+      reason: 'whether a reader changed since the last tag could not be established — git could not name the tag or take the diff',
+    }
   }
   if (changed.length === 0) return { verdict: 'not-required', reason: 'no reader changed since the last tag' }
-  const attested = (reports ?? []).filter(r => typeof r?.at === 'string' && newerThanTag(r.at) === true)
+  const attested = (reports ?? []).filter(r => typeof r?.at === 'string' && covers(r.at) === true)
   if (attested.length === 0) {
     return {
-      verdict: 'unproven',
+      verdict: 'unproven', kind: 'missing',
       reason: `${changed.length} reader file(s) changed since the last tag and docs/corpus-reports/ holds no `
-        + 'attestation at a commit after it — a reader is not shipped until somebody else has run it (CLAUDE.md §18)',
+        + 'attestation at a revision that carries every one of those changes — a reader is not shipped until '
+        + 'somebody else has run it (CLAUDE.md §18)',
     }
   }
   return {
@@ -266,6 +271,12 @@ export function readAttestations(dir, { readdir = readdirSync, read = readFileSy
   return out
 }
 
+// What a "reader" is for the release question: every file an adopter's readers
+// are made of. `plugin/lib` is imported by every gate — a `record.py` change
+// changes what adr-lint and adr-next decide — and was left out of the first cut
+// (Codex review of 013149e, P1); `plugin/hooks` wires which reader runs when.
+export const READER_PATHS = ['plugin/scripts', 'plugin/bin', 'plugin/lib', 'plugin/hooks']
+
 /**
  * The outside-run question for `sha`, asked of git. The anchor is the newest tag
  * reachable from the sha's PARENT: the sha being released is usually the bump
@@ -278,19 +289,22 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
   try { tag = git(['describe', '--tags', '--abbrev=0', `${sha}~1`]) } catch { return { ...outsideRun(null, [], () => false), tag: null } }
   let changed
   try {
-    changed = git(['diff', '--name-only', `${tag}..${sha}`, '--', 'plugin/scripts', 'plugin/bin']).split('\n').filter(Boolean)
+    changed = git(['diff', '--name-only', `${tag}..${sha}`, '--', ...READER_PATHS]).split('\n').filter(Boolean)
   } catch { return { ...outsideRun(null, [], () => false), tag } }
-  const newerThanTag = at => {
+  const covers = at => {
     try {
-      // A commit is its own ancestor, so "at is the tag" would pass both ancestry
-      // questions while having run the OLD readers. Excluded by identity.
-      if (git(['rev-parse', `${tag}^{commit}`]) === git(['rev-parse', `${at}^{commit}`])) return false
+      // A run AT the tag needs no identity check: the content diff below is the
+      // whole reader diff in that case, and non-empty whenever a run is required.
+      // An identity guard sat here until its mutant went GREEN for exactly that
+      // reason (2026-09-23) — the diff had made it unobservable.
       git(['merge-base', '--is-ancestor', tag, at])
       git(['merge-base', '--is-ancestor', at, sha])
-      return true
+      // And the run must have seen the readers being released: a reader edited
+      // after the run is a reader nobody outside has run.
+      return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === ''
     } catch { return false }
   }
-  return { ...outsideRun(changed, readAttestations(reportsDir), newerThanTag), tag }
+  return { ...outsideRun(changed, readAttestations(reportsDir), covers), tag }
 }
 
 // `cached` shares exit 2 with `unreadable` on purpose: both mean "I could not
@@ -357,15 +371,22 @@ function main(argv) {
   // been run by somebody else since the last tag (CLAUDE.md §18). Asked only once
   // CI has cleared the sha, so a red run is reported as red and nothing else.
   let { verdict, reason } = result
+  let outside = null
   if (verdict === 'success') {
-    const outside = outsideRunEvidence(sha)
+    outside = outsideRunEvidence(sha)
     reason = `${reason}; since ${outside.tag ?? 'the last tag'}: ${outside.reason}`
     if (outside.verdict === 'unproven') verdict = 'unproven'
   }
   console.log(`${verdict.toUpperCase()}${head} — ${reason}`)
   if (verdict === 'unproven') {
-    console.log('Do NOT tag this sha. CI is green and nobody outside has run the readers it ships — '
-      + 'get one run (`/quality-harness:corpus-chaos`), file its attestation in docs/corpus-reports/, and ask again.')
+    // Two different could-not-looks, said apart: nobody ran the readers, or git
+    // here could not say whether they changed (Codex review of 013149e, P2).
+    console.log(outside?.kind === 'missing'
+      ? 'Do NOT tag this sha. CI is green and nobody outside has run the readers it ships — get one run '
+        + '(`/quality-harness:corpus-chaos`) at a revision that carries every reader change, file its attestation '
+        + 'in docs/corpus-reports/, and ask again.'
+      : 'Do NOT tag this sha. Whether its readers changed since the last tag could not be established from git '
+        + 'here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.')
   } else if (verdict !== 'success') {
     console.log('Do NOT tag this sha. A run that did not finish is "I could not look", '
       + 'not "nothing was wrong" — see BACKLOG §104 and CLAUDE.md §13.')

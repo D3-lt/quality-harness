@@ -403,6 +403,9 @@ test('the publish warning advises, never blocks, while this repository is unchec
   assert.equal(run.status, 0)
   assert.match(run.stderr, /names commit or push/i)
   assert.match(run.stderr, /qh-check/)
+  // The refusal names the invocation it saw, so a reader knows which command it
+  // classified — not only that some word matched (BACKLOG §269).
+  assert.match(run.stderr, /names commit or push \(`git commit`\)/, run.stderr)
   assert.doesNotMatch(run.stderr, /would publish unchecked/i)
 })
 

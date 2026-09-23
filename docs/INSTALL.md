@@ -87,8 +87,10 @@ carried went stale (the hook-event count was three short within a month).
   2.102.0 (ADR-061) a Bash command that invokes `git commit` or `git push` — through `bash -c`,
   `pwsh -Command` or an argv list too — on a tree no `qh-check` has passed on, is refused until you
   run `qh-check`, and the refusal names the invocation it saw. A command that merely mentions either
-  word — a grep, a heredoc, a file name — is warned about and never refused (since 2.106.0; before that
-  it was refused, and BACKLOG §269 says what that taught).
+  word — a grep, a heredoc, a file name — is warned about, never refused, and gets none of the
+  publish-time artifact checks (since 2.106.0; before that it was refused, and BACKLOG §269 says what
+  that taught). One known limit: a `;` or a newline inside quoted data or a heredoc body reads as a
+  command position, so `echo "x; git push"` is refused — and the refusal names what it saw.
   `"publish": "warn"` in `.quality-harness.json` turns it back into a warning. A second
   refusal fences a role you spawned read-only (ADR-060). Nothing else blocks.
 - **Status line (user-wired).** The plugin cannot set Claude's `statusLine`. Keep that command (and any `refreshInterval`). Feed the same `$input` to the script and append its stdout — one line, or empty:

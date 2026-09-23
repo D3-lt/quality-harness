@@ -8326,6 +8326,15 @@
       "to": "shell: false } : { file: command, args: [], shell: true }"
     },
     {
+      "label": "adr-lint: a task path past the Windows ceiling is advised at authoring time",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "TASK_PATH_ADVISE_LEN = 140",
+      "to": "TASK_PATH_ADVISE_LEN = 1400"
+    },
+    {
       "label": "corpus: a listed path under tests/, fixtures/ or their kin is not a record of this repository",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [

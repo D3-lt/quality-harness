@@ -135,3 +135,11 @@ unprovable form (`$GIT push`) had lost its state warning when the dispatch fallb
 command is never this session's publish request and its PreToolUse writes nothing to the session's log
 (it is the parent's), but a mention of one is observed and warned about as the ledger stands. The
 mention line is shorter: it says the state, that it is advisory, and what to run.
+
+Sixth round (Codex, b149b50): the reviewer arm added in the fifth still wrote `action.emitted` into the
+parent session's log through delivery, read the parent's ledger without the preparation a session's
+own mention gets, and observed the tree before an unconditional denial. Three rounds, three ways for
+one arm to be wrong about whose ledger it was in. So a read-only role's PreToolUse is the reviewer
+guard's ALONE: not observed, not logged, not warned about. A form the guard cannot prove is the same
+fail-open as for anyone and belongs to the git-hook follow-up; the state warning is advice to the
+session about its own work, which a reviewer has none of.

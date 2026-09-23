@@ -14587,6 +14587,15 @@ a mention is observed and warned about as the ledger stands; test in
 `tests/late-baseline.test.mjs`, mutant in the catalogue. Also shortened the mention line to the state,
 "advisory; nothing is refused", and what to run.
 
+Round 6 (Codex review of b149b50): the round-5 reviewer arm was wrong three ways — `deliver` appended
+the warning's `action.emitted` into the parent session's log (the parent's P dedupe and
+`namedByPublish` read it), the warning read the parent's ledger without the check import and late
+baseline a session's own mention gets (round 4's accusation, back for reviewers), and
+`recordHookEvent` observed the tree (seven git spawns) before the guard denied a `git push`. Resolved
+by removing the arm: `handleHook` neither observes nor records a read-only role's PreToolUse; the
+guard decides it alone. `tests/late-baseline.test.mjs` holds the parent's log byte-identical through
+a reviewer's `$GIT push` and shows the same command from the session itself warned about.
+
 ## 270. Two leads from the outside run at f67cede: adr-next offers a Superseded record's tasks, and exits 1 on an empty task directory (2026-09-23)
 
 Reported by the peer that ran the readers over a private Rust corpus (attested in
@@ -14604,3 +14613,18 @@ both are leads until they are (§18: a peer's report is a lead).
    them under `couldNotRun`, which is the honest bucket for a reader that stopped; whether an
    empty task directory is an error for `adr-next` or an ordinary "nothing here" answer is the
    question, and the other readers' treatment of the same directory decides it.
+
+## 271. The Rust masker read a lifetime as a char literal and lost every test after it (2026-09-24, reported from a Rust corpus)
+
+Reported by the peer that ran the readers over a private Rust corpus, with a bisect: a 5,171-line
+test file with 99 `#[test]`/`#[tokio::test]` fns gave `extract_test_names(…, rust=True)` 94, the
+five missing all after a struct field typed `name: &'static str,`. `_mask_lock_noncode` treated the
+`'` of the lifetime as a char literal's opening quote and blanked to the next `'` — the rest of the
+file, or up to the next lifetime or char literal, which is why some later tests survived. The
+first-red lock for a test appended at the end of that file wrote `unproven`; the reporter moved the
+test above the lifetime rather than touch this code. Reproduced on a nine-line fixture (`later` lost
+between `first` and `last`). Fixed: in Rust a `'` opens a literal only when `_RUST_CHAR_LITERAL`
+matches at it (one char or an escape, then `'`); a lifetime is code. `impl<'a>`, `&'a self`, `b'x'`,
+`'\''`, `'\u{1F600}'` and a `'{'` char literal are in the fixture. Test in
+`tests/test-lock.test.mjs`, mutant in the catalogue. §268's open item (two Rust tests read as having
+no failure call) is from the same corpus and may share this cause; reproduce it before assuming so.

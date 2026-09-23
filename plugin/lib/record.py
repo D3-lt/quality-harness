@@ -1191,6 +1191,9 @@ def _in_arithmetic(text, i):
     return _ARITHMETIC_BETWEEN.fullmatch(between) is not None
 
 
+# A Rust char literal: one char, or an escape (`'\n'`, `'\''`, `'\u{1F600}'`), then the
+# closing quote. Anything else after a `'` is a lifetime, which is code.
+_RUST_CHAR_LITERAL = re.compile(r"'(?:[^'\\\n]|\\(?:[^u\n]|u\{[0-9a-fA-F_]+\}))'")
 def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,
                        shell_heredocs=False, swift=False, go=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.
@@ -1273,6 +1276,12 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
             end = n if end < 0 else end
             blank(i, end)
             i = end
+        elif rust_raw and text[i] == "'" and not _RUST_CHAR_LITERAL.match(text, i):
+            # A lifetime (`&'static str`, `impl<'a>`) opens nothing. Read as a quote it
+            # swallowed the file up to the next `'`, and every test after a struct field
+            # typed `&'static str` was lost to the lock — a peer's 99-test file gave 94,
+            # and a new test at its end was locked `unproven` (BACKLOG §271, 2026-09-24).
+            i += 1
         elif text[i] in ("'", '"', "`"):
             quote, end = text[i], i + 1
             raw_backtick = go and quote == "`"

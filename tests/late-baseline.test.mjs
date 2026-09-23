@@ -168,20 +168,23 @@ test('a mention runs no artifact gate; a publish request does', () => {
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
 
-// ADR-060's reviewer guard denies a proven invocation. A form it cannot prove
-// (`$GIT push`) is a mention: the reviewer is refused nothing and still hears the
-// state warning. Codex review of f14e4cd: dropping the dispatch fallback had left a
-// read-only role with neither, since its PreToolUse was never prepared.
-test('a read-only reviewer whose form the guard cannot prove still hears the state warning', () => {
+// ADR-060's reviewer guard decides a read-only role's PreToolUse ALONE. A form it
+// cannot prove (`$GIT push`) is refused nothing, warned about nothing, and leaves the
+// parent session's log byte-for-byte as it was: three review rounds each found a
+// way a reviewer's warning wrote to or misread the parent's ledger (Codex, f14e4cd
+// and b149b50), and the honest enforcement for that form is the git hook.
+test('a read-only reviewer is decided by the guard alone: no warning, no log write', () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-reviewer-mention-')))
   try {
     const { repo, hook, log } = fixture(top, 'reviewer-mention')
     hook({ hook_event_name: 'SessionStart', source: 'startup' })
     writeFileSync(join(repo, 'a.md'), 'changed\n')
+    const before = JSON.stringify(log())
     const text = hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', agent_type: 'qh-scope-reviewer', tool_input: { command: 'GIT=git; $GIT push' } })
-    assert.doesNotMatch(text, /reviewer guard/, `the guard cannot prove a variable: ${text.slice(0, 300)}`)
-    assert.match(text, /only mentions commit or push/, `the state warning is not silent for a reviewer: ${text.slice(0, 300)}`)
-    assert.match(text, /no `qh-check` has passed on/)
-    assert.equal(log().filter(entry => entry.event === 'publish.requested').length, 0, 'a reviewer never logs a publish request')
+    assert.equal(text, '', `a reviewer's unprovable form gets no P warning: ${text.slice(0, 300)}`)
+    assert.equal(JSON.stringify(log()), before, 'the parent session\'s log is untouched through delivery')
+    // The control: the same command from the session itself is prepared and warned about.
+    const own = hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'GIT=git; $GIT push' } })
+    assert.match(own, /only mentions commit or push/, own.slice(0, 300))
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

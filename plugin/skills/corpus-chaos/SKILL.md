@@ -41,6 +41,14 @@ Two roles. Run the one you are in.
    `work-next.mjs --json`, `adr-state.mjs`, `adr-next <tasks-dir> --json`, `adr-lint <record>
    <tasks-dir>`, and a real SessionStart (a new session, or the hook fed a valid JSON payload on
    stdin — an unparsable payload is now said on stderr).
+   ⚠ **The hooks that fire in your session are the INSTALLED plugin's, not the checkout's.** A
+   clone checked out at the revision under test changes nothing about what your Bash calls run
+   through; a Windows runner measured 2.105.0's hook while standing in a b149b50 clone and said so
+   rather than pasting it. To test a checkout's hook, feed it the payload yourself:
+
+       printf '%s' '{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"<repo>","session_id":"probe","tool_input":{"command":"grep -rn \"git push\" docs/"}}' | node <checkout>/plugin/scripts/lifecycle.mjs
+
+   and paste stdout and stderr whole, saying which revision `<checkout>` was at.
 5. **Check the redaction before pasting.** Every path in the output should be relative to the
    repository or a placeholder (`<path>`, `<home>`, `<tmp>`, `<plugin>`). Search the text for
    your home directory and drive letters anyway; the scrubber over-redacts by design, and a

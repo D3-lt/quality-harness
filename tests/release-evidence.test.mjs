@@ -359,3 +359,39 @@ test('outsideRunEvidence anchors on the tag before the sha and refuses a run tha
     assert.equal(outsideRunEvidence(SHA, () => { throw new Error('no tags') }, dir).verdict, 'unproven')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+test('an attestation git cannot check is coverage unknown, never coverage absent', () => {
+  // Pure arm: `covers` answering null for one report and false for another.
+  const changed = ['plugin/lib/record.py']
+  const unknown = outsideRun(changed, [{ file: 'old.json', at: 'aaaa' }, { file: 'far.json', at: 'ffff' }],
+    at => (at === 'ffff' ? null : false))
+  assert.equal(unknown.verdict, 'unproven')
+  assert.equal(unknown.kind, 'unverified')
+  assert.match(unknown.reason, /far\.json/)
+  assert.doesNotMatch(unknown.reason, /holds no attestation/)
+  // A true beside a null is still attested — the check answers on what it could see.
+  assert.equal(outsideRun(changed, [{ file: 'far.json', at: 'ffff' }, { file: 'ok.json', at: 'bbbb' }],
+    at => (at === 'bbbb' ? true : null)).verdict, 'attested')
+  // Git arm: a revision this checkout cannot resolve (merge-base exits 128) is
+  // null; a definite non-ancestor (exit 1) is false; a diff that fails is null.
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-attest-unk-'))
+  try {
+    const SHA = 's'.repeat(40); const FAR = 'f'.repeat(40); const OLD = 'o'.repeat(40)
+    const fail = status => { const e = new Error(`git exit ${status}`); e.status = status; throw e }
+    const exec = (bin, argv) => {
+      const line = argv.join(' ')
+      if (line.startsWith('describe')) return 'v2.105.0\n'
+      if (line.startsWith('diff --name-only v2.105.0')) return 'plugin/lib/record.py\n'
+      if (line.startsWith(`merge-base --is-ancestor v2.105.0 ${FAR}`)) fail(128)
+      if (line.startsWith(`merge-base --is-ancestor v2.105.0 ${OLD}`)) fail(1)
+      if (line.startsWith('merge-base')) return ''
+      throw new Error(`unexpected: git ${line}`)
+    }
+    writeFileSync(join(dir, 'far.json'), JSON.stringify({ at: FAR }))
+    writeFileSync(join(dir, 'old.json'), JSON.stringify({ at: OLD }))
+    const r = outsideRunEvidence(SHA, exec, dir)
+    assert.equal(r.kind, 'unverified', `an unresolvable revision is unknown, an old one is a definite no: ${r.reason}`)
+    assert.match(r.reason, /far\.json/)
+    assert.doesNotMatch(r.reason, /old\.json/)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

@@ -1194,8 +1194,11 @@ def _in_arithmetic(text, i):
 # A Rust char literal: one char, or an escape (`'\n'`, `'\''`, `'\x41'`, `'\u{1F600}'`), then
 # the closing quote. Anything else after a `'` is a lifetime or a label, which is code. The
 # `\xNN` arm is listed before the one-char escape: without it `'\x41'` was no literal, its
-# closing quote opened `','`, and a `'"'` beside it swallowed the file (Codex, c7da73b).
-_RUST_CHAR_LITERAL = re.compile(r"'(?:[^'\\\n]|\\(?:x[0-9a-fA-F]{2}|u\{[0-9a-fA-F_]{1,6}\}|[^xu\n]))'")
+# closing quote opened `','`, and a `'"'` beside it swallowed the file (Codex, c7da73b). A
+# unicode escape is one to six hex digits each followed by any number of `_` — the Reference's
+# grammar, not "up to six of digits-or-underscore": `'\u{0_0_0_0_4_1}'` is valid Rust and was
+# no literal to the shorter form (Codex, 153b762).
+_RUST_CHAR_LITERAL = re.compile(r"'(?:[^'\\\n]|\\(?:x[0-9a-fA-F]{2}|u\{(?:[0-9a-fA-F]_*){1,6}\}|[^xu\n]))'")
 def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,
                        shell_heredocs=False, swift=False, go=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.

@@ -50,6 +50,74 @@ function parseJson(text) {
 }
 
 /**
+ * Why a spawn result carries `error`. spawnSync's ETIMEDOUT is a child it KILLED
+ * at the deadline — the reader ran and was stopped, the opposite of "did not
+ * start". One classifier for every reader branch: the first fix reached only
+ * `reader()` and left adr-lint and SessionStart saying "did not start" for a
+ * killed child (Codex review of bdeba73, P3).
+ */
+export function failedToRun(error, budgetMs = null) {
+  return error.code === 'ETIMEDOUT'
+    ? `killed at the probe's ${budgetMs ? `${Math.round(budgetMs / 1000)}s ` : ''}budget before it finished (ETIMEDOUT); raise the budget`
+    : `did not start: ${error.code ?? error.message}`
+}
+
+/**
+ * The redaction every emitted string passes through (CLAUDE.md §6). The
+ * repository root becomes `.`; the plugin's own directory, the OS temp directory
+ * and the home directory become placeholders, in either separator spelling; any
+ * other absolute path — a POSIX root, a drive letter, a UNC share — becomes
+ * `<path>`. Anchored on a token boundary so a repository-relative path is never
+ * touched: the first version knew five root names, let `D:\Projects\…` out whole
+ * and ate `docs/var/cache/tasks/T1.md` down to `docs<path>` (Codex review of
+ * bdeba73, P1 and P2).
+ */
+export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedir() }) {
+  const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\', '/'), prefix.replaceAll('/', '\\')])]
+  const known = [[root, '.'], [pluginRoot, '<plugin>'], [tmp, '<tmp>'], [home, '<home>']]
+  // Not preceded by a path character: an absolute path starts its token, while a
+  // relative path's `/var` sits after `docs`.
+  const ABSOLUTE = /(?<![\w.\\/:-])(?:[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|[\\/](?:Users|home|private|tmp|var)[\\/])[^\s'"`)]*/g
+  return text => {
+    let out = String(text)
+    for (const [prefix, placeholder] of known) {
+      if (!prefix) continue
+      for (const spelling of spellings(prefix)) out = out.split(spelling).join(placeholder)
+    }
+    return out.replace(ABSOLUTE, '<path>')
+  }
+}
+
+/**
+ * Where two readers disagree about one task. Compared only where BOTH answered: a
+ * reader that crashed made no observation, and a directory work-next reports as
+ * `readinessUnproven` is one it did not read — "not offered" there is not a
+ * disagreement, it is the absence of one (Codex review of bdeba73, P2). Every path
+ * here is already the repository-relative POSIX form.
+ */
+export function compareReaders(adrNext, workNext) {
+  if (!workNext || !Array.isArray(workNext.ready)) return []
+  const unread = new Set(workNext.readinessUnproven ?? [])
+  const answered = adrNext.filter(entry => entry.ready !== null && !unread.has(entry.tasksDir))
+  const workNextReady = new Set(workNext.ready)
+  const disagreements = []
+  for (const entry of answered) {
+    for (const task of entry.ready) {
+      if (!workNextReady.has(task.path)) {
+        disagreements.push({ task: task.path, adrNext: 'ready', workNext: 'not offered', adrNextSays: task.unproven })
+      }
+    }
+  }
+  const answeredDirs = new Set(answered.map(entry => entry.tasksDir))
+  const adrNextReady = new Set(answered.flatMap(entry => entry.ready.map(task => task.path)))
+  for (const task of workNextReady) {
+    if (!answeredDirs.has(path.posix.dirname(task))) continue
+    if (!adrNextReady.has(task)) disagreements.push({ task, adrNext: 'not ready', workNext: 'ready' })
+  }
+  return disagreements
+}
+
+/**
  * Run one reader and either return its parsed JSON or record why it could not
  * be read. A reader that did not start, died, or printed no JSON is a
  * could-not-run entry (ADR-005), never a silent gap in the report.
@@ -58,11 +126,7 @@ function reader(name, run, note, budgetMs = null) {
   let result
   try { result = run() } catch (error) { result = { error } }
   if (result.error) {
-    // ETIMEDOUT is spawnSync's word for a child IT killed at the deadline — the
-    // reader ran and was stopped, which is the opposite of "did not start".
-    const why = result.error.code === 'ETIMEDOUT'
-      ? `killed at the probe's ${budgetMs ? `${Math.round(budgetMs / 1000)}s ` : ''}budget before it finished (ETIMEDOUT); raise the budget`
-      : `did not start: ${result.error.code ?? result.error.message}`
+    const why = failedToRun(result.error, budgetMs)
     note(name, why)
     return null
   }
@@ -86,19 +150,9 @@ function reader(name, run, note, budgetMs = null) {
 export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, sweepTimeoutSeconds = 60, sweepBudgetMs = DEFAULT_SWEEP_BUDGET_MS } = {}) {
   const resolved = realpathSync(root)
   const rel = target => publicPath(target, resolved)
-  // Every reader's free text goes through here before it is emitted. The
-  // repository root becomes `.`, and any other absolute path — the plugin's own,
-  // the OS temp directory, a home directory in a diagnostic — becomes a
-  // placeholder, both separator spellings. A first version replaced the root
-  // only, and a reader's error message carried the plugin path out (Codex review
-  // of c1f546a, P1).
+  // Every reader's free text goes through here before it is emitted (see `scrubber`).
   const pluginRoot = path.resolve(here, '..')
-  const scrub = text => String(text)
-    .split(resolved).join('.')
-    .split(pluginRoot).join('<plugin>')
-    .split(os.tmpdir()).join('<tmp>')
-    .split(os.homedir()).join('<home>')
-    .replace(/(?:[A-Za-z]:)?[\\/](?:Users|home|private|tmp|var)[\\/][^\s'"`)]*/g, '<path>')
+  const scrub = scrubber({ root: resolved, pluginRoot })
   const couldNotRun = []
   const note = (readerName, why) => couldNotRun.push({ reader: scrub(readerName), why: scrub(why) })
   const node = (script, args, options = {}) => spawnSync(process.execPath, [path.join(here, script), ...args],
@@ -122,7 +176,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     const tasksDir = (record.taskFiles ?? []).length ? path.dirname(record.taskFiles[0]) : null
     const run = gate('adr-lint', tasksDir ? [record.file, tasksDir] : [record.file])
     if (run.error) {
-      note(`adr-lint ${rel(record.file)}`, `did not start: ${run.error.code ?? run.error.message}`)
+      note(`adr-lint ${rel(record.file)}`, failedToRun(run.error, timeoutMs))
       return { file: rel(record.file), exit: null, verdict: null }
     }
     const first = `${run.stdout ?? ''}${run.stderr ?? ''}`.split('\n').find(line => /^\[|not-recognised|NOT A DECISION RECORD/.test(line)) ?? ''
@@ -162,7 +216,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     // JSON the host expects made no observation; it is could-not-run, not an
     // empty orientation (Codex review of c1f546a, P2). An empty stdout with exit
     // 0 IS an observation: a corpus with nothing to say.
-    if (hook.error) note('SessionStart', `did not start: ${hook.error.code ?? hook.error.message}`)
+    if (hook.error) note('SessionStart', failedToRun(hook.error, timeoutMs))
     else if (hook.status !== 0 || hook.signal) note('SessionStart', `exit ${hook.status}${hook.signal ? ` (${hook.signal})` : ''}: ${String(hook.stderr ?? '').trim().split('\n')[0] ?? ''}`)
     else {
       const said = (hook.stdout ?? '').trim() === '' ? {} : parseJson(hook.stdout)
@@ -195,31 +249,13 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // Every path a reader hands back is normalised to the repository-relative
   // POSIX form before it is compared or emitted: work-next prints native
   // separators, adr-next's came through publicPath, and on Windows the same task
-  // produced two contradictory entries (Codex review of c1f546a, P1).
+  // produced two contradictory entries (Codex review of c1f546a, P1). The
+  // comparison itself is `compareReaders`, above.
   const normal = value => rel(path.resolve(resolved, String(value)))
   const workNextPaths = key => workNext ? (workNext[key] ?? []).map(normal) : null
   const workNextReadyList = workNextPaths('tasksWithoutEvidence')
-  // Compared only where both readers answered: a reader that did not run has
-  // made no observation, and "not offered" by a reader that crashed is not a
-  // disagreement (ADR-005).
-  const disagreements = []
-  if (workNextReadyList !== null) {
-    const workNextReady = new Set(workNextReadyList)
-    const answered = adrNext.filter(entry => entry.ready !== null)
-    for (const entry of answered) {
-      for (const task of entry.ready) {
-        if (!workNextReady.has(task.path)) {
-          disagreements.push({ task: task.path, adrNext: 'ready', workNext: 'not offered', adrNextSays: task.unproven })
-        }
-      }
-    }
-    const answeredDirs = new Set(answered.map(entry => entry.tasksDir))
-    const adrNextReady = new Set(answered.flatMap(entry => entry.ready.map(task => task.path)))
-    for (const task of workNextReady) {
-      if (!answeredDirs.has(rel(path.dirname(path.resolve(resolved, task))))) continue
-      if (!adrNextReady.has(task)) disagreements.push({ task, adrNext: 'not ready', workNext: 'ready' })
-    }
-  }
+  const workNextUnproven = workNextPaths('readinessUnproven')
+  const disagreements = compareReaders(adrNext, workNext && { ready: workNextReadyList, readinessUnproven: workNextUnproven })
 
   return {
     probe: { version: pluginVersion(), sha256: probeDigest() },
@@ -231,7 +267,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       look: workNext.look, records: workNext.records, accepted: workNext.accepted, tasks: workNext.tasks,
       ready: workNextReadyList, unbacked: workNextPaths('unbackedDoneClaims'),
       underUndecided: workNextPaths('tasksUnderAnUndecidedRecord'), retirable: workNextPaths('retirableInActiveCorpus'),
-      readinessUnproven: workNextPaths('readinessUnproven'),
+      readinessUnproven: workNextUnproven,
       next: workNext.next,
     },
     frozenTaskDirs,

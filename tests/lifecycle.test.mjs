@@ -3394,6 +3394,24 @@ test('a signed-off human-observed task is finished, not ready forever', async ()
   const after = observe(root)
   assert.ok(!after.ready.some(f => f.endsWith('T1.md')),
     `a signed-off human-observed task must not stay ready forever:\n${after.ready.join('\n')}`)
+
+  // The same rule decides `notYetDecided`, which is where this branch still does
+  // its own reading now that readiness is adr-next's answer (BACKLOG §265) — the
+  // mutant on it went GREEN on CI the day readiness moved, because the `ready`
+  // assertions above were satisfied by adr-next's rule. A signed-off human-observed
+  // task under a Proposed record is finished, not work waiting on the decision.
+  const proposedTasks = path.join(root, 'docs', 'adr', 'ADR-002-pending', 'tasks')
+  await mkdir(proposedTasks, { recursive: true })
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-002-pending.md'), record.replace('ADR-001', 'ADR-002').replace('Accepted', 'Proposed'))
+  const pendingTask = path.join('ADR-002-pending', 'tasks', 'T1.md')
+  await writeFile(path.join(proposedTasks, 'T1.md'), humanTask(false).replace('ADR-001', 'ADR-002'))
+  const undecided = observe(root)
+  assert.ok(undecided.notYetDecided.some(f => f.endsWith(pendingTask)),
+    `an unsigned human-observed task under a Proposed record waits on the decision:\n${undecided.notYetDecided.join('\n')}`)
+  await writeFile(path.join(proposedTasks, 'T1.md'), humanTask(true).replace('ADR-001', 'ADR-002'))
+  const signedUndecided = observe(root)
+  assert.ok(!signedUndecided.notYetDecided.some(f => f.endsWith(pendingTask)),
+    `a signed-off one is finished whatever the record's status:\n${signedUndecided.notYetDecided.join('\n')}`)
 })
 
 

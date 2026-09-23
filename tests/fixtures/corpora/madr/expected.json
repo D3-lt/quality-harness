@@ -29,6 +29,7 @@
     "retirable": [
       "docs/adr/0002-use-redis-for-sessions.md"
     ],
+    "readinessUnproven": [],
     "next": "adr-retire"
   },
   "adrState": {

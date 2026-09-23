@@ -22,6 +22,7 @@
       "services/api/docs/adr/ADR-001-durations-are-seconds/tasks/T1-parse-seconds.md"
     ],
     "retirable": [],
+    "readinessUnproven": [],
     "next": "adr-verify"
   },
   "adrState": {

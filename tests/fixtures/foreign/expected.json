@@ -20,6 +20,7 @@
     ],
     "unbacked": [],
     "retirable": [],
+    "readinessUnproven": [],
     "next": "adr-execute"
   },
   "adrState": {

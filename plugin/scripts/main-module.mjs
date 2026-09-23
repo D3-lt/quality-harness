@@ -25,7 +25,11 @@ export function isMainModule(moduleUrl, argv = process.argv, realpath = realpath
   const entry = argv[1]
   if (!entry) return false
   try {
-    return realpath(fileURLToPath(moduleUrl)) === realpath(entry)
+    // As URLs, not raw paths: on Windows `pathToFileURL` lower-cases a UNC host
+    // (`\\\\SERVER\\share` → `file://server/share`) and `realpathSync` does not, so
+    // two spellings of one file compared unequal and the CLI went silent again
+    // (Codex review of 8ac14af, P2).
+    return pathToFileURL(realpath(fileURLToPath(moduleUrl))).href === pathToFileURL(realpath(entry)).href
   } catch {
     return moduleUrl === pathToFileURL(entry).href
   }

@@ -35,7 +35,7 @@
 import { createReadStream } from 'node:fs'
 import { createInterface } from 'node:readline'
 
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 const n = x => x.toLocaleString('en-US')
 
 function add(usage, totals) {
@@ -238,4 +238,4 @@ async function main() {
 
 // Guarded so the exports above can be imported by a hook that wants `markLine`
 // without running the profile as a side effect.
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) main()
+if (isMainModule(import.meta.url)) main()

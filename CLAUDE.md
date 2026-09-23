@@ -247,3 +247,28 @@ These classes are stated plainly. They are not noise. Classify each this turn an
 - **Accepted plugin work not released.** A green shipped change is released, not parked (§13). Do not bump or push unless asked; name the leftover.
 
 Why: `.claude/rules/17-always-on-unread-is-work.md`
+
+## 18. A reader is not shipped until somebody else has run it over a corpus we do not own
+
+Every reader here says something about a corpus, and every defect that reached an adopter was in
+what a reader SAID about a corpus shaped unlike this one. The suite records the checks somebody
+already thought of; it cannot read the whole output over a shape it has never seen.
+
+- **Before a release that changes what a reader says, get one run from outside:** a session that is
+  not this one, on a platform we cannot run, over a corpus we do not own, through
+  `plugin/scripts/corpus-probe.mjs --json` or the readers by hand — and ask for **everything it
+  printed, verbatim**, not a verdict. Say in the first line that a reply is the deliverable and that
+  "could not run because X" is a useful answer.
+- **The matrix is a floor, not the check.** `tests/corpus-matrix.test.mjs` asserts the fields a
+  reviewer chose; a defect lives in the sentence nobody chose to assert. When a peer's paste shows
+  one, the fix adds that field to `expected.json` as well as fixing the reader.
+- **A peer's report is a lead.** Confirm it against source before acting, expect some to be withdrawn,
+  and expect the peer's permission classifier to block foreign code until its user approves there —
+  never ask a peer to work around that.
+- **A refactor that moves an observable to another tool turns the tests on the old site vacuous.** Run
+  every catalogue mutant on the file you refactored, not only the new ones; a GREEN there is the
+  class, not an instance.
+- **A gate run under contention is unattributable, including a pass.** Wait for load below the core
+  count, then run the gate as its own job with its whole budget.
+
+Why: `.claude/rules/18-somebody-else-runs-it.md`

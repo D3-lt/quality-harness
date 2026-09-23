@@ -9670,6 +9670,15 @@
       ],
       "from": "    return out.replace(QUOTED, '$1<path>$1').replace(ABSOLUTE, '<path>')",
       "to": "    return out.replace(ABSOLUTE, '<path>')"
+    },
+    {
+      "label": "corpus-probe: an unquoted path continues past a space when the next word is followed by a separator",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const TAIL = /[^\\s'\"`)]*(?:[ \\t]+[^\\s'\"`)\\\\/]+(?=[\\\\/])[^\\s'\"`)]*)*/.source",
+      "to": "  const TAIL = /[^\\s'\"`)]*/.source"
     }
   ]
 }

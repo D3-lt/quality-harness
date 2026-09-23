@@ -1,9 +1,10 @@
 # Outside runs, attested
 
 `scripts/release-evidence.mjs` refuses to clear a sha for release when any file under
-`plugin/scripts/` or `plugin/bin/` changed since the last tag and no file here attests that
-somebody outside this repository ran those readers at a commit after that tag (CLAUDE.md §18,
-§13.5). This directory is that evidence. It is read by a tool, so its shape is fixed.
+`plugin/scripts/`, `plugin/bin/`, `plugin/lib/` or `plugin/hooks/` changed since the last tag and no
+file here attests that somebody outside this repository ran those readers at a revision that carries
+every one of those changes (CLAUDE.md §18, §13.5). This directory is that evidence. It is read by a
+tool, so its shape is fixed.
 
 **What goes here is an attestation, never the report.** A probe report over another repository is
 that repository's content — record ids, task names, its check command — and this repository never

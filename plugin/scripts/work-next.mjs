@@ -18,7 +18,7 @@
 // would be the thing this harness spent a week removing.
 import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 import { adrCorpus, listedUnderUninterestingDirectory, trackedPaths } from './lifecycle.mjs'
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
@@ -424,6 +424,6 @@ export function main(argv = process.argv.slice(2)) {
   return 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = main()
 }

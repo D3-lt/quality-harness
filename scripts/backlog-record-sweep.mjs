@@ -33,6 +33,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, existsSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const here = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(here, '..')
@@ -175,6 +176,6 @@ export function main (argv = []) {
 // `pathToFileURL`, never a `file://` template — on Windows the template never
 // matches and the script exits 0 having printed nothing, which is a could-not-look
 // wearing a clean exit (measured 2026-09-03, see backlog-claim-sweep.mjs).
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(main(process.argv.slice(2)))
 }

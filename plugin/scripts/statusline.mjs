@@ -32,7 +32,7 @@ import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 import { latestCheckFor, logIncomplete, projectCheckCommand, readEvents, sessionLogFile } from './lifecycle.mjs'
 import { usableCache } from './branch-state.mjs'
 import { findGitDir } from './git-directory.mjs'
@@ -199,6 +199,6 @@ export async function main(stdin = process.stdin, stdout = process.stdout) {
   return 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = await main()
 }

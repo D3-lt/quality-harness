@@ -33,7 +33,7 @@
 //   node scripts/slow-tests.mjs run.tap [--ratio 20] [--top 15] [--json]
 
 import { readFileSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 /**
  * Every `ok`/`not ok` line paired with the `duration_ms` that follows it.
@@ -148,6 +148,6 @@ export function run(argv, { read = readFileSync, log = console.log } = {}) {
 
 // `import.meta.url` is a URL and `process.argv[1]` is a PATH; a `file://${argv}`
 // template never matches on Windows (tests/package.test.mjs sweeps for it).
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(run(process.argv.slice(2)))
 }

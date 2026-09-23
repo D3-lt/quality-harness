@@ -1381,7 +1381,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {\n  process.exitCode = main()\n}",
+      "from": "if (isMainModule(import.meta.url)) {\n  process.exitCode = main()\n}",
       "to": "{\n  process.exitCode = main()\n}"
     },
     {
@@ -1661,7 +1661,7 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {\n  const code = main(process.argv.slice(2))\n  if (code !== null) process.exitCode = code\n}",
+      "from": "if (isMainModule(import.meta.url)) {\n  const code = main(process.argv.slice(2))\n  if (code !== null) process.exitCode = code\n}",
       "to": "{\n  const code = main(process.argv.slice(2))\n  if (code !== null) process.exitCode = code\n}"
     },
     {
@@ -1670,7 +1670,7 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {\n  process.exitCode = main(process.argv.slice(2))\n}",
+      "from": "if (isMainModule(import.meta.url)) {\n  process.exitCode = main(process.argv.slice(2))\n}",
       "to": "{\n  process.exitCode = main(process.argv.slice(2))\n}"
     },
     {
@@ -8333,6 +8333,15 @@
       ],
       "from": "TASK_PATH_ADVISE_LEN = 140",
       "to": "TASK_PATH_ADVISE_LEN = 1400"
+    },
+    {
+      "label": "main-module: the entry guard compares resolved paths, so a symlinked invocation still runs",
+      "file": "plugin/scripts/main-module.mjs",
+      "tests": [
+        "tests/main-module.test.mjs"
+      ],
+      "from": "return realpath(fileURLToPath(moduleUrl)) === realpath(entry)",
+      "to": "return moduleUrl === pathToFileURL(entry).href"
     },
     {
       "label": "corpus: a listed path under tests/, fixtures/ or their kin is not a record of this repository",

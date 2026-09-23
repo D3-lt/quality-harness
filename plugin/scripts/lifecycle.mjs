@@ -2896,7 +2896,7 @@ const PUBLISH_VERB = String.raw`(?:commit|push)(?![A-Za-z0-9_-])`
 const PUBLISH_NOT_HELP = String.raw`(?![ \t]+(?:--help|-h)(?![A-Za-z0-9_-]))`
 // Between argv tokens: whitespace, a line continuation, or the quote and comma of
 // an argv list (`["git","push"]`).
-const PUBLISH_SEP = String.raw`(?:\s|\\\n|["',])+`
+const PUBLISH_SEP = String.raw`(?:[ \t]|\\\n|["',])+`
 // WHERE A COMMAND BEGINS — a `git` is executed from the start of a line or shell
 // segment (`;`, `&&`, `|`, `(`, `{`, `$(`) or from the quoted string of an executor
 // (`bash -c`/`-lc`, `pwsh -Command`, `subprocess.run([`, `execSync(`), and from
@@ -2918,11 +2918,11 @@ const PUBLISH_SEP = String.raw`(?:\s|\\\n|["',])+`
 // heredoc body is a command position to this classifier.
 const PUBLISH_START = String.raw`(?:^|[\n;|&({]|\$\(|-[A-Za-z]*c[ \t]+["']|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["'])`
 const PUBLISH_WRAPPER = String.raw`(?:(?:then|do|else|elif|exec|nohup|nice|doas)[ \t]+`
-  + String.raw`|![ \t]*`
+  + String.raw`|![ \t]+`
   + String.raw`|(?:command|time)(?:[ \t]+-p)?[ \t]+`
-  + String.raw`|xargs(?:[ \t]+-[^\s"']+)*[ \t]+`
+  + String.raw`|xargs(?:[ \t]+(?:-[0rtpxo]+|-[nLPsdIEJR][ \t]*[^\s"']+))*[ \t]+`
   + String.raw`|timeout(?:[ \t]+(?:-[ks][ \t]+\S+|-[^\s"']+))*[ \t]+[0-9][^\s"']*[ \t]+`
-  + String.raw`|env(?:[ \t]+-[^\s"'S][^\s"']*)*(?:[ \t]+-S[ \t]+["']|[ \t]+)`
+  + String.raw`|env(?:[ \t]+(?:-[iv0]+|--ignore-environment|-[uC][ \t]+[^\s"']+))*(?:[ \t]+-S[ \t]+["']|[ \t]+)`
   + String.raw`|sudo(?:[ \t]+(?:-[ugCDprtTU][ \t]+\S+|--[a-z-]+(?:=\S+)?|-[A-Za-z]+))*[ \t]+)*`
 const PUBLISH_POSITION = `${PUBLISH_START}[ \\t]*${PUBLISH_WRAPPER}` + String.raw`(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"']*)[ \t]+)*`
 // The executable, by name or by path (`/usr/bin/git` was missed once), quoted or not.
@@ -3161,16 +3161,25 @@ export function recordHookEvent(input) {
   if (hook === 'PostToolUse') return MUTATION_TOOLS.has(input.tool_name) ? recordFileWritten(input) : null
   let name = null
   const extra = {}
-  // A read-only role's PreToolUse is decided by the reviewer deny and never
-  // observed; outside one, a Bash command that INVOKES commit or push is a publish
-  // request and is logged as one. A MENTION — the word in a grep, an echo, a file
-  // name — is prepared the same way (the check source imported, a late baseline
-  // adopted) so its warning reads the evidence a refusal would, and is appended
-  // as nothing: it is not a publish request, and every reader of
-  // `publish.requested` would otherwise count it (Codex review of f67cede).
+  // A Bash command that INVOKES commit or push is a publish request and is logged
+  // as one. A MENTION — the word in a grep, an echo, a file name — is prepared the
+  // same way (the check source imported, a late baseline adopted) so its warning
+  // reads the evidence a refusal would, and is appended as nothing: it is not a
+  // publish request, and every reader of `publish.requested` would otherwise count
+  // it (Codex review of f67cede). A read-only role's invocation is the reviewer
+  // guard's to deny and never this session's publish request, and its PreToolUse
+  // WRITES NOTHING — the log is the parent session's, and a reviewer adopting a
+  // late baseline or importing checks into it would be the reviewer observing for
+  // the session (the T3 test holds that log at zero). A form the guard cannot prove
+  // is a mention, observed here and never appended, so the reviewer still hears
+  // the state warning as the parent's last boundary left the ledger (Codex review
+  // of f14e4cd: dropping the dispatch fallback had made it silent).
   if (hook === 'PreToolUse') {
-    if (readOnlyRole(input.agent_type) || input.tool_name !== 'Bash') return null
+    if (input.tool_name !== 'Bash') return null
     const command = input.tool_input?.command
+    if (readOnlyRole(input.agent_type)) {
+      return mentionsCommitOrPush(command) ? { event: 'publish.mentioned', observation: observe(input.cwd) } : null
+    }
     if (containsCommitOrPush(command)) name = 'publish.requested'
     else if (mentionsCommitOrPush(command)) name = 'publish.mentioned'
     else return null
@@ -3492,10 +3501,9 @@ function publishUnchecked(input, requested) {
               ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
               : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
       + (invoked !== null
-        ? `about to run names commit or push (\`${invoked}\`). `
-        : 'about to run mentions commit or push without an invocation this hook can prove — a grep, an echo, a file name, or a form it does not parse. This line advises and refuses nothing; if the command does publish, ')
-      + 'Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what '
-      + `the command publishes.${inferredCheckCaveat(input.cwd)}${publishSettingNote(setting)}`,
+        ? `about to run names commit or push (\`${invoked}\`). Run \`qh-check\` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes.`
+        : 'about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.')
+      + `${inferredCheckCaveat(input.cwd)}${publishSettingNote(setting)}`,
   })
 }
 // R3 `review-changed-state` (ADR-060): a read-only role's run is bracketed by its

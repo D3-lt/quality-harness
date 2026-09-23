@@ -141,7 +141,7 @@ test('a mention reads the check that ran before it, and is logged as no publish'
     // Dirty side: unchecked work, so the mention is warned about — and refused nothing.
     const before = hook(MENTION)
     assert.match(before, /no `qh-check` has passed on/, before.slice(0, 300))
-    assert.match(before, /mentions commit or push without an invocation/, before.slice(0, 300))
+    assert.match(before, /only mentions commit or push/, before.slice(0, 300))
     // The pass lands in the check source, which only a hook boundary imports.
     run('python3', [qhCheck], { cwd: repo })
     const after = hook(MENTION)
@@ -165,5 +165,23 @@ test('a mention runs no artifact gate; a publish request does', () => {
     // Control: the same tree, a publish request — the gate runs and records.
     hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m x' } })
     assert.ok(log().some(entry => entry.event === 'artifact.gated'), 'a publish request is gated')
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+// ADR-060's reviewer guard denies a proven invocation. A form it cannot prove
+// (`$GIT push`) is a mention: the reviewer is refused nothing and still hears the
+// state warning. Codex review of f14e4cd: dropping the dispatch fallback had left a
+// read-only role with neither, since its PreToolUse was never prepared.
+test('a read-only reviewer whose form the guard cannot prove still hears the state warning', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-reviewer-mention-')))
+  try {
+    const { repo, hook, log } = fixture(top, 'reviewer-mention')
+    hook({ hook_event_name: 'SessionStart', source: 'startup' })
+    writeFileSync(join(repo, 'a.md'), 'changed\n')
+    const text = hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', agent_type: 'qh-scope-reviewer', tool_input: { command: 'GIT=git; $GIT push' } })
+    assert.doesNotMatch(text, /reviewer guard/, `the guard cannot prove a variable: ${text.slice(0, 300)}`)
+    assert.match(text, /only mentions commit or push/, `the state warning is not silent for a reviewer: ${text.slice(0, 300)}`)
+    assert.match(text, /no `qh-check` has passed on/)
+    assert.equal(log().filter(entry => entry.event === 'publish.requested').length, 0, 'a reviewer never logs a publish request')
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

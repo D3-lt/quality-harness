@@ -9796,6 +9796,24 @@
       ],
       "from": "    if (recorded?.event === 'publish.requested') artifactRule(input, recorded)",
       "to": "    artifactRule(input, recorded)"
+    },
+    {
+      "label": "ADR-061: an env option's ARGUMENT is not the executable (env -u git push publishes nothing) (§269 round 5)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  + String.raw`|env(?:[ \\t]+(?:-[iv0]+|--ignore-environment|-[uC][ \\t]+[^\\s\"']+))*(?:[ \\t]+-S[ \\t]+[\"']|[ \\t]+)`",
+      "to": "  + String.raw`|env(?:[ \\t]+-[^\\s\"'S][^\\s\"']*)*(?:[ \\t]+-S[ \\t]+[\"']|[ \\t]+)`"
+    },
+    {
+      "label": "ADR-061: a read-only reviewer's unprovable form is a mention, observed and warned about, never silent (§269 round 5)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "      return mentionsCommitOrPush(command) ? { event: 'publish.mentioned', observation: observe(input.cwd) } : null",
+      "to": "      return null"
     }
   ]
 }

@@ -414,7 +414,7 @@ test('the publish warning advises, never blocks, while this repository is unchec
   const fresh = await unheldRepository('quality-hook-mention-')
   const mention = publishAttempt('grep -n "git push" docs/x.md', fresh.dir, fresh.session)
   assert.equal(mention.status, 0)
-  assert.match(mention.stderr, /mentions commit or push without an invocation/, mention.stderr)
+  assert.match(mention.stderr, /only mentions commit or push/, mention.stderr)
   assert.doesNotMatch(mention.stdout, /"deny"/, `a mention is never a refusal: ${mention.stdout}`)
 })
 

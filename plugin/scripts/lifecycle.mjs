@@ -1970,7 +1970,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // `superseded by ADR-4`, `Superseded by 0004`, and since ADR-063 a dated
       // record's stem or path, which was read as record 2026.
       supersededBy: /^superseded\s+by\b/i.test(status)
-        ? supersessionTarget(retired ? status : rawStatus(text))
+        ? supersessionTarget(retired ? status : rawStatus(text), status)
         : null,
       governs: [...governs],
       // What FAILS when this decision is violated, or null. `Governs:` on its
@@ -2005,22 +2005,40 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
 
 // The record a `superseded by …` status names: the first reference in it, by the
 // ADR-063 rule, or a bare number (`Superseded by 0004`) that is not a date.
-function supersessionTarget(status) {
+// The index in `raw` of the character at `index` once `raw`'s underscores are removed.
+function rawIndex(raw, index) {
+  let seen = 0
+  for (let at = 0; at < raw.length; at += 1) {
+    if (raw[at] === '_') continue
+    if (seen === index) return at
+    seen += 1
+  }
+  return raw.length
+}
+
+// `status` is the line as written (underscores kept, for record names); `classified`
+// is the same line with every underscore stripped, as `recordStatus` returns it.
+function supersessionTarget(status, classified = status) {
   // `_Superseded_ by x` from a raw status line: emphasis around the words is not a name.
   const rest = status.replace(/^[_\s]*superseded_*\s+by_*\s*/i, '')
+  // ⚠ A NUMBER IS READ FROM THE CLASSIFIED LINE, as it was before ADR-063, so emphasis
+  // does not hide it: `_Superseded by ADR-004_` and `Superseded by _ADR-999_` name
+  // records 4 and 999 (Codex, 2026-09-22, round 6). A dated stem is read from the
+  // raw line, where its underscores survive.
+  const plain = classified.replace(/^superseded\s+by\s*/i, '')
   // Numbered, in every spelling a status line uses: `ADR-004`, `ADR 004`,
   // `ADR_004`, `ADR004`. This read them all before ADR-063, and the hyphenated
   // reference rule alone dropped three (Codex, 2026-09-22). Not when the number is
   // the start of a date, `ADR 2026-07-15`.
   // A whole identifier: `ADR-004oops` is not record 4 (Codex, 2026-09-22, round 2).
-  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)
-  const numbered = loose && !DATE_SHAPED_RE.test(rest.slice(loose.index + loose[0].length - loose[1].length))
-    ? { at: loose.index, id: numberId(loose[1]) } : null
+  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)
+  const numbered = loose && !DATE_SHAPED_RE.test(plain.slice(loose.index + loose[0].length - loose[1].length))
+    ? { at: rawIndex(rest, loose.index), id: numberId(loose[1]) } : null
   const dated = referencesWithProvenance(rest)
     .find(entry => !entry.id.startsWith('ADR-') && (entry.explicit || !BARE_DATE_RE.test(entry.id))) ?? null
   // `Superseded by 0004` names record 4 by a bare number at the very start.
-  const bareMatch = /^0*(\d{1,4})(?![0-9A-Za-z_])/.exec(rest)
-  const bare = bareMatch && !DATE_SHAPED_RE.test(rest) ? { at: 0, id: numberId(bareMatch[1]) } : null
+  const bareMatch = /^0*(\d{1,4})(?![0-9A-Za-z_])/.exec(plain)
+  const bare = bareMatch && !DATE_SHAPED_RE.test(plain) ? { at: 0, id: numberId(bareMatch[1]) } : null
   // The FIRST record named, never whichever one exists: `ADR-999 (see ADR-002)`,
   // and `999 (see ADR-002)` (Codex, 2026-09-22, round 3).
   const first = [bare, numbered, dated].filter(Boolean).sort((a, b) => a.at - b.at)[0]

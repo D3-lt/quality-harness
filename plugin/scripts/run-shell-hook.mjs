@@ -347,9 +347,14 @@ export async function runShellHook(scriptName, raw, options = {}) {
   // test fixture shaped like a record ran adr-lint and adr-retire-check over it
   // and reported the fixture's deliberate gaps as failures of the repository
   // (measured 2026-09-23 while building tests/fixtures/corpora, BACKLOG §265).
+  // Only the record gate: a shell or source file under `build/` still needs its
+  // syntax check, and the exclusion is about what counts as a decision record
+  // (Codex review of c1f546a, P2). The edited path is resolved against the
+  // payload's cwd first, so a relative `file_path` is judged where the host ran.
   const editedFile = hookFilePathFromPayload(raw, process.platform)
   const hookCwd = typeof payloadForEnvEarly(raw)?.cwd === 'string' ? payloadForEnvEarly(raw).cwd : process.cwd()
-  if (editedFile && relativePathIsUninteresting(path.relative(hookCwd, editedFile))) {
+  if (scriptName === 'facts-gate-dispatch.sh' && editedFile
+    && relativePathIsUninteresting(path.relative(hookCwd, path.resolve(hookCwd, editedFile)))) {
     if (verdict) verdict.complete = true
     finish('processed', { status: 0 })
     return 0

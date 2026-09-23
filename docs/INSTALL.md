@@ -126,7 +126,7 @@ One command runs every reader this plugin ships over your repository — `work-n
 — and prints what each said, side by side, with the disagreements between them computed:
 
 ```bash
-node "$(qh-root)/scripts/corpus-probe.mjs" --json            # add --sweep to re-run every recorded claim
+node "$(qh-root)/scripts/corpus-probe.mjs" --json            # add --sweep to re-run every recorded claim (its own --sweep-budget, default 30 min)
 ```
 
 Every path in the output is relative to your repository or a placeholder, so the JSON can be pasted

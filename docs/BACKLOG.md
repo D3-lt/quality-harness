@@ -14305,13 +14305,36 @@ four fixed here, two left open.
    skips such a path before dispatch, `verdict.complete = true`. `tests/fixture-edit-gate.test.mjs`
    holds the same record on both sides of the line.
 
-**Open, encoded as expected disagreements so a fix must change the expectation in the open:**
+**The first real corpus, and the reader disagreement it settled (same day).** A peer session ran the
+probe over its five-record Laravel corpus: `work-next` offered T4 and T5 while their `Depends-on: T3`
+was pending; `adr-next` held them back. That was the third instance of one defect — `work-next` had
+its own readiness rule (any exit-0 row means finished; no `Depends-on`, no `Blocked-on`, no digest
+check) beside `adr-next`, which had all three, and this repository's own archive gave a fourth
+(three frozen tasks with stale digests, offered by one reader and not the other). **Fixed:
+readiness is `adr-next`'s answer.** `work-next` asks `adr-next --json` per task directory of a
+governing, unfrozen record, exactly as SessionStart does, restricted to the task files it lists; a
+directory `adr-next` cannot answer for is `readinessUnproven` in the state and the JSON, never
+"nothing ready" (ADR-005). Item 5 below is closed by that; `foreign/…/T1` is ready everywhere now,
+with adr-next's stale-digest reason. Found on the way: `adr-next` crashed with `IndexError` on a task
+file named plainly `T9.md` (the title regex captures the id, `TID_RE` has no group). Six tests here
+carried `acceptance-sha256:beef`, a digest no fence produces, and had encoded "finished" for what is
+stale evidence; they carry the fence's real digest now.
 
-5. **Stale evidence.** `adr-next` marks a task whose exit-0 row's digest no longer matches its fence
-   as ready-and-unproven; `work-next` sees any exit-0 row as finished (`unfinished()` has no digest
-   check, and the normalisation lives in `plugin/lib/record.py`). `foreign/…/T1` is the case:
-   SessionStart says "T1 is ready", `work-next` does not list it. The honest fix is one readiness
-   rule — `work-next` asking `adr-next` the way SessionStart does — which is a design change.
+**From the Codex review of `c1f546a`, seven findings, all folded in:** the widened `CLAIM_RE` had
+admitted `--relock` snapshot rows as claims (excluded via `vlog_row_is_lock_snapshot`, the rule lint
+already applied); the probe could leak the plugin path or a temp path through a reader's diagnostic
+(every emitted string is scrubbed, both separator spellings); `work-next` printed native separators
+and on Windows the same task produced two contradictory disagreement entries (every path is
+normalised before comparison — the Windows CI job failed on exactly this); a crashed hook read as an
+empty orientation and a crashed `work-next` invented "not offered" (could-not-run now, and
+disagreements are computed only where both readers answered); the fixture exclusion also skipped
+`post-edit-check.sh`'s syntax check (scoped to the record gate); a relative `file_path` was judged
+against the wrong cwd (resolved against the payload's); and `expected.json`'s `adrLint` was
+declared and never asserted (asserted).
+
+**Open:**
+
+5. ~~Stale evidence disagreement~~ — closed above.
 6. **A fresh corpus routes nowhere.** `nextStage` only offers `adr-execute` when the corpus already
    carries one exit-0 row (`usesVerificationLog`), so a repository with its first task — the
    ONBOARDING hour-one shape — hears "Nothing in the QH corpus is waiting" from `work-next` and
@@ -14320,4 +14343,80 @@ four fixed here, two left open.
    that has no evidence YET.
 
 **Also seen:** the MADR corpus is counted by every reader (three records, one retirable) and refused
-by `adr-lint` (`not-recognised` ×3) — ADR-038's split, now visible in one report rather than two.
+by `adr-lint` (`not-recognised` ×3) — ADR-038's split, now visible in one report rather than two. And
+a blind spot the peer named: records whose `**Repo:**` header points at ANOTHER repository, so their
+fences run in a tree the probe never sees; nothing in the report says so yet.
+
+## 266. PARTLY CLOSED 2026-09-23 — what a Windows desktop said about the released readers over a 72-record corpus
+
+The dynamic arm §265 asked for, run the same day on a machine this repository cannot: a peer session
+on Windows 11 (Python 3.14.7, node 24.20, git 2.49, `core.autocrlf=true`) ran every reader of
+quality-harness **2.104.0** by hand over a real consumer corpus — 72 accepted records, 209 task
+files, 19 task directories — and a second peer ran `tests/corpus-matrix.test.mjs` from `corpus-matrix`
+at `c1f546a`. Neither edited anything. Three defects, none visible from this repository's own corpus.
+
+**Fixed:**
+
+1. **SessionStart read six task directories and rendered the rest as nothing.** `taskDirectories`
+   had `if (found.length >= 6) break` over the alphabetical git listing, and the `(+N more record
+   set(s))` line counted only what was read and then hidden by the render cap. On that corpus the
+   six read were all done; the block said `all 10 task(s) carry exit-0 evidence … (+3 more record
+   set(s))`, and the only READY tasks (038 T6, 076 T1, T7) sat in the thirteen directories it never
+   looked at. A could-not-look rendered as an all-clear (ADR-005). The cap stays — each directory is
+   an `adr-next` spawn — and the unread count now travels back and prints as `(+13 more task
+   directories: UNPROVEN — not read; …)`, which the render cap can never hide.
+2. **`adr-next --json` gave every done task an `unproven` sentence.** `unprovable_evidence` reads a
+   digest row reaching it as a mismatch, which is true only after `is_done` said no; it was computed
+   for every task, so about 200 done tasks carried `recorded against a different Acceptance — the
+   fence changed after that run` in the JSON while the text render, which only prints it on READY
+   lines, was correct. The peer recomputed 077 T1's digest with `lib/record.py`: it matched, CRLF
+   stripped or not. `unproven` is `None` for a done task now. Present on 2.103.0, 2.103.1, 2.104.0.
+3. **`adr-lint` said "Acceptance changed after verification" with no digest row in the log.** A
+   legacy-only log on a multi-line fence got both `Legacy no-digest evidence cannot prove a multi-line
+   fence` and the changed-Acceptance sentence; the second is an observation only a digest row
+   supports. It is conditional on one now; otherwise `No exit-0 entry names this fence's digest`.
+
+**Confirmed, fixed in §265 before this report arrived:** `work-next` offered 076 T10 and T12 (both
+`Depends-on` pending) and missed T1 and T7, which `adr-next` and `adr-lint` agreed were the ready ones
+— the same second-readiness-rule defect §265 closed by delegating readiness to `adr-next`. And the
+matrix's five corpora all failed on `c1f546a` at one assertion each: `work-next` `ready`/`retirable`/
+`unbacked` spelled with `\`, nothing else — the probe normalises those before comparing now.
+
+**Open:**
+
+4. `work-next --json`, `adr-state` and `adr-next --json` print native separators on Windows;
+   `adr-lint` echoes an unexpanded glob backslashed (`ADR not found: docs\adr\076-…\*.md`). Only
+   lifecycle's SessionStart text is listed-form. Whether JSON should be posix everywhere is a contract
+   question for the consumers (`corpus-probe` normalises; `lifecycle` and `work-next` resolve).
+5. `lib/record.py:2140` says `(advisory until 2026-09-13)` about a row dated before that day, read
+   on 2026-09-23. The date is the lock's cutover and the behaviour is right (a pre-cutover row stays
+   advisory for ever, F-1); the wording reads as a deadline that passed. Reword to name the row's date.
+6. `adr-next`'s acceptance hint is the fence's first line only, which for a multi-line fence ends in a
+   bare `\` and is not a command.
+7. The peer could not get `node lifecycle.mjs < SessionStart-json` to print anything on Windows —
+   exit 0, empty stdout, with both a bash-style and a `cygpath -w` path — and produced the block by
+   importing `sessionOrientation` instead. Unreproduced here; a real new-session capture on Windows
+   is owed before this is called a defect or a usage error.
+9. **`corpus-probe --sweep` was killed at the reader budget and said "did not start".** On the same
+   corpus `adr-verify --sweep` over 395 entries ran past the probe's 120s per-reader `--timeout` and
+   `couldNotRun` read `did not start: ETIMEDOUT` — a child spawnSync killed is one that ran. Fixed
+   here: a killed reader says `killed at the probe's Ns budget`, and the sweep has its own
+   `--sweep-budget` (default 30 minutes), since its cost is every fence in the corpus.
+10. **Withdrawn the same hour, and kept because the shape recurs.** The probe's output appeared to show
+   `â€”` for every em-dash on that desktop. The peer then read its byte-for-byte capture: 31 × `E2 80
+   94`, 0 × `C3 A2 E2 82 AC` — correct UTF-8 from every reader. The mojibake was Python 3.14 `open()`
+   with no `encoding=` on a machine whose locale encoding is cp1252 (`utf8_mode=0`). Not a reader
+   defect. The lesson for anyone reading a probe capture on Windows: name the encoding.
+8. The Windows classifier blocked both peers' first attempts ("Code from External") until their user
+   approved; the run that matters most for a Windows adopter is the one a session cannot start alone.
+11. **A hook payload the parser rejected was a hook with nothing to say.** `lifecycle.mjs` `main()`
+   returned in silence at exit 0 when stdin was not JSON. The peer's `node lifecycle.mjs < payload.json`
+   printed nothing while `sessionOrientation()` imported directly was full; the cause, measured by the
+   peer from the bytes, was its own payload — `"cwd":"Y:\Projects\wcag"` with single backslashes,
+   an illegal JSON escape — not a BOM and not a Windows stdin defect; with valid bytes the hook printed
+   the full block on Windows, and that block shows the six-directory cap live on 2.104.0 (038 and 076
+   absent). Fixed regardless: a payload that does not parse is said on stderr at exit 0, and a leading
+   BOM is stripped since PowerShell's `>` writes one. One stderr line would have saved the round trip.
+12. `branch-state`'s alarm line said "`selftest.sh` and the CI jobs are different checks" in a
+   consumer repository that has no such file — this repository's own check leaking into every
+   adopter's text. It says "the local check" now.

@@ -1652,6 +1652,61 @@ test('SessionStart always surfaces an UNPROVEN ready line and still caps ordinar
   assert.equal(shownReady.length, 3, `cap keeps three ordinary ready lines: ${clean}`)
 })
 
+test('SessionStart says how many task directories it did not read', async () => {
+  // Reported 2026-09-23 from a Windows desktop over a 72-record corpus: the hook
+  // reads six directories, a `break` dropped the rest, and the only READY work sat
+  // in directories it never looked at while the block read as all-done (ADR-005).
+  const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+  const root = await mkdtemp(path.join(testTmp, 'ss-ready-unread-'))
+  const fixture = path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md')
+  for (const letter of letters) {
+    const directory = path.join(root, 'docs', 'adr', letter, 'tasks')
+    await mkdir(directory, { recursive: true })
+    await cp(fixture, path.join(directory, 'T1-fixture.md'))
+  }
+  gitInit(root)
+  const listing = letters.map(letter => path.join('docs', 'adr', letter, 'tasks', 'T1-fixture.md'))
+  const allDone = () => ({
+    status: 3, stdout: JSON.stringify({ ready: [], blocked: [], done: [{ id: 'T1' }] }), stderr: '', error: null, signal: null,
+  })
+  const seven = readyTaskLines(root, true, listing, allDone)
+  assert.equal(seven.lines.filter(line => /carry exit-0 evidence/.test(line)).length, 6, seven.lines.join('\n'))
+  const unread = seven.lines.filter(line => /\(\+1 more task directory: UNPROVEN — not read/.test(line))
+  assert.equal(unread.length, 1, `the seventh directory is said, not dropped: ${seven.lines.join('\n')}`)
+  assert.ok(surfaceReadyLines(seven.lines).some(line => /more task directory: UNPROVEN/.test(line)),
+    'and the render cap never hides it')
+  // CLEAN: six directories are all read, so nothing is said about unread ones.
+  const six = readyTaskLines(root, true, listing.slice(0, 6), allDone)
+  assert.ok(!six.lines.some(line => /more task director/.test(line)), six.lines.join('\n'))
+})
+
+test('a hook payload with a BOM is read, and one that is not JSON is said, not swallowed', async () => {
+  // Peer-run on Windows, 2026-09-23: `node lifecycle.mjs < payload.json` printed
+  // nothing at exit 0 while the same orientation, imported directly, was full. The
+  // payload had an illegal escape and the parse failure returned in silence, so a
+  // round trip went on "stdin is broken". A BOM — what PowerShell's `>` writes —
+  // is the other way a valid-looking payload fails to parse, so it is stripped.
+  const root = await mkdtemp(path.join(testTmp, 'ss-bom-'))
+  await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
+    path.join(root, 'docs', 'tasks', 'T1-fixture.md'))
+  gitInit(root)
+  const spawnHook = raw => spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+    cwd: testTmp, input: raw, encoding: 'utf8', timeout: 60_000,
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp },
+  })
+  const payload = JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd: root, session_id: 'bom-probe' })
+  const withBom = spawnHook(`\uFEFF${payload}`)
+  assert.equal(withBom.status, 0, withBom.stderr)
+  assert.match(JSON.parse(withBom.stdout).hookSpecificOutput.additionalContext, /ADR tasks in flight/,
+    `a BOM-prefixed payload is the payload: ${withBom.stdout}`)
+  // DIRTY: a payload that is not JSON at all is named, at exit 0, never a silent nothing.
+  const garbage = spawnHook('not json at all')
+  assert.equal(garbage.status, 0, 'a hook blocks nothing (CLAUDE.md §3)')
+  assert.equal(garbage.stdout, '')
+  assert.match(garbage.stderr, /hook payload on stdin was not JSON; nothing was read/, garbage.stderr)
+})
+
 test('git cannot list is UNPROVEN, not no ready tasks', async () => {
   const root = await mkdtemp(path.join(testTmp, 'ss-ready-fail-'))
   await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
@@ -2464,7 +2519,7 @@ test('a Proposed record has no ready tasks, and the router says why it stopped c
     `# Task ADR-${id}\n\n**Depends-on:** none\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n`
     + '## Verification Log\n\n'
   const evidenced = '# Task ADR-001-T9\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
-    + '## Verification Log\n\n- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n'
+    + '## Verification Log\n\n- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n'
 
   await mkdir(path.join(root, 'docs', 'adr', 'ADR-001-accepted', 'tasks'), { recursive: true })
   await mkdir(path.join(root, 'docs', 'adr', 'ADR-002-proposed', 'tasks'), { recursive: true })
@@ -2546,7 +2601,7 @@ test('a date-named record is read, and a docs/adr that yields nothing says so', 
   // the assertions below pass for a reason unrelated to discovery.
   await writeFile(path.join(root, 'docs', 'adr', '2026-08-17-dated', 'tasks', 'T9.md'),
     '# Task T9\n\n## Acceptance\n\n```bash\ntrue\n```\n\n## Verification Log\n\n'
-    + '- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n')
+    + '- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n')
   gitInit(root)
 
   assert.deepEqual(adrCorpus(root).map(r => path.basename(r.file)), ['2026-08-17-dated.md'],
@@ -3067,7 +3122,7 @@ test('importing the router does not end the process that imported it', async () 
     '# ADR-001: Settled\n\n**Status:** Accepted\n')
   await writeFile(path.join(settledTasks, 'T1.md'),
     '# Task ADR-001-T1\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
-    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n')
+    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n')
   gitInit(settled)
   const { nextStage: stageOf, observe: observeAt } = await import('../plugin/scripts/work-next.mjs')
   assert.equal(stageOf(observeAt(settled)), null,
@@ -3319,7 +3374,7 @@ test('a signed-off human-observed task is finished, not ready forever', async ()
   // A tool-run task alongside, so `usesVerificationLog` is true and the branch
   // under test is actually reached rather than skipped.
   const evidenced = '# Task ADR-001-T9\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
-    + '## Verification Log\n\n- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n'
+    + '## Verification Log\n\n- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n'
 
   const tasks = path.join(root, 'docs', 'adr', 'ADR-001-probe', 'tasks')
   await mkdir(tasks, { recursive: true })

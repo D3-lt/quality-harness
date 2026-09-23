@@ -2865,6 +2865,30 @@ const forgeDigest = copy => writeTask(copy, readTask(copy).replace(
   /acceptance-sha256:([0-9a-f]{63})([0-9a-f])/g,
   (_m, head, last) => `acceptance-sha256:${head}${last === '0' ? '1' : '0'}`))
 
+// Reported 2026-09-23 from a Windows desktop over a 209-task corpus: a done task
+// whose only exit-0 rows were legacy (no digest) on a multi-line fence was refused
+// with BOTH "Legacy no-digest evidence cannot prove a multi-line fence" and
+// "Acceptance changed after verification". The second is an observation the gate
+// never made — no digest row exists to have been recorded against another fence.
+test('a legacy-only log is refused for what it is, not for an Acceptance change nobody observed', () => {
+  const copy = corpus()
+  markDone(copy)
+  const [head] = readTask(copy).split('## Verification Log')
+  writeTask(copy, head + '## Verification Log\n\n- 2026-09-12 · abc1234 · exit 0 · `set -e`\n')
+  const legacy = lint(copy)
+  expectExit(legacy, 1, 'a legacy row cannot prove a multi-line fence')
+  assert.match(legacy.stdout, /Legacy no-digest evidence cannot prove a multi-line fence/, legacy.stdout)
+  assert.doesNotMatch(legacy.stdout, /Acceptance changed after verification/,
+    `no digest row was ever recorded, so none was recorded against another fence: ${legacy.stdout}`)
+  assert.match(legacy.stdout, /[Nn]o exit-0 entry names this fence's digest/, legacy.stdout)
+  // DIRTY: a digest row that does not match IS the observation the sentence names.
+  writeTask(copy, head + '## Verification Log\n\n- 2026-09-12 · abc1234 · exit 0 · `set -e` · acceptance-sha256:'
+    + '0'.repeat(64) + '\n')
+  const changed = lint(copy)
+  expectExit(changed, 1, 'a mismatched digest is refused')
+  assert.match(changed.stdout, /Acceptance changed after verification/, changed.stdout)
+})
+
 test('a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped', () => {
   for (const opener of ['sh', 'shell', 'bash   ']) {
     const copy = corpus()

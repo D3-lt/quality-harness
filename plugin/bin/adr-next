@@ -430,9 +430,13 @@ def load(tasks_dir):
         m = re.match(r"^#\s+(?:Task\s+)?\S*?(T\d+)\b", text) or TID_RE.search(path.name)
         if not m:
             continue
-        tid = m.group(1).upper()
+        # The title regex captures the id; TID_RE has no group, so a task named
+        # plainly `T9.md` with no `# Task …T9` title crashed here with IndexError
+        # — found the day work-next started asking this tool (2026-09-23).
+        tid = (m.group(1) if m.lastindex else m.group(0)).upper()
         fence, first, digest = acceptance(text)
         human = first == "human-observed"
+        done = is_done(text, digest, human, fence, first, root)
         infos[tid] = {
             "id": tid,
             "path": str(path),
@@ -442,12 +446,16 @@ def load(tasks_dir):
             "produces": header_val(text, "Produces") or "",
             "acceptance": None if human else first,
             "human_observed": human,
-            "done": is_done(text, digest, human, fence, first, root),
+            "done": done,
 
-            # Read whatever the answer above was, and rendered only when it is
-            # `ready`: a done task's evidence is the evidence, and a blocked or
-            # stopped task already prints a reason of its own.
-            "unproven": unreadable_note(text) or unprovable_evidence(text, digest, fence, first),
+            # Only for a task that is NOT done. `unprovable_evidence` reads a digest
+            # row reaching it as a mismatch, which holds only when `is_done` said no;
+            # computed for every task, it told `--json` consumers that ~200 done tasks
+            # in a 209-task corpus carried evidence "recorded against a different
+            # Acceptance" — the text render skipped it, the JSON did not (reported
+            # 2026-09-23 from a Windows desktop). A done task's evidence IS the
+            # evidence; a blocked or stopped task prints a reason of its own.
+            "unproven": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first)),
             # ADR-005 applied to routing. A sign-off that says STOP denies `done`
             # and used to fall straight through to `ready`, so the router offered
             # work the record forbids starting. Reported 2026-09-02 from another

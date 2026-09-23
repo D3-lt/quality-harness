@@ -18,8 +18,51 @@
 // would be the thing this harness spent a week removing.
 import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, listedUnderUninterestingDirectory, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, listedUnderUninterestingDirectory, spawnGate, trackedPaths } from './lifecycle.mjs'
+
+const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
+
+/**
+ * Which tasks are ready, as adr-next answers it — one readiness rule, not two.
+ *
+ * This file had its own: any exit-0 row meant finished, and nothing read
+ * `Depends-on`, `Blocked-on` or the row's digest. adr-next had all three, so
+ * the two readers disagreed on the first real corpus a probe was run over
+ * (2026-09-23: T4 and T5 offered while their `Depends-on: T3` was pending; a
+ * stale-digest task called finished here and ready-unproven there; frozen archive
+ * tasks offered by one and not the other). SessionStart already asks adr-next
+ * per task directory; so does this now, for the task directories of governing,
+ * unfrozen records only — a frozen archive is history, never ready work.
+ *
+ * A directory adr-next could not answer for is UNPROVEN, named in the state, and
+ * never read as "nothing ready" (ADR-005). `spawn` is the seam.
+ */
+export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = null) {
+  const dirs = new Set()
+  for (const record of corpus) {
+    if (record.kind !== 'governing' || record.frozen) continue
+    // Only task files this reader lists (`taskFiles`: a `.md` directly under
+    // `tasks/`, no archive, no fixture path), so the two views of "which tasks
+    // exist" cannot drift apart — a record's `taskFiles` includes its archived
+    // and nested files, and asking adr-next about those offered history as work.
+    for (const file of record.taskFiles ?? []) {
+      if (allowed && !allowed.has(path.resolve(file))) continue
+      dirs.add(path.dirname(file))
+    }
+  }
+  const ready = []
+  const unproven = []
+  for (const dir of [...dirs].sort()) {
+    const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: directory, encoding: 'utf8', timeout: 60_000 })
+    let answer = null
+    if (!run.error && run.status === 0) { try { answer = JSON.parse(run.stdout) } catch { answer = null } }
+    if (!answer || !Array.isArray(answer.ready)) { unproven.push(dir); continue }
+    for (const task of answer.ready) ready.push(path.resolve(directory, task.path))
+  }
+  return { ready, unproven }
+}
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
 // move, so the router explains itself instead of asserting.
@@ -157,7 +200,7 @@ function coveredIds(corpus) {
 }
 
 /** Observations, each carrying the evidence that produced it. */
-export function observe(directory) {
+export function observe(directory, { spawn = spawnGate } = {}) {
   const listing = trackedPaths(directory)
   const corpus = adrCorpus(directory, { tracked: listing })
   const look = listing == null ? 'UNPROVEN' : (corpus.look ?? 'ok')
@@ -223,7 +266,8 @@ export function observe(directory) {
       && /^- \d{4}-\d{2}-\d{2} · human-observed · \S/m.test(text)) return false
     return true
   }
-  const ready = tasks.filter(file => unfinished(file) && executable(file))
+  const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
+  const ready = readiness.ready.filter(file => executable(file))
   // Named rather than dropped in silence: a corpus whose only unfinished work
   // sits under a record nobody has accepted would otherwise read as finished,
   // which is the same "I could not look" / "there is nothing" conflation the
@@ -268,6 +312,10 @@ export function observe(directory) {
   return {
     look,
     usesVerificationLog,
+    // Task directories adr-next could not answer for; their tasks are neither
+    // ready nor finished here, and a router that read them as "nothing ready"
+    // would be the ADR-005 conflation.
+    readinessUnproven: readiness.unproven,
     records: corpus.length,
     accepted: corpus.filter(record => record.kind === 'governing').length,
     // `records` counts what this reader could CLASSIFY, and until §48 that was
@@ -347,6 +395,7 @@ export function main(argv = process.argv.slice(2)) {
       tasksWithoutEvidence: state.ready.map(relative),
       tasksUnderAnUndecidedRecord: state.notYetDecided.map(relative),
       retirableInActiveCorpus: state.retirable.map(record => relative(record.file)),
+      readinessUnproven: state.readinessUnproven.map(relative),
       specs: state.specs,
       uncoveredReadySpecs: (state.uncoveredReadySpecs ?? []).map(relative),
       unprovenSpecs: (state.unprovenSpecs ?? []).map(relative),

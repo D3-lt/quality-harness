@@ -3131,3 +3131,29 @@ test('--steps sees a step declared after a fenced ## line in Ordered Steps', () 
   assert.match(`${refused.stdout}${refused.stderr}`, /declare[sd]? S1, S2/,
     'the refusal lists both declared steps, so S2 was read through the fence')
 })
+
+// Reported 2026-09-23 from a Rust corpus: a fence that prints `  - <problem>` on
+// failure, one red `adr-verify` run, and adr-lint refused the log adr-verify had
+// just written — every captured output line, indented inside the excerpt fence,
+// was read as a Verification Log entry off-grammar. A tool-written log nobody may
+// edit, refused by the tool's own sibling.
+test('quoted output inside the excerpt fence is not a Verification Log entry', () => {
+  const copy = corpus()
+  writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?\n```/,
+    '```bash\nprintf \'  - served_model=None, expected qwen\\n  - second problem\\n\'\nexit 1\n```'))
+  const red = verify(copy, ['--cwd', '.'])
+  expectExit(red, 1, 'the fence fails on purpose')
+  const written = readTask(copy)
+  assert.match(written, /^- \d{4}-\d{2}-\d{2} · \S+ · exit 1 ·/m, `a red row was written:\n${written}`)
+  assert.match(written, /^  - served_model=None/m, `the output tail is quoted inside the excerpt fence:\n${written}`)
+  const linted = lint(copy)
+  assert.doesNotMatch(`${linted.stdout}${linted.stderr}`, /Verification Log entry doesn't match/,
+    `quoted output is not a log entry:\n${linted.stdout}${linted.stderr}`)
+  // DIRTY: a malformed row OUTSIDE the fence — after it, where a fence that never
+  // closed would swallow it — is still refused, exactly once.
+  writeTask(copy, `${written.replace(/\n*$/, '\n')}- garbage that is not a row\n`)
+  const dirty = lint(copy)
+  expectExit(dirty, 1, 'an off-grammar row is refused')
+  const hits = `${dirty.stdout}${dirty.stderr}`.match(/Verification Log entry doesn't match/g) ?? []
+  assert.equal(hits.length, 1, `exactly the malformed row, not the quoted output:\n${dirty.stdout}`)
+})

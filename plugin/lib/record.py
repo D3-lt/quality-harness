@@ -136,6 +136,29 @@ def _fence_closes(line, opened):
             and len(m.group("marker")) >= opened[1] and re.fullmatch(r"[ \t]*", m.group("rest")))
 
 
+def unfenced_lines(lines):
+    """The lines of a section that are not inside a code fence.
+
+    A section's entries are its top-level `- ` lines; a fenced block inside it —
+    the quoted output adr-verify itself appends on a red run — is text. A fence
+    that printed `  - <problem>` on failure put three "log entries" into a log
+    that adr-lint then refused, a tool-written log nobody may edit (reported
+    2026-09-23 from a Rust corpus). Same fence grammar as `_sections`, so what
+    one walk skips the other skips too.
+    """
+    out, fence = [], None
+    for line in lines:
+        if fence is None:
+            opened = _fence_opened(line)
+            if opened:
+                fence = opened
+                continue
+            out.append(line)
+        elif _fence_closes(line, fence):
+            fence = None
+    return out
+
+
 def _sections(text):
     """Every `## ` section of `text` in document order, fence-aware.
 

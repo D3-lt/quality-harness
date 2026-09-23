@@ -959,7 +959,17 @@ export function surfaceReadyLines(lines, cap = 3) {
     }
   }
   const hidden = lines.length - shown.length
-  if (hidden > 0) shown.push(`  (+${hidden} more record set(s))`)
+  if (hidden > 0) {
+    // Two counts, two sentences, in the order a reader sums them: the directories
+    // READ but not shown, then the ones NOT READ at all. Two Windows sessions read
+    // `(+13 … UNPROVEN — not read …)` followed by `(+3 more record set(s))` as one
+    // overlapping figure (2026-09-23), so the read-but-capped line now comes first
+    // and says what it counts.
+    const note = `  (+${hidden} more task director${hidden === 1 ? 'y' : 'ies'} read, not shown above)`
+    const unread = shown.findIndex(line => /more task director(?:y|ies): UNPROVEN — not read/.test(line))
+    if (unread >= 0) shown.splice(unread, 0, note)
+    else shown.push(note)
+  }
   return shown
 }
 

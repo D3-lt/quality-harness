@@ -19,10 +19,13 @@
 // Exit codes are distinct on purpose, so a caller can tell the three apart:
 //   0  every job concluded success — safe to release this sha
 //   1  a job did not conclude success (failed, cancelled, timed out, skipped)
-//   2  could not look (no gh, no run for this sha, unreadable answer, or the run
-//      was not a full campaign — see `cached` below)
+//   2  could not look (no gh, no run for this sha, unreadable answer, the run
+//      was not a full campaign — see `cached` below — or the readers changed since
+//      the last tag and nobody outside has run them, see `outsideRun`)
 //   3  the run is not finished yet
 import { execFileSync } from 'node:child_process'
+import { readdirSync, readFileSync } from 'node:fs'
+import { join } from 'node:path'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 /**
@@ -219,9 +222,80 @@ export function fetchRun(sha, exec = execFileSync) {
   }
 }
 
+/**
+ * Has anybody outside this repository run the readers that changed since the
+ * last tag? CLAUDE.md §18: every defect that reached an adopter was in what a
+ * reader SAID about a corpus we do not own, and the suite cannot read the whole
+ * output over a shape it has never seen. The evidence is an attestation in
+ * `docs/corpus-reports/` naming the commit the run was at (`at`); it counts only
+ * when that commit is AFTER the last tag and reachable from the sha — a run at the
+ * tag itself ran the old readers.
+ *
+ * Pure: `changed` is the reader files changed since the tag (null when the diff
+ * could not be taken), `reports` the parsed attestations, `newerThanTag(at)` the
+ * ancestry question. A diff that could not be taken is could-not-look, never
+ * "not required" (ADR-005).
+ */
+export function outsideRun(changed, reports, newerThanTag) {
+  if (!Array.isArray(changed)) {
+    return { verdict: 'unproven', reason: 'could not list the reader files changed since the last tag' }
+  }
+  if (changed.length === 0) return { verdict: 'not-required', reason: 'no reader changed since the last tag' }
+  const attested = (reports ?? []).filter(r => typeof r?.at === 'string' && newerThanTag(r.at) === true)
+  if (attested.length === 0) {
+    return {
+      verdict: 'unproven',
+      reason: `${changed.length} reader file(s) changed since the last tag and docs/corpus-reports/ holds no `
+        + 'attestation at a commit after it — a reader is not shipped until somebody else has run it (CLAUDE.md §18)',
+    }
+  }
+  return {
+    verdict: 'attested',
+    reason: `outside run attested by ${attested.map(r => `${r.file} at ${String(r.at).slice(0, 7)}`).join(', ')}`,
+  }
+}
+
+/** Every attestation in `dir`, each carrying its file name; an unparsable one attests nothing. */
+export function readAttestations(dir, { readdir = readdirSync, read = readFileSync } = {}) {
+  let names
+  try { names = readdir(dir).filter(name => name.endsWith('.json')).sort() } catch { return [] }
+  const out = []
+  for (const name of names) {
+    try { out.push({ file: name, ...JSON.parse(read(join(dir, name), 'utf8')) }) } catch { /* attests nothing */ }
+  }
+  return out
+}
+
+/**
+ * The outside-run question for `sha`, asked of git. The anchor is the newest tag
+ * reachable from the sha's PARENT: the sha being released is usually the bump
+ * commit, and once it is tagged `describe` on the sha itself would answer with
+ * that tag and hide every change it ships. `exec` is the seam.
+ */
+export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/corpus-reports') {
+  const git = args => exec('git', args, { encoding: 'utf8', timeout: 30_000 }).trim()
+  let tag
+  try { tag = git(['describe', '--tags', '--abbrev=0', `${sha}~1`]) } catch { return { ...outsideRun(null, [], () => false), tag: null } }
+  let changed
+  try {
+    changed = git(['diff', '--name-only', `${tag}..${sha}`, '--', 'plugin/scripts', 'plugin/bin']).split('\n').filter(Boolean)
+  } catch { return { ...outsideRun(null, [], () => false), tag } }
+  const newerThanTag = at => {
+    try {
+      // A commit is its own ancestor, so "at is the tag" would pass both ancestry
+      // questions while having run the OLD readers. Excluded by identity.
+      if (git(['rev-parse', `${tag}^{commit}`]) === git(['rev-parse', `${at}^{commit}`])) return false
+      git(['merge-base', '--is-ancestor', tag, at])
+      git(['merge-base', '--is-ancestor', at, sha])
+      return true
+    } catch { return false }
+  }
+  return { ...outsideRun(changed, readAttestations(reportsDir), newerThanTag), tag }
+}
+
 // `cached` shares exit 2 with `unreadable` on purpose: both mean "I could not
 // look at a full campaign for this sha", which is the one thing a release needs.
-const EXIT = { success: 0, failed: 1, unreadable: 2, incomplete: 3, cached: 2 }
+const EXIT = { success: 0, failed: 1, unreadable: 2, incomplete: 3, cached: 2, unproven: 2 }
 
 
 // An option is not a sha, and until 2026-09-03 nothing here said so: `argv[0]`
@@ -249,7 +323,8 @@ const USAGE = [
   'Exit codes:',
   '  0  every job concluded success — safe to release this sha',
   '  1  a job did not conclude success (failed, cancelled, timed out, skipped)',
-  '  2  could not look (no gh, no run for this sha, unreadable answer, bad usage)',
+  '  2  could not look (no gh, no run for this sha, unreadable answer, bad usage, or readers',
+  '     changed since the last tag with no outside run attested in docs/corpus-reports/ — §18)',
   '  3  the run is not finished yet',
 ].join('\n')
 
@@ -278,12 +353,24 @@ function main(argv) {
     console.log(`  ${j.name}: ${j.status} ${j.conclusion ?? '-'}`)
   }
   const head = run?.headSha ? ` (${String(run.headSha).slice(0, 7)})` : ''
-  console.log(`${result.verdict.toUpperCase()}${head} — ${result.reason}`)
-  if (result.verdict !== 'success') {
+  // A green campaign is necessary, not sufficient: the readers it ships must have
+  // been run by somebody else since the last tag (CLAUDE.md §18). Asked only once
+  // CI has cleared the sha, so a red run is reported as red and nothing else.
+  let { verdict, reason } = result
+  if (verdict === 'success') {
+    const outside = outsideRunEvidence(sha)
+    reason = `${reason}; since ${outside.tag ?? 'the last tag'}: ${outside.reason}`
+    if (outside.verdict === 'unproven') verdict = 'unproven'
+  }
+  console.log(`${verdict.toUpperCase()}${head} — ${reason}`)
+  if (verdict === 'unproven') {
+    console.log('Do NOT tag this sha. CI is green and nobody outside has run the readers it ships — '
+      + 'get one run (`/quality-harness:corpus-chaos`), file its attestation in docs/corpus-reports/, and ask again.')
+  } else if (verdict !== 'success') {
     console.log('Do NOT tag this sha. A run that did not finish is "I could not look", '
       + 'not "nothing was wrong" — see BACKLOG §104 and CLAUDE.md §13.')
   }
-  return EXIT[result.verdict]
+  return EXIT[verdict]
 }
 
 // Importable without side effects, so the test can drive `evaluateRun` on

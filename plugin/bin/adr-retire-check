@@ -330,8 +330,9 @@ def unit_order(paths):
     `sorted(paths)` compares Paths the way the HOST filesystem does, and Windows folds
     case: `WAVE3-PLAN.md` sorts after `tasks/` there and before it everywhere else, so a
     unit sealed on macOS failed on Windows as "SHA-256 does not match" (windows-latest,
-    2026-09-23, PR #15). The path's parts compare case-sensitively on every host, which
-    is exactly the order POSIX already used, so no seal written there moves.
+    2026-09-23, PR #15). The path's parts compare case-sensitively on every host, and for
+    paths beneath one archive root that is exactly the order POSIX already used, so no seal
+    written there moves. (Across roots it is not: Python 3.12+ sorts `//a` before `/a`.)
     """
     return sorted(paths, key=lambda path: path.parts)
 

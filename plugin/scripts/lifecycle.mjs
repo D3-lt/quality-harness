@@ -933,6 +933,28 @@ function advisoryHeadline(reason) {
 
 const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|tests?|spec|fixtures?|testdata|examples?)$/i
 
+/**
+ * Whether a listed path's directory components put it somewhere no record of
+ * THIS repository lives: a test fixture, a vendored tree, build output.
+ *
+ * One predicate for every corpus reader, because two readers disagreed and the
+ * disagreement was invisible from either: `taskDirectories` applied the pattern
+ * above, so SessionStart never mentioned `tests/fixtures/`, while
+ * `recordFilesFromListing` and work-next's `taskFiles` did not — so `work-next`
+ * on this repository named three fixture tasks as its next work, `adr-state` and
+ * `adr-context` counted five fixture records as governing, and a fixture record
+ * claiming to govern `src/` would have been cited on any edit there. Recorded in
+ * team memory 2026-09-16 as "unverified"; measured 2026-09-23 (BACKLOG §263).
+ *
+ * The cost, said plainly: a repository whose real corpus sits under `spec/`,
+ * `examples/` or `test/` loses it from `adrCorpus`. SessionStart already hid it,
+ * so this aligns the readers rather than opening a new blind spot; the remedy
+ * there is a corpus location this list does not name.
+ */
+export function listedUnderUninterestingDirectory(dirParts) {
+  return dirParts.some(part => UNINTERESTING_DIRECTORY.test(part))
+}
+
 // ADR task directories belonging to THIS repository. Deliberately narrow:
 // walking a directory that is not a repository once surfaced another project's
 // tasks from a shared temp directory, and a session must never be handed work
@@ -1083,7 +1105,7 @@ function taskDirectories(root, listing) {
     // under the directory and nothing else, so that is what makes one a candidate.
     if (parts.length !== index + 2 || !/\.md$/i.test(parts[index + 1])) continue
     const dirParts = parts.slice(0, index + 1)
-    if (dirParts.some((part, i) => i < dirParts.length - 1 && UNINTERESTING_DIRECTORY.test(part))) continue
+    if (listedUnderUninterestingDirectory(dirParts.slice(0, -1))) continue
     const archived = underFrozenArchive(root, dirParts, frozen, listed)
     if (archived === true) continue
     const key = dirParts.join('/')
@@ -1787,6 +1809,8 @@ function recordFilesFromListing(root, tracked, reader) {
     const slash = norm.lastIndexOf('/')
     const base = slash < 0 ? norm : norm.slice(slash + 1)
     const dirNorm = slash < 0 ? '' : norm.slice(0, slash)
+    // A fixture is not a record of this repository, whatever its name says.
+    if (listedUnderUninterestingDirectory(dirNorm ? dirNorm.split('/') : [])) continue
     const absolute = listedAbsolute(root, rel)
     if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader) !== false) files.push(absolute)
     else if (frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)

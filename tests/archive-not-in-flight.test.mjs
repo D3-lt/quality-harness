@@ -381,3 +381,29 @@ test('an UNPROVEN record is named where its paths are edited, and PARTIAL hides 
     assert.equal(json.governing.length, 1)
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+// The same rule from work-next's side: a record already in the frozen archive is
+// not "Superseded but still in the active corpus". The check it replaced looked
+// for a path component spelled exactly `archive`, and this repository's is
+// `adr-archive`, so every retired record was offered for retirement again.
+test('work-next does not offer a record in the frozen archive for retirement', async () => {
+  const { observe } = await import('../plugin/scripts/work-next.mjs')
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-retire-')))
+  try {
+    const write = (relative, text) => {
+      mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(root, ...relative.split('/')), text)
+    }
+    const superseded = n => `# ADR-${n}: x\n\n**Status:** Superseded\n\n## Context\n\nx\n\n## Decision\n\ny\n`
+    write('docs/adr-archive/README.md', '# ADR Archive\n\n**Lifecycle:** Frozen historical ADR records\n')
+    write('docs/adr-archive/ADR-001-retired.md', superseded('001'))
+    // The control: the same status in the ACTIVE corpus is exactly what adr-retire is for.
+    write('docs/adr/ADR-002-still-active.md', superseded('002'))
+    const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, encoding: 'utf8', timeout: 15_000 })
+    assert.equal(init.status ?? 0, 0, init.stderr)
+    const state = observe(root)
+    const named = state.retirable.map(record => record.file.slice(root.length + 1).split('\\').join('/'))
+    assert.deepEqual(named, ['docs/adr/ADR-002-still-active.md'], `retirable: ${named}`)
+    // `nextStage` is not asserted: a two-line catalog reads PARTIAL, and the routing is not what this proves.
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

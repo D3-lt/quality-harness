@@ -19,7 +19,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { adrCorpus, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, listedUnderUninterestingDirectory, trackedPaths } from './lifecycle.mjs'
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
 // move, so the router explains itself instead of asserting.
@@ -101,6 +101,9 @@ function taskFiles(directory, listing) {
     if (!/\.md$/i.test(norm)) continue
     if (/readme\.md$/i.test(norm)) continue
     if (isArchivePath(norm)) continue
+    // The same exclusion `adrCorpus` applies, or the count of task files and the
+    // `unbacked` list would still carry fixtures whose records were dropped.
+    if (listedUnderUninterestingDirectory(norm.split('/').slice(0, -1))) continue
     found.push(path.join(directory, rel))
   }
   return found
@@ -219,8 +222,13 @@ export function observe(directory) {
   const notYetDecided = tasks.filter(file => unfinished(file) && !executable(file)
     && owner.has(path.resolve(file)))
 
+  // Relative to the repository, or a clone under a directory named `archive`
+  // would hide every retirable record. `isArchivePath` knows `adr-archive`; the
+  // bare `/archive/` test this replaced did not, so the day this repository's
+  // archive held seven Superseded records, `work-next` named all seven as still
+  // sitting in the active corpus (measured 2026-09-23, BACKLOG §263).
   const retirable = corpus.filter(record => record.kind === 'graveyard'
-    && !/[\\/]archive[\\/]/i.test(record.file))
+    && !isArchivePath(path.relative(directory, record.file)))
 
   const covered = coveredIds(corpus)
   const unprovenSpecs = []

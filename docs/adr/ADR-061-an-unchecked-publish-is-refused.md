@@ -127,3 +127,11 @@ findings on a grep. Now a keyword or wrapper counts only at a command position; 
 exactly as a publish request and appended as nothing; the artifact gate runs on a publish request
 only. The one limit kept, pinned in the tests and named in the docs: a `;` or a newline inside quoted
 data or a heredoc body is a command position to this classifier, so `echo "x; git push"` is refused.
+
+Fifth round (Codex, f14e4cd): two wrapper patterns consumed an option's ARGUMENT as the executable,
+so `env -u git push` and `xargs -I git push` were refused — each wrapper now lists the option forms
+that were executed under a shell, and an unlisted form is a mention. And a read-only reviewer's
+unprovable form (`$GIT push`) had lost its state warning when the dispatch fallback went: a reviewer's
+command is never this session's publish request and its PreToolUse writes nothing to the session's log
+(it is the parent's), but a mention of one is observed and warned about as the ledger stands. The
+mention line is shorter: it says the state, that it is advisory, and what to run.

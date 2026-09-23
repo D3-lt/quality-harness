@@ -14629,6 +14629,16 @@ matches at it (one char or an escape, then `'`); a lifetime is code. `impl<'a>`,
 `tests/test-lock.test.mjs`, mutant in the catalogue. §268's open item (two Rust tests read as having
 no failure call) is from the same corpus and may share this cause; reproduce it before assuming so.
 
+Round 2 (Codex review of c7da73b, executed through `extract_test_body` and the lock): keeping the
+lifetime's quote as code was half the fix. The brace matcher downstream pairs quotes as strings, so
+a label — `'outer: loop { break 'outer; }` — hid the `{` between its two quotes and the body closed
+at the loop's `}`: a lock over a body with no assertion in it, which inverting the assertion could
+not move. Now the masker blanks the quote itself (offsets kept). And `'\x41'` was not a char literal
+to the regex (one char after the backslash), so its closing quote and the comma made the literal `','`
+and the `'"'` beside it opened a string that swallowed the file (`['\x41','"']`, no space — with a
+space the old regex re-syncs and the mutant was GREEN; the fixture keeps the reviewer's bytes);
+it swallowed the file; `\xNN` is an explicit arm. Two lock-boundary tests, two mutants.
+
 ## 272. A mutation campaign in this checkout is live in every session that runs this checkout as its plugin (2026-09-24)
 
 A peer session on this machine reported that at b149b50 the mention advisory BLOCKED a Bash

@@ -116,4 +116,4 @@ Revert `work-next.mjs` `observe`, `lifecycle.mjs` `adrCorpus` inventory, `adr-st
 
 ## Follow-ups
 
-- [ ]
+- [ ] none at authoring

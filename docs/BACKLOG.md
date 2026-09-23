@@ -11507,7 +11507,7 @@ the temp root already had. The reporter's second consequence — "a resolved pat
 cannot find is evidence the resolution was wrong" — is answered by the first: the resolution no
 longer produces it.
 
-## 176. OPEN — a file written through an MCP tool is INVISIBLE to the evidence gate, and this session is the reproduction
+## 176. CLOSED IN DIRECTION 2026-09-23 by ADR-060 — a file written through an MCP tool was INVISIBLE to the evidence gate, and this session was the reproduction
 
 Found 2026-09-08 while closing §172-175, by noticing that another project's Stop hook reported this
 session as having edited ONE file when it had rewritten nine.
@@ -11560,6 +11560,23 @@ arbitrary MCP call — and an unreadable one must be `UNKNOWN`, never silence (A
 **What a fix must not do:** treat an unrecognised `mcp__*` write as clean. The safe direction here
 is the expensive one — an MCP tool this gate cannot parse is an unverified change it must SAY it
 cannot account for.
+
+**CLOSED IN DIRECTION 2026-09-23, by ADR-060, not by a fix here.** ADR-060 (Accepted, every task
+done) reads writes through the TREE: its record says at line 310 *"Other tools' writes, such as an
+MCP server's, are seen only through the tree"*, and at 315 *"Edits by the user or another tool in
+the same tree count as unchecked work"*. So the fail-open this section describes — a transcript with
+no recognised mutation, and nothing said — no longer exists: `observe()` compares the tree before
+and after, and a Stop over a dirtied tree advises whatever tool dirtied it. The reproduction above
+still returns `mutationPaths: []`, and that is now beside the point, because `analyzeTranscript` is
+no longer what decides. Reproduce the closed shape by writing a file with any tool and ending the
+turn: the Stop advisory names it. What ADR-060 does NOT close, said at its own line 311: a session
+whose changes return the tree to its starting state is not advised, MCP or otherwise. And one
+residual keyed on the old list stays: the read-only reviewer guard
+(`lifecycle.mjs`, `readOnlyRole(...) && (tool_name === 'Bash' || MUTATION_TOOLS.has(...))`) refuses a
+reviewer's Edit/Write/Bash before it runs, while a reviewer's MCP write is reported after the fact
+through the tree instead (ADR-060 lines 301-302 record the same shape for a Bash write naming
+neither word). The resume memory in the palace called this "the one fail-open nobody ships" for two
+weeks after ADR-060 closed it — a header that says OPEN is read as open.
 
 ## 177. CLOSED 2026-09-08 — §174's blocking promotion would have refused a CORRECT fence, and the corpus that proved it escaped only by not writing `set -e`
 
@@ -14140,28 +14157,57 @@ No other Windows member was found.
 which ends bash but not the runner it started, such as python. That was just as true under cmd.exe.
 A tree kill (`taskkill /T`, as `run-shell-hook.mjs` does) would close it, and it is not done here.
 
-## 262. A full checkout fails on Windows once the clone root is longer than about 100 characters (2026-09-23)
+## 262. Duplicates §231 (2026-09-23) — kept for two facts §231 did not have
 
-**Reported by a Windows 11 session** (Git for Windows, `core.longpaths` unset): cloning the repository into a long temp directory failed with `Filename too long` on three task files under `docs/adr-archive/ADR-059-a-read-only-command-names-no-changed-path/tasks/`, then `fatal: unable to checkout working tree` (exit 128).
+Filed before searching for "deep root"; §231 (2026-09-18) already records the Windows MAX_PATH clone
+failure, the 110-character root budget and the workarounds, and `docs/INSTALL.md` documents it. What
+is new here:
 
-**Measured here:**
+- **The ceiling rose from 149 to 157 with no task written.** Retiring ADR-059 moved it from
+  `docs/adr/` to `docs/adr-archive/`, eight characters more, and every retirement does the same. The
+  longest tracked path is now `docs/adr-archive/ADR-059-…/tasks/T10-…-stays-released.md` at 157,
+  which leaves 103 for a checkout root. Nothing under `plugin/` is over 106, so an installed adopter
+  is unaffected.
+- **§231's named repair is built:** `adr-lint` advises on a task whose ARCHIVED path would pass 140
+  (`TASK_PATH_ADVISE_LEN`, `check_task_path_length`), so a name that fits today and breaks on
+  retirement is caught while it can still be renamed. Advisory (§3); it speaks today only on the two
+  archived ADR-059 tasks already past it.
+
+## 263. Every corpus reader but SessionStart read test fixtures as this repository's records (2026-09-23)
+
+`work-next` on this repository said the next thing to do was to execute
+`tests/fixtures/foreign/adr/ADR-001-cross-repo/tasks/T2-partial-with-a-decision-blocker.md`. Two
+discovery paths disagreed: `taskDirectories` (SessionStart) applied `UNINTERESTING_DIRECTORY` —
+`tests?`, `fixtures?`, `examples?`, `node_modules`, … — and `recordFilesFromListing` (behind
+`adrCorpus`) and work-next's `taskFiles` did not. Team memory recorded it on 2026-09-16 as
+"unverified"; nothing here did.
+
+**Enumerated:**
 
 ```
-$ git ls-files | awk '{print length, $0}' | sort -rn | head -3
-157 docs/adr-archive/ADR-059-a-read-only-command-names-no-changed-path/tasks/T10-a-continued-redirect-target-keeps-its-path-and-the-quote-strip-stays-released.md
-151 docs/adr-archive/ADR-059-…/tasks/T2-…
-136 docs/adr-archive/ADR-059-…/tasks/T3-…
-$ git ls-files | awk 'length>180' | wc -l      ->  0
-$ git ls-files plugin | awk '{print length}' | sort -rn | head -1   ->  106
+$ node plugin/scripts/work-next.mjs            # before
+68 record(s), 61 accepted, 142 task file(s), 18 spec(s).
+Next: /quality-harness:adr-execute <adr>
+    tests/fixtures/foreign/adr/ADR-001-cross-repo/tasks/T2-partial-with-a-decision-blocker.md
+    tests/fixtures/foreign/adr/ADR-001-cross-repo/tasks/T3-human-observed-and-waiting.md
+    tests/fixtures/ok/tasks/T1-fixture.md
+$ node plugin/scripts/adr-state.mjs | grep -c tests/fixtures      -> 3
+records read from tests/: tests/fixtures/foreign/adr/ADR-001-cross-repo.md,
+  tests/fixtures/judge/ADR-050-clean.md, tests/fixtures/ok/ADR-001-selftest.md,
+  tests/fixtures/ok/adr-archive/ADR-001-history.md, tests/fixtures/ok/adr/ADR-002-current.md
 ```
 
-MAX_PATH is 260 characters, so a full checkout breaks once the clone root is longer than about 100 characters.
+One exported predicate, `listedUnderUninterestingDirectory`, now serves `taskDirectories`,
+`recordFilesFromListing` and `taskFiles`. After: 63 records, 138 task files, 0 fixture paths in
+`adr-state`. The edit-time `decisionContext` shares the fix, so a fixture record claiming to govern
+`src/` is no longer cited on an edit there. **The cost, named:** a consumer whose real corpus sits
+under `spec/`, `examples/` or `test/` loses it from `adrCorpus`; SessionStart already hid it, so
+this aligns the readers rather than opening a new blind spot.
 
-**Who is affected:**
-- **Installed adopters are not.** The plugin cache holds only `plugin/`, whose longest path is 106 characters.
-- **A marketplace clone** under `~/.claude/plugins/marketplaces/…` fits at an ordinary home-directory length.
-- **Contributors are.** Anyone cloning the repository into a long path on Windows hits it.
-
-**Workarounds:** a short clone root, or `git clone -c core.longpaths=true`.
-
-**Not done yet:** a length bound on new task file names in `adr-lint`, or on tracked paths in `tests/package.test.mjs`. That needs a chosen limit, and renaming archived records would rewrite history (§10), so it is left here.
+**Found underneath, once the fixtures stopped outranking it:** `work-next` then said
+*"Next: adr-retire — a record is Superseded or Withdrawn but still sits in the active corpus"* and
+listed all seven records in `docs/adr-archive/`. Its retirable check looked for a path component
+spelled exactly `archive`; this repository's is `adr-archive`. It uses `isArchivePath` on the
+repository-relative path now. ⚠ The first test for it came back GREEN under mutation: the fixture
+was a two-line archive marker, so the record was never classified `graveyard` and the check was
+never reached. The fixture is a real catalog now and the classification is asserted as a control.

@@ -25,6 +25,19 @@ test('scrubber: every absolute path is a placeholder, and a repository-relative 
   const win = scrubber({ root: 'C:\\repo', pluginRoot: 'C:\\plug', tmp: 'C:\\Temp', home: 'C:\\Users\\me' })
   assert.equal(win('C:/repo/docs/a.md and C:\\repo\\docs\\b.md'), './docs/a.md and .\\docs\\b.md')
   assert.equal(win('C:\\Users\\me\\x and E:\\else\\y'), '<home>\\x and <path>')
+  // Codex review of 1032720: a colon before the path, a file: URL, a quoted path
+  // holding a space, a POSIX root that is none of five names, a path in
+  // parentheses — and `/tmp` as the host's real temp directory.
+  assert.equal(scrub('error:/Users/example/x'), 'error:<path>')
+  assert.equal(scrub('file:///Users/example/x'), '<path>')
+  assert.equal(scrub('"D:\\Projects\\Example Person\\private-repo\\task.md"'), '"<path>"')
+  assert.equal(scrub('"/Users/Example Person/private-repo/task.md"'), '"<path>"')
+  assert.equal(scrub('at /opt/private-repo/task.md'), 'at <path>')
+  assert.equal(scrub('(/Users/dev/y)'), '(<path>)')
+  const prose = 'https://host/Users/x and T1.md:12 and E: drive and a / b'
+  assert.equal(scrub(prose), prose, 'a URL, a line number, a bare drive letter and a slash between words are not paths')
+  const linux = scrubber({ root: '/srv/repo', pluginRoot: '/srv/plug', tmp: '/tmp', home: '/home/me' })
+  assert.equal(linux('docs/tmp/x ./tmp/x /tmp/qh-1/x /home/me/y'), 'docs/tmp/x ./tmp/x <tmp>/qh-1/x <home>/y')
 })
 
 test('compareReaders: a directory work-next could not read is not a disagreement, and a crashed reader compares nothing', () => {

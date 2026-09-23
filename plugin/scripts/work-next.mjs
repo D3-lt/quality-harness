@@ -283,11 +283,14 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     return true
   }
   const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
-  // No second filter here: `readinessFrom` asks adr-next only about the task
-  // directories of governing, unfrozen records, so "ready only under an Accepted
-  // record" is decided there. A filter repeating it was dead the day readiness
-  // moved, and the mutant on it went GREEN on CI (bdeba73, shard 4/48).
-  const ready = readiness.ready
+  // Two filters for two questions. `readinessFrom` asks adr-next only about the
+  // task directories of governing, unfrozen records; adr-next then reads EVERY
+  // task in such a directory, and a directory two records share — one Accepted,
+  // one Proposed — hands the Proposed record's task back too. `executable` maps
+  // each task to its OWN record. Removed once as redundant (bdeba73, a GREEN
+  // mutant on shard 4/48, because no fixture shared a directory); restored on a
+  // shared-directory probe (Codex review of 1032720, P2), with that fixture.
+  const ready = readiness.ready.filter(file => executable(file))
   // Named rather than dropped in silence: a corpus whose only unfinished work
   // sits under a record nobody has accepted would otherwise read as finished,
   // which is the same "I could not look" / "there is nothing" conflation the

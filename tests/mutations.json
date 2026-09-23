@@ -9652,6 +9652,24 @@
       ],
       "from": "  const answered = adrNext.filter(entry => entry.ready !== null && !unread.has(entry.tasksDir))",
       "to": "  const answered = adrNext.filter(entry => entry.ready !== null)"
+    },
+    {
+      "label": "next: a directory two records share offers only the task whose own record is Accepted",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const ready = readiness.ready.filter(file => executable(file))",
+      "to": "  const ready = readiness.ready"
+    },
+    {
+      "label": "corpus-probe: a quoted path is redacted whole, spaces and all",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    return out.replace(QUOTED, '$1<path>$1').replace(ABSOLUTE, '<path>')",
+      "to": "    return out.replace(ABSOLUTE, '<path>')"
     }
   ]
 }

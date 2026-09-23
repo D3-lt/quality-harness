@@ -14560,3 +14560,32 @@ it. Both arms are executed as tables in `tests/publish-command.test.mjs`. 2: ADR
 INSTALL and the plugin README say what is observed. 3 is ADR-061's open follow-up: the script-file
 surface and a `git` reached through a variable or a command substitution are a mention at most; the
 honest refusal is a git hook.
+
+Round 4, same night (Codex review of f67cede, three findings, one confirmed in the field): a keyword
+or wrapper matched inside quoted data (`echo "then git push"` refused); the mention path handed the
+rule a fresh observation over a stale ledger — no check-source import, no late baseline — so a grep
+accused a tree whose `qh-check` had passed; and the mention still ran the publish-time artifact gate,
+which a peer measured as 12 KB of `adr-lint` findings on `grep -rn "git push" docs/`. Fixed: a
+keyword or wrapper counts only at a command position; `recordHookEvent` prepares a mention exactly
+as a publish request and appends nothing (`publish.mentioned` is a return value, never a log entry);
+the artifact gate runs on `publish.requested` only. Three tests in `tests/late-baseline.test.mjs`
+drive a grep through the hook for each; three mutants. The limit kept, now named in INSTALL and the
+plugin README instead of "never refused": a `;` or newline inside quoted data or a heredoc body.
+
+## 270. Two leads from the outside run at f67cede: adr-next offers a Superseded record's tasks, and exits 1 on an empty task directory (2026-09-23)
+
+Reported by the peer that ran the readers over a private Rust corpus (attested in
+`docs/corpus-reports/2026-09-23-macos-rust-corpus-hand-4.json`); neither confirmed here yet, and
+both are leads until they are (§18: a peer's report is a lead).
+
+1. **Five `adr-next`/`work-next` disagreements, every one a task of a Superseded record.** `adr-next`
+   says "ready"; `work-next` does not offer it; the probe's `adrNextSays` is null for each. §10 says a
+   record is a work order only while `Accepted`, so if `adr-next` offers a Superseded record's task
+   by the task file's own status alone, `work-next` is right and `adr-next` is the reader to fix — or
+   the probe's disagreement column is comparing two readers that answer different questions and
+   should say so. Reproduce on a fixture with one Superseded record and one open task before
+   deciding which.
+2. **`adr-next` exits 1 with "no task files in …" on two empty task directories.** The probe files
+   them under `couldNotRun`, which is the honest bucket for a reader that stopped; whether an
+   empty task directory is an error for `adr-next` or an ordinary "nothing here" answer is the
+   question, and the other readers' treatment of the same directory decides it.

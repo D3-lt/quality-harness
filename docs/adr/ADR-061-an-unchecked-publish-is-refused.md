@@ -118,3 +118,12 @@ authority (CLAUDE.md §16): the precise invocation match is the only thing that 
 match this record originally accepted is kept as the WARNING arm — a form the precise arm misses is
 warned about, never silent; a mention it wrongly matches costs a line, never a refusal. Both are
 executed as tables in `tests/publish-command.test.mjs`.
+
+Fourth round (Codex, f67cede; confirmed outside by a peer the same evening): a control keyword or
+wrapper matched wherever it appeared, so `echo "then git push"` was refused; a mention skipped the
+check-source import and the late baseline a publish request gets, so it accused a tree whose check
+had passed; and a mention ran the publish-time artifact gate — measured as 12 KB of `adr-lint`
+findings on a grep. Now a keyword or wrapper counts only at a command position; a mention is prepared
+exactly as a publish request and appended as nothing; the artifact gate runs on a publish request
+only. The one limit kept, pinned in the tests and named in the docs: a `;` or a newline inside quoted
+data or a heredoc body is a command position to this classifier, so `echo "x; git push"` is refused.

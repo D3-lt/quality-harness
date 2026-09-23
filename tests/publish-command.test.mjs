@@ -66,6 +66,14 @@ const PUBLISHES = [
   'sudo -n git push',
   'sudo -u deploy git push',
   'python3 -c "import subprocess; subprocess.run( [\'git\', \'push\'])"',
+  // Codex review of f67cede: wrappers that were a mention at most.
+  'xargs -0 git push',
+  'env -i git push',
+  'nice git push',
+  'doas git push',
+  'timeout 5 git push',
+  'timeout -k 3 5 git push',
+  'if x; then exec git push; fi',
 ]
 
 // Commands that mention the words, or even the invocation as DATA, and publish
@@ -93,12 +101,29 @@ const NOT_PUBLISHES = [
   'sh do-commit.sh',
   'node -e "/names commit or push \\\\(`git commit`\\\\)/"',
   'python3 -c "print(\'git push\')"',
+  // Codex review of f67cede: a keyword or wrapper INSIDE quoted data was a command position.
+  'echo "then git push"',
+  'echo "do git push"',
+  'echo "else git push"',
+  'echo "! git push"',
+  'echo "sudo git push"',
+  'echo "exec git push"',
+  'echo "env git push"',
+  "printf '%s\\n' \"git push\"",
+  "sed -n '/git push/p' f",
+  'man git-push',
 ]
 
-// The precise arm's known limit, pinned as a decision (§269): a shell separator inside
-// quoted data reads as a segment start, so this is refused although it only greps.
-// Rare, said in the refusal's own text, and cheaper than a shell parser.
-const KNOWN_FALSE_REFUSALS = ['git log --grep "x; git push"', 'echo "example; git push"']
+// The precise arm's known limit, pinned as a decision (§269): a `;` or a newline inside
+// quoted data or a heredoc body reads as a command position, so these are refused
+// although they publish nothing. Rare, named in the refusal's own text, and cheaper
+// than a shell parser; the docs say so rather than "never refused".
+const KNOWN_FALSE_REFUSALS = [
+  'git log --grep "x; git push"',
+  'echo "example; git push"',
+  'node -e "console.log(\'a; git push\')"',
+  "cat <<'EOF'\ngit push\nEOF",
+]
 
 // Mentions: refused by no arm, WARNED about by the advisory one. These are the
 // grep, the echo and the file name that taught the bypass (§269) — and the two

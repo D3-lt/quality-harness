@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-23",
+  "at": "f67cede0bf265199d70a273ee84f55d61ed94620",
+  "plugin": "branch outside-run-evidence (banner still 2.105.0; not yet bumped)",
+  "kind": "hand",
+  "probeSha256": "631a8f07c8c4db9f951cf5b9eeb42d194199572de8c9d55639a94ff76d52b1eb",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 158, "tasks": 505, "taskDirectories": 68 },
+  "couldNotRun": 2,
+  "disagreements": 5,
+  "readinessUnproven": null,
+  "runner": "a peer Claude Code session on this machine, read-only, over a private Rust corpus (the one that reported BACKLOG §268); fourth run of the evening, after the publish classifier split into a refusing arm and a warning arm",
+  "found": "The hook ADVISED and did not refuse a grep that mentions push on an unchecked tree — the fix under test. The same hook payload carried ~12 KB of artifact-validation findings for a record edited earlier in that session: the publish-time artifact gate ran on a grep (fixed in the next commit, §269 round 4). corpus-probe exit 0, no stderr. adr-lint 68 PASS / 90 FAIL over 158 files. 5 adr-next/work-next disagreements, every one a task of a Superseded record that adr-next offers and work-next does not (§270). adr-next exits 1 on two empty task directories (§270). Counts read by key name."
+}

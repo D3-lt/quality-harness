@@ -2496,10 +2496,10 @@
       "label": "next: a task is ready only when the record that owns it is Accepted",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/work-next-readiness.test.mjs"
       ],
-      "from": "  const ready = readiness.ready.filter(file => executable(file))",
-      "to": "  const ready = readiness.ready"
+      "from": "    if (record.kind !== 'governing' || record.frozen) continue",
+      "to": "    if (record.frozen) continue"
     },
     {
       "label": "next: work under an undecided record is named, not silently dropped",
@@ -8358,8 +8358,8 @@
       "tests": [
         "tests/corpus-matrix.test.mjs"
       ],
-      "from": "    for (const task of answer.ready) ready.push(path.resolve(directory, task.path))",
-      "to": "    for (const task of []) ready.push(path.resolve(directory, task.path))"
+      "from": "      ready.push(file)",
+      "to": "      if (false) ready.push(file)"
     },
     {
       "label": "work-next: a task file is a .md directly under tasks/, as SessionStart already reads it",
@@ -8383,7 +8383,7 @@
       "label": "corpus-probe: a task adr-next calls ready that work-next does not offer is a disagreement, said",
       "file": "plugin/scripts/corpus-probe.mjs",
       "tests": [
-        "tests/corpus-matrix.test.mjs"
+        "tests/corpus-probe.test.mjs"
       ],
       "from": "      if (!workNextReady.has(task.path)) {",
       "to": "      if (false) {"
@@ -9589,6 +9589,60 @@
       ],
       "from": "    process.stderr.write('[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.\\n')",
       "to": "    process.stderr.write('')"
+    },
+    {
+      "label": "work-next: adr-next's exit 3 is an answer (nothing ready), never an unread directory",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    const answered = !run.error && (run.status === 0 || run.status === 3)",
+      "to": "    const answered = !run.error && run.status === 0"
+    },
+    {
+      "label": "work-next: a task adr-next read from disk but git does not list is not offered",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "      if (allowed && !allowed.has(file)) continue",
+      "to": "      if (false) continue"
+    },
+    {
+      "label": "work-next: a relative repository argument is resolved before adr-next is spawned",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const root = path.resolve(directory)",
+      "to": "  const root = directory"
+    },
+    {
+      "label": "work-next: unread task directories are rendered in text mode, not only serialised",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (state.readinessUnproven.length) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "corpus-probe: a known prefix is redacted in either separator spelling",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\\\', '/'), prefix.replaceAll('/', '\\\\')])]",
+      "to": "  const spellings = prefix => [prefix]"
+    },
+    {
+      "label": "corpus-probe: a directory work-next could not read is not compared",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const answered = adrNext.filter(entry => entry.ready !== null && !unread.has(entry.tasksDir))",
+      "to": "  const answered = adrNext.filter(entry => entry.ready !== null)"
     }
   ]
 }

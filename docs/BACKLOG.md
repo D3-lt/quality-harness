@@ -14420,3 +14420,31 @@ matrix's five corpora all failed on `c1f546a` at one assertion each: `work-next`
 12. `branch-state`'s alarm line said "`selftest.sh` and the CI jobs are different checks" in a
    consumer repository that has no such file — this repository's own check leaking into every
    adopter's text. It says "the local check" now.
+
+**From the Codex review of `bdeba73`, eight findings, all folded in:** `work-next` read adr-next's
+exit 3 ("nothing ready", a valid answer with JSON) as unproven, so every finished directory carried
+false uncertainty in the JSON — and the matrix never asserted `readinessUnproven`, so five corpora
+passed over it (asserted now); a relative repository argument (`work-next tests/x`) handed adr-next a
+relative task directory under the repository's own cwd, so it found nothing while the absolute form
+found two; the `allowed` set restricted directories but not the tasks adr-next read from disk, so an
+untracked sibling reached `ready`; text mode never rendered `readinessUnproven` and printed "Nothing
+in the QH corpus is waiting" over unread directories; the probe's scrub knew five root names, so a
+`D:\Projects\…` diagnostic went out whole while `docs/var/cache/tasks/T1.md` was eaten to
+`docs<path>`; the disagreement comparison ignored work-next's own unread directories; and two reader
+branches still said "did not start" for a child the probe had killed. `tests/work-next-readiness.test.mjs`
+and `tests/corpus-probe.test.mjs` drive each seam directly, with six more mutants.
+
+**The first of those was then seen live, an hour later.** The Windows peer ran `corpus-probe --json
+--sweep` over the same 72-record corpus at `bdeba73`: `disagreements []`, `couldNotRun []`, and
+`readinessUnproven` naming 17 task directories — exactly the finished ones, every directory whose
+adr-next answered exit 3. A review found it from the source; the corpus showed it the same hour.
+
+**Open, from that sweep:**
+
+13. `adr-verify --sweep` filed 174 of 206 claims as `false` on a host that (the peer believes) had
+    none of that corpus's docker test databases running, and 22 as `unrunnable`. `false` means "ran
+    and exited non-zero" whether the claim is wrong or the host lacks the environment; only a fence
+    that could not START is `unrunnable`. A sweep on a machine other than the one that recorded the
+    evidence needs either a third bucket ("failed here; the recording host is not this one") or a
+    per-host caveat in the report, or its `false` count reads as a verdict about the corpus. Neither
+    the probe nor `--sweep --json` says which host recorded the rows it re-ran.

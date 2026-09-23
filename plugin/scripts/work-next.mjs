@@ -40,6 +40,12 @@ const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
  * never read as "nothing ready" (ADR-005). `spawn` is the seam.
  */
 export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = null) {
+  // Resolved once. `directory` may be the relative argument `work-next tests/x`
+  // was given, and adr-next was handed that relative task directory while ALSO
+  // running with the repository as cwd — so it looked for `tests/x/adr/…/tasks`
+  // inside `tests/x` and found nothing (Codex review of bdeba73, P2). Every path
+  // adr-next is given or hands back is anchored here.
+  const root = path.resolve(directory)
   const dirs = new Set()
   for (const record of corpus) {
     if (record.kind !== 'governing' || record.frozen) continue
@@ -49,17 +55,27 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
     // and nested files, and asking adr-next about those offered history as work.
     for (const file of record.taskFiles ?? []) {
       if (allowed && !allowed.has(path.resolve(file))) continue
-      dirs.add(path.dirname(file))
+      dirs.add(path.dirname(path.resolve(file)))
     }
   }
   const ready = []
   const unproven = []
   for (const dir of [...dirs].sort()) {
-    const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: directory, encoding: 'utf8', timeout: 60_000 })
+    const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000 })
+    // adr-next answers 0 (a ready task) or 3 (nothing ready) — BOTH with JSON. Reading
+    // only 0 as an answer put every finished directory in `unproven` (Codex review of
+    // bdeba73, P2); anything else is the gate not running, and that IS unproven.
+    const answered = !run.error && (run.status === 0 || run.status === 3)
     let answer = null
-    if (!run.error && run.status === 0) { try { answer = JSON.parse(run.stdout) } catch { answer = null } }
+    if (answered) { try { answer = JSON.parse(run.stdout) } catch { answer = null } }
     if (!answer || !Array.isArray(answer.ready)) { unproven.push(dir); continue }
-    for (const task of answer.ready) ready.push(path.resolve(directory, task.path))
+    for (const task of answer.ready) {
+      const file = path.resolve(root, task.path)
+      // adr-next reads every `*.md` on disk; this reader lists tracked files. An
+      // untracked sibling adr-next offered is not one this reader can vouch for.
+      if (allowed && !allowed.has(file)) continue
+      ready.push(file)
+    }
   }
   return { ready, unproven }
 }
@@ -267,7 +283,11 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     return true
   }
   const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
-  const ready = readiness.ready.filter(file => executable(file))
+  // No second filter here: `readinessFrom` asks adr-next only about the task
+  // directories of governing, unfrozen records, so "ready only under an Accepted
+  // record" is decided there. A filter repeating it was dead the day readiness
+  // moved, and the mutant on it went GREEN on CI (bdeba73, shard 4/48).
+  const ready = readiness.ready
   // Named rather than dropped in silence: a corpus whose only unfinished work
   // sits under a record nobody has accepted would otherwise read as finished,
   // which is the same "I could not look" / "there is nothing" conflation the
@@ -457,13 +477,23 @@ export function main(argv = process.argv.slice(2)) {
       process.stdout.write(`  (+${state.notYetDecided.length - 5} more; --json for all)\n`)
     }
   }
+  if (state.readinessUnproven.length) {
+    // Rendered, not only serialised: the JSON carried this while the text printed
+    // an all-clear over the same directories (Codex review of bdeba73, P2).
+    process.stdout.write(`\n${state.readinessUnproven.length} task director${state.readinessUnproven.length === 1 ? 'y' : 'ies'} `
+      + 'could not be read by adr-next, so readiness there is UNPROVEN — not "nothing ready" (ADR-005):\n')
+    for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  ${relative(dir)}\n`)
+    if (state.readinessUnproven.length > 5) process.stdout.write(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
+  }
   if (!stage) {
     if (state.tasks && !state.usesVerificationLog) {
       process.stdout.write(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `
         + 'this corpus records evidence some other way, so the execution stages cannot see it. '
         + 'Everything below is still the flow; only the state reading is blind here.\n')
     } else {
-      process.stdout.write('\nNothing in the QH corpus is waiting.\n')
+      process.stdout.write(state.readinessUnproven.length
+        ? '\nNothing this reader could see is waiting; the directories above were not read, so this is not an all-clear.\n'
+        : '\nNothing in the QH corpus is waiting.\n')
     }
     for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\n`)
     return 0

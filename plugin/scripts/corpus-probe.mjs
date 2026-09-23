@@ -73,18 +73,28 @@ export function failedToRun(error, budgetMs = null) {
  * bdeba73, P1 and P2).
  */
 export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedir() }) {
+  const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
   const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\', '/'), prefix.replaceAll('/', '\\')])]
+  // A known prefix is replaced only where it starts a path token and ends at a
+  // separator or the end of the token: `.split('/tmp')` turned `docs/tmp/x` into
+  // `docs<tmp>/x` on any Linux host (Codex review of 1032720, P2).
   const known = [[root, '.'], [pluginRoot, '<plugin>'], [tmp, '<tmp>'], [home, '<home>']]
-  // Not preceded by a path character: an absolute path starts its token, while a
-  // relative path's `/var` sits after `docs`.
-  const ABSOLUTE = /(?<![\w.\\/:-])(?:[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|[\\/](?:Users|home|private|tmp|var)[\\/])[^\s'"`)]*/g
+    .filter(([prefix]) => prefix)
+    .map(([prefix, placeholder]) => [
+      new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)`, 'g'), placeholder])
+  // A quoted path is consumed to its closing quote, spaces and all: `"D:\Projects
+  // \Example Person\x"` used to leave ` Person\x"` behind (Codex, 1032720, P1).
+  const QUOTED = /(["'`])((?:[A-Za-z]:[\\/]|\\\\|\/(?!\/))[^"'`\n]*)\1/g
+  // Any other absolute path — a drive letter, a UNC share, a file: URL, or a
+  // POSIX root, not only five named ones — becomes `<path>`. Not preceded by a
+  // path character or a placeholder's `>`, so `docs/var/x`, `./tmp/x` and
+  // `<tmp>/qh-1` are untouched; a colon may precede it (`error:/Users/x`); a
+  // URL's `//` may not, and a bare `/` between words is not a path.
+  const ABSOLUTE = /(?<![\w.\\/>-])(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|\/(?!\/))[^\s'"`)\\/][^\s'"`)]*/g
   return text => {
     let out = String(text)
-    for (const [prefix, placeholder] of known) {
-      if (!prefix) continue
-      for (const spelling of spellings(prefix)) out = out.split(spelling).join(placeholder)
-    }
-    return out.replace(ABSOLUTE, '<path>')
+    for (const [pattern, placeholder] of known) out = out.replace(pattern, placeholder)
+    return out.replace(QUOTED, '$1<path>$1').replace(ABSOLUTE, '<path>')
   }
 }
 

@@ -12,7 +12,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { readinessFrom } from '../plugin/scripts/work-next.mjs'
+import { observe, readinessFrom } from '../plugin/scripts/work-next.mjs'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(testDir, '..')
@@ -107,4 +107,38 @@ test('work-next text mode says UNPROVEN for a directory adr-next could not read,
   assert.doesNotMatch(text.stdout, /Nothing in the QH corpus is waiting/, `unread directories are not an all-clear: ${text.stdout}`)
   const json = JSON.parse(spawnSync(process.execPath, [script, '--json', corpus], { encoding: 'utf8', timeout: 120_000 }).stdout)
   assert.ok(json.readinessUnproven.length >= 1, JSON.stringify(json.readinessUnproven))
+  // CLEAN: the real plugin's adr-next answers, so nothing is UNPROVEN — a
+  // failure-only CLI test cannot show the sentence is conditional (Codex, 1032720).
+  const real = path.join(repoRoot, 'plugin', 'scripts', 'work-next.mjs')
+  const clean = spawnSync(process.execPath, [real, corpus], { encoding: 'utf8', timeout: 120_000 })
+  assert.equal(clean.status, 0, clean.stderr)
+  assert.doesNotMatch(clean.stdout, /readiness there is UNPROVEN/, clean.stdout)
+  assert.deepEqual(JSON.parse(spawnSync(process.execPath, [real, '--json', corpus], { encoding: 'utf8', timeout: 120_000 }).stdout).readinessUnproven, [])
+})
+
+test("a directory two records share offers only the Accepted record's task", () => {
+  // Codex review of 1032720: the Accepted-only filter over adr-next's answer was
+  // removed as redundant, and it was not — adr-next reads every task in a
+  // directory, and a directory an Accepted and a Proposed record share hands the
+  // Proposed record's task back too. Ownership is per task, not per directory.
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-readiness-shared-')); temps.push(temp)
+  const adr = path.join(temp, 'docs', 'adr')
+  mkdirSync(path.join(adr, 'tasks'), { recursive: true })
+  const record = (id, status) => `# ${id}: probe\n\n**Status:** ${status}\n**Date:** 2026-09-23\n\n## Context\n\nx\n\n## Decision\n\ny\n`
+  writeFileSync(path.join(adr, 'ADR-001-accepted.md'), record('ADR-001', 'Accepted'))
+  writeFileSync(path.join(adr, 'ADR-002-proposed.md'), record('ADR-002', 'Proposed'))
+  const task = id => `# Task ${id}: probe\n\n**Depends-on:** none\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n## Verification Log\n\n`
+  writeFileSync(path.join(adr, 'tasks', 'T1.md'), task('ADR-001-T1'))
+  writeFileSync(path.join(adr, 'tasks', 'T2.md'), task('ADR-002-T2'))
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
+    GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
+  for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
+    const r = spawnSync('git', args, { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+  }
+  const state = observe(temp)
+  assert.deepEqual(state.ready.map(f => path.basename(f)), ['T1.md'],
+    `only the Accepted record's task is ready:\n${state.ready.join('\n')}`)
+  assert.ok(state.notYetDecided.some(f => f.endsWith('T2.md')),
+    "the Proposed record's task is named as waiting on the decision, not dropped")
 })

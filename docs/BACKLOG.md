@@ -14448,3 +14448,15 @@ adr-next answered exit 3. A review found it from the source; the corpus showed i
     evidence needs either a third bucket ("failed here; the recording host is not this one") or a
     per-host caveat in the report, or its `false` count reads as a verdict about the corpus. Neither
     the probe nor `--sweep --json` says which host recorded the rows it re-ran.
+
+**From the Codex review of `1032720`, three findings, all folded in:** the scrubber's token boundary
+refused a colon before a path (`error:/Users/x` went out whole), knew no `file:` URL, stopped at the
+first space inside a quoted path (`"D:\Projects\Example Person\…"` left ` Person\…"` behind) and
+still knew only five POSIX root names (`/opt/private-repo` went out whole) — any absolute path is a
+placeholder now, a quoted one to its closing quote, and the known-prefix replacement is
+token-bounded too, since `.split('/tmp')` ate `docs/tmp/x` on any Linux host; and the Accepted-only
+filter over adr-next's answer, removed in this branch as redundant, was not — adr-next reads every
+task in a directory, and a directory an Accepted and a Proposed record SHARE hands the Proposed
+record's task back. Restored, with the shared-directory fixture no corpus here had. Residual, named
+by the reviewer and left: a bare drive-relative root (`C:` with no separator) resolves against that
+drive's current directory before `readinessFrom` can anchor it.

@@ -1124,17 +1124,19 @@ test('a Rust loop label does not cut the body before its assertion', () => {
   }
 })
 
-test('a Rust hex char escape beside a quote char literal does not swallow the next test', () => {
-  // `['\x41','"']` before the test — no space, as the reviewer wrote it. Unrecognised,
-  // `'\x41'` was a lifetime, its closing quote and the comma made the literal `','`,
-  // and the `"` left over opened a string to the end of the file — the test after it
-  // had no name (Codex, c7da73b). A space after the comma lets the old regex re-sync
-  // and turned the mutant GREEN; the fixture keeps the reviewer's exact bytes.
+test('a Rust hex or unicode char escape beside a quote char literal does not swallow the next test', () => {
+  // `['\x41','\u{0_0_0_0_4_1}','"']` before the test — no spaces, as the reviewer wrote
+  // them. Unrecognised, `'\x41'` was a lifetime, its closing quote and the comma made the
+  // literal `','`, and the `"` left over opened a string to the end of the file — the test
+  // after it had no name (Codex, c7da73b). The unicode escape with underscores after each
+  // digit is the Reference's grammar and was no literal to `[0-9a-fA-F_]{1,6}` (Codex,
+  // 153b762). A space after a comma lets the old regex re-sync and turned the mutant
+  // GREEN; the fixture keeps the reviewer's exact bytes.
   const dir = tmpRepo()
   const rel = 'tests/lock_subject.rs'
   const named = [['lock_dirty', rel]]
   const rowLine = '| `lock_dirty` | `tests/lock_subject.rs` | lock | F-1 |'
-  const source = assertion => "const CHARS: [char; 2] = ['\\x41','\"'];\n"
+  const source = assertion => "const CHARS: [char; 3] = ['\\x41','\\u{0_0_0_0_4_1}','\"'];\n"
     + '#[test]\n'
     + 'fn lock_dirty() {\n'
     + `    ${assertion}\n`

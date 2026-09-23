@@ -9839,8 +9839,17 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{[0-9a-fA-F_]{1,6}\\}|[^xu\\n]))'\")",
-      "to": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:u\\{[0-9a-fA-F_]{1,6}\\}|[^u\\n]))'\")"
+      "from": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^xu\\n]))'\")",
+      "to": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^u\\n]))'\")"
+    },
+    {
+      "label": "test-lock: a Rust unicode escape is hex digits each followed by underscores, not six of either (§271 round 3)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^xu\\n]))'\")",
+      "to": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{[0-9a-fA-F_]{1,6}\\}|[^xu\\n]))'\")"
     }
   ]
 }

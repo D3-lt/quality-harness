@@ -136,6 +136,29 @@ def _fence_closes(line, opened):
             and len(m.group("marker")) >= opened[1] and re.fullmatch(r"[ \t]*", m.group("rest")))
 
 
+def unfenced_lines(lines):
+    """The lines of a section that are not inside a code fence.
+
+    A section's entries are its top-level `- ` lines; a fenced block inside it —
+    the quoted output adr-verify itself appends on a red run — is text. A fence
+    that printed `  - <problem>` on failure put three "log entries" into a log
+    that adr-lint then refused, a tool-written log nobody may edit (reported
+    2026-09-23 from a Rust corpus). Same fence grammar as `_sections`, so what
+    one walk skips the other skips too.
+    """
+    out, fence = [], None
+    for line in lines:
+        if fence is None:
+            opened = _fence_opened(line)
+            if opened:
+                fence = opened
+                continue
+            out.append(line)
+        elif _fence_closes(line, fence):
+            fence = None
+    return out
+
+
 def _sections(text):
     """Every `## ` section of `text` in document order, fence-aware.
 
@@ -1168,6 +1191,14 @@ def _in_arithmetic(text, i):
     return _ARITHMETIC_BETWEEN.fullmatch(between) is not None
 
 
+# A Rust char literal: one char, or an escape (`'\n'`, `'\''`, `'\x41'`, `'\u{1F600}'`), then
+# the closing quote. Anything else after a `'` is a lifetime or a label, which is code. The
+# `\xNN` arm is listed before the one-char escape: without it `'\x41'` was no literal, its
+# closing quote opened `','`, and a `'"'` beside it swallowed the file (Codex, c7da73b). A
+# unicode escape is one to six hex digits each followed by any number of `_` — the Reference's
+# grammar, not "up to six of digits-or-underscore": `'\u{0_0_0_0_4_1}'` is valid Rust and was
+# no literal to the shorter form (Codex, 153b762).
+_RUST_CHAR_LITERAL = re.compile(r"'(?:[^'\\\n]|\\(?:x[0-9a-fA-F]{2}|u\{(?:[0-9a-fA-F]_*){1,6}\}|[^xu\n]))'")
 def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,
                        shell_heredocs=False, swift=False, go=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.
@@ -1250,6 +1281,16 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
             end = n if end < 0 else end
             blank(i, end)
             i = end
+        elif rust_raw and text[i] == "'" and not _RUST_CHAR_LITERAL.match(text, i):
+            # A lifetime (`&'static str`, `impl<'a>`) or a label (`'outer:`) opens nothing.
+            # Read as a quote it swallowed the file up to the next `'`, and every test after
+            # a struct field typed `&'static str` was lost to the lock — a peer's 99-test
+            # file gave 94, and a new test at its end was locked `unproven` (BACKLOG §271).
+            # The quote ITSELF is blanked, not merely skipped: the brace matcher downstream
+            # pairs quotes too, and left in place a label's two quotes hid the `{` between
+            # them and cut the body before its assertion (Codex, c7da73b).
+            out[i] = " "  # a lifetime's or label's quote is blanked for the brace matcher
+            i += 1
         elif text[i] in ("'", '"', "`"):
             quote, end = text[i], i + 1
             raw_backtick = go and quote == "`"

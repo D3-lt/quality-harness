@@ -96,3 +96,50 @@ Revert the commit. The deny is a host permission on one command; no stored forma
 ## Follow-ups
 
 - [ ] A publish that does not contain `commit` or `push` is still not refused before it runs.
+- [ ] A publish launched from a script file (`sh do-it.sh`, `python3 helper.py`) is not observed at
+  all. The honest refusal is a git `pre-commit`/`pre-push` hook reading the same ledger (BACKLOG §269).
+
+## Amended 2026-09-23 — what the refusal matches
+
+The word match this record accepted ("a command that merely mentions either word is still refused …
+a known false refusal") was measured for one day (BACKLOG §269): each false refusal taught the session
+to put the text in a script file, and the same file then carried a real publish through unobserved —
+fifteen such scripts in one session, one of which pushed a version bump on a tree no check had passed.
+The classifier now matches an INVOCATION of `git commit` or `git push` — `git`, its options and their
+values, the verb, through the quoting of `bash -c`, `pwsh -Command` and an argv list — and the
+refusal names the invocation it saw. Scope (commit and push; the text of the Bash command; the
+`"publish": "warn"` opt-out) is unchanged. What a script file launches was unobserved before and
+still is; that is the follow-up above, and it is the honest one.
+
+Same day, third round: a classifier over shell text does not converge — each review found forms it
+missed (`"git" push`, `then git push`, `bash -lc`, `sudo -n`, a `--help` anywhere later suppressing a
+real push) and data it refused (`echo "x; git push"`). So the mechanism is now two arms with different
+authority (CLAUDE.md §16): the precise invocation match is the only thing that REFUSES, and the word
+match this record originally accepted is kept as the WARNING arm — a form the precise arm misses is
+warned about, never silent; a mention it wrongly matches costs a line, never a refusal. Both are
+executed as tables in `tests/publish-command.test.mjs`.
+
+Fourth round (Codex, f67cede; confirmed outside by a peer the same evening): a control keyword or
+wrapper matched wherever it appeared, so `echo "then git push"` was refused; a mention skipped the
+check-source import and the late baseline a publish request gets, so it accused a tree whose check
+had passed; and a mention ran the publish-time artifact gate — measured as 12 KB of `adr-lint`
+findings on a grep. Now a keyword or wrapper counts only at a command position; a mention is prepared
+exactly as a publish request and appended as nothing; the artifact gate runs on a publish request
+only. The one limit kept, pinned in the tests and named in the docs: a `;` or a newline inside quoted
+data or a heredoc body is a command position to this classifier, so `echo "x; git push"` is refused.
+
+Fifth round (Codex, f14e4cd): two wrapper patterns consumed an option's ARGUMENT as the executable,
+so `env -u git push` and `xargs -I git push` were refused — each wrapper now lists the option forms
+that were executed under a shell, and an unlisted form is a mention. And a read-only reviewer's
+unprovable form (`$GIT push`) had lost its state warning when the dispatch fallback went: a reviewer's
+command is never this session's publish request and its PreToolUse writes nothing to the session's log
+(it is the parent's), but a mention of one is observed and warned about as the ledger stands. The
+mention line is shorter: it says the state, that it is advisory, and what to run.
+
+Sixth round (Codex, b149b50): the reviewer arm added in the fifth still wrote `action.emitted` into the
+parent session's log through delivery, read the parent's ledger without the preparation a session's
+own mention gets, and observed the tree before an unconditional denial. Three rounds, three ways for
+one arm to be wrong about whose ledger it was in. So a read-only role's PreToolUse is the reviewer
+guard's ALONE: not observed, not logged, not warned about. A form the guard cannot prove is the same
+fail-open as for anyone and belongs to the git-hook follow-up; the state warning is advice to the
+session about its own work, which a reviewer has none of.

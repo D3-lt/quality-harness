@@ -178,7 +178,8 @@ CI not finished means not green.
 4. Wait for **every** CI job — ask for the list, never carry a count.
 5. `node scripts/release-evidence.mjs <sha>` and act only on its **SUCCESS**. Never read a watch's
    exit code. Its own header defines its exit codes; when a summary elsewhere disagrees, the header
-   wins.
+   wins. It also asks whether anybody outside has run the readers that changed since the last tag
+   (§18): an attestation in `docs/corpus-reports/` at a commit after that tag, or UNPROVEN.
 6. **Do not push while the release run is in flight** — `cancel-in-progress` kills it silently.
 7. `gh release create vX.Y.Z --latest` — `--latest` is not the default.
 
@@ -258,7 +259,8 @@ already thought of; it cannot read the whole output over a shape it has never se
   not this one, on a platform we cannot run, over a corpus we do not own, through
   `plugin/scripts/corpus-probe.mjs --json` or the readers by hand — and ask for **everything it
   printed, verbatim**, not a verdict. Say in the first line that a reply is the deliverable and that
-  "could not run because X" is a useful answer.
+  "could not run because X" is a useful answer. File the attestation (never the report — §6) in
+  `docs/corpus-reports/`; `release-evidence` reads it and refuses a sha without one.
 - **The matrix is a floor, not the check.** `tests/corpus-matrix.test.mjs` asserts the fields a
   reviewer chose; a defect lives in the sentence nobody chose to assert. When a peer's paste shows
   one, the fix adds that field to `expected.json` as well as fixing the reader.

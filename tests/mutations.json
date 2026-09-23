@@ -9679,6 +9679,177 @@
       ],
       "from": "  const TAIL = /[^\\s'\"`)]*(?:[ \\t]+[^\\s'\"`)\\\\/]+(?=[\\\\/])[^\\s'\"`)]*)*/.source",
       "to": "  const TAIL = /[^\\s'\"`)]*/.source"
+    },
+    {
+      "label": "release-evidence: readers changed since the tag with no outside run attested is UNPROVEN, not cleared (§18)",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  if (attested.length === 0) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "SessionStart: the read-but-capped count prints before the not-read count, each saying what it counts",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (unread >= 0) shown.splice(unread, 0, note)",
+      "to": "    if (false) shown.splice(unread, 0, note)"
+    },
+    {
+      "label": "ADR-061: the refusal matches an invocation of git commit or git push, never the bare words (§269)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  return publishCommandIn(command) !== null",
+      "to": "  return typeof command === 'string' && /(?<![A-Za-z0-9_-])(?:commit|push)(?![A-Za-z0-9_-])/.test(command)"
+    },
+    {
+      "label": "adr-lint: a red run's quoted output inside the excerpt fence is not a Verification Log entry",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    vlog = [ln.strip() for ln in unfenced_lines(secs.get(\"Verification Log\", []))",
+      "to": "    vlog = [ln.strip() for ln in secs.get(\"Verification Log\", [])"
+    },
+    {
+      "label": "record.unfenced_lines: a fence closes, so the rows after it are read again",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif _fence_closes(line, fence):\n            fence = None\n    return out",
+      "to": "        elif False:\n            fence = None\n    return out"
+    },
+    {
+      "label": "release-evidence: an outside run counts only when it carries every reader change up to the sha",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "    try { return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === '' } catch { return null }",
+      "to": "    try { return true } catch { return null }"
+    },
+    {
+      "label": "ADR-061: git commit --help is a manual page, not a publish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const PUBLISH_NOT_HELP = String.raw`(?![ \\t]+(?:--help|-h)(?![A-Za-z0-9_-]))`",
+      "to": "const PUBLISH_NOT_HELP = ''"
+    },
+    {
+      "label": "ADR-061: git invoked by path (/usr/bin/git push) is a publish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~\\\\/-]*[\\\\/])?git`",
+      "to": "const PUBLISH_EXE_BARE = 'git'"
+    },
+    {
+      "label": "release-evidence: an attestation git could not check is coverage unknown, never absent",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "    if (unchecked.length) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "ADR-061: only a proven invocation is refused; a mention is warned about (§16, §269)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn"
+    },
+    {
+      "label": "ADR-061: a keyword or wrapper is a command position only at a command position, not inside quoted data (§269 round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|-[A-Za-z]*c[ \\t]+[\"']|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`",
+      "to": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|[\"']|-[A-Za-z]*c[ \\t]+[\"']|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`"
+    },
+    {
+      "label": "ADR-061: a mention imports the check source before its warning reads the ledger (§269 round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "  const source = importCheckRecords(input.cwd, session)",
+      "to": "  const source = name === 'publish.mentioned' ? { complete: true } : importCheckRecords(input.cwd, session)"
+    },
+    {
+      "label": "ADR-061: the artifact gate runs on a publish request only, never on a mention (§269 round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "    if (recorded?.event === 'publish.requested') artifactRule(input, recorded)",
+      "to": "    artifactRule(input, recorded)"
+    },
+    {
+      "label": "ADR-061: an env option's ARGUMENT is not the executable (env -u git push publishes nothing) (§269 round 5)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  + String.raw`|env(?:[ \\t]+(?:-[iv0]+|--ignore-environment|-[uC][ \\t]+[^\\s\"']+))*(?:[ \\t]+-S[ \\t]+[\"']|[ \\t]+)`",
+      "to": "  + String.raw`|env(?:[ \\t]+-[^\\s\"'S][^\\s\"']*)*(?:[ \\t]+-S[ \\t]+[\"']|[ \\t]+)`"
+    },
+    {
+      "label": "ADR-060/061: a read-only role's PreToolUse is the guard's alone — never observed, recorded or warned about (§269 round 6)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "  const guardAlone = event === 'PreToolUse' && readOnlyRole(input.agent_type) !== null",
+      "to": "  const guardAlone = false"
+    },
+    {
+      "label": "test-lock: a Rust lifetime is code, not a char literal's opening quote (§271)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif rust_raw and text[i] == \"'\" and not _RUST_CHAR_LITERAL.match(text, i):",
+      "to": "        elif False:"
+    },
+    {
+      "label": "test-lock: a Rust label's quote is blanked, so the brace matcher does not pair it and cut the body (§271 round 2)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            out[i] = \" \"  # a lifetime's or label's quote is blanked for the brace matcher",
+      "to": "            pass"
+    },
+    {
+      "label": "test-lock: a Rust '\\xNN' escape is a char literal, not a lifetime (§271 round 2)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^xu\\n]))'\")",
+      "to": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^u\\n]))'\")"
+    },
+    {
+      "label": "test-lock: a Rust unicode escape is hex digits each followed by underscores, not six of either (§271 round 3)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^xu\\n]))'\")",
+      "to": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{[0-9a-fA-F_]{1,6}\\}|[^xu\\n]))'\")"
     }
   ]
 }

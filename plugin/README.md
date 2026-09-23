@@ -75,12 +75,17 @@ everything passed. The exit code is what a CI step or a stage precondition reads
 difference between those two words is the thing to read, because "the gate
 complained" and "the gate refused" are not the same statement.
 
-**One exception, and it can be turned off.** Before a command that names `commit` or
-`push` runs, a working tree no `qh-check` has passed on is refused (ADR-061), when the
-session log was read whole. A torn log, an unordered check, or a check that could not
-look only warns. `"publish": "warn"` in `.quality-harness.json` makes the refusal a
-warning; any other value is ignored and said to be. A command that merely MENTIONS
-either word, such as a heredoc body, is refused too. That is a known false refusal.
+**One exception, and it can be turned off.** Before a command that invokes `git commit` or
+`git push` runs — through `bash -c`, `pwsh -Command` or an argv list too — a working tree no
+`qh-check` has passed on is refused (ADR-061), when the session log was read whole, and the
+refusal names the invocation it saw. A torn log, an unordered check, or a check that could not
+look only warns. `"publish": "warn"` in `.quality-harness.json` makes the refusal a warning; any
+other value is ignored and said to be. A command that merely mentions either word — a grep, a
+heredoc, a file name — is warned about, never refused, and gets none of the publish-time artifact
+checks: only a proven invocation is refused (CLAUDE.md §16). One known limit: a `;` or a newline
+inside quoted data or a heredoc body reads as a command position, so `echo "x; git push"` is
+refused, and the refusal names what it saw. A publish launched from a script file, or through a
+variable or a command substitution, is a mention at most; that is ADR-061's open follow-up.
 The only other refusal is the reviewer guard (ADR-060): a role spawned read-only, such
 as `qh-scope-reviewer`, may not edit, commit or push. It has no opt-out, because it
 fences a role the workflow made read-only, not your own work.

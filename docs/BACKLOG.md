@@ -14207,7 +14207,17 @@ this aligns the readers rather than opening a new blind spot.
 **Found underneath, once the fixtures stopped outranking it:** `work-next` then said
 *"Next: adr-retire — a record is Superseded or Withdrawn but still sits in the active corpus"* and
 listed all seven records in `docs/adr-archive/`. Its retirable check looked for a path component
-spelled exactly `archive`; this repository's is `adr-archive`. It uses `isArchivePath` on the
-repository-relative path now. ⚠ The first test for it came back GREEN under mutation: the fixture
-was a two-line archive marker, so the record was never classified `graveyard` and the check was
-never reached. The fixture is a real catalog now and the classification is asserted as a control.
+spelled exactly `archive`; this repository's is `adr-archive`. A second path test, `isArchivePath`,
+then matched an ACTIVE `docs/adr/archive-policy.md` and anything under `archive-service/` (Codex
+review of `870a230`, P2), so the corpus reader now carries `frozen` — set from the archive catalog
+it already read — and `work-next` reads that. ⚠ The first test came back GREEN under mutation: the
+fixture was a two-line archive marker, so the record was never classified `graveyard` and the check
+was never reached. The fixture is a real catalog now and the classification is asserted as a control.
+
+**Narrowed after review and a probe (same day).** The shared list first carried `tests?`, `spec`
+and `examples?` from `taskDirectories`. Applied to every reader, an accepted record under
+`spec/adr/`, `examples/adr/` or `test/adr/` read as `records=0, look=ok` — a corpus dropped in
+silence, the fail-open direction (§16; Codex P1). The list is fixture and generated locations only
+now: `node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|fixtures?|testdata`.
+The cheaper error stays: a fixture record under a bare `tests/adr/` is read as real and
+over-reported. SessionStart reads `spec/` corpora now that it did not before.

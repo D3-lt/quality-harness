@@ -415,6 +415,11 @@ test('work-next does not offer a record in the frozen archive for retirement', a
     write('docs/adr-archive/ADR-001-retired.md', retired)
     // The control: the same status in the ACTIVE corpus is exactly what adr-retire is for.
     write('docs/adr/ADR-002-still-active.md', superseded('002'))
+    // Two more controls, from the Codex review: an ACTIVE record whose name starts
+    // with `archive`, and one under a directory that does, are still candidates —
+    // a path test on the word hid both.
+    write('docs/adr/archive-policy.md', superseded('003'))
+    write('archive-service/docs/adr/ADR-004-svc.md', superseded('004'))
     const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, encoding: 'utf8', timeout: 15_000 })
     assert.equal(init.status ?? 0, 0, init.stderr)
     const state = observe(root)
@@ -422,7 +427,7 @@ test('work-next does not offer a record in the frozen archive for retirement', a
     const archived = corpus(root).find(record => /ADR-001-retired/.test(record.file))
     assert.equal(archived?.kind, 'graveyard', 'the archived record must be classified, or the check under test is never reached')
     const named = state.retirable.map(record => record.file.slice(root.length + 1).split('\\').join('/'))
-    assert.deepEqual(named, ['docs/adr/ADR-002-still-active.md'], `retirable: ${named}`)
+    assert.deepEqual(named.sort(), ['archive-service/docs/adr/ADR-004-svc.md', 'docs/adr/ADR-002-still-active.md', 'docs/adr/archive-policy.md'], `retirable: ${named}`)
     assert.equal(nextStage(state)?.id, 'adr-retire', 'the control still routes to adr-retire')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })

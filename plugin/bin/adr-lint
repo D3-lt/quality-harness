@@ -1467,7 +1467,10 @@ def check_unterminated_fence(path, text, errors, blocking):
 # ADR-059 tasks already past it.
 TASK_PATH_ADVISE_LEN = 140
 ARCHIVE_SHIFT = len("-archive")
-ARCHIVE_PART_RE = re.compile(r"(^|[-_])archive(d|s)?$|^archive", re.I)
+# A directory that IS an archive — `adr-archive`, `archive`, `archived`, `archives` —
+# and not one whose name merely starts that way: `archive-service/docs/adr/` is an
+# active corpus and its tasks still move on retirement (Codex review of 6bc0330).
+ARCHIVE_PART_RE = re.compile(r"(^|[-_])archive[ds]?$", re.I)
 
 
 def check_task_path_length(path, root, errors):
@@ -1482,7 +1485,8 @@ def check_task_path_length(path, root, errors):
     shift = 0 if archived else ARCHIVE_SHIFT
     length = len(rel) + shift
     if length > TASK_PATH_ADVISE_LEN:
-        later = "" if archived else f" ({len(rel)} now, +{shift} once its record is retired into an `-archive` sibling)"
+        later = "" if archived else (f" ({len(rel)} now, +{shift} once its record is retired into the "
+                                     f"`-archive` sibling adr-retire creates by default)")
         errors.advise(
             f"{path.name}: its repository path is {length} characters{later}, past "
             f"{TASK_PATH_ADVISE_LEN}. Windows MAX_PATH is 260 and a default Git for Windows "

@@ -1694,11 +1694,32 @@ test('a task whose archived path would exceed the Windows ceiling is advised, on
   // fails for that; the `advice:` prefix is what says this finding blocks nothing.
   assert.match(advised.stdout, new RegExp(`advice: ${over}: its repository path is 141 characters \\(133 now, \\+8`),
     `the archived length, and how it was computed:\n${advised.stdout}`)
-  // The control: two characters shorter and the gate says nothing about length.
+  // The controls: one character shorter lands exactly ON the ceiling and the gate
+  // says nothing; two shorter likewise.
   rmSync(join(tasks, over))
-  writeFileSync(join(tasks, named(116)), template)
-  const quiet = run('adr-lint', [adr, tasks], repo)
-  assert.doesNotMatch(quiet.stdout, /repository path is \d+ characters/, `a name under the ceiling is not advised:\n${quiet.stdout}`)
+  for (const under of [117, 116]) {
+    writeFileSync(join(tasks, named(under)), template)
+    const quiet = run('adr-lint', [adr, tasks], repo)
+    assert.doesNotMatch(quiet.stdout, /repository path is \d+ characters/, `a name at or under the ceiling is not advised (${under}):\n${quiet.stdout}`)
+    rmSync(join(tasks, named(under)))
+  }
+  // A record already in an archive gets no +8, and the advice says so by omission.
+  const archiveDir = join(repo, 'docs', 'adr-archive')
+  cpSync(join(repo, 'docs', 'adr'), archiveDir, { recursive: true })
+  // `docs/adr-archive/tasks/` is 23 characters, so a 118-character name is 141 as it stands.
+  writeFileSync(join(archiveDir, 'tasks', over), template)
+  const frozen = run('adr-lint', [join(archiveDir, 'ADR-001-old.md'), join(archiveDir, 'tasks')], repo)
+  assert.match(frozen.stdout, new RegExp(`advice: ${over}: its repository path is 141 characters, past 140`),
+    `an archived path is measured as it stands:\n${frozen.stdout}`)
+  // And a corpus under a directory that merely STARTS with `archive` is active, so
+  // its tasks still move on retirement and the +8 applies (Codex review of 6bc0330).
+  const service = join(repo, 'archive-service', 'docs', 'adr')
+  cpSync(join(repo, 'docs', 'adr'), service, { recursive: true })
+  // `archive-service/docs/adr/tasks/` is 31 characters, so a 102-character name is 133 + 8.
+  writeFileSync(join(service, 'tasks', named(102)), template)
+  const active = run('adr-lint', [join(service, 'ADR-001-old.md'), join(service, 'tasks')], repo)
+  assert.match(active.stdout, new RegExp(`advice: ${named(102)}: its repository path is 141 characters \\(133 now, \\+8`),
+    `an archive-prefixed active corpus still gets the retirement allowance:\n${active.stdout}`)
   rmSync(repo, { recursive: true, force: true })
 })
 

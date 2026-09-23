@@ -719,3 +719,17 @@ test('a status classifies as before, and names its record exactly', () => {
   assert.equal(byId.get('2026-07-15-kept')?.kind, 'governing')
   assert.equal(byId.get('2026-07-01-c')?.supersededBy, '2026-07-15-new_')
 })
+
+// --- Round 6 of the different-lineage review ---------------------------------------
+test('emphasis around a numbered supersession does not hide it', () => {
+  // Ordinary Markdown: `_Superseded by ADR-004_` named record 4 before ADR-063.
+  const root = dateCorpus()
+  writeTree(root, {
+    'adr/ADR-004-new.md': record('ADR-004: New', 'Accepted'),
+    'adr/ADR-001-old.md': record('ADR-001: Old', '_Superseded by ADR-004_'),
+    'adr/ADR-002-gone.md': record('ADR-002: Gone', 'Superseded by _ADR-999_'),
+  })
+  const byId = new Map(lifecycle.adrCorpus(root, { tracked: listing(root) }).map(entry => [entry.id, entry]))
+  assert.equal(byId.get('ADR-001')?.supersededBy, 'ADR-004')
+  assert.equal(byId.get('ADR-002')?.supersededBy, 'ADR-999')
+})

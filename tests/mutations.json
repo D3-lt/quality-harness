@@ -9142,7 +9142,7 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a dated supersession is never record 2026",
-      "from": "        ? supersessionTarget(retired ? status : rawStatus(text))",
+      "from": "        ? supersessionTarget(retired ? status : rawStatus(text), status)",
       "to": "        ? (/(\\d{1,4})/.exec(status)?.[1] ?? null)"
     },
     {
@@ -9272,8 +9272,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a numbered supersession is read in every spelling",
-      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)",
-      "to": "  const loose = /(?<![A-Za-z0-9_])ADR-(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)"
+      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)",
+      "to": "  const loose = /(?<![A-Za-z0-9_])ADR-(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)"
     },
     {
       "label": "ADR-063: the identity regexes are ASCII",
@@ -9312,8 +9312,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a numbered supersession needs a whole identifier",
-      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)",
-      "to": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?!\\d)/i.exec(rest)"
+      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)",
+      "to": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?!\\d)/i.exec(plain)"
     },
     {
       "label": "ADR-063: a title's whitespace is read alike in both copies",
@@ -9392,8 +9392,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "an underscore-prefixed token",
-      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)",
-      "to": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(rest)"
+      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)",
+      "to": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)"
     },
     {
       "label": "ADR-063: a heading token never reads a date as a number",
@@ -9434,6 +9434,16 @@
       "only": "keeps a token that looks like a date",
       "from": "def first_number_id(text, skip_dates=False):",
       "to": "def first_number_id(text, skip_dates=True):"
+    },
+    {
+      "label": "ADR-063: a numbered supersession is read from the classified status",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "emphasis around a numbered supersession",
+      "from": "  const plain = classified.replace(/^superseded\\s+by\\s*/i, '')",
+      "to": "  const plain = rest"
     }
   ]
 }

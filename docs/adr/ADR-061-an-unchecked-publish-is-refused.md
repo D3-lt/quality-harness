@@ -110,3 +110,11 @@ values, the verb, through the quoting of `bash -c`, `pwsh -Command` and an argv 
 refusal names the invocation it saw. Scope (commit and push; the text of the Bash command; the
 `"publish": "warn"` opt-out) is unchanged. What a script file launches was unobserved before and
 still is; that is the follow-up above, and it is the honest one.
+
+Same day, third round: a classifier over shell text does not converge — each review found forms it
+missed (`"git" push`, `then git push`, `bash -lc`, `sudo -n`, a `--help` anywhere later suppressing a
+real push) and data it refused (`echo "x; git push"`). So the mechanism is now two arms with different
+authority (CLAUDE.md §16): the precise invocation match is the only thing that REFUSES, and the word
+match this record originally accepted is kept as the WARNING arm — a form the precise arm misses is
+warned about, never silent; a mention it wrongly matches costs a line, never a refusal. Both are
+executed as tables in `tests/publish-command.test.mjs`.

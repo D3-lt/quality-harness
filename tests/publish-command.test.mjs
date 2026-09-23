@@ -11,7 +11,7 @@
 // or inside the quoted string of a known executor — and nothing that is data.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { containsCommitOrPush, publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
+import { containsCommitOrPush, mentionsCommitOrPush, publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
 
 // Invocations a session could publish with. Each must be refused on an
 // unchecked tree and denied to a read-only role.
@@ -52,6 +52,20 @@ const PUBLISHES = [
   '/opt/homebrew/bin/git commit -m x',
   'git \\\n push',
   'git\tpush',
+  // Codex review of bbade17: a help flag anywhere LATER must not suppress a real publish;
+  // control keywords, a quoted executable, `bash -lc`, `sudo -n`/`-u`, executor whitespace.
+  'git push && echo --help',
+  'git commit -m "fix --help output"',
+  'git push origin main # --help',
+  '"git" push',
+  'if true; then git push; fi',
+  'for b in x; do git push origin "$b"; done',
+  'bash -lc "git push"',
+  "sh -ec 'git commit -m x'",
+  '! git push',
+  'sudo -n git push',
+  'sudo -u deploy git push',
+  'python3 -c "import subprocess; subprocess.run( [\'git\', \'push\'])"',
 ]
 
 // Commands that mention the words, or even the invocation as DATA, and publish
@@ -81,6 +95,25 @@ const NOT_PUBLISHES = [
   'python3 -c "print(\'git push\')"',
 ]
 
+// The precise arm's known limit, pinned as a decision (§269): a shell separator inside
+// quoted data reads as a segment start, so this is refused although it only greps.
+// Rare, said in the refusal's own text, and cheaper than a shell parser.
+const KNOWN_FALSE_REFUSALS = ['git log --grep "x; git push"', 'echo "example; git push"']
+
+// Mentions: refused by no arm, WARNED about by the advisory one. These are the
+// grep, the echo and the file name that taught the bypass (§269) — and the two
+// forms the precise arm does not parse, which the warning keeps from being silent.
+const MENTIONS = [
+  'echo "the commit message goes here"',
+  'git log --grep commit',
+  'git commit --help',
+  "echo 'run git push later'",
+  '$(which git) push',
+  'GIT=git; $GIT push',
+]
+const NOT_MENTIONS = ['qh-check', 'git status', 'grep -n pre-commit a.md', "node -e 'records.push(1)'", 'git commit-tree HEAD^{tree}', 'ls',
+  'grep -n containsCommitOrPush plugin/scripts/lifecycle.mjs', 'cat commit-c2.txt']
+
 test('every publish form is recognised, with the invocation named', () => {
   const missed = PUBLISHES.filter(command => !containsCommitOrPush(command))
   assert.deepEqual(missed, [], `publishes the classifier did not see:\n${missed.join('\n')}`)
@@ -94,13 +127,28 @@ test('nothing that only mentions a publish is refused', () => {
   assert.deepEqual(refused, [], `data refused as a publish:\n${refused.join('\n')}`)
   assert.equal(publishCommandIn(undefined), null)
   assert.equal(publishCommandIn(''), null)
+  // The known limit is a limit, not a surprise: if a later shape stops refusing these,
+  // the comment above is stale and this line says so.
+  for (const command of KNOWN_FALSE_REFUSALS) assert.equal(containsCommitOrPush(command), true, `known limit moved: ${command}`)
 })
 
 // What is NOT observed, said so it is a decision: a `git` reached through a
 // variable, a command substitution or an escape is not seen. The honest refusal
 // for those is a git hook (ADR-061 follow-up), not a longer regex.
-test('dynamic invocations are unobserved by design, and this test pins that they are', () => {
+test('dynamic invocations are not refused, and this test pins that they are a mention at most', () => {
   for (const command of ['$(which git) push', 'GIT=git; $GIT push', 'git p\\u0075sh']) {
     assert.equal(containsCommitOrPush(command), false, command)
   }
+})
+
+test('the advisory arm sees the words as words — warned about, never refused', () => {
+  const silent = MENTIONS.filter(command => !mentionsCommitOrPush(command))
+  assert.deepEqual(silent, [], `a mention the warning arm did not see:\n${silent.join('\n')}`)
+  const refused = MENTIONS.filter(command => containsCommitOrPush(command))
+  assert.deepEqual(refused, [], `a mention the precise arm refused:\n${refused.join('\n')}`)
+  const noisy = NOT_MENTIONS.filter(command => mentionsCommitOrPush(command))
+  assert.deepEqual(noisy, [], `warned about nothing:\n${noisy.join('\n')}`)
+  // Every proven invocation is also a mention: the warning arm is the superset.
+  const unseen = PUBLISHES.filter(command => !mentionsCommitOrPush(command))
+  assert.deepEqual(unseen, [], `a publish the warning arm would not even warn about:\n${unseen.join('\n')}`)
 })

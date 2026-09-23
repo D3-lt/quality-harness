@@ -2890,27 +2890,36 @@ const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'Notebook
 // unobserved. A gate that refuses correct work is one people route around, and the
 // route is the one the work it should stop takes too (CLAUDE.md §16).
 const PUBLISH_VERB = String.raw`(?:commit|push)(?![A-Za-z0-9_-])`
-// `git commit --help` opens a manual page and publishes nothing.
-const PUBLISH_NOT_HELP = String.raw`(?!(?:[ \t]+\S+)*[ \t]+(?:--help|-h)(?![A-Za-z0-9_-]))`
+// `git commit --help` opens a manual page: excluded only when the help flag is
+// the NEXT token. Scanning further let `git push && echo --help` and
+// `git commit -m "fix --help output"` through (Codex, bbade17) — fail-open.
+const PUBLISH_NOT_HELP = String.raw`(?![ \t]+(?:--help|-h)(?![A-Za-z0-9_-]))`
 // Between argv tokens: whitespace, a line continuation, or the quote and comma of
 // an argv list (`["git","push"]`).
 const PUBLISH_SEP = String.raw`(?:\s|\\\n|["',])+`
-// WHERE A COMMAND BEGINS — the only positions a `git` is executed from: the start
-// of a line or shell segment, after a wrapper that runs its argument (`exec`,
-// `env K=V`, `sudo`, `time`, `xargs`), or inside the quoted string of an executor
-// (`bash -c`, `pwsh -Command`, `subprocess.run([`, `execSync(`). Everywhere else
-// the same text is DATA — a grep pattern, an echo, a test assertion — and the
-// second round of review found it refused (Codex, 829b3a9). Env assignments
-// may precede the executable. A `git` reached through a variable or a command
-// substitution is not seen; tests/publish-command.test.mjs pins that as a decision.
-const PUBLISH_POSITION = String.raw`(?:^|[\n;|&({]|\$\(`
-  + String.raw`|(?<![A-Za-z0-9_-])(?:exec|command(?:[ \t]+-p)?|time(?:[ \t]+-p)?|sudo|nohup|xargs)[ \t]+`
+// WHERE A COMMAND BEGINS — the positions a `git` is executed from: the start of a
+// line or shell segment (`;`, `&&`, `|`, `(`, `{`, `!`, `$(`), a control keyword
+// (`then`, `do`, `else`), a wrapper that runs its argument (`exec`, `env K=V`,
+// `sudo [-n|-u user]`, `time`, `xargs`), or the quoted string of an executor
+// (`bash -c`/`-lc`, `pwsh -Command`, `subprocess.run([`, `execSync(`). Env
+// assignments may precede the executable, which may be quoted or given by path.
+//
+// ⚠ THIS IS A CLASSIFIER OVER SHELL TEXT AND IT IS NOT EXACT (CLAUDE.md §16).
+// Three review rounds on 2026-09-23 each found forms it missed and data it
+// refused. So it is the PRECISE arm only: what it matches is refused (ADR-061),
+// and what it misses but `mentionsCommitOrPush` sees is WARNED about — a miss
+// degrades to advice, never to silence, and a false hit costs a line, not a
+// refusal (BACKLOG §269). A `git` reached through a variable or a command
+// substitution is a mention at most; tests/publish-command.test.mjs pins that.
+const PUBLISH_POSITION = String.raw`(?:^|[\n;|&({!]|\$\(`
+  + String.raw`|(?<![A-Za-z0-9_-])(?:then|do|else|elif|exec|command(?:[ \t]+-p)?|time(?:[ \t]+-p)?|nohup|xargs)[ \t]+`
+  + String.raw`|(?<![A-Za-z0-9_-])sudo(?:[ \t]+(?:-[ugCDprtTU][ \t]+\S+|--[a-z-]+(?:=\S+)?|-[A-Za-z]+))*[ \t]+`
   + String.raw`|(?<![A-Za-z0-9_-])env[ \t]+(?:-S[ \t]+["'])?`
-  + String.raw`|-c[ \t]+["']|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\[?["']|exec(?:Sync|File|FileSync)?\(["']`
+  + String.raw`|-[A-Za-z]*c[ \t]+["']|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["']`
   + String.raw`)[ \t]*(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"']*)[ \t]+)*`
-// The executable itself, by name or by path: `/usr/bin/git` was missed by the
-// first invocation match while the word match had caught it (Codex, 829b3a9).
-const PUBLISH_EXE = String.raw`(?:[A-Za-z0-9_.~\\/-]*[\\/])?git`
+// The executable, by name or by path (`/usr/bin/git` was missed once), quoted or not.
+const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~\\/-]*[\\/])?git`
+const PUBLISH_EXE = String.raw`(?:"${PUBLISH_EXE_BARE}"|'${PUBLISH_EXE_BARE}'|${PUBLISH_EXE_BARE})`
 // Options, each with an optional value that is not itself the verb.
 const PUBLISH_OPTS = String.raw`(?:${PUBLISH_SEP}(?:-[^\s"',]*(?:${PUBLISH_SEP}(?!${PUBLISH_VERB})(?:"[^"]*"|'[^']*'|[^\s"',-][^\s"',]*))?|"[^"]*"|'[^']*'))*`
 const PUBLISH_COMMAND = new RegExp(`${PUBLISH_POSITION}(${PUBLISH_EXE}${PUBLISH_OPTS}${PUBLISH_SEP}${PUBLISH_VERB})${PUBLISH_NOT_HELP}`, 'm')
@@ -2920,8 +2929,15 @@ export function publishCommandIn(command) {
   const m = PUBLISH_COMMAND.exec(command)
   return m ? m[1].replace(/\\\n/g, ' ').replace(/[\s"',]+/g, ' ').trim() : null
 }
+/** A proven invocation — the only thing that may be refused. */
 export function containsCommitOrPush(command) {
   return publishCommandIn(command) !== null
+}
+// The ADVISORY arm: the words as words (not `pre-commit`, not `records.push`).
+// Everything the precise arm misses and this sees is warned about, never refused.
+const PUBLISH_MENTION = /(?<![A-Za-z0-9_.-])(?:commit|push)(?![A-Za-z0-9_-])/
+export function mentionsCommitOrPush(command) {
+  return typeof command === 'string' && PUBLISH_MENTION.test(command)
 }
 
 export function readOnlyVerdict(input) {
@@ -3429,7 +3445,10 @@ function publishUnchecked(input, requested) {
   // A project may opt out with `"publish": "warn"` (ADR-061 revision 3); the
   // warning below is then all it gets, on every attempt the dedupe allows.
   const setting = publishSetting(input.cwd, found)
-  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn
+  // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
+  // evidence than advice). A command that merely mentions the words is warned.
+  const invoked = publishCommandIn(input.tool_input?.command)
+  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null
   if (!deny && log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
   queueAction({
     rule: 'P', key, detail: { tree: now.tree, revision }, deny,
@@ -3455,7 +3474,9 @@ function publishUnchecked(input, requested) {
             : !treeUnchecked
               ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
               : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
-      + `about to run names commit or push (\`${publishCommandIn(input.tool_input?.command) ?? 'a publish'}\`). `
+      + (invoked !== null
+        ? `about to run names commit or push (\`${invoked}\`). `
+        : 'about to run mentions commit or push without an invocation this hook can prove — a grep, an echo, a file name, or a form it does not parse. This line advises and refuses nothing; if the command does publish, ')
       + 'Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what '
       + `the command publishes.${inferredCheckCaveat(input.cwd)}${publishSettingNote(setting)}`,
   })
@@ -4180,8 +4201,13 @@ export async function handleHook(input) {
     // guard fired on a command whose FIRST act was `git switch -c task/…`, the
     // very escape it was demanding.
     if (input.tool_name !== 'Bash') return
-    if (!containsCommitOrPush(input.tool_input?.command)) return
-    publishUnchecked(input, recorded)
+    if (!mentionsCommitOrPush(input.tool_input?.command)) return
+    // A proven invocation was recorded above as `publish.requested`. A MENTION is
+    // not a publish request and is not logged as one — but its warning still needs
+    // the tree's state, so it is observed here and written nowhere. Without this the
+    // advisory arm was dispatched to a rule that returned on the missing record, and
+    // the warning the split promised was silence (found by its own test, 2026-09-23).
+    publishUnchecked(input, recorded ?? { event: 'publish.requested', observation: observe(input.cwd) })
     artifactRule(input, recorded)
     return
   }

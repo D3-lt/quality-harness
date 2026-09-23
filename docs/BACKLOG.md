@@ -14548,12 +14548,15 @@ and INSTALL still call it a refusal. Three repairs, in order of size; the third 
    launched it; the Claude-side check stays as the early warning. Needs an ADR-061 amendment (a
    sanctioned refusal's mechanism changes) and the same `"publish": "warn"` opt-out.
 
-Done the same evening, on this branch, in two rounds: 1 (the classifier matches an invocation at an
-EXECUTABLE POSITION — the start of a line or shell segment, after `exec`/`env K=V`/`sudo`/`time`,
-or inside the quoted string of `bash -c`/`pwsh -Command`/`subprocess.run([`/`execSync(` — by name or by
-path, `--help` excluded, and the refusal names the invocation it saw; a Codex review of the first
-round found `/usr/bin/git push` missed and `git log --grep "git push"` refused, both fixed, and every
-form is executed in `tests/publish-command.test.mjs`) and 2 (ADR-061 amended, INSTALL and the plugin
-README say what is observed). 3 is ADR-061's open follow-up: the script-file surface and a `git`
-reached through a variable or a command substitution are still unobserved; the honest refusal is a
-git hook.
+Done the same evening, on this branch, in three rounds. 1: the classifier matches an invocation at an
+EXECUTABLE POSITION — the start of a line or shell segment, a control keyword, `exec`/`env K=V`/
+`sudo`/`time`, or the quoted string of `bash -c`/`pwsh -Command`/`subprocess.run([`/`execSync(` — by
+name or by path, quoted or not, `--help` excluded only when adjacent, and the refusal names the
+invocation it saw. Each Codex round found forms missed and data refused, so the design is now what
+§16 prescribes: **the precise match is the only thing that refuses; the word match is kept as the
+warning arm.** A form the precise arm misses degrades to advice, never to silence; a mention it
+wrongly matches costs a line, never a refusal — which is what removes the incentive to route around
+it. Both arms are executed as tables in `tests/publish-command.test.mjs`. 2: ADR-061 amended twice,
+INSTALL and the plugin README say what is observed. 3 is ADR-061's open follow-up: the script-file
+surface and a `git` reached through a variable or a command substitution are a mention at most; the
+honest refusal is a git hook.

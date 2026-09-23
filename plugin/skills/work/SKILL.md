@@ -100,6 +100,10 @@ A nonzero command stops the chain. `unavailable` makes the result evidence-limit
 Guard against false green: confirm the check ran something and, for load-bearing custom gates,
 that a relevant rejected fixture or mutation can make it fail — `/quality-harness:mutation-audit`
 measures exactly that.
+Before a release that changes what a reader says about a corpus, one run from outside — another
+session, another platform, a corpus this repository does not own, everything it printed pasted
+back verbatim — is the check the suite cannot be: `/quality-harness:corpus-chaos` carries the
+protocol for both the runner and the asker.
 For an explicit until-clean request, invoke `/quality-harness:review-ring` with this evidence. The workflow may make
 one minimal fix and then returns `revalidation-required`; rerun the command in the coordinator and
 invoke the ring once more with fresh evidence. If a material finding remains or repeats without new

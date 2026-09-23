@@ -54,6 +54,7 @@ surface you cannot dismiss.
 | retire or archive a record | `/quality-harness:adr-retire` |
 | let the lifecycle route the whole job | `/quality-harness:work` |
 | operate the harness itself | `/quality-harness:operating` |
+| run every reader over a corpus you do not own and report what it printed | `/quality-harness:corpus-chaos` |
 
 Not sure which stage you are at? `node "${CLAUDE_PLUGIN_ROOT}/scripts/work-next.mjs"`
 reads your corpus and says what is waiting, and why.

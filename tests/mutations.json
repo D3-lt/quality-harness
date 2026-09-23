@@ -9769,6 +9769,33 @@
       ],
       "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
       "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn"
+    },
+    {
+      "label": "ADR-061: a keyword or wrapper is a command position only at a command position, not inside quoted data (§269 round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|-[A-Za-z]*c[ \\t]+[\"']|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`",
+      "to": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|[\"']|-[A-Za-z]*c[ \\t]+[\"']|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`"
+    },
+    {
+      "label": "ADR-061: a mention imports the check source before its warning reads the ledger (§269 round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "  const source = importCheckRecords(input.cwd, session)",
+      "to": "  const source = name === 'publish.mentioned' ? { complete: true } : importCheckRecords(input.cwd, session)"
+    },
+    {
+      "label": "ADR-061: the artifact gate runs on a publish request only, never on a mention (§269 round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "    if (recorded?.event === 'publish.requested') artifactRule(input, recorded)",
+      "to": "    artifactRule(input, recorded)"
     }
   ]
 }

@@ -2897,26 +2897,34 @@ const PUBLISH_NOT_HELP = String.raw`(?![ \t]+(?:--help|-h)(?![A-Za-z0-9_-]))`
 // Between argv tokens: whitespace, a line continuation, or the quote and comma of
 // an argv list (`["git","push"]`).
 const PUBLISH_SEP = String.raw`(?:\s|\\\n|["',])+`
-// WHERE A COMMAND BEGINS — the positions a `git` is executed from: the start of a
-// line or shell segment (`;`, `&&`, `|`, `(`, `{`, `!`, `$(`), a control keyword
-// (`then`, `do`, `else`), a wrapper that runs its argument (`exec`, `env K=V`,
-// `sudo [-n|-u user]`, `time`, `xargs`), or the quoted string of an executor
-// (`bash -c`/`-lc`, `pwsh -Command`, `subprocess.run([`, `execSync(`). Env
-// assignments may precede the executable, which may be quoted or given by path.
+// WHERE A COMMAND BEGINS — a `git` is executed from the start of a line or shell
+// segment (`;`, `&&`, `|`, `(`, `{`, `$(`) or from the quoted string of an executor
+// (`bash -c`/`-lc`, `pwsh -Command`, `subprocess.run([`, `execSync(`), and from
+// nowhere else. A control keyword (`then`, `do`, `else`), a `!`, or a wrapper that
+// runs its argument (`exec`, `env`, `sudo`, `time`, `nice`, `doas`, `timeout N`,
+// `xargs`) counts only when IT stands at such a position: `echo "then git push"`
+// is data, and the first shape of this matched the keyword wherever it appeared
+// (Codex, f67cede). Env assignments may precede the executable, which may be
+// quoted or given by path.
 //
 // ⚠ THIS IS A CLASSIFIER OVER SHELL TEXT AND IT IS NOT EXACT (CLAUDE.md §16).
-// Three review rounds on 2026-09-23 each found forms it missed and data it
+// Four review rounds on 2026-09-23 each found forms it missed and data it
 // refused. So it is the PRECISE arm only: what it matches is refused (ADR-061),
 // and what it misses but `mentionsCommitOrPush` sees is WARNED about — a miss
 // degrades to advice, never to silence, and a false hit costs a line, not a
 // refusal (BACKLOG §269). A `git` reached through a variable or a command
-// substitution is a mention at most; tests/publish-command.test.mjs pins that.
-const PUBLISH_POSITION = String.raw`(?:^|[\n;|&({!]|\$\(`
-  + String.raw`|(?<![A-Za-z0-9_-])(?:then|do|else|elif|exec|command(?:[ \t]+-p)?|time(?:[ \t]+-p)?|nohup|xargs)[ \t]+`
-  + String.raw`|(?<![A-Za-z0-9_-])sudo(?:[ \t]+(?:-[ugCDprtTU][ \t]+\S+|--[a-z-]+(?:=\S+)?|-[A-Za-z]+))*[ \t]+`
-  + String.raw`|(?<![A-Za-z0-9_-])env[ \t]+(?:-S[ \t]+["'])?`
-  + String.raw`|-[A-Za-z]*c[ \t]+["']|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["']`
-  + String.raw`)[ \t]*(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"']*)[ \t]+)*`
+// substitution is a mention at most; tests/publish-command.test.mjs pins that,
+// and pins the one limit kept: a `;` or a newline inside quoted data or a
+// heredoc body is a command position to this classifier.
+const PUBLISH_START = String.raw`(?:^|[\n;|&({]|\$\(|-[A-Za-z]*c[ \t]+["']|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["'])`
+const PUBLISH_WRAPPER = String.raw`(?:(?:then|do|else|elif|exec|nohup|nice|doas)[ \t]+`
+  + String.raw`|![ \t]*`
+  + String.raw`|(?:command|time)(?:[ \t]+-p)?[ \t]+`
+  + String.raw`|xargs(?:[ \t]+-[^\s"']+)*[ \t]+`
+  + String.raw`|timeout(?:[ \t]+(?:-[ks][ \t]+\S+|-[^\s"']+))*[ \t]+[0-9][^\s"']*[ \t]+`
+  + String.raw`|env(?:[ \t]+-[^\s"'S][^\s"']*)*(?:[ \t]+-S[ \t]+["']|[ \t]+)`
+  + String.raw`|sudo(?:[ \t]+(?:-[ugCDprtTU][ \t]+\S+|--[a-z-]+(?:=\S+)?|-[A-Za-z]+))*[ \t]+)*`
+const PUBLISH_POSITION = `${PUBLISH_START}[ \\t]*${PUBLISH_WRAPPER}` + String.raw`(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"']*)[ \t]+)*`
 // The executable, by name or by path (`/usr/bin/git` was missed once), quoted or not.
 const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~\\/-]*[\\/])?git`
 const PUBLISH_EXE = String.raw`(?:"${PUBLISH_EXE_BARE}"|'${PUBLISH_EXE_BARE}'|${PUBLISH_EXE_BARE})`
@@ -3154,10 +3162,18 @@ export function recordHookEvent(input) {
   let name = null
   const extra = {}
   // A read-only role's PreToolUse is decided by the reviewer deny and never
-  // observed; outside one, a Bash command naming commit or push is a publish request.
+  // observed; outside one, a Bash command that INVOKES commit or push is a publish
+  // request and is logged as one. A MENTION — the word in a grep, an echo, a file
+  // name — is prepared the same way (the check source imported, a late baseline
+  // adopted) so its warning reads the evidence a refusal would, and is appended
+  // as nothing: it is not a publish request, and every reader of
+  // `publish.requested` would otherwise count it (Codex review of f67cede).
   if (hook === 'PreToolUse') {
-    if (readOnlyRole(input.agent_type) || input.tool_name !== 'Bash' || !containsCommitOrPush(input.tool_input?.command)) return null
-    name = 'publish.requested'
+    if (readOnlyRole(input.agent_type) || input.tool_name !== 'Bash') return null
+    const command = input.tool_input?.command
+    if (containsCommitOrPush(command)) name = 'publish.requested'
+    else if (mentionsCommitOrPush(command)) name = 'publish.mentioned'
+    else return null
   }
   if (hook === 'SessionStart') {
     // ⚠ ONLY AN EMPTY LOG GETS A BASELINE HERE. A `compact` or `resume` SessionStart
@@ -3229,6 +3245,7 @@ export function recordHookEvent(input) {
       appendEvent(input.cwd, session, { event: 'check.source-unreadable', key })
     }
   }
+  if (name === 'publish.mentioned') return lateBaseline ? { ...entry, lateBaseline: true } : entry
   if (!appendEvent(input.cwd, session, entry)) {
     return { ...entry, observation: { ok: false, reason: 'the event log could not be appended' } }
   }
@@ -3413,7 +3430,7 @@ function inferredCheckCaveat(cwd) {
 // It says the command is about to run while this repository is unchecked; it
 // does not claim the command publishes this repository, which it may not.
 function publishUnchecked(input, requested) {
-  if (requested?.event !== 'publish.requested' || requested.observation?.ok !== true) return
+  if ((requested?.event !== 'publish.requested' && requested?.event !== 'publish.mentioned') || requested.observation?.ok !== true) return
   // ONE root lookup for this decision: the check and the opt-out are read from
   // the same answer, so they cannot disagree about which project this is.
   const place = nearestExistingDirectory(path.resolve(input.cwd))
@@ -4202,13 +4219,13 @@ export async function handleHook(input) {
     // very escape it was demanding.
     if (input.tool_name !== 'Bash') return
     if (!mentionsCommitOrPush(input.tool_input?.command)) return
-    // A proven invocation was recorded above as `publish.requested`. A MENTION is
-    // not a publish request and is not logged as one — but its warning still needs
-    // the tree's state, so it is observed here and written nowhere. Without this the
-    // advisory arm was dispatched to a rule that returned on the missing record, and
-    // the warning the split promised was silence (found by its own test, 2026-09-23).
-    publishUnchecked(input, recorded ?? { event: 'publish.requested', observation: observe(input.cwd) })
-    artifactRule(input, recorded)
+    // `recorded` is the publish request, or the prepared-but-unlogged mention
+    // (recordHookEvent). The artifact gate is a publish-time check with a
+    // publish-time budget: a mention publishes nothing and gets none of it — a
+    // peer measured 12 KB of adr-lint findings on a grep before this (2026-09-23).
+    publishUnchecked(input, recorded)
+    if (recorded?.event === 'publish.requested') artifactRule(input, recorded)
+    return
     return
   }
 

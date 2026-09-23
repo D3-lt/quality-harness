@@ -123,4 +123,4 @@ Revert the commits. The catalog grammar is only widened, so no archive written u
 
 ## Follow-ups
 
-- [ ] Notify the TakeOnline infrastructure session with the release that carries this, so it can compare its hand-computed digest `b8a1842a…ec37` and drop its catalog limitation note.
+- [x] 2026-09-23: notified with v2.103.0, as wing_infrastructure/inbox drawer 9135086979e8eb49db9e328ba912a8e7b7a9fba4e3f5dbd19cda2a6c79d9fd4b (tunnel 2d08330251122779), since the session was not live. Their comparison of digest `b8a1842a…ec37` is theirs to report.

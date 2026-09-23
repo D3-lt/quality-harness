@@ -1675,6 +1675,54 @@ test('an evidenced task whose Affected Files git ignores is reported, with the p
     `a check that did not run must say so:\n${unasked.stdout}`)
 })
 
+// A task path that would break a default Windows clone is advised at authoring
+// time (BACKLOG §231): MAX_PATH is 260, Git for Windows does not set
+// core.longpaths, and retiring a record adds eight characters (`docs/adr` →
+// `docs/adr-archive`), which is how the ceiling here rose from 149 to 157 with
+// no task written. Measured as the ARCHIVED length, so a name that fits today
+// and breaks on retirement is caught while it can still be renamed.
+test('a task whose archived path would exceed the Windows ceiling is advised, one under it is not', () => {
+  const { repo, adr, tasks } = agedCorpus('quality-harness-long-task-', null)
+  const template = readFileSync(join(tasks, 'T1-fixture.md'), 'utf8')
+  // `docs/adr/tasks/` is 15 characters and the archive shift 8, so a 118-character
+  // name lands at 141 and a 116-character one at 139.
+  const named = length => `T2-${'a'.repeat(length - 6)}.md`
+  const over = named(118)
+  writeFileSync(join(tasks, over), template)
+  const advised = run('adr-lint', [adr, tasks], repo)
+  // Not `expectExit(…, 0)`: agedCorpus empties Alternatives Considered on purpose, so the run
+  // fails for that; the `advice:` prefix is what says this finding blocks nothing.
+  assert.match(advised.stdout, new RegExp(`advice: ${over}: its repository path is 141 characters \\(133 now, \\+8`),
+    `the archived length, and how it was computed:\n${advised.stdout}`)
+  // The controls: one character shorter lands exactly ON the ceiling and the gate
+  // says nothing; two shorter likewise.
+  rmSync(join(tasks, over))
+  for (const under of [117, 116]) {
+    writeFileSync(join(tasks, named(under)), template)
+    const quiet = run('adr-lint', [adr, tasks], repo)
+    assert.doesNotMatch(quiet.stdout, /repository path is \d+ characters/, `a name at or under the ceiling is not advised (${under}):\n${quiet.stdout}`)
+    rmSync(join(tasks, named(under)))
+  }
+  // A record already in an archive gets no +8, and the advice says so by omission.
+  const archiveDir = join(repo, 'docs', 'adr-archive')
+  cpSync(join(repo, 'docs', 'adr'), archiveDir, { recursive: true })
+  // `docs/adr-archive/tasks/` is 23 characters, so a 118-character name is 141 as it stands.
+  writeFileSync(join(archiveDir, 'tasks', over), template)
+  const frozen = run('adr-lint', [join(archiveDir, 'ADR-001-old.md'), join(archiveDir, 'tasks')], repo)
+  assert.match(frozen.stdout, new RegExp(`advice: ${over}: its repository path is 141 characters, past 140`),
+    `an archived path is measured as it stands:\n${frozen.stdout}`)
+  // And a corpus under a directory that merely STARTS with `archive` is active, so
+  // its tasks still move on retirement and the +8 applies (Codex review of 6bc0330).
+  const service = join(repo, 'archive-service', 'docs', 'adr')
+  cpSync(join(repo, 'docs', 'adr'), service, { recursive: true })
+  // `archive-service/docs/adr/tasks/` is 31 characters, so a 102-character name is 133 + 8.
+  writeFileSync(join(service, 'tasks', named(102)), template)
+  const active = run('adr-lint', [join(service, 'ADR-001-old.md'), join(service, 'tasks')], repo)
+  assert.match(active.stdout, new RegExp(`advice: ${named(102)}: its repository path is 141 characters \\(133 now, \\+8`),
+    `an archive-prefixed active corpus still gets the retirement allowance:\n${active.stdout}`)
+  rmSync(repo, { recursive: true, force: true })
+})
+
 test('strictFrom lets a corpus adopt these gates without failing on its own history', () => {
   // A project that adopts the gates late lights up on every record written
   // before the decision to adopt them, and a gate that fails on day one over

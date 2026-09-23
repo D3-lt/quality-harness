@@ -21,6 +21,7 @@ import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 import {
   FORWARDER_MARK, SHADOW_SCOPE, backupRoot, citeOrphan, linkPlan, onSearchPath, orphans,
@@ -311,6 +312,6 @@ function main() {
   return written === work.length ? 0 : 1
 }
 
-if (process.argv[1] && import.meta.url === new URL(`file://${process.argv[1]}`).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = main()
 }

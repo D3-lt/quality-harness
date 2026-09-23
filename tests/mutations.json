@@ -8340,7 +8340,7 @@
       "tests": [
         "tests/main-module.test.mjs"
       ],
-      "from": "return realpath(fileURLToPath(moduleUrl)) === realpath(entry)",
+      "from": "return pathToFileURL(realpath(fileURLToPath(moduleUrl))).href === pathToFileURL(realpath(entry)).href",
       "to": "return moduleUrl === pathToFileURL(entry).href"
     },
     {

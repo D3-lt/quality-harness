@@ -4,7 +4,8 @@
 import { readFileSync, statSync, realpathSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { loadAcorn } from './untimed-spawns.mjs'
 import { analyzeTrace, recordInvocation } from './event-trace.mjs'
 
@@ -509,4 +510,4 @@ export async function main(argv = process.argv.slice(2), io = {}) {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) process.exitCode = await main()
+if (isMainModule(import.meta.url)) process.exitCode = await main()

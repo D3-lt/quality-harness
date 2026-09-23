@@ -19,7 +19,8 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 import { ASSERTION_ARM_WITHDRAWN } from './claim-status.mjs'
 
@@ -208,7 +209,7 @@ function main(argv = process.argv.slice(2)) {
 // `new URL('file://' + argv)` rather than a template: on Windows `argv[1]` is a
 // native path and `import.meta.url` is a file URL, so a raw comparison never
 // matches and main() never runs (tests/package.test.mjs asserts this class).
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(main())
 }
 

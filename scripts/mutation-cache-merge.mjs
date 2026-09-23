@@ -25,7 +25,7 @@
 // incomplete run rather than publishing a cache that silently freezes it.
 
 import { readFileSync, writeFileSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 /**
  * One shard's report, or a reason it cannot be read.
@@ -179,6 +179,6 @@ export function run(argv, { read = readFileSync, write = writeFileSync, log = co
 // `import.meta.url` is a URL and `process.argv[1]` is a PATH — on Windows a
 // `file://${argv}` template never matches, so the script would exit 0 having run
 // nothing at all. tests/package.test.mjs sweeps every tracked .mjs for that shape.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(run(process.argv.slice(2)))
 }

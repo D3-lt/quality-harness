@@ -25,7 +25,8 @@
 
 import { readFileSync, readdirSync, existsSync } from 'node:fs'
 import { dirname, join } from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -119,4 +120,4 @@ function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) main()
+if (isMainModule(import.meta.url)) main()

@@ -26,7 +26,8 @@
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, statSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 const KNOWN = new Set(['--corpus', '--out', '--template', '--list'])
 
@@ -231,6 +232,6 @@ export function main(argv = process.argv.slice(2), pluginRoot = undefined) {
   return 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = main()
 }

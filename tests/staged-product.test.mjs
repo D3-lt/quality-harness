@@ -104,7 +104,7 @@ const readyTask = id =>
   + '## Verification Log\n\n'
 const evidencedTask = id =>
   `# Task ADR-${id}\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n`
-  + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n'
+  + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n'
 
 test('marketplace source is the plugin directory', () => {
   const text = readFileSync(path.join(repoRoot, '.claude-plugin', 'marketplace.json'), 'utf8')

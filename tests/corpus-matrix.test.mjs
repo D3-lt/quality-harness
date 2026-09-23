@@ -82,6 +82,10 @@ for (const [name, dir] of corpora) {
     expected.workNext, `${name}: work-next:\n${JSON.stringify(report.workNext, null, 2)}`)
     assert.deepEqual({ read: report.adrState.read, governing: report.adrState.governing }, expected.adrState, `${name}: adr-state`)
     assert.deepEqual(report.adrNext.map(entry => ({ tasksDir: entry.tasksDir, ready: entry.ready?.map(task => task.id) ?? null })), expected.adrNext, `${name}: adr-next:\n${JSON.stringify(report.adrNext, null, 2)}`)
+    // The gate's own verdict per record — where ADR-038's `not-recognised` shows
+    // beside readers that counted the same file. Declared in every expectation
+    // and, until a review noticed, asserted by none (Codex, c1f546a).
+    assert.deepEqual(report.adrLint.map(entry => ({ file: entry.file, verdict: entry.verdict })), expected.adrLint, `${name}: adr-lint:\n${JSON.stringify(report.adrLint, null, 2)}`)
     assert.deepEqual(report.sweep.map(entry => ({ root: entry.root, claims: entry.claims, held: entry.held, false: entry.false, superseded: entry.superseded, unrunnable: entry.unrunnable })), expected.sweep, `${name}: sweep buckets:\n${JSON.stringify(report.sweep, null, 2)}`)
     assert.deepEqual(report.disagreements.map(d => ({ task: d.task, adrNext: d.adrNext, workNext: d.workNext })), expected.disagreements, `${name}: readers disagree:\n${JSON.stringify(report.disagreements, null, 2)}`)
     for (const line of expected.sessionStart.mustMatch ?? []) {

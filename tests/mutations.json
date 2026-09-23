@@ -2498,8 +2498,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const ready = tasks.filter(file => unfinished(file) && executable(file))",
-      "to": "  const ready = tasks.filter(file => unfinished(file))"
+      "from": "  const ready = readiness.ready.filter(file => executable(file))",
+      "to": "  const ready = readiness.ready"
     },
     {
       "label": "next: work under an undecided record is named, not silently dropped",
@@ -6757,8 +6757,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "            \"unproven\": unreadable_note(text) or unprovable_evidence(text, digest, fence, first),",
-      "to": "            \"unproven\": unprovable_evidence(text, digest, fence, first),",
+      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first)),",
+      "to": "            \"unproven\": None if done else unprovable_evidence(text, digest, fence, first),",
       "only": "^a task whose code fence never closes is READY with a note saying its sections could not be read$"
     },
     {
@@ -8353,13 +8353,13 @@
       "to": "acceptance-sha256:(?P<digest>[0-9a-f]{64})\\s*$\", re.M)"
     },
     {
-      "label": "work-next: a task waiting on an outside event is not ready, as adr-next already says",
+      "label": "work-next: readiness is adr-next's answer, never a second rule here",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [
         "tests/corpus-matrix.test.mjs"
       ],
-      "from": "    if (/^\\*\\*Blocked-on:\\*\\*\\s*\\S/im.test(text)) return false\n",
-      "to": ""
+      "from": "    for (const task of answer.ready) ready.push(path.resolve(directory, task.path))",
+      "to": "    for (const task of []) ready.push(path.resolve(directory, task.path))"
     },
     {
       "label": "work-next: a task file is a .md directly under tasks/, as SessionStart already reads it",
@@ -9553,6 +9553,42 @@
       "only": "emphasis around a numbered supersession",
       "from": "  const plain = classified.replace(/^superseded\\s+by\\s*/i, '')",
       "to": "  const plain = rest"
+    },
+    {
+      "label": "SessionStart: a task directory past the read cap is counted as unread, never dropped",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (found.length >= cap) { unread += 1; continue }",
+      "to": "    if (found.length >= cap) continue"
+    },
+    {
+      "label": "adr-next: a done task carries no unproven note in --json",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first)),",
+      "to": "            \"unproven\": unreadable_note(text) or unprovable_evidence(text, digest, fence, first),"
+    },
+    {
+      "label": "adr-lint: 'Acceptance changed after verification' needs a digest row to have observed it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                changed_note = (\" Acceptance changed after verification;\" if any(VLOG_DIGEST_RE.match(b) for b in passing)",
+      "to": "                changed_note = (\" Acceptance changed after verification;\" if passing"
+    },
+    {
+      "label": "lifecycle: a hook payload that is not JSON is said on stderr, never swallowed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    process.stderr.write('[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.\\n')",
+      "to": "    process.stderr.write('')"
     }
   ]
 }

@@ -2875,13 +2875,34 @@ function decisionContextFor(input) {
 // entry with a top-level await pending (Node: "unsettled top-level await").
 const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
-// The one reading of a command's text that stays (ADR-060): whether it names
-// `commit` or `push` as a word — no letter, digit, `_` or `-` directly before or
-// after. Nothing else is parsed, so a wrapped publish (`pwsh -Command 'git push'`,
-// a Python subprocess) is caught, and `pre-commit` is not.
-const COMMIT_OR_PUSH_WORD = /(?<![A-Za-z0-9_-])(?:commit|push)(?![A-Za-z0-9_-])/
+// The one reading of a command's text that stays (ADR-060, ADR-061): whether it
+// INVOKES `git commit` or `git push` — `git`, any options with their values
+// (`-C dir`, `-c k=v`, `--no-pager`, a quoted value), then the verb — with the
+// separators an argv list or a shell quote puts between them, so `pwsh -Command
+// 'git push'`, `bash -c "git commit -m x"` and `subprocess.run(["git","push"])`
+// are caught. Nothing else is parsed.
+//
+// ⚠ UNTIL 2026-09-23 THIS MATCHED THE WORDS `commit` AND `push` ANYWHERE, and one
+// day measured what that costs (BACKLOG §269): a grep for a symbol, a heredoc that
+// mentioned the word, a scratch file named for the message it held — each refused,
+// each correct work, and each refusal taught the session to put the text in a file
+// and run `sh file.sh`. The same file then carried a real publish through
+// unobserved. A gate that refuses correct work is one people route around, and the
+// route is the one the work it should stop takes too (CLAUDE.md §16).
+const PUBLISH_VERB = String.raw`(?:commit|push)(?![A-Za-z0-9_-])`
+const PUBLISH_COMMAND = new RegExp(
+  String.raw`(?<![A-Za-z0-9_./-])git`
+  // options, each with an optional value that is not itself the verb
+  + String.raw`(?:[\s"',]+(?:-[^\s"',]*(?:[\s"',]+(?!${PUBLISH_VERB})(?:"[^"]*"|'[^']*'|[^\s"',-][^\s"',]*))?|"[^"]*"|'[^']*'))*`
+  + String.raw`[\s"',]+${PUBLISH_VERB}`)
+/** The `git commit …` or `git push …` this command invokes, in one spelling, or null. */
+export function publishCommandIn(command) {
+  if (typeof command !== 'string') return null
+  const m = PUBLISH_COMMAND.exec(command)
+  return m ? m[0].replace(/[\s"',]+/g, ' ').trim() : null
+}
 export function containsCommitOrPush(command) {
-  return typeof command === 'string' && COMMIT_OR_PUSH_WORD.test(command)
+  return publishCommandIn(command) !== null
 }
 
 export function readOnlyVerdict(input) {
@@ -3415,7 +3436,8 @@ function publishUnchecked(input, requested) {
             : !treeUnchecked
               ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
               : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
-      + 'about to run names commit or push. Run `qh-check` first. This says what state the repository is in, not what '
+      + `about to run names commit or push (\`${publishCommandIn(input.tool_input?.command) ?? 'a publish'}\`). `
+      + 'Run `qh-check` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what '
       + `the command publishes.${inferredCheckCaveat(input.cwd)}${publishSettingNote(setting)}`,
   })
 }

@@ -125,6 +125,21 @@ Install the Quality Harness plugin and show me what it added.
 Then: [TUTORIALS.md](TUTORIALS.md) for ten minutes on a throwaway repository, or
 [ONBOARDING.md](ONBOARDING.md) for the first week.
 
+
+## Report what the readers say about your corpus
+
+One command runs every reader this plugin ships over your repository — `work-next`, `adr-state`,
+`adr-next` per task directory, `adr-lint` per record, the SessionStart orientation, `corpus-report`
+— and prints what each said, side by side, with the disagreements between them computed:
+
+```bash
+node "$(qh-root)/scripts/corpus-probe.mjs" --json            # add --sweep to re-run every recorded claim (its own --sweep-budget, default 30 min)
+```
+
+Every path in the output is relative to your repository or a placeholder, so the JSON can be pasted
+into an issue as it is; `probe.sha256` says which probe produced it. This is the same command the
+repository's own CI runs over consumer-shaped corpora (`tests/corpus-matrix.test.mjs`), so a
+report from your corpus is directly comparable with what the suite already covers.
 ## Bare gate names outside a session
 
 Inside a Claude Code session, `bin/` is on `PATH`. In your own terminal it is not. Two routes:

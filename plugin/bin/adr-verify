@@ -1681,7 +1681,13 @@ def relative_to_repo(path, cwd):
 SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
 CLAIM_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit 0 · "
-    r"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})\s*$", re.M)
+    # Anything after the digest — ADR-020's ` · ms:N`, ADR-050's lock suffix —
+    # is part of the row, not a reason to skip it. Until 2026-09-23 this pattern
+    # ended at the digest, so every row adr-verify itself wrote after ADR-020
+    # (2026-09-01) was invisible to its own sweep: 561 of this corpus's 627 exit-0
+    # rows, and the false-success rate was measured over the 66 hand-shaped
+    # remainder (BACKLOG §265).
+    r"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})(?: · [^\n]*)?\s*$", re.M)
 
 # Every shape this tool writes, as the readers will see it. Kept beside
 # CLAIM_RE so the writer and its own sweep cannot describe an entry
@@ -2061,7 +2067,13 @@ def claims_in(task):
     body = sections_of(task.read_text(errors="replace", encoding="utf-8")).get("Verification Log")
     if body is None:
         return set()
-    return {m.group("digest") for m in CLAIM_RE.finditer("\n".join(body))}
+    # A lock snapshot (`--relock`, `--replace-hashes`) is a row adr-verify writes
+    # WITHOUT running the fence, so it is not a claim about acceptance and must not
+    # enter the sweep's denominator — the same exclusion adr-lint applies to
+    # passing evidence. Admitted by the widened suffix until the Codex review of
+    # c1f546a caught it (2026-09-23).
+    rows = [ln for ln in body if not vlog_row_is_lock_snapshot(ln)]
+    return {m.group("digest") for m in CLAIM_RE.finditer("\n".join(rows))}
 
 
 def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSET):

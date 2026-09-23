@@ -1110,6 +1110,10 @@ test("a heading inside the Acceptance fence is not a heading: adr-next agrees wi
   const parsed = JSON.parse(after.stdout)
   assert.equal(route(parsed), 'done',
     `adr-next must read the section the writer read and compute the digest the writer wrote: ${after.stdout}`)
+  // A done task's evidence IS the evidence: `--json` used to hand every done task an
+  // `unproven` sentence about a fence change nobody made (Windows desktop, 2026-09-23).
+  assert.equal(parsed.done.find(t => t.id === 'T1').unproven, null,
+    `a done task carries no unproven note in JSON: ${after.stdout}`)
 
   // DIRTY: the same reader, one character later. An edited fence is a different
   // Acceptance, and the digest exists to say so — this is not the defect, it is

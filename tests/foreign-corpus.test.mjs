@@ -106,12 +106,22 @@ test('adr-debt counts a consumer corpus honestly', () => {
   assert.match(summary, /0 broken pointers/, `a cross-repo reference is not broken:\n${out}`)
 })
 
-test('work-next does not name a finished consumer corpus as unfinished', async () => {
+test('work-next and adr-next give one answer about the consumer corpus', async () => {
   const { observe } = await import('../plugin/scripts/work-next.mjs')
   const state = observe(corpus)
-  const ready = state.ready.map(f => f.split('/').pop())
-  // T1 carries exit-0 evidence and T3 is human-observed and signed off nowhere --
-  // T3 IS genuinely still waiting, so it may be ready; T1 must not be.
-  assert.ok(!ready.includes('T1-code-lives-elsewhere.md'),
-    `a task with exit-0 evidence is finished:\n${ready.join('\n')}`)
+  const ready = state.ready.map(f => f.split(/[\\/]/).pop())
+  // ⚠ THIS TEST USED TO ASSERT THE OPPOSITE ABOUT T1, and that assertion was the
+  // defect wearing a test's clothes (BACKLOG §265). T1 carries an exit-0 row whose
+  // digest is `0000…`, which no fence produces: the evidence is STALE, and adr-next
+  // has said "ready — carries exit-0 evidence recorded against a different
+  // Acceptance" since ADR-010. work-next read any exit-0 row as finished, so the
+  // two readers contradicted each other on the one fixture built to catch that,
+  // and this file allowed the contradiction. Readiness is adr-next's answer now.
+  assert.ok(ready.includes('T1-code-lives-elsewhere.md'),
+    `a task whose only evidence is stale is ready, not finished:\n${ready.join('\n')}`)
+  // T3 waits on an outside event (`Blocked-on:`), so it is not ready — the
+  // v2.83.0 rule, which this reader now shares rather than re-deriving.
+  assert.ok(!ready.includes('T3-human-observed-and-waiting.md'),
+    `a Blocked-on task is not offered:\n${ready.join('\n')}`)
+  assert.deepEqual(state.readinessUnproven, [], 'adr-next answered for every task directory')
 })

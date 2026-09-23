@@ -14139,3 +14139,29 @@ No other Windows member was found.
 **Sibling left, pre-existing:** on Windows a forwarded signal or the timeout calls `child.kill`,
 which ends bash but not the runner it started, such as python. That was just as true under cmd.exe.
 A tree kill (`taskkill /T`, as `run-shell-hook.mjs` does) would close it, and it is not done here.
+
+## 262. A full checkout fails on Windows once the clone root is longer than about 100 characters (2026-09-23)
+
+**Reported by a Windows 11 session** (Git for Windows, `core.longpaths` unset): cloning the repository into a long temp directory failed with `Filename too long` on three task files under `docs/adr-archive/ADR-059-a-read-only-command-names-no-changed-path/tasks/`, then `fatal: unable to checkout working tree` (exit 128).
+
+**Measured here:**
+
+```
+$ git ls-files | awk '{print length, $0}' | sort -rn | head -3
+157 docs/adr-archive/ADR-059-a-read-only-command-names-no-changed-path/tasks/T10-a-continued-redirect-target-keeps-its-path-and-the-quote-strip-stays-released.md
+151 docs/adr-archive/ADR-059-…/tasks/T2-…
+136 docs/adr-archive/ADR-059-…/tasks/T3-…
+$ git ls-files | awk 'length>180' | wc -l      ->  0
+$ git ls-files plugin | awk '{print length}' | sort -rn | head -1   ->  106
+```
+
+MAX_PATH is 260 characters, so a full checkout breaks once the clone root is longer than about 100 characters.
+
+**Who is affected:**
+- **Installed adopters are not.** The plugin cache holds only `plugin/`, whose longest path is 106 characters.
+- **A marketplace clone** under `~/.claude/plugins/marketplaces/…` fits at an ordinary home-directory length.
+- **Contributors are.** Anyone cloning the repository into a long path on Windows hits it.
+
+**Workarounds:** a short clone root, or `git clone -c core.longpaths=true`.
+
+**Not done yet:** a length bound on new task file names in `adr-lint`, or on tracked paths in `tests/package.test.mjs`. That needs a chosen limit, and renaming archived records would rewrite history (§10), so it is left here.

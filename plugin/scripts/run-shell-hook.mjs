@@ -3,7 +3,8 @@
 import { spawn, spawnSync } from 'node:child_process'
 import { existsSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 import { startPerformanceTrace } from './performance-trace.mjs'
 import { appendEvent, canonicalFile, contentId } from './event-log.mjs'
 
@@ -652,7 +653,7 @@ export async function runEditGate(raw) {
   return status
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = process.argv[3] === '--batch' && process.argv[2] === 'facts-gate-dispatch.sh'
     ? await runArtifactBatch(await readStdin())
     : process.argv[2] === 'facts-gate-dispatch.sh'

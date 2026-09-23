@@ -251,6 +251,8 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   // copy needs the event log and the git-directory walk it uses.
   cpSync(path.join(pluginRoot, 'scripts', 'event-log.mjs'), path.join(scripts, 'event-log.mjs'))
   cpSync(path.join(pluginRoot, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
+  // The runner's entry guard (BACKLOG §264).
+  cpSync(path.join(pluginRoot, 'scripts', 'main-module.mjs'), path.join(scripts, 'main-module.mjs'))
   writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
     '#!/bin/bash',
     'if [ "${QH_TEST_BULK-}" = 1 ]; then printf "%600000s\\n" "" >&2; fi',
@@ -387,6 +389,7 @@ test('historical archive discovery uses one scoped Git query and preserves neare
   cpSync(path.join(pluginRoot, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
   cpSync(path.join(pluginRoot, 'scripts', 'event-log.mjs'), path.join(scripts, 'event-log.mjs'))
   cpSync(path.join(pluginRoot, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
+  cpSync(path.join(pluginRoot, 'scripts', 'main-module.mjs'), path.join(scripts, 'main-module.mjs'))
   const files = [path.join(nested, 'first.md'), path.join(nested, 'second.md'), source,
     path.join(sourceDir, 'another.ts')]
   writeFileSync(trace, '')

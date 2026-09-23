@@ -29,7 +29,8 @@
 
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 import { measure, taskFiles } from './trajectory-metrics.mjs'
 
@@ -188,6 +189,6 @@ export function run(argv, { read = readFileSync, readdir = readdirSync, log = co
 
 // `import.meta.url` is a URL and `process.argv[1]` is a PATH; a `file://${argv}`
 // template never matches on Windows.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(run(process.argv.slice(2)))
 }

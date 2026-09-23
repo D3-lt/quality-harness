@@ -26,7 +26,8 @@ import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const SPAWNERS = new Set(['spawn', 'spawnSync', 'exec', 'execSync', 'execFile', 'execFileSync', 'fork'])
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
@@ -175,6 +176,6 @@ export function main(argv = process.argv.slice(2), { acorn = loadAcorn(), stdout
   return untimed ? 1 : 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = main()
 }

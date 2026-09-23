@@ -140,6 +140,11 @@ Every path in the output is relative to your repository or a placeholder, so the
 into an issue as it is; `probe.sha256` says which probe produced it. This is the same command the
 repository's own CI runs over consumer-shaped corpora (`tests/corpus-matrix.test.mjs`), so a
 report from your corpus is directly comparable with what the suite already covers.
+
+`/quality-harness:corpus-chaos` is the protocol around that command — for the session that runs it
+over a corpus it does not own and for the one that asked: what to run, what to read beyond the
+summary, what to check before pasting, and why a permission refusal on the runner's side is an
+answer rather than an obstacle.
 ## Bare gate names outside a session
 
 Inside a Claude Code session, `bin/` is on `PATH`. In your own terminal it is not. Two routes:

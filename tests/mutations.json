@@ -8308,6 +8308,24 @@
       "to": "kept = kept.subarray(0, KEEP_BYTES)"
     },
     {
+      "label": "qh-check: on Windows the check runs through bash, never cmd.exe",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/qh-check-shell.test.mjs"
+      ],
+      "from": "if (platform !== 'win32') return { file: command, args: [], shell: true }",
+      "to": "if (true) return { file: command, args: [], shell: true }"
+    },
+    {
+      "label": "qh-check: no bash on Windows is could-not-start, not a platform-shell fallback",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/qh-check-shell.test.mjs"
+      ],
+      "from": "shell: false } : null",
+      "to": "shell: false } : { file: command, args: [], shell: true }"
+    },
+    {
       "label": "R3: an index-only change during a read-only run is reported",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [

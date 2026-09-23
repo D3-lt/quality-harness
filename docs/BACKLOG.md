@@ -14063,3 +14063,28 @@ an existing seal (`ADR-999-notes/notes-ADR-001.txt`, which the same walk gives t
 What would close it: decide which of the two the rule should honour, the token nearest the file or
 the outermost record directory, and re-seal any archive the change moves a file in; that needs its
 own record, since it changes what a seal covers.
+
+## 260. A decision unit's seal order depended on the host's filesystem case rule (2026-09-23, pre-existing)
+
+Windows CI on PR #15 (run 35818555302, job 107045283739) failed three ADR-063 tests with
+`2026-07-15-app-tier-provisioning: SHA-256 does not match the frozen decision unit`. The cause
+predates ADR-063: `decision_unit_files` returned `sorted(paths)`, and Windows `Path` ordering folds
+case, so a unit holding `WAVE3-PLAN.md` beside `tasks/` hashed in a different order there than on
+macOS or Linux. A catalog sealed on one platform failed on the other. Fixed by `unit_order`, which
+sorts by `path.parts`, and that is POSIX's existing order: this repository's archive and the retire
+branch's both still PASS unchanged. A seal written ON Windows over a unit whose names order
+differently by case will now read as a mismatch there, and needs re-sealing once.
+
+The test catches it on every host through `PureWindowsPath`. A call site that bypassed `unit_order`
+would be caught only on Windows CI.
+
+Sweep for the class, as `grep -rnE "sorted\([^)]*(rglob|glob|iterdir|files)" plugin/bin plugin/lib`
+plus every `hashlib.sha256()` / `createHash('sha256')` in `plugin/`. The retire digest is the only
+hash taken over an ordered file set. The remaining Path sorts order output or iteration, not bytes:
+`adr-retire-check` lines 152 and 219 (checked; not seal-affecting), `adr-next`, `adr-debt` and
+`adr-lint`. One sibling is left for later: `adr-next`'s `sorted(record_dir.parent.glob("*.md"))[:200]`
+keeps a platform-dependent 200 when a directory holds more.
+
+The same run found a second, test-only defect in the same file: `sweepCorpus` split CRLF stdout
+on `\n`. On Windows every line then kept a trailing `\r`, so the numbered controls failed, and the
+negative assertion on dated records passed without looking at anything. It now splits on `/\r?\n/`.

@@ -9436,6 +9436,16 @@
       "to": "def first_number_id(text, skip_dates=True):"
     },
     {
+      "label": "ADR-063: a decision unit sorts by case-sensitive parts on every host",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "hashes in the same order on every platform",
+      "from": "    return sorted(paths, key=lambda path: path.parts)",
+      "to": "    return sorted(paths)"
+    },
+    {
       "label": "ADR-063: a numbered supersession is read from the classified status",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [

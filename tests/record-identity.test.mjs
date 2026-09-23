@@ -438,7 +438,9 @@ function sweepCorpus() {
   // marks the ones strictFrom demotes.
   rmSync(join(root, 'ok.flag'))
   const sweep = runPython([join(bin, 'adr-verify'), '--sweep', join(root, 'docs')], { cwd: root, encoding: 'utf8', timeout: 120_000 })
-  return `${sweep.stdout}${sweep.stderr}`.split('\n').filter(line => line.startsWith('FALSE'))
+  // CRLF on Windows: a `\r` left on each line made every `endsWith` below false, so
+  // the controls failed there and the dated-record assertion passed without looking.
+  return `${sweep.stdout}${sweep.stderr}`.split(/\r?\n/).filter(line => line.startsWith('FALSE'))
 }
 
 test('adr-verify reads no record number from a date in any separator', () => {
@@ -732,4 +734,19 @@ test('emphasis around a numbered supersession does not hide it', () => {
   const byId = new Map(lifecycle.adrCorpus(root, { tracked: listing(root) }).map(entry => [entry.id, entry]))
   assert.equal(byId.get('ADR-001')?.supersededBy, 'ADR-004')
   assert.equal(byId.get('ADR-002')?.supersededBy, 'ADR-999')
+})
+test('a decision unit hashes in the same order on every platform', () => {
+  // Windows folds case when it sorts Paths, so the seal order differed there. The
+  // Windows-flavoured paths are pure, which makes this fail on any host.
+  const code = [
+    'import importlib.machinery as m, importlib.util as u, json, sys',
+    'from pathlib import PureWindowsPath as W',
+    'l = m.SourceFileLoader("retire_probe", sys.argv[1]); s = u.spec_from_loader(l.name, l)',
+    'g = u.module_from_spec(s); l.exec_module(g)',
+    'got = g.unit_order([W("C:/a/x/tasks/T1.md"), W("C:/a/x/WAVE3-PLAN.md"), W("C:/a/x/2026-x.md")])',
+    'print(json.dumps([p.as_posix() for p in got]))',
+  ].join('\n')
+  const run = runPython(['-c', code, join(bin, 'adr-retire-check')], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(run.status, 0, run.stderr)
+  assert.deepEqual(JSON.parse(run.stdout), ['C:/a/x/2026-x.md', 'C:/a/x/WAVE3-PLAN.md', 'C:/a/x/tasks/T1.md'])
 })

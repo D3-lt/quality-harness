@@ -324,14 +324,26 @@ def contained(child, parent):
     return child == parent or parent in child.parents
 
 
+def unit_order(paths):
+    """A decision unit's files in the order its digest hashes them, on every platform.
+
+    `sorted(paths)` compares Paths the way the HOST filesystem does, and Windows folds
+    case: `WAVE3-PLAN.md` sorts after `tasks/` there and before it everywhere else, so a
+    unit sealed on macOS failed on Windows as "SHA-256 does not match" (windows-latest,
+    2026-09-23, PR #15). The path's parts compare case-sensitively on every host, which
+    is exactly the order POSIX already used, so no seal written there moves.
+    """
+    return sorted(paths, key=lambda path: path.parts)
+
+
 def decision_unit_files(archive_root, adr_id, source, known=frozenset()):
     if source.parent != archive_root:
-        return sorted(path for path in source.parent.rglob("*") if path.is_file())
+        return unit_order(path for path in source.parent.rglob("*") if path.is_file())
     files = {source}
     for path in archive_root.rglob("*"):
         if path.is_file() and path.name != "README.md" and adr_id_for_file(path, archive_root, known) == adr_id:
             files.add(path)
-    return sorted(files)
+    return unit_order(files)
 
 
 def canonical_bytes(raw):

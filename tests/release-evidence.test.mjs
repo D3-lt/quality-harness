@@ -6,7 +6,12 @@
 // plus the vacuous one that would let anything through.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyArgument, evaluateRun, fetchRun, runListArgv, selectRun } from '../scripts/release-evidence.mjs'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import { join } from 'node:path'
+import {
+  classifyArgument, evaluateRun, fetchRun, outsideRun, outsideRunEvidence, readAttestations, runListArgv, selectRun,
+} from '../scripts/release-evidence.mjs'
 
 const job = (name, conclusion, status = 'completed') => ({ name, status, conclusion })
 const NINE = [
@@ -279,4 +284,62 @@ test('a short sha is EXPANDED before gh is asked, at the boundary that shells ou
   // Shown able to answer the other way in the same test: a sha this checkout does
   // not know is "could not look", not an empty run list (CLAUDE.md §4).
   assert.equal(fetchRun('nope', () => { throw new Error('unknown revision') }), null)
+})
+
+// CLAUDE.md §18. A green campaign clears the code; it says nothing about what the
+// readers SAY over a corpus this repository does not own, and every defect that
+// reached an adopter was of that kind. The evidence is an attestation naming the
+// commit the outside run was at, and it counts only after the last tag.
+test('a release whose readers changed since the last tag needs an outside run attested after it', () => {
+  const newer = at => at === 'bbbb'
+  const changed = ['plugin/scripts/lifecycle.mjs']
+  const none = outsideRun(changed, [], newer)
+  assert.equal(none.verdict, 'unproven')
+  assert.match(none.reason, /§18/)
+  // A run AT the tag (or before it) ran the old readers: it attests nothing for this release.
+  assert.equal(outsideRun(changed, [{ file: 'old.json', at: 'aaaa' }], newer).verdict, 'unproven')
+  const yes = outsideRun(changed, [{ file: 'old.json', at: 'aaaa' }, { file: 'new.json', at: 'bbbb' }], newer)
+  assert.equal(yes.verdict, 'attested')
+  assert.match(yes.reason, /new\.json at bbbb/)
+  assert.doesNotMatch(yes.reason, /old\.json/)
+  assert.equal(outsideRun([], [], newer).verdict, 'not-required', 'no reader changed: nothing to attest')
+  // A diff that could not be taken is could-not-look, never "not required" (ADR-005).
+  assert.equal(outsideRun(null, [{ file: 'new.json', at: 'bbbb' }], newer).verdict, 'unproven')
+})
+
+test('attestations are read from the directory, and an unparsable one attests nothing', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-attest-'))
+  try {
+    writeFileSync(join(dir, '2026-09-23-b.json'), JSON.stringify({ at: 'bbbb', kind: 'probe' }))
+    writeFileSync(join(dir, '2026-09-23-a.json'), '{ not json')
+    writeFileSync(join(dir, 'README.md'), '# not an attestation')
+    assert.deepEqual(readAttestations(dir), [{ file: '2026-09-23-b.json', at: 'bbbb', kind: 'probe' }])
+    assert.deepEqual(readAttestations(join(dir, 'missing')), [], 'no directory is no attestation, not a crash')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('outsideRunEvidence anchors on the tag before the sha and refuses a run at the tag itself', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-attest-git-'))
+  try {
+    const TAG = 't'.repeat(40); const AT = 'b'.repeat(40); const SHA = 's'.repeat(40)
+    const exec = (bin, argv) => {
+      const line = argv.join(' ')
+      if (line.startsWith('describe')) return 'v2.105.0\n'
+      if (line.startsWith('diff')) return 'plugin/scripts/lifecycle.mjs\n'
+      if (line.startsWith('rev-parse v2.105.0')) return `${TAG}\n`
+      if (line.startsWith('rev-parse')) return `${argv[1].replace('^{commit}', '')}\n`
+      if (line.startsWith('merge-base')) return ''
+      throw new Error(`unexpected: git ${line}`)
+    }
+    writeFileSync(join(dir, 'at-tag.json'), JSON.stringify({ at: TAG }))
+    const atTag = outsideRunEvidence(SHA, exec, dir)
+    assert.equal(atTag.verdict, 'unproven', 'a run at the tag ran the old readers')
+    assert.equal(atTag.tag, 'v2.105.0')
+    writeFileSync(join(dir, 'after.json'), JSON.stringify({ at: AT }))
+    const after = outsideRunEvidence(SHA, exec, dir)
+    assert.equal(after.verdict, 'attested')
+    assert.match(after.reason, /after\.json at bbbbbbb/)
+    // git that cannot describe a tag is could-not-look.
+    assert.equal(outsideRunEvidence(SHA, () => { throw new Error('no tags') }, dir).verdict, 'unproven')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })

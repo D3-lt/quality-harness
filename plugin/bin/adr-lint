@@ -118,7 +118,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
-from record import vlog_row_is_lock_snapshot  # noqa: E402
+from record import vlog_row_is_lock_snapshot, unfenced_lines  # noqa: E402
 
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
@@ -1733,7 +1733,10 @@ def check_task(path, all_stems, errors, root, tracked):
             errors.append(f"{path.name}: Depends-on '{d}' names no record in this corpus, or a "
                           f"record with no such task — a cross-record dependency must resolve, "
                           f"for the same reason a cited ADR must")
-    vlog = [ln.strip() for ln in secs.get("Verification Log", [])
+    # Entries are the section's top-level rows. A fenced block inside it is the
+    # quoted output of a red run, and a fence that prints `  - x` is not three
+    # off-grammar entries (record.unfenced_lines; reported 2026-09-23).
+    vlog = [ln.strip() for ln in unfenced_lines(secs.get("Verification Log", []))
             if ln.strip().startswith("- ")]
     for b in vlog:
         if not VLOG_RE.match(b):
@@ -1741,7 +1744,7 @@ def check_task(path, all_stems, errors, root, tracked):
                           f"grammar '- YYYY-MM-DD · <sha[*]|no-git> · exit N · `cmd` · "
                           f"acceptance-sha256:<64 hex>' (legacy no-digest rows remain parseable) "
                           f"(or '· human-observed · …'): {where_it_stopped(VLOG_RE, b)}")
-    mlog = [ln.strip() for ln in secs.get("Mutation Log", [])
+    mlog = [ln.strip() for ln in unfenced_lines(secs.get("Mutation Log", []))
             if ln.strip().startswith("- ")]
     for b in mlog:
         if not MLOG_RE.match(b):

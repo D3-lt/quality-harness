@@ -626,6 +626,7 @@ test('session_id from the payload reaches the facts-gate dispatcher', () => {
   cpSync(path.join(pluginDir, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
   // The runner's entry guard (BACKLOG §264).
   cpSync(path.join(pluginDir, 'scripts', 'main-module.mjs'), path.join(scripts, 'main-module.mjs'))
+  cpSync(path.join(pluginDir, 'scripts', 'uninteresting.mjs'), path.join(scripts, 'uninteresting.mjs'))
   writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
     '#!/bin/bash',
     'printf "session=%s\\n" "${QUALITY_HARNESS_SESSION_ID-UNSET}"',

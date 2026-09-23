@@ -1,0 +1,3 @@
+- name: create admins
+  ansible.builtin.user:
+    name: admin

@@ -1,0 +1,3 @@
+all:
+  hosts:
+    db1: { role: db }

@@ -24,6 +24,7 @@ import {
   appendEvent, canonical, canonicalFile, nearestExistingDirectory, readEvents, sessionLogFile, stateDir,
 } from './event-log.mjs'
 export { appendEvent, readEvents, sessionLogFile, stateDir } from './event-log.mjs'
+import { listedUnderUninterestingDirectory } from './uninteresting.mjs'
 import { contentId } from './event-log.mjs'
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   || path.dirname(path.dirname(fileURLToPath(import.meta.url)))
@@ -932,36 +933,9 @@ function advisoryHeadline(reason) {
   return sentence.length > 140 ? `${sentence.slice(0, 137)}…` : sentence
 }
 
-// Fixture and generated locations ONLY. `tests?`, `spec` and `examples?` were in
-// this list until 2026-09-23, and a probe showed what that costs once every
-// reader applies it: an accepted record under `spec/adr/`, `examples/adr/` or
-// `test/adr/` read as `records=0, look=ok` — a corpus dropped in silence, which
-// is the fail-open direction (CLAUDE.md §16; Codex review of 870a230, P1). A
-// fixture record read as real costs an advisory nobody acts on; a real corpus
-// read as nothing costs every advisory. So the names here are the ones no
-// project keeps its decisions under.
-const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|fixtures?|testdata)$/i
-
-/**
- * Whether a listed path's directory components put it somewhere no record of
- * THIS repository lives: a test fixture, a vendored tree, build output.
- *
- * One predicate for every corpus reader, because two readers disagreed and the
- * disagreement was invisible from either: `taskDirectories` applied the pattern
- * above, so SessionStart never mentioned `tests/fixtures/`, while
- * `recordFilesFromListing` and work-next's `taskFiles` did not — so `work-next`
- * on this repository named three fixture tasks as its next work, `adr-state` and
- * `adr-context` counted five fixture records as governing, and a fixture record
- * claiming to govern `src/` would have been cited on any edit there. Recorded in
- * team memory 2026-09-16 as "unverified"; measured 2026-09-23 (BACKLOG §263).
- *
- * The cost, said plainly: a fixture record kept somewhere this list does not
- * name — `tests/adr/` with no `fixtures` component — is still read as real. That
- * is the cheaper error: the reader over-reports and says where.
- */
-export function listedUnderUninterestingDirectory(dirParts) {
-  return dirParts.some(part => UNINTERESTING_DIRECTORY.test(part))
-}
+// The fixture exclusion lives in its own module since 2026-09-23, so the per-edit
+// gate (run-shell-hook.mjs, which this file imports) can share it without a cycle.
+export { listedUnderUninterestingDirectory } from './uninteresting.mjs'
 
 // ADR task directories belonging to THIS repository. Deliberately narrow:
 // walking a directory that is not a repository once surfaced another project's

@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-23",
+  "at": "829b3a92d94c87b0b2c3d10db1dd6bf658857d8a",
+  "plugin": "branch outside-run-evidence (banner still 2.105.0; not yet bumped)",
+  "kind": "hand",
+  "probeSha256": null,
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 158, "tasks": 505, "taskDirectories": null },
+  "couldNotRun": 0,
+  "disagreements": null,
+  "readinessUnproven": 2,
+  "runner": "a peer Claude Code session on this machine, read-only, over a private Rust corpus (the one that reported BACKLOG §268); adr-lint over the record that found §268 and work-next --json over the whole corpus",
+  "found": "adr-lint passes the §268 record with no grammar error for the red run's quoted output. work-next: 147 accepted of 158 records, 505 tasks, readinessUnproven 2 — two task directories adr-next could not answer for on that corpus, not investigated here; a lead for the next probe, not a verdict."
+}

@@ -245,8 +245,22 @@ export function outsideRun(changed, reports, covers) {
     }
   }
   if (changed.length === 0) return { verdict: 'not-required', reason: 'no reader changed since the last tag' }
-  const attested = (reports ?? []).filter(r => typeof r?.at === 'string' && covers(r.at) === true)
+  // `covers` answers true, false, or null — null is "could not check" (a revision
+  // this checkout does not have, a git that timed out), and it is not absence: an
+  // attestation whose coverage could not be checked must not be reported as
+  // nobody having run anything (Codex review of 829b3a9, P2).
+  const checked = (reports ?? []).filter(r => typeof r?.at === 'string').map(r => ({ r, c: covers(r.at) }))
+  const attested = checked.filter(v => v.c === true).map(v => v.r)
   if (attested.length === 0) {
+    const unchecked = checked.filter(v => v.c === null).map(v => v.r)
+    if (unchecked.length) {
+      return {
+        verdict: 'unproven', kind: 'unverified',
+        reason: `${changed.length} reader file(s) changed since the last tag; ${unchecked.length} attestation(s) could not be `
+          + `checked against this sha (${unchecked.map(r => r.file).join(', ')}: git could not resolve or diff the revision) `
+          + '— coverage unknown, not absent',
+      }
+    }
     return {
       verdict: 'unproven', kind: 'missing',
       reason: `${changed.length} reader file(s) changed since the last tag and docs/corpus-reports/ holds no `
@@ -292,17 +306,23 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
     changed = git(['diff', '--name-only', `${tag}..${sha}`, '--', ...READER_PATHS]).split('\n').filter(Boolean)
   } catch { return { ...outsideRun(null, [], () => false), tag } }
   const covers = at => {
-    try {
-      // A run AT the tag needs no identity check: the content diff below is the
-      // whole reader diff in that case, and non-empty whenever a run is required.
-      // An identity guard sat here until its mutant went GREEN for exactly that
-      // reason (2026-09-23) — the diff had made it unobservable.
-      git(['merge-base', '--is-ancestor', tag, at])
-      git(['merge-base', '--is-ancestor', at, sha])
-      // And the run must have seen the readers being released: a reader edited
-      // after the run is a reader nobody outside has run.
-      return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === ''
-    } catch { return false }
+    // `merge-base --is-ancestor` exits 1 for a definite "no" and otherwise for a
+    // revision it cannot resolve; only the first is a false. A diff that fails is
+    // a coverage nobody could check, never a mismatch.
+    const ancestry = args => {
+      try { git(['merge-base', '--is-ancestor', ...args]); return true } catch (error) { return error?.status === 1 ? false : null }
+    }
+    // A run AT the tag needs no identity check: the content diff below is the
+    // whole reader diff in that case, and non-empty whenever a run is required.
+    // An identity guard sat here until its mutant went GREEN for exactly that
+    // reason (2026-09-23) — the diff had made it unobservable.
+    const afterTag = ancestry([tag, at])
+    if (afterTag !== true) return afterTag
+    const beforeSha = ancestry([at, sha])
+    if (beforeSha !== true) return beforeSha
+    // And the run must have seen the readers being released: a reader edited
+    // after the run is a reader nobody outside has run.
+    try { return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === '' } catch { return null }
   }
   return { ...outsideRun(changed, readAttestations(reportsDir), covers), tag }
 }
@@ -385,8 +405,11 @@ function main(argv) {
       ? 'Do NOT tag this sha. CI is green and nobody outside has run the readers it ships — get one run '
         + '(`/quality-harness:corpus-chaos`) at a revision that carries every reader change, file its attestation '
         + 'in docs/corpus-reports/, and ask again.'
-      : 'Do NOT tag this sha. Whether its readers changed since the last tag could not be established from git '
-        + 'here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.')
+      : outside?.kind === 'unverified'
+        ? 'Do NOT tag this sha yet. An attestation exists but git here could not check it against this sha — fetch '
+          + 'the attested revision (and the tags), then ask again. Coverage unknown is not coverage absent (ADR-005).'
+        : 'Do NOT tag this sha. Whether its readers changed since the last tag could not be established from git '
+          + 'here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.')
   } else if (verdict !== 'success') {
     console.log('Do NOT tag this sha. A run that did not finish is "I could not look", '
       + 'not "nothing was wrong" — see BACKLOG §104 and CLAUDE.md §13.')

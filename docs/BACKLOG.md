@@ -14088,3 +14088,8 @@ keeps a platform-dependent 200 when a directory holds more.
 The same run found a second, test-only defect in the same file: `sweepCorpus` split CRLF stdout
 on `\n`. On Windows every line then kept a trailing `\r`, so the numbered controls failed, and the
 negative assertion on dated records passed without looking at anything. It now splits on `/\r?\n/`.
+
+Still not portable, and older than this fix (Codex review of `d14d597`): the relative path is hashed
+without Unicode normalisation, so a composed `é.md` and a decomposed one hash differently, and HFS+
+stores names decomposed. Unit files whose names differ only by case collide on Windows as well.
+Normalising names would move existing seals, so it needs its own decision.

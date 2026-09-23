@@ -14093,3 +14093,49 @@ Still not portable, and older than this fix (Codex review of `d14d597`): the rel
 without Unicode normalisation, so a composed `é.md` and a decomposed one hash differently, and HFS+
 stores names decomposed. Unit files whose names differ only by case collide on Windows as well.
 Normalising names would move existing seals, so it needs its own decision.
+
+## 261. `qh-check` ran the project's check through cmd.exe on Windows (2026-09-23, reported from outside)
+
+**Reported by a downstream Windows session against 2.103.0:** its declared check
+`./.venv/Scripts/python.exe -m pytest` failed under `qh-check` with `'.' is not recognized`, so its
+commit hook stayed blocked on a suite that passed when run directly (354 passed, 2 skipped,
+3 xfailed). The workaround it was weighing, rewriting the check as `python -m pytest`, only works
+with the venv active and would change the check string its task locks were taken under.
+
+**Cause, from source:** `plugin/scripts/qh-check.mjs` started the check with
+`spawn(command, { shell: true })`. On Windows that is cmd.exe, which reads `./.venv/...` as the
+command `.` followed by a `/` switch. This is the same class as §171 (spec-verify's `Cmd` override),
+and the resolver that fixed that one already existed in JS as `resolveBashExecutable`.
+
+**Fix:** `checkLaunch` routes the check to `[bash, '-c', command]` on Windows, with bash resolved
+the same way the hook runner resolves it. With no bash the record says `unstarted`, and qh-check
+exits 127 and names `CLAUDE_CODE_GIT_BASH_PATH`; it does not fall back to cmd.exe. POSIX is
+unchanged (`shell: true`, which is `/bin/sh`), and the record keeps the declared command. Tests are
+in `tests/qh-check-shell.test.mjs`. The Windows arms run on a POSIX host through `platform`: a
+stand-in bash that leaves a marker proves the route (an exit code alone cannot, because `/bin/sh`
+also exits 0), and there is a no-bash arm plus a must-fail arm. The reported shape is a declared
+`./sub/check` run through `plugin/bin/qh-check` itself; on POSIX it pins that nothing moved, and
+the Windows CI job is where it goes from red to green. There are two new mutants, and both are RED.
+
+⚠ **This is a behaviour change on Windows.** A check someone declared in cmd.exe syntax (backslash
+paths, `%VAR%`) must be rewritten in POSIX syntax. `adr-execute/SKILL.md` now says which shell runs
+the check. None of the inferred commands in `PROJECT_CHECKS` starts with `./`, and every one of
+them runs the same under bash.
+
+**Class sweep:**
+
+```
+$ grep -rnE "shell: *true|shell=True|\bexecSync\(|[^.]exec\(|os\.system\(|os\.popen\(" plugin/ | grep -vE "\.md:"
+plugin/bin/spec-verify:557  (comment)
+plugin/bin/spec-verify:569  run_bounded(override_cmd, shell=True, ...)   -- POSIX-only arm: resolve_bash() returns a bare "bash" only on POSIX
+plugin/lib/fence.py:45      (comment)
+plugin/scripts/qh-check.mjs:41,42,56   -- this fix; 56 is the POSIX arm
+$ grep -rnE "spawn(Sync)?\([A-Za-z_.]+, *\{" plugin/scripts plugin/hooks
+(nothing)
+```
+
+No other Windows member was found.
+
+**Sibling left, pre-existing:** on Windows a forwarded signal or the timeout calls `child.kill`,
+which ends bash but not the runner it started, such as python. That was just as true under cmd.exe.
+A tree kill (`taskkill /T`, as `run-shell-hook.mjs` does) would close it, and it is not done here.

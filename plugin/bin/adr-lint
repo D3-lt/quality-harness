@@ -2511,6 +2511,13 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
             if not digest_matches and not legacy_matches:
                 legacy_note = (" Legacy no-digest evidence cannot prove a multi-line fence."
                                if "\n" in inf["acc_all"] else "")
+                # "Acceptance changed after verification" is an observation only a
+                # digest row supports: it names the fence it ran against, and the
+                # mismatch IS the change. With no digest row nothing was recorded
+                # against anything — a legacy-only log was told both sentences at
+                # once (reported 2026-09-23 from a Windows desktop). Say what was seen.
+                changed_note = (" Acceptance changed after verification;" if any(VLOG_DIGEST_RE.match(b) for b in passing)
+                                else " No exit-0 entry names this fence's digest;")
                 # The digest is NOT named. It is derivable from the fence by anyone
                 # holding the file, so this is a convenience withdrawn rather than a
                 # secret kept — but the message that rejected a forged digest used to
@@ -2519,7 +2526,7 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                 # actionable and hands nothing over.
                 errors.append(f"README.md: {tid} marked done but no exit-0 entry carries the "
                               f"current Acceptance digest."
-                              f"{legacy_note} Acceptance changed after verification; re-run "
+                              f"{legacy_note}{changed_note} re-run "
                               f"`adr-verify <task.md>` to record an entry against the fence as "
                               f"it now stands. ⚠ That run is appended whatever it exits: if the "
                               f"fence no longer passes here — usually an environment it does not "

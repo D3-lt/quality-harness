@@ -318,13 +318,16 @@ export function render(state, { brief = false } = {}) {
 
   if (brief) {
     return [`${head} · ${alarm ? '⚠ CI ' : 'CI '}${ci}${release ? ` · ${release}` : ''}`,
-      ...(alarm ? ['  A LOCAL GREEN GATE DOES NOT ANSWER THIS — `selftest.sh` and the CI jobs are '
+      ...(alarm ? ['  A LOCAL GREEN GATE DOES NOT ANSWER THIS — the local check and the CI jobs are '
         + 'different checks.'] : [])].join('\n')
   }
 
   const lines = [head, `  ${alarm ? '⚠ CI    ' : 'CI      '} ${ci}`]
   if (alarm && state.ci.looked) {
-    lines.push('           A LOCAL GREEN GATE DOES NOT ANSWER THIS. `scripts/selftest.sh` and the CI '
+    // "the local check", not this repository's `scripts/selftest.sh`: the line
+    // ships to every adopter, and one read it in a repository that has no such
+    // file (peer-run on Windows, 2026-09-23).
+    lines.push('           A LOCAL GREEN GATE DOES NOT ANSWER THIS. The local check and the CI '
       + 'jobs are different checks; read this one before planning anything on this branch.')
   }
   if (release) lines.push(`  release  ${release}`)

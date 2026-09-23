@@ -24,6 +24,7 @@ import {
   appendEvent, canonical, canonicalFile, nearestExistingDirectory, readEvents, sessionLogFile, stateDir,
 } from './event-log.mjs'
 export { appendEvent, readEvents, sessionLogFile, stateDir } from './event-log.mjs'
+import { listedUnderUninterestingDirectory } from './uninteresting.mjs'
 import { contentId } from './event-log.mjs'
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   || path.dirname(path.dirname(fileURLToPath(import.meta.url)))
@@ -932,36 +933,9 @@ function advisoryHeadline(reason) {
   return sentence.length > 140 ? `${sentence.slice(0, 137)}…` : sentence
 }
 
-// Fixture and generated locations ONLY. `tests?`, `spec` and `examples?` were in
-// this list until 2026-09-23, and a probe showed what that costs once every
-// reader applies it: an accepted record under `spec/adr/`, `examples/adr/` or
-// `test/adr/` read as `records=0, look=ok` — a corpus dropped in silence, which
-// is the fail-open direction (CLAUDE.md §16; Codex review of 870a230, P1). A
-// fixture record read as real costs an advisory nobody acts on; a real corpus
-// read as nothing costs every advisory. So the names here are the ones no
-// project keeps its decisions under.
-const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|fixtures?|testdata)$/i
-
-/**
- * Whether a listed path's directory components put it somewhere no record of
- * THIS repository lives: a test fixture, a vendored tree, build output.
- *
- * One predicate for every corpus reader, because two readers disagreed and the
- * disagreement was invisible from either: `taskDirectories` applied the pattern
- * above, so SessionStart never mentioned `tests/fixtures/`, while
- * `recordFilesFromListing` and work-next's `taskFiles` did not — so `work-next`
- * on this repository named three fixture tasks as its next work, `adr-state` and
- * `adr-context` counted five fixture records as governing, and a fixture record
- * claiming to govern `src/` would have been cited on any edit there. Recorded in
- * team memory 2026-09-16 as "unverified"; measured 2026-09-23 (BACKLOG §263).
- *
- * The cost, said plainly: a fixture record kept somewhere this list does not
- * name — `tests/adr/` with no `fixtures` component — is still read as real. That
- * is the cheaper error: the reader over-reports and says where.
- */
-export function listedUnderUninterestingDirectory(dirParts) {
-  return dirParts.some(part => UNINTERESTING_DIRECTORY.test(part))
-}
+// The fixture exclusion lives in its own module since 2026-09-23, so the per-edit
+// gate (run-shell-hook.mjs, which this file imports) can share it without a cycle.
+export { listedUnderUninterestingDirectory } from './uninteresting.mjs'
 
 // ADR task directories belonging to THIS repository. Deliberately narrow:
 // walking a directory that is not a repository once surfaced another project's
@@ -1093,14 +1067,21 @@ function underFrozenArchive(root, dirParts, cache, listed) {
 // repository retired its first records, every session was offered their tasks as
 // READY with the command to run. Skipped BEFORE the cap below, or three frozen
 // task sets would also crowd three live ones out of the orientation.
-function taskDirectories(root, listing) {
-  if (listing == null) return []
+// ⚠ AND THE CAP IS SAID. Six directories are read per session start, because each
+// costs an `adr-next` spawn; the rest used to be dropped by a `break`, and the
+// "(+N more)" line counted only what was read and then hidden. A Windows desktop
+// over a 72-record corpus (2026-09-23) saw six all-done directories and "+3 more"
+// while the thirteen unread ones held every READY task — an all-clear this hook
+// never observed (ADR-005). The unread count travels back with the read set.
+const TASK_DIRECTORY_READ_CAP = 6
+function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP) {
+  if (listing == null) return { read: [], unread: 0 }
   const found = []
+  let unread = 0
   const seen = new Set()
   const frozen = new Map()
   const listed = new Set(listing.map(rel => posixListed(rel)))
   for (const rel of listing) {
-    if (found.length >= 6) break
     const norm = posixListed(rel)
     const parts = norm.split('/').filter(Boolean)
     const index = parts.indexOf('tasks')
@@ -1119,10 +1100,11 @@ function taskDirectories(root, listing) {
     const key = dirParts.join('/')
     if (seen.has(key)) continue
     seen.add(key)
+    if (found.length >= cap) { unread += 1; continue }
     // `archive: 'unknown'` travels WITH the directory, as a field on the entry.
     found.push({ directory: listedAbsolute(root, key), archive: archived === 'unknown' ? 'unknown' : 'no' })
   }
-  return found
+  return { read: found, unread }
 }
 
 // The gates in bin/ are `#!/usr/bin/env python3` scripts. Windows cannot exec a
@@ -1232,7 +1214,8 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
   const tool = path.join(PLUGIN_ROOT, 'bin', 'adr-next')
   if (!existsSync(tool)) return { look: 'ok', lines: [] }
   const lines = []
-  for (const { directory, archive } of taskDirectories(root, listing)) {
+  const { read, unread } = taskDirectories(root, listing)
+  for (const { directory, archive } of read) {
     if (archive === 'unknown') {
       // No READY line for a directory that may be a frozen archive: `adr-next` reads
       // the record and its tasks, never the catalog, so it cannot settle this.
@@ -1276,6 +1259,12 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     } else if (report.done?.length) {
       lines.push(`  ${relative}: all ${report.done.length} task(s) carry exit-0 evidence.`)
     }
+  }
+  if (unread > 0) {
+    // Not a verdict about those directories — this hook did not look. Carries
+    // UNPROVEN so surfaceReadyLines never hides it behind the render cap.
+    lines.push(`  (+${unread} more task director${unread === 1 ? 'y' : 'ies'}: UNPROVEN — not read; this hook reads `
+      + `${TASK_DIRECTORY_READ_CAP} per session start. Ready tasks there are not known; \`work-next\` reads them all.)`)
   }
   return { look: 'ok', lines }
 }
@@ -4170,8 +4159,14 @@ async function main() {
   const startedAt = Date.now()
   let input
   try {
-    input = JSON.parse(await readStdin())
+    // The parse failure used to `return` in silence at exit 0 — indistinguishable
+    // from a hook with nothing to say. A peer on Windows fed this a payload with an
+    // illegal escape and spent a round trip on "stdin is broken" (2026-09-23); one
+    // stderr line names the real cause. A leading BOM is stripped too, since
+    // PowerShell's `>` writes one. A hook that read nothing has observed nothing.
+    input = JSON.parse((await readStdin()).replace(/^\uFEFF/, ''))
   } catch {
+    process.stderr.write('[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.\n')
     return
   }
   try {

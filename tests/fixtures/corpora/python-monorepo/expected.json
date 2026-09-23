@@ -1,0 +1,70 @@
+{
+  "look": "ok",
+  "corpora": [
+    "services/api/docs/adr"
+  ],
+  "records": [
+    [
+      "services/api/docs/adr/ADR-001-durations-are-seconds.md",
+      "governing",
+      false
+    ]
+  ],
+  "workNext": {
+    "records": 1,
+    "accepted": 1,
+    "tasks": 3,
+    "ready": [
+      "services/api/docs/adr/ADR-001-durations-are-seconds/tasks/T1-parse-seconds.md",
+      "services/api/docs/adr/ADR-001-durations-are-seconds/tasks/T3-document-column.md"
+    ],
+    "unbacked": [
+      "services/api/docs/adr/ADR-001-durations-are-seconds/tasks/T1-parse-seconds.md"
+    ],
+    "retirable": [],
+    "readinessUnproven": [],
+    "next": "adr-verify"
+  },
+  "adrState": {
+    "read": 1,
+    "governing": 1
+  },
+  "adrNext": [
+    {
+      "tasksDir": "services/api/docs/adr/ADR-001-durations-are-seconds/tasks",
+      "ready": [
+        "T1",
+        "T3"
+      ]
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "services/api/docs/adr/ADR-001-durations-are-seconds.md",
+      "verdict": "FAIL"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "services/api/docs/adr",
+      "claims": 1,
+      "held": 1,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [
+      "T1 is ready"
+    ],
+    "mustNotMatch": [
+      "BACKLOG"
+    ]
+  },
+  "neverNamed": [
+    "docs/adr/BACKLOG.md"
+  ],
+  "couldNotRun": []
+}

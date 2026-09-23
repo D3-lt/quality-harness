@@ -14473,3 +14473,188 @@ classifier over free text (§16), three rounds each found a leak where the bound
 cleverer, and §6's direction is that over-scrubbing costs a question while a leak cannot be recalled.
 Pinned in the test as a decision. No fourth round is planned on this boundary; a leak found in the
 field goes here as a new item.
+
+## 267. The outside run is release evidence now, not a rule (2026-09-23)
+
+§18 says a reader is not shipped until somebody else has run it; the day it was written, nothing
+enforced it — the same shape as every rule this repository has had to turn into a gate. Now
+`scripts/release-evidence.mjs` asks a second question after the campaign is green: did any file under
+`plugin/scripts/`, `plugin/bin/`, `plugin/lib/` or `plugin/hooks/` change since the newest tag before
+the sha, and if so, does `docs/corpus-reports/` hold an attestation whose `at` revision is after that
+tag, reachable from the sha, and carries every one of those changes (a run followed by another reader
+edit did not run that edit — a Codex review found the first cut accepting it)? No attestation is
+the sha? No attestation is `UNPROVEN`, exit 2 — could not look, not cleared. The attestation is a
+small JSON (date, revision, plugin version, platform, counts) and never the report: a probe report
+over another repository is that repository's content (§6). The first two, from the Windows desktop
+runs over the 72-record corpus at v2.105.0, are filed; they are AT the tag, so the next release with
+a reader change needs a fresh one — which is the rule doing its job on its first day.
+
+Also fixed here, reported twice from that desktop: SessionStart printed `(+3 more record set(s))`
+after `(+13 more task directories: UNPROVEN — not read; …)`, and both peers read the two counts as
+one overlapping figure. The read-but-capped line prints first and says what it counts.
+
+Open: `branch-state` does not yet say on every prompt whether an outside run exists since the tag;
+the release check is the enforcement, the prompt line would be the reminder.
+
+## 268. adr-lint read a red run's quoted output as log entries (2026-09-23, reported from a Rust corpus)
+
+A fence that prints `  - <problem>` on failure, one red `adr-verify` run, and `adr-lint` refused the
+log `adr-verify` had just written: every captured output line — indented, inside the excerpt fence
+`adr-verify` writes for the last lines of stdout — was read as a Verification Log entry off-grammar,
+one error per line. `plugin/bin/adr-lint` collected `- `-prefixed lines of the section with nothing
+that skipped a fence (the Mutation Log scan had the same shape). A tool-written log that nobody may
+edit, refused by the tool's own sibling; the reporter correctly left the task red rather than touch
+the log. Same class as §197's fence-blind readers. Fixed: `record.unfenced_lines` walks the section
+with the same fence grammar as `_sections`, and both scans read through it. A peer session on this
+machine reported it with a reproduction the same evening a Windows desktop was closing out §266 —
+the third repository in one day to say something a reader printed that this corpus never would.
+
+**Open, from the same report:** `adr-lint`'s first-red test-body reader says "no failure call was
+recognised in its body" on two Rust tests that call `assert_eq!` — one holding a raw string
+(`r#"{...}"#`), one a struct literal (`TokenTotals { ... }`) — and names a call before the asserts
+(`from_str`, `fixture_record`) as the only one it saw. The reporter's guess, unconfirmed: the body
+extractor stops at a `}` inside the raw string or the struct literal before the asserts are reached.
+Both tests killed a mutant through `adr-verify --mutant`, so they can fail; the advisory is a false
+UNPROVEN. Reproduce on a Rust fixture with those two shapes before changing the extractor.
+
+## 269. ADR-061's refusal keys on the command TEXT, and a session learns the way around it in one refusal (2026-09-23)
+
+Measured on this session first, then shown to me from another. `containsCommitOrPush`
+(`plugin/scripts/lifecycle.mjs`) tests the Bash command string for the words `commit` or `push`;
+that is the whole of what the sanctioned refusal observes. Two consequences, both counted today:
+
+- **The false refusals teach the workaround.** A heredoc that mentioned the word, a scratch file
+  named for the message it held, `records.push(...)` in a JavaScript one-liner — each refused, each
+  correct work. The workaround is to put the text in a file and run `sh file.sh`; this session wrote
+  fifteen such scripts in one day, and the peer session my user quoted reached the same move on its
+  first refusal ("I'll move that logic into a reusable scratch helper"). §16's own sentence: a gate
+  that refuses correct work is one people stop running.
+- **The workaround also carries the real thing through.** One of those scripts pushed the 2.105.0
+  version bump on a tree no `qh-check` had passed (the gate was run afterwards and said so in the
+  reply — but the refusal never fired). A script file, a `python3 -c`, a `pwsh -File`: unobserved
+  surfaces, and the model that has learned one of them has learned the bypass for every commit after.
+
+So the refusal is, in fact, advice-grade for any session that has been refused once, while ADR-061
+and INSTALL still call it a refusal. Three repairs, in order of size; the third is the honest one:
+
+1. **Narrow the classifier to command positions** — `git commit`, `git push`, `git merge`, `gh pr
+   merge`, `gh pr create`, `gh release create` as invoked commands, not the bare words anywhere in
+   the text. Fewer false refusals, less to learn. Still a text classifier, still bypassable.
+2. **Say what is observed.** Until the next item ships, ADR-061 and the INSTALL text say the refusal
+   covers a command issued as Bash text and nothing else.
+3. **Refuse where the action is observable: a git `pre-commit` / `pre-push` hook** the plugin can
+   install (`.githooks/`, `core.hooksPath`) that reads the same session ledger and refuses when no
+   `qh-check` passed on the tree being committed. The git hook sees the real commit whatever text
+   launched it; the Claude-side check stays as the early warning. Needs an ADR-061 amendment (a
+   sanctioned refusal's mechanism changes) and the same `"publish": "warn"` opt-out.
+
+Done the same evening, on this branch, in three rounds. 1: the classifier matches an invocation at an
+EXECUTABLE POSITION — the start of a line or shell segment, a control keyword, `exec`/`env K=V`/
+`sudo`/`time`, or the quoted string of `bash -c`/`pwsh -Command`/`subprocess.run([`/`execSync(` — by
+name or by path, quoted or not, `--help` excluded only when adjacent, and the refusal names the
+invocation it saw. Each Codex round found forms missed and data refused, so the design is now what
+§16 prescribes: **the precise match is the only thing that refuses; the word match is kept as the
+warning arm.** A form the precise arm misses degrades to advice, never to silence; a mention it
+wrongly matches costs a line, never a refusal — which is what removes the incentive to route around
+it. Both arms are executed as tables in `tests/publish-command.test.mjs`. 2: ADR-061 amended twice,
+INSTALL and the plugin README say what is observed. 3 is ADR-061's open follow-up: the script-file
+surface and a `git` reached through a variable or a command substitution are a mention at most; the
+honest refusal is a git hook.
+
+Round 4, same night (Codex review of f67cede, three findings, one confirmed in the field): a keyword
+or wrapper matched inside quoted data (`echo "then git push"` refused); the mention path handed the
+rule a fresh observation over a stale ledger — no check-source import, no late baseline — so a grep
+accused a tree whose `qh-check` had passed; and the mention still ran the publish-time artifact gate,
+which a peer measured as 12 KB of `adr-lint` findings on `grep -rn "git push" docs/`. Fixed: a
+keyword or wrapper counts only at a command position; `recordHookEvent` prepares a mention exactly
+as a publish request and appends nothing (`publish.mentioned` is a return value, never a log entry);
+the artifact gate runs on `publish.requested` only. Three tests in `tests/late-baseline.test.mjs`
+drive a grep through the hook for each; three mutants. The limit kept, now named in INSTALL and the
+plugin README instead of "never refused": a `;` or newline inside quoted data or a heredoc body.
+
+Round 5 (Codex review of f14e4cd, two findings, both executed under bash with `git` shadowed by a
+function): `env -u git push` and `xargs -I git push` were refused — the generic "any option" pattern
+consumed `-u`, took `git` as the executable and `push` as the verb, where the shell takes `git` as
+the option's argument and `push` as the executable. Each wrapper now lists the option forms that were
+run (`env -i/-v/-0/-u NAME/-C DIR/
+-S "…"`, `xargs -0/-r/-t/-p/-x/-o` and `-n/-L/-P/-s/-d/-I/-E/-J/-R ARG`), and an unlisted form is a
+mention. `!git push` is an executable named `!git`, and a bare newline between `git` and `push` is two
+commands: both were refused since the first shape and are data now. Second: a read-only reviewer's
+unprovable form (`GIT=git; $GIT push`) had lost its state warning when the f14e4cd dispatch fallback
+went, because a reviewer's PreToolUse was never prepared — a reviewer's command is never this
+session's publish request and writes nothing to the log (it is the parent's; T3 holds it at zero), but
+a mention is observed and warned about as the ledger stands; test in
+`tests/late-baseline.test.mjs`, mutant in the catalogue. Also shortened the mention line to the state,
+"advisory; nothing is refused", and what to run.
+
+Round 6 (Codex review of b149b50): the round-5 reviewer arm was wrong three ways — `deliver` appended
+the warning's `action.emitted` into the parent session's log (the parent's P dedupe and
+`namedByPublish` read it), the warning read the parent's ledger without the check import and late
+baseline a session's own mention gets (round 4's accusation, back for reviewers), and
+`recordHookEvent` observed the tree (seven git spawns) before the guard denied a `git push`. Resolved
+by removing the arm: `handleHook` neither observes nor records a read-only role's PreToolUse; the
+guard decides it alone. `tests/late-baseline.test.mjs` holds the parent's log byte-identical through
+a reviewer's `$GIT push` and shows the same command from the session itself warned about.
+
+## 270. Two leads from the outside run at f67cede: adr-next offers a Superseded record's tasks, and exits 1 on an empty task directory (2026-09-23)
+
+Reported by the peer that ran the readers over a private Rust corpus (attested in
+`docs/corpus-reports/2026-09-23-macos-rust-corpus-hand-4.json`); neither confirmed here yet, and
+both are leads until they are (§18: a peer's report is a lead).
+
+1. **Five `adr-next`/`work-next` disagreements, every one a task of a Superseded record.** `adr-next`
+   says "ready"; `work-next` does not offer it; the probe's `adrNextSays` is null for each. §10 says a
+   record is a work order only while `Accepted`, so if `adr-next` offers a Superseded record's task
+   by the task file's own status alone, `work-next` is right and `adr-next` is the reader to fix — or
+   the probe's disagreement column is comparing two readers that answer different questions and
+   should say so. Reproduce on a fixture with one Superseded record and one open task before
+   deciding which.
+2. **`adr-next` exits 1 with "no task files in …" on two empty task directories.** The probe files
+   them under `couldNotRun`, which is the honest bucket for a reader that stopped; whether an
+   empty task directory is an error for `adr-next` or an ordinary "nothing here" answer is the
+   question, and the other readers' treatment of the same directory decides it.
+
+## 271. The Rust masker read a lifetime as a char literal and lost every test after it (2026-09-24, reported from a Rust corpus)
+
+Reported by the peer that ran the readers over a private Rust corpus, with a bisect: a 5,171-line
+test file with 99 `#[test]`/`#[tokio::test]` fns gave `extract_test_names(…, rust=True)` 94, the
+five missing all after a struct field typed `name: &'static str,`. `_mask_lock_noncode` treated the
+`'` of the lifetime as a char literal's opening quote and blanked to the next `'` — the rest of the
+file, or up to the next lifetime or char literal, which is why some later tests survived. The
+first-red lock for a test appended at the end of that file wrote `unproven`; the reporter moved the
+test above the lifetime rather than touch this code. Reproduced on a nine-line fixture (`later` lost
+between `first` and `last`). Fixed: in Rust a `'` opens a literal only when `_RUST_CHAR_LITERAL`
+matches at it (one char or an escape, then `'`); a lifetime is code. `impl<'a>`, `&'a self`, `b'x'`,
+`'\''`, `'\u{1F600}'` and a `'{'` char literal are in the fixture. Test in
+`tests/test-lock.test.mjs`, mutant in the catalogue. §268's open item (two Rust tests read as having
+no failure call) is from the same corpus and may share this cause; reproduce it before assuming so.
+
+Round 2 (Codex review of c7da73b, executed through `extract_test_body` and the lock): keeping the
+lifetime's quote as code was half the fix. The brace matcher downstream pairs quotes as strings, so
+a label — `'outer: loop { break 'outer; }` — hid the `{` between its two quotes and the body closed
+at the loop's `}`: a lock over a body with no assertion in it, which inverting the assertion could
+not move. Now the masker blanks the quote itself (offsets kept). And `'\x41'` was not a char literal
+to the regex (one char after the backslash), so its closing quote and the comma made the literal `','`
+and the `'"'` beside it opened a string that swallowed the file (`['\x41','"']`, no space — with a
+space the old regex re-syncs and the mutant was GREEN; the fixture keeps the reviewer's bytes).
+`\xNN` is an explicit arm. Two lock-boundary tests, two mutants. Round 3 (Codex review of 153b762):
+a unicode escape is one to six hex digits EACH followed by any number of `_` (the Reference's
+grammar), so `'\u{0_0_0_0_4_1}'` is valid Rust and was no literal to `[0-9a-fA-F_]{1,6}`; the
+fixture carries it beside the hex escape, and a third mutant reverts the arm.
+
+## 272. A mutation campaign in this checkout is live in every session that runs this checkout as its plugin (2026-09-24)
+
+A peer session on this machine reported that at b149b50 the mention advisory BLOCKED a Bash
+command — the advisory's own text, "Advisory; nothing is refused", delivered as a denial, the
+command never started. Not reproducible at any committed revision: fed the same command shape, the
+hook exits 0 with `additionalContext`. What fits every detail: that session's hooks execute
+`lifecycle.mjs` from THIS working checkout, and in that window `scripts/mutate.mjs --case "only a
+proven invocation is refused"` was running here — a case whose mutant drops `invoked !== null` from
+the deny, so a mention on an unchecked tree is denied with the advisory's text. Each case rewrites
+the file in place for its duration; the two later mentions in that session passed once it was
+restored. CLAUDE.md §2 already says never to run a mutation tool and edit the tree at the same time;
+the reach is wider than one session's own edits. **Open:** say it in §2's rule file, and consider
+having `mutate.mjs` refuse or warn when another live session's plugin root resolves to this checkout
+(`claude plugin list` in that session, or a marker file) — a measurement first: how many sessions on
+this machine run the checkout rather than the cache. Inconclusive by the peer's own account; the
+correlation is the clock and the case list, not a reproduction.

@@ -403,7 +403,19 @@ test('the publish warning advises, never blocks, while this repository is unchec
   assert.equal(run.status, 0)
   assert.match(run.stderr, /names commit or push/i)
   assert.match(run.stderr, /qh-check/)
+  // The refusal names the invocation it saw, so a reader knows which command it
+  // classified — not only that some word matched (BACKLOG §269).
+  assert.match(run.stderr, /names commit or push \(`git commit`\)/, run.stderr)
   assert.doesNotMatch(run.stderr, /would publish unchecked/i)
+  // A MENTION — the word in a grep, an echo, a file name — is warned about and
+  // never refused, whatever the tree's state: the refusal needs a proven invocation
+  // (CLAUDE.md §16; BACKLOG §269). A fresh repository, because the warning is
+  // emitted once per tree state and the refusal above already spoke for this one.
+  const fresh = await unheldRepository('quality-hook-mention-')
+  const mention = publishAttempt('grep -n "git push" docs/x.md', fresh.dir, fresh.session)
+  assert.equal(mention.status, 0)
+  assert.match(mention.stderr, /only mentions commit or push/, mention.stderr)
+  assert.doesNotMatch(mention.stdout, /"deny"/, `a mention is never a refusal: ${mention.stdout}`)
 })
 
 test('reported: no advisory claims to have blocked anything', async () => {
@@ -1574,7 +1586,7 @@ test('SessionStart always surfaces an UNPROVEN ready line and still caps ordinar
     '  c/tasks: T3 is ready — c', '  d/tasks: T4 is ready — d']
   assert.deepEqual(surfaceReadyLines(ordinary), [
     '  a/tasks: T1 is ready — a', '  b/tasks: T2 is ready — b',
-    '  c/tasks: T3 is ready — c', '  (+1 more record set(s))',
+    '  c/tasks: T3 is ready — c', '  (+1 more task directory read, not shown above)',
   ])
   assert.ok(!surfaceReadyLines(ordinary).some(line => line.includes('UNPROVEN')))
 
@@ -1606,7 +1618,7 @@ test('SessionStart always surfaces an UNPROVEN ready line and still caps ordinar
   assert.equal(healthy.lines.length, 4)
   const capped = surfaceReadyLines(healthy.lines)
   assert.equal(capped.filter(line => !/\(\+\d+ more/.test(line)).length, 3)
-  assert.match(capped.join('\n'), /\(\+1 more record set\(s\)\)/)
+  assert.match(capped.join('\n'), /\(\+1 more task directory read, not shown above\)/)
   assert.ok(!capped.some(line => line.includes('UNPROVEN')))
 
   let n = 0
@@ -1641,12 +1653,12 @@ test('SessionStart always surfaces an UNPROVEN ready line and still caps ordinar
   assert.match(said, /UNPROVEN/, said)
   const unprovenLines = said.split('\n').filter(line => line.includes('UNPROVEN — adr-next'))
   assert.ok(unprovenLines.length >= 4, `every directory's UNPROVEN surfaces: ${said}`)
-  assert.doesNotMatch(said, /\(\+\d+ more record set\(s\)\)/, `UNPROVEN is not hidden behind the cap: ${said}`)
+  assert.doesNotMatch(said, /\(\+\d+ more task director(?:y|ies) read, not shown/, `UNPROVEN is not hidden behind the cap: ${said}`)
 
   const ran = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root })
   assert.equal(ran.status, 0, ran.stderr)
   const clean = orientation(ran)
-  assert.match(clean, /\(\+1 more record set\(s\)\)/, `four healthy directories still cap ordinary lines: ${clean}`)
+  assert.match(clean, /\(\+1 more task directory read, not shown above\)/, `four healthy directories still cap ordinary lines: ${clean}`)
   assert.doesNotMatch(clean, /UNPROVEN — adr-next/)
   const shownReady = clean.split('\n').filter(line => /is ready —/.test(line))
   assert.equal(shownReady.length, 3, `cap keeps three ordinary ready lines: ${clean}`)
@@ -1673,8 +1685,14 @@ test('SessionStart says how many task directories it did not read', async () => 
   assert.equal(seven.lines.filter(line => /carry exit-0 evidence/.test(line)).length, 6, seven.lines.join('\n'))
   const unread = seven.lines.filter(line => /\(\+1 more task directory: UNPROVEN — not read/.test(line))
   assert.equal(unread.length, 1, `the seventh directory is said, not dropped: ${seven.lines.join('\n')}`)
-  assert.ok(surfaceReadyLines(seven.lines).some(line => /more task directory: UNPROVEN/.test(line)),
-    'and the render cap never hides it')
+  const rendered = surfaceReadyLines(seven.lines)
+  assert.ok(rendered.some(line => /more task directory: UNPROVEN/.test(line)), 'and the render cap never hides it')
+  // The two counts print in the order a reader sums them — read-but-capped first,
+  // then not-read — each saying what it counts (two Windows sessions read the
+  // reverse order as one overlapping figure, 2026-09-23).
+  const readNotShown = rendered.findIndex(line => /\(\+3 more task directories read, not shown above\)/.test(line))
+  const notRead = rendered.findIndex(line => /more task directory: UNPROVEN — not read/.test(line))
+  assert.ok(readNotShown >= 0 && notRead > readNotShown, `read-but-capped before not-read:\n${rendered.join('\n')}`)
   // CLEAN: six directories are all read, so nothing is said about unread ones.
   const six = readyTaskLines(root, true, listing.slice(0, 6), allDone)
   assert.ok(!six.lines.some(line => /more task director/.test(line)), six.lines.join('\n'))

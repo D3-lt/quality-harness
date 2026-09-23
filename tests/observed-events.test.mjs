@@ -286,8 +286,16 @@ const DENIED_FOR_REVIEWER = [
   "bash -c 'git commit -m x'",
   "pwsh -Command 'git push'",
   'python3 -c \'import subprocess; subprocess.run(["git","push"])\'',
+  'git -c user.name=Bot commit -m x',
+  'gh pr view 1 && git push origin main',
 ]
-const ALLOWED_FOR_REVIEWER = ['qh-check', "node -e 'console.log(1)'", 'uniq < a.md', 'git log --oneline', 'grep -n pre-commit a.md']
+// A command that mentions the word without invoking the verb is not a publish.
+// Each of these was refused on 2026-09-23 and taught a session to route around
+// the gate through a script file (BACKLOG §269).
+const ALLOWED_FOR_REVIEWER = ['qh-check', "node -e 'console.log(1)'", 'uniq < a.md', 'git log --oneline', 'grep -n pre-commit a.md',
+  'grep -n containsCommitOrPush plugin/scripts/lifecycle.mjs', 'cat commit-c2.txt', "node -e 'records.push(1)'",
+  'git log --grep commit', 'git commit-tree HEAD^{tree}', 'echo "the commit message goes here"',
+  'git log --grep "git push"', "echo 'run git push later'", 'git commit --help']
 const CHANGED_DURING = 'changed during'
 
 function hookOutput(run) {

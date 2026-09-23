@@ -19,7 +19,7 @@
 // be seen (ADR-005), instead of as an accusation.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -48,11 +48,12 @@ function fixture(top, label) {
   git('init', '-q')
   writeFileSync(join(repo, 'a.md'), 'a\n')
   writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  writeFileSync(join(repo, 'check.sh'), 'exit 0\n')
   git('add', '-A')
   git('commit', '-q', '-m', 'base')
   const log = () => readFileSync(join(repo, '.git', 'quality-harness', 'sessions', `${session}.jsonl`), 'utf8')
     .split('\n').filter(Boolean).map(line => JSON.parse(line))
-  return { repo, hook, log }
+  return { repo, hook, log, run }
 }
 
 test('a first Stop with no SessionStart does not accuse a tree nothing changed', () => {
@@ -107,5 +108,83 @@ test('a session that did start normally gets no late baseline and no note about 
     const started = log().filter(entry => entry.event === 'session.started')
     assert.equal(started.length, 1)
     assert.notEqual(started[0].late, true)
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+// ADR-061's warning arm: a Bash command that MENTIONS commit or push without
+// invoking it (a grep) is prepared exactly as a publish request — the late baseline
+// and the check-source import — and appended as nothing. Codex review of f67cede:
+// the first shape observed a fresh tree against a stale ledger and accused a
+// tree whose check had passed.
+const MENTION = { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'grep -rn "git push" docs/' } }
+const qhCheck = join(resolve(dirname(fileURLToPath(import.meta.url)), '..'), 'plugin', 'bin', 'qh-check')
+
+test('a first mention with no SessionStart adopts the late baseline instead of accusing a pristine tree', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-mention-late-')))
+  try {
+    const { hook, log } = fixture(top, 'mention-late')
+    const first = hook(MENTION)
+    assert.doesNotMatch(first, /no `qh-check` has passed on/, `a pristine tree is not unchecked work: ${first.slice(0, 300)}`)
+    const started = log().filter(entry => entry.event === 'session.started')
+    assert.equal(started.length, 1, 'the mention took the late baseline a publish request would')
+    assert.equal(started[0].late, true)
+    assert.equal(log().filter(entry => entry.event === 'publish.requested').length, 0, 'a mention is not a publish request')
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+test('a mention reads the check that ran before it, and is logged as no publish', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-mention-check-')))
+  try {
+    const { repo, hook, log, run } = fixture(top, 'mention-check')
+    hook({ hook_event_name: 'SessionStart', source: 'startup' })
+    writeFileSync(join(repo, 'a.md'), 'changed\n')
+    // Dirty side: unchecked work, so the mention is warned about — and refused nothing.
+    const before = hook(MENTION)
+    assert.match(before, /no `qh-check` has passed on/, before.slice(0, 300))
+    assert.match(before, /only mentions commit or push/, before.slice(0, 300))
+    // The pass lands in the check source, which only a hook boundary imports.
+    run('python3', [qhCheck], { cwd: repo })
+    const after = hook(MENTION)
+    assert.doesNotMatch(after, /no `qh-check` has passed on/, `the pass was there to read: ${after.slice(0, 300)}`)
+    assert.ok(log().some(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), 'the mention imported the check source')
+    assert.equal(log().filter(entry => entry.event === 'publish.requested').length, 0, 'a mention is not a publish request')
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+test('a mention runs no artifact gate; a publish request does', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-mention-artifact-')))
+  try {
+    const { repo, hook, log } = fixture(top, 'mention-artifact')
+    hook({ hook_event_name: 'SessionStart', source: 'startup' })
+    // A record adr-lint cannot pass, so the gate has something to say if it runs.
+    mkdirSync(join(repo, 'docs', 'adr'), { recursive: true })
+    writeFileSync(join(repo, 'docs', 'adr', 'ADR-001-broken.md'), '# ADR-001: broken\n\nStatus: Accepted\n')
+    const mention = hook(MENTION)
+    assert.doesNotMatch(mention, /Artifact validation/, `a grep gets no publish-time artifact findings: ${mention.slice(0, 300)}`)
+    assert.equal(log().filter(entry => entry.event === 'artifact.gated').length, 0, 'a mention dispatched no artifact gate')
+    // Control: the same tree, a publish request — the gate runs and records.
+    hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m x' } })
+    assert.ok(log().some(entry => entry.event === 'artifact.gated'), 'a publish request is gated')
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+// ADR-060's reviewer guard decides a read-only role's PreToolUse ALONE. A form it
+// cannot prove (`$GIT push`) is refused nothing, warned about nothing, and leaves the
+// parent session's log byte-for-byte as it was: three review rounds each found a
+// way a reviewer's warning wrote to or misread the parent's ledger (Codex, f14e4cd
+// and b149b50), and the honest enforcement for that form is the git hook.
+test('a read-only reviewer is decided by the guard alone: no warning, no log write', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-reviewer-mention-')))
+  try {
+    const { repo, hook, log } = fixture(top, 'reviewer-mention')
+    hook({ hook_event_name: 'SessionStart', source: 'startup' })
+    writeFileSync(join(repo, 'a.md'), 'changed\n')
+    const before = JSON.stringify(log())
+    const text = hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', agent_type: 'qh-scope-reviewer', tool_input: { command: 'GIT=git; $GIT push' } })
+    assert.equal(text, '', `a reviewer's unprovable form gets no P warning: ${text.slice(0, 300)}`)
+    assert.equal(JSON.stringify(log()), before, 'the parent session\'s log is untouched through delivery')
+    // The control: the same command from the session itself is prepared and warned about.
+    const own = hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'GIT=git; $GIT push' } })
+    assert.match(own, /only mentions commit or push/, own.slice(0, 300))
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

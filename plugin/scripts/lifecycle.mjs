@@ -959,7 +959,17 @@ export function surfaceReadyLines(lines, cap = 3) {
     }
   }
   const hidden = lines.length - shown.length
-  if (hidden > 0) shown.push(`  (+${hidden} more record set(s))`)
+  if (hidden > 0) {
+    // Two counts, two sentences, in the order a reader sums them: the directories
+    // READ but not shown, then the ones NOT READ at all. Two Windows sessions read
+    // `(+13 … UNPROVEN — not read …)` followed by `(+3 more record set(s))` as one
+    // overlapping figure (2026-09-23), so the read-but-capped line now comes first
+    // and says what it counts.
+    const note = `  (+${hidden} more task director${hidden === 1 ? 'y' : 'ies'} read, not shown above)`
+    const unread = shown.findIndex(line => /more task director(?:y|ies): UNPROVEN — not read/.test(line))
+    if (unread >= 0) shown.splice(unread, 0, note)
+    else shown.push(note)
+  }
   return shown
 }
 
@@ -2865,13 +2875,77 @@ function decisionContextFor(input) {
 // entry with a top-level await pending (Node: "unsettled top-level await").
 const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
-// The one reading of a command's text that stays (ADR-060): whether it names
-// `commit` or `push` as a word — no letter, digit, `_` or `-` directly before or
-// after. Nothing else is parsed, so a wrapped publish (`pwsh -Command 'git push'`,
-// a Python subprocess) is caught, and `pre-commit` is not.
-const COMMIT_OR_PUSH_WORD = /(?<![A-Za-z0-9_-])(?:commit|push)(?![A-Za-z0-9_-])/
+// The one reading of a command's text that stays (ADR-060, ADR-061): whether it
+// INVOKES `git commit` or `git push` — `git`, any options with their values
+// (`-C dir`, `-c k=v`, `--no-pager`, a quoted value), then the verb — with the
+// separators an argv list or a shell quote puts between them, so `pwsh -Command
+// 'git push'`, `bash -c "git commit -m x"` and `subprocess.run(["git","push"])`
+// are caught. Nothing else is parsed.
+//
+// ⚠ UNTIL 2026-09-23 THIS MATCHED THE WORDS `commit` AND `push` ANYWHERE, and one
+// day measured what that costs (BACKLOG §269): a grep for a symbol, a heredoc that
+// mentioned the word, a scratch file named for the message it held — each refused,
+// each correct work, and each refusal taught the session to put the text in a file
+// and run `sh file.sh`. The same file then carried a real publish through
+// unobserved. A gate that refuses correct work is one people route around, and the
+// route is the one the work it should stop takes too (CLAUDE.md §16).
+const PUBLISH_VERB = String.raw`(?:commit|push)(?![A-Za-z0-9_-])`
+// `git commit --help` opens a manual page: excluded only when the help flag is
+// the NEXT token. Scanning further let `git push && echo --help` and
+// `git commit -m "fix --help output"` through (Codex, bbade17) — fail-open.
+const PUBLISH_NOT_HELP = String.raw`(?![ \t]+(?:--help|-h)(?![A-Za-z0-9_-]))`
+// Between argv tokens: whitespace, a line continuation, or the quote and comma of
+// an argv list (`["git","push"]`).
+const PUBLISH_SEP = String.raw`(?:[ \t]|\\\n|["',])+`
+// WHERE A COMMAND BEGINS — a `git` is executed from the start of a line or shell
+// segment (`;`, `&&`, `|`, `(`, `{`, `$(`) or from the quoted string of an executor
+// (`bash -c`/`-lc`, `pwsh -Command`, `subprocess.run([`, `execSync(`), and from
+// nowhere else. A control keyword (`then`, `do`, `else`), a `!`, or a wrapper that
+// runs its argument (`exec`, `env`, `sudo`, `time`, `nice`, `doas`, `timeout N`,
+// `xargs`) counts only when IT stands at such a position: `echo "then git push"`
+// is data, and the first shape of this matched the keyword wherever it appeared
+// (Codex, f67cede). Env assignments may precede the executable, which may be
+// quoted or given by path.
+//
+// ⚠ THIS IS A CLASSIFIER OVER SHELL TEXT AND IT IS NOT EXACT (CLAUDE.md §16).
+// Four review rounds on 2026-09-23 each found forms it missed and data it
+// refused. So it is the PRECISE arm only: what it matches is refused (ADR-061),
+// and what it misses but `mentionsCommitOrPush` sees is WARNED about — a miss
+// degrades to advice, never to silence, and a false hit costs a line, not a
+// refusal (BACKLOG §269). A `git` reached through a variable or a command
+// substitution is a mention at most; tests/publish-command.test.mjs pins that,
+// and pins the one limit kept: a `;` or a newline inside quoted data or a
+// heredoc body is a command position to this classifier.
+const PUBLISH_START = String.raw`(?:^|[\n;|&({]|\$\(|-[A-Za-z]*c[ \t]+["']|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["'])`
+const PUBLISH_WRAPPER = String.raw`(?:(?:then|do|else|elif|exec|nohup|nice|doas)[ \t]+`
+  + String.raw`|![ \t]+`
+  + String.raw`|(?:command|time)(?:[ \t]+-p)?[ \t]+`
+  + String.raw`|xargs(?:[ \t]+(?:-[0rtpxo]+|-[nLPsdIEJR][ \t]*[^\s"']+))*[ \t]+`
+  + String.raw`|timeout(?:[ \t]+(?:-[ks][ \t]+\S+|-[^\s"']+))*[ \t]+[0-9][^\s"']*[ \t]+`
+  + String.raw`|env(?:[ \t]+(?:-[iv0]+|--ignore-environment|-[uC][ \t]+[^\s"']+))*(?:[ \t]+-S[ \t]+["']|[ \t]+)`
+  + String.raw`|sudo(?:[ \t]+(?:-[ugCDprtTU][ \t]+\S+|--[a-z-]+(?:=\S+)?|-[A-Za-z]+))*[ \t]+)*`
+const PUBLISH_POSITION = `${PUBLISH_START}[ \\t]*${PUBLISH_WRAPPER}` + String.raw`(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"']*)[ \t]+)*`
+// The executable, by name or by path (`/usr/bin/git` was missed once), quoted or not.
+const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~\\/-]*[\\/])?git`
+const PUBLISH_EXE = String.raw`(?:"${PUBLISH_EXE_BARE}"|'${PUBLISH_EXE_BARE}'|${PUBLISH_EXE_BARE})`
+// Options, each with an optional value that is not itself the verb.
+const PUBLISH_OPTS = String.raw`(?:${PUBLISH_SEP}(?:-[^\s"',]*(?:${PUBLISH_SEP}(?!${PUBLISH_VERB})(?:"[^"]*"|'[^']*'|[^\s"',-][^\s"',]*))?|"[^"]*"|'[^']*'))*`
+const PUBLISH_COMMAND = new RegExp(`${PUBLISH_POSITION}(${PUBLISH_EXE}${PUBLISH_OPTS}${PUBLISH_SEP}${PUBLISH_VERB})${PUBLISH_NOT_HELP}`, 'm')
+/** The `git commit …` or `git push …` this command invokes, in one spelling, or null. */
+export function publishCommandIn(command) {
+  if (typeof command !== 'string') return null
+  const m = PUBLISH_COMMAND.exec(command)
+  return m ? m[1].replace(/\\\n/g, ' ').replace(/[\s"',]+/g, ' ').trim() : null
+}
+/** A proven invocation — the only thing that may be refused. */
 export function containsCommitOrPush(command) {
-  return typeof command === 'string' && COMMIT_OR_PUSH_WORD.test(command)
+  return publishCommandIn(command) !== null
+}
+// The ADVISORY arm: the words as words (not `pre-commit`, not `records.push`).
+// Everything the precise arm misses and this sees is warned about, never refused.
+const PUBLISH_MENTION = /(?<![A-Za-z0-9_.-])(?:commit|push)(?![A-Za-z0-9_-])/
+export function mentionsCommitOrPush(command) {
+  return typeof command === 'string' && PUBLISH_MENTION.test(command)
 }
 
 export function readOnlyVerdict(input) {
@@ -3087,11 +3161,19 @@ export function recordHookEvent(input) {
   if (hook === 'PostToolUse') return MUTATION_TOOLS.has(input.tool_name) ? recordFileWritten(input) : null
   let name = null
   const extra = {}
-  // A read-only role's PreToolUse is decided by the reviewer deny and never
-  // observed; outside one, a Bash command naming commit or push is a publish request.
+  // A Bash command that INVOKES commit or push is a publish request and is logged
+  // as one. A MENTION — the word in a grep, an echo, a file name — is prepared the
+  // same way (the check source imported, a late baseline adopted) so its warning
+  // reads the evidence a refusal would, and is appended as nothing: it is not a
+  // publish request, and every reader of `publish.requested` would otherwise count
+  // it (Codex review of f67cede). A read-only role's PreToolUse never reaches
+  // this function: the reviewer guard decides it alone (handleHook).
   if (hook === 'PreToolUse') {
-    if (readOnlyRole(input.agent_type) || input.tool_name !== 'Bash' || !containsCommitOrPush(input.tool_input?.command)) return null
-    name = 'publish.requested'
+    if (input.tool_name !== 'Bash') return null
+    const command = input.tool_input?.command
+    if (containsCommitOrPush(command)) name = 'publish.requested'
+    else if (mentionsCommitOrPush(command)) name = 'publish.mentioned'
+    else return null
   }
   if (hook === 'SessionStart') {
     // ⚠ ONLY AN EMPTY LOG GETS A BASELINE HERE. A `compact` or `resume` SessionStart
@@ -3163,6 +3245,7 @@ export function recordHookEvent(input) {
       appendEvent(input.cwd, session, { event: 'check.source-unreadable', key })
     }
   }
+  if (name === 'publish.mentioned') return lateBaseline ? { ...entry, lateBaseline: true } : entry
   if (!appendEvent(input.cwd, session, entry)) {
     return { ...entry, observation: { ok: false, reason: 'the event log could not be appended' } }
   }
@@ -3347,7 +3430,7 @@ function inferredCheckCaveat(cwd) {
 // It says the command is about to run while this repository is unchecked; it
 // does not claim the command publishes this repository, which it may not.
 function publishUnchecked(input, requested) {
-  if (requested?.event !== 'publish.requested' || requested.observation?.ok !== true) return
+  if ((requested?.event !== 'publish.requested' && requested?.event !== 'publish.mentioned') || requested.observation?.ok !== true) return
   // ONE root lookup for this decision: the check and the opt-out are read from
   // the same answer, so they cannot disagree about which project this is.
   const place = nearestExistingDirectory(path.resolve(input.cwd))
@@ -3379,7 +3462,10 @@ function publishUnchecked(input, requested) {
   // A project may opt out with `"publish": "warn"` (ADR-061 revision 3); the
   // warning below is then all it gets, on every attempt the dedupe allows.
   const setting = publishSetting(input.cwd, found)
-  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn
+  // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
+  // evidence than advice). A command that merely mentions the words is warned.
+  const invoked = publishCommandIn(input.tool_input?.command)
+  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null
   if (!deny && log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
   queueAction({
     rule: 'P', key, detail: { tree: now.tree, revision }, deny,
@@ -3405,8 +3491,10 @@ function publishUnchecked(input, requested) {
             : !treeUnchecked
               ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
               : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
-      + 'about to run names commit or push. Run `qh-check` first. This says what state the repository is in, not what '
-      + `the command publishes.${inferredCheckCaveat(input.cwd)}${publishSettingNote(setting)}`,
+      + (invoked !== null
+        ? `about to run names commit or push (\`${invoked}\`). Run \`qh-check\` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes.`
+        : 'about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.')
+      + `${inferredCheckCaveat(input.cwd)}${publishSettingNote(setting)}`,
   })
 }
 // R3 `review-changed-state` (ADR-060): a read-only role's run is bracketed by its
@@ -3955,9 +4043,18 @@ export async function handleHook(input) {
   const event = input.hook_event_name
   // ADR-060 T1: every hook first appends its named, observed event. The log is
   // additive here; a failure in it must never change an existing advisory.
+  // EXCEPT a read-only role's PreToolUse, which the reviewer guard decides ALONE:
+  // it is neither observed (seven git spawns before an unconditional denial) nor
+  // logged (the log is the parent session's) nor warned about — a form the guard
+  // cannot prove is the git-hook follow-up's, not the P rule's. Three rounds of
+  // review each found a way the "reviewer still hears the warning" arm wrote to
+  // or read the parent's ledger wrongly (Codex, f14e4cd and b149b50).
   let recorded = null
-  try { recorded = recordHookEvent(input) } catch (failure) {
-    process.stderr.write(`[quality-harness] the event log was not written (${failure?.message ?? failure}).\n`)
+  const guardAlone = event === 'PreToolUse' && readOnlyRole(input.agent_type) !== null
+  if (!guardAlone) {
+    try { recorded = recordHookEvent(input) } catch (failure) {
+      process.stderr.write(`[quality-harness] the event log was not written (${failure?.message ?? failure}).\n`)
+    }
   }
   // What a late baseline leaves genuinely unknown, said ONCE and as a limit on what
   // could be seen — never as an accusation about work nobody observed (ADR-005).
@@ -4129,9 +4226,14 @@ export async function handleHook(input) {
     // guard fired on a command whose FIRST act was `git switch -c task/…`, the
     // very escape it was demanding.
     if (input.tool_name !== 'Bash') return
-    if (!containsCommitOrPush(input.tool_input?.command)) return
+    if (!mentionsCommitOrPush(input.tool_input?.command)) return
+    // `recorded` is the publish request, or the prepared-but-unlogged mention
+    // (recordHookEvent). The artifact gate is a publish-time check with a
+    // publish-time budget: a mention publishes nothing and gets none of it — a
+    // peer measured 12 KB of adr-lint findings on a grep before this (2026-09-23).
     publishUnchecked(input, recorded)
-    artifactRule(input, recorded)
+    if (recorded?.event === 'publish.requested') artifactRule(input, recorded)
+    return
     return
   }
 

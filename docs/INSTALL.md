@@ -69,18 +69,25 @@ To see the inventory and what it costs in context before deciding to keep it:
 claude plugin details quality-harness
 ```
 
-On 2.64.0 that reports 14 skills, 4 agents and 7 hook events, and an always-on cost of about
-2,300 tokens per session; each skill costs more only when it fires. Re-run it for the version you
-have — the number is measured by the CLI, not written here.
+It reports the skills, agents and hook events the installed version carries, and the always-on
+context cost per session; each skill costs more only when it fires. The numbers are measured by
+the CLI for the version you have and are deliberately not written here — every count this page
+carried went stale (the hook-event count was three short within a month).
 
 ## What it adds to a session
 
 - **Skills**, namespaced: `/quality-harness:work`, `/quality-harness:adr-write`, and the rest. The
   namespace is deliberate; it says which copy answered.
 - **Agents**, namespaced `qh-`, so they cannot shadow a role you or your host defines.
-- **Hooks** on `SessionStart`, `SubagentStart`, `SubagentStop`, `TaskCompleted`, `Stop`,
-  `PreToolUse` and `PostToolUse`. They advise and never seize the session (README, "It never
-  blocks you").
+- **Hooks**, always on while the plugin is enabled — there is no per-hook switch, only uninstall.
+  `plugin/hooks/hooks.json` is the list; today it wires `SessionStart`, `UserPromptSubmit`,
+  `SubagentStart`, `SubagentStop`, `TaskCompleted`, `Stop`, `PreToolUse`, `PostToolUse`,
+  `PreCompact` and `SessionEnd`. Each Edit/Write starts one Node process before and three after;
+  each Bash call and each prompt starts one. They advise — with **one sanctioned refusal**: since
+  2.102.0 (ADR-061) a Bash command whose text names `commit` or `push`, on a tree no `qh-check` has
+  passed on, is refused until you run `qh-check`. It also fires on a heredoc that merely contains the
+  word; `"publish": "warn"` in `.quality-harness.json` turns it back into a warning. A second
+  refusal fences a role you spawned read-only (ADR-060). Nothing else blocks.
 - **Status line (user-wired).** The plugin cannot set Claude's `statusLine`. Keep that command (and any `refreshInterval`). Feed the same `$input` to the script and append its stdout — one line, or empty:
     qh=$(node "$(qh-root)/scripts/statusline.mjs" <<< "$input" 2>/dev/null)
     [ -n "$qh" ] && printf '%s\n' "$qh"
@@ -147,9 +154,11 @@ Inside a Claude Code session, `bin/` is on `PATH`. In your own terminal it is no
 
 Desktop has no shell, no hooks and no plugin loader; it has MCP. The plugin ships `qh-mcp`, a stdio
 server exposing the **reading** gates — `adr-lint`, `adr-next`, `adr-debt`, `adr-judge`,
-`arch-lint`, `adr-retire-check`, `postmortem-verify` — and deliberately not the two that execute
-text from your corpus. [mcp.md](mcp.md) has the registration, the three things that cost people an
-afternoon, and the one-line probe to run before touching Desktop.
+`arch-lint`, `adr-retire-check`, `postmortem-verify`, `adr-context` and the session orientation —
+and deliberately not the two that execute text from your corpus. `tools/list` is the authority on
+the count; this page stopped carrying one after it was two short. [mcp.md](mcp.md) has the
+registration, the three things that cost people an afternoon, and the one-line probe to run before
+touching Desktop.
 
 Two facts that belong here rather than there:
 
@@ -159,8 +168,10 @@ Two facts that belong here rather than there:
   is on disk at call time. Neither is wrong; both need to be a decision. [UPDATE.md](UPDATE.md)
   says what to do at each update.
 - **From Desktop you can be told what is wrong; you cannot record that you fixed it.** The evidence
-  half of the lifecycle — `adr-verify` — needs a shell. Cursor, Zed, Codex and any other MCP client
-  get the same seven tools and the same limit; the server is tested here, those clients are not.
+  half of the lifecycle — `adr-verify` — needs a shell (ADR-012 rules it out over MCP; whether a
+  digest-confirmed run may lift that is an open owner decision, 2026-09-23). Cursor, Zed, Codex and
+  any other MCP client get the same tools and the same limit; the server is tested here, those
+  clients are not. OpenCode has not been tried at all.
 
 ## Codex
 

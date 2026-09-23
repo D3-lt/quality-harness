@@ -28,7 +28,7 @@
 import { readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 import { ASSERTION_ARM_WITHDRAWN } from '../plugin/scripts/claim-status.mjs'
 
@@ -178,7 +178,7 @@ async function main(argv = process.argv.slice(2)) {
   return 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(await main())
 }
 

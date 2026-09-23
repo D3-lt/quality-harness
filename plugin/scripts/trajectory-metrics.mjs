@@ -29,7 +29,7 @@
 import { readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 const ENTRY = /^-\s+\d{4}-\d{2}-\d{2}\s+·/
 const EXIT = /·\s*exit\s+(\d+)\s*·/
@@ -246,7 +246,7 @@ function main(argv = process.argv.slice(2)) {
   return 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(main())
 }
 

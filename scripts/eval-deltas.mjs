@@ -24,7 +24,7 @@
 // the exact failure this repository documents under ADR-005.
 import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 /** Every aggregate-result.json under a results tree, newest last. */
 export function resultFiles(root) {
@@ -246,6 +246,6 @@ export function main(argv = [], cwd = process.cwd()) {
   return 0
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(main(process.argv.slice(2)))
 }

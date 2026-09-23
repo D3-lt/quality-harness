@@ -205,7 +205,8 @@ test('the runner records what it MEASURED, and records nothing when it reused', 
   t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5 }))
   for (const file of ['scripts/mutate.mjs', 'tests/mutations.json',
     'tests/post-edit-check.test.mjs', 'plugin/scripts/post-edit-check.sh',
-    'plugin/scripts/workflow-parse.mjs']) {
+    // mutate.mjs imports its entry guard from the plugin (BACKLOG §264).
+    'plugin/scripts/workflow-parse.mjs', 'plugin/scripts/main-module.mjs']) {
     const target = join(dir, file)
     mkdirSync(dirname(target), { recursive: true })
     cpSync(join(repoRoot, file), target)

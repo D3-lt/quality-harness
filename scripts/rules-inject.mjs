@@ -54,7 +54,7 @@ import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs'
 import { join, resolve, sep } from 'node:path'
 import { tmpdir } from 'node:os'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 // A single call may deliver at most this many rules. The bound exists because one
 // Bash command can legitimately name many files; past it the delivery is no longer
@@ -323,7 +323,7 @@ async function main() {
   }))
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+if (isMainModule(import.meta.url)) {
   // Nothing here may reach the exit code. The hook is a convenience; a stack
   // trace on stderr and a non-zero exit would turn a missing rule into an
   // interrupted turn, which is strictly worse than the hole it closes.

@@ -3166,20 +3166,11 @@ export function recordHookEvent(input) {
   // same way (the check source imported, a late baseline adopted) so its warning
   // reads the evidence a refusal would, and is appended as nothing: it is not a
   // publish request, and every reader of `publish.requested` would otherwise count
-  // it (Codex review of f67cede). A read-only role's invocation is the reviewer
-  // guard's to deny and never this session's publish request, and its PreToolUse
-  // WRITES NOTHING — the log is the parent session's, and a reviewer adopting a
-  // late baseline or importing checks into it would be the reviewer observing for
-  // the session (the T3 test holds that log at zero). A form the guard cannot prove
-  // is a mention, observed here and never appended, so the reviewer still hears
-  // the state warning as the parent's last boundary left the ledger (Codex review
-  // of f14e4cd: dropping the dispatch fallback had made it silent).
+  // it (Codex review of f67cede). A read-only role's PreToolUse never reaches
+  // this function: the reviewer guard decides it alone (handleHook).
   if (hook === 'PreToolUse') {
     if (input.tool_name !== 'Bash') return null
     const command = input.tool_input?.command
-    if (readOnlyRole(input.agent_type)) {
-      return mentionsCommitOrPush(command) ? { event: 'publish.mentioned', observation: observe(input.cwd) } : null
-    }
     if (containsCommitOrPush(command)) name = 'publish.requested'
     else if (mentionsCommitOrPush(command)) name = 'publish.mentioned'
     else return null
@@ -4052,9 +4043,18 @@ export async function handleHook(input) {
   const event = input.hook_event_name
   // ADR-060 T1: every hook first appends its named, observed event. The log is
   // additive here; a failure in it must never change an existing advisory.
+  // EXCEPT a read-only role's PreToolUse, which the reviewer guard decides ALONE:
+  // it is neither observed (seven git spawns before an unconditional denial) nor
+  // logged (the log is the parent session's) nor warned about — a form the guard
+  // cannot prove is the git-hook follow-up's, not the P rule's. Three rounds of
+  // review each found a way the "reviewer still hears the warning" arm wrote to
+  // or read the parent's ledger wrongly (Codex, f14e4cd and b149b50).
   let recorded = null
-  try { recorded = recordHookEvent(input) } catch (failure) {
-    process.stderr.write(`[quality-harness] the event log was not written (${failure?.message ?? failure}).\n`)
+  const guardAlone = event === 'PreToolUse' && readOnlyRole(input.agent_type) !== null
+  if (!guardAlone) {
+    try { recorded = recordHookEvent(input) } catch (failure) {
+      process.stderr.write(`[quality-harness] the event log was not written (${failure?.message ?? failure}).\n`)
+    }
   }
   // What a late baseline leaves genuinely unknown, said ONCE and as a limit on what
   // could be seen — never as an accusation about work nobody observed (ADR-005).

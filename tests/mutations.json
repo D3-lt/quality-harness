@@ -9807,13 +9807,22 @@
       "to": "  + String.raw`|env(?:[ \\t]+-[^\\s\"'S][^\\s\"']*)*(?:[ \\t]+-S[ \\t]+[\"']|[ \\t]+)`"
     },
     {
-      "label": "ADR-061: a read-only reviewer's unprovable form is a mention, observed and warned about, never silent (§269 round 5)",
+      "label": "ADR-060/061: a read-only role's PreToolUse is the guard's alone — never observed, recorded or warned about (§269 round 6)",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/late-baseline.test.mjs"
       ],
-      "from": "      return mentionsCommitOrPush(command) ? { event: 'publish.mentioned', observation: observe(input.cwd) } : null",
-      "to": "      return null"
+      "from": "  const guardAlone = event === 'PreToolUse' && readOnlyRole(input.agent_type) !== null",
+      "to": "  const guardAlone = false"
+    },
+    {
+      "label": "test-lock: a Rust lifetime is code, not a char literal's opening quote (§271)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif rust_raw and text[i] == \"'\" and not _RUST_CHAR_LITERAL.match(text, i):",
+      "to": "        elif False:"
     }
   ]
 }

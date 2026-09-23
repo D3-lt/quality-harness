@@ -13,6 +13,7 @@
 // archive on 2026-09-19, which is what sent anyone to look.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
@@ -387,7 +388,7 @@ test('an UNPROVEN record is named where its paths are edited, and PARTIAL hides 
 // for a path component spelled exactly `archive`, and this repository's is
 // `adr-archive`, so every retired record was offered for retirement again.
 test('work-next does not offer a record in the frozen archive for retirement', async () => {
-  const { observe } = await import('../plugin/scripts/work-next.mjs')
+  const { observe, nextStage } = await import('../plugin/scripts/work-next.mjs')
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-retire-')))
   try {
     const write = (relative, text) => {
@@ -395,15 +396,33 @@ test('work-next does not offer a record in the frozen archive for retirement', a
       writeFileSync(join(root, ...relative.split('/')), text)
     }
     const superseded = n => `# ADR-${n}: x\n\n**Status:** Superseded\n\n## Context\n\nx\n\n## Decision\n\ny\n`
-    write('docs/adr-archive/README.md', '# ADR Archive\n\n**Lifecycle:** Frozen historical ADR records\n')
-    write('docs/adr-archive/ADR-001-retired.md', superseded('001'))
+    // A real catalog, not a two-line marker: the archived record's kind comes
+    // from the catalog's Decision effect, and the first version of this test
+    // wrote a marker only — so the record was never `graveyard`, the check under
+    // test was never reached, and its mutant came back GREEN.
+    const retired = superseded('001')
+    const sha = createHash('sha256').update(retired).digest('hex')
+    write('docs/adr-archive/README.md', [
+      '# ADR Archive', '',
+      '**Lifecycle:** Frozen historical ADR records',
+      '**Active corpus:** ../adr',
+      '**Retirement cutover:** 2026-09-01', '',
+      '## Retired Records', '',
+      '| ADR | Title | Decision effect | Retired | Reason | Obligations | SHA-256 |',
+      '|-----|-------|-----------------|---------|--------|-------------|---------|',
+      `| [ADR-001](ADR-001-retired.md) | x | superseded by ADR-002 | 2026-09-01 | replaced | none | ${sha} |`, '',
+    ].join('\n'))
+    write('docs/adr-archive/ADR-001-retired.md', retired)
     // The control: the same status in the ACTIVE corpus is exactly what adr-retire is for.
     write('docs/adr/ADR-002-still-active.md', superseded('002'))
     const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, encoding: 'utf8', timeout: 15_000 })
     assert.equal(init.status ?? 0, 0, init.stderr)
     const state = observe(root)
+    const { adrCorpus: corpus } = await import('../plugin/scripts/lifecycle.mjs')
+    const archived = corpus(root).find(record => /ADR-001-retired/.test(record.file))
+    assert.equal(archived?.kind, 'graveyard', 'the archived record must be classified, or the check under test is never reached')
     const named = state.retirable.map(record => record.file.slice(root.length + 1).split('\\').join('/'))
     assert.deepEqual(named, ['docs/adr/ADR-002-still-active.md'], `retirable: ${named}`)
-    // `nextStage` is not asserted: a two-line catalog reads PARTIAL, and the routing is not what this proves.
+    assert.equal(nextStage(state)?.id, 'adr-retire', 'the control still routes to adr-retire')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })

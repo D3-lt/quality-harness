@@ -14572,6 +14572,21 @@ the artifact gate runs on `publish.requested` only. Three tests in `tests/late-b
 drive a grep through the hook for each; three mutants. The limit kept, now named in INSTALL and the
 plugin README instead of "never refused": a `;` or newline inside quoted data or a heredoc body.
 
+Round 5 (Codex review of f14e4cd, two findings, both executed under bash with `git` shadowed by a
+function): `env -u git push` and `xargs -I git push` were refused — the generic "any option" pattern
+consumed `-u`, took `git` as the executable and `push` as the verb, where the shell takes `git` as
+the option's argument and `push` as the executable. Each wrapper now lists the option forms that were
+run (`env -i/-v/-0/-u NAME/-C DIR/
+-S "…"`, `xargs -0/-r/-t/-p/-x/-o` and `-n/-L/-P/-s/-d/-I/-E/-J/-R ARG`), and an unlisted form is a
+mention. `!git push` is an executable named `!git`, and a bare newline between `git` and `push` is two
+commands: both were refused since the first shape and are data now. Second: a read-only reviewer's
+unprovable form (`GIT=git; $GIT push`) had lost its state warning when the f14e4cd dispatch fallback
+went, because a reviewer's PreToolUse was never prepared — a reviewer's command is never this
+session's publish request and writes nothing to the log (it is the parent's; T3 holds it at zero), but
+a mention is observed and warned about as the ledger stands; test in
+`tests/late-baseline.test.mjs`, mutant in the catalogue. Also shortened the mention line to the state,
+"advisory; nothing is refused", and what to run.
+
 ## 270. Two leads from the outside run at f67cede: adr-next offers a Superseded record's tasks, and exits 1 on an empty task directory (2026-09-23)
 
 Reported by the peer that ran the readers over a private Rust corpus (attested in

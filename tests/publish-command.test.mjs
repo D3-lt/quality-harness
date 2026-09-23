@@ -112,6 +112,12 @@ const NOT_PUBLISHES = [
   "printf '%s\\n' \"git push\"",
   "sed -n '/git push/p' f",
   'man git-push',
+  // Codex review of f14e4cd, executed under bash with git shadowed: an option's ARGUMENT is
+  // not the executable; `!git` is an executable named `!git`; a newline is a new command.
+  'env -u git push',
+  'xargs -I git push',
+  '!git push',
+  'git\npush',
 ]
 
 // The precise arm's known limit, pinned as a decision (§269): a `;` or a newline inside

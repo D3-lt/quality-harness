@@ -8349,8 +8349,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "&& !isArchivePath(path.relative(directory, record.file)))",
-      "to": "&& !/[\\\\/]archive[\\\\/]/i.test(record.file))"
+      "from": "record.kind === 'graveyard' && !record.frozen)",
+      "to": "record.kind === 'graveyard')"
     },
     {
       "label": "R3: an index-only change during a read-only run is reported",

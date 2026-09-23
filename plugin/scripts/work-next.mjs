@@ -222,13 +222,13 @@ export function observe(directory) {
   const notYetDecided = tasks.filter(file => unfinished(file) && !executable(file)
     && owner.has(path.resolve(file)))
 
-  // Relative to the repository, or a clone under a directory named `archive`
-  // would hide every retirable record. `isArchivePath` knows `adr-archive`; the
-  // bare `/archive/` test this replaced did not, so the day this repository's
-  // archive held seven Superseded records, `work-next` named all seven as still
-  // sitting in the active corpus (measured 2026-09-23, BACKLOG §263).
-  const retirable = corpus.filter(record => record.kind === 'graveyard'
-    && !isArchivePath(path.relative(directory, record.file)))
+  // The corpus reader knows which records sit under a frozen archive, because it
+  // read the catalog that says so. Two path tests preceded this: `/archive/`
+  // missed this repository's `adr-archive`, so all seven retired records were
+  // offered for retirement again; `isArchivePath` then matched an ACTIVE
+  // `docs/adr/archive-policy.md` and anything under `archive-service/`, hiding
+  // real candidates (BACKLOG §263; Codex review of 870a230, P2).
+  const retirable = corpus.filter(record => record.kind === 'graveyard' && !record.frozen)
 
   const covered = coveredIds(corpus)
   const unprovenSpecs = []

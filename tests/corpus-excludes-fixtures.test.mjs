@@ -51,12 +51,19 @@ const relative = (root, file) => path.relative(root, file).split(path.sep).join(
 
 test('the predicate names the fixture directories and nothing a record lives in', () => {
   assert.equal(listedUnderUninterestingDirectory(['tests', 'fixtures', 'foreign', 'adr']), true)
-  assert.equal(listedUnderUninterestingDirectory(['examples', 'adr']), true)
+  assert.equal(listedUnderUninterestingDirectory(['Fixture', 'adr']), true)
   assert.equal(listedUnderUninterestingDirectory(['node_modules', 'x', 'docs', 'adr']), true)
-  // The control: the directories records actually live in are not matched.
+  assert.equal(listedUnderUninterestingDirectory(['testdata', 'adr']), true)
+  // The control: the directories records actually live in are not matched —
+  // and that includes `spec/`, `examples/` and `test/`, which a probe on
+  // 2026-09-23 showed being dropped as `records=0, look=ok` when they were.
   assert.equal(listedUnderUninterestingDirectory(['docs', 'adr']), false)
   assert.equal(listedUnderUninterestingDirectory(['docs', 'adr-archive', 'ADR-001-x']), false)
   assert.equal(listedUnderUninterestingDirectory(['docs', 'specs']), false)
+  assert.equal(listedUnderUninterestingDirectory(['spec', 'adr']), false)
+  assert.equal(listedUnderUninterestingDirectory(['examples', 'adr']), false)
+  assert.equal(listedUnderUninterestingDirectory(['test', 'adr']), false)
+  assert.equal(listedUnderUninterestingDirectory(['tests', 'adr']), false)
   assert.equal(listedUnderUninterestingDirectory([]), false)
 })
 

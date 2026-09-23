@@ -931,7 +931,15 @@ function advisoryHeadline(reason) {
   return sentence.length > 140 ? `${sentence.slice(0, 137)}…` : sentence
 }
 
-const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|tests?|spec|fixtures?|testdata|examples?)$/i
+// Fixture and generated locations ONLY. `tests?`, `spec` and `examples?` were in
+// this list until 2026-09-23, and a probe showed what that costs once every
+// reader applies it: an accepted record under `spec/adr/`, `examples/adr/` or
+// `test/adr/` read as `records=0, look=ok` — a corpus dropped in silence, which
+// is the fail-open direction (CLAUDE.md §16; Codex review of 870a230, P1). A
+// fixture record read as real costs an advisory nobody acts on; a real corpus
+// read as nothing costs every advisory. So the names here are the ones no
+// project keeps its decisions under.
+const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|fixtures?|testdata)$/i
 
 /**
  * Whether a listed path's directory components put it somewhere no record of
@@ -946,10 +954,9 @@ const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|cover
  * claiming to govern `src/` would have been cited on any edit there. Recorded in
  * team memory 2026-09-16 as "unverified"; measured 2026-09-23 (BACKLOG §263).
  *
- * The cost, said plainly: a repository whose real corpus sits under `spec/`,
- * `examples/` or `test/` loses it from `adrCorpus`. SessionStart already hid it,
- * so this aligns the readers rather than opening a new blind spot; the remedy
- * there is a corpus location this list does not name.
+ * The cost, said plainly: a fixture record kept somewhere this list does not
+ * name — `tests/adr/` with no `fixtures` component — is still read as real. That
+ * is the cheaper error: the reader over-reports and says where.
  */
 export function listedUnderUninterestingDirectory(dirParts) {
   return dirParts.some(part => UNINTERESTING_DIRECTORY.test(part))
@@ -1989,6 +1996,12 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       title: (text.match(/^#\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim(),
       status,
       kind,
+      // Under a frozen archive, whatever its directory is called: the catalog
+      // said so. `work-next` reads this to stop offering a retired record for
+      // retirement; a path test (`/archive/`, then `isArchivePath`) got it wrong
+      // both ways — missed `adr-archive`, then matched `archive-policy.md` and
+      // `archive-service/` (Codex review of 870a230, P2).
+      frozen: archived != null,
       // Which record replaced this one, when the status says so, as an id: a
       // corpus spells the reference every way there is — `Superseded by ADR-0004`,
       // `superseded by ADR-4`, `Superseded by 0004`, and since ADR-063 a dated

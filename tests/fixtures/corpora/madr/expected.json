@@ -1,0 +1,72 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/adr"
+  ],
+  "records": [
+    [
+      "docs/adr/0001-use-postgres.md",
+      "governing",
+      false
+    ],
+    [
+      "docs/adr/0002-use-redis-for-sessions.md",
+      "graveyard",
+      false
+    ],
+    [
+      "docs/adr/0003-sessions-in-postgres.md",
+      "governing",
+      false
+    ]
+  ],
+  "workNext": {
+    "records": 3,
+    "accepted": 2,
+    "tasks": 0,
+    "ready": [],
+    "unbacked": [],
+    "retirable": [
+      "docs/adr/0002-use-redis-for-sessions.md"
+    ],
+    "next": "adr-retire"
+  },
+  "adrState": {
+    "read": 3,
+    "governing": 2
+  },
+  "adrNext": [],
+  "adrLint": [
+    {
+      "file": "docs/adr/0001-use-postgres.md",
+      "verdict": "not-recognised"
+    },
+    {
+      "file": "docs/adr/0002-use-redis-for-sessions.md",
+      "verdict": "not-recognised"
+    },
+    {
+      "file": "docs/adr/0003-sessions-in-postgres.md",
+      "verdict": "not-recognised"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "docs/adr",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [],
+    "mustNotMatch": [
+      "."
+    ]
+  },
+  "neverNamed": [],
+  "couldNotRun": []
+}

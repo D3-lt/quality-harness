@@ -1,0 +1,112 @@
+{
+  "look": "ok",
+  "corpora": [
+    "archive-service/docs/adr",
+    "docs/adr-archive",
+    "docs/adr"
+  ],
+  "records": [
+    [
+      "archive-service/docs/adr/ADR-004-archive-service-retention.md",
+      "graveyard",
+      false
+    ],
+    [
+      "docs/adr-archive/2026-05-01-db-doctor-first-cut.md",
+      "graveyard",
+      true
+    ],
+    [
+      "docs/adr/2026-06-01-db-doctor-repair.md",
+      "governing",
+      false
+    ],
+    [
+      "docs/adr/archive-policy.md",
+      "graveyard",
+      false
+    ]
+  ],
+  "workNext": {
+    "records": 4,
+    "accepted": 1,
+    "tasks": 1,
+    "ready": [
+      "docs/adr/2026-06-01-db-doctor-repair/tasks/T1-lowest-live-node.md"
+    ],
+    "unbacked": [],
+    "retirable": [
+      "archive-service/docs/adr/ADR-004-archive-service-retention.md",
+      "docs/adr/archive-policy.md"
+    ],
+    "next": "adr-retire"
+  },
+  "adrState": {
+    "read": 4,
+    "governing": 1
+  },
+  "adrNext": [
+    {
+      "tasksDir": "docs/adr/2026-06-01-db-doctor-repair/tasks",
+      "ready": [
+        "T1"
+      ]
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "archive-service/docs/adr/ADR-004-archive-service-retention.md",
+      "verdict": "FAIL"
+    },
+    {
+      "file": "docs/adr-archive/2026-05-01-db-doctor-first-cut.md",
+      "verdict": "FAIL"
+    },
+    {
+      "file": "docs/adr/2026-06-01-db-doctor-repair.md",
+      "verdict": "FAIL"
+    },
+    {
+      "file": "docs/adr/archive-policy.md",
+      "verdict": "FAIL"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "archive-service/docs/adr",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    },
+    {
+      "root": "docs/adr-archive",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    },
+    {
+      "root": "docs/adr",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [
+      "2026-06-01-db-doctor-repair/tasks: T1 is ready"
+    ],
+    "mustNotMatch": [
+      "adr-archive",
+      "archive-policy"
+    ]
+  },
+  "neverNamed": [],
+  "couldNotRun": []
+}

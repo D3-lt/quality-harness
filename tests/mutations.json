@@ -9731,8 +9731,35 @@
       "tests": [
         "tests/release-evidence.test.mjs"
       ],
-      "from": "      return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === ''",
-      "to": "      return true"
+      "from": "    try { return git(['diff', '--name-only', `${at}..${sha}`, '--', ...READER_PATHS]) === '' } catch { return null }",
+      "to": "    try { return true } catch { return null }"
+    },
+    {
+      "label": "ADR-061: git commit --help is a manual page, not a publish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const PUBLISH_NOT_HELP = String.raw`(?!(?:[ \\t]+\\S+)*[ \\t]+(?:--help|-h)(?![A-Za-z0-9_-]))`",
+      "to": "const PUBLISH_NOT_HELP = ''"
+    },
+    {
+      "label": "ADR-061: git invoked by path (/usr/bin/git push) is a publish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const PUBLISH_EXE = String.raw`(?:[A-Za-z0-9_.~\\\\/-]*[\\\\/])?git`",
+      "to": "const PUBLISH_EXE = 'git'"
+    },
+    {
+      "label": "release-evidence: an attestation git could not check is coverage unknown, never absent",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "    if (unchecked.length) {",
+      "to": "    if (false) {"
     }
   ]
 }

@@ -14548,7 +14548,12 @@ and INSTALL still call it a refusal. Three repairs, in order of size; the third 
    launched it; the Claude-side check stays as the early warning. Needs an ADR-061 amendment (a
    sanctioned refusal's mechanism changes) and the same `"publish": "warn"` opt-out.
 
-Done the same evening, on this branch: 1 (the classifier matches an invocation — `git`, its options,
-the verb, through `bash -c`/`pwsh -Command`/an argv list — and the refusal names the invocation it
-saw) and 2 (ADR-061 amended, INSTALL and the plugin README say what is observed). 3 is ADR-061's
-open follow-up: the script-file surface is still unobserved, and the honest refusal is a git hook.
+Done the same evening, on this branch, in two rounds: 1 (the classifier matches an invocation at an
+EXECUTABLE POSITION — the start of a line or shell segment, after `exec`/`env K=V`/`sudo`/`time`,
+or inside the quoted string of `bash -c`/`pwsh -Command`/`subprocess.run([`/`execSync(` — by name or by
+path, `--help` excluded, and the refusal names the invocation it saw; a Codex review of the first
+round found `/usr/bin/git push` missed and `git log --grep "git push"` refused, both fixed, and every
+form is executed in `tests/publish-command.test.mjs`) and 2 (ADR-061 amended, INSTALL and the plugin
+README say what is observed). 3 is ADR-061's open follow-up: the script-file surface and a `git`
+reached through a variable or a command substitution are still unobserved; the honest refusal is a
+git hook.

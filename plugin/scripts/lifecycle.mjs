@@ -2890,16 +2890,35 @@ const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'Notebook
 // unobserved. A gate that refuses correct work is one people route around, and the
 // route is the one the work it should stop takes too (CLAUDE.md §16).
 const PUBLISH_VERB = String.raw`(?:commit|push)(?![A-Za-z0-9_-])`
-const PUBLISH_COMMAND = new RegExp(
-  String.raw`(?<![A-Za-z0-9_./-])git`
-  // options, each with an optional value that is not itself the verb
-  + String.raw`(?:[\s"',]+(?:-[^\s"',]*(?:[\s"',]+(?!${PUBLISH_VERB})(?:"[^"]*"|'[^']*'|[^\s"',-][^\s"',]*))?|"[^"]*"|'[^']*'))*`
-  + String.raw`[\s"',]+${PUBLISH_VERB}`)
+// `git commit --help` opens a manual page and publishes nothing.
+const PUBLISH_NOT_HELP = String.raw`(?!(?:[ \t]+\S+)*[ \t]+(?:--help|-h)(?![A-Za-z0-9_-]))`
+// Between argv tokens: whitespace, a line continuation, or the quote and comma of
+// an argv list (`["git","push"]`).
+const PUBLISH_SEP = String.raw`(?:\s|\\\n|["',])+`
+// WHERE A COMMAND BEGINS — the only positions a `git` is executed from: the start
+// of a line or shell segment, after a wrapper that runs its argument (`exec`,
+// `env K=V`, `sudo`, `time`, `xargs`), or inside the quoted string of an executor
+// (`bash -c`, `pwsh -Command`, `subprocess.run([`, `execSync(`). Everywhere else
+// the same text is DATA — a grep pattern, an echo, a test assertion — and the
+// second round of review found it refused (Codex, 829b3a9). Env assignments
+// may precede the executable. A `git` reached through a variable or a command
+// substitution is not seen; tests/publish-command.test.mjs pins that as a decision.
+const PUBLISH_POSITION = String.raw`(?:^|[\n;|&({]|\$\(`
+  + String.raw`|(?<![A-Za-z0-9_-])(?:exec|command(?:[ \t]+-p)?|time(?:[ \t]+-p)?|sudo|nohup|xargs)[ \t]+`
+  + String.raw`|(?<![A-Za-z0-9_-])env[ \t]+(?:-S[ \t]+["'])?`
+  + String.raw`|-c[ \t]+["']|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\[?["']|exec(?:Sync|File|FileSync)?\(["']`
+  + String.raw`)[ \t]*(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"']*)[ \t]+)*`
+// The executable itself, by name or by path: `/usr/bin/git` was missed by the
+// first invocation match while the word match had caught it (Codex, 829b3a9).
+const PUBLISH_EXE = String.raw`(?:[A-Za-z0-9_.~\\/-]*[\\/])?git`
+// Options, each with an optional value that is not itself the verb.
+const PUBLISH_OPTS = String.raw`(?:${PUBLISH_SEP}(?:-[^\s"',]*(?:${PUBLISH_SEP}(?!${PUBLISH_VERB})(?:"[^"]*"|'[^']*'|[^\s"',-][^\s"',]*))?|"[^"]*"|'[^']*'))*`
+const PUBLISH_COMMAND = new RegExp(`${PUBLISH_POSITION}(${PUBLISH_EXE}${PUBLISH_OPTS}${PUBLISH_SEP}${PUBLISH_VERB})${PUBLISH_NOT_HELP}`, 'm')
 /** The `git commit …` or `git push …` this command invokes, in one spelling, or null. */
 export function publishCommandIn(command) {
   if (typeof command !== 'string') return null
   const m = PUBLISH_COMMAND.exec(command)
-  return m ? m[0].replace(/[\s"',]+/g, ' ').trim() : null
+  return m ? m[1].replace(/\\\n/g, ' ').replace(/[\s"',]+/g, ' ').trim() : null
 }
 export function containsCommitOrPush(command) {
   return publishCommandIn(command) !== null

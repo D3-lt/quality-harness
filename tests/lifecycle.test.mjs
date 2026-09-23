@@ -407,6 +407,15 @@ test('the publish warning advises, never blocks, while this repository is unchec
   // classified — not only that some word matched (BACKLOG §269).
   assert.match(run.stderr, /names commit or push \(`git commit`\)/, run.stderr)
   assert.doesNotMatch(run.stderr, /would publish unchecked/i)
+  // A MENTION — the word in a grep, an echo, a file name — is warned about and
+  // never refused, whatever the tree's state: the refusal needs a proven invocation
+  // (CLAUDE.md §16; BACKLOG §269). A fresh repository, because the warning is
+  // emitted once per tree state and the refusal above already spoke for this one.
+  const fresh = await unheldRepository('quality-hook-mention-')
+  const mention = publishAttempt('grep -n "git push" docs/x.md', fresh.dir, fresh.session)
+  assert.equal(mention.status, 0)
+  assert.match(mention.stderr, /mentions commit or push without an invocation/, mention.stderr)
+  assert.doesNotMatch(mention.stdout, /"deny"/, `a mention is never a refusal: ${mention.stdout}`)
 })
 
 test('reported: no advisory claims to have blocked anything', async () => {

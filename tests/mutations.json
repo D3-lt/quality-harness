@@ -9740,7 +9740,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "const PUBLISH_NOT_HELP = String.raw`(?!(?:[ \\t]+\\S+)*[ \\t]+(?:--help|-h)(?![A-Za-z0-9_-]))`",
+      "from": "const PUBLISH_NOT_HELP = String.raw`(?![ \\t]+(?:--help|-h)(?![A-Za-z0-9_-]))`",
       "to": "const PUBLISH_NOT_HELP = ''"
     },
     {
@@ -9749,8 +9749,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "const PUBLISH_EXE = String.raw`(?:[A-Za-z0-9_.~\\\\/-]*[\\\\/])?git`",
-      "to": "const PUBLISH_EXE = 'git'"
+      "from": "const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~\\\\/-]*[\\\\/])?git`",
+      "to": "const PUBLISH_EXE_BARE = 'git'"
     },
     {
       "label": "release-evidence: an attestation git could not check is coverage unknown, never absent",
@@ -9760,6 +9760,15 @@
       ],
       "from": "    if (unchecked.length) {",
       "to": "    if (false) {"
+    },
+    {
+      "label": "ADR-061: only a proven invocation is refused; a mention is warned about (§16, §269)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn"
     }
   ]
 }

@@ -81,8 +81,9 @@ complained" and "the gate refused" are not the same statement.
 refusal names the invocation it saw. A torn log, an unordered check, or a check that could not
 look only warns. `"publish": "warn"` in `.quality-harness.json` makes the refusal a warning; any
 other value is ignored and said to be. A command that merely mentions either word — a grep, a
-heredoc, a file name — is not refused. A publish launched from a script file is not observed at
-all; that is ADR-061's open follow-up.
+heredoc, a file name — is warned about and never refused: only a proven invocation is (CLAUDE.md
+§16). A publish launched from a script file, or through a variable or a command substitution, is a
+mention at most; that is ADR-061's open follow-up.
 The only other refusal is the reviewer guard (ADR-060): a role spawned read-only, such
 as `qh-scope-reviewer`, may not edit, commit or push. It has no opt-out, because it
 fences a role the workflow made read-only, not your own work.

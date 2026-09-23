@@ -987,10 +987,10 @@ function codeFilesUnder(directory, found = []) {
 
 test('the command classifiers are gone', () => {
   const pluginRoot = path.join(repoRoot, 'plugin')
-  // ⚠ classify-command.mjs is KEPT as a tombstone, not deleted: ADR-041 and
-  // ADR-047 declare it in `Governs:`, and a `Governs:` path no tracked file
-  // matches makes adr-lint advise that the decision governs nothing. The code is
-  // what goes; tests/classify.test.mjs asserts the file stays empty.
+  // ⚠ classify-command.mjs is KEPT as a tombstone, not deleted: ADR-060 declares
+  // it in `Governs:`, and a `Governs:` path no tracked file matches makes adr-lint
+  // advise that the decision governs nothing. The code is what goes;
+  // tests/classify.test.mjs asserts the file stays empty.
   const tombstone = path.join(pluginRoot, 'scripts', 'classify-command.mjs')
   assert.equal(existsSync(tombstone), true, 'the path stays so the records still resolve')
   assert.doesNotMatch(readFileSync(tombstone, 'utf8'), /^\s*export\b/m, 'and it defines nothing')

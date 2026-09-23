@@ -1417,8 +1417,8 @@ test('every shipped gate carries at least one mutation', () => {
   // check, and a file that stops being trivial has to be removed from the list
   // deliberately -- which is the point.
   // ADR-060 T7: classify-command.mjs is a TOMBSTONE — it ships as comments only,
-  // kept so ADR-041's and ADR-047's `Governs:` pointers still resolve while those
-  // records await retirement under ADR-060. There is no mechanism in it to
+  // kept because ADR-060 itself names it in `Governs:` (the records it retired,
+  // ADR-041, 042, 047 and 048, are archived). There is no mechanism in it to
   // mutate, and tests/classify.test.mjs asserts it stays that way.
   const trivial = new Set(['plugin/scripts/classify-command.mjs'])
   const bareScripts = scriptPaths.filter(p => !covered.has(p) && !trivial.has(p))

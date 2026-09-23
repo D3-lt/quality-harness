@@ -14272,3 +14272,52 @@ helper the refreshed file imports — so an old home copy refreshed today cannot
 `claim-status.mjs` and every helper `lifecycle.mjs` gained since the copies were made; the global
 instruction file already says a copy is stale by the next release and `--link` is the repair. A
 dependency-aware planner is its own decision.
+
+## 265. PARTLY CLOSED 2026-09-23 — what the readers said about five consumer-shaped corpora, side by side
+
+Built `plugin/scripts/corpus-probe.mjs` — every reader spawned as a process over one repository, one
+JSON, paths relative, disagreements computed — and `tests/corpus-matrix.test.mjs`, which runs it
+through a symlink over five corpora (`tests/fixtures/corpora/*` and `tests/fixtures/foreign`) against
+a reviewed `expected.json` each. Building the fixtures and reading the first drafts found six things,
+four fixed here, two left open.
+
+**Fixed:**
+
+1. **`adr-verify --sweep` could not see the rows `adr-verify` itself writes.** `CLAIM_RE` ended at the
+   digest (`\s*$`); ADR-020 (2026-09-01) appended ` · ms:N` to every row. Measured on this corpus:
+   ```
+   exit-0 rows=627  with_ms_suffix=541  CLAIM_RE_matches=66
+   ```
+   So since 2026-09-01 the false-success sweep — the instrument research §8 gap 1 rests on — counted
+   66 hand-shaped rows and skipped 561, in the flattering direction. The 2026-09-01 figure
+   (37 held / 0 false / 15 superseded over 52) was taken the day ADR-020 landed and is the last one
+   that saw the whole corpus. The pattern accepts a trailing ` · …` now; the python corpus's one
+   `ms:` row is the matrix's control (claims 1, held 1; was 0).
+2. **`work-next` offered a `Blocked-on` task as ready** while `adr-next` had read the header since
+   v2.83.0 (`f8a0698`). The foreign fixture carried the shape all along; its test explicitly allowed
+   the answer (`foreign-corpus.test.mjs:113`). `unfinished()` reads the header now.
+3. **`work-next` counted `roles/db/tasks/files/notes.md` as a task file** while SessionStart's
+   `taskDirectories` had learned on 2026-09-19 to want a `.md` directly under `tasks/`. Same rule now.
+4. **The per-edit gate linted fixture records as the repository's own.** Every edit to a file under
+   `tests/fixtures/corpora/` ran `adr-lint` and `adr-retire-check` over it and reported the fixture's
+   deliberate gaps as failures here. The fixture exclusion moved to `plugin/scripts/uninteresting.mjs`
+   (so `run-shell-hook.mjs` can import it without a cycle through `lifecycle.mjs`) and the runner
+   skips such a path before dispatch, `verdict.complete = true`. `tests/fixture-edit-gate.test.mjs`
+   holds the same record on both sides of the line.
+
+**Open, encoded as expected disagreements so a fix must change the expectation in the open:**
+
+5. **Stale evidence.** `adr-next` marks a task whose exit-0 row's digest no longer matches its fence
+   as ready-and-unproven; `work-next` sees any exit-0 row as finished (`unfinished()` has no digest
+   check, and the normalisation lives in `plugin/lib/record.py`). `foreign/…/T1` is the case:
+   SessionStart says "T1 is ready", `work-next` does not list it. The honest fix is one readiness
+   rule — `work-next` asking `adr-next` the way SessionStart does — which is a design change.
+6. **A fresh corpus routes nowhere.** `nextStage` only offers `adr-execute` when the corpus already
+   carries one exit-0 row (`usesVerificationLog`), so a repository with its first task — the
+   ONBOARDING hour-one shape — hears "Nothing in the QH corpus is waiting" from `work-next` and
+   "T1 is ready" from SessionStart (`ansible-nested-fixtures`, `next: null`). The rule exists so a
+   corpus that keeps evidence elsewhere is not called pending; it needs a third answer for a corpus
+   that has no evidence YET.
+
+**Also seen:** the MADR corpus is counted by every reader (three records, one retirable) and refused
+by `adr-lint` (`not-recognised` ×3) — ADR-038's split, now visible in one report rather than two.

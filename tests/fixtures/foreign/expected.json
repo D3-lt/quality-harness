@@ -1,0 +1,68 @@
+{
+  "look": "ok",
+  "corpora": [
+    "adr"
+  ],
+  "records": [
+    [
+      "adr/ADR-001-cross-repo.md",
+      "governing",
+      false
+    ]
+  ],
+  "workNext": {
+    "records": 1,
+    "accepted": 1,
+    "tasks": 3,
+    "ready": [
+      "adr/ADR-001-cross-repo/tasks/T2-partial-with-a-decision-blocker.md"
+    ],
+    "unbacked": [],
+    "retirable": [],
+    "next": "adr-execute"
+  },
+  "adrState": {
+    "read": 1,
+    "governing": 1
+  },
+  "adrNext": [
+    {
+      "tasksDir": "adr/ADR-001-cross-repo/tasks",
+      "ready": [
+        "T1",
+        "T2"
+      ]
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "adr/ADR-001-cross-repo.md",
+      "verdict": "FAIL"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "adr",
+      "claims": 1,
+      "held": 0,
+      "false": 0,
+      "superseded": 1,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [
+    {
+      "task": "adr/ADR-001-cross-repo/tasks/T1-code-lives-elsewhere.md",
+      "adrNext": "ready",
+      "workNext": "not offered"
+    }
+  ],
+  "sessionStart": {
+    "mustMatch": [
+      "cross-repo/tasks: T1 is ready"
+    ],
+    "mustNotMatch": []
+  },
+  "neverNamed": [],
+  "couldNotRun": []
+}

@@ -2066,8 +2066,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "    r\"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})\\s*$\", re.M)",
-      "to": "    r\"`[^`]*`.*?acceptance-sha256:(?P<digest>[0-9a-f]+)\\s*$\", re.M)"
+      "from": "    r\"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})(?: · [^\\n]*)?\\s*$\", re.M)",
+      "to": "    r\"`[^`]*`.*?acceptance-sha256:(?P<digest>[0-9a-f]+)(?: · [^\\n]*)?\\s*$\", re.M)"
     },
     {
       "label": "sweep: the timeout bound is validated, not taken on trust",
@@ -8344,8 +8344,53 @@
       "to": "return moduleUrl === pathToFileURL(entry).href"
     },
     {
+      "label": "adr-verify --sweep: a row with the ms suffix adr-verify itself writes is a claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "acceptance-sha256:(?P<digest>[0-9a-f]{64})(?: · [^\\n]*)?\\s*$\", re.M)",
+      "to": "acceptance-sha256:(?P<digest>[0-9a-f]{64})\\s*$\", re.M)"
+    },
+    {
+      "label": "work-next: a task waiting on an outside event is not ready, as adr-next already says",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "    if (/^\\*\\*Blocked-on:\\*\\*\\s*\\S/im.test(text)) return false\n",
+      "to": ""
+    },
+    {
+      "label": "work-next: a task file is a .md directly under tasks/, as SessionStart already reads it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "if (!/(?:^|\\/)tasks\\/[^/]+$/.test(norm)) continue",
+      "to": "if (!/(?:^|\\/)tasks\\//.test(norm)) continue"
+    },
+    {
+      "label": "per-edit gate: a record under a fixture directory is not gated as the repository's own",
+      "file": "plugin/scripts/uninteresting.mjs",
+      "tests": [
+        "tests/fixture-edit-gate.test.mjs"
+      ],
+      "from": "  if (parts[0] === '..') return false\n  return listedUnderUninterestingDirectory(parts.slice(0, -1))",
+      "to": "  return false"
+    },
+    {
+      "label": "corpus-probe: a task adr-next calls ready that work-next does not offer is a disagreement, said",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      if (!workNextReady.has(task.path)) {",
+      "to": "      if (false) {"
+    },
+    {
       "label": "corpus: a listed path under tests/, fixtures/ or their kin is not a record of this repository",
-      "file": "plugin/scripts/lifecycle.mjs",
+      "file": "plugin/scripts/uninteresting.mjs",
       "tests": [
         "tests/corpus-excludes-fixtures.test.mjs"
       ],

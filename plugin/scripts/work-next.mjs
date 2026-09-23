@@ -97,7 +97,11 @@ function taskFiles(directory, listing) {
   const found = []
   for (const rel of listing) {
     const norm = posixRel(rel)
-    if (!/(?:^|\/)tasks\//.test(norm)) continue
+    // A `.md` DIRECTLY under `tasks/`, the same rule as SessionStart's
+    // taskDirectories: Ansible's `roles/*/tasks/files/notes.md` counted as a task
+    // file here while the orientation reader had already learned to skip it
+    // (2026-09-19), so the two disagreed on the task count (BACKLOG §265).
+    if (!/(?:^|\/)tasks\/[^/]+$/.test(norm)) continue
     if (!/\.md$/i.test(norm)) continue
     if (/readme\.md$/i.test(norm)) continue
     if (isArchivePath(norm)) continue
@@ -195,6 +199,11 @@ export function observe(directory) {
   const executable = file => owner.get(path.resolve(file))?.kind === 'governing'
   const unfinished = file => {
     const text = read(file)
+    // Waiting on something outside this repository is not ready, whatever the log
+    // says: adr-next has read `**Blocked-on:**` since v2.83.0 (f8a0698), and this
+    // reader went on offering the same task as the next thing to do — the two
+    // disagreed on the one fixture that carried the header (BACKLOG §265).
+    if (/^\*\*Blocked-on:\*\*\s*\S/im.test(text)) return false
     if (!/^##\s+Acceptance/im.test(text)) return false
     // Tool-run evidence: a fence that exited 0.
     if (/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)) return false

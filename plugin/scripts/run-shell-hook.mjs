@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
 import { startPerformanceTrace } from './performance-trace.mjs'
 import { appendEvent, canonicalFile, contentId } from './event-log.mjs'
+import { relativePathIsUninteresting } from './uninteresting.mjs'
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const HOOK_SCRIPTS = new Set(['facts-gate-dispatch.sh', 'post-edit-check.sh'])
@@ -87,6 +88,11 @@ export function hookFilePathFromPayload(raw, platform = process.platform) {
 export function persistedEventPath(file, cwd, platform = process.platform) {
   return (platform === 'win32' ? path.win32 : path.posix).resolve(cwd, file)
 }
+// The payload's own cwd, when it has one; the hook is run there by the host.
+function payloadForEnvEarly(raw) {
+  return parsedHookPayload(raw, process.platform)
+}
+
 
 export function hookArguments(scriptName, raw, platform) {
   const payload = parsedHookPayload(raw, platform)
@@ -335,6 +341,19 @@ export async function runShellHook(scriptName, raw, options = {}) {
   const finish = startPerformanceTrace('shell/' + scriptName, raw, process.env, [hookFilePathFromPayload(raw)])
 
   const args = hookArguments(scriptName, raw, process.platform)
+  // A record under a fixture, vendored or generated directory is not one of this
+  // repository's decisions, and the gate has nothing to say about it — the same
+  // rule every corpus reader applies (uninteresting.mjs). Before this, editing a
+  // test fixture shaped like a record ran adr-lint and adr-retire-check over it
+  // and reported the fixture's deliberate gaps as failures of the repository
+  // (measured 2026-09-23 while building tests/fixtures/corpora, BACKLOG §265).
+  const editedFile = hookFilePathFromPayload(raw, process.platform)
+  const hookCwd = typeof payloadForEnvEarly(raw)?.cwd === 'string' ? payloadForEnvEarly(raw).cwd : process.cwd()
+  if (editedFile && relativePathIsUninteresting(path.relative(hookCwd, editedFile))) {
+    if (verdict) verdict.complete = true
+    finish('processed', { status: 0 })
+    return 0
+  }
   // Only a completed batch history read supplies this argument. Undefined keeps
   // the dispatcher's ordinary lookup; an empty string is an observed absence.
   if (scriptName === 'facts-gate-dispatch.sh' && options.archiveCatalog !== undefined) {

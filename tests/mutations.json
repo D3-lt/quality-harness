@@ -2066,8 +2066,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "    r\"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})\\s*$\", re.M)",
-      "to": "    r\"`[^`]*`.*?acceptance-sha256:(?P<digest>[0-9a-f]+)\\s*$\", re.M)"
+      "from": "    r\"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})(?: · [^\\n]*)?\\s*$\", re.M)",
+      "to": "    r\"`[^`]*`.*?acceptance-sha256:(?P<digest>[0-9a-f]+)(?: · [^\\n]*)?\\s*$\", re.M)"
     },
     {
       "label": "sweep: the timeout bound is validated, not taken on trust",
@@ -2496,10 +2496,10 @@
       "label": "next: a task is ready only when the record that owns it is Accepted",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/work-next-readiness.test.mjs"
       ],
-      "from": "  const ready = tasks.filter(file => unfinished(file) && executable(file))",
-      "to": "  const ready = tasks.filter(file => unfinished(file))"
+      "from": "    if (record.kind !== 'governing' || record.frozen) continue",
+      "to": "    if (record.frozen) continue"
     },
     {
       "label": "next: work under an undecided record is named, not silently dropped",
@@ -6757,8 +6757,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "            \"unproven\": unreadable_note(text) or unprovable_evidence(text, digest, fence, first),",
-      "to": "            \"unproven\": unprovable_evidence(text, digest, fence, first),",
+      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first)),",
+      "to": "            \"unproven\": None if done else unprovable_evidence(text, digest, fence, first),",
       "only": "^a task whose code fence never closes is READY with a note saying its sections could not be read$"
     },
     {
@@ -8344,6 +8344,51 @@
       "to": "return moduleUrl === pathToFileURL(entry).href"
     },
     {
+      "label": "adr-verify --sweep: a row with the ms suffix adr-verify itself writes is a claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "acceptance-sha256:(?P<digest>[0-9a-f]{64})(?: · [^\\n]*)?\\s*$\", re.M)",
+      "to": "acceptance-sha256:(?P<digest>[0-9a-f]{64})\\s*$\", re.M)"
+    },
+    {
+      "label": "work-next: readiness is adr-next's answer, never a second rule here",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      ready.push(file)",
+      "to": "      if (false) ready.push(file)"
+    },
+    {
+      "label": "work-next: a task file is a .md directly under tasks/, as SessionStart already reads it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "if (!/(?:^|\\/)tasks\\/[^/]+$/.test(norm)) continue",
+      "to": "if (!/(?:^|\\/)tasks\\//.test(norm)) continue"
+    },
+    {
+      "label": "per-edit gate: a record under a fixture directory is not gated as the repository's own",
+      "file": "plugin/scripts/uninteresting.mjs",
+      "tests": [
+        "tests/fixture-edit-gate.test.mjs"
+      ],
+      "from": "  if (parts[0] === '..') return false\n  return listedUnderUninterestingDirectory(parts.slice(0, -1))",
+      "to": "  return false"
+    },
+    {
+      "label": "corpus-probe: a task adr-next calls ready that work-next does not offer is a disagreement, said",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "      if (!workNextReady.has(task.path)) {",
+      "to": "      if (false) {"
+    },
+    {
       "label": "adr-state: a record with neither number nor stem is named by its file, never ADR-00?",
       "file": "plugin/scripts/adr-state.mjs",
       "tests": [
@@ -8354,7 +8399,7 @@
     },
     {
       "label": "corpus: a listed path under tests/, fixtures/ or their kin is not a record of this repository",
-      "file": "plugin/scripts/lifecycle.mjs",
+      "file": "plugin/scripts/uninteresting.mjs",
       "tests": [
         "tests/corpus-excludes-fixtures.test.mjs"
       ],
@@ -9517,6 +9562,123 @@
       "only": "emphasis around a numbered supersession",
       "from": "  const plain = classified.replace(/^superseded\\s+by\\s*/i, '')",
       "to": "  const plain = rest"
+    },
+    {
+      "label": "SessionStart: a task directory past the read cap is counted as unread, never dropped",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (found.length >= cap) { unread += 1; continue }",
+      "to": "    if (found.length >= cap) continue"
+    },
+    {
+      "label": "adr-next: a done task carries no unproven note in --json",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first)),",
+      "to": "            \"unproven\": unreadable_note(text) or unprovable_evidence(text, digest, fence, first),"
+    },
+    {
+      "label": "adr-lint: 'Acceptance changed after verification' needs a digest row to have observed it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                changed_note = (\" Acceptance changed after verification;\" if any(VLOG_DIGEST_RE.match(b) for b in passing)",
+      "to": "                changed_note = (\" Acceptance changed after verification;\" if passing"
+    },
+    {
+      "label": "lifecycle: a hook payload that is not JSON is said on stderr, never swallowed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    process.stderr.write('[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.\\n')",
+      "to": "    process.stderr.write('')"
+    },
+    {
+      "label": "work-next: adr-next's exit 3 is an answer (nothing ready), never an unread directory",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    const answered = !run.error && (run.status === 0 || run.status === 3)",
+      "to": "    const answered = !run.error && run.status === 0"
+    },
+    {
+      "label": "work-next: a task adr-next read from disk but git does not list is not offered",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "      if (allowed && !allowed.has(file)) continue",
+      "to": "      if (false) continue"
+    },
+    {
+      "label": "work-next: a relative repository argument is resolved before adr-next is spawned",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const root = path.resolve(directory)",
+      "to": "  const root = directory"
+    },
+    {
+      "label": "work-next: unread task directories are rendered in text mode, not only serialised",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (state.readinessUnproven.length) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "corpus-probe: a known prefix is redacted in either separator spelling",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\\\', '/'), prefix.replaceAll('/', '\\\\')])]",
+      "to": "  const spellings = prefix => [prefix]"
+    },
+    {
+      "label": "corpus-probe: a directory work-next could not read is not compared",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const answered = adrNext.filter(entry => entry.ready !== null && !unread.has(entry.tasksDir))",
+      "to": "  const answered = adrNext.filter(entry => entry.ready !== null)"
+    },
+    {
+      "label": "next: a directory two records share offers only the task whose own record is Accepted",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const ready = readiness.ready.filter(file => executable(file))",
+      "to": "  const ready = readiness.ready"
+    },
+    {
+      "label": "corpus-probe: a quoted path is redacted whole, spaces and all",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    return out.replace(QUOTED, '$1<path>$1').replace(ABSOLUTE, '<path>')",
+      "to": "    return out.replace(ABSOLUTE, '<path>')"
+    },
+    {
+      "label": "corpus-probe: an unquoted path continues past a space when the next word is followed by a separator",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const TAIL = /[^\\s'\"`)]*(?:[ \\t]+[^\\s'\"`)\\\\/]+(?=[\\\\/])[^\\s'\"`)]*)*/.source",
+      "to": "  const TAIL = /[^\\s'\"`)]*/.source"
     }
   ]
 }

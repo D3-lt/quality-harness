@@ -18,8 +18,67 @@
 // would be the thing this harness spent a week removing.
 import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, listedUnderUninterestingDirectory, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, listedUnderUninterestingDirectory, spawnGate, trackedPaths } from './lifecycle.mjs'
+
+const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
+
+/**
+ * Which tasks are ready, as adr-next answers it — one readiness rule, not two.
+ *
+ * This file had its own: any exit-0 row meant finished, and nothing read
+ * `Depends-on`, `Blocked-on` or the row's digest. adr-next had all three, so
+ * the two readers disagreed on the first real corpus a probe was run over
+ * (2026-09-23: T4 and T5 offered while their `Depends-on: T3` was pending; a
+ * stale-digest task called finished here and ready-unproven there; frozen archive
+ * tasks offered by one and not the other). SessionStart already asks adr-next
+ * per task directory; so does this now, for the task directories of governing,
+ * unfrozen records only — a frozen archive is history, never ready work.
+ *
+ * A directory adr-next could not answer for is UNPROVEN, named in the state, and
+ * never read as "nothing ready" (ADR-005). `spawn` is the seam.
+ */
+export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = null) {
+  // Resolved once. `directory` may be the relative argument `work-next tests/x`
+  // was given, and adr-next was handed that relative task directory while ALSO
+  // running with the repository as cwd — so it looked for `tests/x/adr/…/tasks`
+  // inside `tests/x` and found nothing (Codex review of bdeba73, P2). Every path
+  // adr-next is given or hands back is anchored here.
+  const root = path.resolve(directory)
+  const dirs = new Set()
+  for (const record of corpus) {
+    if (record.kind !== 'governing' || record.frozen) continue
+    // Only task files this reader lists (`taskFiles`: a `.md` directly under
+    // `tasks/`, no archive, no fixture path), so the two views of "which tasks
+    // exist" cannot drift apart — a record's `taskFiles` includes its archived
+    // and nested files, and asking adr-next about those offered history as work.
+    for (const file of record.taskFiles ?? []) {
+      if (allowed && !allowed.has(path.resolve(file))) continue
+      dirs.add(path.dirname(path.resolve(file)))
+    }
+  }
+  const ready = []
+  const unproven = []
+  for (const dir of [...dirs].sort()) {
+    const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000 })
+    // adr-next answers 0 (a ready task) or 3 (nothing ready) — BOTH with JSON. Reading
+    // only 0 as an answer put every finished directory in `unproven` (Codex review of
+    // bdeba73, P2); anything else is the gate not running, and that IS unproven.
+    const answered = !run.error && (run.status === 0 || run.status === 3)
+    let answer = null
+    if (answered) { try { answer = JSON.parse(run.stdout) } catch { answer = null } }
+    if (!answer || !Array.isArray(answer.ready)) { unproven.push(dir); continue }
+    for (const task of answer.ready) {
+      const file = path.resolve(root, task.path)
+      // adr-next reads every `*.md` on disk; this reader lists tracked files. An
+      // untracked sibling adr-next offered is not one this reader can vouch for.
+      if (allowed && !allowed.has(file)) continue
+      ready.push(file)
+    }
+  }
+  return { ready, unproven }
+}
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
 // move, so the router explains itself instead of asserting.
@@ -97,7 +156,11 @@ function taskFiles(directory, listing) {
   const found = []
   for (const rel of listing) {
     const norm = posixRel(rel)
-    if (!/(?:^|\/)tasks\//.test(norm)) continue
+    // A `.md` DIRECTLY under `tasks/`, the same rule as SessionStart's
+    // taskDirectories: Ansible's `roles/*/tasks/files/notes.md` counted as a task
+    // file here while the orientation reader had already learned to skip it
+    // (2026-09-19), so the two disagreed on the task count (BACKLOG §265).
+    if (!/(?:^|\/)tasks\/[^/]+$/.test(norm)) continue
     if (!/\.md$/i.test(norm)) continue
     if (/readme\.md$/i.test(norm)) continue
     if (isArchivePath(norm)) continue
@@ -153,7 +216,7 @@ function coveredIds(corpus) {
 }
 
 /** Observations, each carrying the evidence that produced it. */
-export function observe(directory) {
+export function observe(directory, { spawn = spawnGate } = {}) {
   const listing = trackedPaths(directory)
   const corpus = adrCorpus(directory, { tracked: listing })
   const look = listing == null ? 'UNPROVEN' : (corpus.look ?? 'ok')
@@ -195,6 +258,11 @@ export function observe(directory) {
   const executable = file => owner.get(path.resolve(file))?.kind === 'governing'
   const unfinished = file => {
     const text = read(file)
+    // Waiting on something outside this repository is not ready, whatever the log
+    // says: adr-next has read `**Blocked-on:**` since v2.83.0 (f8a0698), and this
+    // reader went on offering the same task as the next thing to do — the two
+    // disagreed on the one fixture that carried the header (BACKLOG §265).
+    if (/^\*\*Blocked-on:\*\*\s*\S/im.test(text)) return false
     if (!/^##\s+Acceptance/im.test(text)) return false
     // Tool-run evidence: a fence that exited 0.
     if (/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)) return false
@@ -214,7 +282,15 @@ export function observe(directory) {
       && /^- \d{4}-\d{2}-\d{2} · human-observed · \S/m.test(text)) return false
     return true
   }
-  const ready = tasks.filter(file => unfinished(file) && executable(file))
+  const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
+  // Two filters for two questions. `readinessFrom` asks adr-next only about the
+  // task directories of governing, unfrozen records; adr-next then reads EVERY
+  // task in such a directory, and a directory two records share — one Accepted,
+  // one Proposed — hands the Proposed record's task back too. `executable` maps
+  // each task to its OWN record. Removed once as redundant (bdeba73, a GREEN
+  // mutant on shard 4/48, because no fixture shared a directory); restored on a
+  // shared-directory probe (Codex review of 1032720, P2), with that fixture.
+  const ready = readiness.ready.filter(file => executable(file))
   // Named rather than dropped in silence: a corpus whose only unfinished work
   // sits under a record nobody has accepted would otherwise read as finished,
   // which is the same "I could not look" / "there is nothing" conflation the
@@ -259,6 +335,10 @@ export function observe(directory) {
   return {
     look,
     usesVerificationLog,
+    // Task directories adr-next could not answer for; their tasks are neither
+    // ready nor finished here, and a router that read them as "nothing ready"
+    // would be the ADR-005 conflation.
+    readinessUnproven: readiness.unproven,
     records: corpus.length,
     accepted: corpus.filter(record => record.kind === 'governing').length,
     // `records` counts what this reader could CLASSIFY, and until §48 that was
@@ -338,6 +418,7 @@ export function main(argv = process.argv.slice(2)) {
       tasksWithoutEvidence: state.ready.map(relative),
       tasksUnderAnUndecidedRecord: state.notYetDecided.map(relative),
       retirableInActiveCorpus: state.retirable.map(record => relative(record.file)),
+      readinessUnproven: state.readinessUnproven.map(relative),
       specs: state.specs,
       uncoveredReadySpecs: (state.uncoveredReadySpecs ?? []).map(relative),
       unprovenSpecs: (state.unprovenSpecs ?? []).map(relative),
@@ -399,13 +480,23 @@ export function main(argv = process.argv.slice(2)) {
       process.stdout.write(`  (+${state.notYetDecided.length - 5} more; --json for all)\n`)
     }
   }
+  if (state.readinessUnproven.length) {
+    // Rendered, not only serialised: the JSON carried this while the text printed
+    // an all-clear over the same directories (Codex review of bdeba73, P2).
+    process.stdout.write(`\n${state.readinessUnproven.length} task director${state.readinessUnproven.length === 1 ? 'y' : 'ies'} `
+      + 'could not be read by adr-next, so readiness there is UNPROVEN — not "nothing ready" (ADR-005):\n')
+    for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  ${relative(dir)}\n`)
+    if (state.readinessUnproven.length > 5) process.stdout.write(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
+  }
   if (!stage) {
     if (state.tasks && !state.usesVerificationLog) {
       process.stdout.write(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `
         + 'this corpus records evidence some other way, so the execution stages cannot see it. '
         + 'Everything below is still the flow; only the state reading is blind here.\n')
     } else {
-      process.stdout.write('\nNothing in the QH corpus is waiting.\n')
+      process.stdout.write(state.readinessUnproven.length
+        ? '\nNothing this reader could see is waiting; the directories above were not read, so this is not an all-clear.\n'
+        : '\nNothing in the QH corpus is waiting.\n')
     }
     for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\n`)
     return 0

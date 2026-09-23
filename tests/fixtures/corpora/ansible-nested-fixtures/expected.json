@@ -1,0 +1,68 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/adr"
+  ],
+  "records": [
+    [
+      "docs/adr/ADR-001-one-role-per-host-class.md",
+      "governing",
+      false
+    ]
+  ],
+  "workNext": {
+    "records": 1,
+    "accepted": 1,
+    "tasks": 1,
+    "ready": [
+      "docs/adr/ADR-001-one-role-per-host-class/tasks/T1-lint-inventory.md"
+    ],
+    "unbacked": [],
+    "retirable": [],
+    "readinessUnproven": [],
+    "next": null
+  },
+  "adrState": {
+    "read": 1,
+    "governing": 1
+  },
+  "adrNext": [
+    {
+      "tasksDir": "docs/adr/ADR-001-one-role-per-host-class/tasks",
+      "ready": [
+        "T1"
+      ]
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "docs/adr/ADR-001-one-role-per-host-class.md",
+      "verdict": "FAIL"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "docs/adr",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [
+      "one-role-per-host-class/tasks: T1 is ready"
+    ],
+    "mustNotMatch": [
+      "roles/",
+      "fixtures"
+    ]
+  },
+  "neverNamed": [
+    "ADR-009-planted",
+    "roles/db/tasks/files/notes.md"
+  ],
+  "couldNotRun": []
+}

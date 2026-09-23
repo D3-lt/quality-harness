@@ -65,6 +65,16 @@ __all__ = [
     "vlog_row_is_lock_snapshot",
     "body_digest",
     "declared_check",
+    "RECORD_FILE_RE",
+    "TASK_SHAPED_RE",
+    "DATE_SHAPED_RE",
+    "number_id",
+    "first_number_id",
+    "title_line",
+    "record_id",
+    "references_in",
+    "first_reference",
+    "looks_like_record",
 ]
 
 
@@ -357,6 +367,161 @@ def normalize_acceptance(raw):
 def acceptance_digest(command):
     """SHA-256 of the complete normalized Acceptance fence."""
     return hashlib.sha256(command.encode("utf-8")).hexdigest()
+
+
+# --- Record identity (ADR-063) ------------------------------------------------
+# A record is its ADR number, or the exact stem of a date-shaped name. The three
+# name regexes moved here from adr-lint, so every gate reads one spelling;
+# adr-lint imports them. Why a date is a name shape at all, and why a
+# `(?:19|20)` year anchor was rejected in both directions, is adr-lint's comment
+# above `record_files` and BACKLOG §193.
+# ⚠ TWO DIGIT CLASSES, ON PURPOSE (Codex, 2026-09-22, three rounds). A NUMBER is
+# read with `[0-9]`: Python's `\d` also matches Unicode digits, so `ADR-٠١٢-x.md` was
+# record 12 here and nothing in lifecycle.mjs. An EXCLUSION guard keeps `\d`, as
+# adr-lint always had it, so `003-T٢-plan.md` stays a task and `2026-٠٧-15-x.md` a
+# date; the JS copy matches those with `\p{Nd}`. `re.ASCII` is not the fix: it
+# also narrows `\s`, and a title `#<NBSP>ADR-012` then split the two copies.
+RECORD_FILE_RE = re.compile(r"^(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
+# The same shape, read as a NUMBER: ASCII digits only, for `record_id`.
+_RECORD_NUMBER = re.compile(r"^(?:adr[-_]?)?([0-9]{1,4})[-._]", re.I)
+# `003-T2.md`, `003-T2-plan.md` — a task file, or a record with a slug of `t2`.
+TASK_SHAPED_RE = re.compile(r"^(?:adr[-_]?)?\d{1,4}[-._]T\d+(?:[-._]|$)", re.I)
+# `2026-07-12-x.md` in every separator and width — a dated note, or an ADR-2026.
+# ⚠ The owner KEPT this shape on 2026-09-22, so a four-digit number with a
+# numeric slug (`0012-3-tier-cache.md`) is date-shaped too, and is a stem
+# (ADR-063 Risks). A title `# ADR-12` still gives it 12.
+DATE_SHAPED_RE = re.compile(r"^\d{4}[-_.]\d{1,2}[-_.]")
+# A reference that is nothing but a date, `(2026-07-12)` beside a path: a date,
+# never the name of a record.
+_BARE_DATE = re.compile(r"[0-9]{4}[-_.][0-9]{1,2}[-_.][0-9]{1,2}")
+_TITLE_TASK = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T[0-9]+", re.I)
+_TITLE_ADR = re.compile(r"^﻿?#\s*ADR[-_ ]?(?P<rest>[0-9].*)$", re.I)
+_TITLE_NUMBER = re.compile(r"([0-9]{1,4})(?![0-9])")
+_HEADING_LINE = re.compile(r"^﻿?#\s")
+# The numbered token every retire-check spelling already used: `ADR-12`, `ADR012`.
+_FIRST_NUMBER = re.compile(r"(?<!\w)ADR-?([0-9]+)(?!\w)", re.I)
+# A numbered REFERENCE keeps adr-retire-check's receipt rule, hyphen required, so
+# `ADR-012-T3` and `ADR-012/…` still name record 12.
+_NUMBERED_REF = re.compile(r"(?<![A-Za-z0-9_])ADR-([0-9]+)(?![A-Za-z0-9_])", re.I)
+# A stem reference is a run of the characters a record's filename is made of, split
+# at either path separator (CLAUDE.md §7). Backticks, spaces and parentheses end it.
+_REF_CHUNK = re.compile(r"[A-Za-z0-9._/\\-]+")
+_REF_SEPARATOR = re.compile(r"[/\\]")
+# lifecycle's `looksLikeRecord` content test (BACKLOG §55), in Python.
+_RECORD_STATUS = re.compile(r"^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S", re.M | re.I)
+_RECORD_SECTION = re.compile(r"^##\s+(?:Context|Decision)\b", re.M | re.I)
+
+
+def number_id(number):
+    """The id of record `number`, spelled the way every gate prints it: `ADR-012`."""
+    return f"ADR-{int(number):03d}"
+
+
+def first_number_id(text, skip_dates=False):
+    """The first `ADR-N` token in `text` as an id, or None.
+
+    `skip_dates` is for a HEADING only: `# ADR-2026-07-15: X` is a dated title, and
+    reading it as ADR-2026 gave a dated record's obligations to a record that does
+    not exist (Codex, 2026-09-22, round 4; BACKLOG §66's rule). A filename or a path
+    keeps the token rule this gate always used, because narrowing it there moved
+    `notes-ADR-0001-12-factor.txt` out of ADR-001's sealed unit (round 5)."""
+    for found in _FIRST_NUMBER.finditer(text):
+        if not (skip_dates and DATE_SHAPED_RE.match(text[found.start(1):])):
+            return number_id(found.group(1))
+    return None
+
+
+def title_line(text):
+    """The first `# ` heading line of a record's text, or None."""
+    for line, _start, _end in split_lines(text):
+        if _HEADING_LINE.match(line):
+            return line
+    return None
+
+
+def record_id(name, title=None):
+    """A record's identity by ADR-063's rule: `ADR-NNN`, a dated stem, or None.
+
+    `name` is a file name (`x.md`) or a directory name. `title` is the file's first
+    `# ` line (`title_line`), or None. In order: a title `# ADR-N…` that is not
+    task-shaped and whose number is not itself date-shaped gives N; otherwise a
+    name that is `DATE_SHAPED_RE` is its exact stem, never mined for a number;
+    otherwise a name matching `RECORD_FILE_RE` that is not task-shaped gives its
+    number. Anything else has no identity by name, which is not the same as not
+    being a record: the caller decides what to say about it.
+    """
+    if title is not None and not _TITLE_TASK.match(title):
+        found = _TITLE_ADR.match(title)
+        if found and not DATE_SHAPED_RE.match(found["rest"]):
+            number = _TITLE_NUMBER.match(found["rest"])
+            if number:
+                return number_id(number.group(1))
+    is_markdown = name.lower().endswith(".md")
+    stem = name[:-len(".md")] if is_markdown else name
+    # A directory or attachment name has no `.md` to supply the separator
+    # RECORD_FILE_RE needs after the number, so `ADR-001` reads as a bare number.
+    shaped = name if is_markdown else f"{name}."
+    if DATE_SHAPED_RE.match(shaped):
+        return stem
+    if TASK_SHAPED_RE.match(stem):
+        return None
+    found = _RECORD_NUMBER.match(shaped)
+    return number_id(found.group(1)) if found else None
+
+
+def references_in(text):
+    """Every record a piece of prose names, in the order it names them:
+    `ADR-NNN` ids and dated stems, each once.
+
+    A stem is named only as a whole token or a whole path component, after
+    trailing punctuation and a `.md` suffix are stripped, so `…-defer` is never
+    read out of `…-defer-flock`. A date-shaped token that names no record (a
+    `(2026-07-12)` beside a path) is returned too; `first_reference` skips it.
+    The ORDER is what lets a supersession name its replacement: the first
+    reference, not whichever one happens to exist.
+    """
+    ordered = []
+    for name, _explicit in _references(text):
+        if name not in ordered:
+            ordered.append(name)
+    return ordered
+
+
+def _references(text):
+    """`(name, explicit)` for each reference in text order. `explicit` is a name
+    written as a file or a path (`x.md`, `docs/adr/x`), as opposed to a bare token."""
+    found = [(match.start(), number_id(match.group(1)), True) for match in _NUMBERED_REF.finditer(text)]
+    for chunk in _REF_CHUNK.finditer(text):
+        offset = chunk.start()
+        pathlike = bool(_REF_SEPARATOR.search(chunk.group()))
+        for raw in _REF_SEPARATOR.split(chunk.group()):
+            part = raw.rstrip(".,;:)")
+            filename = part.lower().endswith(".md")
+            if filename:
+                part = part[:-len(".md")].rstrip(".,;:)")
+            if part and DATE_SHAPED_RE.match(part):
+                found.append((offset, part, filename or pathlike))
+            offset += len(raw) + 1
+    return [(name, explicit) for _offset, name, explicit in sorted(found, key=lambda item: item[0])]
+
+
+def first_reference(text):
+    """The record a `superseded by …` names: its first reference that is not a
+    bare prose date, or None. Taking the first is the point — `superseded by
+    ADR-999 (see ADR-002)` names ADR-999, and must not pass because ADR-002
+    exists. A date written as a file or a path (`docs/adr/2026-07-15.md`) is a
+    record's name, not prose, so it is not skipped (Codex, 2026-09-22)."""
+    for name, explicit in _references(text):
+        if explicit or not _BARE_DATE.fullmatch(name):
+            return name
+    return None
+
+
+def looks_like_record(text):
+    """Whether `text` reads as a decision record: a Status line, and a
+    `## Context` or `## Decision` section (lifecycle's `looksLikeRecord`)."""
+    return bool(_RECORD_STATUS.search(text) and _RECORD_SECTION.search(text))
+
 
 # First-red test-body lock (ADR-050). One hasher, one parse, three callers.
 # The calendar day is the day AFTER this repository's own 2026-09-12 evidence

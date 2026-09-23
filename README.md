@@ -11,7 +11,8 @@ instead of a summary.
 
 It is for people who already let an agent write real code and have started
 wondering how much of "done" they can trust. It brings no opinions about your
-language, layout or test runner.
+language or test runner. It does have one about what a decision record looks
+like: a MADR or Nygard file is reported as not recognised and left alone (ADR-038).
 
 ## Start here
 
@@ -104,9 +105,9 @@ trust, so:
   releases, not for every edit.
 - **It is real work.** Before code, a task has to say how it will be checked and
   what would make you stop.
-- **It brings no opinions about your project** — no folder layout, no test command,
-  no configuration. It adapts to your repository, which also means it does not
-  guess for you.
+- **It brings no opinions about your language or test command.** It adapts to your
+  repository, which also means it does not guess for you. The one shape it does
+  hold an opinion on is its own record format (ADR-038); other ADR styles are left alone.
 
 ## Is it for you?
 

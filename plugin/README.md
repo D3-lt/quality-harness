@@ -15,6 +15,9 @@ Ask, rather than trusting this page:
 
     node "$(qh-root)/scripts/qh-doctor.mjs"
 
+`qh-root` is on `PATH` inside a Claude Code session. From any other terminal, name the
+installed copy: `node ~/.claude/plugins/cache/quality-harness/quality-harness/<version>/scripts/qh-doctor.mjs`.
+
 It reports the resolved root and version, what ships, whether each installed home
 gate is a forwarder or a stale copy, drift against this plugin, and how many lint
 findings actually fail versus only advise. Every figure is measured at call time.
@@ -143,7 +146,8 @@ about are forms nobody uses.
 
 ## Start here
 
-1. Install, then run `qh-doctor` above to see what you have.
+1. Install — `/plugin marketplace add D3-lt/quality-harness`, then
+   `/plugin install quality-harness@quality-harness`, restart — and run `qh-doctor` above.
 2. Load `/quality-harness:operating` once, for how to run the harness itself.
 3. Bring a real decision to `/quality-harness:adr-write`, or a real change to
    `/quality-harness:work`.

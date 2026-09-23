@@ -8335,6 +8335,15 @@
       "to": "TASK_PATH_ADVISE_LEN = 1400"
     },
     {
+      "label": "adr-state: a record with neither number nor stem is named by its file, never ADR-00?",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/adr-state-label.test.mjs"
+      ],
+      "from": ": path.basename(record.file, '.md'))",
+      "to": ": 'ADR-00?')"
+    },
+    {
       "label": "corpus: a listed path under tests/, fixtures/ or their kin is not a record of this repository",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [

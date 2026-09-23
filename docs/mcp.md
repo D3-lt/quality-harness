@@ -39,7 +39,9 @@ you, because over MCP the client names a path it cannot see.
 
 ## What you get
 
-Seven tools. Each one runs the gate itself and hands back its output unchanged — the server never
+The reading gates, one tool each — `tools/list` is the authority on how many, because this page
+carried "seven" for weeks after the server registered nine. Each one runs the gate itself and hands
+back its output unchanged — the server never
 summarises, re-words or grades it, because a second opinion about a gate's output is a second gate.
 
 | Tool | Gate | Answers |
@@ -51,6 +53,8 @@ summarises, re-words or grades it, because a second opinion about a gate's outpu
 | `qh_arch_lint` | `arch-lint` | Does this architecture doc name checks that exist and can fail? |
 | `qh_adr_retire_check` | `adr-retire-check` | Does a retired/archived corpus still hold together? |
 | `qh_postmortem_verify` | `postmortem-verify` | Are these postmortems structured to be reusable? |
+| `qh_adr_context` | `adr-context` | Which records govern these files, and which were retired? |
+| `qh_orientation` | (lifecycle) | What the session-start orientation would say about this corpus. |
 
 **A finding is not an error.** The gates advise and never block. A gate that ran and found problems
 returns them as ordinary content with its exit code stated; the protocol's error channel is
@@ -95,5 +99,5 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
   | python3 plugin/bin/qh-mcp
 ```
 
-Two JSON lines back, the second naming the seven tools. If that works and Desktop still shows
+Two JSON lines back, the second listing the tools. If that works and Desktop still shows
 nothing, the problem is the config path, the interpreter, or the restart — in that order.

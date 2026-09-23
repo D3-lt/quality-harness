@@ -8326,6 +8326,33 @@
       "to": "shell: false } : { file: command, args: [], shell: true }"
     },
     {
+      "label": "adr-lint: a task path past the Windows ceiling is advised at authoring time",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "TASK_PATH_ADVISE_LEN = 140",
+      "to": "TASK_PATH_ADVISE_LEN = 1400"
+    },
+    {
+      "label": "corpus: a listed path under tests/, fixtures/ or their kin is not a record of this repository",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-excludes-fixtures.test.mjs"
+      ],
+      "from": "return dirParts.some(part => UNINTERESTING_DIRECTORY.test(part))",
+      "to": "return false"
+    },
+    {
+      "label": "work-next: a record already in the frozen archive is not offered for retirement",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "record.kind === 'graveyard' && !record.frozen)",
+      "to": "record.kind === 'graveyard')"
+    },
+    {
       "label": "R3: an index-only change during a read-only run is reported",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [

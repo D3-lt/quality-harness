@@ -1455,11 +1455,52 @@ def check_unterminated_fence(path, text, errors, blocking):
             f"Close it with a matching fence line.")
 
 
+# BACKLOG §231, §262. Windows MAX_PATH is 260 and a default Git for Windows does
+# not set core.longpaths, so every character a task path grows is one the
+# checkout root loses: at 157 the longest path here left 103 for the root, and a
+# Windows 11 session's clone into a temp directory failed with "Filename too
+# long" (2026-09-23). Retiring a record moves it from `docs/adr/` to
+# `docs/adr-archive/`, eight characters more, which is how the ceiling rose from
+# 149 to 157 without a task being written. Advisory: renaming an accepted
+# record's task rewrites history (CLAUDE.md §10), so this speaks when a NEW
+# task is named and stays quiet on the corpus as it stands, bar the two archived
+# ADR-059 tasks already past it.
+TASK_PATH_ADVISE_LEN = 140
+ARCHIVE_SHIFT = len("-archive")
+# A directory that IS an archive — `adr-archive`, `archive`, `archived`, `archives` —
+# and not one whose name merely starts that way: `archive-service/docs/adr/` is an
+# active corpus and its tasks still move on retirement (Codex review of 6bc0330).
+ARCHIVE_PART_RE = re.compile(r"(^|[-_])archive[ds]?$", re.I)
+
+
+def check_task_path_length(path, root, errors):
+    """Advise when a task's repository path would break a default Windows clone."""
+    if root is None:
+        return
+    try:
+        rel = path.resolve().relative_to(Path(root).resolve()).as_posix()
+    except ValueError:
+        return
+    archived = any(ARCHIVE_PART_RE.search(part) for part in rel.split("/")[:-1])
+    shift = 0 if archived else ARCHIVE_SHIFT
+    length = len(rel) + shift
+    if length > TASK_PATH_ADVISE_LEN:
+        later = "" if archived else (f" ({len(rel)} now, +{shift} once its record is retired into the "
+                                     f"`-archive` sibling adr-retire creates by default)")
+        errors.advise(
+            f"{path.name}: its repository path is {length} characters{later}, past "
+            f"{TASK_PATH_ADVISE_LEN}. Windows MAX_PATH is 260 and a default Git for Windows "
+            f"does not set core.longpaths, so a checkout root longer than {260 - length} "
+            f"characters cannot clone this repository (BACKLOG §231). A shorter task name "
+            f"keeps the ceiling where it is.")
+
+
 def check_task(path, all_stems, errors, root, tracked):
     text = path.read_text(errors="replace", encoding="utf-8")
     secs = sections_of(text)
     test_rows = task_tests_rows(secs)
     check_step_proof_map(path, text, secs, errors)
+    check_task_path_length(path, root, errors)
     for s in TASK_SECTIONS:
         if s not in secs:
             errors.advise(f"{path.name}: missing section ## {s}")

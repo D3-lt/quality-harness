@@ -19,7 +19,7 @@
 import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { adrCorpus, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, listedUnderUninterestingDirectory, trackedPaths } from './lifecycle.mjs'
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
 // move, so the router explains itself instead of asserting.
@@ -101,6 +101,9 @@ function taskFiles(directory, listing) {
     if (!/\.md$/i.test(norm)) continue
     if (/readme\.md$/i.test(norm)) continue
     if (isArchivePath(norm)) continue
+    // The same exclusion `adrCorpus` applies, or the count of task files and the
+    // `unbacked` list would still carry fixtures whose records were dropped.
+    if (listedUnderUninterestingDirectory(norm.split('/').slice(0, -1))) continue
     found.push(path.join(directory, rel))
   }
   return found
@@ -219,8 +222,13 @@ export function observe(directory) {
   const notYetDecided = tasks.filter(file => unfinished(file) && !executable(file)
     && owner.has(path.resolve(file)))
 
-  const retirable = corpus.filter(record => record.kind === 'graveyard'
-    && !/[\\/]archive[\\/]/i.test(record.file))
+  // The corpus reader knows which records sit under a frozen archive, because it
+  // read the catalog that says so. Two path tests preceded this: `/archive/`
+  // missed this repository's `adr-archive`, so all seven retired records were
+  // offered for retirement again; `isArchivePath` then matched an ACTIVE
+  // `docs/adr/archive-policy.md` and anything under `archive-service/`, hiding
+  // real candidates (BACKLOG §263; Codex review of 870a230, P2).
+  const retirable = corpus.filter(record => record.kind === 'graveyard' && !record.frozen)
 
   const covered = coveredIds(corpus)
   const unprovenSpecs = []

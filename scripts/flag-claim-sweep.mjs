@@ -51,7 +51,7 @@
 //   node scripts/flag-claim-sweep.mjs [<git range>]   # default: origin/main..HEAD
 //   node scripts/flag-claim-sweep.mjs --all           # every commit touching plugin/bin/
 import { execFileSync } from 'node:child_process'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const GATES_DIR = 'plugin/bin'
 
@@ -211,6 +211,6 @@ export function main(argv) {
   return 0
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
+if (isMainModule(import.meta.url)) {
   process.exit(main(process.argv.slice(2)))
 }

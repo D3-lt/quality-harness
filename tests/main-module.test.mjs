@@ -67,7 +67,10 @@ test('no shipped or repository script compares import.meta.url to argv[1] unreso
   // as the fallback. Everything else routes through isMainModule.
   const standalone = new Set(['plugin/scripts/main-module.mjs', 'plugin/scripts/workflow-parse.mjs'])
   const offenders = files.filter(file => !standalone.has(file)
-    && /pathToFileURL\(\s*(?:process\.)?argv\[1\]\s*\)\.href/.test(readFileSync(path.join(repoRoot, file), 'utf8')))
+    // Every spelling the sweep of 2026-09-23 met: `pathToFileURL(process.argv[1])`,
+    // `pathToFileURL(process.argv[1] ?? '')`, and a `file://` template — the last
+    // never matched on Windows at all (the backlog sweeps' own comments say why).
+    && /pathToFileURL\(\s*(?:process\.)?argv\[1\][^)]*\)\.href|new URL\(`file:\/\/\$\{process\.argv\[1\]\}`\)/.test(readFileSync(path.join(repoRoot, file), 'utf8')))
   assert.deepEqual(offenders, [], 'route the guard through isMainModule instead')
   // The control: the sweep can see the pattern at all.
   assert.match(readFileSync(path.join(repoRoot, 'plugin/scripts/main-module.mjs'), 'utf8'), /pathToFileURL\(entry\)\.href/)

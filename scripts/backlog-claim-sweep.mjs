@@ -26,7 +26,6 @@
 // Exit code is 0 whatever it finds. A count here is a place to look, not a
 // defect count — same reading as scripts/fence-obligation-sweep.py.
 import { execFileSync } from 'node:child_process'
-import { pathToFileURL } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const BACKLOG = 'docs/BACKLOG.md'

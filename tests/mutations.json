@@ -877,7 +877,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "const dangling = corpus.filter(record => record.supersededBy && !byNumber.has(record.supersededBy))",
+      "from": "const dangling = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))",
       "to": "const dangling = []"
     },
     {
@@ -913,7 +913,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "const ADR_FILE = /^(?!\\d{4}-\\d{2}-\\d{2})(?:adr[-_]?)?\\d{3,4}[-._]/i",
+      "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?)?\\d{3,4}[-._]/i",
       "to": "const ADR_FILE = /^(?:adr[-_]?)?\\d{3,4}[-._]/i"
     },
     {
@@ -2426,8 +2426,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    name = re.search(r\"(?:adr[-_]?)?(\\d{3,4})[-._]\", directory.name, re.I)",
-      "to": "    name = re.search(r\"(?:adr[-_]?)?(\\d{1,4})[-._]\", str(directory), re.I)"
+      "from": "    found = record_id(directory.name, title)",
+      "to": "    found = next((record_id(part) for part in reversed(directory.parts) if record_id(part)), None)"
     },
     {
       "label": "verify: zero is a record number, not an absent one",
@@ -8745,7 +8745,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by ADR-\\d+)$/i",
+      "from": "const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by \\S.*)$/i",
       "to": "const ARCHIVE_EFFECT = /./"
     },
     {
@@ -8754,8 +8754,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "      [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)),",
-      "to": "      ['README.md'],"
+      "from": "  [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate))",
+      "to": "  ['README.md']"
     },
     {
       "label": "catalog: a row speaks for the file its link names",
@@ -9044,6 +9044,416 @@
       ],
       "from": "  for (let depth = 0; depth < dirParts.length; depth++) {",
       "to": "  for (let depth = 1; depth < dirParts.length; depth++) {"
+    },
+    {
+      "label": "ADR-063: a date-shaped name is its stem, not a number",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-slug archive passes",
+      "from": "        return stem",
+      "to": "        return None"
+    },
+    {
+      "label": "ADR-063: a date-shaped name is never read as a record number",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-shaped name never yields",
+      "from": "    if DATE_SHAPED_RE.match(shaped):",
+      "to": "    if False and DATE_SHAPED_RE.match(shaped):"
+    },
+    {
+      "label": "ADR-063: a receipt names a dated record by stem",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-slug archive passes",
+      "from": "                found.append((offset, part, filename or pathlike))",
+      "to": "                pass"
+    },
+    {
+      "label": "ADR-063: a receipt names a record only as a whole token",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a reference names a record only as a whole token",
+      "from": "and adr_id in references_in(line)",
+      "to": "and adr_id in line"
+    },
+    {
+      "label": "ADR-063: a supersession may name a dated record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-slug archive passes",
+      "from": "                replacements[adr_id] = named",
+      "to": "                replacements[adr_id] = named if named.startswith(\"ADR-\") else None"
+    },
+    {
+      "label": "ADR-063: a record is found by its content, not only by an ADR- name",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "an NNN-slug archive keeps",
+      "from": "if not named and not looks_like_record(text):",
+      "to": "if not named:"
+    },
+    {
+      "label": "ADR-063: an admitted file with no identity is named, not dropped",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a file with no identity is advice",
+      "from": "unidentified.append(path)",
+      "to": "pass"
+    },
+    {
+      "label": "ADR-063: a record under a frozen archive is listed by its content",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the corpus reader lists dated records",
+      "from": "    else if (frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)",
+      "to": "    else if (false && frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)"
+    },
+    {
+      "label": "ADR-063: the catalog is found at the archive root",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the lifecycle archive reader reads a record by its stem",
+      "from": "  const directory = catalogDirectoryFor(file, root, reader, listed)",
+      "to": "  const directory = path.dirname(file)"
+    },
+    {
+      "label": "ADR-063: a supersession names an id, never a date's digits",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a dated supersession is never record 2026",
+      "from": "        ? supersessionTarget(retired ? status : rawStatus(text), status)",
+      "to": "        ? (/(\\d{1,4})/.exec(status)?.[1] ?? null)"
+    },
+    {
+      "label": "ADR-063: adr-state keys supersession by id",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-state resolves a supersession by stem",
+      "from": "  .map(record => [record.id, record]))",
+      "to": "  .map(record => [String(record.number), record]))"
+    },
+    {
+      "label": "ADR-063: lifecycle's identity rule gives a dated name its stem",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the JS and Python identity rules agree",
+      "from": "  if (DATE_SHAPED_RE.test(shaped)) return stem",
+      "to": "  if (false) return stem"
+    },
+    {
+      "label": "ADR-063: adr-verify reads a record number through record_id",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "    found = record_id(directory.name, title)",
+      "to": "    found = f\"ADR-{m.group(1)}\" if (m := re.search(r\"(\\d{3,4})[-._]\", directory.name)) else record_id(directory.name, title)"
+    },
+    {
+      "label": "ADR-063: adr-verify reads the owning record's title",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "        title = title_line(record.read_text(errors=\"replace\", encoding=\"utf-8\"))",
+      "to": "        title = None"
+    },
+    {
+      "label": "ADR-063: adr-verify finds the record file by its full name",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "    record = directory.parent / f\"{directory.name}.md\"",
+      "to": "    record = directory.with_suffix(\".md\")"
+    },
+    {
+      "label": "ADR-063: an unnumbered record is never demoted",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "        # demoting it would be silent and permanent.\n        return False",
+      "to": "        # demoting it would be silent and permanent.\n        return True"
+    },
+    {
+      "label": "ADR-063: the sweep marks a demoted false claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "            mark = \" [strictFrom]\" if task in demoted else \"\"",
+      "to": "            mark = \"\""
+    },
+    {
+      "label": "ADR-063: a numbered attachment keeps its ADR token",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a numbered attachment keeps",
+      "from": "    for part in reversed(relative.parts):\n        found = first_number_id(part)",
+      "to": "    for part in reversed(relative.parts[:-1]):\n        found = first_number_id(part)"
+    },
+    {
+      "label": "ADR-063: a supersession names its first reference",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a supersession names its first reference",
+      "from": "            named = first_reference(row[\"effect\"][len(\"superseded by \"):])",
+      "to": "            named = next(iter(sorted(set(references_in(row[\"effect\"][len(\"superseded by \"):])) & known)), None)"
+    },
+    {
+      "label": "ADR-063: --adopt names an unidentified record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "names an unidentified record as advice",
+      "from": "    for path in unidentified:\n        print(f\"  advice: {path.relative_to(active_root.parent)",
+      "to": "    for path in []:\n        print(f\"  advice: {path.relative_to(active_root.parent)"
+    },
+    {
+      "label": "ADR-063: an unreadable catalog leaves a dated record listed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a catalog this reader cannot read",
+      "from": "    if (underFrozenArchive(root, parts, frozen, listed) === false) return false",
+      "to": "    if (underFrozenArchive(root, parts, frozen, listed) !== true) return false"
+    },
+    {
+      "label": "ADR-063: a supersession must name a record to be an effect",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a supersession that names no record",
+      "from": "  if (/^superseded\\b/i.test(effects[0]) && supersessionTarget(effects[0]) === null) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-063: numbered supersession spellings are read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a numbered supersession is read in every spelling",
+      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)",
+      "to": "  const loose = /(?<![A-Za-z0-9_])ADR-(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)"
+    },
+    {
+      "label": "ADR-063: the identity regexes are ASCII",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "both identity rules read ASCII digits only",
+      "from": "_RECORD_NUMBER = re.compile(r\"^(?:adr[-_]?)?([0-9]{1,4})[-._]\", re.I)",
+      "to": "_RECORD_NUMBER = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)"
+    },
+    {
+      "label": "ADR-063: a record's own name comes before the companion rule",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a record is its own record",
+      "from": "    if not in_tasks and looks_like_record(text):",
+      "to": "    if False:"
+    },
+    {
+      "label": "ADR-063: a dated filename is a name in a supersession",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a dated filename in a supersession",
+      "from": "        if explicit or not _BARE_DATE.fullmatch(name):",
+      "to": "        if not _BARE_DATE.fullmatch(name):"
+    },
+    {
+      "label": "ADR-063: a numbered supersession needs a whole identifier",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a numbered supersession needs a whole identifier",
+      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)",
+      "to": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?!\\d)/i.exec(plain)"
+    },
+    {
+      "label": "ADR-063: a title's whitespace is read alike in both copies",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "whatever its whitespace",
+      "from": "_TITLE_ADR = re.compile(r\"^﻿?#\\s*ADR[-_ ]?(?P<rest>[0-9].*)$\", re.I)",
+      "to": "_TITLE_ADR = re.compile(r\"^﻿?#\\s*ADR[-_ ]?(?P<rest>[0-9].*)$\", re.I | re.ASCII)"
+    },
+    {
+      "label": "ADR-063: the numbered ADR-token rule runs before the dated layer",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a numbered attachment keeps its ADR token over",
+      "from": "    for part in reversed(relative.parts):\n        found = first_number_id(part)",
+      "to": "    for part in []:\n        found = first_number_id(part)"
+    },
+    {
+      "label": "ADR-063: a task file never takes its own record-shaped name",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a record-shaped file under tasks",
+      "from": "    if not in_tasks and looks_like_record(text):",
+      "to": "    if looks_like_record(text):"
+    },
+    {
+      "label": "ADR-063: a companion belongs to the longest stem",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the longest stem it extends",
+      "from": "        return max(companions, key=len)",
+      "to": "        return min(companions, key=len)"
+    },
+    {
+      "label": "ADR-063: a heading token reads ASCII digits only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a Unicode-digit title",
+      "from": "_FIRST_NUMBER = re.compile(r\"(?<!\\w)ADR-?([0-9]+)(?!\\w)\", re.I)",
+      "to": "_FIRST_NUMBER = re.compile(r\"(?<!\\w)ADR-?(\\d+)(?!\\w)\", re.I)"
+    },
+    {
+      "label": "ADR-063: the exclusion guards read any decimal digit",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the exclusion guards read any decimal digit",
+      "from": "TASK_SHAPED_RE = re.compile(r\"^(?:adr[-_]?)?\\d{1,4}[-._]T\\d+(?:[-._]|$)\", re.I)",
+      "to": "TASK_SHAPED_RE = re.compile(r\"^(?:adr[-_]?)?[0-9]{1,4}[-._]T[0-9]+(?:[-._]|$)\", re.I)"
+    },
+    {
+      "label": "ADR-063: a bare leading number is a supersession candidate",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a supersession by a bare number",
+      "from": "  const first = [bare, numbered, dated].filter(Boolean).sort((a, b) => a.at - b.at)[0]",
+      "to": "  const first = [numbered, dated, bare].filter(Boolean)[0]"
+    },
+    {
+      "label": "ADR-063: an underscore prefix is not a numbered reference",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "an underscore-prefixed token",
+      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)",
+      "to": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)"
+    },
+    {
+      "label": "ADR-063: a heading token never reads a date as a number",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a dated title never gives its record a number",
+      "from": "        if not (skip_dates and DATE_SHAPED_RE.match(text[found.start(1):])):",
+      "to": "        if True:"
+    },
+    {
+      "label": "ADR-063: a non-record's bare number names no record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a non-record with a bare-number name",
+      "from": "    return found if found and not found.startswith(\"ADR-\") else None",
+      "to": "    return found"
+    },
+    {
+      "label": "ADR-063: a status keeps the underscores in a record name",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a supersession keeps the underscores",
+      "from": "  return inline ? inline[1].replace(/[*`]/g, '').trim() : recordStatus(text)",
+      "to": "  return inline ? inline[1].replace(/[*_`]/g, '').trim() : recordStatus(text)"
+    },
+    {
+      "label": "ADR-063: only a heading skips a dated token",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "keeps a token that looks like a date",
+      "from": "def first_number_id(text, skip_dates=False):",
+      "to": "def first_number_id(text, skip_dates=True):"
+    },
+    {
+      "label": "ADR-063: a decision unit sorts by case-sensitive parts on every host",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "hashes in the same order on every platform",
+      "from": "    return sorted(paths, key=lambda path: path.parts)",
+      "to": "    return sorted(paths)"
+    },
+    {
+      "label": "ADR-063: a numbered supersession is read from the classified status",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "emphasis around a numbered supersession",
+      "from": "  const plain = classified.replace(/^superseded\\s+by\\s*/i, '')",
+      "to": "  const plain = rest"
     }
   ]
 }

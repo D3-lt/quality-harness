@@ -49,14 +49,10 @@ whose catalog says what each one's decision effect is now.
 | [ADR-038](ADR-038-a-staged-product-not-a-funnel.md) | A staged product, not a funnel | Accepted |
 | [ADR-039](ADR-039-records-use-the-same-listing.md) | Records use the same listing | Accepted |
 | [ADR-040](ADR-040-sessionstart-ready-uses-the-listing.md) | SessionStart ready uses the listing | Accepted |
-| [ADR-041](ADR-041-a-probe-prefix-is-not-the-mutation.md) | A probe prefix is not the mutation | Accepted |
-| [ADR-042](ADR-042-unproven-write-is-advise.md) | UNPROVEN write authorship is Advise | Accepted |
 | [ADR-043](ADR-043-layer-from-stages-catalog.md) | Name Core and Corpus from the STAGES catalog | Accepted |
 | [ADR-044](ADR-044-statusline-snippet-is-a-segment.md) | Compose the statusline segment; do not replace statusLine | Accepted |
 | [ADR-045](ADR-045-one-record-grammar.md) | One record grammar, loaded, not copied | Accepted |
 | [ADR-046](ADR-046-a-caller-relays-could-not-run.md) | A caller relays could-not-run as could-not-run | Accepted |
-| [ADR-047](ADR-047-an-unrecognised-command-is-unproven.md) | An unrecognised command is UNPROVEN | Accepted |
-| [ADR-048](ADR-048-an-unproven-write-has-a-validation-term.md) | An UNPROVEN write has a validation term | Accepted |
 | [ADR-049](ADR-049-an-unreadable-file-is-could-not-run.md) | An unreadable file is could-not-run | Accepted |
 | [ADR-050](ADR-050-a-locked-test-body-is-not-rewritten.md) | A locked test body is not rewritten | Accepted |
 | [ADR-051](ADR-051-unproven-advise-does-not-invent-writes.md) | Unproven Advise does not invent writes | Accepted |

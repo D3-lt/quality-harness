@@ -43,10 +43,17 @@ In a repository with nothing set up:
 ```text
 0 record(s), 0 accepted, 0 task file(s), 0 spec(s).
 
-Next: /spec-write
-  because there is no spec corpus at all, or the work is not yet decided.
-  Nothing downstream can be verified against requirements nobody wrote.
+No QH corpus is in use.
+
+Next: verify or execute the current work
+  because there is nothing here for the lifecycle to route yet.
 ```
+
+(This block is what `work-next` prints today; an earlier version of this page showed a
+`Next: /spec-write` line that the code never printed for an empty repository — the router does not
+propose a stage nobody asked for.)
+
+```text
 
 It reads, decides nothing, and exits 0 whatever it finds. Run it whenever you have
 lost the thread.
@@ -103,6 +110,13 @@ This is a design rule, not an oversight. A tool that stops you without explainin
 leaves you worse off than no tool. If something here ever blocks you without
 saying what to do next, that is a bug worth reporting.
 
+**One exception, said plainly (ADR-061, since 2.102.0):** once your project has a check — declared
+as `check` in `.quality-harness.json` or inferred from a manifest — a Bash command whose text names
+`commit` or `push` is refused while no `qh-check` has passed on the current tree. Run `qh-check`
+(it runs your check and records the result) and the commit goes through. The refusal also fires on
+a heredoc that merely contains the word; `"publish": "warn"` turns it back into a warning. Every
+could-not-look — a torn log, a check that timed out — warns and never refuses.
+
 ### It says "I could not look"
 
 A check that could not run reports `UNRUN`, `PARTIAL` or `UNPROVEN` — never a
@@ -151,9 +165,15 @@ None of these are prerequisites. They are for problems you may not have.
 ## Common questions
 
 **Does it work with my language?**
-It has no opinions about your language, layout or test runner. The acceptance
-command is whatever you type — `go test ./...`, `pytest -k`, `npm test`. That
-also means it will not guess for you.
+It has no opinions about your language or test runner. The acceptance command is whatever you
+type — `go test ./...`, `pytest -k`, `npm test`. That also means it will not guess for you.
+
+**Does it read my existing ADRs?**
+Only if they are its shape. A record is one the gates recognise when its file name starts with
+`ADR-`, its title is `# ADR-N`, or it carries the QH sections (`Existing Primitives Audit`,
+`Decision`, `Alternatives Considered`, `Consequences`). A MADR or Nygard record is reported as
+`not-recognised` and left alone — that is ADR-038's decision, not an accident — so bring a new
+decision to `/quality-harness:adr-write` rather than expecting the old corpus to be judged.
 
 **Will it slow my agent down?**
 It takes more turns — measured at 2.33× on the README's ablation. But turns are

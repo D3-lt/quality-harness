@@ -36,7 +36,9 @@ export function main(argv) {
     return 0
   }
   const relative = record => path.relative(root, record.file) || record.file
-  const label = record => record.id ?? `ADR-${String(record.number ?? '?').padStart(3, '0')}`
+  // A record with neither number nor dated stem (ADR-063) is named by its file, never `ADR-00?`.
+  const label = record => record.id
+    ?? (record.number != null ? `ADR-${String(record.number).padStart(3, '0')}` : path.basename(record.file, '.md'))
 
   const governing = corpus.filter(record => record.kind === 'governing')
   // Keyed by id (ADR-063), so a supersession by a dated record's stem resolves.

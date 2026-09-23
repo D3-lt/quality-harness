@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-23",
+  "at": "bbade177fd992610df466ba4be94f6b0fc86bc79",
+  "plugin": "branch outside-run-evidence (banner still 2.105.0; not yet bumped)",
+  "kind": "hand",
+  "probeSha256": null,
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 158, "tasks": 505, "taskDirectories": null },
+  "couldNotRun": 0,
+  "disagreements": null,
+  "readinessUnproven": 2,
+  "runner": "a peer Claude Code session on this machine, read-only, over a private Rust corpus (the one that reported BACKLOG §268); third run of the evening, after the publish classifier was reworked twice",
+  "found": "adr-lint passes the §268 record (two first-red advisories, §268's open item, unchanged). work-next: 146 accepted of 158 records, 505 tasks, readinessUnproven 2 — a lead, not investigated. Counts were read by key name, not by schema."
+}

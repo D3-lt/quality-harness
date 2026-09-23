@@ -12,7 +12,7 @@
 // role that says "never edits", enforced where the tool list could not reach.
 // A payload this hook cannot read passes: a guard that fails closed on its own
 // bug would stop a reviewer from reading, which is the one thing it exists to do.
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 import { readOnlyVerdict } from './lifecycle.mjs'
 
 // The verdict is lifecycle.mjs's (readOnlyVerdict); this file is the CLI the
@@ -32,6 +32,6 @@ export async function main(stdin = process.stdin, stderr = process.stderr) {
   return 2
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exitCode = await main()
 }

@@ -26,7 +26,7 @@
 // Exit code is 0 whatever it finds. A count here is a place to look, not a
 // defect count — same reading as scripts/fence-obligation-sweep.py.
 import { execFileSync } from 'node:child_process'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const BACKLOG = 'docs/BACKLOG.md'
 
@@ -210,6 +210,6 @@ function main(argv) {
 // runs, and the script exits 0 having printed NOTHING — a "could not look"
 // wearing a clean exit (CLAUDE.md §3). Measured 2026-09-03: that is exactly what
 // the Windows job saw, and the empty string was the only evidence it left.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(main(process.argv.slice(2)))
 }

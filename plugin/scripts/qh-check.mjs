@@ -11,7 +11,7 @@ import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
 import { appendFileSync, mkdirSync, realpathSync } from 'node:fs'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 import { checkCommandOrigin, observe, stateDir, validationVerdict } from './lifecycle.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
 
@@ -135,7 +135,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   return exit ?? 1
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const argv = process.argv.slice(2)
   if (argv.length) {
     process.stderr.write(`qh-check: unknown option: ${argv[0]}\nusage: qh-check\n`)

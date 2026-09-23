@@ -9,7 +9,7 @@
 
 import { spawn } from 'node:child_process'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 /** The parsed invocation, or a usage error. Pure, so the checks are testable. */
 export function parse(argv) {
@@ -51,7 +51,7 @@ export function main(argv, spawnFn = spawn) {
   return null
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const code = main(process.argv.slice(2))
   if (code !== null) process.exitCode = code
 }

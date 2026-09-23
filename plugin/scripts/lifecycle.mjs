@@ -7,7 +7,8 @@ import { spawnSync } from 'node:child_process'
 import { appendFileSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from './main-module.mjs'
 
 // The standalone install's scope and PATH arithmetic live in one module, shared
 // with sync-standalone.mjs. Two copies of that list drifted apart once already.
@@ -4183,6 +4184,6 @@ async function main() {
   }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   await main()
 }

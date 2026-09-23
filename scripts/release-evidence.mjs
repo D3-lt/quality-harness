@@ -23,7 +23,7 @@
 //      was not a full campaign — see `cached` below)
 //   3  the run is not finished yet
 import { execFileSync } from 'node:child_process'
-import { pathToFileURL } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 /**
  * Judge a run's release-worthiness from the `gh run view --json` object.
@@ -289,6 +289,6 @@ function main(argv) {
 // Importable without side effects, so the test can drive `evaluateRun` on
 // fixtures rather than on the network. `tests/package.test.mjs::importing a
 // script runs its CLI on nobody` asserts this property across every script here.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   process.exit(main(process.argv.slice(2)))
 }

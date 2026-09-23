@@ -22,7 +22,8 @@ import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
-import { fileURLToPath, pathToFileURL } from 'node:url'
+import { fileURLToPath } from 'node:url'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const HERE = dirname(fileURLToPath(import.meta.url))
 
@@ -90,7 +91,7 @@ function main(stdin, catalogue = join(HERE, '..', 'tests', 'mutations.json')) {
   return 1
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (isMainModule(import.meta.url)) {
   const chunks = []
   process.stdin.on('data', chunk => chunks.push(chunk))
   process.stdin.on('end', () => process.exit(main(Buffer.concat(chunks).toString('utf8'))))

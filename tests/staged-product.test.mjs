@@ -624,6 +624,8 @@ test('session_id from the payload reaches the facts-gate dispatcher', () => {
   // copy needs the event log's module and the git-directory walk it uses.
   cpSync(path.join(pluginDir, 'scripts', 'event-log.mjs'), path.join(scripts, 'event-log.mjs'))
   cpSync(path.join(pluginDir, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
+  // The runner's entry guard (BACKLOG §264).
+  cpSync(path.join(pluginDir, 'scripts', 'main-module.mjs'), path.join(scripts, 'main-module.mjs'))
   writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
     '#!/bin/bash',
     'printf "session=%s\\n" "${QUALITY_HARNESS_SESSION_ID-UNSET}"',

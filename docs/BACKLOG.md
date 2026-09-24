@@ -13047,6 +13047,8 @@ and the masker still blanks a mis-read span that holds a brace rather than refus
 
 **Codex review, round 3 (high, 2026-09-24): the round-2 fix blanked the operand too.** The comment-blanked prefix also blanked a regex literal that was itself the value before a division, so `const n = /x/ / 2; if (true) { /x/.test("x"); }` read `=` as the previous token, the division opened a regex that swallowed the next `{`, and an edit to the assertion left the lock unchanged. The operand rule now reads a view where comments are blanked and each masked regex literal ends in a value character. Test `a division after a regex literal is not a regex, and the lock keeps the assertion`, with a string-operand control; one mutant.
 
+**CI on 1827ac0, 2026-09-24: the JS-aware masker made three records time out.** The coverage floor job failed because adr-lint was SIGKILLed on ADR-052, ADR-054 and ADR-060, and the local gate had once failed the same way under load. A profile of ADR-052 found `bdd_callback_body` masking the whole file for every test name it extracted: 226 masks of one 137 KB test file, about 17 of 18 seconds. Each mask had become the JS-aware one with this section's fix. `_mask_lock_noncode` is pure and returns a str, so it is now memoised, and ADR-052 lints in about 0.6 seconds. Test `one test file is masked once, however many of its tests are hashed`; one mutant. This was a defect of this release, found by CI before the tag.
+
 ## 213. CLOSED 2026-09-24 — The commit advisory ignored a wrapped selftest and counted an `mrw read` as a write (2026-09-16)
 
 Observed twice executing ADR-057, not yet reproduced in a fixture. Before `git commit` of `d29734d`
@@ -14354,6 +14356,8 @@ reads it through `plain()`, which strips escape sequences for classifying and ne
 Tests `an inherited FORCE_COLOR is dropped, so a real run still counts its tests` and `a coloured build
 error is inconclusive, not a kill`; one catalogue mutant each, and the `NODE_TEST_CONTEXT` entry's `from`
 follows the edited line. `NO_COLOR` and `NODE_DISABLE_COLORS` only remove colour and were not added.
+
+**CI on 1827ac0, 2026-09-24: this section's test took a runner down.** The fix's test spawned `node --test tests/mutate-runner.test.mjs`, its own file, filtered to one test. The catalogue mutant that drops the name filter made the child run the whole file, this test included, which spawned the file again. Mutation shard 5/48 lost its runner to a shutdown signal on that mutant, in both the push run and the dispatched run. The older end-to-end test in the same file had the same shape; the new test raised the fan-out from two children per level to three. Enumerated with a scan of `tests/*.test.mjs` for a file that names and spawns itself: those two, plus one hit in `tests/lifecycle.test.mjs` that is a comment. Both now spawn a probe file of their own, and the mutant is RED in about a second instead of about two minutes locally.
 
 ## 257. CLOSED 2026-09-24 — `adr-verify --sweep` cannot see a claim recorded with its run time (2026-09-22)
 

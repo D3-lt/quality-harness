@@ -482,7 +482,13 @@ test('a run in which no test executed is an unrun baseline, never a passing one'
 
 test('end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes', () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-  const file = 'tests/mutate-runner.test.mjs'
+  // A file of its own, never this one: with the name filter dropped (a catalogue
+  // mutant), a child running THIS file ran this test again, which spawned it again
+  // — the recursion that took a CI runner down on 1827ac0.
+  const probe = mkdtempSync(join(tmpdir(), 'qh-e2e-'))
+  const file = 'probe.test.mjs'
+  writeFileSync(join(probe, file),
+    "import test from 'node:test'\ntest('probe one', () => {})\ntest('probe two', () => {})\n")
   // The environment a shell might leave: a reporter that prints one dot. The
   // runner must neither inherit it nor crash by stacking its own on top.
   const env = childEnv({ ...process.env, NODE_OPTIONS: '--test-reporter=dot' })
@@ -505,16 +511,20 @@ test('end to end: a nonsense pattern under an inherited dot reporter is unrun, a
   // NOT named `spawn`: scripts/untimed-spawns.mjs matches callee NAMES, so a
   // helper called `spawn` reads as an untimed child at every call site while the
   // real spawnSync inside it carries a timeout (BACKLOG §130).
-  const runNode = only => spawnSync(process.execPath, testArgs(repoRoot, { tests: [file], only }),
-    { cwd: repoRoot, encoding: 'utf8', env, timeout: 120_000 })
-  const nothing = runNode('zzz-no-such-test-zzz')
-  assert.equal(nothing.status, 0, `node must start and exit 0 with no match\n${nothing.stderr}`)
-  assert.equal(baselineOf(nothing).state, 'unrun', `a no-match run is not a passing baseline: ${nothing.stdout.slice(0, 200)}`)
-  assert.match(baselineOf(nothing).why, /selected nothing/)
-  const one = runNode('^a stale entry is decided before any baseline')
-  assert.equal(one.status, 0, one.stderr)
-  assert.equal(leafTestsRun(one.stdout), 1, `exactly the matching test ran: ${one.stdout.slice(0, 300)}`)
-  assert.equal(baselineOf(one).state, 'pass')
+  const runNode = only => spawnSync(process.execPath, testArgs(probe, { tests: [file], only }),
+    { cwd: probe, encoding: 'utf8', env, timeout: 60_000 })
+  try {
+    const nothing = runNode('zzz-no-such-test-zzz')
+    assert.equal(nothing.status, 0, `node must start and exit 0 with no match\n${nothing.stderr}`)
+    assert.equal(baselineOf(nothing).state, 'unrun', `a no-match run is not a passing baseline: ${nothing.stdout.slice(0, 200)}`)
+    assert.match(baselineOf(nothing).why, /selected nothing/)
+    const one = runNode('^probe one$')
+    assert.equal(one.status, 0, one.stderr)
+    assert.equal(leafTestsRun(one.stdout), 1, `exactly the matching test ran: ${one.stdout.slice(0, 300)}`)
+    assert.equal(baselineOf(one).state, 'pass')
+  } finally {
+    rmSync(probe, { recursive: true, force: true })
+  }
 })
 
 // ⚠ A CHECKOUT PATH WITH A SPACE TURNED "NO TEST RAN" INTO A PASSING BASELINE.
@@ -570,14 +580,26 @@ test('a checkout path with a space is still an unrun baseline when nothing match
 // BACKLOG §256: a shell that exports FORCE_COLOR made the spec reporter prefix
 // every leaf line with an escape code, so a baseline in which tests really ran
 // read as `unrun` and the whole campaign measured nothing.
+//
+// ⚠ THE CHILD RUNS A FILE OF ITS OWN, NEVER THIS ONE. The first version spawned
+// tests/mutate-runner.test.mjs filtered to one test, and the catalogue mutant
+// that drops the filter made the child run this whole file — this test included,
+// which spawned it again. The recursion took a CI runner down on 1827ac0, the
+// same mutant in two runs.
 test('an inherited FORCE_COLOR is dropped, so a real run still counts its tests', () => {
-  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
   const env = childEnv({ ...process.env, FORCE_COLOR: '3' })
   assert.ok(!('FORCE_COLOR' in env), 'the colour switch must not reach the child')
-  const one = spawnSync(process.execPath,
-    testArgs(repoRoot, { tests: ['tests/mutate-runner.test.mjs'], only: '^a stale entry is decided before any baseline' }),
-    { cwd: repoRoot, encoding: 'utf8', env, timeout: 120_000 })
-  assert.equal(one.status, 0, one.stderr)
-  assert.equal(leafTestsRun(one.stdout), 1, `a colour-forcing parent must not blind the count: ${one.stdout.slice(0, 300)}`)
-  assert.equal(baselineOf(one).state, 'pass')
+  const probe = mkdtempSync(join(tmpdir(), 'qh-colour-'))
+  try {
+    writeFileSync(join(probe, 'probe.test.mjs'),
+      "import test from 'node:test'\ntest('probe one', () => {})\ntest('probe two', () => {})\n")
+    const one = spawnSync(process.execPath,
+      testArgs(probe, { tests: ['probe.test.mjs'], only: '^probe one$' }),
+      { cwd: probe, encoding: 'utf8', env, timeout: 60_000 })
+    assert.equal(one.status, 0, one.stderr)
+    assert.equal(leafTestsRun(one.stdout), 1, `a colour-forcing parent must not blind the count: ${one.stdout.slice(0, 300)}`)
+    assert.equal(baselineOf(one).state, 'pass')
+  } finally {
+    rmSync(probe, { recursive: true, force: true })
+  }
 })

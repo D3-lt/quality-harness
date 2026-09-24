@@ -1639,7 +1639,7 @@
     },
     {
       "label": "spec-verify: a regex may follow the paren closing an if header",
-      "file": "plugin/bin/spec-verify",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -7950,6 +7950,26 @@
       "from": "\".h\": \"//\", \".swift\": \"//\",",
       "to": "\".h\": \"//\",",
       "only": "Swift comment-only mutant is refused"
+    },
+    {
+      "label": "lock: a JS regex literal is masked, so a quote or paren inside it keeps the body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif js and text[i] == \"/\" and starts_regex(text, i) and js_regex_end(text, i) is not None:",
+      "to": "        elif False:",
+      "only": "inside a JS regex literal does not cost"
+    },
+    {
+      "label": "lock: bdd_callback_body masks JavaScript regex literals",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=not php)",
+      "to": "    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php)",
+      "only": "inside a JS regex literal does not cost"
     },
     {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",

@@ -12853,7 +12853,7 @@ It matters more after ADR-057 T3, which routes `quality-cycle`'s reviewers throu
 same role names. Reproduce each command against `readOnlyVerdict` before deciding
 anything; the list above is one agent's report.
 
-## 212. The JS test-lock masker does not skip regex literals (2026-09-16)
+## 212. CLOSED 2026-09-24 — The JS test-lock masker does not skip regex literals (2026-09-16)
 
 Found executing ADR-057 T4. `plugin/lib/record.py` `bdd_callback_body` masks strings and comments
 but not regex literals, which its own docstring says for `)`. A body holding
@@ -12866,6 +12866,19 @@ Worked around in `tests/routing.test.mjs` by moving the patterns to module scope
 the masker (JS regex-literal recognition in operand position, the same heuristic §203 names for
 Swift) with a dirty-shown regression; until then `adr-execute`'s lessons say to probe
 `extract_test_body` before the first red.
+
+**CLOSED 2026-09-24.** The masker knows regex literals now, through the rule spec-verify already had.
+`starts_regex` (regex or division, from the previous significant token) and a new `js_regex_end`
+moved from `plugin/bin/spec-verify` into `plugin/lib/record.py`; spec-verify imports them back, so
+the lock masker and spec-verify's definition check read one rule. `_mask_lock_noncode(js=True)`
+blanks a regex literal, and `bdd_callback_body` passes it for JavaScript. Reproduced first through
+`first_red_lock_suffix`: a file with `/it's/` in one test and `/[)]/` in the next locked all three
+of its tests `unproven`, including the one after both. The expression-body refusal stays for a `/`
+the operand rule leaves visible. **Named sibling, not reconciled:** `plugin/bin/adr-lint` carries its
+own `starts_regex`, and it differs from this one; which of the two is right is its own question.
+The module-scope workaround in `tests/routing.test.mjs` stays, since it is harmless. Test `a quote or a
+paren inside a JS regex literal does not cost a test its locked body`; two mutants, and the
+`CONTROL_HEADER` mutant moved with the code.
 
 ## 213. The commit advisory ignored a wrapped selftest and counted an `mrw read` as a write (2026-09-16)
 

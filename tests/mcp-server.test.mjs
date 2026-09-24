@@ -441,3 +441,16 @@ test('adr-retire-check is refused when the call names no single mode', () => {
   assert.equal(pair.error, undefined, JSON.stringify(pair.error))
   assert.equal(pair.result.isError, false)
 })
+
+// ADR-046 Follow-ups: adr-judge exits 2 for a named path that exists and could
+// not be read (ADR-049), and `_paths` checks existence only — so a directory named
+// as `adr` reached the gate and its could-not-run came back as `isError: false`
+// content. The file control still answers content.
+test('adr-judge that could not read its named path reaches the client as could-not-run', () => {
+  const unreadable = call('qh_adr_judge', { adr: fixture })
+  assert.ok(unreadable.error, `a gate that could not read its path is not content: ${JSON.stringify(unreadable.result)}`)
+  assert.match(unreadable.error.message, /^could not run: adr-judge exit 2 — /, unreadable.error.message)
+  const judged = call('qh_adr_judge', { adr: join(fixture, 'ADR-001-selftest.md') })
+  assert.equal(judged.error, undefined, JSON.stringify(judged.error))
+  assert.equal(judged.result.isError, false)
+})

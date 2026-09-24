@@ -58,6 +58,14 @@ neutered gate is valid Python that reports one thing less. Every one of that day
 defects traces to running a mutation tool and editing at the same time. The hook is the last line;
 not doing it is the first.
 
+**And a mutant is live outside this session.** `scripts/mutate.mjs` rewrites plugin files in this
+checkout, and a peer session whose plugin root is this checkout runs its hooks and gates from the same
+files, so every mutant ships to that session for as long as it is applied (BACKLOG §272). On
+2026-09-24 a zeus session saw an advisory delivered as a denial while a lifecycle mutant was running
+here; the clock and the case list are the correlation, not a reproduction. Before a campaign on
+`plugin/scripts/lifecycle.mjs`, a hook script or `plugin/lib/record.py`, run `ListAgents`, and run it
+while the sessions that use this checkout are idle, or tell them first. Nothing detects this for you.
+
 ## Why a commit never chains after a test
 
 A `for` loop's exit status is its last iteration's `echo`, so a printed FAIL sails into a commit.

@@ -6371,8 +6371,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    if TITLE_TASK_RE.match(first):\n        return False\n",
-      "to": ""
+      "from": "    if title is None or TITLE_TASK_RE.match(title):",
+      "to": "    if title is None:"
     },
     {
       "label": "lint: a corpus that cannot be listed is not a corpus with nothing in it",
@@ -7900,6 +7900,26 @@
       "from": " && !unread.has(entry.tasksDir) && entry.undecided !== true)",
       "to": " && !unread.has(entry.tasksDir))",
       "only": "not Accepted is not a disagreement"
+    },
+    {
+      "label": "lint: a record title below frontmatter is read (the frontmatter is stripped)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    title = title_line(_FRONTMATTER.sub(\"\", text, count=1))",
+      "to": "    title = title_line(text)",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a record title below a blank line is read (not only line one)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    title = title_line(_FRONTMATTER.sub(\"\", text, count=1))",
+      "to": "    title = (text.splitlines() or [None])[0]",
+      "only": "focused false-green regressions remain closed"
     },
     {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",

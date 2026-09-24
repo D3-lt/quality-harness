@@ -639,6 +639,12 @@ test('touchedBy keeps an entry whose mutated line was added by the change, and o
     { label: 'other file', file: 'plugin/y.mjs', from: '  if (named) return', tests: [] },
   ]
   assert.deepEqual(touchedBy(entries, added).map(entry => entry.label), ['edited'])
+  // Part of an added line counts; a short common line alone does not.
+  const partial = addedLines(['+++ b/plugin/x.mjs', '+  return lines !== undefined && lines.has(key)', '+  return 1'].join('\n'))
+  assert.deepEqual(touchedBy([
+    { label: 'inline', file: 'plugin/x.mjs', from: 'lines.has(key)', tests: [] },
+    { label: 'short', file: 'plugin/x.mjs', from: '  return 1', tests: [] },
+  ], partial).map(entry => entry.label), ['inline'])
   assert.deepEqual(touchedBy(entries, new Map()), [])
 })
 

@@ -10495,6 +10495,26 @@
       "from": "    outside = QUOTED.sub(\" \", note)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
       "to": "    outside = QUOTED.sub(\" \", note)\n",
       "only": "inside quoted program output"
+    },
+    {
+      "label": "mutate: --changed picks only entries whose mutated line was added",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "mutation.from.split('\\n').some(line => line.trim() && lines.has(line.trim()))",
+      "to": "true",
+      "only": "touchedBy keeps an entry"
+    },
+    {
+      "label": "mutate: --stale reports an entry that matches more than once",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (count === 1) continue",
+      "to": "    if (count >= 1) continue",
+      "only": "staleEntries names each entry"
     }
   ]
 }

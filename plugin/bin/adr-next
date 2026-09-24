@@ -34,7 +34,9 @@ word was unknown and unknown meant ready (BACKLOG §166).
 
 Exit: 0 = a ready task was printed (or --all rendered)
       3 = nothing ready: everything is done, or the rest is blocked or stopped
-      1 = the ADR or tasks directory could not be read, or a named path that exists but could not be read
+      1 = the ADR or tasks directory could not be read, a named path that exists but could not be read,
+          or a tasks directory holding no task files (a corpus answers 3 for the same directory,
+          where it is one record among several — BACKLOG §270)
       2 = could not run: plugin/lib/record.py is not beside this gate's bin/
           (a gate copied on its own; ADR-045)
 
@@ -669,6 +671,15 @@ def reject_unknown_flags(known=()):
         sys.exit(1)
 
 
+def record_undecided(status):
+    """True when the owning record is not Accepted, False when it is, None when unknown.
+
+    One answer for both modes, so the single-record and corpus JSON cannot
+    disagree about the same record (BACKLOG §270).
+    """
+    return None if status is None else bool(not re.match(r"accepted\b", status, re.I))
+
+
 def owning_record_status(tasks_dir, record_dir=None):
     """The Status of the record these tasks belong to, or None if it cannot be found.
 
@@ -869,7 +880,7 @@ def report_corpus(records, unreadable, flags):
         # THREE states, not two. `None` is "could not determine", and calling that
         # `undecided: false` tells a machine caller the record is Accepted when
         # nothing was read (ADR-005).
-        undecided = None if status is None else bool(not re.match(r"accepted\b", status, re.I))
+        undecided = record_undecided(status)
         answers[name] = {"tasks_dir": str(tasks_dir), "ready": ready, "done": done,
                          "blocked": blocked, "stopped": stopped,
                          "status": status, "undecided": undecided}
@@ -1047,8 +1058,15 @@ def main():
     ready, done, blocked, stopped = classify(infos, corpus_dir)
 
     if "--json" in flags:
+        # The record's status travels with the answer, as it does in corpus mode
+        # (report_corpus). The warning above goes to stderr, which a JSON caller
+        # does not read, so a Superseded record's tasks arrived as plain `ready`
+        # and a probe counted them as work-next's disagreement (BACKLOG §270).
+        # THREE states: None is "could not determine" (ADR-005).
+        undecided = record_undecided(status)
         print(json.dumps({"tasks_dir": str(tasks_dir), "ready": ready,
-                          "done": done, "blocked": blocked, "stopped": stopped},
+                          "done": done, "blocked": blocked, "stopped": stopped,
+                          "status": status, "undecided": undecided},
                          indent=2))
         return 0 if ready else 3
 

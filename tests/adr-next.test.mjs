@@ -1186,3 +1186,26 @@ test('a task whose code fence never closes is READY with a note saying its secti
   assert.ok(clean, JSON.stringify(closed))
   assert.doesNotMatch(clean.unproven ?? '', /never closes/, `a closed fence is not reported: ${JSON.stringify(clean)}`)
 })
+
+// BACKLOG §270: the single-record --json answer dropped the record's status that
+// corpus mode already carried, so a machine caller got a Superseded record's tasks
+// as plain `ready`. It still answers (CLAUDE.md §3); it now says what it answered.
+test('the single-record --json answer carries the owning record status', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-status-json-'))
+  temps.push(dir)
+  const tasksDir = join(dir, 'ADR-031-slug', 'tasks')
+  mkdirSync(tasksDir, { recursive: true })
+  writeFileSync(join(tasksDir, 'T1-t.md'), task({ id: 'T1' }))
+  const record = join(dir, 'ADR-031-slug.md')
+  writeFileSync(record, '# ADR-031: replaced\n\n**Status:** Superseded by ADR-032\n\n## Context\n\nc\n')
+  const superseded = next([tasksDir, '--json'], root)
+  assert.equal(superseded.status, 0, superseded.stderr)
+  const plan = JSON.parse(superseded.stdout)
+  assert.equal(plan.undecided, true, superseded.stdout)
+  assert.match(plan.status, /^Superseded/)
+  assert.deepEqual(plan.ready.map(t => t.id), ['T1'], 'it still answers')
+  writeFileSync(record, '# ADR-031: decided\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+  const order = JSON.parse(next([tasksDir, '--json'], root).stdout)
+  assert.equal(order.undecided, false)
+  assert.equal(order.status, 'Accepted')
+})

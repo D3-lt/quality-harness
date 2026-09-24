@@ -27,6 +27,7 @@ bun test -t                        0 -> 1    fences it
 go test -run                       0 -> 0
 node --test --test-name-pattern    0 -> 0
 cargo test <filter>                0 -> 0
+swift test --filter                0 -> 0    Swift 6.4, 2026-09-24: "No matching test cases were run"
 ```
 
 ⚠ **`vitest -t` WITH NO MATCH IS THE QUIETEST FAILURE IN THIS TABLE, and it was re-measured on a

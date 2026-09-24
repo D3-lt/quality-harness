@@ -2114,7 +2114,7 @@ would have accepted all fifteen bullets and taught nobody anything. A gate that 
 enough to be false is the precondition for a report like this existing at all — which is the same
 argument this repository makes about tests, one level up.
 
-## 38. Two of three closed; one runner question stays open
+## 38. CLOSED 2026-09-24 — Two of three closed; one runner question stays open
 
 **Met again 2026-08-28, by ADR-010's spec.** All 17 facts and all 7 scenarios are bound and passing;
 `spec-verify --implemented` still reports `[PARTIAL]`. The facts resolve through a `Cmd` override —
@@ -2155,6 +2155,16 @@ honoured`, RED.
 told honestly that it cannot be adjudicated — but it can now *do* something about it, which is the
 half that was missing. Adding the runner itself remains its own decision (binding grammar, how `-run`
 anchors, what a passing-but-empty run means), unchanged below.
+
+**CLOSED 2026-09-24.** The runner is in, and each of the three open questions has an answer in code.
+Binding grammar: `path/to/x_test.go::TestName`, the package is the file's directory as `go test`
+names it (`./pkg`), and `./...` when the binding carries no path. Anchoring: `-run '^TestName$'`,
+`-count=1 -v`, from the nearest `go.mod` (detected at the root and per path, like the other runners).
+A passing-but-empty run: `go test -run` exits 0 on a filter that selects nothing — measured with
+go1.27.1, `[no tests to run]` — so exit 0 is a pass only beside the runner's own
+`--- PASS: TestName`; without it the fact is UNRUN. The same rule covers Swift (§203). Test `spec-verify
+runs a Go binding, and a Go filter that selects nothing is UNRUN, not a pass` drives the gate with the
+measured output on a stub runner; a real `go test` over a scratch module passed through the same gate.
 
 ## 38 (superseded). Three things ADR-005 deferred about spec-verify
 
@@ -12697,7 +12707,7 @@ suppress against the older `said`, so the rollback is silent rather than reprint
 TTL test does not exercise competing writers. A fix is a single atomic write of `{at, state, said}`
 after emit, or a compare-and-swap on `at`, each with a two-process regression.
 
-## 203. Swift reaches the first-red lock but not spec-verify, adr-verify's comment and syntax checks, or a Tests-row path check
+## 203. PARTLY CLOSED 2026-09-24 — Swift reaches the first-red lock but not spec-verify, adr-verify's comment and syntax checks, or a Tests-row path check
 
 Found while adding Swift to the ADR-050 lock (branch `swift-test-lock-extraction`, 4678b63 and
 1d517b9, 2026-09-13), from an iOS repository whose ADR names Swift Testing and XCTest functions.
@@ -12716,6 +12726,17 @@ The Swift masker's bare `/…/` regex recognition is a heuristic (SE-0354 operan
 leading or trailing whitespace); a regex literal in a position it does not recognise can widen or,
 with a brace in it, shorten a hashed span. Each item above belongs on its own change with a
 dirty-shown regression.
+
+**PARTLY CLOSED 2026-09-24.** Two of the three bullets. `spec-verify` reads a `.swift` test definition
+through the lock's own Swift reader (`record.extract_test_names`), so the two gates agree on what a
+Swift test is, and it runs a Swift binding with `swift test --filter` from the nearest `Package.swift`.
+That runner exits 0 on a filter that selects nothing — measured with Swift 6.4, "No matching test
+cases were run" — so a pass needs the runner's own line: XCTest's `Test Case '-[… name]' passed` or
+Swift Testing's `Test name() passed`, else UNRUN. `adr-verify`'s `LINE_COMMENT` knows `.swift`, so a
+comment-only Swift mutant is refused. **Still open:** `syntax_ok` does not syntax-check Swift (a
+`swiftc -parse` needs a toolchain the runner may not have), and nothing advises a bare-filename
+Tests row before the first red locks it `unproven`. Tests `spec-verify runs a Swift binding of either
+test shape…` and `a Swift comment-only mutant is refused like any other`; one mutant each.
 
 ## 204. CLOSED — the PHP `@test` docblock lock mutant is GREEN in a `lock:` group campaign and RED alone
 

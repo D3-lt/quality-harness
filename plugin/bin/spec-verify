@@ -823,14 +823,22 @@ def check_spec(path, mode, root_override, collect):
     if mode == "implemented":
         root = repo_root(Path(path), root_override)
         stack = detect_stack(root)
+        ran = 0
         for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=sc["cmd"])
                              for sc in scenarios]:
             if item["tag"] == "implemented" and not is_unbound(item["test"]):
+                ran += 1
                 verdict, why = test_runs(item["test"], root, stack, item["cmd"])
                 if verdict == "fail":
                     failing.append(f"{item['id']}: test failing — {why}")
                 elif verdict == "unrun":
                     unrun.append(f"{item['id']}: not run — {why}")
+        # A PASS that ran nothing read exactly like one that ran every test
+        # (reported from a Go repository's 2.107.0 run). The verdict holds —
+        # nothing observed failed — but it says what it did not observe.
+        if not ran:
+            errors.advise("implemented mode ran no test: nothing is tagged @implemented with a bound "
+                          "test, so this PASS covers structure and test existence only")
 
     return errors, missing, failing, unrun
 

@@ -2107,3 +2107,23 @@ test('a Swift nested type is UNRUN however its name is spelled', { skip: NO_POSI
     assert.match(run.stdout, /cannot attribute a Swift run/, label)
   }
 })
+
+// Reported from a Go repository's 2.107.0 run: `--implemented` over a spec whose
+// facts are all @spec ran no test and printed a bare PASS — identical to a run
+// that ran ten. The verdict stays PASS (nothing observed failed, and the
+// existence checks did run), but it now says that no test ran.
+test('spec-verify says so when implemented mode ran no test', () => {
+  const dir = scratch('spec-no-implemented')
+  cpSync(join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  const none = specVerifyImplemented(dir, join(dir, 'spec-selftest.md'), env)
+  assert.equal(none.status, 0, `${none.stdout}\n${none.stderr}`)
+  assert.match(none.stdout, /advice +implemented mode ran no test: nothing is tagged @implemented/, none.stdout)
+  // The other direction: a spec that did run a bound test must not say it ran none.
+  const { dir: ranDir, spec } = bindImplemented('spec-ran-one', 'pkg/a_test.go::TestYes', {
+    'go.mod': 'module example.com/m\n\ngo 1.22\n',
+    'pkg/a_test.go': 'package pkg\n\nimport "testing"\n\nfunc TestYes(t *testing.T) { if 1 != 1 { t.Fatal("x") } }\n',
+  })
+  const one = specVerifyImplemented(ranDir, spec, NO_POSIX_STUB ? env : stubRunner(ranDir, 'go',
+    "printf '=== RUN   TestYes\\n--- PASS: TestYes (0.00s)\\nPASS\\n'"))
+  assert.doesNotMatch(one.stdout, /ran no test/, one.stdout)
+})

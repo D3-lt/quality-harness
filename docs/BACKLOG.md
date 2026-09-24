@@ -15097,3 +15097,11 @@ Recorded so they do not have to be found again; none is scheduled.
 **Fixed:** `code_only(rust=True)` returns `record._mask_lock_noncode(text, rust_raw=True)`, the masker the lock uses, and all three `test_body` call sites pass `rust=f.suffix == ".rs"`: the tests-exist check, the pointer resolver, and the can-fail check. Test `test_a_rust_test_after_a_lifetime_exists` covers a lifetime, a label, a char literal holding `{`, and a raw string holding one `"`, with the absent-test and no-assertion directions on the same call paths. Four mutants.
 
 **This also answers §275's last bullet** for Rust: a raw string is now read by the Rust masker, not by `scan_code_only`.
+
+## 277. CLOSED 2026-09-24 — spec-verify's implemented mode ran no test and printed a bare PASS (2026-09-24, reported from a Go repository's 2.107.0 run)
+
+**Reported** by the tool-multipathreadwrite session in its §18 outside run of 2.107.0: `spec-verify --implemented` over a spec binding ten Go tests printed only `[PASS] … (mode: implemented)`, exit 0. Every fact and scenario was tagged `@spec`, none `@implemented`, so no test ran, and the line read exactly like a run that ran all ten. The reporter left open whether that is intended. Reproduced here on this repository's own `tests/fixtures/ok` spec.
+
+**Decided:** the verdict stays PASS with exit 0, because nothing observed failed and the existence checks did run for every bound `@spec` test. What changes is that the gate now says what it did not observe (CLAUDE.md §3, ADR-005). When implemented mode runs no bound `@implemented` test, it prints an advice line saying so. Test `spec-verify says so when implemented mode ran no test`, with the direction where one test ran on the same call path. Two mutants.
+
+**Also from that run, not a defect:** the request that asked for the run named a flag `--mode implemented`, which spec-verify rejects with exit 2. The flag is `--implemented`, and the asker's message was wrong.

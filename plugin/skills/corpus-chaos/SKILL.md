@@ -34,8 +34,10 @@ Two roles. Run the one you are in.
 3. **Read everything, not the summary.** In the JSON: `couldNotRun` (a reader that did not
    start, was killed, or printed no JSON — never a silent gap), `disagreements` (two readers
    about one task), `workNext.readinessUnproven` (directories `adr-next` could not answer for),
-   every line of `sessionStart.lines`, every `adrLint[].verdict`, every `adrNext[].ready[]`
-   note. The defects the maintainers' matrix missed were all in fields nobody had chosen to
+   every line of `sessionStart.lines`, every `adrLint[].verdict` and its `reason`, every
+   `adrNext[].ready[]` note. `adrState.governingNothing` is a SUBSET of `governing`: governing
+   records whose code no `Governs:` header or task `Affected Files` points at, not a contradiction
+   of the count. The defects the maintainers' matrix missed were all in fields nobody had chosen to
    assert. If a sentence reads wrong for your corpus, quote it.
 4. **Where the probe cannot reach, run the readers by hand** and paste the output whole:
    `work-next.mjs --json`, `adr-state.mjs`, `adr-next <tasks-dir> --json`, `adr-lint <record>

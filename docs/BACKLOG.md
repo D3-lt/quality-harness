@@ -13486,7 +13486,7 @@ fact, three handling strategies in one suite. FIXED with `tests/symlink-support.
 `symlinkOrSkip` for a file link or a deliberately dangling one, where only a real symlink will do.
 A skip with a reason is the fallback, not the goal.
 
-## 231. The repository cannot be cloned on Windows from a deep root (2026-09-18) — DOCUMENTED, not fixed
+## 231. CLOSED 2026-09-24 — The repository cannot be cloned on Windows from a deep root (2026-09-18) — DOCUMENTED, not fixed
 
 Default Git for Windows does not set `core.longpaths`, and the longest tracked path here is 149
 characters, so MAX_PATH leaves **110 characters for the checkout root**. A clone under a longer root
@@ -13499,6 +13499,8 @@ inside ACCEPTED records, and records are history (CLAUDE.md §10). ⚠ The docum
 people who read it BEFORE cloning, and cloning is how they get it — so the real repair, when a
 future record makes it cheap, is a path-length rule for NEW task filenames so the ceiling stops
 rising. ADR-060's longest is 134; ADR-059's T10 at 149 is the current ceiling.
+
+**CLOSED 2026-09-24.** The ceiling had grown from 149 to 157 characters since this was written. A Windows corpus-chaos run hit it again (§279 item 10). The repair this section prescribed is in: `tests/package.test.mjs` refuses a tracked path longer than the current longest, 157, so the checkout root keeps at least 103 characters. That covers the default marketplace location, which a GitHub marketplace install fills with a shallow clone of the whole repository, about 75 characters with a typical user name. The existing long names stay, because records are history. Manual deep clones still need `core.longpaths`, as `docs/INSTALL.md` says.
 
 ## 232. DECLINED 2026-09-24 — `node --test` cannot find test files through a UNC path (2026-09-18)
 
@@ -15126,7 +15128,7 @@ Recorded so they do not have to be found again; none is scheduled.
 
 **Codex review, round 5 (high, 2026-09-24): the first row decided it.** The function still returned on the first exit-0 row it met. So with the first-red row, then an older row against a previous fence, then the current row, a task withheld by its lock was again told "the fence changed". It now reads the whole log first: a row for the current fence names the lock finding, and returns nothing when there is none, rather than a cause it did not observe. A row against another fence is named only when no current-fence row exists. The adr-next test covers that order; one mutant.
 
-## 279. OPEN — Corpus chaos over three new shapes, 2026-09-24: what the readers said wrong (reported by three peer sessions at 6ddf59b)
+## 279. CLOSED 2026-09-24 — Corpus chaos over three new shapes, 2026-09-24: what the readers said wrong (reported by three peer sessions at 6ddf59b)
 
 The owner made outside corpus runs the main verification loop on 2026-09-24. Three peer sessions ran `corpus-probe.mjs --json` at 6ddf59b over shapes no run had covered: a static site with no corpus (macOS), a PHP/Laravel repository with three corpus roots (macOS), and a 72-record corpus on native Windows 11. All three exited 0, with no `couldNotRun` and no `disagreements`. Everything below came from reading the rest of the output. Each item was confirmed read-only against the probed repository where that was possible; "reported" marks the ones taken on the peer's word.
 
@@ -15137,6 +15139,7 @@ The owner made outside corpus runs the main verification loop on 2026-09-24. Thr
 2. **A dependency cycle built from a symbol both sides mention.** The Laravel ADR-006 T3 consumes "backend accepts `is_heavy` … (T2)", and T5 consumes "`api-docs.json` documents `is_heavy` (T4)". adr-lint reports `dependency cycle: T3 → T5 … T5 → T3`, matching the backticked `is_heavy` across both Produces lines, while each Consumes line names its producer task explicitly.
    **Changed 2026-09-24 (after 2.107.0):** a Consumes that names a local task now draws its edges from those tasks only; the backticked-token match is the fallback for a Consumes that names none. This applies in both adr-lint's DAG and adr-next's readiness, which carried the rule twice. The Laravel ADR-006 lints PASS with it. Test `test_a_named_producer_is_the_only_producer`, through both readers, with the unnamed-producer direction; two mutants.
 3. **Inline tasks are not read.** `docs/decisions/008_….md` keeps its tasks as `### T1` sections inside the record, with Depends-on, Produces and Consumes on each. adr-lint pairs the record with the shared `docs/decisions/tasks/`, finds no task files, and fails every Inter-task Contracts row. Either inline tasks become a supported shape, or the finding says the record's tasks were not read, not that the contract names a task that does not exist.
+   **Changed 2026-09-24 (after 2.107.0), as the owner chose ("say plainly", not support):** a record with `### T<n>` sections skips an auto-discovered `tasks/` that holds no task file of its own and takes the inline path, which now advises that its tasks, edges and Inter-task Contracts rows were NOT checked. The Laravel 008 lints PASS with that advice. Test `a record with inline tasks is not paired with a sibling tasks directory it does not own`; two mutants.
 
 **Reader output that reads wrong:**
 4. **Frozen records are linted.** The probe skips frozen records for adr-next but runs adr-lint on all of them, so two `docs/adr-archive/` records read FAIL beside the live corpus. That repository's convention is that the archive is outside lint.
@@ -15144,15 +15147,20 @@ The owner made outside corpus runs the main verification loop on 2026-09-24. Thr
 5. **Path separators differ by field on Windows (reported).** Every `adrState.governingNothing[].file` uses backslashes (57 of 57), while `records`, `adrLint`, `workNext` and `adrNext` use forward slashes. A consumer joining on the file field matches nothing (CLAUDE.md §7).
    **Changed 2026-09-24 (after 2.107.0):** the probe normalises `governingNothing[].file` like every other path. The matrix asserts each one joins a record's file exactly, exercised by the madr fixture. The backslash form only occurs on Windows, so the assertion bites on the Windows CI job; no catalogue mutant was added, because on POSIX it would be GREEN by construction.
 6. **"ADR tasks in flight:" heads directories that are finished (reported).** SessionStart lists "all N task(s) carry exit-0 evidence" under that heading.
-   **Left open 2026-09-24:** renaming the heading changes an orientation line that many lifecycle tests and adopters' eyes are matched to. That is worth doing together with item 8's side-by-side statement, not alone.
+   **Declined 2026-09-24:** the heading is named verbatim in Accepted ADR-046's contract table and in the ADR-040 spec, and records are not rewritten (CLAUDE.md §10). Each line under it already states its directory's condition, and item 8's fix removes the case where a finished-looking directory hid unverified work.
 7. **`governing: 72` beside 57 in `governingNothing` (reported).** Governing a decision and governing a code path share one word, and read as a contradiction.
+   **Answered 2026-09-24:** the JSON key stays, since consumers read it, and adr-state's text already says "Governing nothing this tool can locate — no `Governs:` header and no task `Affected Files`". The corpus-chaos skill now says the field is a subset of `governing`, so a runner reads it correctly.
 8. **A README marked done beside a task offered READY (reported).** On the Windows corpus's ADR-076, work-next offers T1 and T7 as ready while adr-lint says the README marks them done without evidence for the current fence. Both readers agree the evidence is missing, but nothing puts the two statements side by side, and `disagreements` compares adr-next with work-next only.
+   **Changed 2026-09-24 (after 2.107.0):** this was a reader defect, not only a presentation one. work-next's "claims done without evidence" test read only the task file's own Status and accepted ANY exit-0 row, so it never fired, and the router named `adr-execute` over unverified done claims. A claim in the task's Status or in its README row is now unbacked when adr-next, which work-next already asks per directory, does not call the task done; the old row test is the fallback where adr-next could not answer. The router test's "backed" fixture carried a fake digest in no gate's grammar and now carries a real one. Test `work-next: a done claim adr-next does not honour is unbacked, wherever it is made`; two mutants.
 9. **An adrLint entry carries no reason.** Entries hold only `{file, exit, verdict}`, so a runner who sees FAIL has to find and run adr-lint by hand. The Laravel runner could not locate the CLI and reported the FAIL without its cause.
    **Changed 2026-09-24 (after 2.107.0):** a FAIL entry carries `reason`, the first non-advice finding adr-lint printed, scrubbed like every emitted string; other verdicts carry none. The matrix asserts both directions; one mutant.
 
 **Adopter environment:**
 10. **The repository does not clone on default Windows settings (reported).** `git clone` into a normal path fails with "Filename too long" on four task files under `docs/adr-archive/ADR-059-…` and `docs/adr/ADR-060-…`. It succeeds with `core.longpaths=true`. Whether a marketplace install clones the whole repository, and so hits this, is not established.
+    **Answered 2026-09-24 by §231's repair:** a length rule for tracked paths; see §231.
 
 **Noted, not defects:**
 11. A status line of the form "Accepted (… superseded in production by ADR-031/032 …)" counts as Accepted, and `danglingSupersession` is empty. That is how that corpus writes it.
 12. adr-lint's identity line prints its own plugin root unredacted. That is the gate identity (§143), and it is not probe output.
+
+**CLOSED 2026-09-24.** Every item has a disposition: 1, 2, 3, 4, 5, 8 and 9 changed on main after 2.107.0 and ship in the next release, with the outside run §18 requires; 6 declined, with its reason; 7 answered by documentation; 10 answered by §231's repair; 11 and 12 not defects.

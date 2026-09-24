@@ -113,4 +113,4 @@ Revert the `layer` field on `--json`. No persistent state.
 
 ## Follow-ups
 
-- [ ]
+- [x] None at authoring. **Confirmed 2026-09-24:** no open item for this record.

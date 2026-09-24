@@ -152,3 +152,4 @@ Restore the eleven `def`s from `ea12656`, delete `plugin/lib/record.py` and the 
 - [x] adr-verify:666 / :1672 / :1983 — fence-aware readers, each with its own regression (`docs/BACKLOG.md`). Done 2026-09-11 in T6; the ```bash-only match named beside them in §197 is T3.
 - [x] The second review's findings on T3–T6 — T7 (heading at EOF), T8 (quoted fence line; open fence), T9 (opener named whole), T10 (one fence grammar), T11 (three line breaks); the three callers as ADR-046. Done 2026-09-11; BACKLOG §199 carries the corrections to §198 and T6.
 - [ ] The gates' `splitlines()` calls on record text outside `sections_of` — 25 call sites, none deciding a heading or a digest (BACKLOG §199).
+  *2026-09-24, still open:* re-counted at 25 sites, none deciding a heading or a digest; kept as a named class, not scheduled.

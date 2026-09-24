@@ -207,4 +207,4 @@ reads, no hook event to unregister — the branch returns to the advisory it emi
 
 ## Follow-ups
 
-- [ ] none at authoring
+- [x] none at authoring. **Confirmed 2026-09-24:** nothing followed this record.

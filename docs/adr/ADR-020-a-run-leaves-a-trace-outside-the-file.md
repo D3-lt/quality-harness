@@ -327,4 +327,4 @@ data is lost by rolling back, and no task's `done` status changes.
 
 ## Follow-ups
 
-- [ ] After a month, count how often the ledger cross-check actually fires on real corpora, and how often it fires on honest work. If the second number is not zero, part 3 comes out.
+- [x] After a month, count how often the ledger cross-check actually fires on real corpora, and how often it fires on honest work. If the second number is not zero, part 3 comes out. **Moot 2026-09-24:** the cross-check never shipped — this record's own falsifier fired (its Decision says it does not ship), so there is nothing under `plugin/` to count.

@@ -231,14 +231,15 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     }
   })
 
-  // The real hook, with a payload shaped as the host sends it and its state
-  // pointed at scratch so nothing is written beside the corpus.
+  // The real hook, with a payload shaped as the host sends it and ALL its state
+  // pointed at scratch: plugin data, temp, and the per-repository state directory
+  // that otherwise lives in the corpus's own `.git` (QUALITY_HARNESS_STATE_DIR).
   const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-corpus-probe-'))
   let sessionStart = null
   try {
     const hook = node('lifecycle.mjs', [], {
       input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: `corpus-probe-${process.pid}`, cwd: resolved }),
-      env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(scratch, 'data'), TMPDIR: scratch, TMP: scratch, TEMP: scratch },
+      env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(scratch, 'data'), TMPDIR: scratch, TMP: scratch, TEMP: scratch, QUALITY_HARNESS_STATE_DIR: path.join(scratch, 'state') },
     })
     // A hook that crashed, was signalled, or printed something other than the
     // JSON the host expects made no observation; it is could-not-run, not an

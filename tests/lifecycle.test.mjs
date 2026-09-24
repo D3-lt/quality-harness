@@ -3980,3 +3980,35 @@ test('work-next: a done claim adr-next does not honour is unbacked, wherever it 
   assert.deepEqual(state.unbacked.map(file => path.basename(file)).sort(), ['T1.md', 'T2.md'], JSON.stringify(state.unbacked))
   assert.equal(nextStage(state).id, 'adr-verify', 'unverified done claims come before new work')
 })
+
+// Codex review of 2.108.0: the README reader took only `| T1 | … | done |`, so a
+// linked id or a numbered first column — shapes adr-lint's done_task_ids reads —
+// hid the claim; and a task adr-next never LISTED (an upper-case `.MD` it does not
+// glob) was called unbacked because it was absent from adr-next's done list.
+test('work-next: README shapes adr-lint reads are claims, and a task adr-next never read is not judged by its absence', async () => {
+  const { observe } = await import('../plugin/scripts/work-next.mjs')
+  const fence = '```bash\nset -e\ntrue\n```'
+  const legacy = '- 2026-08-20 · abc1234 · exit 0 · `set -e`\n'
+  for (const row of ['| [T1](T1.md) | legacy | done |', '| 1 | T1 | legacy | done |']) {
+    const root = await mkdtemp(path.join(testTmp, 'quality-router-readme-'))
+    const tasks = path.join(root, 'docs', 'adr', 'tasks')
+    await mkdir(tasks, { recursive: true })
+    await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-thing.md'), '# ADR-001: A thing\n\n**Status:** Accepted\n')
+    await writeFile(path.join(tasks, 'README.md'), '# Tasks\n\n| A | B | C | D |\n|---|---|---|---|\n' + row + '\n')
+    await writeFile(path.join(tasks, 'T1.md'), '# Task ADR-001-T1\n\n## Acceptance\n\n' + fence + '\n\n## Verification Log\n\n' + legacy)
+    gitInit(root)
+    assert.deepEqual(observe(root).unbacked.map(file => path.basename(file)), ['T1.md'], row)
+  }
+  const root = await mkdtemp(path.join(testTmp, 'quality-router-unlisted-'))
+  const tasks = path.join(root, 'docs', 'adr', 'tasks')
+  await mkdir(tasks, { recursive: true })
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-thing.md'), '# ADR-001: A thing\n\n**Status:** Accepted\n')
+  await writeFile(path.join(tasks, 'T1.md'), '# Task ADR-001-T1\n\n## Acceptance\n\n```bash\ntrue\n```\n')
+  // T3.MD: also unlisted, and claims done with NO evidence — the fallback must still see it.
+  await writeFile(path.join(tasks, 'T3.MD'), '# Task ADR-001-T3\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n')
+  await writeFile(path.join(tasks, 'T2.MD'), '# Task ADR-001-T2\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n')
+  gitInit(root)
+  assert.deepEqual(observe(root).unbacked.map(file => path.basename(file)), ['T3.MD'],
+    'a task adr-next did not list is judged by its own evidence, not by its absence — in both directions')
+})

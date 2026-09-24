@@ -83,3 +83,22 @@ test('a timeout and a plain failure keep their own names', () => {
   assert.equal(verdict(1, `${ran(2)}\n--- FAIL: TestX (0.00s)\nFAIL`), 'failed')
   assert.equal(verdict(2, ''), 'failed')
 })
+
+test('a green `go test ./...` with one testless package is `passed`; all testless is `no-work`', () => {
+  // `go test ./...` prints `?  <pkg>  [no test files]` for a main-only or generated
+  // package beside the `ok` lines of the packages that ran. The phrase match read
+  // that as zero work, and ADR-061's refusal then denied every commit of a green
+  // Go tree — reported from a Go repository on this machine (BACKLOG §273).
+  const go = (out, cmd = 'go test ./...') => verdict(0, out, cmd)
+  const ok = pkg => `ok  \tgithub.com/x/y/${pkg}\t0.123s`
+  const none = pkg => `?   \tgithub.com/x/y/${pkg}\t[no test files]`
+  assert.equal(go([ok('internal/a'), none('cmd/curve'), ok('internal/b')].join('\n')), 'passed', 'two packages ran')
+  assert.equal(go([none('cmd/curve'), ok('internal/a')].join('\n')), 'passed', 'the testless package first')
+  // The controls: zero work is still zero work.
+  assert.equal(go([none('cmd/curve'), none('internal/a')].join('\n')), 'no-work', 'every package testless')
+  assert.equal(go(none('cmd/curve'), 'go test ./cmd/curve'), 'no-work', 'one testless package alone')
+  assert.equal(go(`ok  \tgithub.com/x/y/internal/a\t0.001s [no tests to run]`, 'go test -run zzz ./...'), 'no-work',
+    'a filter that matched nothing is not work (CLAUDE.md §16 measured go test -run at exit 0)')
+  // And a non-Go command with the same words keeps the phrase reading.
+  assert.equal(verdict(0, 'no test files', 'sh check.sh'), 'no-work')
+})

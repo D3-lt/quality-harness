@@ -14658,3 +14658,19 @@ having `mutate.mjs` refuse or warn when another live session's plugin root resol
 (`claude plugin list` in that session, or a marker file) — a measurement first: how many sessions on
 this machine run the checkout rather than the cache. Inconclusive by the peer's own account; the
 correlation is the clock and the case list, not a reproduction.
+
+## 273. A green `go test ./...` with one testless package was zero work, and the publish refusal denied every commit (2026-09-24, reported from a Go repository)
+
+Reported by a peer session on this machine, with the cause read from source: `.quality-harness.json`
+declares `go test ./...`; `qh-check` exits 0 and records verdict `no-work` on every run, because
+`reportsZeroTestWork`'s phrase list includes `no test files` and `go test ./...` prints
+`?  <pkg>  [no test files]` for every package without a `_test.go` — here a main-only `cmd/`
+package beside packages that printed `ok`. ADR-061's refusal then denied every `git commit` of a
+green tree; the only way past on the adopter's side was `"publish": "warn"`. Confirmed here through
+`validationVerdict` with the four shapes (mixed, all testless, single testless, filtered to nothing).
+Fixed: for `go test`, work happened if any package line says `ok` without `[no tests to run]`; all
+testless, a lone testless package and a filter that matched nothing stay `no-work`. Same class as
+adr-lint's "rejects Go's healthy `[no test files]` status" advice (`tests/gates.test.mjs`), which
+already knew the line is ordinary — the knowledge was in one reader and not the other (CLAUDE.md
+§5). Test in `tests/validation-verdict.test.mjs`, mutant in the catalogue. The peer's report is in
+the palace inbox (`wing_quality-harness`), read and closed by this entry.

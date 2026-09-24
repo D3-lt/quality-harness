@@ -2942,3 +2942,32 @@ test('a comment before a division does not make it a regex', () => {
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// Codex review, round 3: blanking the prefix for the operand rule also blanked a
+// regex literal that WAS the operand — `/x/ / 2` left `=` as the previous token,
+// so the division read as a regex that swallowed the next `{`, and the lock ended
+// before the assertion. A masked literal is a value; the `/` after it divides.
+test('a division after a regex literal is not a regex, and the lock keeps the assertion', () => {
+  const dir = tmpRepo()
+  const rel = 'tests/regex-operand.test.mjs'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    for (const [name, operand] of [['regex operand', '/x/'], ['string operand', "'x'"]]) {
+      const source = expected => "import test from 'node:test'\n"
+        + "import assert from 'node:assert/strict'\n"
+        + `test('${name}', () => {\n`
+        + `  const n = ${operand} / 2; if (true) { /x/.test('x'); }\n`
+        + `  assert.equal(1, ${expected});\n`
+        + '})\n'
+      writeFileSync(join(dir, rel), source(2))
+      const row = `- 2026-09-13 · no-git · exit 2 · \`node --test ${rel}\` · acceptance-sha256:${'0'.repeat(64)} · ms:12`
+        + recordOp({ op: 'suffix', root: dir, text: taskMarkdown([`| \`${name}\` | \`${rel}\` | lock | F-1 |`]) }).suffix
+      writeFileSync(join(dir, rel), source(1))
+      const edited = findings(dir, [row], [[name, rel]])
+      assert.ok(edited.blocks.some(b => /hash moved — done is refused/.test(b)),
+        `${name}: an edit to the assertion must move the lock:\n${edited.blocks.join('\n')}`)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

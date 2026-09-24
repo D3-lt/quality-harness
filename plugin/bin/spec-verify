@@ -627,15 +627,19 @@ def swift_identity(package_root, path, name):
         return None
     found = matches[0]
     enclosing = []
-    for declaration in re.finditer(r"\b(?:class|struct|actor|enum|extension)\s+([\w.]+)[^{;]*\{", masked):
+    # The name is read with its whole qualification — spaces or a blanked comment
+    # around a dot, escaped segments — because `[\w.]+` stopped at the first space
+    # or backtick and handed a nested type over as one plain name (Codex, round 3).
+    for declaration in re.finditer(
+            r"\b(?:class|struct|actor|enum|extension)\s+(`?\w+`?(?:\s*\.\s*`?\w+`?)*)[^{;]*\{", masked):
         opening = declaration.end() - 1
         closing = _matching_js_brace(masked, opening)
         if closing is not None and opening < found.start() < closing:
-            enclosing.append(declaration.group(1))
-    # A nested type or a qualified extension (`extension Outer.Inner`) has an
-    # identity the runner's filter syntax was never measured for here; guessing
-    # one could select an unrelated suite with the inner name. UNRUN instead.
-    if len(enclosing) > 1 or any("." in each for each in enclosing):
+            enclosing.append(re.sub(r"\s+", "", declaration.group(1)))
+    # A nested type, a qualified extension (`extension Outer.Inner`) or an escaped
+    # type name has an identity the runner's filter syntax was never measured for
+    # here; guessing one could select an unrelated suite with the inner name. UNRUN.
+    if len(enclosing) > 1 or any("." in each or "`" in each for each in enclosing):
         return None
     enclosing = enclosing[0] if enclosing else None
     run = rf"Test {re.escape(name)}\([^)]*\) passed"

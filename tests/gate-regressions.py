@@ -731,6 +731,7 @@ def main():
     # third implementation drifting would make it call verified tasks unverified
     # and hand a session work that is already finished.
     nxt = load_script("adr_next_regressions", bin_dir / "adr-next")
+    test_a_named_producer_is_the_only_producer(lint, nxt)
     test_first_red_lock_grammar_and_identity(lint, verify, nxt)
     test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt)
 
@@ -4863,6 +4864,41 @@ def test_a_rust_test_after_a_lifetime_exists(lint):
         assert any("dead" in f for f in raw_labelled), raw_labelled
 
     print("PASS — a Rust test after a lifetime exists")
+
+
+def test_a_named_producer_is_the_only_producer(lint, nxt):
+    """BACKLOG §279 item 2, from a Laravel corpus: T3 consumes "backend accepts
+    `is_heavy` (T2)" and T5 consumes "`api-docs.json` documents `is_heavy` (T4)".
+    Each Consumes names its producer, and both readers still drew an edge from
+    every sibling whose Produces mentions `is_heavy` — so T3 and T5 each waited
+    on the other and adr-lint FAILed a dependency cycle the author never wrote."""
+    produces = {
+        "T2": "backend accepts `is_heavy` on create/update",
+        "T3": "admin can toggle `is_heavy`; the form submits `is_heavy`",
+        "T4": "`api-docs.json` documents `is_heavy`",
+        "T5": "`types.gen.ts` exposes `is_heavy`",
+    }
+    consumes = {
+        "T3": "backend accepts `is_heavy` on create/update (T2)",
+        "T5": "`api-docs.json` documents `is_heavy` (T4)",
+    }
+    lint_infos = {t: {"dep": "", "produces": p, "consumes": consumes.get(t, "none")} for t, p in produces.items()}
+    edges = sorted((a, b) for a, b, _ in lint.dag_edges(lint_infos))
+    assert edges == [("T2", "T3"), ("T4", "T5")], edges
+    errors = []
+    lint.check_dag(lint_infos, "", errors)
+    assert not any("cycle" in e for e in errors), errors
+    next_infos = {t: {"depends_on": "", "produces": p, "consumes": consumes.get(t, "none")} for t, p in produces.items()}
+    waits, _foreign = nxt.blockers(next_infos)
+    assert waits["T3"] == {"T2"} and waits["T5"] == {"T4"}, waits
+    # The other direction: a Consumes that names NO task still gets its producer
+    # from the token, in both readers.
+    unnamed = {"T1": {"dep": "", "depends_on": "", "produces": "`schema.sql`", "consumes": "none"},
+               "T2": {"dep": "", "depends_on": "", "produces": "none", "consumes": "`schema.sql`"}}
+    assert [(a, b) for a, b, _ in lint.dag_edges(unnamed)] == [("T1", "T2")]
+    assert nxt.blockers(unnamed)[0]["T2"] == {"T1"}
+
+    print("PASS — a named producer is the only producer")
 
 def test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint):
     """BACKLOG 194 row 2 — only line one was read, so a real record read as 'not a record'."""

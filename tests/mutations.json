@@ -1904,8 +1904,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            _, cons_local = split_dependencies(cons)\n            for d in tid_re.findall(\" \".join(cons_local).upper()):",
-      "to": "            cons_local = [cons]\n            for d in tid_re.findall(\" \".join(cons_local).upper()):"
+      "from": "            _, cons_local = split_dependencies(cons)\n            named = tid_re.findall(\" \".join(cons_local).upper())",
+      "to": "            cons_local = [cons]\n            named = tid_re.findall(\" \".join(cons_local).upper())"
     },
     {
       "label": "lint: a pointer may not leave the repository",
@@ -10327,6 +10327,26 @@
       "from": "  if (process.env.QUALITY_HARNESS_STATE_DIR) return path.resolve(process.env.QUALITY_HARNESS_STATE_DIR)\n",
       "to": "",
       "only": "leaves nothing in the probed repository"
+    },
+    {
+      "label": "lint: a Consumes that names its producer draws no token edge",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if named:\n                continue\n            ctoks",
+      "to": "            ctoks",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "next: a Consumes that names its producer waits on no token sibling",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if named:\n                continue\n            tokens",
+      "to": "            tokens",
+      "only": "focused false-green regressions remain closed"
     }
   ]
 }

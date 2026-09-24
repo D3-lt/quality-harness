@@ -1953,8 +1953,17 @@ def dag_edges(infos):
         cons = inf["consumes"]
         if cons and not cons.lower().startswith("none"):
             _, cons_local = split_dependencies(cons)
-            for d in tid_re.findall(" ".join(cons_local).upper()):
+            named = tid_re.findall(" ".join(cons_local).upper())
+            for d in named:
                 add(d, tid, f"{tid} Consumes {d}'s output")
+            # A Consumes that NAMES its producer has said where its input comes
+            # from; a token it shares with another sibling's Produces is not a
+            # second producer. Matching it anyway drew T3 → T5 and T5 → T3 in a
+            # Laravel corpus where each line named its own producer, and FAILed a
+            # dependency cycle the author never wrote (BACKLOG §279 item 2). The
+            # token is the fallback for a Consumes that names no task.
+            if named:
+                continue
             ctoks = {t.lower() for t in re.findall(r"`([^`]+)`", cons)} - {"none"}
             for other, oinf in infos.items():
                 hit = ctoks & {t.lower() for t in re.findall(r"`([^`]+)`", oinf["produces"])}

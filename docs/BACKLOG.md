@@ -15135,6 +15135,7 @@ The owner made outside corpus runs the main verification loop on 2026-09-24. Thr
 
 **Blocking findings that may be false refusals, to fix first:**
 2. **A dependency cycle built from a symbol both sides mention.** The Laravel ADR-006 T3 consumes "backend accepts `is_heavy` … (T2)", and T5 consumes "`api-docs.json` documents `is_heavy` (T4)". adr-lint reports `dependency cycle: T3 → T5 … T5 → T3`, matching the backticked `is_heavy` across both Produces lines, while each Consumes line names its producer task explicitly.
+   **Changed 2026-09-24 (after 2.107.0):** a Consumes that names a local task now draws its edges from those tasks only; the backticked-token match is the fallback for a Consumes that names none. This applies in both adr-lint's DAG and adr-next's readiness, which carried the rule twice. The Laravel ADR-006 lints PASS with it. Test `test_a_named_producer_is_the_only_producer`, through both readers, with the unnamed-producer direction; two mutants.
 3. **Inline tasks are not read.** `docs/decisions/008_….md` keeps its tasks as `### T1` sections inside the record, with Depends-on, Produces and Consumes on each. adr-lint pairs the record with the shared `docs/decisions/tasks/`, finds no task files, and fails every Inter-task Contracts row. Either inline tasks become a supported shape, or the finding says the record's tasks were not read, not that the contract names a task that does not exist.
 
 **Reader output that reads wrong:**

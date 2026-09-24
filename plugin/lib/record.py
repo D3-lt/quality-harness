@@ -2177,6 +2177,17 @@ def lock_findings(vlog, *, root, tests, label=""):
             "adr-verify again so a later row can carry a recovery lock "
             "(weaker than first-red)"
         )
+        # A later green attaches a recovery lock only when the log already holds a
+        # red row (lock_suffix_for_run). With none, "run adr-verify again" appends
+        # another lockless green for ever — the loop a real corpus hit (§274).
+        if not any(m.group("exit") != "0" for _line, m in _vlog_machine_rows(vlog)):
+            missing = (
+                f"{prefix}marked done but has no first-red test-lock-sha256 — "
+                "UNPROVEN, not a skip of the lock; the log holds no red row and a "
+                "green never locks, so a red run is required: set the "
+                "implementation aside (never the tests), run adr-verify for the "
+                "red, restore it, then run adr-verify for the green"
+            )
         if date is None or date < TEST_HASH_REQUIRED_FROM:
             return [], [missing + f" (advisory until {TEST_HASH_REQUIRED_FROM})"]
         return [missing + f" (required from {TEST_HASH_REQUIRED_FROM})"], []

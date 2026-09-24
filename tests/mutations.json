@@ -7907,8 +7907,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    title = title_line(_FRONTMATTER.sub(\"\", text, count=1))",
-      "to": "    title = title_line(text)",
+      "from": "    for line in _FRONTMATTER.sub(\"\", text, count=1).split(\"\\n\"):",
+      "to": "    for line in text.split(\"\\n\"):",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -7917,8 +7917,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    title = title_line(_FRONTMATTER.sub(\"\", text, count=1))",
-      "to": "    title = (text.splitlines() or [None])[0]",
+      "from": "        if title_line(line) is not None:\n            return line\n",
+      "to": "        return line if title_line(line) is not None else None\n",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -8060,6 +8060,26 @@
       "from": "        \"swift\": [\"swift\", \"test\", \"--filter\", identity[0] if identity else name],",
       "to": "        \"swift\": [\"swift\", \"test\", \"--filter\", name],",
       "only": "Swift pass is attributed"
+    },
+    {
+      "label": "lint: a fenced code block is not read for the title",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if opener:\n            fence = opener.group(1)\n            continue\n",
+      "to": "",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: the title number is read from the same title the record check read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            numbered = re.match(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", _record_title(title_text) or \"\", re.I)",
+      "to": "            numbered = re.search(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", title_text, re.I | re.M)",
+      "only": "focused false-green regressions remain closed"
     },
     {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",

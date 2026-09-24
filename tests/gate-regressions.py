@@ -750,6 +750,7 @@ def main():
     test_a_rust_assertion_macro_is_a_failure_call(lint)
     test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint)
     test_a_refused_entry_names_the_field_that_failed(verify)
+    test_a_fenced_example_is_not_a_title_and_the_number_comes_from_the_title(lint)
     test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
@@ -4821,6 +4822,28 @@ def test_a_refused_entry_names_the_field_that_failed(verify):
     assert "core.abbrev" in refusal(f"- 2026-09-17 · {wide} · exit 1 · `x` · acceptance-sha256:{digest}", wide)
 
     print("PASS — a refused entry names the field that failed")
+
+
+def test_a_fenced_example_is_not_a_title_and_the_number_comes_from_the_title(lint):
+    """Codex review of §194 row 2 — a fenced `# ADR-…` counted as the title, and a YAML comment gave the number."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        corpus = root / "docs" / "adr"
+        corpus.mkdir(parents=True)
+        files = {
+            "001-plain.md": "# ADR-001: a plain record\n",
+            # A task file whose body opens with a fenced example of a record title.
+            "009-T1-fenced.md": "```\n# ADR-009: an example\n```\n# Task ADR-009-T1: the real title\n",
+            # A real record whose frontmatter carries a YAML comment naming another number.
+            "010-T1-yaml.md": "---\n# ADR-999: a yaml comment\n---\n# ADR-010: the real title\n",
+        }
+        for name, text in files.items():
+            (corpus / name).write_text(text, encoding="utf-8")
+        tracked = {f"docs/adr/{name}" for name in files}
+        numbers = {p.name: n for p, n in lint.record_files(root, corpus, tracked)}
+        assert numbers == {"001-plain.md": 1, "010-T1-yaml.md": 10}, numbers
+
+    print("PASS — a fenced example is not a title, and the number comes from the title")
 
 
 

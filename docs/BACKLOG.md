@@ -12555,6 +12555,14 @@ such corpus's enumeration to could-not-look. A file with no heading stays "not a
 headings and indented `#` are not read, as nowhere else in the corpus reads them. Test
 `test_a_record_title_below_frontmatter_or_a_blank_line_is_read`, two catalogue mutants.
 
+**Codex review of the row 2 fix (2026-09-24) found two holes in it, both closed the same day.** Reading
+the first heading anywhere took a fenced `# ADR-…` example for a task file's title, so the task was
+enumerated as a record and a nonexistent dependency resolved; and the title's number was still read
+from the unstripped text, so a YAML comment in the frontmatter named a different record and a real one
+was dropped. Both are reproduced in `test_a_fenced_example_is_not_a_title_and_the_number_comes_from_the_title`.
+`_record_title` is now the one reading for both questions: the first `# ` heading after frontmatter
+and outside fenced code. Two new mutants, and the two row-2 mutants follow the moved lines.
+
 ## 195. DECLINED 2026-09-24 — OpenCode support: what is already portable, what is not, and the one question that decides it
 
 Asked for from outside: users of the OpenCode terminal agent want this harness there. Nothing is

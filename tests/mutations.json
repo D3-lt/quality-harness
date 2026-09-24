@@ -9868,6 +9868,15 @@
       ],
       "from": "      if (!line.startsWith('{')) return false",
       "to": "      if (!line.startsWith('{')) return false\n      return false"
+    },
+    {
+      "label": "qh-check: a split go test -json summary fragment is not a summary (§273 round 3)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "      return output !== undefined && /^ok\\s/.test(output) && output.endsWith('\\\\n') && !output.includes('[no tests to run]')",
+      "to": "      return output !== undefined && /^ok\\s/.test(output) && !output.includes('[no tests to run]')"
     }
   ]
 }

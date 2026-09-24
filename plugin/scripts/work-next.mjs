@@ -60,6 +60,10 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
   }
   const ready = []
   const unproven = []
+  // adr-next's own `done` verdict, and which directories it answered for, so the
+  // "claims done without evidence" check below uses ONE rule of done (§279 item 8).
+  const done = new Set()
+  const answeredDirs = new Set()
   for (const dir of [...dirs].sort()) {
     const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000 })
     // adr-next answers 0 (a ready task) or 3 (nothing ready) — BOTH with JSON. Reading
@@ -69,6 +73,8 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
     let answer = null
     if (answered) { try { answer = JSON.parse(run.stdout) } catch { answer = null } }
     if (!answer || !Array.isArray(answer.ready)) { unproven.push(dir); continue }
+    answeredDirs.add(dir)
+    for (const task of answer.done ?? []) done.add(path.resolve(root, task.path))
     for (const task of answer.ready) {
       const file = path.resolve(root, task.path)
       // adr-next reads every `*.md` on disk; this reader lists tracked files. An
@@ -77,7 +83,7 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
       ready.push(file)
     }
   }
-  return { ready, unproven }
+  return { ready, unproven, done, answeredDirs }
 }
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
@@ -224,15 +230,39 @@ export function observe(directory, { spawn = spawnGate } = {}) {
   const tasks = taskFiles(directory, listing) ?? []
   const specPaths = specFiles(directory, listing) ?? []
 
-  // A task that CLAIMS done without a tool-written exit-0 entry. The grammar is
-  // adr-verify's, and anything off it was typed by a person.
+  const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
+
+  // A task that CLAIMS done — in its own `**Status:**`, or in its directory's
+  // tasks/README.md row — that adr-next does not call done. This read the task
+  // file only and accepted ANY exit-0 row, so a README-marked task whose only
+  // evidence was a legacy row for a multi-line fence, and a task whose row named
+  // another fence, both passed; work-next then routed to new work while adr-lint
+  // refused both (BACKLOG §279 item 8, a Windows corpus). Where adr-next could not
+  // answer for the directory, the tool-written-row test is the fallback, and that
+  // directory is already reported as readinessUnproven.
+  const readmeDone = new Map()
+  const claimedInReadme = file => {
+    const dir = path.dirname(path.resolve(file))
+    if (!readmeDone.has(dir)) {
+      const ids = new Set()
+      for (const row of read(path.join(dir, 'README.md')).split('\n')) {
+        const cells = row.split('|').map(cell => cell.trim())
+        if (cells.length > 3 && /^T\d+$/i.test(cells[1]) && cells.slice(2).some(cell => /^done$/i.test(cell))) ids.add(cells[1].toUpperCase())
+      }
+      readmeDone.set(dir, ids)
+    }
+    const id = path.basename(file).match(/^(T\d+)(?!\d)/i)?.[1]?.toUpperCase()
+    return id != null && readmeDone.get(dir).has(id)
+  }
   const unbacked = tasks.filter(file => {
     const text = read(file)
     // `**Status:** done` puts the colon INSIDE the bold markers, which is how
     // every template in this corpus writes it — a pattern expecting the colon
     // after them matched nothing at all.
-    if (!/^\s*[-*]?\s*\*{0,2}(?:Status|State):?\*{0,2}:?\s*done\b/im.test(text)
-      && !/\bmarked\s+done\b/i.test(text)) return false
+    const claimed = /^\s*[-*]?\s*\*{0,2}(?:Status|State):?\*{0,2}:?\s*done\b/im.test(text)
+      || /\bmarked\s+done\b/i.test(text) || claimedInReadme(file)
+    if (!claimed) return false
+    if (readiness.answeredDirs.has(path.dirname(path.resolve(file)))) return !readiness.done.has(path.resolve(file))
     return !/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)
   })
 
@@ -283,7 +313,6 @@ export function observe(directory, { spawn = spawnGate } = {}) {
       && /^- \d{4}-\d{2}-\d{2} · human-observed · \S/m.test(text)) return false
     return true
   }
-  const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
   // Two filters for two questions. `readinessFrom` asks adr-next only about the
   // task directories of governing, unfrozen records; adr-next then reads EVERY
   // task in such a directory, and a directory two records share — one Accepted,

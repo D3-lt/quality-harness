@@ -2136,3 +2136,28 @@ test('spec-verify says so when implemented mode ran no test', () => {
     "printf '=== RUN   TestYes\\n--- PASS: TestYes (0.00s)\\nPASS\\n'"))
   assert.doesNotMatch(one.stdout, /ran no test/, one.stdout)
 })
+
+// Reported from a Laravel corpus-chaos run (BACKLOG §279 item 3): a record in
+// `docs/decisions/` keeps its tasks inline as `### T1` sections, and a sibling
+// `docs/decisions/tasks/` holds another record's task folder. adr-lint paired the
+// record with that directory, reported "no task files", and FAILed every
+// Inter-task Contracts row as naming a task with no file. The tasks exist; this
+// gate does not read inline tasks, and it must say that rather than fail them.
+test('a record with inline tasks is not paired with a sibling tasks directory it does not own', () => {
+  const dir = scratch('inline-tasks')
+  const decisions = join(dir, 'docs', 'decisions')
+  mkdirSync(join(decisions, 'tasks', '007_other'), { recursive: true })
+  writeFileSync(join(decisions, 'tasks', '007_other', 'T1-x.md'), '# Task T1\n')
+  const record = join(decisions, '008_inline.md')
+  writeFileSync(record, readFileSync(join(repoRoot, 'tests', 'fixtures', 'ok', 'ADR-001-selftest.md'), 'utf8')
+    .replace(/^# ADR-001[^\n]*/m, '# 008: inline tasks')
+    + '\n## Inter-task Contracts\n\n| Contract | Producer | Consumer | Parallel |\n|---|---|---|---|\n'
+    + '| `awaiting_payment` create response | T1 | T2 | No |\n\n'
+    + '### T1 — BE: allow it\n\n**Depends-on:** none · **Produces:** `awaiting_payment`\n\n'
+    + '### T2 — FE: gate it\n\n**Depends-on:** T1 · **Consumes:** `awaiting_payment` (T1)\n')
+  const run = spawnSync('python3', [join(bin, 'adr-lint'), record], { cwd: dir, env, encoding: 'utf8', timeout: 60_000 })
+  const out = `${run.stdout}${run.stderr}`
+  assert.doesNotMatch(out, /no task files/, out)
+  assert.doesNotMatch(out, /names (producing|consuming) task T\d but no task file matches it/, out)
+  assert.match(out, /inline/i, `the record's inline tasks are named as not read:\n${out}`)
+})

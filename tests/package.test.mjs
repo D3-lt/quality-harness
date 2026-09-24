@@ -1589,3 +1589,19 @@ test('selftest prints its verdict as the last thing it does', () => {
     .map(line => line.trim()).filter(line => line && !line.startsWith('#'))
   assert.match(lines.at(-1), /^printf '%s\\n' "\$verdict"$/, `the last statement is ${lines.at(-1)}`)
 })
+
+// A GitHub marketplace install is a shallow clone of the WHOLE repository, and a
+// default Windows checkout refuses a path over 260 characters ("Filename too long",
+// reported from Windows 11 on 2026-09-24, BACKLOG §279 item 10). The install lands
+// under `C:\Users\<name>\.claude\plugins\marketplaces\quality-harness\` — about 75
+// characters with a typical name — so a tracked path must leave that room. Records
+// are never renamed (CLAUDE.md §10), so the longest paths today stay; this stops
+// the next one from growing past them.
+const LONGEST_TRACKED_PATH = 157
+test('no tracked path is long enough to fail a default Windows install', () => {
+  const tooLong = paths => paths.filter(file => file.length > LONGEST_TRACKED_PATH)
+  assert.deepEqual(tooLong(['docs/adr/' + 'x'.repeat(LONGEST_TRACKED_PATH) + '.md']).length, 1,
+    'the check must be able to find a long path')
+  assert.deepEqual(tooLong(tracked()), [],
+    `shorten these task or record names before committing them: a Windows clone fails past 260 characters`)
+})

@@ -5740,10 +5740,20 @@ def main():
         m = re.match(r"(ADR-\d+)", adr.stem)
         if m:
             candidates.append(adr.parent / m.group(1) / "tasks")
+        # A record that writes its tasks INLINE (`### T1 …` sections) does not own
+        # a sibling `tasks/` that holds no task file of its own: in a corpus of
+        # numbered decisions it is the container of ANOTHER record's task folder.
+        # Paired with it, this record read "no task files" and every Inter-task
+        # Contracts row FAILed as naming a task with no file (BACKLOG §279 item 3,
+        # a Laravel corpus). Such a record takes the inline path below instead.
+        inline_tasks = re.search(r"(?m)^#{2,4}\s+T\d+\b", text) is not None
         for cand in candidates:
-            if cand.is_dir():
-                tasks_dir = cand
-                break
+            if not cand.is_dir():
+                continue
+            if inline_tasks and not any(p.name != "README.md" for p in cand.glob("*.md")):
+                continue
+            tasks_dir = cand
+            break
 
     # Declared OUTSIDE the tasks-dir branch: the advice boundary below runs whether or
     # not a record has tasks, and a name bound only on one arm is an UnboundLocalError
@@ -5761,6 +5771,12 @@ def main():
         # this gate can see, and refusing an ADR for its layout is the behaviour
         # that teaches people to stop running the gate. But saying nothing is how
         # the hole stayed open, and skills/adr-write no longer recommends it.
+        if re.search(r"(?m)^#{2,4}\s+T\d+\b", text):
+            errors.advise(
+                f"{adr.name}: its tasks are written inline, as `### T<n>` sections. This gate "
+                f"reads task files only, so those tasks, their Depends-on/Produces/Consumes "
+                f"edges and the Inter-task Contracts rows were NOT checked. Move the tasks to "
+                f"task files for adr-lint, adr-next and adr-verify to read them.")
         body = text
         inline_done = [ln.strip() for ln in body.splitlines()
                        if re.search(r"(?<!\w)T\d+(?!\w)", ln) and re.search(r"\bdone\b", ln, re.I)]

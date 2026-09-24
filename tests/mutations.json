@@ -4287,8 +4287,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "        undecided = None if status is None else bool(not re.match(r\"accepted\\b\", status, re.I))",
-      "to": "        undecided = status is not None and not re.match(r\"accepted\\b\", status, re.I)"
+      "from": "    return None if status is None else bool(not re.match(r\"accepted\\b\", status, re.I))",
+      "to": "    return status is not None and not re.match(r\"accepted\\b\", status, re.I)"
     },
     {
       "label": "next: a symlinked record's owner sits beside the link, not beside its target",
@@ -7882,6 +7882,26 @@
       "only": "focused false-green regressions remain closed"
     },
     {
+      "label": "next: the single-record --json answer carries the owning record status",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                          \"status\": status, \"undecided\": undecided},",
+      "to": "                          },",
+      "only": "single-record --json answer carries"
+    },
+    {
+      "label": "probe: a task of a record that is not Accepted is not a disagreement",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": " && !unread.has(entry.tasksDir) && entry.undecided !== true)",
+      "to": " && !unread.has(entry.tasksDir))",
+      "only": "not Accepted is not a disagreement"
+    },
+    {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",
       "file": "plugin/lib/record.py",
       "tests": [
@@ -9700,8 +9720,8 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "  const answered = adrNext.filter(entry => entry.ready !== null && !unread.has(entry.tasksDir))",
-      "to": "  const answered = adrNext.filter(entry => entry.ready !== null)"
+      "from": "  const answered = adrNext.filter(entry => entry.ready !== null && !unread.has(entry.tasksDir) && entry.undecided !== true)",
+      "to": "  const answered = adrNext.filter(entry => entry.ready !== null && entry.undecided !== true)"
     },
     {
       "label": "next: a directory two records share offers only the task whose own record is Accepted",

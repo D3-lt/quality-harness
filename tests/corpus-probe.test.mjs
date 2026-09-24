@@ -77,3 +77,17 @@ test('failedToRun: a child killed at the deadline is said to have been killed, w
   assert.equal(failedToRun({ code: 'ENOENT' }), 'did not start: ENOENT')
   assert.equal(failedToRun({ message: 'boom' }), 'did not start: boom')
 })
+
+// BACKLOG §270: five "disagreements" on an outside corpus were every one a task of
+// a Superseded record. adr-next answers for a plan and says it is one; work-next
+// offers only work orders. That is two readers answering different questions.
+test('compareReaders: a task of a record that is not Accepted is not a disagreement', () => {
+  const adrNext = [
+    { tasksDir: 'docs/adr/S/tasks', undecided: true, ready: [{ id: 'T1', path: 'docs/adr/S/tasks/T1.md', unproven: null }] },
+    { tasksDir: 'docs/adr/A/tasks', undecided: false, ready: [{ id: 'T2', path: 'docs/adr/A/tasks/T2.md', unproven: null }] },
+    { tasksDir: 'docs/adr/U/tasks', undecided: null, ready: [{ id: 'T3', path: 'docs/adr/U/tasks/T3.md', unproven: null }] },
+  ]
+  // S is a plan; A and U are compared — U because "could not tell" is not "undecided".
+  assert.deepEqual(compareReaders(adrNext, { ready: [], readinessUnproven: [] }).map(d => d.task),
+    ['docs/adr/A/tasks/T2.md', 'docs/adr/U/tasks/T3.md'])
+})

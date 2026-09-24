@@ -14618,7 +14618,7 @@ by removing the arm: `handleHook` neither observes nor records a read-only role'
 guard decides it alone. `tests/late-baseline.test.mjs` holds the parent's log byte-identical through
 a reviewer's `$GIT push` and shows the same command from the session itself warned about.
 
-## 270. Two leads from the outside run at f67cede: adr-next offers a Superseded record's tasks, and exits 1 on an empty task directory (2026-09-23)
+## 270. CLOSED 2026-09-24 — Two leads from the outside run at f67cede: adr-next offers a Superseded record's tasks, and exits 1 on an empty task directory (2026-09-23)
 
 Reported by the peer that ran the readers over a private Rust corpus (attested in
 `docs/corpus-reports/2026-09-23-macos-rust-corpus-hand-4.json`); neither confirmed here yet, and
@@ -14635,6 +14635,18 @@ both are leads until they are (§18: a peer's report is a lead).
    them under `couldNotRun`, which is the honest bucket for a reader that stopped; whether an
    empty task directory is an error for `adr-next` or an ordinary "nothing here" answer is the
    question, and the other readers' treatment of the same directory decides it.
+
+**CLOSED 2026-09-24.** Lead 1 was two readers answering different questions, and one of them hid which.
+`adr-next` answers for a record that is not Accepted and says so on stderr — deliberately, since §64:
+it instructs and never blocks — but its single-record `--json` answer dropped the owning record's
+status that corpus mode already carried, so a JSON caller got a Superseded record's tasks as plain
+`ready`. It now carries `status` and `undecided` in both modes, and `corpus-probe`'s `compareReaders`
+skips an entry whose record is `undecided`; one whose status could not be read is still compared,
+because could-not-tell is not undecided. Tests `the single-record --json answer carries the owning
+record status` and `compareReaders: a task of a record that is not Accepted is not a disagreement`,
+one mutant each. Lead 2 is a contract, not a defect: exit 1 for a tasks directory holding no task
+files is pinned by `tests/adr-next.test.mjs` and now named in the gate's own exit-code list, beside
+corpus mode's 3 for the same directory.
 
 ## 271. The Rust masker read a lifetime as a char literal and lost every test after it (2026-09-24, reported from a Rust corpus)
 

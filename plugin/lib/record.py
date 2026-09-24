@@ -1370,7 +1370,7 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
                 end = n if end < 0 else end + 2
                 blank(i, end)
                 i = end
-        elif js and text[i] == "/" and starts_regex(text, i) and js_regex_end(text, i) is not None:
+        elif js and text[i] == "/" and starts_regex("".join(out[:i]), i) and js_regex_end(text, i) is not None:
             # A quote inside a regex literal opened a phantom string and a `)`
             # inside one closed the call early, so the body could not be bounded
             # and the first red locked the test `unproven` (BACKLOG §212).

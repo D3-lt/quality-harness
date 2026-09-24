@@ -102,8 +102,18 @@ function reportsZeroTestWork(text, command) {
     // commit of a green tree — reported from a Go repository on this machine
     // (BACKLOG §273, 2026-09-24). Work happened if any package line says `ok`
     // without `[no tests to run]`; adr-lint has said the same of fences since
-    // §"rejects Go's healthy [no test files] status".
-    const packageRan = text.split('\n').some(line => /^ok\s+\S/.test(line) && !/\[no tests to run\]/.test(line))
+    // §"rejects Go's healthy [no test files] status". Under `-json` the same lines
+    // arrive inside `"Output":"…"` of one event per line, and a test that passed is
+    // its own `{"Action":"pass",…,"Test":"…"}` event — a package-level pass alone
+    // is not one (a filter that matched nothing passes the package too). Read from
+    // a real `go test -json` run, not the docs (Codex review of 6331340).
+    const packageRan = text.split('\n').some(line => {
+      if (/^ok\s+\S/.test(line)) return !/\[no tests to run\]/.test(line)
+      if (!line.startsWith('{')) return false
+      if (/"Action":"pass"/.test(line) && /"Test":"/.test(line)) return true
+      const output = /"Output":"((?:[^"\\]|\\.)*)"/.exec(line)?.[1]
+      return output !== undefined && /^ok\s/.test(output) && !output.includes('[no tests to run]')
+    })
     if (packageRan) return false
   }
   return /\b(?:no tests? (?:found|ran|collected|matched|to run)|ran 0 tests?|running 0 tests?|collected 0 items|0 tests? (?:run|executed|collected|passed)|0 passing|tests\s+0|no test files)\b/i.test(text)

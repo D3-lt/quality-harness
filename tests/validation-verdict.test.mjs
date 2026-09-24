@@ -102,3 +102,25 @@ test('a green `go test ./...` with one testless package is `passed`; all testles
   // And a non-Go command with the same words keeps the phrase reading.
   assert.equal(verdict(0, 'no test files', 'sh check.sh'), 'no-work')
 })
+
+test('the same Go shapes under `go test -json` (real event lines) read the same', () => {
+  // Codex review of 6331340: JSON events begin with `{`, so the `ok` line inside
+  // `"Output"` never matched `^ok`, and the testless package's Output still said
+  // `no test files` — a `-json` run of a green tree was `no-work` again. These
+  // lines are a real `go test -json ./...` over one tested and one testless package
+  // (go1.27.1), and a real `-run zzz` filter; the timestamps are shortened.
+  const json = (out, cmd = 'go test -json ./...') => verdict(0, out, cmd)
+  const testless = '{"Time":"T","Action":"output","Package":"example.com/m/cmd","Output":"?   \\texample.com/m/cmd\\t[no test files]\\n"}'
+  const testPass = '{"Time":"T","Action":"pass","Package":"example.com/m/p","Test":"TestAdd","Elapsed":0}'
+  const packageOk = '{"Time":"T","Action":"output","Package":"example.com/m/p","Output":"ok  \\texample.com/m/p\\t0.260s\\n"}'
+  const packagePass = '{"Time":"T","Action":"pass","Package":"example.com/m/p","Elapsed":0.26}'
+  const filteredOk = '{"Time":"T","Action":"output","Package":"example.com/m/p","Output":"ok  \\texample.com/m/p\\t0.066s [no tests to run]\\n"}'
+  const filteredWarn = '{"Time":"T","Action":"output","Package":"example.com/m/p","Output":"testing: warning: no tests to run\\n"}'
+  assert.equal(json([testless, testPass, packageOk, packagePass].join('\n')), 'passed', 'a test passed and its package printed ok')
+  assert.equal(json([testless, packageOk, packagePass].join('\n')), 'passed', 'the package ok line alone is work')
+  assert.equal(json([testless, testPass].join('\n')), 'passed', 'a test-level pass alone is work')
+  // The controls.
+  assert.equal(json(testless), 'no-work', 'every package testless')
+  assert.equal(json([filteredWarn, filteredOk, packagePass].join('\n'), 'go test -json -run zzz ./p'), 'no-work',
+    'a package-level pass with [no tests to run] is not work')
+})

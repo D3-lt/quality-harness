@@ -84,7 +84,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM  # noqa: E402
+from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402
 from record import vlog_row_is_lock_snapshot  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
@@ -326,7 +326,7 @@ def is_done(text, digest, human, fence=None, first=None, root=None):
             return True
     return False
 
-def unprovable_evidence(text, digest, fence, first):
+def unprovable_evidence(text, digest, fence, first, root=None):
     """Why a NOT-done task nonetheless carries an exit-0 entry, or None.
 
     ADR-005 applied to the render rather than the rule. `is_done` above answers
@@ -347,13 +347,23 @@ def unprovable_evidence(text, digest, fence, first):
     legacy = False
     for line in log.split("\n"):
         line = line.strip()
-        # A digest row reaching here cannot have matched, or `is_done` would have
-        # returned True — so its presence IS the mismatch, and it is the more
-        # specific of the two states: someone edited the Acceptance after the run.
         m = VLOG_DIGEST_RE.match(line)
         if m and m.group("exit") == "0":
             if vlog_row_is_lock_snapshot(line):
                 continue
+            # A row naming the CURRENT fence reaches here too: `is_done` also says
+            # no when the test lock withholds done. This used to claim such a row
+            # "cannot have matched" and told a task whose fence had one commit and
+            # one digest that "the fence changed after that run" — a cause never
+            # observed, sending the session to the wrong remedy (BACKLOG §278).
+            if digest and m.group("digest") == digest:
+                blocks, _advice = lock_findings(sections_of(text).get("Verification Log", []),
+                                                root=root, tests=tests_table_rows(text), label="")
+                if blocks:
+                    return (f"carries exit-0 evidence for this Acceptance, but its test lock "
+                            f"withholds done — {blocks[0]}; `adr-lint` names the remedy")
+                continue
+            # Any other exit-0 digest row names a fence that is not the current one.
             return ("carries exit-0 evidence recorded against a different Acceptance "
                     "— the fence changed after that run; re-run `adr-verify`")
         m = VLOG_LEGACY_RE.match(line)
@@ -450,14 +460,14 @@ def load(tasks_dir):
             "human_observed": human,
             "done": done,
 
-            # Only for a task that is NOT done. `unprovable_evidence` reads a digest
-            # row reaching it as a mismatch, which holds only when `is_done` said no;
+            # Only for a task that is NOT done. `unprovable_evidence` explains why an
+            # exit-0 row did not make the task done, which holds only when `is_done` said no;
             # computed for every task, it told `--json` consumers that ~200 done tasks
             # in a 209-task corpus carried evidence "recorded against a different
             # Acceptance" — the text render skipped it, the JSON did not (reported
             # 2026-09-23 from a Windows desktop). A done task's evidence IS the
             # evidence; a blocked or stopped task prints a reason of its own.
-            "unproven": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first)),
+            "unproven": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first, root)),
             # ADR-005 applied to routing. A sign-off that says STOP denies `done`
             # and used to fall straight through to `ready`, so the router offered
             # work the record forbids starting. Reported 2026-09-02 from another

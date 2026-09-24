@@ -15109,3 +15109,11 @@ Recorded so they do not have to be found again; none is scheduled.
 **Also from that run, not a defect:** the request that asked for the run named a flag `--mode implemented`, which spec-verify rejects with exit 2. The flag is `--implemented`, and the asker's message was wrong.
 
 **Codex review, round 4 (high, 2026-09-24): the first wording claimed a PASS.** It said "this PASS covers structure and test existence only", and it printed on a run that FAILed its existence check with exit 2 too. It now says that no test outcome was observed and only structure and test existence were checked, which is true whatever the verdict. The test asserts the FAIL case as well; one mutant.
+
+## 278. CLOSED 2026-09-24 — adr-next said "the fence changed" when a moved test lock withheld done (2026-09-24, reported from a Go repository)
+
+**Reported** by the tool-multipathreadwrite session through the palace inbox, with both readers' output for ADR-057 T1 there. `adr-lint` said "locked test `internal/apply/unlink_test.go`::TestUnlinkWithoutWholeFileReadIsRefused hash moved — done is refused". `adr-next --all` offered the task READY "(carries exit-0 evidence recorded against a different Acceptance — the fence changed after that run; re-run `adr-verify`)". The task file had one commit and all 19 digests in its log were identical. What moved was the locked test body. So the reader named a cause it never observed, and a session following it would re-run `adr-verify` when the remedy is a relock.
+
+**Cause:** `unprovable_evidence` assumed any exit-0 digest row reaching it could not match the current fence, "or `is_done` would have returned True". Since the test lock landed, `is_done` also says no when `lock_blocks_done` withholds done, so a matching row reaches it too.
+
+**Fixed:** a row whose digest matches the current fence now reports the lock's own first finding, "carries exit-0 evidence for this Acceptance, but its test lock withholds done — … ; `adr-lint` names the remedy". A row against a different fence keeps the old wording. Test `adr-next names a moved test lock, not a changed fence, when the digest still matches` runs the adr-next command line, the call the report came through, in both directions. One mutant.

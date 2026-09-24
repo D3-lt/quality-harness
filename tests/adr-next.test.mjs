@@ -1114,6 +1114,17 @@ test("a heading inside the Acceptance fence is not a heading: adr-next agrees wi
   // `unproven` sentence about a fence change nobody made (Windows desktop, 2026-09-23).
   assert.equal(parsed.done.find(t => t.id === 'T1').unproven, null,
     `a done task carries no unproven note in JSON: ${after.stdout}`)
+  // And with an OLDER exit-0 row against a previous fence beside the current one:
+  // a done task's note must stay empty however its history reads (BACKLOG §278
+  // made a current-fence row explain nothing, so this is the row that still would).
+  const aged = readFileSync(taskPath, 'utf8')
+  const current = aged.match(/^- \d{4}-\d{2}-\d{2} · \S+ · exit 0 · .*$/m)[0]
+  writeFileSync(taskPath, aged.replace(current,
+    `- 2026-09-01 · abc1234 · exit 0 · \`printf old\` · acceptance-sha256:${'1'.repeat(64)} · ms:1\n${current}`))
+  const withHistory = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.equal(route(withHistory), 'done', JSON.stringify(withHistory))
+  assert.equal(withHistory.done.find(t => t.id === 'T1').unproven, null, JSON.stringify(withHistory))
+  writeFileSync(taskPath, aged)
 
   // DIRTY: the same reader, one character later. An edited fence is a different
   // Acceptance, and the digest exists to say so — this is not the defect, it is

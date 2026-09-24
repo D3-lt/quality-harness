@@ -7862,6 +7862,16 @@
       "only": "later row can recover"
     },
     {
+      "label": "mcp: adr-judge that could not read its named path is could-not-run, not content",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "              \"adr-retire-check\": 2, \"postmortem-verify\": 2, \"adr-judge\": 2}",
+      "to": "              \"adr-retire-check\": 2, \"postmortem-verify\": 2}",
+      "only": "adr-judge that could not read its named path"
+    },
+    {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",
       "file": "plugin/lib/record.py",
       "tests": [

@@ -110,4 +110,4 @@ Revert the three hunks; the tests named in Enforced-by go red. No persistent sta
 
 ## Follow-ups
 
-- [ ] adr-judge declares no could-not-run code this record keys; it is not a dispatched facts-first gate. If a caller starts spawning it for a look, it needs a row.
+- [x] adr-judge declares no could-not-run code this record keys; it is not a dispatched facts-first gate. If a caller starts spawning it for a look, it needs a row. **Measured 2026-09-24: the trigger had already fired.** `qh-mcp` has spawned adr-judge since 46ce66b, and adr-judge exits 2 on a named path that exists and could not be read (ADR-049); `_paths` checks existence only, so `qh_adr_judge` on a directory returned "could not run" as `isError: false` content. **The row is added**: `"adr-judge": 2` in `UNRUN_EXIT`, test `adr-judge that could not read its named path reaches the client as could-not-run`.

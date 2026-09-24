@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-24",
+  "at": "dbeb5cf635c75a452aed5f26e7d1c7aefe18378b",
+  "plugin": "2.108.0 (main, pre-tag)",
+  "kind": "probe",
+  "probeSha256": "1f5d8a27ee63045b1511b3bfca798f82a9dfe2762b4e0d044964fe56489beec5",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": null,
+  "corpus": {
+    "records": 2,
+    "tasks": 9,
+    "taskDirectories": 2
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "a peer Claude Code session on this machine over a React/vitest SPA (vitest 4.1.6), the first JS repository of this cycle; asked for by the owner, who also asked for its tests through qh-check",
+  "found": "corpus-probe exit 0, stderr empty, tree clean before and after. adrLint 1 PASS, 1 FAIL; the runner confirmed the FAIL real (a stale Tests-table name). qh-check ran the inferred `npm run test` (1813 tests passed) and wrote one correct record (origin inferred, verdict passed, tree unchanged). Two leads filed as BACKLOG §280: qh-check prints nothing of its own on success, and the tests-exist finding names no line."
+}

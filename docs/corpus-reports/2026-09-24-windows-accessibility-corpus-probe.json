@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-24",
+  "at": "dbeb5cf635c75a452aed5f26e7d1c7aefe18378b",
+  "plugin": "2.108.0 (main, pre-tag)",
+  "kind": "probe",
+  "probeSha256": "1f5d8a27ee63045b1511b3bfca798f82a9dfe2762b4e0d044964fe56489beec5",
+  "platform": "Windows 11 Pro 10.0.26200, native node under PowerShell — the platform the maintainers cannot run",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 72,
+    "tasks": 209,
+    "taskDirectories": null
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "a Claude Code session on a Windows desktop, over Remote Control, read-only, over a 72-record accessibility-tooling corpus (the one that reported §279 items 5, 8 and 10); asked for by the owner",
+  "found": "corpus-probe exit 0 in 60 s, stderr empty, corpus unchanged, no new file under its .git, redaction clean. All three Windows fixes landed: governingNothing paths use forward slashes (57 of 57); README-marked-done tasks with only legacy evidence are unbacked (10) and next is adr-verify; every FAIL carries a reason (37 PASS, 35 FAIL). New: three tasks sit in both ready and unbacked, BACKLOG §280 item 4."
+}

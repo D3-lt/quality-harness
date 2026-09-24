@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-24",
+  "at": "dbeb5cf635c75a452aed5f26e7d1c7aefe18378b",
+  "plugin": "2.108.0 (main, pre-tag)",
+  "kind": "probe",
+  "probeSha256": "1f5d8a27ee63045b1511b3bfca798f82a9dfe2762b4e0d044964fe56489beec5",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 90,
+    "tasks": 70,
+    "taskDirectories": 38
+  },
+  "couldNotRun": 0,
+  "disagreements": 29,
+  "readinessUnproven": 0,
+  "runner": "a peer Claude Code session on this machine, read-only, over a PHP/React product repository with an 80-record archive beside a 12-record live corpus; asked for by the owner",
+  "found": "corpus-probe exit 0 under load 11-27, tree clean, nothing new under .git. adrLint 73 PASS, 17 FAIL. 29 disagreements, all archive tasks that adr-next offers and work-next skips; the archive is read as live by the corpus reader and SessionStart. Five leads, including one false FAIL (a pnpm --filter read as a test filter) and a human-observed task read as unbacked, are in BACKLOG §281; none is new in 2.108.0."
+}

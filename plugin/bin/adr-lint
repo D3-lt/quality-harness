@@ -1956,15 +1956,15 @@ def dag_edges(infos):
             named = tid_re.findall(" ".join(cons_local).upper())
             for d in named:
                 add(d, tid, f"{tid} Consumes {d}'s output")
-            # A Consumes that NAMES its producer has said where its input comes
-            # from; a token it shares with another sibling's Produces is not a
-            # second producer. Matching it anyway drew T3 → T5 and T5 → T3 in a
-            # Laravel corpus where each line named its own producer, and FAILed a
-            # dependency cycle the author never wrote (BACKLOG §279 item 2). The
-            # token is the fallback for a Consumes that names no task.
-            if named:
-                continue
-            ctoks = {t.lower() for t in re.findall(r"`([^`]+)`", cons)} - {"none"}
+            # Each comma-separated input decides for itself. One that NAMES its
+            # producer has said where it comes from, and a token it shares with
+            # another sibling's Produces is not a second producer: matching it drew
+            # T3 → T5 and T5 → T3 in a Laravel corpus and FAILed a cycle nobody wrote
+            # (BACKLOG §279 item 2). An input that names no task still finds its
+            # producer by token — switching the fallback off for the whole line lost a
+            # real edge and read a task ready early (Codex review of 2.108.0, P1).
+            ctoks = {t.lower() for part in cons_local if not tid_re.search(part.upper())
+                     for t in re.findall(r"`([^`]+)`", part)} - {"none"}
             for other, oinf in infos.items():
                 hit = ctoks & {t.lower() for t in re.findall(r"`([^`]+)`", oinf["produces"])}
                 if hit:

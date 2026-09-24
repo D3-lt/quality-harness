@@ -18,10 +18,10 @@
       "adr/ADR-001-cross-repo/tasks/T1-code-lives-elsewhere.md",
       "adr/ADR-001-cross-repo/tasks/T2-partial-with-a-decision-blocker.md"
     ],
-    "unbacked": [],
+    "unbacked": ["adr/ADR-001-cross-repo/tasks/T1-code-lives-elsewhere.md"],
     "retirable": [],
     "readinessUnproven": [],
-    "next": "adr-execute"
+    "next": "adr-verify"
   },
   "adrState": {
     "read": 1,

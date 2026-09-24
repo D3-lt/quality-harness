@@ -76,13 +76,19 @@ export function canonicalFile(absolute) {
 }
 
 const stateDirectories = new Map()
-export function stateDir(cwd, { spawn = true } = {}) {
-  // An explicit state directory wins over the repository's git dir. corpus-probe
-  // runs the real hook over a repository it does not own and promises to write
-  // nothing there; without this the hook appended a session log to the probed
-  // repository's `.git`, which its plugin-data and temp overrides never reached
-  // (reported from a static-site repository's 2.107.0 run).
-  if (process.env.QUALITY_HARNESS_STATE_DIR) return path.resolve(process.env.QUALITY_HARNESS_STATE_DIR)
+export function stateDir(cwd, options = {}) {
+  const base = repositoryStateDir(cwd, options)
+  // An explicit state ROOT wins over the repository's git dir. corpus-probe runs
+  // the real hook over a repository it does not own and promises to write nothing
+  // there; without this the hook appended a session log to the probed repository's
+  // `.git` (reported from a static-site repository's 2.107.0 run). It is a root,
+  // not one shared directory: each repository keeps its own place under it, or two
+  // worktrees read each other's checks as their own (Codex review of 2.108.0).
+  const override = process.env.QUALITY_HARNESS_STATE_DIR
+  return override ? path.join(path.resolve(override), createHash('sha256').update(base).digest('hex').slice(0, 16)) : base
+}
+
+function repositoryStateDir(cwd, { spawn = true } = {}) {
   const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
   const key = `${directory ?? String(cwd)}:${spawn}`
   if (stateDirectories.has(key)) return stateDirectories.get(key)

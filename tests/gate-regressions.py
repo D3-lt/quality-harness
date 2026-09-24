@@ -4897,6 +4897,15 @@ def test_a_named_producer_is_the_only_producer(lint, nxt):
                "T2": {"dep": "", "depends_on": "", "produces": "none", "consumes": "`schema.sql`"}}
     assert [(a, b) for a, b, _ in lint.dag_edges(unnamed)] == [("T1", "T2")]
     assert nxt.blockers(unnamed)[0]["T2"] == {"T1"}
+    # Codex review of 2.108.0: naming ONE input's producer switched the token
+    # fallback off for the whole Consumes, so a second, unnamed input lost its
+    # edge and the task read ready while its producer was unfinished. Each
+    # comma-separated input decides for itself.
+    mixed = {"T1": {"dep": "", "depends_on": "", "produces": "`schema.sql`", "consumes": "none"},
+             "T2": {"dep": "", "depends_on": "", "produces": "`api.json`", "consumes": "none"},
+             "T3": {"dep": "", "depends_on": "", "produces": "none", "consumes": "`api.json` (T2), `schema.sql`"}}
+    assert sorted((a, b) for a, b, _ in lint.dag_edges(mixed)) == [("T1", "T3"), ("T2", "T3")], lint.dag_edges(mixed)
+    assert nxt.blockers(mixed)[0]["T3"] == {"T1", "T2"}, nxt.blockers(mixed)
 
     print("PASS — a named producer is the only producer")
 

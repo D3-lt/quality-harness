@@ -10324,8 +10324,8 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "  if (process.env.QUALITY_HARNESS_STATE_DIR) return path.resolve(process.env.QUALITY_HARNESS_STATE_DIR)\n",
-      "to": "",
+      "from": "  return override ? path.join(path.resolve(override), createHash('sha256').update(base).digest('hex').slice(0, 16)) : base",
+      "to": "  return base",
       "only": "leaves nothing in the probed repository"
     },
     {
@@ -10334,8 +10334,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if named:\n                continue\n            ctoks",
-      "to": "            ctoks",
+      "from": "            ctoks = {t.lower() for part in cons_local if not tid_re.search(part.upper())",
+      "to": "            ctoks = {t.lower() for part in cons_local if True",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -10344,8 +10344,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if named:\n                continue\n            tokens",
-      "to": "            tokens",
+      "from": "                if not ids:\n                    unnamed.append(part)\n",
+      "to": "                unnamed.append(part)\n",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -10392,7 +10392,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (readiness.answeredDirs.has(path.dirname(path.resolve(file)))) return !readiness.done.has(path.resolve(file))\n",
+      "from": "    if (readiness.listed.has(path.resolve(file))) return !readiness.done.has(path.resolve(file))\n",
       "to": "",
       "only": "done claim adr-next does not honour"
     },
@@ -10405,6 +10405,56 @@
       "from": "|| /\\bmarked\\s+done\\b/i.test(text) || claimedInReadme(file)",
       "to": "|| /\\bmarked\\s+done\\b/i.test(text)",
       "only": "done claim adr-next does not honour"
+    },
+    {
+      "label": "lint: an unnamed input still finds its producer by token",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            ctoks = {t.lower() for part in cons_local if not tid_re.search(part.upper())",
+      "to": "            ctoks = {t.lower() for part in (cons_local if not named else []) if not tid_re.search(part.upper())",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "next: an unnamed input still finds its producer by token",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "for part in unnamed for t in",
+      "to": "for part in (unnamed if not out[tid] else []) for t in",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "work-next: a README row is read by adr-lint's leftmost-id rule",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        const index = cells.findIndex(cell => /^\\[?T\\d+\\b/i.test(cell))",
+      "to": "        const index = /^T\\d+$/i.test(cells[0] ?? '') ? 0 : -1",
+      "only": "README shapes adr-lint reads"
+    },
+    {
+      "label": "work-next: a task adr-next never listed is judged by its own evidence",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (readiness.listed.has(path.resolve(file))) return",
+      "to": "    if (true) return",
+      "only": "README shapes adr-lint reads"
+    },
+    {
+      "label": "probe: each repository keeps its own place under the state override",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  return override ? path.join(path.resolve(override), createHash('sha256').update(base).digest('hex').slice(0, 16)) : base",
+      "to": "  return override ? path.resolve(override) : base",
+      "only": "override keeps each repository apart"
     }
   ]
 }

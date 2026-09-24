@@ -2768,3 +2768,33 @@ test('an apostrophe inside a possible Swift regex refuses the file', () => {
   swiftUnproven('Tests/LockApostropheRegex.swift',
     'import Testing\n@Test func probe() {\n let r = /\'/; let s = "\'//"; #expect(2 == 2)\n}\n')
 })
+// Reported 2026-09-24 from tool-multipathreadwrite (BACKLOG §274): a task whose log
+// holds only green rows was told "run adr-verify again so a later row can carry a
+// recovery lock". A green never locks (lock_suffix_for_run), so that advice looped.
+test('a green-only log is told a red run is required, not another adr-verify', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const green = `- 2026-09-13 · no-git · exit 0 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12`
+    const onlyGreen = findings(dir, [green, green])
+    const block = onlyGreen.blocks.find(b => /no first-red test-lock-sha256/.test(b))
+    assert.ok(block, onlyGreen.blocks.join('\n'))
+    assert.match(block, /UNPROVEN/)
+    assert.match(block, /a red run is required/)
+    assert.match(block, /never the tests/)
+    assert.doesNotMatch(block, /a later row can carry a recovery lock/,
+      'a green-only log must not be told a later row can recover the lock')
+    const cutover = recordOp({ op: 'cutover' })
+    assert.ok(block.includes(cutover.from), block)
+    // The control: a red row with no lock CAN be recovered by a later run, so the
+    // recovery wording stays for that log.
+    const red = green.replace('exit 0', 'exit 2')
+    const redThenGreen = findings(dir, [red, green])
+    const recoverable = redThenGreen.blocks.find(b => /no first-red test-lock-sha256/.test(b))
+    assert.ok(recoverable, redThenGreen.blocks.join('\n'))
+    assert.match(recoverable, /a later row can carry a recovery lock/)
+    assert.doesNotMatch(recoverable, /a red run is required/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

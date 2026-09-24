@@ -14683,3 +14683,22 @@ are from a real `go test -json` run (go1.27.1), not the documentation; mutant re
 (Codex review of 6783a61, read from Go's `cmd/internal/test2json`): an Output above 1,024 bytes is
 split across events, so a long package path can put `[no tests to run]` in the event AFTER the `ok `
 fragment — the fragment then read as work. Only an Output ending in a newline is a summary now.
+
+## 274. A green-only Verification Log was told to "run adr-verify again", and a green never locks (2026-09-24, reported from tool-multipathreadwrite)
+
+Reported by a peer session with the cause read from source, on ADR-052-T1 and ADR-053-T1 of that
+repository under 2.105.0. `lock_findings` refused `done` with "no first-red test-lock-sha256 … run
+adr-verify again so a later row can carry a recovery lock". `lock_suffix_for_run` attaches a lock
+only when `code != 0 or vlog_has_red(text)`: a first-ever green is not first-red and must not lock
+(ADR-050 F-1), and the R3 recovery lock needs a red row already in the log. So a log holding only
+green rows got another lockless green on every re-run, and `--relock` refuses an empty lock by
+design (ADR-052). The advice was true for a red-without-lock log and false for this one.
+
+Fixed: with no red row in the log, the refusal says a red run is required and how to take one
+without back-dating it — set the implementation aside (never the tests), `adr-verify` for the red,
+restore, `adr-verify` for the green. A red row without a lock keeps the recovery wording. The
+three lines of the old wording are unchanged, so the catalogue entry that pins them still means the
+same thing. Test `a green-only log is told a red run is required, not another adr-verify` in
+`tests/test-lock.test.mjs`, appended rather than edited because that file is named by locked Tests
+tables; mutant in the catalogue. Answered to the reporter the same day: that is the sanctioned
+path, and `partial` is honest only when the tests cannot fail without the implementation.

@@ -7852,6 +7852,16 @@
       "only": "post-cutover done without"
     },
     {
+      "label": "lock: a green-only log is told a red run is required, not another adr-verify",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not any(m.group(\"exit\") != \"0\" for _line, m in _vlog_machine_rows(vlog)):",
+      "to": "        if False:",
+      "only": "green-only log is told"
+    },
+    {
       "label": "lock: recovery lock attaches on a later row when the log still has none",
       "file": "plugin/lib/record.py",
       "tests": [

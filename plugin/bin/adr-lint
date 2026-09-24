@@ -4368,6 +4368,12 @@ FAIL_CALLS = re.compile(
     # false alarm that teaches people to skip the gate.
     r"|->assert\w*\s*\("                                     # ->assertX(...) on any receiver
     r"|\bassert\w*\s*\("                                    # bare assertX(...) call
+    # A Rust assertion is a MACRO. `assert_eq!(a, b)` has `_` straight after
+    # `assert`, so no word boundary, and `!` before the paren, so neither arm above
+    # matched it: a Rust test whose only check was `assert_eq!` read as one that
+    # could not fail (BACKLOG §268, 2026-09-24). `debug_` and `prop_` prefixes and
+    # the `[`/`{` delimiters are the same macro.
+    r"|\b(?:\w+_)?assert\w*!\s*[(\[{]"
     # ⚠ A CONTEXT MANAGER THAT EXPECTS AN EXCEPTION IS A FAILURE CALL, and this
     # was the commonest true test shape the check called dead. `with
     # pytest.raises(X):` goes red when X is NOT raised — that IS the assertion.

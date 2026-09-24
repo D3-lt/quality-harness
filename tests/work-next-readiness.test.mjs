@@ -30,11 +30,11 @@ test('readinessFrom: exit 3 is adr-next saying nothing is ready, not a directory
   const root = path.join(os.tmpdir(), 'qh-readiness-root')
   const dir = path.join(root, 'docs', 'adr', 'A', 'tasks')
   const corpus = [{ kind: 'governing', frozen: false, taskFiles: [path.join(dir, 'T1.md')] }]
-  assert.deepEqual(readinessFrom(corpus, root, () => answer(3, [])), { ready: [], unproven: [] },
+  assert.deepEqual(readinessFrom(corpus, root, () => answer(3, [])), { ready: [], unproven: [], done: new Set(), answeredDirs: new Set([dir]) },
     'exit 3 with valid JSON is an answer')
   // DIRTY: exit 2 is the gate not running (a lib missing beside bin/), and that IS unproven.
   const missing = readinessFrom(corpus, root, () => ({ status: 2, error: null, signal: null, stdout: '', stderr: '[adr-next] could not run' }))
-  assert.deepEqual(missing, { ready: [], unproven: [dir] })
+  assert.deepEqual(missing, { ready: [], unproven: [dir], done: new Set(), answeredDirs: new Set() })
   const ready = readinessFrom(corpus, root, () => answer(0, [{ id: 'T1', path: path.join(dir, 'T1.md') }]))
   assert.deepEqual(ready.ready, [path.join(dir, 'T1.md')])
 })

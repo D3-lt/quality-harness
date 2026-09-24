@@ -3192,7 +3192,7 @@ test('the lifecycle router reads corpus state, and says so when it cannot', asyn
 
   // A task claiming done with a tool-written exit-0 entry beside one without.
   const backed = '# Task ADR-001-T1\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
-    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · acceptance-sha256:beef\n'
+    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n'
   const unbacked = '# Task ADR-001-T2\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
     + '## Verification Log\n\n'
   await writeFile(path.join(tasks, 'T1.md'), backed)
@@ -3950,4 +3950,33 @@ test('every command this harness OFFERS, it also accepts as evidence', () => {
   }
   // The control: this is worthless unless some tree actually produced a command.
   assert.ok(offered.length >= 4, `the fixtures must exercise several rungs, got: ${offered.join(' · ')}`)
+})
+
+// Reported from a Windows corpus-chaos run (BACKLOG §279 item 8): tasks/README.md
+// marked T1 done, its only evidence was a legacy no-digest row that cannot prove a
+// multi-line fence, and adr-lint said so. work-next listed it READY and named
+// `adr-execute` next, because its own "claims done without evidence" test read only
+// the task file's Status and accepted ANY exit-0 row. Done is adr-next's verdict now:
+// a claim, in the task or in the README, that adr-next does not call done is unbacked.
+test('work-next: a done claim adr-next does not honour is unbacked, wherever it is made', async () => {
+  const { observe, nextStage } = await import('../plugin/scripts/work-next.mjs')
+  const root = await mkdtemp(path.join(testTmp, 'quality-router-claims-'))
+  const tasks = path.join(root, 'docs', 'adr', 'tasks')
+  await mkdir(tasks, { recursive: true })
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-thing.md'), '# ADR-001: A thing\n\n**Status:** Accepted\n')
+  await writeFile(path.join(tasks, 'README.md'),
+    '# Tasks\n\n| ID | Goal | Status |\n|----|------|--------|\n| T1 | legacy | done |\n| T2 | fresh | pending |\n')
+  // T1: marked done ONLY in the README; a legacy row against a two-line fence.
+  await writeFile(path.join(tasks, 'T1.md'), '# Task ADR-001-T1\n\n## Acceptance\n\n```bash\nset -e\ntrue\n```\n\n'
+    + '## Verification Log\n\n- 2026-08-20 · abc1234 · exit 0 · `set -e`\n')
+  // T2: its own Status says done; an exit-0 row recorded against a different fence.
+  await writeFile(path.join(tasks, 'T2.md'), '# Task ADR-001-T2\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `false` · acceptance-sha256:' + 'a'.repeat(64) + '\n')
+  // T3: done, with real evidence for its current fence — the control.
+  await writeFile(path.join(tasks, 'T3.md'), '# Task ADR-001-T3\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n')
+  gitInit(root)
+  const state = observe(root)
+  assert.deepEqual(state.unbacked.map(file => path.basename(file)).sort(), ['T1.md', 'T2.md'], JSON.stringify(state.unbacked))
+  assert.equal(nextStage(state).id, 'adr-verify', 'unverified done claims come before new work')
 })

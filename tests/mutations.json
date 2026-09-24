@@ -10365,6 +10365,46 @@
       ],
       "from": "...(finding ? { reason: scrub(finding.trim()) } : {})",
       "to": "...({})"
+    },
+    {
+      "label": "lint: a record with inline tasks skips a tasks directory it does not own",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "            if inline_tasks and not any(p.name != \"README.md\" for p in cand.glob(\"*.md\")):\n                continue\n",
+      "to": "",
+      "only": "inline tasks is not paired"
+    },
+    {
+      "label": "lint: inline tasks are named as not read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if re.search(r\"(?m)^#{2,4}\\s+T\\d+\\b\", text):\n            errors.advise(",
+      "to": "        if False:\n            errors.advise(",
+      "only": "inline tasks is not paired"
+    },
+    {
+      "label": "work-next: done is adr-next's verdict where adr-next answered",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (readiness.answeredDirs.has(path.dirname(path.resolve(file)))) return !readiness.done.has(path.resolve(file))\n",
+      "to": "",
+      "only": "done claim adr-next does not honour"
+    },
+    {
+      "label": "work-next: a README row marked done is a done claim",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "|| /\\bmarked\\s+done\\b/i.test(text) || claimedInReadme(file)",
+      "to": "|| /\\bmarked\\s+done\\b/i.test(text)",
+      "only": "done claim adr-next does not honour"
     }
   ]
 }

@@ -14679,4 +14679,7 @@ object, the `ok` line sits inside `"Output":"…"`, and the testless package's O
 test files` — a `-json` run of the same green tree was `no-work` again. Now a `{"Action":"pass"}`
 event with a `"Test"` field, or an `"Output"` beginning `ok ` without `[no tests to run]`, is work;
 a package-level pass alone is not (a filter that matched nothing passes the package). Fixture lines
-are from a real `go test -json` run (go1.27.1), not the documentation; mutant reverts the arm.
+are from a real `go test -json` run (go1.27.1), not the documentation; mutant reverts the arm. Round 3
+(Codex review of 6783a61, read from Go's `cmd/internal/test2json`): an Output above 1,024 bytes is
+split across events, so a long package path can put `[no tests to run]` in the event AFTER the `ok `
+fragment — the fragment then read as work. Only an Output ending in a newline is a summary now.

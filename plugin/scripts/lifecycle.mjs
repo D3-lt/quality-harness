@@ -112,7 +112,10 @@ function reportsZeroTestWork(text, command) {
       if (!line.startsWith('{')) return false
       if (/"Action":"pass"/.test(line) && /"Test":"/.test(line)) return true
       const output = /"Output":"((?:[^"\\]|\\.)*)"/.exec(line)?.[1]
-      return output !== undefined && /^ok\s/.test(output) && !output.includes('[no tests to run]')
+      // Only a COMPLETE summary line counts: test2json splits an Output above
+      // 1,024 bytes, so a long package path can put `[no tests to run]` in the
+      // next event — an `ok ` fragment with no newline proves nothing (Codex, 6783a61).
+      return output !== undefined && /^ok\s/.test(output) && output.endsWith('\\n') && !output.includes('[no tests to run]')
     })
     if (packageRan) return false
   }

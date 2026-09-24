@@ -199,16 +199,25 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // adr-lint per record: the gate's own verdict on each file the readers counted.
   // ADR-038 makes a MADR or Nygard record `not-recognised` while the corpus
   // readers still count it, and that split is a thing to see side by side.
+  // A frozen record is still linted, and its entry says so: a verdict on an archive
+  // read beside the live records as if it were one (BACKLOG §279 item 4).
+  const frozen = record => (record.frozen ? { frozen: true } : {})
   const adrLint = corpus.map(record => {
     const tasksDir = (record.taskFiles ?? []).length ? path.dirname(record.taskFiles[0]) : null
     const run = gate('adr-lint', tasksDir ? [record.file, tasksDir] : [record.file])
     if (run.error) {
       note(`adr-lint ${rel(record.file)}`, failedToRun(run.error, timeoutMs))
-      return { file: rel(record.file), exit: null, verdict: null }
+      return { file: rel(record.file), exit: null, verdict: null, ...frozen(record) }
     }
     const first = `${run.stdout ?? ''}${run.stderr ?? ''}`.split('\n').find(line => /^\[|not-recognised|NOT A DECISION RECORD/.test(line)) ?? ''
     const verdict = /^\[PASS\]/.test(first) ? 'PASS' : /^\[FAIL\]/.test(first) ? 'FAIL' : /not-recognised/.test(first) ? 'not-recognised' : /NOT A DECISION RECORD/i.test(first) ? 'not-a-record' : `exit ${run.status}`
-    return { file: rel(record.file), exit: run.status, verdict }
+    // A FAIL carries its first finding. A runner who saw only the verdict had to
+    // find and run adr-lint by hand, and one could not, and reported the FAIL
+    // without its cause (BACKLOG §279 item 9). Scrubbed like every emitted string.
+    const finding = verdict === 'FAIL'
+      ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}\S/.test(line) && !/^ {2}advice:/.test(line))
+      : undefined
+    return { file: rel(record.file), exit: run.status, verdict, ...(finding ? { reason: scrub(finding.trim()) } : {}), ...frozen(record) }
   })
 
   const workNext = reader('work-next', () => node('work-next.mjs', ['--json']), note)
@@ -302,7 +311,10 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     frozenTaskDirs,
     adrState: adrState && {
       look: adrState.look, read: adrState.read, governing: adrState.governing,
-      governingNothing: adrState.governingNothing, contested: adrState.contested?.length ?? null,
+      // Normalised like every other path here: adr-state prints native separators,
+      // so on Windows this was the one field in backslashes and a consumer joining
+      // on file matched nothing (BACKLOG §279 item 5, reported from Windows 11).
+      governingNothing: adrState.governingNothing?.map(entry => ({ ...entry, file: normal(entry.file) })) ?? null, contested: adrState.contested?.length ?? null,
       danglingSupersession: adrState.danglingSupersession,
     },
     adrNext,

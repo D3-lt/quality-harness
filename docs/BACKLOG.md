@@ -15140,11 +15140,15 @@ The owner made outside corpus runs the main verification loop on 2026-09-24. Thr
 
 **Reader output that reads wrong:**
 4. **Frozen records are linted.** The probe skips frozen records for adr-next but runs adr-lint on all of them, so two `docs/adr-archive/` records read FAIL beside the live corpus. That repository's convention is that the archive is outside lint.
+   **Changed 2026-09-24 (after 2.107.0):** a frozen record is still linted, since the matrix deliberately keeps the dated-archive fixture's FAIL, and its adrLint entry now carries `frozen: true`, so a reader can set an archive's verdicts aside. Matrix assertion: every frozen record's entry, and only those, carries the flag; one mutant.
 5. **Path separators differ by field on Windows (reported).** Every `adrState.governingNothing[].file` uses backslashes (57 of 57), while `records`, `adrLint`, `workNext` and `adrNext` use forward slashes. A consumer joining on the file field matches nothing (CLAUDE.md §7).
+   **Changed 2026-09-24 (after 2.107.0):** the probe normalises `governingNothing[].file` like every other path. The matrix asserts each one joins a record's file exactly, exercised by the madr fixture. The backslash form only occurs on Windows, so the assertion bites on the Windows CI job; no catalogue mutant was added, because on POSIX it would be GREEN by construction.
 6. **"ADR tasks in flight:" heads directories that are finished (reported).** SessionStart lists "all N task(s) carry exit-0 evidence" under that heading.
+   **Left open 2026-09-24:** renaming the heading changes an orientation line that many lifecycle tests and adopters' eyes are matched to. That is worth doing together with item 8's side-by-side statement, not alone.
 7. **`governing: 72` beside 57 in `governingNothing` (reported).** Governing a decision and governing a code path share one word, and read as a contradiction.
 8. **A README marked done beside a task offered READY (reported).** On the Windows corpus's ADR-076, work-next offers T1 and T7 as ready while adr-lint says the README marks them done without evidence for the current fence. Both readers agree the evidence is missing, but nothing puts the two statements side by side, and `disagreements` compares adr-next with work-next only.
 9. **An adrLint entry carries no reason.** Entries hold only `{file, exit, verdict}`, so a runner who sees FAIL has to find and run adr-lint by hand. The Laravel runner could not locate the CLI and reported the FAIL without its cause.
+   **Changed 2026-09-24 (after 2.107.0):** a FAIL entry carries `reason`, the first non-advice finding adr-lint printed, scrubbed like every emitted string; other verdicts carry none. The matrix asserts both directions; one mutant.
 
 **Adopter environment:**
 10. **The repository does not clone on default Windows settings (reported).** `git clone` into a normal path fails with "Filename too long" on four task files under `docs/adr-archive/ADR-059-…` and `docs/adr/ADR-060-…`. It succeeds with `core.longpaths=true`. Whether a marketplace install clones the whole repository, and so hits this, is not established.

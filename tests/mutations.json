@@ -10347,6 +10347,24 @@
       "from": "            if named:\n                continue\n            tokens",
       "to": "            tokens",
       "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "probe: a frozen record's lint entry says it is frozen",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "  const frozen = record => (record.frozen ? { frozen: true } : {})",
+      "to": "  const frozen = record => ({})"
+    },
+    {
+      "label": "probe: a FAIL carries its first finding",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "...(finding ? { reason: scrub(finding.trim()) } : {})",
+      "to": "...({})"
     }
   ]
 }

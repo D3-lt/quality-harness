@@ -89,6 +89,26 @@ for (const [name, dir] of corpora) {
     // beside readers that counted the same file. Declared in every expectation
     // and, until a review noticed, asserted by none (Codex, c1f546a).
     assert.deepEqual(report.adrLint.map(entry => ({ file: entry.file, verdict: entry.verdict })), expected.adrLint, `${name}: adr-lint:\n${JSON.stringify(report.adrLint, null, 2)}`)
+    // A frozen record is still linted, and its entry says it is frozen, so a reader
+    // can set an archive's verdicts aside. Reported from a Laravel corpus whose
+    // archive read FAIL beside the live records (BACKLOG §279 item 4).
+    const frozenFiles = new Set(report.records.filter(r => r.frozen).map(r => r.file))
+    assert.deepEqual(report.adrLint.filter(entry => entry.frozen === true).map(entry => entry.file).sort(),
+      report.adrLint.map(entry => entry.file).filter(file => frozenFiles.has(file)).sort(),
+      `${name}: every frozen record's lint entry, and only those, carries frozen: true`)
+    // Every file field joins with records[] exactly. adr-state prints native
+    // separators; on Windows its governingNothing entries alone came back in
+    // backslashes (BACKLOG §279 item 5). This bites on the Windows CI job.
+    const recordFiles = new Set(report.records.map(r => r.file))
+    for (const entry of report.adrState?.governingNothing ?? []) {
+      assert.ok(recordFiles.has(entry.file), `${name}: governingNothing names ${entry.file}, which no record has`)
+    }
+    // A FAIL says why, so a runner can report the cause and not only the verdict
+    // (BACKLOG §279 item 9).
+    for (const entry of report.adrLint.filter(e => e.verdict === 'FAIL')) {
+      assert.ok(typeof entry.reason === 'string' && entry.reason.length > 0, `${name}: ${entry.file} FAILs with no reason`)
+    }
+    assert.ok(report.adrLint.filter(e => e.verdict !== 'FAIL').every(e => !('reason' in e)), `${name}: only a FAIL carries a reason`)
     assert.deepEqual(report.sweep.map(entry => ({ root: entry.root, claims: entry.claims, held: entry.held, false: entry.false, superseded: entry.superseded, unrunnable: entry.unrunnable })), expected.sweep, `${name}: sweep buckets:\n${JSON.stringify(report.sweep, null, 2)}`)
     assert.deepEqual(report.disagreements.map(d => ({ task: d.task, adrNext: d.adrNext, workNext: d.workNext })), expected.disagreements, `${name}: readers disagree:\n${JSON.stringify(report.disagreements, null, 2)}`)
     for (const line of expected.sessionStart.mustMatch ?? []) {

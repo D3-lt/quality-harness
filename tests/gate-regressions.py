@@ -4787,15 +4787,17 @@ def test_a_rust_test_after_a_lifetime_exists(lint):
         "const RAW: &str = r#\"say \"hi\"#;\n\n"
         "#[test]\n"
         "fn first_case() { 'outer: loop { break 'outer; } assert_eq!(1, 1); }\n\n"
+        # Between the label's quote and the comment's apostrophe: the span a
+        # C-like stripper blanked, so both checks below must reach into it.
+        "#[test]\n"
+        "fn never_fails() {\n"
+        "    let _ = Case { name: \"y\" };\n"
+        "}\n\n"
         "#[tokio::test(flavor = \"multi_thread\", worker_threads = 2)]\n"
         "async fn ladder_fires() {\n"
         "    // a later refactor can't regress this entry\n"
         "    let c = Case { name: \"x\" };\n"
         "    assert_eq!(c.name, \"x\");\n"
-        "}\n\n"
-        "#[test]\n"
-        "fn never_fails() {\n"
-        "    let _ = Case { name: \"y\" };\n"
         "}\n")
     with tempfile.TemporaryDirectory() as td:
         root = Path(td)

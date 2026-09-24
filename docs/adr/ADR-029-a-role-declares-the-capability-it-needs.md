@@ -181,5 +181,6 @@ persistent state, no migration, no evidence row touched.
 
 ## Follow-ups
 
-- [ ] Run the pre-registered check after the next few workflow edits and delete the declaration if
-      every role carries the same alias.
+- [x] Run the pre-registered check after the next few workflow edits and delete the declaration if
+      every role carries the same alias. **Run 2026-09-24,** after six commits to `plugin/workflows`:
+      opus 7, sonnet 1, haiku 1. **The roles differ; the declaration stays.**

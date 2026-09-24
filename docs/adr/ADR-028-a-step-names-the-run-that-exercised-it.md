@@ -200,5 +200,6 @@ rewritten — which is ADR-021's requirement and the reason the field was design
 
 ## Follow-ups
 
-- [ ] After twenty tasks, run the pre-registered check and delete the field if it is being filled as
-      a formality.
+- [x] After twenty tasks, run the pre-registered check and delete the field if it is being filled as
+      a formality. **Run 2026-09-24:** 32 `steps:` fields across 14 task files; none names every
+      step of its task. **The criterion did not fire; the field stays.**

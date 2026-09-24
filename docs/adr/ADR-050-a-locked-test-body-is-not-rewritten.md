@@ -116,6 +116,7 @@ Remove the suffix from `record_run`, `check_test_lock`, and the `is_done` lock r
 
 ## Follow-ups
 
-- [ ] T1–T3 first-reds predate the writer; do not edit Verification Logs. Cutover
+- [x] T1–T3 first-reds predate the writer; do not edit Verification Logs. Cutover
       `TEST_HASH_REQUIRED_FROM` is `2026-09-13`. Filling hashes on a later red is a
-      spec change (F-1).
+      spec change (F-1). **In force 2026-09-24:** the cutover constant reads `2026-09-13` in
+      `plugin/lib/record.py`, and T1–T3's logs are unedited since 022e9ce.

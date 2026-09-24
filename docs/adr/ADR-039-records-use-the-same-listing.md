@@ -116,4 +116,4 @@ Revert `work-next.mjs` `observe`, `lifecycle.mjs` `adrCorpus` inventory, `adr-st
 
 ## Follow-ups
 
-- [ ] none at authoring
+- [x] none at authoring. **Confirmed 2026-09-24:** nothing followed this record.

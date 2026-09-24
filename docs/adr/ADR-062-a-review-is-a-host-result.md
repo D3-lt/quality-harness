@@ -85,3 +85,4 @@ Revert the commit. No stored format changes.
 ## Follow-ups
 
 - [ ] Pi's review invocation, once a command that prints its interface has been run.
+  *2026-09-24, still open:* `pi` is not installed on this machine, so its interface cannot be run; the host stays `unavailable` by design.

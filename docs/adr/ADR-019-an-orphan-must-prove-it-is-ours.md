@@ -260,3 +260,4 @@ partially executed record leaves the new exports unreferenced, which is inert.
 ## Follow-ups
 
 - [ ] After this ships, count `unidentified` rows reported across the machines that report at all. If most reports are unidentified, the three routes are too narrow and the decision above is the thing to revisit — not the rendering.
+  *Measured 2026-09-24, one machine, not ticked:* `sync-standalone.mjs` (dry run) reports 0 files proven ours and 12 unidentified in `~/.claude/bin`; the visible candidates are other tools' files. By the letter that fires the criterion; whether the routes are too narrow needs reports from other machines, and this one is not a verdict.

@@ -162,4 +162,4 @@ tree move together in one commit.
 
 ## Follow-ups
 
-- [ ] Decide whether the already-published history is worth rewriting (docs/BACKLOG.md §42).
+- [x] Decide whether the already-published history is worth rewriting (docs/BACKLOG.md §42). **Decided 2026-09-24: not rewritten.** A rewrite changes every sha the Verification Logs record. Scan run the same day: 17 commits between 2026-08-26 and 2026-09-04 add or remove the owner's home path; no tracked file at HEAD carries it.

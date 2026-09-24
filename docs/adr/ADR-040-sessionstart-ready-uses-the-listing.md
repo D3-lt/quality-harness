@@ -118,4 +118,4 @@ Revert the SessionStart listing inventory in `lifecycle.mjs` (`taskDirectories`,
 
 ## Follow-ups
 
-- [ ]
+- [x] None at authoring. **Confirmed 2026-09-24:** no open item for this record.

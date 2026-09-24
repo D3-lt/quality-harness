@@ -112,4 +112,4 @@ Restore `missingEvidenceReason` joining unfiltered `mutationPaths` / the `The tr
 
 ## Follow-ups
 
-- [ ] none at authoring
+- [x] none at authoring. **Confirmed 2026-09-24:** nothing followed this record.

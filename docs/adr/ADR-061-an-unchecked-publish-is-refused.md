@@ -95,9 +95,10 @@ Revert the commit. The deny is a host permission on one command; no stored forma
 
 ## Follow-ups
 
-- [ ] A publish that does not contain `commit` or `push` is still not refused before it runs.
+- [x] A publish that does not contain `commit` or `push` is still not refused before it runs. **Settled 2026-09-24:** a permanent boundary in this record's Out of Scope, not open work.
 - [ ] A publish launched from a script file (`sh do-it.sh`, `python3 helper.py`) is not observed at
   all. The honest refusal is a git `pre-commit`/`pre-push` hook reading the same ledger (BACKLOG §269).
+  *2026-09-24, still open:* no hook installer ships; the refusal still keys on the command. Owned here.
 
 ## Amended 2026-09-23 — what the refusal matches
 

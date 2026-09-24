@@ -184,3 +184,4 @@ per-checkout file, and no contract a consumer depends on.
 ## Follow-ups
 
 - [ ] After ten campaigns under this record, count how often a reused verdict was later contradicted by the full run a release forces. If that count is not zero, the key is missing an input and this record comes out — the pre-registered criterion in the Decision.
+  *2026-09-24, not ticked:* not measured. The comparison needs per-mutant verdicts from a cached push run and the dispatched full run of the same sha, read from CI logs. The GREEN at eb6aa55 was a test gap found by a full run, not a reused verdict it contradicted.

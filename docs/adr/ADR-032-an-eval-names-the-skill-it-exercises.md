@@ -157,3 +157,4 @@ tags are inert to scoring.
 
 - [ ] After ten more cases, run the pre-registered grep and remove the `skill-unattributed` vocabulary if it has become the majority answer.
 - [ ] Establish whether a grader can assert WHICH skill fired; until then the routing claim in `work` remains untested and BACKLOG §105 stays open for it.
+  *2026-09-24, still open:* every Trigger grader is `tool_used` on `Skill` without checking which skill; closing it means measuring whether the eval runner can match the Skill tool's input. Not scheduled.

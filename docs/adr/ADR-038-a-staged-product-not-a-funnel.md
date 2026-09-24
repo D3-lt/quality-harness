@@ -121,4 +121,4 @@ Revert `work-next.mjs`, `facts-gate-dispatch.sh`, `lifecycle.mjs`, `run-shell-ho
 
 ## Follow-ups
 
-- [ ]
+- [x] None at authoring. **Confirmed 2026-09-24:** no open item for this record.

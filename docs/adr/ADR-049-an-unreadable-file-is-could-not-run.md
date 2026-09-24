@@ -117,4 +117,4 @@ Remove the `except OSError` wraps and the Exit-header named-path sentences. Disp
 
 ## Follow-ups
 
-- [ ] Dispatcher mapping for adr-judge remains ADR-046 Follow-ups — not this record.
+- [x] Dispatcher mapping for adr-judge remains ADR-046 Follow-ups — not this record. **Done 2026-09-24 there:** ADR-046's follow-up is ticked with its evidence (fba981b); this record owes nothing.

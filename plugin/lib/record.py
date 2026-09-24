@@ -37,6 +37,7 @@ import base64
 import hashlib
 import json
 import re
+from functools import lru_cache
 from pathlib import Path
 
 __all__ = [
@@ -1293,6 +1294,12 @@ def js_regex_end(text, i):
     return None
 
 
+# Pure, so memoised: the lock hashes every named test of a file by masking that
+# file, and one record's tests can name hundreds in one large test file. Unshared,
+# that was 226 JS-aware masks of one 137 KB file — about 17 s, enough to have
+# adr-lint killed in CI on three records (1827ac0). The result is a str, so a
+# cached one cannot be mutated by a caller.
+@lru_cache(maxsize=32)
 def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,
                        shell_heredocs=False, swift=False, go=False, js=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.

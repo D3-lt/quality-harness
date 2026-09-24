@@ -3021,3 +3021,24 @@ test('adr-next names a moved test lock, not a changed fence, when the digest sti
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// CI on 1827ac0: adr-lint was SIGKILLed on three records because the lock hashed
+// each named JS test by re-masking the WHOLE file — 226 masks of one 137 KB test
+// file for one record, about 17 s, after §212 made each mask the JS-aware one.
+// The masker is pure, so one text is masked once however many tests it holds.
+test('one test file is masked once, however many of its tests are hashed', () => {
+  const r = python(`
+import json, record
+record._mask_lock_noncode.cache_clear()
+src = "import test from 'node:test'\\n" + "".join(
+    f"test('case {n}', () => {{ const re = /'/; if (re.test(\\"'\\")) {{ throw new Error('x') }} }})\\n"
+    for n in range(20))
+bodies = [record.extract_test_body(src, f"case {n}") for n in range(20)]
+info = record._mask_lock_noncode.cache_info()
+print(json.dumps({"found": sum(b is not None and "throw" in b for b in bodies), "misses": info.misses, "hits": info.hits}))
+`)
+  assert.equal(r.status, 0, r.stderr)
+  const got = JSON.parse(r.stdout)
+  assert.equal(got.found, 20, r.stdout)
+  assert.ok(got.misses <= 2 && got.hits >= 18, `the file was re-masked per test: ${r.stdout}`)
+})

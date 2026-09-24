@@ -3185,3 +3185,20 @@ test('a coloured build error is inconclusive, not a kill', () => {
   assert.match(log, /mutant inconclusive/, `${result.stdout}\n${result.stderr}`)
   assert.doesNotMatch(log, /mutant killed/, 'a build that failed is not a test that noticed')
 })
+
+// BACKLOG §203: adr-verify's comment-only refusal had no comment marker for
+// Swift, so a mutant that edited only a `//` line in a .swift file reached the
+// fence and was graded as if it had changed the program.
+test('a Swift comment-only mutant is refused like any other', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  writeFileSync(join(copy, 'Helper.swift'), '// a swift helper nothing reads\nlet helperValue = 1\n')
+  const prose = verify(copy, [
+    '--cwd', '.', '--mutant', 'Helper.swift',
+    '--from', '// a swift helper nothing reads',
+    '--to', '// a swift helper that nothing reads',
+    '--why', 'probe',
+  ])
+  expectExit(prose, 2, 'a Swift comment edit changes nothing the program does')
+  assert.match(prose.stdout, /COMMENT-ONLY MUTANT/)
+})

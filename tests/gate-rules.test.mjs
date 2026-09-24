@@ -1959,3 +1959,78 @@ print(json.dumps(out))
   assert.match(got.noShell[1], /no POSIX shell was found/)
   assert.match(got.noShell[1], /CLAUDE_CODE_GIT_BASH_PATH/, 'it must name the fix, not only the fault')
 })
+
+// BACKLOG §38 and §203. spec-verify had no Go or Swift runner, so an @implemented
+// binding in either was UNRUN however healthy its test. Both runners exit 0 when
+// their filter selects nothing — measured 2026-09-24: go1.27.1 prints
+// `[no tests to run]`, Swift 6.4 `No matching test cases were run` — so a runner
+// added naively reports a PASS for a test that never ran. The runner here is a stub
+// on PATH printing the measured output, so the grade turns on the output shape and
+// not on which toolchain the machine happens to have.
+function stubRunner(dir, name, script) {
+  const stubs = join(dir, 'stub-bin')
+  mkdirSync(stubs, { recursive: true })
+  writeFileSync(join(stubs, name), `#!/bin/sh\nprintf '%s\\n' "$@" > "${join(dir, name + '-args.txt')}"\n${script}\n`, { mode: 0o755 })
+  return { ...env, PATH: `${stubs}${delimiter}${env.PATH}` }
+}
+
+function specVerifyImplemented(dir, spec, runEnv) {
+  return spawnSync('python3', [join(bin, 'spec-verify'), '--implemented', '--repo', dir, spec],
+    { cwd: dir, env: runEnv, encoding: 'utf8', timeout: 60_000 })
+}
+
+function bindImplemented(prefix, testCell, files) {
+  const dir = scratch(prefix)
+  cpSync(join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  for (const [rel, text] of Object.entries(files)) {
+    mkdirSync(dirname(join(dir, rel)), { recursive: true })
+    writeFileSync(join(dir, rel), text)
+  }
+  const spec = join(dir, 'spec-selftest.md')
+  writeFileSync(spec, readFileSync(spec, 'utf8').replace(
+    '| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | `test_selftest_fixture.py::test_gates_run` | @spec | |',
+    `| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | \`${testCell}\` | @implemented | |`))
+  return { dir, spec }
+}
+
+const NO_POSIX_STUB = process.platform === 'win32' && 'a #!/bin/sh stub on PATH cannot be executed on Windows'
+
+test('spec-verify runs a Go binding, and a Go filter that selects nothing is UNRUN, not a pass', { skip: NO_POSIX_STUB }, () => {
+  const { dir, spec } = bindImplemented('spec-go', 'pkg/a_test.go::TestYes', {
+    'go.mod': 'module example.com/m\n\ngo 1.22\n',
+    'pkg/a_test.go': 'package pkg\n\nimport "testing"\n\nfunc TestYes(t *testing.T) { if 1 != 1 { t.Fatal("x") } }\n',
+  })
+  const ran = specVerifyImplemented(dir, spec, stubRunner(dir, 'go',
+    "printf '=== RUN   TestYes\\n--- PASS: TestYes (0.00s)\\nPASS\\nok  \\texample.com/m/pkg\\t0.05s\\n'"))
+  assert.equal(ran.status, 0, `${ran.stdout}\n${ran.stderr}`)
+  const args = readFileSync(join(dir, 'go-args.txt'), 'utf8').split('\n')
+  assert.deepEqual(args.slice(0, 2), ['test', '-run'], args.join(' '))
+  assert.ok(args.includes('^TestYes$') && args.includes('./pkg') && args.includes('-v'), args.join(' '))
+  const nothing = specVerifyImplemented(dir, spec, stubRunner(dir, 'go',
+    "printf 'testing: warning: no tests to run\\nPASS\\nok  \\texample.com/m/pkg\\t0.19s [no tests to run]\\n'"))
+  assert.equal(nothing.status, 4, `a filter that selected nothing is could-not-run, not a pass\n${nothing.stdout}`)
+  assert.match(nothing.stdout, /UNRUN/)
+  const red = specVerifyImplemented(dir, spec, stubRunner(dir, 'go',
+    "printf '=== RUN   TestYes\\n--- FAIL: TestYes (0.00s)\\nFAIL\\n'; exit 1"))
+  assert.equal(red.status, 3, red.stdout)
+})
+
+test('spec-verify runs a Swift binding of either test shape, and a Swift filter that selects nothing is UNRUN', { skip: NO_POSIX_STUB }, () => {
+  const source = 'import XCTest\nimport Testing\n'
+    + 'final class LibTests: XCTestCase { func testYes() { XCTAssertEqual(1, 1) } }\n'
+    + '@Test func modernYes() { #expect(1 == 1) }\n'
+  const files = { 'Package.swift': '// swift-tools-version:6.0\n', 'Tests/LibTests/LibTests.swift': source }
+  const xctest = bindImplemented('spec-swift-xc', 'Tests/LibTests/LibTests.swift::testYes', files)
+  const passedXC = specVerifyImplemented(xctest.dir, xctest.spec, stubRunner(xctest.dir, 'swift',
+    "printf \"Test Case '-[LibTests.LibTests testYes]' passed (0.001 seconds).\\n\""))
+  assert.equal(passedXC.status, 0, `${passedXC.stdout}\n${passedXC.stderr}`)
+  assert.deepEqual(readFileSync(join(xctest.dir, 'swift-args.txt'), 'utf8').split('\n').slice(0, 3), ['test', '--filter', 'testYes'])
+  const modern = bindImplemented('spec-swift-st', 'Tests/LibTests/LibTests.swift::modernYes', files)
+  const passedST = specVerifyImplemented(modern.dir, modern.spec, stubRunner(modern.dir, 'swift',
+    "printf '\\342\\234\\224 Test modernYes() passed after 0.001 seconds.\\n'"))
+  assert.equal(passedST.status, 0, `${passedST.stdout}\n${passedST.stderr}`)
+  const nothing = specVerifyImplemented(modern.dir, modern.spec, stubRunner(modern.dir, 'swift',
+    "printf 'warning: No matching test cases were run\\n'"))
+  assert.equal(nothing.status, 4, `a filter that selected nothing is could-not-run, not a pass\n${nothing.stdout}`)
+  assert.match(nothing.stdout, /UNRUN/)
+})

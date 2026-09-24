@@ -272,6 +272,7 @@ SOMETHING_RAN = [
 
 def scored_nothing(output):
     """True when the run reported an empty result set and no evidence of a real one."""
+    output = plain(output)
     if not any(re.search(p, output, re.M) for p in NOTHING_RAN):
         return False
     return not any(re.search(p, output, re.M) for p in SOMETHING_RAN)
@@ -300,6 +301,18 @@ BUILD_BROKE = [
     r"^\s*Fatal error: Uncaught Error",     # php
 ]
 
+# FORCE_COLOR, or a runner's own colour flag, puts an escape code in front of the
+# very lines these patterns anchor on. Measured 2026-09-24: Python 3.14 under
+# FORCE_COLOR=3 prints `\x1b[1;35mSyntaxError\x1b[0m:`, so `^SyntaxError:` missed
+# and a mutant whose fence failed to BUILD fell through to "killed" — an unearned
+# kill (BACKLOG §256). Every classifier of fence output reads it through this.
+_ANSI_ESCAPE = re.compile(r"\x1b\[[0-9;?]*[ -/]*[@-~]")
+
+
+def plain(output):
+    """Fence output with terminal colour codes removed. For classifying, never for recording."""
+    return _ANSI_ESCAPE.sub("", output or "")
+
 # A process that crashed did not return an assertion verdict. Shells commonly
 # translate a signal into 128 + signal, while Windows exposes fatal NTSTATUS
 # values through the process exit code. Some wrappers normalize either class to
@@ -327,7 +340,7 @@ def abnormal_termination(code, output):
     # forms were already caught by code < 0 above.
     if code >= 0xC0000000:
         return True
-    return bool(CRASH_OUTPUT.search(output or ""))
+    return bool(CRASH_OUTPUT.search(plain(output)))
 
 # Comment syntax per file type, for the comment-only mutant refusal. A mutation
 # that changes only prose changes nothing the program does — and it is exactly
@@ -516,6 +529,7 @@ def environment_failure(output, cmd):
     into green would be far worse than the confusion it set out to fix, because
     it would let genuinely broken code through.
     """
+    output = plain(output)
     for pattern, explanation in ENVIRONMENT_SIGNATURES:
         if re.search(pattern, output, re.I):
             return explanation
@@ -1503,7 +1517,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             verdict = "killed"
             detail = ("the mutant fence failed scoring no tests, while the clean fence passed "
                       "scoring tests — so the mutant is what removed them")
-        elif any(re.search(pat, out, re.M) for pat in BUILD_BROKE):
+        elif any(re.search(pat, plain(out), re.M) for pat in BUILD_BROKE):
             verdict, detail = "inconclusive", "the fence failed on a build/parse error, not an assertion"
         elif environment_failure(out, cmd):
             # A FALSE KILL was reachable here and predates the baseline below: a
@@ -2243,7 +2257,7 @@ def scored_anything(output):
     The inverse of `scored_nothing`'s second half, reused so the two answers
     cannot drift: if a runner says it ran something, the failure is the code's.
     """
-    return any(re.search(p, output, re.M) for p in SOMETHING_RAN)
+    return any(re.search(p, plain(output), re.M) for p in SOMETHING_RAN)
 
 
 def acceptance_of(text):

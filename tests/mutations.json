@@ -5265,8 +5265,28 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "  const { NODE_TEST_CONTEXT: _inherited, ...rest } = base",
-      "to": "  const rest = base"
+      "from": "  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, ...rest } = base",
+      "to": "  const { FORCE_COLOR: _colour, ...rest } = base"
+    },
+    {
+      "label": "mutate: an inherited FORCE_COLOR is dropped, or a real run counts no tests",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, ...rest } = base",
+      "to": "  const { NODE_TEST_CONTEXT: _inherited, ...rest } = base",
+      "only": "inherited FORCE_COLOR is dropped"
+    },
+    {
+      "label": "verify: a coloured build error is inconclusive, not a kill",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif any(re.search(pat, plain(out), re.M) for pat in BUILD_BROKE):",
+      "to": "        elif any(re.search(pat, out, re.M) for pat in BUILD_BROKE):",
+      "only": "coloured build error is inconclusive"
     },
     {
       "label": "mutate: output with no spec lines is unrun, not a pass on exit status (Codex)",

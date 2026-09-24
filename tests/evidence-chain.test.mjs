@@ -3157,3 +3157,31 @@ test('quoted output inside the excerpt fence is not a Verification Log entry', (
   const hits = `${dirty.stdout}${dirty.stderr}`.match(/Verification Log entry doesn't match/g) ?? []
   assert.equal(hits.length, 1, `exactly the malformed row, not the quoted output:\n${dirty.stdout}`)
 })
+
+// BACKLOG §256, measured 2026-09-24: Python 3.13+ under FORCE_COLOR colours the
+// exception name, so a build error reads `\x1b[1;35mSyntaxError\x1b[0m:` and the
+// line-anchored BUILD_BROKE pattern missed it. The fence prints exactly those
+// bytes, so the grade does not depend on which Python the runner has.
+test('a coloured build error is inconclusive, not a kill', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  addBlindSpot(copy)
+  writeTask(copy, readTask(copy).replace(
+    /## Acceptance\n\n```bash\n[\s\S]*?```/,
+    '## Acceptance\n\n```bash\n'
+    + "if grep -q 'THRESHOLD = 99' unused.py; then\n"
+    + "  printf '\\033[1;35mSyntaxError\\033[0m: \\033[35minvalid syntax\\033[0m\\n'; exit 1\n"
+    + 'else\n'
+    + "  echo '1 passed in 0.01s'\n"
+    + 'fi\n```'))
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  const result = runWith(journal, [
+    'tasks/T1-fixture.md', '--cwd', '.', '--mutant', 'unused.py',
+    '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99',
+    '--why', 'the fence breaks its build when this changes',
+  ], copy)
+  const log = readTask(copy).split('## Mutation Log')[1]
+  assert.match(log, /mutant inconclusive/, `${result.stdout}\n${result.stderr}`)
+  assert.doesNotMatch(log, /mutant killed/, 'a build that failed is not a test that noticed')
+})

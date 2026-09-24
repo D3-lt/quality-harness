@@ -748,6 +748,7 @@ def main():
     test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint)
     test_a_test_that_expects_an_exception_is_not_a_dead_test(lint)
     test_a_rust_assertion_macro_is_a_failure_call(lint)
+    test_a_rust_test_after_a_lifetime_exists(lint)
     test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint)
     test_a_refused_entry_names_the_field_that_failed(verify)
     test_a_fenced_example_is_not_a_title_and_the_number_comes_from_the_title(lint)
@@ -4774,6 +4775,57 @@ def test_a_rust_assertion_macro_is_a_failure_call(lint):
         assert not lint.FAIL_CALLS.search(body), body
 
     print("PASS — a Rust assertion macro is a failure call")
+
+def test_a_rust_test_after_a_lifetime_exists(lint):
+    """Reported from a Rust corpus 2026-09-24: adr-lint's own stripper read a
+    lifetime's quote as a string that ran on to the next apostrophe, so a test
+    declared after `&'static str` did not exist for it — while the test lock,
+    which reads Rust with the Rust masker, hashed that same test."""
+    source = (
+        "struct Case { name: &'static str }\n"
+        "const OPEN: char = '{';\n"
+        "const RAW: &str = r#\"say \"hi\"#;\n\n"
+        "#[test]\n"
+        "fn first_case() { 'outer: loop { break 'outer; } assert_eq!(1, 1); }\n\n"
+        "#[tokio::test(flavor = \"multi_thread\", worker_threads = 2)]\n"
+        "async fn ladder_fires() {\n"
+        "    // a later refactor can't regress this entry\n"
+        "    let c = Case { name: \"x\" };\n"
+        "    assert_eq!(c.name, \"x\");\n"
+        "}\n\n"
+        "#[test]\n"
+        "fn never_fails() {\n"
+        "    let _ = Case { name: \"y\" };\n"
+        "}\n")
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "tests").mkdir()
+        (root / "tests" / "paths.rs").write_text(source, encoding="utf-8")
+
+        def findings(check, name):
+            infos = {"T1": {
+                "path": root / "T1.md",
+                "tests": [(name, "tests/paths.rs")],
+                "vlog": ["- 2026-09-24 · abc1234 · exit 0 · `cargo test` · "
+                         "acceptance-sha256:" + "0" * 64],
+            }}
+            errs = lint.Findings()
+            check(infos, "| T1 | x | done |", errs, root)
+            return [str(e) for e in list(errs) + list(errs.advice)]
+
+        for name in ("first_case", "ladder_fires", "never_fails"):
+            found = findings(lint.check_tests_exist, name)
+            assert not any("no executable definition" in f for f in found), (name, found)
+        # The must-fail direction, on the same call path.
+        absent = findings(lint.check_tests_exist, "nobody_wrote_this")
+        assert any("no executable definition" in f for f in absent), absent
+        # The can-fail check reads the same body: it must reach a test after the
+        # lifetime (a skipped body reports nothing), and see its assertion.
+        assert findings(lint.check_tests_can_fail, "ladder_fires") == [], "asserts"
+        dead = findings(lint.check_tests_can_fail, "never_fails")
+        assert any("never_fails" in f for f in dead), dead
+
+    print("PASS — a Rust test after a lifetime exists")
 
 def test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint):
     """BACKLOG 194 row 2 — only line one was read, so a real record read as 'not a record'."""

@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-24",
+  "at": "b94c1c4d3f970a30176b61691c0d4927399f67f2",
+  "plugin": "2.106.0 (main, pre-tag)",
+  "kind": "hand",
+  "probeSha256": "631a8f07c8c4db9f951cf5b9eeb42d194199572de8c9d55639a94ff76d52b1eb",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 158, "tasks": 506, "taskDirectories": 68 },
+  "couldNotRun": 2,
+  "disagreements": 5,
+  "readinessUnproven": 3,
+  "runner": "a peer Claude Code session on this machine, read-only, over a private Rust corpus (the one that reported BACKLOG §268 and §271); sixth run of this release, asked for by the owner",
+  "found": "corpus-probe exit 0, empty stderr. The hook printed nothing on a grep mentioning push over a tree whose qh-check had passed — the checked-tree path, silent as intended; the unchecked path was not exercised this run. The same 5 disagreements (Superseded records' tasks, §270) and 2 couldNotRun (empty task directories, §270). readinessUnproven 3 (was 2; the corpus gained a task). The probe's sha256 is unchanged across 2.105.0 → 2.106.0 because it hashes corpus-probe.mjs, which did not change — the version comes from plugin.json."
+}

@@ -7957,7 +7957,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        elif js and text[i] == \"/\" and starts_regex(text, i) and js_regex_end(text, i) is not None:",
+      "from": "        elif js and text[i] == \"/\" and starts_regex(\"\".join(out[:i]), i) and js_regex_end(text, i) is not None:",
       "to": "        elif False:",
       "only": "inside a JS regex literal does not cost"
     },
@@ -8067,7 +8067,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if opener:\n            fence = opener.group(1)\n            continue\n",
+      "from": "        opened = _fence_opened(line)\n        if opened:\n            fence = opened\n            continue\n",
       "to": "",
       "only": "focused false-green regressions remain closed"
     },
@@ -8079,6 +8079,46 @@
       ],
       "from": "            numbered = re.match(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", _record_title(title_text) or \"\", re.I)",
       "to": "            numbered = re.search(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", title_text, re.I | re.M)",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lock: a comment before a division does not make it a regex",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "starts_regex(\"\".join(out[:i]), i)",
+      "to": "starts_regex(text, i)",
+      "only": "a comment before a division"
+    },
+    {
+      "label": "spec: two same-named Swift declarations are not narrowed to the first",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if len(matches) != 1:",
+      "to": "    if not matches:",
+      "only": "cannot place uniquely"
+    },
+    {
+      "label": "spec: a nested or qualified Swift type is not guessed",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if len(enclosing) > 1 or any(\".\" in each for each in enclosing):",
+      "to": "    if False:",
+      "only": "cannot place uniquely"
+    },
+    {
+      "label": "lint: a fence closes only on a bare marker",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if _fence_closes(line, fence):",
+      "to": "            if _fence_opened(line):",
       "only": "focused false-green regressions remain closed"
     },
     {

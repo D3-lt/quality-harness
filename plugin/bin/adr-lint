@@ -3832,7 +3832,7 @@ def invalidates_pointer(text):
 # so the retire gate and this one read one spelling: RECORD_FILE_RE,
 # TASK_SHAPED_RE (`003-T2.md`, a task file) and DATE_SHAPED_RE (`2026-07-12-x.md`
 # in every separator and width — a dated note, or an ADR-2026).
-from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, title_line  # noqa: E402
+from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, title_line, _fence_opened, _fence_closes  # noqa: E402
 # Checked in this order: `# ADR-003-T2` is both, and it is a task.
 TITLE_TASK_RE = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I)
 TITLE_RECORD_RE = re.compile(r"^﻿?#\s*ADR[-_ ]?\d", re.I)
@@ -3860,11 +3860,6 @@ def corpus_prefix(root, corpus_dir):
 _FRONTMATTER = re.compile(r"\A﻿?---[ \t]*\r?\n.*?^(?:---|\.\.\.)[ \t]*$", re.M | re.S)
 
 
-# A fenced code block's opener: three or more backticks or tildes, indented at most
-# three spaces. A `# ADR-…` line inside one is an example, not a title.
-_FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
-
-
 def _record_title(text):
     """The first `# ` heading outside frontmatter and fenced code, or None.
 
@@ -3873,17 +3868,19 @@ def _record_title(text):
     only lost a title below a blank line (BACKLOG §194 row 2); reading the first
     heading anywhere then took a fenced `# ADR-…` example for the title, and the
     number was still read from the unstripped text, so a YAML comment in the
-    frontmatter decided it (Codex review, 2026-09-24).
+    frontmatter decided it (Codex review, 2026-09-24). Fences are read with the
+    corpus's own rule (`record._fence_opened`/`_fence_closes`): a closer carries
+    nothing after its marker, and a backtick opener's info string holds no backtick.
     """
     fence = None
     for line in _FRONTMATTER.sub("", text, count=1).split("\n"):
-        opener = _FENCE_OPEN.match(line)
         if fence:
-            if opener and opener.group(1)[0] == fence[0] and len(opener.group(1)) >= len(fence):
+            if _fence_closes(line, fence):
                 fence = None
             continue
-        if opener:
-            fence = opener.group(1)
+        opened = _fence_opened(line)
+        if opened:
+            fence = opened
             continue
         if title_line(line) is not None:
             return line

@@ -12563,6 +12563,8 @@ was dropped. Both are reproduced in `test_a_fenced_example_is_not_a_title_and_th
 `_record_title` is now the one reading for both questions: the first `# ` heading after frontmatter
 and outside fenced code. Two new mutants, and the two row-2 mutants follow the moved lines.
 
+**Codex review, round 2 (high, 2026-09-24): the fence reading was its own, and wrong.** A line like ```` ```python ```` inside a ```` ```markdown ```` fence closed it, so the example after it was read as a title again; tildes did the same; and a backtick "opener" whose info string holds a backtick hid a real title. `_record_title` now reads fences with the corpus's rule, `record._fence_opened` and `_fence_closes`. Test `test_a_fence_is_read_with_the_corpus_rule`, one mutant.
+
 ## 195. DECLINED 2026-09-24 — OpenCode support: what is already portable, what is not, and the one question that decides it
 
 Asked for from outside: users of the OpenCode terminal agent want this harness there. Nothing is
@@ -12841,6 +12843,8 @@ the function, and an XCTest pass must name that class; a binding it cannot place
 reason. Checked against a real package as well as the stub. Test `a Swift pass is attributed to the
 bound test, not a same-named one elsewhere`, two mutants.
 
+**Codex review, round 2 (high, 2026-09-24): two more ways to credit the wrong Swift test.** A nested suite or a qualified extension (`extension Outer.Inner`) got an identity built from one name, which could select an unrelated suite with that name; and two same-named declarations in one file narrowed to the first, so a failing second one never ran. The runner's identity syntax for a nested type was not measured here, so each case is UNRUN with the reason rather than a guess. Test `a Swift binding the gate cannot place uniquely is UNRUN`, two mutants.
+
 ## 204. CLOSED — the PHP `@test` docblock lock mutant is GREEN in a `lock:` group campaign and RED alone
 
 **Done — the runner gave every python child its own bytecode cache.** The verdict depended on
@@ -13036,6 +13040,8 @@ before the assertion: an edit to the assertion left the digest unchanged. Reprod
 spec-verify shares. Test `a division after a postfix increment is not a regex, and the lock keeps the
 assertion`, one mutant. **Residual, named:** a `/` after an object literal's `}` still reads as a regex,
 and the masker still blanks a mis-read span that holds a brace rather than refusing it.
+
+**Codex review, round 2 (high, 2026-09-24): a comment still fooled the operand rule.** `n++ // +` and a comment ending in `return` put an operator or a keyword just before the division, because `starts_regex` read the raw text. The masker now asks it about the comment-blanked text it has built so far. Test `a comment before a division does not make it a regex`, one mutant. spec-verify's own masker still reads the raw text; there a wrong answer costs a name on one line, not a lock.
 
 ## 213. CLOSED 2026-09-24 — The commit advisory ignored a wrapped selftest and counted an `mrw read` as a write (2026-09-16)
 

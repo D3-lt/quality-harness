@@ -620,15 +620,24 @@ def swift_identity(package_root, path, name):
     except OSError:
         return None
     masked = _mask_lock_noncode(text, swift=True)
-    found = re.search(rf"\bfunc\s+`?{re.escape(name)}`?\s*[<(]", masked)
-    if not found:
+    # One declaration of the name, or the binding is ambiguous: a filter for the
+    # first would pass while a second, failing one never ran (Codex, round 2).
+    matches = list(re.finditer(rf"\bfunc\s+`?{re.escape(name)}`?\s*[<(]", masked))
+    if len(matches) != 1:
         return None
-    enclosing = None
-    for declaration in re.finditer(r"\b(?:class|struct|actor|enum|extension)\s+(\w+)[^{;]*\{", masked):
+    found = matches[0]
+    enclosing = []
+    for declaration in re.finditer(r"\b(?:class|struct|actor|enum|extension)\s+([\w.]+)[^{;]*\{", masked):
         opening = declaration.end() - 1
         closing = _matching_js_brace(masked, opening)
         if closing is not None and opening < found.start() < closing:
-            enclosing = declaration.group(1)  # a later enclosing declaration is nested deeper
+            enclosing.append(declaration.group(1))
+    # A nested type or a qualified extension (`extension Outer.Inner`) has an
+    # identity the runner's filter syntax was never measured for here; guessing
+    # one could select an unrelated suite with the inner name. UNRUN instead.
+    if len(enclosing) > 1 or any("." in each for each in enclosing):
+        return None
+    enclosing = enclosing[0] if enclosing else None
     run = rf"Test {re.escape(name)}\([^)]*\) passed"
     if enclosing is None:
         return f"{target}.{name}", re.compile(run)

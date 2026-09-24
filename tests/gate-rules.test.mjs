@@ -2024,7 +2024,7 @@ test('spec-verify runs a Swift binding of either test shape, and a Swift filter 
   const passedXC = specVerifyImplemented(xctest.dir, xctest.spec, stubRunner(xctest.dir, 'swift',
     "printf \"Test Case '-[LibTests.LibTests testYes]' passed (0.001 seconds).\\n\""))
   assert.equal(passedXC.status, 0, `${passedXC.stdout}\n${passedXC.stderr}`)
-  assert.deepEqual(readFileSync(join(xctest.dir, 'swift-args.txt'), 'utf8').split('\n').slice(0, 3), ['test', '--filter', 'testYes'])
+  assert.deepEqual(readFileSync(join(xctest.dir, 'swift-args.txt'), 'utf8').split('\n').slice(0, 3), ['test', '--filter', 'LibTests.LibTests/testYes'])
   const modern = bindImplemented('spec-swift-st', 'Tests/LibTests/LibTests.swift::modernYes', files)
   const passedST = specVerifyImplemented(modern.dir, modern.spec, stubRunner(modern.dir, 'swift',
     "printf '\\342\\234\\224 Test modernYes() passed after 0.001 seconds.\\n'"))
@@ -2033,4 +2033,33 @@ test('spec-verify runs a Swift binding of either test shape, and a Swift filter 
     "printf 'warning: No matching test cases were run\\n'"))
   assert.equal(nothing.status, 4, `a filter that selected nothing is could-not-run, not a pass\n${nothing.stdout}`)
   assert.match(nothing.stdout, /UNRUN/)
+})
+
+// Codex review of the Swift runner: `--filter testYes` and an evidence line that
+// accepted ANY suite let a same-named test in another suite or target count as
+// the bound test's pass. The filter now names the target and the enclosing type,
+// the XCTest evidence must name that class, and a binding the gate cannot place
+// is UNRUN rather than credited.
+test('a Swift pass is attributed to the bound test, not a same-named one elsewhere', { skip: NO_POSIX_STUB }, () => {
+  const source = 'import XCTest\nimport Testing\n'
+    + 'final class LibTests: XCTestCase { func testYes() { XCTAssertEqual(1, 1) } }\n'
+    + '@Suite struct Modern { @Test func nestedYes() { #expect(1 == 1) } }\n'
+  const files = { 'Package.swift': '// swift-tools-version:6.0\n', 'Tests/LibTests/LibTests.swift': source }
+  const bound = bindImplemented('spec-swift-attr', 'Tests/LibTests/LibTests.swift::testYes', files)
+  const elsewhere = specVerifyImplemented(bound.dir, bound.spec, stubRunner(bound.dir, 'swift',
+    "printf \"Test Case '-[OtherTests.OtherTests testYes]' passed (0.001 seconds).\\n\""))
+  assert.equal(elsewhere.status, 4, `another suite's pass is not this test's\n${elsewhere.stdout}`)
+  const nested = bindImplemented('spec-swift-nested', 'Tests/LibTests/LibTests.swift::nestedYes', files)
+  const ran = specVerifyImplemented(nested.dir, nested.spec, stubRunner(nested.dir, 'swift',
+    "printf '\\342\\234\\224 Test nestedYes() passed after 0.001 seconds.\\n'"))
+  assert.equal(ran.status, 0, `${ran.stdout}\n${ran.stderr}`)
+  assert.deepEqual(readFileSync(join(nested.dir, 'swift-args.txt'), 'utf8').split('\n').slice(0, 3),
+    ['test', '--filter', 'LibTests.Modern/nestedYes'])
+  // A file the gate cannot place under Tests/<Target>/ is not attributable at all.
+  const loose = bindImplemented('spec-swift-loose', 'LooseTests.swift::testYes',
+    { 'Package.swift': '// swift-tools-version:6.0\n', 'LooseTests.swift': source })
+  const unplaced = specVerifyImplemented(loose.dir, loose.spec, stubRunner(loose.dir, 'swift',
+    "printf \"Test Case '-[LibTests.LibTests testYes]' passed (0.001 seconds).\\n\""))
+  assert.equal(unplaced.status, 4, unplaced.stdout)
+  assert.match(unplaced.stdout, /cannot attribute a Swift run/)
 })

@@ -7927,7 +7927,7 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "    if r.returncode == 0 and stack in RAN_EVIDENCE and not RAN_EVIDENCE[stack](name).search(out):",
+      "from": "    if r.returncode == 0 and evidence is not None and not evidence.search(out):",
       "to": "    if False:",
       "only": "spec-verify runs a (Go|Swift) binding"
     },
@@ -8040,6 +8040,26 @@
       "from": "    if text[j] in \"+-\" and j > 0 and text[j - 1] == text[j]:\n        return False\n",
       "to": "",
       "only": "division after a postfix increment"
+    },
+    {
+      "label": "spec: an XCTest pass must name the bound class, not any suite",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    case = rf\"Test Case '-\\[{re.escape(target)}\\.{re.escape(enclosing)} {re.escape(name)}\\]' passed\"",
+      "to": "    case = rf\"Test Case '-\\[\\S+ {re.escape(name)}\\]' passed\"",
+      "only": "Swift pass is attributed"
+    },
+    {
+      "label": "spec: the Swift filter names the target and the enclosing type",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        \"swift\": [\"swift\", \"test\", \"--filter\", identity[0] if identity else name],",
+      "to": "        \"swift\": [\"swift\", \"test\", \"--filter\", name],",
+      "only": "Swift pass is attributed"
     },
     {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",

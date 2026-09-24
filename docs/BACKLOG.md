@@ -12823,6 +12823,16 @@ comment-only Swift mutant is refused. **Still open:** `syntax_ok` does not synta
 Tests row before the first red locks it `unproven`. Tests `spec-verify runs a Swift binding of either
 test shape…` and `a Swift comment-only mutant is refused like any other`; one mutant each.
 
+**Codex review of the Swift runner (gpt-6-astra, xhigh, 2026-09-24) found it credited the wrong test.**
+`--filter <name>` selects the same function in every suite and target, and the XCTest evidence accepted
+any class, so a same-named passing test elsewhere counted as the bound test's pass. Measured with Swift
+6.4: `--filter Target.Class/method` and `--filter Target.function` select exactly one test, another
+target's name selects nothing, and an anchored regex selects nothing at all. `swift_identity` now
+builds the filter from the target the file sits under (`Tests/<Target>/…`) and the type enclosing
+the function, and an XCTest pass must name that class; a binding it cannot place is UNRUN, with the
+reason. Checked against a real package as well as the stub. Test `a Swift pass is attributed to the
+bound test, not a same-named one elsewhere`, two mutants.
+
 ## 204. CLOSED — the PHP `@test` docblock lock mutant is GREEN in a `lock:` group campaign and RED alone
 
 **Done — the runner gave every python child its own bytecode cache.** The verdict depended on

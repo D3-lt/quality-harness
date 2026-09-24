@@ -2159,5 +2159,5 @@ test('a record with inline tasks is not paired with a sibling tasks directory it
   const out = `${run.stdout}${run.stderr}`
   assert.doesNotMatch(out, /no task files/, out)
   assert.doesNotMatch(out, /names (producing|consuming) task T\d but no task file matches it/, out)
-  assert.match(out, /inline/i, `the record's inline tasks are named as not read:\n${out}`)
+  assert.match(out, /its tasks are written inline, as `### T<n>` sections[^\n]*NOT checked/, `the record's inline tasks are named as not read:\n${out}`)
 })

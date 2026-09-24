@@ -7922,6 +7922,36 @@
       "only": "focused false-green regressions remain closed"
     },
     {
+      "label": "spec: a Go or Swift filter that selects nothing is UNRUN, not a pass",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if r.returncode == 0 and stack in RAN_EVIDENCE and not RAN_EVIDENCE[stack](name).search(out):",
+      "to": "    if False:",
+      "only": "spec-verify runs a (Go|Swift) binding"
+    },
+    {
+      "label": "spec: a Swift test definition is read by the lock's Swift reader",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        return leaf in names, f\"no Swift test (XCTest test method or @Test function) for '{name}'\"",
+      "to": "        return False, f\"no Swift test (XCTest test method or @Test function) for '{name}'\"",
+      "only": "spec-verify runs a Swift binding"
+    },
+    {
+      "label": "verify: a Swift comment-only mutant is refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "\".h\": \"//\", \".swift\": \"//\",",
+      "to": "\".h\": \"//\",",
+      "only": "Swift comment-only mutant is refused"
+    },
+    {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",
       "file": "plugin/lib/record.py",
       "tests": [

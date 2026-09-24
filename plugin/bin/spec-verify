@@ -30,7 +30,7 @@ import signal
 import subprocess
 import sys
 import time
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 # The fence — run_bounded and the tree kill — lives in plugin/lib/fence.py and is
 # shared by three gates; it was copied into each until 2026-09-06. lib/ is found
@@ -80,7 +80,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of  # noqa: E402
+from record import sections_of, extract_test_names  # noqa: E402
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -152,6 +152,10 @@ def detect_stack(root):
         return "pytest"
     if (root / "Cargo.toml").exists():
         return "cargo"
+    if (root / "go.mod").exists():
+        return "go"
+    if (root / "Package.swift").exists():
+        return "swift"
     if (root / "package.json").exists():
         return "vitest"
     if (root / "molecule").is_dir():
@@ -403,6 +407,11 @@ def test_definition_exists(path, name, stack):
 
     if suffix == ".py":
         return python_test_defined(text, name)
+    if suffix == ".swift":
+        # The first-red lock's Swift reader, so the two gates agree on what a Swift
+        # test is: an XCTest `func test…` method or a Swift Testing `@Test` function.
+        names = extract_test_names(text, swift=True)
+        return leaf in names, f"no Swift test (XCTest test method or @Test function) for '{name}'"
 
     masked = mask_noncode(
         text,
@@ -521,6 +530,8 @@ def test_exists(test, root, stack, collect):
         "phpunit": ["vendor/bin/phpunit", "--filter", name, "--list-tests"],
         "vitest": ["npx", "vitest", "list", path or "", "-t", name],
         "cargo": ["cargo", "test", name, "--", "--list"],
+        "go": ["go", "test", "-list", f"^{re.escape(name)}$", go_package(path)],
+        "swift": ["swift", "test", "list"],
         "molecule": ["molecule", "list", "-s", name],
     }
     try:
@@ -611,6 +622,8 @@ def test_runs(test, root, stack, override_cmd):
         "vitest": ["npx", "vitest", "run", path or "", "-t", name],
         "cargo": ["cargo", "test", name],
         "molecule": ["molecule", "test", "-s", name],
+        "go": ["go", "test", "-run", f"^{re.escape(name)}$", "-count=1", "-v", go_package(path)],
+        "swift": ["swift", "test", "--filter", name],
     }
     if stack is None:
         return "unrun", (f"no runner detected for this repository, and {test} has no command "
@@ -623,7 +636,31 @@ def test_runs(test, root, stack, override_cmd):
                         encoding="utf-8", errors="replace")
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         return "unrun", f"the {stack} command could not be run: {e}"
-    return ("pass" if r.returncode == 0 else "fail"), (r.stdout + r.stderr)[-300:]
+    out = r.stdout + r.stderr
+    if r.returncode == 0 and stack in RAN_EVIDENCE and not RAN_EVIDENCE[stack](name).search(out):
+        return "unrun", (f"the {stack} runner exited 0 without reporting that {name} ran — a filter "
+                         f"that selects nothing exits 0 there, so this is not a pass")
+    return ("pass" if r.returncode == 0 else "fail"), out[-300:]
+
+
+# `go test -run` and `swift test --filter` exit 0 when their filter selects
+# nothing — measured 2026-09-24: go1.27.1 prints `[no tests to run]`, Swift 6.4
+# `No matching test cases were run` (CLAUDE.md §16). So their exit code is not a
+# verdict on its own: a pass needs the runner's own line saying the named test
+# ran, or the test is reported as not run.
+RAN_EVIDENCE = {
+    "go": lambda name: re.compile(rf"^\s*--- PASS: {re.escape(name)}(?:\s|$)", re.M),
+    "swift": lambda name: re.compile(
+        rf"Test (?:Case '-\[\S+ {re.escape(name)}\]'|{re.escape(name)}\([^)]*\)) passed"),
+}
+
+
+def go_package(path):
+    """The Go package a binding's file lives in, as `go test` names it; every package without one."""
+    if not path:
+        return "./..."
+    parent = PurePosixPath(str(path).replace("\\", "/")).parent.as_posix()
+    return "." if parent in ("", ".") else f"./{parent}"
 
 
 def path_stack(root, path):
@@ -642,6 +679,10 @@ def path_stack(root, path):
             here.relative_to(Path(root))
         except ValueError:
             return None
+        if (here / "go.mod").exists():
+            return "go", here
+        if (here / "Package.swift").exists():
+            return "swift", here
         if (here / "vendor" / "bin" / "phpunit").exists():
             return "phpunit", here
         if (here / "vendor" / "bin" / "pest").exists():

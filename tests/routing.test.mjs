@@ -270,3 +270,18 @@ test('the Moderate tier names a whole shipped agent, not a prefix of one', () =>
   assert.equal(listed('plugin/agents/' + SUBAGENT_TYPE.exec(MODERATE_TYPO_PROBE)[1] + '.md').length, 0,
     'a name that only starts like a definition must not resolve to one')
 })
+
+// BACKLOG §210. STAGES listed arch-write with "the architecture document is older
+// than the record", a condition nextStage() never computes — no record header says
+// which decisions are structural, so no reader here can. The stage list is printed
+// to the user as the router's DAG, so an entry it never selects must say so.
+test('a stage work-next never selects says so in its own condition', async () => {
+  const { STAGES } = await import('../plugin/scripts/work-next.mjs')
+  const workNext = readFileSync(join(repoRoot, 'plugin', 'scripts', 'work-next.mjs'), 'utf8')
+  const arch = STAGES.find(stage => stage.id === 'arch-write')
+  assert.ok(arch, 'arch-write stays in the stage list: work class D routes to it')
+  if (!selectedStages(workNext).includes('arch-write')) {
+    assert.match(arch.when, /never selects this stage/, arch.when)
+    assert.doesNotMatch(arch.when, /older than the record/, 'a condition nothing computes')
+  }
+})

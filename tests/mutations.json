@@ -7982,6 +7982,16 @@
       "only": "taken before regex masking is told apart"
     },
     {
+      "label": "route: the arch-write stage says work-next never selects it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/routing.test.mjs"
+      ],
+      "from": "      + 'any other, so it never selects this stage itself',",
+      "to": "      + 'any other',",
+      "only": "a stage work-next never selects says so"
+    },
+    {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",
       "file": "plugin/lib/record.py",
       "tests": [

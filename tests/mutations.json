@@ -9850,6 +9850,15 @@
       ],
       "from": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^xu\\n]))'\")",
       "to": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{[0-9a-fA-F_]{1,6}\\}|[^xu\\n]))'\")"
+    },
+    {
+      "label": "qh-check: a green go test with one testless package is work, not zero work (§273)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "    const packageRan = text.split('\\n').some(line => /^ok\\s+\\S/.test(line) && !/\\[no tests to run\\]/.test(line))",
+      "to": "    const packageRan = false"
     }
   ]
 }

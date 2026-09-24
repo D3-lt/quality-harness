@@ -154,6 +154,11 @@ NEGATIVE = re.compile(r"(?<![a-z])(block(?:ed|s|ing)|stop(?:ped|s|ping)?|"
 RECORD_NUMBER = re.compile(r"(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?0*(\d{1,4})\b", re.I)
 
 
+# Text a sign-off QUOTES — a program's own output, a message it printed — is what was
+# observed, not the verdict. Single quotes count only as a pair around words, so the
+# apostrophe in "didn't" opens nothing.
+QUOTED = re.compile(r"(?<!\w)'[^'\n]*'(?!\w)|\"[^\"\n]*\"|`[^`\n]*`")
+
 def human_outcome(note):
     """"stop", "pass", or None when the note states neither.
 
@@ -171,8 +176,15 @@ def human_outcome(note):
     The harm reported 2026-08-28 was narrower and sharper than that: a note that
     said the OPPOSITE of done was read as done. That is what this refuses.
     """
-    if NEGATIVE.search(note):
+    # A negative word in the note's own words still wins. One only INSIDE quotes
+    # wins too, unless the note affirms outside them: "verified … -> exit 1
+    # 'refusing an empty tag'" reported a program refusing as it should, and was
+    # read as a stop (BACKLOG §281 item 2, a product repository).
+    outside = QUOTED.sub(" ", note)
+    if NEGATIVE.search(outside):
         return "stop"
+    if NEGATIVE.search(note):
+        return "pass" if AFFIRMATIVE.search(outside) else "stop"
     if AFFIRMATIVE.search(note):
         return "pass"
     return None

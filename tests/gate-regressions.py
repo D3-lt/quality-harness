@@ -732,6 +732,7 @@ def main():
     # and hand a session work that is already finished.
     nxt = load_script("adr_next_regressions", bin_dir / "adr-next")
     test_a_named_producer_is_the_only_producer(lint, nxt)
+    test_a_package_manager_filter_is_not_a_test_filter(lint)
     test_first_red_lock_grammar_and_identity(lint, verify, nxt)
     test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt)
 
@@ -4908,6 +4909,29 @@ def test_a_named_producer_is_the_only_producer(lint, nxt):
     assert nxt.blockers(mixed)[0]["T3"] == {"T1", "T2"}, nxt.blockers(mixed)
 
     print("PASS — a named producer is the only producer")
+
+
+def test_a_package_manager_filter_is_not_a_test_filter(lint):
+    """BACKLOG §281 item 1, from a PHP/React corpus: a fence
+    `pnpm --filter @app/web exec vitest run src/x && cd api && php artisan test`
+    runs the whole PHP suite, yet adr-lint FAILed a PHP row as "the Acceptance
+    command's filter does not select it" — pnpm's `--filter` picks a workspace
+    package, and was read as a test-name filter."""
+    def findings(acc):
+        infos = {"T1": {"path": Path("T1.md"), "human": False, "acc_all": acc,
+                        "tests": [("test_message_is_required", "tests/Feature/VoucherTest.php")]}}
+        errors = []
+        lint.check_named_tests_are_run(infos, "| T1 | x | done |", errors)
+        return errors
+    for acc in ("pnpm --filter @app/web exec vitest run src/x && cd api && php artisan test",
+                "pnpm -F @app/web test && php artisan test",
+                "pnpm --filter=@app/web --filter @app/api test && php artisan test"):
+        assert findings(acc) == [], (acc, findings(acc))
+    # The must-fail direction: a real PHP test filter that does not select the row.
+    assert findings("pnpm --filter @app/web build && php artisan test --filter=OtherTest"), \
+        "a test filter beside a workspace filter still has to select the row"
+
+    print("PASS — a package-manager filter is not a test filter")
 
 def test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint):
     """BACKLOG 194 row 2 — only line one was read, so a real record read as 'not a record'."""

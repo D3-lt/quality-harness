@@ -1778,7 +1778,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if NEGATIVE.search(note):\n        return \"stop\"",
+      "from": "    if NEGATIVE.search(outside):\n        return \"stop\"",
       "to": "    if False:\n        return \"stop\""
     },
     {
@@ -10455,6 +10455,46 @@
       "from": "  return override ? path.join(path.resolve(override), createHash('sha256').update(base).digest('hex').slice(0, 16)) : base",
       "to": "  return override ? path.resolve(override) : base",
       "only": "override keeps each repository apart"
+    },
+    {
+      "label": "lint: a pnpm workspace filter is not a test filter",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        acc = without_workspace_filters(inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\")",
+      "to": "        acc = inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\"",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "next: a quoted negative beside an affirmative is a pass",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        return \"pass\" if AFFIRMATIVE.search(outside) else \"stop\"",
+      "to": "        return \"stop\"",
+      "only": "inside quoted program output"
+    },
+    {
+      "label": "next: a quoted negative with nothing affirmed outside still stops",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        return \"pass\" if AFFIRMATIVE.search(outside) else \"stop\"",
+      "to": "        return \"pass\"",
+      "only": "inside quoted program output"
+    },
+    {
+      "label": "next: a negative outside the quotes still stops",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    outside = QUOTED.sub(\" \", note)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
+      "to": "    outside = QUOTED.sub(\" \", note)\n",
+      "only": "inside quoted program output"
     }
   ]
 }

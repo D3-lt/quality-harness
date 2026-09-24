@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-24",
+  "at": "dbeb5cf635c75a452aed5f26e7d1c7aefe18378b",
+  "plugin": "2.108.0 (main, pre-tag)",
+  "kind": "probe",
+  "probeSha256": "1f5d8a27ee63045b1511b3bfca798f82a9dfe2762b4e0d044964fe56489beec5",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 160,
+    "tasks": null,
+    "taskDirectories": null
+  },
+  "couldNotRun": 5,
+  "disagreements": 0,
+  "readinessUnproven": 2,
+  "runner": "a peer Claude Code session on this machine, read-only, over a private Rust corpus (the one that reported §268, §271 and §276); its tree carried 16 paths of in-progress work",
+  "found": "corpus-probe exit 0 in 584 s under load 15-19 from the runner's own cargo builds. adrLint 69 PASS, 88 FAIL, 3 killed at the 120 s budget. Measured here, one of those spends almost all its time in adr-lint's recursive rglob over the corpus's build output, and the ce5aa8a version is as slow, so it is pre-existing (BACKLOG §281). workNext.unbacked grew from 15 to 47 with no corpus change; a sample was confirmed real README done claims that adr-next does not honour, the rule §279 item 8 introduced."
+}

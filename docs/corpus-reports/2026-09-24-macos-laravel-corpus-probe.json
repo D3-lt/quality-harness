@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-24",
+  "at": "dbeb5cf635c75a452aed5f26e7d1c7aefe18378b",
+  "plugin": "2.108.0 (main, pre-tag)",
+  "kind": "probe",
+  "probeSha256": "1f5d8a27ee63045b1511b3bfca798f82a9dfe2762b4e0d044964fe56489beec5",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 17,
+    "tasks": null,
+    "taskDirectories": null
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "a peer Claude Code session on this machine, read-only, over a PHP/Laravel repository with three corpus roots (the one that reported §279 items 2, 3 and 4); asked for by the owner",
+  "found": "corpus-probe exit 0, stderr empty, tree clean, nothing new written under .git/quality-harness. adrLint 3 of 17 FAIL, down from 5: the false dependency cycle and the inline-task record now PASS, and the two archive FAILs carry frozen:true. Every FAIL carries a reason; one exposed a real evidence gap in that repository, which its session took to its user. workNext.unbacked gained one README-marked-done task whose human-observed acceptance has no sign-off; confirmed read-only. workNext.next stays null because look is PARTIAL, by design."
+}

@@ -571,9 +571,15 @@ export function staleEntries(mutations, read) {
  * to its added lines, trimmed. Pure; `main` builds it from `git diff -U0 <ref>`.
  */
 export function touchedBy(mutations, added) {
+  // A mutant often names PART of a line (`lines.has(x)` inside a longer
+  // condition), so a from-line counts when an added line contains it. Lines under
+  // twelve characters — `return 1`, `}` — are too common to say which code a
+  // mutant names, and matched unrelated entries when they counted.
   return mutations.filter(mutation => {
     const lines = added.get(mutation.file)
-    return lines !== undefined && mutation.from.split('\n').some(line => line.trim() && lines.has(line.trim()))
+    if (lines === undefined) return false
+    return mutation.from.split('\n').map(line => line.trim()).filter(line => line.length >= 12)
+      .some(line => [...lines].some(addedLine => addedLine.includes(line)))
   })
 }
 

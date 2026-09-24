@@ -10502,8 +10502,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "mutation.from.split('\\n').some(line => line.trim() && lines.has(line.trim()))",
-      "to": "true",
+      "from": ".some(line => [...lines].some(addedLine => addedLine.includes(line)))",
+      "to": ".some(() => true)",
       "only": "touchedBy keeps an entry"
     },
     {
@@ -10515,6 +10515,16 @@
       "from": "    if (count === 1) continue",
       "to": "    if (count >= 1) continue",
       "only": "staleEntries names each entry"
+    },
+    {
+      "label": "mutate: --changed ignores a short common line",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": ".filter(line => line.length >= 12)",
+      "to": ".filter(line => line.length >= 0)",
+      "only": "touchedBy keeps an entry"
     }
   ]
 }

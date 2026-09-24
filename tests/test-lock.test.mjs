@@ -3010,6 +3010,13 @@ test('adr-next names a moved test lock, not a changed fence, when the digest sti
     writeFileSync(join(tasks, 'T1-lock.md'), task('1'.repeat(64)))
     const edited = next()
     assert.match(edited.stdout, /T1 .*fence changed after that run/, `${edited.stdout}\n${edited.stderr}`)
+    // Codex round 5: an OLDER exit-0 row against a previous fence, listed before
+    // the current one, must not hide why the current row did not make it done.
+    const older = `- 2026-09-10 · no-git · exit 0 · \`printf old\` · acceptance-sha256:${'1'.repeat(64)} · ms:12`
+    writeFileSync(join(tasks, 'T1-lock.md'), task(digest).replace(row, `${row}\n${older}`))
+    const both = next()
+    assert.match(both.stdout, /T1 .*hash moved/, `${both.stdout}\n${both.stderr}`)
+    assert.doesNotMatch(both.stdout, /fence changed/, both.stdout)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

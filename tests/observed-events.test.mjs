@@ -52,7 +52,9 @@ function repository(prefix) {
   git(dir, 'init', '-q')
   writeFileSync(path.join(dir, 'a.md'), 'a\n')
   git(dir, 'add', '-A')
-  git(dir, 'commit', '-q', '-m', 'base')
+  // No auto-gc or background maintenance: a test that counts .git/objects must not
+  // race git tidying them (BACKLOG §258; the same guard as record-identity's helper).
+  git(dir, '-c', 'gc.auto=0', '-c', 'maintenance.auto=false', 'commit', '-q', '-m', 'base')
   return dir
 }
 

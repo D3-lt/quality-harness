@@ -1819,6 +1819,18 @@ def refuse_unreadable(entry, sha):
     """
     if readable_entry(entry):
         return
+    # Name the field that failed. A fence ended by a signal carries a negative exit
+    # (`exit -9`), and this refusal used to blame the sha width for it — sending the
+    # author to `core.abbrev` over a valid sha (BACKLOG §225).
+    exit_field = re.search(r" · exit (\S+) · ", entry)
+    if re.fullmatch(SHA_FIELD, sha or "") and exit_field and not exit_field.group(1).isdigit():
+        fail(f"refusing to write an entry the evidence grammar cannot read: `{entry}`. "
+             f"The exit field is `{exit_field.group(1)}`: a fence ended by a signal has no "
+             f"exit status this grammar records. Nothing was recorded; run it again.")
+    if re.fullmatch(SHA_FIELD, sha or ""):
+        fail(f"refusing to write an entry the evidence grammar cannot read: `{entry}`. "
+             f"The sha field `{sha}` is well-formed, so another field is not; compare the "
+             f"entry with ENTRY_RE in this gate.")
     fail(f"refusing to write an entry the evidence grammar cannot read: `{entry}`. "
          f"The sha field is `{sha}` — git's `core.abbrev` decides its width, and this "
          f"grammar accepts 4 to 64 hex characters (or `no-git`). Set `core.abbrev` to a "

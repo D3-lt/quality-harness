@@ -2819,7 +2819,7 @@ export function sessionOrientation(cwd) {
   } else if (check) {
     const named = origin === 'declared'
       ? `this project's own check is \`${check}\``
-      : `no \`check\` is declared in \`.quality-harness.json\`; inferred \`${check}\` from a manifest — that is not this project's own check`
+      : `no \`check\` is declared in \`.quality-harness.json\`; inferred \`${check}\` from a manifest — that is not this project's own check, and it may be narrower than this project's own gate (a typecheck or lint step the manifest does not name), so its pass is not that gate's pass`
     lines.push(`Verification: ${named}. `
       // ADR-060: a check is an EVENT `qh-check` writes, so how the command is
       // spelled, piped or redirected no longer decides anything — but running it

@@ -80,7 +80,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, extract_test_names  # noqa: E402
+from record import sections_of, extract_test_names, _mask_lock_noncode, _matching_js_brace  # noqa: E402
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -456,6 +456,11 @@ def test_exists(test, root, stack, collect):
                                              for f in ("molecule.yml", "molecule.yaml"))
             return ok, "" if ok else f"no Molecule scenario definition for '{name}'"
         return False, f"malformed binding (expected path::name for this stack): '{test}'"
+    identity = None
+    if stack == "swift":
+        identity = swift_identity(root, path, name)
+        if identity is None:
+            return "unrun", swift_unattributable(test)
     cmds = {
         "pytest": ["pytest", "--collect-only", "-q", test],
         "pest": ["vendor/bin/pest", "--filter", name, "--list-tests"],
@@ -478,7 +483,8 @@ def test_exists(test, root, stack, collect):
         # over, not a collector reporting an absent test — the same distinction,
         # one layer in.
         return "unrun", f"the {stack} collector exited {r.returncode} with no output"
-    ok = r.returncode == 0 and (name in r.stdout or stack == "pytest")
+    needle = identity[0] if identity else name
+    ok = r.returncode == 0 and (needle in r.stdout or stack == "pytest")
     return ok, (r.stdout + r.stderr)[-300:] if not ok else ""
 
 
@@ -547,6 +553,11 @@ def test_runs(test, root, stack, override_cmd):
             except ValueError:
                 pass
 
+    identity = None
+    if stack == "swift":
+        identity = swift_identity(cwd, path, name)
+        if identity is None:
+            return "unrun", swift_unattributable(test)
     cmds = {
         "pytest": ["pytest", "-q", test],
         "pest": ["vendor/bin/pest", "--filter", name],
@@ -555,7 +566,7 @@ def test_runs(test, root, stack, override_cmd):
         "cargo": ["cargo", "test", name],
         "molecule": ["molecule", "test", "-s", name],
         "go": ["go", "test", "-run", f"^{re.escape(name)}$", "-count=1", "-v", go_package(path)],
-        "swift": ["swift", "test", "--filter", name],
+        "swift": ["swift", "test", "--filter", identity[0] if identity else name],
     }
     if stack is None:
         return "unrun", (f"no runner detected for this repository, and {test} has no command "
@@ -569,7 +580,8 @@ def test_runs(test, root, stack, override_cmd):
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         return "unrun", f"the {stack} command could not be run: {e}"
     out = r.stdout + r.stderr
-    if r.returncode == 0 and stack in RAN_EVIDENCE and not RAN_EVIDENCE[stack](name).search(out):
+    evidence = identity[1] if identity else RAN_EVIDENCE[stack](name) if stack in RAN_EVIDENCE else None
+    if r.returncode == 0 and evidence is not None and not evidence.search(out):
         return "unrun", (f"the {stack} runner exited 0 without reporting that {name} ran — a filter "
                          f"that selects nothing exits 0 there, so this is not a pass")
     return ("pass" if r.returncode == 0 else "fail"), out[-300:]
@@ -579,12 +591,55 @@ def test_runs(test, root, stack, override_cmd):
 # nothing — measured 2026-09-24: go1.27.1 prints `[no tests to run]`, Swift 6.4
 # `No matching test cases were run` (CLAUDE.md §16). So their exit code is not a
 # verdict on its own: a pass needs the runner's own line saying the named test
-# ran, or the test is reported as not run.
+# ran, or the test is reported as not run. Swift's evidence is built per binding
+# by `swift_identity`, because a bare name is not attributable there.
 RAN_EVIDENCE = {
     "go": lambda name: re.compile(rf"^\s*--- PASS: {re.escape(name)}(?:\s|$)", re.M),
-    "swift": lambda name: re.compile(
-        rf"Test (?:Case '-\[\S+ {re.escape(name)}\]'|{re.escape(name)}\([^)]*\)) passed"),
 }
+
+
+def swift_identity(package_root, path, name):
+    """(filter, evidence) that attribute a Swift run to THIS binding, or None.
+
+    `swift test --filter` matches a test's identity — `Target.Type/name` for an
+    XCTest method or a Swift Testing function inside a type, `Target.name` for a
+    top-level @Test function — and a bare name matches the same function in every
+    suite and target (measured with Swift 6.4). So the filter names the target the
+    file sits under (`Tests/<Target>/…`) and the type that encloses the function,
+    and an XCTest pass must name that class. None when either cannot be placed:
+    a run that cannot be attributed is not a pass (Codex review, 2026-09-24).
+    """
+    if not path:
+        return None
+    parts = PurePosixPath(str(path).replace("\\", "/")).parts
+    if len(parts) < 3 or parts[0] != "Tests":
+        return None
+    target = parts[1]
+    try:
+        text = (Path(package_root) / path).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    masked = _mask_lock_noncode(text, swift=True)
+    found = re.search(rf"\bfunc\s+`?{re.escape(name)}`?\s*[<(]", masked)
+    if not found:
+        return None
+    enclosing = None
+    for declaration in re.finditer(r"\b(?:class|struct|actor|enum|extension)\s+(\w+)[^{;]*\{", masked):
+        opening = declaration.end() - 1
+        closing = _matching_js_brace(masked, opening)
+        if closing is not None and opening < found.start() < closing:
+            enclosing = declaration.group(1)  # a later enclosing declaration is nested deeper
+    run = rf"Test {re.escape(name)}\([^)]*\) passed"
+    if enclosing is None:
+        return f"{target}.{name}", re.compile(run)
+    case = rf"Test Case '-\[{re.escape(target)}\.{re.escape(enclosing)} {re.escape(name)}\]' passed"
+    return f"{target}.{enclosing}/{name}", re.compile(f"{case}|{run}")
+
+
+def swift_unattributable(test):
+    return (f"cannot attribute a Swift run to {test}: bind a file under Tests/<Target>/ whose "
+            "function sits where this gate can place it — a bare name would credit a "
+            "same-named test in any suite or target")
 
 
 def go_package(path):

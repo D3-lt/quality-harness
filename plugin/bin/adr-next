@@ -598,6 +598,7 @@ def blockers(infos, corpus_dir=None):
             # `waiting on T4` — a local sibling it has nothing to do with.
             # Reproduced 2026-08-29 (docs/BACKLOG.md §41). Recorded as foreign so
             # the edge is reported unevaluated rather than silently invented.
+            named = False
             for part in (p.strip() for p in cons.split(",")):
                 if not part:
                     continue
@@ -605,8 +606,15 @@ def blockers(infos, corpus_dir=None):
                     note_foreign(part, corpus_dir, foreign, tid)
                     continue
                 for d in TID_RE.findall(part.upper()):
+                    named = True
                     if d in infos and d != tid:
                         out[tid].add(d)
+            # A Consumes that names its producer is not also fed by every sibling
+            # whose Produces shares a token with it — the same rule as adr-lint's
+            # DAG, so readiness cannot wait on an edge the author never wrote
+            # (BACKLOG §279 item 2). The token is the fallback when no task is named.
+            if named:
+                continue
             tokens = {t.lower() for t in re.findall(r"`([^`]+)`", cons)} - {"none"}
             for other, oinf in infos.items():
                 if other == tid:

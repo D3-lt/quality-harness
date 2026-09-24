@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-24",
+  "at": "384b89e142aa4d8395bce5ac999a2fa80035cc18",
+  "plugin": "2.107.0 (main, pre-tag)",
+  "kind": "probe",
+  "probeSha256": "58fcc212ae1681fbfe2553a1f925b1b8bc4437dc468df1861d87a40f393bcc8c",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 159,
+    "tasks": null,
+    "taskDirectories": null
+  },
+  "couldNotRun": 2,
+  "disagreements": 0,
+  "readinessUnproven": 3,
+  "runner": "a peer Claude Code session on this machine, read-only, over a private Rust corpus (the one that reported §268, §271 and §276); asked for by the owner",
+  "found": "corpus-probe exit 0, stderr empty. disagreements 0, down from 5 on 2.106.0 (§270: Superseded records' tasks are no longer offered). couldNotRun is the expected 2 (empty task directories). adrLint 67 PASS and 92 FAIL; the runner had no 2.106.0 per-record list to diff, so which verdicts moved is inconclusive, except ADR-191 now PASSes. It re-reported that adr-lint called a Rust test absent that the lock had hashed; fixed after this run in 8d87c25 (§276), so this run does not carry that change."
+}

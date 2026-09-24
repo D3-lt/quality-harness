@@ -10237,6 +10237,26 @@
       "from": "            body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                             rust=f.suffix == \".rs\")",
       "to": "            body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                             rust=False)",
       "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "spec: implemented mode says so when it ran no test",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if not ran:\n",
+      "to": "        if False:\n",
+      "only": "implemented mode ran no test"
+    },
+    {
+      "label": "spec: a run that ran a test does not claim it ran none",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if not ran:\n",
+      "to": "        if True:\n",
+      "only": "implemented mode ran no test"
     }
   ]
 }

@@ -14016,7 +14016,7 @@ requires a `*.md` directly under `tasks/`).
 - **The peer-probe script changed between a peer reading it and running it** (2026-09-19). A request for
   a peer run should carry the script's sha256, so the peer can show which version it ran.
 
-## 256. An inherited `FORCE_COLOR` makes the mutation runner read no test output (2026-09-22)
+## 256. CLOSED 2026-09-24 — An inherited `FORCE_COLOR` makes the mutation runner read no test output (2026-09-22)
 
 `childEnv` (`scripts/mutate.mjs`) strips two inherited variables because each changes what a child
 `node --test` prints: `NODE_TEST_CONTEXT` and a `--test-reporter` in `NODE_OPTIONS`. `FORCE_COLOR` is a
@@ -14036,6 +14036,18 @@ in any shell that exports it; CI does not.
 What would close it: strip `FORCE_COLOR` in `childEnv` beside the other two, and add a test that runs
 the end-to-end case with `FORCE_COLOR=3` in the parent environment. Not checked: whether `NO_COLOR` or
 `NODE_DISABLE_COLORS` interact, and whether any other script in `scripts/` parses child test output.
+
+**CLOSED 2026-09-24.** Both readers, and the second was worse than this entry said. `childEnv` now drops
+`FORCE_COLOR` beside the other two. The unchecked half — "whether any other script parses child test
+output" — had a fail-OPEN member: `adr-verify --mutant` inherits the environment, and measured here Python
+3.14 under `FORCE_COLOR=3` prints `\x1b[1;35mSyntaxError\x1b[0m:`, so the line-anchored `BUILD_BROKE`
+pattern missed a build that failed and the mutant was graded `killed`, reproduced end to end before the
+fix. Node's `SyntaxError:` line carries no colour under it. Every classifier of fence output
+(`scored_nothing`, `scored_anything`, `abnormal_termination`, `environment_failure`, `BUILD_BROKE`) now
+reads it through `plain()`, which strips escape sequences for classifying and never for recording.
+Tests `an inherited FORCE_COLOR is dropped, so a real run still counts its tests` and `a coloured build
+error is inconclusive, not a kill`; one catalogue mutant each, and the `NODE_TEST_CONTEXT` entry's `from`
+follows the edited line. `NO_COLOR` and `NODE_DISABLE_COLORS` only remove colour and were not added.
 
 ## 257. `adr-verify --sweep` cannot see a claim recorded with its run time (2026-09-22)
 

@@ -3860,23 +3860,50 @@ def corpus_prefix(root, corpus_dir):
 _FRONTMATTER = re.compile(r"\A﻿?---[ \t]*\r?\n.*?^(?:---|\.\.\.)[ \t]*$", re.M | re.S)
 
 
+# A fenced code block's opener: three or more backticks or tildes, indented at most
+# three spaces. A `# ADR-…` line inside one is an example, not a title.
+_FENCE_OPEN = re.compile(r"^ {0,3}(`{3,}|~{3,})")
+
+
+def _record_title(text):
+    """The first `# ` heading outside frontmatter and fenced code, or None.
+
+    One reading for both questions the enumeration asks — is this a record, and
+    which number does its title give — so they cannot disagree. Reading line one
+    only lost a title below a blank line (BACKLOG §194 row 2); reading the first
+    heading anywhere then took a fenced `# ADR-…` example for the title, and the
+    number was still read from the unstripped text, so a YAML comment in the
+    frontmatter decided it (Codex review, 2026-09-24).
+    """
+    fence = None
+    for line in _FRONTMATTER.sub("", text, count=1).split("\n"):
+        opener = _FENCE_OPEN.match(line)
+        if fence:
+            if opener and opener.group(1)[0] == fence[0] and len(opener.group(1)) >= len(fence):
+                fence = None
+            continue
+        if opener:
+            fence = opener.group(1)
+            continue
+        if title_line(line) is not None:
+            return line
+    return None
+
+
 def _title_says_record(path):
     """True record, False not a record, None could not read the file.
 
-    The title is the first `# ` heading in the file after any frontmatter
-    (`record.title_line`, ADR-063's one rule), not line one: a blank line or a
-    frontmatter block above the title made a real record read as "not a
-    record", so a dependency on it failed to resolve — a false BLOCK (BACKLOG
-    §194 row 2). A file with no heading at all stays "not a record": dated notes
-    carry none and a corpus holds them, and demoting every such corpus to
-    could-not-look would trade one false answer for a blind gate. The title's
-    number is compared with the filename's by the caller.
+    The title is `_record_title`'s: the first `# ` heading after any frontmatter
+    and outside fenced code. A file with no heading at all stays "not a record":
+    dated notes carry none and a corpus holds them, and demoting every such corpus
+    to could-not-look would trade one false answer for a blind gate. The caller
+    compares the title's number with the filename's, from the same title.
     """
     try:
         text = Path(path).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
-    title = title_line(_FRONTMATTER.sub("", text, count=1))
+    title = _record_title(text)
     if title is None or TITLE_TASK_RE.match(title):
         return False
     return bool(TITLE_RECORD_RE.match(title))
@@ -3931,7 +3958,8 @@ def record_files(root, corpus_dir, tracked):
                 title_text = (corpus_dir / name).read_text(encoding="utf-8", errors="replace")
             except OSError:
                 return None
-            _, title_n = adr_numbers(corpus_dir / name, title_text)
+            numbered = re.match(r"^﻿?#\s*ADR[-_ ]?(\d{1,4})\b", _record_title(title_text) or "", re.I)
+            title_n = int(numbered.group(1)) if numbered else None
             file_n = int(found.group(1))
             if title_n is not None and title_n != file_n:
                 continue

@@ -60,10 +60,11 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
   }
   const ready = []
   const unproven = []
-  // adr-next's own `done` verdict, and which directories it answered for, so the
-  // "claims done without evidence" check below uses ONE rule of done (§279 item 8).
+  // adr-next's own `done` verdict, and every task it LISTED in any bucket, so the
+  // "claims done without evidence" check below uses ONE rule of done (§279 item 8)
+  // and never reads a task adr-next did not read as a task it judged not done.
   const done = new Set()
-  const answeredDirs = new Set()
+  const listed = new Set()
   for (const dir of [...dirs].sort()) {
     const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000 })
     // adr-next answers 0 (a ready task) or 3 (nothing ready) — BOTH with JSON. Reading
@@ -73,7 +74,9 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
     let answer = null
     if (answered) { try { answer = JSON.parse(run.stdout) } catch { answer = null } }
     if (!answer || !Array.isArray(answer.ready)) { unproven.push(dir); continue }
-    answeredDirs.add(dir)
+    for (const bucket of ['ready', 'done', 'blocked', 'stopped']) {
+      for (const task of answer[bucket] ?? []) listed.add(path.resolve(root, task.path))
+    }
     for (const task of answer.done ?? []) done.add(path.resolve(root, task.path))
     for (const task of answer.ready) {
       const file = path.resolve(root, task.path)
@@ -83,7 +86,7 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
       ready.push(file)
     }
   }
-  return { ready, unproven, done, answeredDirs }
+  return { ready, unproven, done, listed }
 }
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
@@ -240,14 +243,24 @@ export function observe(directory, { spawn = spawnGate } = {}) {
   // refused both (BACKLOG §279 item 8, a Windows corpus). Where adr-next could not
   // answer for the directory, the tool-written-row test is the fallback, and that
   // directory is already reported as readinessUnproven.
+  // A README's done ids, read by adr-lint's own rule (done_task_ids): the LEFTMOST
+  // cell naming a task is the row's id — a bare `T4`, a `[T4](…)` link, or the
+  // second column after an order number — and the row claims done when any LATER
+  // cell is exactly `done`. Leftmost matters: a Depends-on cell names other tasks.
+  // A narrower reader here repeated shapes adr-lint had already been corrected for
+  // (Codex review of 2.108.0).
   const readmeDone = new Map()
   const claimedInReadme = file => {
     const dir = path.dirname(path.resolve(file))
     if (!readmeDone.has(dir)) {
       const ids = new Set()
-      for (const row of read(path.join(dir, 'README.md')).split('\n')) {
-        const cells = row.split('|').map(cell => cell.trim())
-        if (cells.length > 3 && /^T\d+$/i.test(cells[1]) && cells.slice(2).some(cell => /^done$/i.test(cell))) ids.add(cells[1].toUpperCase())
+      for (const raw of read(path.join(dir, 'README.md')).split('\n')) {
+        const line = raw.trim()
+        if (!line.startsWith('|')) continue
+        const cells = line.replace(/^\|/, '').replace(/\|$/, '').split('|').map(cell => cell.trim())
+        const index = cells.findIndex(cell => /^\[?T\d+\b/i.test(cell))
+        if (index < 0) continue
+        if (cells.slice(index + 1).some(cell => cell.toLowerCase() === 'done')) ids.add(cells[index].match(/T\d+/i)[0].toUpperCase())
       }
       readmeDone.set(dir, ids)
     }
@@ -262,7 +275,7 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     const claimed = /^\s*[-*]?\s*\*{0,2}(?:Status|State):?\*{0,2}:?\s*done\b/im.test(text)
       || /\bmarked\s+done\b/i.test(text) || claimedInReadme(file)
     if (!claimed) return false
-    if (readiness.answeredDirs.has(path.dirname(path.resolve(file)))) return !readiness.done.has(path.resolve(file))
+    if (readiness.listed.has(path.resolve(file))) return !readiness.done.has(path.resolve(file))
     return !/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)
   })
 

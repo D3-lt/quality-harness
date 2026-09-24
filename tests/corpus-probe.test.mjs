@@ -10,6 +10,7 @@ import { existsSync, mkdtempSync, rmSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
+import { stateDir } from '../plugin/scripts/event-log.mjs'
 
 test('scrubber: every absolute path is a placeholder, and a repository-relative one is untouched', () => {
   const scrub = scrubber({ root: '/Users/alice/proj', pluginRoot: '/Users/alice/.claude/plugins/qh', tmp: '/var/folders/xy/T', home: '/Users/alice' })
@@ -112,5 +113,27 @@ test('probe: a run leaves nothing in the probed repository, its git dir included
       'the probe must not write quality-harness state into the probed repository')
   } finally {
     rmSync(repo, { recursive: true, force: true })
+  }
+})
+
+// Codex review of 2.108.0: an override that is the SAME directory for every
+// repository merged two worktrees' check records, so one read the other's pass as
+// its own. The override is a root; each repository keeps its own place under it.
+test('stateDir: an override keeps each repository apart', () => {
+  const a = mkdtempSync(path.join(os.tmpdir(), 'qh-state-a-'))
+  const b = mkdtempSync(path.join(os.tmpdir(), 'qh-state-b-'))
+  const root = mkdtempSync(path.join(os.tmpdir(), 'qh-state-root-'))
+  const saved = process.env.QUALITY_HARNESS_STATE_DIR
+  try {
+    for (const dir of [a, b]) assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 10_000 }).status, 0)
+    process.env.QUALITY_HARNESS_STATE_DIR = root
+    const one = stateDir(a)
+    const two = stateDir(b)
+    assert.notEqual(one, two, 'two repositories under one override must not share state')
+    assert.ok(one.startsWith(path.resolve(root)) && two.startsWith(path.resolve(root)), `${one} ${two}`)
+  } finally {
+    if (saved === undefined) delete process.env.QUALITY_HARNESS_STATE_DIR
+    else process.env.QUALITY_HARNESS_STATE_DIR = saved
+    for (const dir of [a, b, root]) rmSync(dir, { recursive: true, force: true })
   }
 })

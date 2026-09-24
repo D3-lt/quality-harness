@@ -15164,3 +15164,9 @@ The owner made outside corpus runs the main verification loop on 2026-09-24. Thr
 12. adr-lint's identity line prints its own plugin root unredacted. That is the gate identity (§143), and it is not probe output.
 
 **CLOSED 2026-09-24.** Every item has a disposition: 1, 2, 3, 4, 5, 8 and 9 changed on main after 2.107.0 and ship in the next release, with the outside run §18 requires; 6 declined, with its reason; 7 answered by documentation; 10 answered by §231's repair; 11 and 12 not defects.
+
+**Codex review of the 2.108.0 changes (high, 2026-09-24), four findings, each reproduced red before it was fixed:**
+- **P1, a fail-open in item 2's fix.** Naming ONE input's producer switched the token fallback off for the whole Consumes line, so a second, unnamed input lost its edge and its task read ready while its producer was unfinished. Each comma-separated input now decides for itself, in both readers.
+- **Item 8's README reader was narrower than adr-lint's.** It missed `[T1](T1.md)` and a numbered first column. It now uses adr-lint's `done_task_ids` rule, the leftmost task-id cell with a later `done` cell. That is a second copy of that rule, in JS; the shapes it must read are pinned by test.
+- **A task adr-next never listed was judged by its absence**, for example an upper-case `.MD` it does not glob. work-next now takes adr-next's verdict only for tasks adr-next listed, and uses the tool-written-row fallback otherwise. While fixing this I found my own edit had deleted that fallback line, so no unlisted task could be unbacked. It is restored, and the test covers both directions.
+- **The state override merged worktrees.** One shared directory let two repositories read each other's checks. `QUALITY_HARNESS_STATE_DIR` is now a root, with one directory per repository under it.

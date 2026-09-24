@@ -2827,3 +2827,58 @@ test('a quote or a paren inside a JS regex literal does not cost a test its lock
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// BACKLOG §212's consequence for adopters: a lock taken before regex literals were
+// masked could stop at a `}` inside one and hash a prefix. Read with the fixed
+// extractor, that lock says "hash moved" — worded as tampering, for a test nobody
+// touched. The refusal must name the real cause, and a real edit must still read
+// as one.
+test('a lock taken before regex masking is told apart from a test that changed', () => {
+  const dir = tmpRepo()
+  const rel = 'tests/brace-subject.test.mjs'
+  const name = 'strips a brace'
+  // The old extraction stopped at the `}` of `/}/`, so it locked only the span
+  // up to there: an edit to `literal` is inside it, an edit to `expected` is not.
+  const source = (literal, expected) => "import test from 'node:test'\n"
+    + "import assert from 'node:assert/strict'\n"
+    + `test('${name}', () => {\n`
+    + `  const s = '${literal}'.replace(/}/g, '')\n`
+    + `  assert.equal(s, '${expected}')\n`
+    + '})\n'
+  const legacyRow = () => {
+    const run = python(`
+import json, sys
+import record
+req = json.load(sys.stdin)
+body = record.extract_test_body(req["source"], req["name"], before_regex_masking=True)
+digest, token = record.encode_lock({"check": None, "unproven": set(),
+    "bodies": {(req["rel"], req["name"]): record.body_digest(body)}})
+print(json.dumps({"digest": digest, "token": token, "body": body}))
+`, JSON.stringify({ source: readFileSync(join(dir, rel), 'utf8'), name, rel }))
+    assert.equal(run.status, 0, run.stderr)
+    return JSON.parse(run.stdout)
+  }
+  const verdict = () => findings(dir, [row], [[name, rel]]).blocks.join('\n')
+  let row
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('a}b', 'ab'))
+    const legacy = legacyRow()
+    assert.doesNotMatch(legacy.body, /assert\.equal/, 'the old extraction stopped inside the regex')
+    row = `- 2026-09-13 · no-git · exit 2 · \`node --test ${rel}\` · acceptance-sha256:${'0'.repeat(64)} · ms:12 · test-lock-sha256:${legacy.digest} · test-lock-b64:${legacy.token}`
+    const untouched = verdict()
+    assert.match(untouched, /locked before regex literals were masked/)
+    assert.match(untouched, /never locked — UNPROVEN/)
+    assert.match(untouched, /--relock --replace-hashes/)
+    assert.doesNotMatch(untouched, /hash moved/, 'nothing the old lock covered has changed')
+    // An edit AFTER the old span is still invisible to it, so it earns the same
+    // UNPROVEN — never a clean pass, and never an accusation.
+    writeFileSync(join(dir, rel), source('a}b', 'ax'))
+    assert.match(verdict(), /never locked — UNPROVEN/)
+    // An edit INSIDE the span the old lock covered is a moved hash.
+    writeFileSync(join(dir, rel), source('a}c', 'ab'))
+    assert.match(verdict(), /hash moved — done is refused/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

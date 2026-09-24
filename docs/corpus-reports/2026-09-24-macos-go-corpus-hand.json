@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-24",
+  "at": "b94c1c4d3f970a30176b61691c0d4927399f67f2",
+  "plugin": "2.106.0 (main, pre-tag; the PATH qh-check of the runner's session resolves to this checkout)",
+  "kind": "hand",
+  "probeSha256": "631a8f07c8c4db9f951cf5b9eeb42d194199572de8c9d55639a94ff76d52b1eb",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 63, "tasks": 144, "taskDirectories": null },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "a peer Claude Code session on this machine, read-only, over a Go repository with one testless package — the repository that reported BACKLOG §273; asked for by the owner",
+  "found": "qh-check over `go test ./...` with a `[no test files]` package now records verdict `passed` (exit 0); the same tree recorded `no-work` on 2.105.0 and every commit was refused. corpus-probe exit 0, 0 disagreements, 0 couldNotRun, readinessUnproven 0. The runner notes the probe JSON has no scalar `taskDirectories` field (top-level keys: probe, root, look, corpora, records, workNext, frozenTaskDirs, adrState, adrNext, adrLint, sessionStart, corpusReport, sweep, disagreements, couldNotRun) — a lead for the attestation template, filed here. Tree dirty with the runner's own uncommitted work; both readers are tree-agnostic for these counts."
+}

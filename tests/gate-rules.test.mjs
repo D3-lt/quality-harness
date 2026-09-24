@@ -2095,6 +2095,8 @@ test('a Swift nested type is UNRUN however its name is spelled', { skip: NO_POSI
     ['spaced-dot', 'extension Outer . Inner { @Test func probe() { #expect(1 == 1) } }\n'],
     ['comment-dot', 'extension Outer /* note */ . Inner { @Test func probe() { #expect(1 == 1) } }\n'],
     ['escaped-outer', 'struct `Outer` { struct Inner { @Test func probe() { #expect(1 == 1) } } }\n'],
+    // One escaped type and no nesting: its filter spelling was never measured either.
+    ['escaped-only', 'struct `Suite` { @Test func probe() { #expect(1 == 1) } }\n'],
   ]
   for (const [label, body] of cases) {
     const files = { 'Package.swift': '// swift-tools-version:6.0\n', 'Tests/LibTests/LibTests.swift': 'import Testing\n' + body }

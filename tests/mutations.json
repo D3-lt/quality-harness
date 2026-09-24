@@ -8002,6 +8002,16 @@
       "only": "selftest prints its verdict"
     },
     {
+      "label": "observe: a write behind an in-tree link to an outside file is not observable",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative) && !escapes) {",
+      "to": "    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {",
+      "only": "in-repository link to an outside file"
+    },
+    {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",
       "file": "plugin/lib/record.py",
       "tests": [

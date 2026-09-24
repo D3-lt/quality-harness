@@ -12675,7 +12675,7 @@ logical `\n` in that one terminator. A mixed file is rewritten as if it were onl
 is invisible to the detector. Each needs its own regression on `append_entry` / `write_source`,
 and the class is the detector plus the rewriter, not T11's splitter.
 
-## 201. `provenMutationPaths` treats cwd as the repository and only checks lexical containment
+## 201. CLOSED 2026-09-24 — `provenMutationPaths` treats cwd as the repository and only checks lexical containment
 
 Pre-tag Codex review of `12c22b8...c1e1f9e` (HEAD `c1e1f9e`), 2026-09-12. Not fixed in the
 v2.98.0 cut: the hook contract is cwd = project root, and the nested-cwd / symlink /
@@ -12694,6 +12694,17 @@ The current class test keeps cwd equal to the fixture root and only covers a dir
 A fix is the existing repository-root lookup plus canonical containment, not a prefix on the
 relative string. Nested-cwd, symlink, unusual-filename, and a platform-parameterized regression
 each belong on that change; they are not this release.
+
+**CLOSED 2026-09-24.** `provenMutationPaths` itself went with the classifiers in 026c21c (ADR-060,
+released v2.101.0). What replaced it kept one residual of the same class: `recordFileWritten` resolved
+only the parent directory, on purpose (`canonicalFile` keeps a symlinked leaf's own name, because git
+lists the link), so an Edit through `repo/link.md -> /outside/x` was recorded `observable: true`. The
+link does not change when the file behind it does, so the tree hash cannot see that write, and a
+check that ran before it read as covering it. Reproduced first; now a write whose real target lies
+outside the repository is recorded unobservable, and the dedupe key keeps the link's spelling. Test
+`a write through an in-repository link to an outside file is not observable`, with an ordinary
+tracked file as the control; skipped on Windows, where the runner account cannot create a symlink.
+The `..foo` filename case errs toward unobservable, the safe side, and is left.
 
 ## 202. Two overlapping `--brief` refreshes can last-write-wins the branch-state cache
 

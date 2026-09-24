@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-24",
+  "at": "ce5aa8ae10cbd5a710a44986a5c1ee4e2f5179b7",
+  "plugin": "2.107.0 (main, pre-tag)",
+  "kind": "probe",
+  "probeSha256": "58fcc212ae1681fbfe2553a1f925b1b8bc4437dc468df1861d87a40f393bcc8c",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 159,
+    "tasks": null,
+    "taskDirectories": null
+  },
+  "couldNotRun": 2,
+  "disagreements": 0,
+  "readinessUnproven": 2,
+  "runner": "a peer Claude Code session on this machine, read-only, over a private Rust corpus (the one that reported §268, §271 and §276); ninth run of this release cycle, asked for by the owner",
+  "found": "corpus-probe exit 0 in 296 s, stderr empty, corpus tree clean. adrLint 68 PASS and 91 FAIL, no per-record change from the 10e6ef9 run. couldNotRun is the expected 2 (empty task directories), disagreements 0. readinessUnproven fell from 3 to 2 with no corpus change; the runner flagged it. Measured here: adr-next on that directory took 76 s at 10e6ef9 and 1 s at ce5aa8a, against work-next's 60 s budget per directory, so the difference is the masker cache in ce5aa8a, not nondeterminism."
+}

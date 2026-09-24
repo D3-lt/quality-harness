@@ -10317,6 +10317,16 @@
       "from": "@lru_cache(maxsize=32)\ndef _mask_lock_noncode(",
       "to": "def _mask_lock_noncode(",
       "only": "masked once"
+    },
+    {
+      "label": "probe: the hook's state directory is pointed at scratch",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (process.env.QUALITY_HARNESS_STATE_DIR) return path.resolve(process.env.QUALITY_HARNESS_STATE_DIR)\n",
+      "to": "",
+      "only": "leaves nothing in the probed repository"
     }
   ]
 }

@@ -10307,6 +10307,16 @@
       "from": "    if current:\n",
       "to": "    if current and not other:\n",
       "only": "names a moved test lock"
+    },
+    {
+      "label": "lock: one text is masked once, however many tests are hashed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "@lru_cache(maxsize=32)\ndef _mask_lock_noncode(",
+      "to": "def _mask_lock_noncode(",
+      "only": "masked once"
     }
   ]
 }

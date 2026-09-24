@@ -5172,6 +5172,21 @@ def selected_by_filter(acc, name, rel=None):
     return False
 
 
+# pnpm's `--filter <pkg>` / `-F <pkg>` selects a WORKSPACE PACKAGE, not tests. Read as
+# a test filter, `pnpm --filter @app/web exec vitest … && php artisan test` made every
+# PHP row "not selected", though the second command runs the whole PHP suite: a
+# false FAIL on a correct fence (BACKLOG §281 item 1, a PHP/React corpus).
+PNPM_WORKSPACE_FILTER = re.compile(
+    r"(\bpnpm\b(?:[^\S\n]+-{1,2}[\w-]+(?:=\S+)?)*?)[^\S\n]+(?:--filter|-F)(?:=\S+|[^\S\n]+\S+)")
+
+
+def without_workspace_filters(acc):
+    """The fence with every pnpm workspace selector taken out, so only test filters remain."""
+    previous = None
+    while previous != acc:
+        previous, acc = acc, PNPM_WORKSPACE_FILTER.sub(r"\1", acc)
+    return acc
+
 def check_named_tests_are_run(infos, readme_text, errors):
     """A test the Tests table names must be SELECTED by the Acceptance command.
 
@@ -5195,7 +5210,7 @@ def check_named_tests_are_run(infos, readme_text, errors):
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
             continue
-        acc = inf.get("acc_all") or inf.get("acc_first") or ""
+        acc = without_workspace_filters(inf.get("acc_all") or inf.get("acc_first") or "")
         if not acc or not narrowing.search(acc):
             continue
         for name, rel in inf.get("tests", []):

@@ -485,6 +485,24 @@ test('a human sign-off that reports a PASS is still done', () => {
   assert.match(out, /^done\s+T1/m, `an affirmative sign-off is evidence:\n${out}`)
 })
 
+// BACKLOG §281 item 2, from a product repository: an affirmative sign-off that
+// QUOTES the verified program's own output — `rollback.sh` with no arg -> exit 1
+// 'refusing an empty tag' — was read as a stop, because "refusing" is a negative
+// word and a negative word anywhere wins. Quoted text is what was observed, not the
+// verdict; it stops a task only when nothing outside the quotes affirms it.
+test('a negative word inside quoted program output does not stop an affirmative sign-off', () => {
+  const outcome = signoff => {
+    const { tasksDir } = corpus([{ id: 'T1', human: true, evidence: true, signoff }])
+    return next([tasksDir, '--all'], root).stdout
+  }
+  const quoted = "- 2026-08-21 · human-observed · Zy verified on both nodes: `rollback.sh` with no arg -> exit 1 'refusing an empty tag'"
+  assert.match(outcome(quoted), /^done\s+T1/m, outcome(quoted))
+  // Still a stop: the negative is outside the quotes…
+  assert.doesNotMatch(outcome("- 2026-08-21 · human-observed · verified, but refusing to ship: 'ok' was a fluke"), /^done\s+T1/m)
+  // …or it is only inside quotes and nothing outside affirms anything.
+  assert.doesNotMatch(outcome("- 2026-08-21 · human-observed · the tool printed 'blocked'"), /^done\s+T1/m)
+})
+
 // Found 2026-09-04 on this repository's own ADR-012 T4, which the tasks README
 // calls done and which adr-next printed READY. The sign-off is affirmative — the
 // tool ran, the gate answered, the finding was reported — and one of the things

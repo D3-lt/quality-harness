@@ -12816,7 +12816,7 @@ Do not rewrite ADR-054 Decision text. Do not edit locked `tests/test-lock.test.m
 or `tests/swift-expect.test.mjs` bodies. BACKLOG §206 (never-hashable Tests rows)
 is a different class and stays.
 
-## 210. Routing leftovers from ADR-057 (2026-09-16)
+## 210. CLOSED 2026-09-24 — Routing leftovers from ADR-057 (2026-09-16)
 
 ADR-057 gives every shipped skill, agent and workflow a named route and leaves two
 pieces of work that no task of it owns:
@@ -12830,6 +12830,16 @@ pieces of work that no task of it owns:
   `arch-write`, High tier without Codex reaching `quality-cycle`. Supplementary
   only: model-scored, operator-granted, and outside `scripts/selftest.sh`, so they
   cannot be an Acceptance fence.
+
+**CLOSED 2026-09-24.** Both bullets. The second was already done: the routing evals
+`structural-decision-without-architecture-doc-routes-to-arch-write` and
+`high-risk-without-codex-routes-to-quality-cycle` shipped in f37f57a. The first is closed by making the
+stage list honest rather than by inventing a predicate: no record header says which decisions are
+structural, so any "architecture document older than the record" test in `work-next` would fire after
+nearly every accepted record — a router that cries wolf (§152). The `arch-write` stage now says it is
+judged by the work skill's class D and that this reader never selects it, and `tests/routing.test.mjs`
+(`a stage work-next never selects says so in its own condition`) holds that while no `nextStage`
+branch returns it. A real predicate stays possible the day a record can declare itself structural.
 
 ## 211. The reviewer guard refuses read-only commands a reviewer needs for evidence (2026-09-16)
 

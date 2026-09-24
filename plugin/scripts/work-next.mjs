@@ -106,9 +106,10 @@ export const STAGES = [
   {
     id: 'arch-write',
     entry: '/quality-harness:arch-write',
-    when: 'every task of an Accepted ADR carries evidence and the architecture document '
-      + 'is older than the record',
-    why: 'The decision shipped and the map still shows the old shape.',
+    when: 'a structural decision lands and the repository has no architecture document — '
+      + 'judged by the work skill\'s class D; this reader cannot tell a structural record from '
+      + 'any other, so it never selects this stage itself',
+    why: 'A structural decision with no map to change is a map nobody will write later.',
   },
   {
     id: 'adr-write',

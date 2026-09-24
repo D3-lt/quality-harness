@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-24",
+  "at": "10e6ef9b8ef9d29d7cc6cee34f8b52fb1ae73ace",
+  "plugin": "2.107.0 (main, pre-tag)",
+  "kind": "probe",
+  "probeSha256": "58fcc212ae1681fbfe2553a1f925b1b8bc4437dc468df1861d87a40f393bcc8c",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 159,
+    "tasks": null,
+    "taskDirectories": null
+  },
+  "couldNotRun": 2,
+  "disagreements": 0,
+  "readinessUnproven": 3,
+  "runner": "a peer Claude Code session on this machine, read-only, over a private Rust corpus (the one that reported §268, §271 and §276); eighth run of this release cycle, asked for by the owner",
+  "found": "corpus-probe exit 0, stderr empty, corpus tree clean. adrLint 68 PASS and 91 FAIL (67/92 at 384b89e); the one record that changed, the one §276 blocked, now PASSes, but its task also changed between the runs, so the runner could not attribute the flip to the reader fix alone. Four READY notes now name the test lock that withholds done (§278); none says the fence changed. couldNotRun is the expected 2 (empty task directories), disagreements 0, readinessUnproven 3."
+}

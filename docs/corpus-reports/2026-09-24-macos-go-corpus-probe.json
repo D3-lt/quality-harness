@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-24",
+  "at": "384b89e142aa4d8395bce5ac999a2fa80035cc18",
+  "plugin": "2.107.0 (main, pre-tag)",
+  "kind": "probe",
+  "probeSha256": "58fcc212ae1681fbfe2553a1f925b1b8bc4437dc468df1861d87a40f393bcc8c",
+  "platform": "macOS 27.0, the maintainers' own platform — the corpus is the outside part here",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 64,
+    "tasks": null,
+    "taskDirectories": null
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "a peer Claude Code session on this machine, read-only, over a Go repository (the one that reported §273 and §274); asked for by the owner",
+  "found": "corpus-probe exit 0 in 258 s under load 11-15. couldNotRun went from a killed work-next (probe budget) at b18d755 to none. adrLint 60 PASS and 4 FAIL, identical to its earlier run; the four are moved test locks. It found spec-verify --implemented printing a bare PASS over a spec with no @implemented fact; fixed after this run in e55ee17 (§277). No spec there binds an @implemented Go test, so the new Go runner was not exercised."
+}

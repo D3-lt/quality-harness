@@ -1577,3 +1577,15 @@ test("an agent definition's name matches its file", () => {
     assert.match(stem, /^qh-/, `${path}: a shipped definition must be namespaced`)
   }
 })
+
+// BACKLOG §250. selftest.sh sets PASS or PARTIAL and printed neither from 39abcf1
+// on — PARTIAL exits 0 like PASS, so a run that skipped plugin validation ended
+// looking like one that validated. The guard beside the source text only checked
+// that the words existed. Running the script from inside its own suite would
+// re-enter the suite, so this reads the one place the verdict leaves the script:
+// its last executable line.
+test('selftest prints its verdict as the last thing it does', () => {
+  const lines = readFileSync(join(repoRoot, 'scripts', 'selftest.sh'), 'utf8').split('\n')
+    .map(line => line.trim()).filter(line => line && !line.startsWith('#'))
+  assert.match(lines.at(-1), /^printf '%s\\n' "\$verdict"$/, `the last statement is ${lines.at(-1)}`)
+})

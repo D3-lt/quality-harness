@@ -7992,6 +7992,16 @@
       "only": "a stage work-next never selects says so"
     },
     {
+      "label": "selftest: the verdict is printed as the last line",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "printf '%s\\n' \"$verdict\"",
+      "to": ": \"$verdict\"",
+      "only": "selftest prints its verdict"
+    },
+    {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",
       "file": "plugin/lib/record.py",
       "tests": [

@@ -10197,6 +10197,46 @@
       "from": "any(\".\" in each or \"`\" in each for each in enclosing)",
       "to": "any(\".\" in each for each in enclosing)",
       "only": "however its name is spelled"
+    },
+    {
+      "label": "lint: Rust source is stripped with the lock's Rust masker",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return _mask_lock_noncode(text, rust_raw=True)\n",
+      "to": "        pass\n",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: test_body passes Rust through to the stripper",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    stripped = code_only(text, python=python, swift=swift, rust=rust)",
+      "to": "    stripped = code_only(text, python=python, swift=swift)",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: the tests-exist check reads a .rs file as Rust",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                         rust=f.suffix == \".rs\") is None:",
+      "to": "                         rust=False) is None:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: the can-fail check reads a .rs body as Rust",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                             rust=f.suffix == \".rs\")",
+      "to": "            body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                             rust=False)",
+      "only": "focused false-green regressions remain closed"
     }
   ]
 }

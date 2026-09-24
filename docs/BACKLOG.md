@@ -15087,3 +15087,13 @@ Recorded so they do not have to be found again; none is scheduled.
   masker now share in `plugin/lib/record.py` (§212). Which is right was not decided.
 - **Reported by the audit, not reproduced here:** adr-lint's `code_only` blanks a Rust raw string to
   the end of its line. It did not affect §268's two shapes, which were reproduced.
+
+## 276. CLOSED 2026-09-24 — adr-lint read a Rust lifetime as a string, so tests after it did not exist, while the lock hashed them (2026-09-24, reported from a Rust corpus)
+
+**Reported** through the palace inbox by the zeus session, and again with its 2.107.0 probe run: `adr-lint` FAILed ADR-192 with "that file contains no executable definition with that name" for `ladder_fires_on_multi_edit_third_trigger_tool`, a test the file defines and that `adr-verify`'s first-red lock had hashed. ADR-192 T1 was marked blocked in that repository waiting for this. The report named the cause as `test_body` never being passed `rust=True`.
+
+**Reproduced here** on the reporter's file, read-only: adr-lint's `test_body` returned None for that test while `record.extract_test_body(rust=True)` returned its body. The report's mechanism was close but not exact. adr-lint's `test_body` has no Rust mode at all; its stripper `scan_code_only` reads every `'` as a string opener, and its strings are not line-bounded. A lifetime such as `&'static str` therefore opened a string that ran on to the next apostrophe, here one in a comment, and every declaration inside that span was blanked. It is §271's class, fixed for the lock and never for this reader.
+
+**Fixed:** `code_only(rust=True)` returns `record._mask_lock_noncode(text, rust_raw=True)`, the masker the lock uses, and all three `test_body` call sites pass `rust=f.suffix == ".rs"`: the tests-exist check, the pointer resolver, and the can-fail check. Test `test_a_rust_test_after_a_lifetime_exists` covers a lifetime, a label, a char literal holding `{`, and a raw string holding one `"`, with the absent-test and no-assertion directions on the same call paths. Four mutants.
+
+**This also answers §275's last bullet** for Rust: a raw string is now read by the Rust masker, not by `scan_code_only`.

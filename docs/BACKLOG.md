@@ -12468,6 +12468,19 @@ written by the author of §16, two days after writing it.
 **Corrected here rather than carried:** this entry's parent claimed `resolve_qualified_dep` is the
 only blocking consumer. It is not; `check_cross_record_cycles` appends as well. See §193.
 
+**Row 2 fixed 2026-09-24; rows 1, 3, 4 and 5 stay open** and reopen on the first outside report of
+their input. What row 2 still needed: the title-versus-filename number comparison it names had been
+added in the caller since (`record_files` skips a title whose number disagrees). What remained was
+that only line one was read, so a blank line or a YAML frontmatter block above a real record's title
+dropped it from the enumeration and a dependency on it failed to resolve. `_title_says_record` now
+reads the first `# ` heading after any frontmatter through `record.title_line`, the rule every
+other reader shares since ADR-063. The prescription's other half, "return None for unrecognised
+forms", was declined: this repository's own pinned fixture holds a headingless dated note
+(`2026-9-9-router.md`) as an ordinary member of a corpus, and making it unknown would demote every
+such corpus's enumeration to could-not-look. A file with no heading stays "not a record". Setext
+headings and indented `#` are not read, as nowhere else in the corpus reads them. Test
+`test_a_record_title_below_frontmatter_or_a_blank_line_is_read`, two catalogue mutants.
+
 ## 195. OPEN 2026-09-09 — OpenCode support: what is already portable, what is not, and the one question that decides it
 
 Asked for from outside: users of the OpenCode terminal agent want this harness there. Nothing is

@@ -748,6 +748,7 @@ def main():
     test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint)
     test_a_test_that_expects_an_exception_is_not_a_dead_test(lint)
     test_a_rust_assertion_macro_is_a_failure_call(lint)
+    test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint)
     test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
@@ -4770,6 +4771,31 @@ def test_a_rust_assertion_macro_is_a_failure_call(lint):
         assert not lint.FAIL_CALLS.search(body), body
 
     print("PASS — a Rust assertion macro is a failure call")
+
+def test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint):
+    """BACKLOG 194 row 2 — only line one was read, so a real record read as 'not a record'."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        corpus = root / "docs" / "adr"
+        corpus.mkdir(parents=True)
+        files = {
+            "001-plain.md": "# ADR-001: a plain record\n",
+            # Task-shaped names, so the TITLE decides. Each of the next two was
+            # dropped from the enumeration while only line one was read.
+            "005-T1-notes.md": "\n# ADR-005: a blank line above the title\n",
+            "006-T1-front.md": "---\nid: 6\n# a yaml comment, not a title\n---\n# ADR-006: below frontmatter\n",
+            # ...and the must-fail direction: a task below frontmatter is still a
+            # task, and a file with no heading at all is still not a record.
+            "007-T2-plan.md": "---\na: b\n---\n# Task ADR-007-T2: a plan\n",
+            "008-T1-bare.md": "no heading at all\n",
+        }
+        for name, text in files.items():
+            (corpus / name).write_text(text, encoding="utf-8")
+        tracked = {f"docs/adr/{name}" for name in files}
+        numbers = {p.name: n for p, n in lint.record_files(root, corpus, tracked)}
+        assert numbers == {"001-plain.md": 1, "005-T1-notes.md": 5, "006-T1-front.md": 6}, numbers
+
+    print("PASS — a record title below frontmatter or a blank line is read")
 
 
 

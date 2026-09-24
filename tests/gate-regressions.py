@@ -749,6 +749,7 @@ def main():
     test_a_test_that_expects_an_exception_is_not_a_dead_test(lint)
     test_a_rust_assertion_macro_is_a_failure_call(lint)
     test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint)
+    test_a_refused_entry_names_the_field_that_failed(verify)
     test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
@@ -4796,6 +4797,30 @@ def test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint):
         assert numbers == {"001-plain.md": 1, "005-T1-notes.md": 5, "006-T1-front.md": 6}, numbers
 
     print("PASS — a record title below frontmatter or a blank line is read")
+
+
+def test_a_refused_entry_names_the_field_that_failed(verify):
+    """BACKLOG 225 — a signal's negative exit was refused as if the sha width were wrong."""
+    import contextlib
+    import io
+
+    def refusal(entry, sha):
+        said = io.StringIO()
+        with contextlib.redirect_stderr(said), contextlib.redirect_stdout(said):
+            try:
+                verify.refuse_unreadable(entry, sha)
+            except SystemExit:
+                pass
+        return said.getvalue()
+
+    digest = "0" * 64
+    killed = refusal(f"- 2026-09-17 · 9cf862f* · exit -9 · `x` · acceptance-sha256:{digest}", "9cf862f*")
+    assert "exit field is `-9`" in killed and "core.abbrev" not in killed, killed
+    # The must-fail direction: a sha the grammar cannot hold is still blamed on the sha.
+    wide = "a" * 70
+    assert "core.abbrev" in refusal(f"- 2026-09-17 · {wide} · exit 1 · `x` · acceptance-sha256:{digest}", wide)
+
+    print("PASS — a refused entry names the field that failed")
 
 
 

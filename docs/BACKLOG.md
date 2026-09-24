@@ -13211,7 +13211,7 @@ hook still speaks, so it is not a fail-open. It predates this work: `git archive
 returns the same path for `bash -c "cat README.md"` and `bash -c "wc -l README.md"`. It is the invented
 path class CLAUDE.md §17 names. ADR-060 removes command-derived paths.
 
-## 225. `adr-verify` blames the sha width when a clean fence is killed (2026-09-17)
+## 225. CLOSED 2026-09-24 — `adr-verify` blames the sha width when a clean fence is killed (2026-09-17)
 
 `adr-verify … --mutant` on ADR-059 T6 printed `UNPROVEN: the clean fence exited -9 before any mutant
 ran`, and then refused the entry with "The sha field is `9cf862f*` — git's `core.abbrev` decides its
@@ -13219,6 +13219,13 @@ width". The sha was valid. The entry was refused because a negative exit code (s
 grammar. No mutant was applied and the file was clean. A retry passed, and the fence alone exited 0.
 The refusal message should name the field that failed. What sent signal 9 was not found (load 10.4 on 10
 cores at the time).
+
+**CLOSED 2026-09-24.** `refuse_unreadable` names the field that failed: a well-formed sha beside a
+non-numeric exit (`exit -9`) is told the fence was ended by a signal and nothing was recorded; a
+well-formed sha with some other field wrong is told so; only a sha the grammar cannot hold is still
+sent to `core.abbrev`. Test `test_a_refused_entry_names_the_field_that_failed`, one mutant. What sent
+signal 9 in the original report stays unattributed, as does the SIGKILL that ended a gate run in this
+session on 2026-09-24.
 
 ## 226. Shell-quote patterns whose escape handling nobody assessed (2026-09-17)
 
@@ -13799,7 +13806,7 @@ Two things to decide, neither done here:
   (§16) — "exported symbol with no entry naming it" will have false positives, and a gate that
   refuses correct work is one people turn off (§3).
 
-## 244. The inferred check can be NARROWER than the project's real gate (2026-09-18)
+## 244. CLOSED 2026-09-24 — The inferred check can be NARROWER than the project's real gate (2026-09-18)
 
 ⚠ OPEN, and it is a fail-open in the adopter's view rather than in this repository's. Reported by a
 session running a real React SPA after being asked to look at the inference specifically.
@@ -13844,6 +13851,12 @@ NOT DONE, and two cautions against rushing it:
 - The honest cheap alternative may be wording rather than inference: say that an inferred command may
   be NARROWER than the project's own gate, so a reader knows a pass does not mean what it looks like.
   That costs nothing and cannot be wrong.
+
+**CLOSED 2026-09-24, by wording, as this entry's own cheap alternative proposes.** The orientation for
+an inferred check now says it may be narrower than the project's own gate — a typecheck or lint step
+the manifest does not name — so its pass is not that gate's pass; a declared check carries no such
+caveat. Reading a pre-push hook for the real gate is not built, for the reasons given above. Test `the
+orientation says an inferred check may be narrower than the project gate`, one mutant.
 
 ## 245. Three rounds of review, three rounds of my fixes introducing new defects (2026-09-18)
 
@@ -14164,7 +14177,7 @@ What would close it: let `CLAIM_RE` accept the optional ` · ms:<N>` suffix (and
 the writer adds), with a test that records a row through `adr-verify` and asserts the sweep counts
 it. Then re-read what the corrected rate says about this corpus before trusting it.
 
-## 258. The observed-events object count fails about one run in three, in a linked worktree under load (2026-09-22)
+## 258. MITIGATED 2026-09-24 — The observed-events object count fails about one run in three, in a linked worktree under load (2026-09-22)
 
 `tests/observed-events.test.mjs` "observing writes nothing into the repository" counts the files
 under the test repository's `.git/objects` before and after `lifecycle.observe`, and asserts they
@@ -14176,6 +14189,11 @@ Unverified hypothesis: the test builds its repository with a plain `git commit`,
 start detached auto-maintenance after a commit, so a background process may be tidying
 `.git/objects` while the test counts. What would settle it: run the repository helper with
 `-c gc.auto=0 -c maintenance.auto=false` and see whether the failure stops under the same load.
+
+**Mitigated 2026-09-24, on the hypothesis, not on a reproduction.** `repository()` in
+`tests/observed-events.test.mjs` now commits with `-c gc.auto=0 -c maintenance.auto=false`, the guard
+`tests/record-identity.test.mjs` already carries. Whether background maintenance was the cause was not
+reproduced; the next failure of the object count under load falsifies it and reopens this.
 
 ## 259. An ADR-named directory takes a note from the record around it (2026-09-22, pre-existing)
 

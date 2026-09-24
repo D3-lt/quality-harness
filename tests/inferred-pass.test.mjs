@@ -15,7 +15,8 @@
 // every check event; nothing read it.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { observedFacts, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { observedFacts, sessionOrientation, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { spawnSync } from 'node:child_process'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -59,4 +60,22 @@ test('the status line marks a tick that an inferred check earned', () => {
     assert.match(shown('declared', `inf-d-${process.pid}`), /^QH ✓ checked ·/, 'a declared pass is a plain tick')
     assert.match(shown('inferred', `inf-i-${process.pid}`), /^QH ✓ checked \(inferred check\)/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// BACKLOG §244. "Inferred" disclosed that the command was a guess about IDENTITY
+// and nothing about it being a SUBSET: a manifest that names `test` says nothing
+// of the typecheck or lint step the project's own gate also runs, and a pass of
+// the part reads, from the gate's side, like a pass of the whole.
+test('the orientation says an inferred check may be narrower than the project gate', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-narrower-'))
+  try {
+    spawnSync('git', ['init', '-q', repo], { encoding: 'utf8', timeout: 60_000 })
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'vitest' } }))
+    const inferred = sessionOrientation(repo)
+    assert.match(inferred, /inferred `npm run test`/)
+    assert.match(inferred, /may be narrower than this project's own gate/)
+    // A declared check is the project's own word, and gets no such caveat.
+    writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check: 'npm run test' }))
+    assert.doesNotMatch(sessionOrientation(repo), /narrower/)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
 })

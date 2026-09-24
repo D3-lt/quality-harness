@@ -8012,6 +8012,26 @@
       "only": "in-repository link to an outside file"
     },
     {
+      "label": "verify: a refused entry blames the exit field, not the sha, for a signal",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if re.fullmatch(SHA_FIELD, sha or \"\") and exit_field and not exit_field.group(1).isdigit():",
+      "to": "    if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "orientation: an inferred check may be narrower than the project's own gate",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/inferred-pass.test.mjs"
+      ],
+      "from": ", and it may be narrower than this project's own gate (a typecheck or lint step the manifest does not name), so its pass is not that gate's pass",
+      "to": "",
+      "only": "may be narrower than the project gate"
+    },
+    {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",
       "file": "plugin/lib/record.py",
       "tests": [

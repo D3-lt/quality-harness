@@ -8032,6 +8032,16 @@
       "only": "may be narrower than the project gate"
     },
     {
+      "label": "lock: a division after a postfix increment is not a regex",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if text[j] in \"+-\" and j > 0 and text[j - 1] == text[j]:\n        return False\n",
+      "to": "",
+      "only": "division after a postfix increment"
+    },
+    {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",
       "file": "plugin/lib/record.py",
       "tests": [

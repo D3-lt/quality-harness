@@ -376,7 +376,7 @@ before and after item 7. Marker text is cut at 120 characters, so whatever made 
 mutation sits in the tail nobody can see. Probably the same class if the tail named a
 language path, but that was not verified — if the loop survives 2.0.5, start there.
 
-## 9. Piping a validation command turns it into a mutation
+## 9. CLOSED 2026-09-24 — Piping a validation command turns it into a mutation
 
 **Half done — `2.0.10`.** The mutation half is closed: a segment matching a validation pattern is
 no longer treated as an interpreter run, so `python -m unittest … | tail` and
@@ -411,6 +411,8 @@ validation either, which is exactly the `neither` the selftest line already land
 
 Related to item 6: same family as `bash scripts/selftest.sh` not counting while
 `./scripts/selftest.sh` does. Both make the harness harder to satisfy than its own rules require.
+
+**CLOSED 2026-09-24.** Mutation half fixed in 2.0.10; the command classifier this entry is about was deleted by ADR-060 T7 (026c21c, released v2.101.0), so the piped-evidence half no longer exists.
 
 ## 10. CLOSED — set-level record gates were blocked at the per-write boundary (`3b9c44e`)
 
@@ -448,7 +450,7 @@ is, and only the repository knows which, so the guard now asks it
 after `--`, as a second operand, or as a bare name that is not a branch. Tags, remote refs
 and detached commits are unchanged.
 
-## 12. Found while fixing 1, 4, 6, 10 and 11 — two closed, one permanent
+## 12. CLOSED 2026-09-24 — Found while fixing 1, 4, 6, 10 and 11 — two closed, one permanent
 
 **Re-read 2026-08-26 and rewritten, because the item had become the thing it warns about.**
 Both fixable bullets were closed in `2.0.17` and each kept, underneath its `Done` marker,
@@ -495,8 +497,10 @@ weighing it before starting. It was done anyway, and applied in BOTH the evidenc
 (`scripts/lifecycle.mjs:1279`) and the branch guard (`:732`), so a scratch note on `main` no
 longer demands a task branch and no longer nags at `Stop`.
 
+**CLOSED 2026-09-24.** Both fixable bullets closed in 2.0.17 (df4b540); that code was later deleted by 026c21c. The permanent note is informational, and §272 qualifies it: some sessions do run this checkout as their plugin.
 
-## 13. The artifact gate's budget was fixed at 10s and no setting could raise it
+
+## 13. CLOSED 2026-09-24 — The artifact gate's budget was fixed at 10s and no setting could raise it
 
 **Done — `2.0.16`.** Reported 2026-08-25: on a clean 25-ADR corpus every commit was
 refused with
@@ -531,7 +535,9 @@ Related to item 6's open redirect bullets (`git fsck 2>&-`, `echo x > /dev/null`
 false blocks of the same family — the gate refusing work that is not wrong. The
 template-placeholder case is already closed in `facts-gate-dispatch.sh`.
 
-## 14. What the adversarial review of 2.0.12-2.0.17 found, and what was accepted
+**CLOSED 2026-09-24.** Fixed in 2.0.16 (9bbc8e3): `plugin/scripts/lifecycle.mjs` reads `QUALITY_HARNESS_SHELL_TIMEOUT_MS` and clamps it at 110000.
+
+## 14. CLOSED 2026-09-24 — What the adversarial review of 2.0.12-2.0.17 found, and what was accepted
 
 A 27-agent adversarial review of the branch (four lenses, every finding independently
 re-verified with live reproductions) confirmed 23 findings. **Fixed in `2.0.18`:**
@@ -578,6 +584,8 @@ re-verified with live reproductions) confirmed 23 findings. **Fixed in `2.0.18`:
 - Interactive `Stop` still runs no artifact gates (pre-2.0.3 pinned design); the
   additionalContext notice is the mitigation — the model now SEES the set-level
   failure at edit time even though only commit/completion enforce it.
+
+**CLOSED 2026-09-24.** A review record: its fixes shipped in 2.0.18 and every other item was accepted with reasons. Several accepted items are moot since 026c21c. Nothing owed.
 
 ## 15. CLOSED — the harness only ever said no (`2.1.0`)
 
@@ -1086,7 +1094,7 @@ paragraph below it says what it used to say and why that routed small work into 
 anti-fabrication guarantee does not apply. The session that hit this kept the task files the skill
 told it not to create, which was right.
 
-## 25. Two things 2.18.2 made vestigial, kept deliberately
+## 25. CLOSED 2026-09-24 — Two things 2.18.2 made vestigial, kept deliberately
 
 Both are recorded rather than fixed, because removing either is a change nobody asked for
 and neither is wrong today.
@@ -1130,6 +1138,8 @@ skill is one), so the case is real even though no plan reaches it.
 Both are the same class as item 21 in reverse — not a check that fires on nothing, but a
 mechanism that nothing reaches. Neither costs anything until someone reads it and looks for
 the thing it describes.
+
+**CLOSED 2026-09-24.** Kept deliberately (ADR-004, Accepted); both leftovers are still present on purpose. Nothing owed.
 
 ## 26. DECIDED 2026-08-28 — no detached mode; the pattern is documented instead
 
@@ -1518,7 +1528,7 @@ Note what made this visible: `invokes-a-skill` is a `tool_used` indicator added 
 discovering that `skill_calls=0` had been invisible for `gates-advise-never-block`'s entire history.
 Without it these four runs would read as an unexplained flake.
 
-## 33. An MCP wrapper, so the gates work where Claude Code does not
+## 33. DECLINED 2026-09-24 — An MCP wrapper, so the gates work where Claude Code does not
 
 Raised 2026-08-27, deliberately not started. Recorded so it is not rediscovered from scratch.
 
@@ -1678,6 +1688,8 @@ inverted — there a bare name reaches a stale INSTALL, here a client reaches an
 — and it is equally silent. Not fixed here: it is one operator's configuration, not a repository
 defect, and nothing this repository ships can see it.
 
+**Declined 2026-09-24.** The MCP wrapper shipped (ADR-012). What stays is (a) whether a user-installed skills plugin loads on Desktop, which only a person at a Desktop client can measure, and (b) the Desktop mutation half, which is not scheduled. Reopen either with a record.
+
 ## 34. CLOSED — FIXED — the coverage gate was rejecting good code one run in ten
 
 **Cause, found by reading rather than guessing.** `--experimental-test-coverage` measures only the
@@ -1746,7 +1758,7 @@ records everywhere else, in the check that guards the checks.
 worst honest run lands. Do NOT simply lower the floor to stop the noise; that hides the variance
 rather than answering it.
 
-## 35. Three instructions measured, three inert
+## 35. CLOSED 2026-09-24 — Three instructions measured, three inert
 
 The task template gained a third fence trap on 2026-08-27, from a real report: a fence narrow enough
 to name one test leaves the falsifiability fixture outside it, and `adr-verify --mutant` then returns
@@ -1939,8 +1951,10 @@ of the residual spread on the `maxTurns: 14` runs.
 and weight, but not its prose. A grader whose text changed while keeping its name is invisible to any
 check comparing configurations, so the tool cannot detect that kind of drift and does not claim to.
 
+**CLOSED 2026-09-24.** A measurement record, amended twice; the residual variance is named as unmeasured with no action attached. Nothing owed.
 
-## 36. What actually reaches an agent, measured on one
+
+## 36. CLOSED 2026-09-24 — What actually reaches an agent, measured on one
 
 Written 2026-08-27 at the owner's request, from a session in which eleven defects were introduced
 and found. This entry exists because the harness guides AGENTS, and almost everything written about
@@ -2020,6 +2034,8 @@ time.**
 Six of the eleven defects would not have been caught by any of the above — they were CI,
 invocation, and grader-calibration problems. This entry ranks what helps; it does not claim the list
 is complete, and the ranking comes from one session with one agent on one codebase.
+
+**CLOSED 2026-09-24.** A lessons record; its one concrete item (split the GREEN verdict) went to a spec that ADR-006 consumed. Nothing owed here.
 
 ## 37. CLOSED 2026-08-29 — a disposition containing parentheses is silently unrecognised
 
@@ -2367,7 +2383,7 @@ The entry's own closing line — *"a fix for a class is not evidence that the cl
 fix"* — is the part worth keeping, and it kept being true today: five separate defects this session
 were in code written to remove the same class.
 
-## 41. One of two closed; the relation-vocabulary question stays open
+## 41. DECLINED 2026-09-24 — One of two closed; the relation-vocabulary question stays open
 
 **CLOSED — `Consumes` no longer scavenges a qualified id into a local edge.** Found by ADR-007 T1's
 class sweep, which turned up NINE sites using the same `(?<!\w)T\d+(?!\w)` scavenge where the task
@@ -2416,7 +2432,9 @@ whoever reads the decision later. This corpus has 11 task files, so it cannot co
 if the harness is ever pointed at another corpus of that size, re-run the count and record it here
 either way. A figure that can only ever be cited is one nobody can check.
 
-## 42. The published history still holds what was already published
+**Declined 2026-09-24.** The Consumes half is closed. The relation-vocabulary question was never taken up by a record and is not pursued; the re-count it asks for is not owed.
+
+## 42. DECLINED 2026-09-24 — The published history still holds what was already published
 
 **Deferred here by ADR-008** (`docs/adr/ADR-008-the-plugin-is-not-the-repository.md`, Out of
 Scope, and by both its tasks): rewriting history to purge what has already been published.
@@ -2447,7 +2465,9 @@ history — and the way to find out is to scan it, which nothing has yet done sy
 **Worth doing either way:** run the new personal-path check over history, not just the working tree,
 so the claim "only a username" is measured rather than assumed.
 
-## 43. Two outside papers, read 2026-08-28 — what they had that we did not
+**Declined 2026-09-24.** Decided with ADR-008's follow-up: the published history is not rewritten, because a rewrite changes every sha the Verification Logs record. The scan this entry asked for, run 2026-09-24: 17 commits between 2026-08-26 and 2026-09-04 add or remove the owner's home path; no tracked file at HEAD carries it, and every `/Users/` path left in the tree is an invented example.
+
+## 43. CLOSED 2026-09-24 — Two outside papers, read 2026-08-28 — what they had that we did not
 
 Read against this corpus rather than summarised. Most of both was already here under other
 names; three things were not, and one of them contradicts the other paper.
@@ -2499,6 +2519,8 @@ recorded here as leads, not as evidence.
 opposite of this project's standing rule — and the reason here is better than his: a block leaves the
 user with no next move. He concedes the tooling in that class is cloud-security rather than
 architecture boundaries, "a documented gap, not a ready solution".
+
+**CLOSED 2026-09-24.** Reading notes; the one actionable idea became ADR-009's `Enforced-by:` (Accepted). Nothing owed.
 
 ## 44. CLOSED 2026-08-29 — both halves: the backfill, and the `§NN` fragment
 
@@ -2927,7 +2949,7 @@ it runs the fence and requires it not to continue — rather than the exit code 
 
 Enforced-by: `link: a forwarder that could not run the gate does not exit 0`, RED.
 
-## 49. OPEN — a Windows run of `lifecycle.test.mjs` failed once, naming no test
+## 49. DECLINED 2026-09-24 — a Windows run of `lifecycle.test.mjs` failed once, naming no test
 
 Observed 2026-08-29 on run 33246705246, commit 439e64d. The **only** diff from fafd177 — which had
 just passed Windows on the same nine jobs — was the `version` string in
@@ -3089,6 +3111,8 @@ deliberate.
 What is NOT ruled out is the same fence running concurrently with ITSELF: a corpus sweep re-runs
 every fence, and a person running one of those fences at the same moment writes the same path. That
 is the shape to look for the next time a run changes its mind while a sweep is in flight.
+
+**Declined 2026-09-24.** Not reproducible here: it failed once on Windows, naming no test. The TAP transcript `selftest.sh` can write is the instrument for the next occurrence; reopen on it.
 
 ## 52. CLOSED 2026-08-29 — a step-1 check that read the sentence instead of the step, found by Desktop
 
@@ -4805,7 +4829,7 @@ gone on being used, which is the outcome it wanted.
 
 **The sibling above stays open**: no other header with the same shape has been swept.
 
-## 77. The backtracking fix has a regression test and no catalogue mutation
+## 77. DECLINED 2026-09-24 — The backtracking fix has a regression test and no catalogue mutation
 
 **Found 2026-08-30 while executing ADR-013 T2**, immediately after a Codex review found the
 catastrophic backtracking it is about (the fix is in the commit that removes the backreferenced
@@ -4845,6 +4869,8 @@ seconds" as a first-class claim rather than as a side effect of a broken regex. 
 doing for one property; both become worth doing at the second.
 
 **Left open deliberately, at one instance.**
+
+**Declined 2026-09-24.** The timing-claim mutation is not pursued. §81's second instance met this entry's own trigger; declined rather than left open.
 
 ## 78. CLOSED 2026-09-02 — `! grep` cannot fail a `set -e` fence, and that is the idiom the vacuity guard is written in
 
@@ -5042,7 +5068,7 @@ AGREEING, both can be asserted, and that is a check on structure rather than on 
 the speculative work this corpus refuses: those are ratchets against renames, they were built for
 that, and they are fine provided nobody mistakes one for a check on meaning.
 
-## 81. The same ReDoS class, written twice in one day, the second time after being told
+## 81. CLOSED 2026-09-24 — The same ReDoS class, written twice in one day, the second time after being told
 
 **Found 2026-08-30 by the session that had just fixed the first one**, while preparing questions for
 a review rather than by a test.
@@ -5107,6 +5133,8 @@ so that if a corpus ever feeds this gate a machine-generated line, the number is
 **The sweep command is the deliverable**, and it is in this repository's history rather than in
 anyone's memory: candidates by pattern shape, then timing on input the regex REJECTS. The second
 half is the part that matters; the first half alone would have flagged sixteen innocents.
+
+**CLOSED 2026-09-24.** Both instances fixed; the one remaining quadratic regex (`plugin/bin/adr-judge`, the one the body names) is kept deliberately with its measurements. Nothing owed.
 
 ## 82. CLOSED 2026-09-02 by ADR-024 — `BROKEN` was the wrong word for "the target is in another repository"
 
@@ -5271,7 +5299,7 @@ would be me pattern-matching my own case into your format."* What made it worth 
 that the state had no representation at all — and ADR-024 pre-registers removal if ten records pass
 with no use of it.
 
-## 84. `partial` does not catch the vacuous-fence class, and I said it did
+## 84. CLOSED 2026-09-24 — `partial` does not catch the vacuous-fence class, and I said it did
 
 **Reported 2026-08-30 by klientams-front-v2-01, correcting a claim made in this session.** ADR-014's
 commit message and its memory entry both say the obligation following EVIDENCE rather than the
@@ -5312,7 +5340,9 @@ that costs: the table was removed precisely because hand-filling it was the fabr
 Verification Log closed. Re-introducing it as a tool-written artifact is a record's work, and it must
 not re-open that hole.
 
-## 85. Two adr-debt and adr-lint messages that are true and unactionable
+**CLOSED 2026-09-24.** Answered by ADR-022 (Accepted): Rests-on takes the reporter's case, and full per-mechanism coverage is rejected there as permanent. T3 shipped in 403ac2b.
+
+## 85. CLOSED 2026-09-24 — Two adr-debt and adr-lint messages that are true and unactionable
 
 **Reported 2026-08-30 by pirkiniukampelis-cms-laravel-3d and klientams-front-v2-01**, sorted by both
 into "TRUE but I could not tell what to do next". Recorded because a gate people cannot act on is a
@@ -5344,7 +5374,9 @@ tolerating — `adr-lint`'s existing advice:
 It names the observation, why it matters, the remedy, AND the legitimate alternative for the case
 where the remedy does not apply. That last clause is what stops it nagging.
 
-## 86. Desktop 1.40609.0 re-observed: tools arrive, server instructions do not
+**CLOSED 2026-09-24.** 85a-c delivered in 086dbdf. The related fence-segments complaint §152 names is carried by ADR-037 T2's Out of Scope, not here.
+
+## 86. CLOSED 2026-09-24 — Desktop 1.40609.0 re-observed: tools arrive, server instructions do not
 
 **Observed 2026-08-30** by running `qh_adr_debt` against this corpus from **Claude Desktop**,
 version 1.40609.0 (read from `/Applications/Claude.app/Contents/Info.plist`).
@@ -5401,6 +5433,8 @@ is a stronger inference than "cannot distinguish three cases", and it points the
 already points.
 
 **So the record needs no update. The measurement stands, confirmed on its own build.**
+
+**CLOSED 2026-09-24.** A re-observation only; the record needed no update. Nothing owed.
 
 ## 87. CLOSED 2026-09-02 — eleven adr-retire-check findings asserted nothing
 
@@ -6903,7 +6937,7 @@ The partition is asserted over the real catalogue at several shard counts, becau
 double-counts a verdict and a gap drops one silently: 436 entries, 436 unique, every entry in
 exactly one shard.
 
-## 107. `(external: <where>: …)` takes free text, so the owner of a cross-repo target is unsearchable
+## 107. CLOSED 2026-09-24 — `(external: <where>: …)` takes free text, so the owner of a cross-repo target is unsearchable
 
 Deferred out of ADR-024 T2, which introduced the disposition. `<where>` is prose — "backend repo",
 "the Laravel side", "platform-team monorepo" — chosen because the reader's question is *who owns
@@ -6923,6 +6957,8 @@ cloned beside it is the machine-dependence CLAUDE.md §8 forbids. So a typed `<w
 real question, and a decision about what a typed target is FOR if nothing may follow it. Neither
 exists yet — ADR-024's own criterion says the disposition comes out entirely if ten records pass
 without a use, and this entry should not outlive that.
+
+**CLOSED 2026-09-24.** Not pursued: the disposition is used twice in the corpus, so ADR-024's removal criterion has not fired and no corpus has enough external pointers for grouping to be a question. Reopen when one does.
 
 ## 108. PARTLY CLOSED 2026-09-02 — `adr-write` prescribed eight serial round trips before a word was drafted, and never said they could be batched
 
@@ -7117,7 +7153,7 @@ precisely how both real instances got through.
 **The first line is not the hook.** It is: do not run a mutation tool and edit the tree at the same
 time. All three of that day's self-inflicted defects trace to doing exactly that.
 
-## 110. Should a task be edited through a tool rather than rewritten as a file?
+## 110. DECLINED 2026-09-24 — Should a task be edited through a tool rather than rewritten as a file?
 
 **Raised 2026-09-02 by the same user as §108**, from watching the lifecycle run on their own
 project, and recorded at their framing rather than above it: *"failai - db, ir irankiai ja
@@ -7165,6 +7201,8 @@ GENERATES rather than a second write path beside it.
 unmeasured claim, and building either on it would be the speculative complexity this corpus refuses.
 
 ---
+
+**Declined 2026-09-24.** Not started: it waits behind §108's turn-count measurement, which does not exist. Reopen with that number.
 
 ## 111. CLOSED 2026-09-07 (shipped as ADR-025) — the shipped gate re-runs a fence the caller just ran, and a merge removes it
 
@@ -7377,7 +7415,7 @@ by precedent, not by argument.** `qh-doctor` reads `version` from `plugin.json` 
 them, and `qh-doctor` already answers for that surface — but nothing checks that claim.
 
 
-## 114. Does an intermediate plan layer actually help a weak executor, or only shape its failures?
+## 114. DECLINED 2026-09-24 — Does an intermediate plan layer actually help a weak executor, or only shape its failures?
 
 **Filed 2026-09-03 with ADR-028.** The owner reports that handing tasks to a smaller model fails on
 reasoning and step-planning rather than on writing code, and asks whether ADR → plan groups → tasks
@@ -7409,6 +7447,8 @@ strict format produces confidently wrong, perfectly conformant output: the `mrw`
 three such plans in one session, all applied at exit 0 with every guard satisfied, and the session
 writing this hit the same class four times. Whatever this entry concludes, **budget for the
 downstream gate** — a plan layer moves that failure, it does not remove it.
+
+**Declined 2026-09-24.** The plan-layer experiment is not scheduled (deferred here by ADR-028 and ADR-029). Reopen with a record when an eval budget exists.
 
 ## 115. The host surfaces this plugin does not stand on — PARTLY CLOSED 2026-09-04 (ADR-030)
 
@@ -7795,7 +7835,7 @@ Left open, named: the sweep is still a mutation run in effect (it runs fences th
 campaign), so it belongs in a clone; and `scripts/mutate.mjs` still has no on-demand restore from
 its own journal. Neither is what this section was about.
 
-## 121. A truncating heartbeat made a timeout test flaky, and two siblings the same day
+## 121. CLOSED 2026-09-24 — A truncating heartbeat made a timeout test flaky, and two siblings the same day
 
 Found 2026-09-04 by CI run `33885863345` on `b466f24`: `selftest (macos-latest)` FAILED while
 ubuntu, windows and all eight mutation shards passed. One test,
@@ -7825,6 +7865,8 @@ Two siblings, named rather than fixed:
 - **A backgrounded fence still holds the sweep's pipe.** The group kill now reaches it (§120), but
   a descendant that makes a session of its own escapes; `drain_after_kill` bounds the wait at ten
   seconds rather than solving it. Raised by the Codex review as a residual risk and accepted as one.
+
+**CLOSED 2026-09-24.** Heartbeat fixed in 3e934b8. Sibling 1 closed in 7eb8ac3 — its text sits under §122's heading, where it was written, and is not moved (CLAUDE.md §10). Sibling 2 is an accepted residual, bounded in `plugin/lib/fence.py`.
 
 ## 122. CLOSED 2026-09-04 — the suite wrote its new ledger into ANOTHER plugin's data directory
 
@@ -7956,7 +7998,7 @@ terminated the tree of 2508`, adr-verify back in 1141ms. Both peer boxes had hon
 `False`; the runner is the one environment where the gate starts inside a job, and the nested
 assignment took and the terminate reached the tree. The probe that printed that line was silent one
 sha earlier — which is the whole reason the rule about prototypes became mechanical.
-## 124. ADR-035's own criterion killed ADR-035's feature, four hours after it shipped
+## 124. CLOSED 2026-09-24 — ADR-035's own criterion killed ADR-035's feature, four hours after it shipped
 
 The `asserted` arm of `completionClaim` is **withdrawn**, by the criterion the record
 pre-registered against it, on the first real measurement. This section is that measurement.
@@ -8040,6 +8082,8 @@ confirmed it fires, and that is now written down rather than assumed.
 **What a restored `asserted` arm owes**, unchanged and now with a baseline: precision ≥ 0.90 over
 ≥ 30 real final messages, labelled by a human, and the table above is what it must beat rather than
 a number invented at the time.
+
+**CLOSED 2026-09-24.** The arm was withdrawn by its own pre-registered criterion (`ASSERTION_ARM_WITHDRAWN` in `plugin/scripts/claim-status.mjs`); ADR-035 T4 is signed off. The conditions for restoring it are recorded above. Nothing owed.
 
 ## 125. CLOSED 2026-09-04 (after v2.65.0) — two ways an unjudged row became a favourable verdict
 
@@ -8258,7 +8302,7 @@ the bound exists for. The same run surfaced a `DEP0190` deprecation (args passed
 unrelated to this section.
 
 
-## 128. OPEN — the Windows hang has a mechanism, reproduced; the fix is proven on the CI runner and two Windows boxes; what occasionally survives the kill is still unattributed
+## 128. DECLINED 2026-09-24 — the Windows hang has a mechanism, reproduced; the fix is proven on the CI runner and two Windows boxes; what occasionally survives the kill is still unattributed
 
 `adr-verify: a fence timeout kills the tree the fence started, not only bash` sits to its own 60s
 cap on Windows. `runPython(..., timeout: 60_000)` returns at ~60.1s, which means **adr-verify did
@@ -8386,7 +8430,9 @@ non-deterministic.** The fix therefore bounds the bad case (the trace would read
 TimeoutExpired` at ~+11s, under the test's 40s) rather than proving the survivor gone, and the
 survivor's identity is still unknown. The trace names the case when it recurs; that is what it is for.
 
-## 129. OPEN — the §128 fix exposed a fence orphan that sometimes outlives the kill on the CI runner
+**Declined 2026-09-24.** Not reproducible here: the mechanism is fixed on the CI runner and two Windows machines, and what occasionally survives the kill is unattributed. The trace names the case when it recurs; reopen then.
+
+## 129. DECLINED 2026-09-24 — the §128 fix exposed a fence orphan that sometimes outlives the kill on the CI runner
 
 Found on the first Windows CI run of `df8740a`: `tests/evidence-chain.test.mjs` failed as a **file**, in
 168ms, in its `test.after` hook —
@@ -8480,6 +8526,8 @@ the probe needs a handle `run_bounded` owns and does not hand back.
 the log is minutes away, wait for it rather than inventing the platform difference. If CI shows the
 delay, the mechanism is already written down here and the fix is a seam on `run_bounded`, not a
 smaller sleep.
+
+**Declined 2026-09-24.** Not reproducible here, as §128. Reopen on the next CI occurrence.
 ## 130. CLOSED 2026-09-05 — six children a shipped gate spawned carried no timeout, and the runner never reaped
 
 **The rule, from the owner, relayed by a peer session the same day it was earned:** every child a
@@ -9244,7 +9292,7 @@ was temporarily made unparseable is still caught and still named. A batched pars
 is asserted to fail loudly, because "the batch did not start" must never read as "everything
 parsed" (ADR-005).
 
-## 145. MEASURED 2026-09-06 on a real Windows 11 box — three deferred questions answered, and one of them for a reason nobody predicted
+## 145. CLOSED 2026-09-24 — MEASURED 2026-09-06 on a real Windows 11 box — three deferred questions answered, and one of them for a reason nobody predicted
 
 **§128, §129 and §123 all deferred to CI because Windows cannot be run locally (§7).** A peer
 session with a Windows 11 Pro box ran the suite directly. This is the log §7 says to wait for.
@@ -9333,6 +9381,8 @@ first on `PATH`.
 **Not scheduled.** Recorded because three entries deferred a measurement to CI and a real box
 answered two of them differently than the reasoning predicted.
 
+**CLOSED 2026-09-24.** A measurement record; the work it leaves is tracked by §128 and §129.
+
 ## 146. CLOSED 2026-09-06 — the "already said this" dedupe markers are never cleaned up
 
 The same Windows session counted **48 zero-byte files** named `quality-harness-said-<32 hex>` under
@@ -9374,7 +9424,7 @@ test each in `tests/lifecycle.test.mjs`; one mutant (a sweep that removes nothin
 the directory also moved one assertion in the compaction test, which looked for markers at the
 temp root — updated to look where they now are, with the same intent.
 
-## 147. MEASURED 2026-09-06 — what actually makes the campaign slow, and what a Go port would and would not buy
+## 147. CLOSED 2026-09-24 — MEASURED 2026-09-06 — what actually makes the campaign slow, and what a Go port would and would not buy
 
 Adopters report the mutation campaign taking 30 minutes or more. The cause was assumed to be the
 interpreter. It is not, and the numbers say so.
@@ -9440,6 +9490,8 @@ reasoning, as the mutation journal at `scripts/mutate.mjs:50-51`.
 
 **Not scheduled: worktrees in `mutate.mjs`.** Writing the cleanup before there is a caller is the
 speculative complexity YAGNI refuses; it lands with the feature.
+
+**CLOSED 2026-09-24.** A measurement record; the narrowing shipped in 6750937, and the worktree isolation it considered is §241's.
 
 ## 148. CLOSED 2026-09-06 — the mutation cache is never persisted between CI runs, so every push measures everything
 
@@ -9522,7 +9574,7 @@ and a fixture that must fail goes through the same function. Worth more than eit
 write", so a dispatched run measures all 611 entries and stores none of it. Splitting it would let
 the run a release is cut from refresh the cache it just proved. Not needed for this section.
 
-## 149. CI went red on a49ab52 — one cause, two symptoms, and a race it exposed
+## 149. CLOSED 2026-09-24 — CI went red on a49ab52 — one cause, two symptoms, and a race it exposed
 
 The Windows job and `mutations 6/12` both failed, and every local gate was green. Both trace to
 the `NODE_TEST_CONTEXT` fix in fc03c7c, which is worth stating plainly: **the fix was correct and
@@ -9565,6 +9617,8 @@ It asserts the `why` now: a killed run is named by its signal, not by its silenc
 platform-dependent (Windows is slower), and the other two are a concurrency race and a mutant —
 neither of which `selftest.sh` measures. §15's rule earned again: a local green is not a branch
 being green, and they are different checks.
+
+**CLOSED 2026-09-24.** Symptoms fixed in 104fc06; the race it exposed is §241's.
 
 ## 150. CLOSED 2026-09-07 — a mutation verdict was parsed and then discarded when its task had no verification row
 
@@ -9640,7 +9694,7 @@ still reachable in the same test so the bucket cannot have been emptied instead 
 it prints matches what `measure` returned. That gap is smaller than the one just closed, but it is
 the same shape one layer out.
 
-## 151. MEASURED 2026-09-06 — the mechanism has now run on three corpora, not one, and two of them are not mine
+## 151. DECLINED 2026-09-24 — MEASURED 2026-09-06 — the mechanism has now run on three corpora, not one, and two of them are not mine
 
 §12 of the research says the position plainly: *"the only tool that does X" is a claim about a set of
 one until somebody else runs the sweep on their corpus and reports the buckets.* Three peer sessions
@@ -9674,6 +9728,8 @@ anywhere across `adr-lint`, `adr-verify`, `adr-debt` and `corpus-report`.
 entry-shaped and unjudged. "4 of 52" is a number nobody can act on, and the mrw owner's grep for
 such rows found none — so either the row-shape rule is broader than a hand-written pattern, or the
 four are shaped unexpectedly. Naming them is what settles it.
+
+**Declined 2026-09-24.** Naming the unjudged entries in `--json` is not scheduled; the count stays.
 
 ## 152. CLOSED 2026-09-07 — advice that fires every run trains filtering, and the filtering produced a false statement
 
@@ -10880,7 +10936,7 @@ CommonJS, and the wrapper's own closing brace completes it — `node --check` ex
 `if (1) { return { ok: true }`. Any test elsewhere that proves a syntax check bites by
 deleting a closing brace is proving less than it says.
 
-## 162. OPEN — `adr-lint` reported 2.2× slower on an outside corpus, and NOT REPRODUCIBLE here
+## 162. DECLINED 2026-09-24 — `adr-lint` reported 2.2× slower on an outside corpus, and NOT REPRODUCIBLE here
 
 **Reported from outside, 2026-09-07**, by a session working a 25-record corpus:
 `adr-lint` on one 4-task record took **11.2 s on 2.85.0 and 24.9 s on 2.88.0**, same
@@ -10928,7 +10984,9 @@ this corpus refuses to record as done (§5).
 is the reporter's own stated workaround and they said so; a budget raised to hide an
 unexplained 2.2× is a gate tuned until it stops reporting.
 
-## 163. OPEN — nothing here measures what the harness costs or saves, and REWORK is the candidate that does not need token accounting
+**Declined 2026-09-24.** Not reproducible here; the profile command that would settle it is in the body, and it has to come from the corpus that saw it. Reopen with that profile.
+
+## 163. DECLINED 2026-09-24 — nothing here measures what the harness costs or saves, and REWORK is the candidate that does not need token accounting
 
 **Raised from outside, 2026-09-07**, by a session writing public copy that wanted to
 assert a token saving. It could not source the claim; neither can this repository.
@@ -10957,6 +11015,8 @@ unfalsifiable claim gets a decimal point.
 ⚠ **Do not publish the count as a saving if someone computes it.** A ratio measured
 against no control is the shape of claim §11's research file exists to keep this
 project away from.
+
+**Declined 2026-09-24.** Nothing here measures what the harness costs or saves, and no record takes it up. The REWORK candidate is recorded above for whoever does.
 
 ## 164. CLOSED 2026-09-07 — six gates produced an exit code their own docstring never named
 
@@ -11011,7 +11071,7 @@ could-not-look. `adr-verify --mutant` still leaves 1 for both `survived` and
 state its own code is a behaviour change for every caller of `--mutant`, so it belongs
 in a record and not in this sweep.
 
-## 165. OPEN — `workflow-parse` proves a file PARSES, not that the Workflow runtime will load it
+## 165. DECLINED 2026-09-24 — `workflow-parse` proves a file PARSES, not that the Workflow runtime will load it
 
 **Named by the third different-lineage review of 3e872cc**, 2026-09-07, and deferred
 rather than fixed because it widens the question rather than correcting an answer.
@@ -11052,6 +11112,8 @@ repository assert a contract it does not own and cannot see change. §162's rule
 yet: the three shipped workflows all carry literal metadata with both fields, and no
 outside report names this. Filed so the gap is written down rather than rediscovered as
 a surprise.
+
+**Declined 2026-09-24.** Not scheduled. The two steps in the body — parse `meta` with a real parser, report a Workflow-goal pass as UNPROVEN — stay the order to take them in.
 
 ## 166. CLOSED 2026-09-07 — `adr-next` offered a WITHDRAWN task as the next thing to build
 
@@ -11855,7 +11917,7 @@ writing the test and mutating. Both candidate tests passed, both looked reasonab
 worth nothing — the only thing that said so was that no mutation killed it which did not already
 kill something else. A test that passes is not evidence; a test that uniquely fails is."*
 
-## 182. OPEN — a check is admitted by its COMMAND NAME, and whether it can fail depends on its OPERATOR
+## 182. DECLINED 2026-09-24 — a check is admitted by its COMMAND NAME, and whether it can fail depends on its OPERATOR
 
 Found 2026-09-08 by running each admitted check against bash with the run scoring nothing, and
 comparing the gate's verdict to the shell's exit code rather than to an expectation.
@@ -11900,6 +11962,8 @@ the rest fall to `unaccounted`, which is UNPROVEN rather than a verdict.
 since a fence that CAN fail is one that must NOT be blocked. A harness that reports everything as
 broken is as useless as one that reports nothing, and the tell was that the control cases failed too.
 Both controls are in the probe now.
+
+**Declined 2026-09-24.** Open by choice since it shipped: it under-blocks, the safe direction. The operator-admission fix in the body stays the cheap correct move if it is ever taken.
 
 ## 183. CLOSED 2026-09-08 — two doors into the evidence gate that this release opened, found before it was tagged
 
@@ -12491,7 +12555,7 @@ such corpus's enumeration to could-not-look. A file with no heading stays "not a
 headings and indented `#` are not read, as nowhere else in the corpus reads them. Test
 `test_a_record_title_below_frontmatter_or_a_blank_line_is_read`, two catalogue mutants.
 
-## 195. OPEN 2026-09-09 — OpenCode support: what is already portable, what is not, and the one question that decides it
+## 195. DECLINED 2026-09-24 — OpenCode support: what is already portable, what is not, and the one question that decides it
 
 Asked for from outside: users of the OpenCode terminal agent want this harness there. Nothing is
 being built yet. This entry records the surface as MEASURED on 2026-09-09 so the decision is made
@@ -12539,7 +12603,9 @@ package is the only source of truth, and that a second copy goes stale silently 
 older shape under a name that looks current. That measured hazard is about copies of the SKILLS.
 Any OpenCode work has to be an adapter over the shipped gates, never a translated second lifecycle.
 
-## 196. OPEN 2026-09-10 — ADR-039 still names unused `readRecordFiles` after the walker was deleted
+**Declined 2026-09-24.** No OpenCode adapter is built. The question that decides it — no clean equivalent of UserPromptSubmit — is recorded above; any adapter must wrap the shipped gates.
+
+## 196. CLOSED 2026-09-24 — ADR-039 still names unused `readRecordFiles` after the walker was deleted
 
 ADR-039 (Accepted) records as Neutral that unused `readRecordFiles` stays in `lifecycle.mjs`, and as
 a Non-Goal "Untangle `lifecycle.mjs`, including deleting unused `readRecordFiles`". A later commit
@@ -12565,7 +12631,9 @@ docs/adr/ADR-039-records-use-the-same-listing.md:97:- Untangle `lifecycle.mjs`, 
 Leave the record. A later author who wants the corpus to describe today's tree writes a new record,
 not an edit of 039.
 
-## 197. OPEN 2026-09-11 — three fence-blind `## ` readers remain in adr-verify after ADR-045
+**CLOSED 2026-09-24.** A note about a record: ADR-039 is history and is not rewritten to match today's code (CLAUDE.md §10). Nothing owed.
+
+## 197. CLOSED 2026-09-24 — three fence-blind `## ` readers remain in adr-verify after ADR-045
 
 ADR-045 moved the record grammar into `plugin/lib/record.py` and routed adr-verify's two Acceptance
 readers through the shared, fence-aware `sections_of`. The class it fixed was "a reader that stops at
@@ -12592,6 +12660,8 @@ ADR-045, and each needs its own regression before it moves:
 Also left (a different disagreement, not fence-blindness): `adr-next` matches only a ```bash fence
 under Acceptance while `adr-verify` and `adr-lint` read ```sh and ```shell too (`ACCEPTANCE_FENCE`).
 A task written with ```sh is verified by one tool and offered as READY by another.
+
+**CLOSED 2026-09-24.** Fixed by ADR-045 T3-T6 (9942edb): the three readers named above now read through `sections_of` (`plugin/bin/adr-verify`).
 
 ## 198. CLOSED 2026-09-11 — §197's three readers moved, and §197 was wrong about adr-lint
 
@@ -12651,7 +12721,7 @@ Enumerated 2026-09-11: `rg -n 'splitlines\(\)' plugin/bin/adr-lint plugin/bin/ad
 stray FF in a header line can at most misread that header. Not fixed here: each is a different reader
 with a different regression, and the class is the whole set of them.
 
-## 200. adr-verify `file_newline` rewrites mixed terminators and does not name a lone CR
+## 200. DECLINED 2026-09-24 — adr-verify `file_newline` rewrites mixed terminators and does not name a lone CR
 
 Measured 2026-09-12 against `plugin/bin/adr-verify` `file_newline` / `source_bytes` (the pair
 `append_entry` uses). Not fixed in the ADR-045 T11/T12 delivery: not a one-function closer change,
@@ -12674,6 +12744,8 @@ PY
 logical `\n` in that one terminator. A mixed file is rewritten as if it were only CRLF. A lone CR
 is invisible to the detector. Each needs its own regression on `append_entry` / `write_source`,
 and the class is the detector plus the rewriter, not T11's splitter.
+
+**Declined 2026-09-24.** The lone-CR case in `file_newline` is not scheduled; mixed terminators keep the current rule.
 
 ## 201. CLOSED 2026-09-24 — `provenMutationPaths` treats cwd as the repository and only checks lexical containment
 
@@ -12706,7 +12778,7 @@ outside the repository is recorded unobservable, and the dedupe key keeps the li
 tracked file as the control; skipped on Windows, where the runner account cannot create a symlink.
 The `..foo` filename case errs toward unobservable, the safe side, and is left.
 
-## 202. Two overlapping `--brief` refreshes can last-write-wins the branch-state cache
+## 202. DECLINED 2026-09-24 — Two overlapping `--brief` refreshes can last-write-wins the branch-state cache
 
 Pre-tag Codex re-review of the v2.98.0 TTL-`said` preservation, 2026-09-12. Not fixed in that
 cut: it needs two `UserPromptSubmit` hook processes on the same `.git/qh-branch-state.json` at once,
@@ -12717,6 +12789,8 @@ unchanged green brief is not reprinted) means a slower gather can overwrite a ne
 suppress against the older `said`, so the rollback is silent rather than reprinted. The sequential
 TTL test does not exercise competing writers. A fix is a single atomic write of `{at, state, said}`
 after emit, or a compare-and-swap on `at`, each with a two-process regression.
+
+**Declined 2026-09-24.** Not reproduced: two overlapping `--brief` refreshes need two concurrent hook processes, and the shape is unchanged. Reopen on an observed stale brief.
 
 ## 203. PARTLY CLOSED 2026-09-24 — Swift reaches the first-red lock but not spec-verify, adr-verify's comment and syntax checks, or a Tests-row path check
 
@@ -12767,7 +12841,7 @@ the campaign ran first. Not investigated further; a GREEN mutant is an open find
 `tests/test-lock.test.mjs` 'a PHPUnit @test docblock method is hashed…' or about the runner's
 ordering, and belongs on its own change.
 
-## 205. The Swift first-red lock refuses two valid Swift shapes it could prove
+## 205. PARTLY CLOSED 2026-09-24 — The Swift first-red lock refuses two valid Swift shapes it could prove
 
 Found by the sixth Codex review of the Swift lock (2026-09-13, `swift-frontend -parse` exit 0 on
 Apple Swift 6.3.3). Both fail CLOSED — the row reads UNPROVEN, no moved assertion keeps its hash —
@@ -12781,21 +12855,27 @@ so they cost a proven lock, not correctness.
 - `_iter_swift_tests` reads names with Python `\w`, so `@Test func 🧪()` is not discovered and its
   Tests row is UNPROVEN. Swift identifier rules (operator-free Unicode ranges) would admit it.
 
-## 206. Never-hashable Tests rows stay UNPROVEN after --relock (ADR-052)
+**Partly closed 2026-09-24.** the division shape was fixed in 1b403b4 (its message names §204). The Unicode-identifier shape stays open: `_iter_swift_tests` still matches names with `\w+`.
+
+## 206. DECLINED 2026-09-24 — Never-hashable Tests rows stay UNPROVEN after --relock (ADR-052)
 
 ADR-052 `--relock` fills names the hasher can now see. A Tests row that cannot produce a function
 the extractor could emit — a contract section `§NN`, a ghost name, a truncated regex, PHP
 file-level — stays UNPROVEN and still blocks `done`. Skipping those rows so a task can `done` is a
 different decision. Filed from ADR-052 Out of Scope, 2026-09-14.
 
-## 207. Swift Testing `#expect` is not a first-red hasher dialect (ADR-052)
+**Declined 2026-09-24.** Skipping never-hashable Tests rows is a different decision and no record takes it; the accepted recovery is deleting such rows and `--relock --replace-hashes` (§209).
+
+## 207. CLOSED 2026-09-24 — Swift Testing `#expect` is not a first-red hasher dialect (ADR-052)
 
 Inbox leftover: Swift Testing `#expect` macros are not a hasher keep-path. ADR-052 does not
 teach the lock a new Swift assertion form. Filed from ADR-052 Out of Scope, 2026-09-14.
 
 Landed 2026-09-14 as ADR-053 T5 (`docs/adr/ADR-053-a-false-advisory-is-not-a-finding.md`). Hasher `_mask_lock_noncode(..., swift=True)` already kept `#expect`; lint `scan_code_only` was the defect. ADR-052 Out of Scope stays as written.
 
-## 208. Codex P2 leftovers on ADR-053 (2026-09-14)
+**CLOSED 2026-09-24.** Landed as ADR-053 T5, as this entry's own last paragraph says.
+
+## 208. CLOSED 2026-09-24 — Codex P2 leftovers on ADR-053 (2026-09-14)
 
 Independent review of unpushed ADR-053 (`gpt-6-astra`, not killed). P1s closed
 in `plugin/scripts/lifecycle.mjs` on this change. Named leftovers:
@@ -12809,7 +12889,9 @@ in `plugin/scripts/lifecycle.mjs` on this change. Named leftovers:
   `command --`, `time -p` still advise (`publishPrecededByValidation` false). Expanding
   the regex without a task is a widening.
 
-## 209. ADR-054 T1–T4 `--replace-hashes` is accepted recovery, not a retake (2026-09-16)
+**CLOSED 2026-09-24.** Bullet 1 fixed in 140d87f (v2.99.5); bullet 2's `publishPrecededByValidation` was deleted by 026c21c.
+
+## 209. CLOSED 2026-09-24 — ADR-054 T1–T4 `--replace-hashes` is accepted recovery, not a retake (2026-09-16)
 
 v2.99.5 named four leftovers. Two are product (escaped same-quote BDD names;
 quote-aware `PUBLISH_SUFFIX`) and are Spec A / Spec B. The other two are not
@@ -12826,6 +12908,8 @@ product holes:
 Do not rewrite ADR-054 Decision text. Do not edit locked `tests/test-lock.test.mjs`
 or `tests/swift-expect.test.mjs` bodies. BACKLOG §206 (never-hashable Tests rows)
 is a different class and stays.
+
+**CLOSED 2026-09-24.** A recorded decision: `--relock --replace-hashes` is accepted recovery. Used again 2026-09-24 for ADR-057 T3 (§212). Nothing to fix.
 
 ## 210. CLOSED 2026-09-24 — Routing leftovers from ADR-057 (2026-09-16)
 
@@ -12852,7 +12936,7 @@ judged by the work skill's class D and that this reader never selects it, and `t
 (`a stage work-next never selects says so in its own condition`) holds that while no `nextStage`
 branch returns it. A real predicate stays possible the day a record can declare itself structural.
 
-## 211. The reviewer guard refuses read-only commands a reviewer needs for evidence (2026-09-16)
+## 211. CLOSED 2026-09-24 — The reviewer guard refuses read-only commands a reviewer needs for evidence (2026-09-16)
 
 Reported by a `quality-harness:qh-correctness-reviewer` spawned through the Agent tool
 to cold-review ADR-057, from inside its own run; **not reproduced** by the main
@@ -12873,6 +12957,8 @@ work, and a reviewer that cannot gather evidence returns `unavailable`.
 It matters more after ADR-057 T3, which routes `quality-cycle`'s reviewers through the
 same role names. Reproduce each command against `readOnlyVerdict` before deciding
 anything; the list above is one agent's report.
+
+**CLOSED 2026-09-24.** Fixed by 026c21c (ADR-060): the reviewer guard now refuses only edit tools and a proven commit or push.
 
 ## 212. CLOSED 2026-09-24 — The JS test-lock masker does not skip regex literals (2026-09-16)
 
@@ -12924,7 +13010,7 @@ own control disproved it: an edit AFTER the old span is invisible to such a lock
 UNPROVEN, while an edit inside the span is still "hash moved". Test `a lock taken before regex masking
 is told apart from a test that changed`, one mutant.
 
-## 213. The commit advisory ignored a wrapped selftest and counted an `mrw read` as a write (2026-09-16)
+## 213. CLOSED 2026-09-24 — The commit advisory ignored a wrapped selftest and counted an `mrw read` as a write (2026-09-16)
 
 Observed twice executing ADR-057, not yet reproduced in a fixture. Before `git commit` of `d29734d`
 the PreToolUse advisory said "Nothing has verified the work since your last change" and listed
@@ -12995,7 +13081,9 @@ subject); subagent and workflow transcripts; what the agent would have done diff
 messages differed. The replay script and its outputs were kept only in the session scratchpad, since
 they are derived from a transcript (CLAUDE.md §6), and were deleted on 2026-09-17.
 
-## 214. quality-cycle's `codex: true` arm has no route after ADR-057 (2026-09-16)
+**CLOSED 2026-09-24.** Closed with the classifiers, per §247: ADR-060 was Accepted and released in v2.101.0.
+
+## 214. DECLINED 2026-09-24 — quality-cycle's `codex: true` arm has no route after ADR-057 (2026-09-16)
 
 ADR-057 T1 routes High tier to `codex-review` when Codex is installed and to `quality-cycle` when it
 is not, and the Open decision row passes `codex: false` to `consensus`. So no router passes
@@ -13006,7 +13094,9 @@ ADR-057's class test cannot see it because it checks element names, not arms. Ow
 the arm, or route a High change on a Codex machine through `quality-cycle` with `codex: true` instead
 of `codex-review` alone (heavier).
 
-## 215. Class F ("review requested") does not consult the risk table (2026-09-16)
+**Declined 2026-09-24.** The `codex: true` arm stays without a route; ADR-057 routes High-tier Codex through `host-review.mjs`.
+
+## 215. DECLINED 2026-09-24 — Class F ("review requested") does not consult the risk table (2026-09-16)
 
 Found by ADR-057's routing evals. Asked "which review should this change get?" after loading `work`,
 a session classified the question as class F and answered `quality-harness:review`, which is what
@@ -13015,7 +13105,9 @@ finishing a class E implementation reached the Moderate row and `qh-correctness-
 runs. So a review a user asks for skips the risk tiers, including the High tier's Codex condition.
 Owner decision: whether class F should route by `quality-policy`'s table too.
 
-## 216. §211 reproduced live in workflow-spawned reviewers, and §213 sighted again (2026-09-16)
+**Declined 2026-09-24.** Class F adds a Codex host review and does not consult the risk tiers; left as it is.
+
+## 216. CLOSED 2026-09-24 — §211 reproduced live in workflow-spawned reviewers, and §213 sighted again (2026-09-16)
 
 ADR-057's live `quality-cycle` run spawned `qh-correctness-reviewer`, `qh-scope-reviewer` and
 `qh-synthesis` by `agentType`, and the plugin-level reviewer guard named the role in its denials, so
@@ -13039,7 +13131,9 @@ attempts to run `bashMarkdownMutationPaths` on new inputs refused — two `node 
 file in the session scratchpad — so every extractor outcome in its report was traced, not executed. The
 coordinator then ran them; the traces held.
 
-## 217. A per-session counter for repeated advisories (2026-09-16)
+**CLOSED 2026-09-24.** Closed with the classifiers, per §247: ADR-060 was Accepted and released in v2.101.0.
+
+## 217. CLOSED 2026-09-24 — A per-session counter for repeated advisories (2026-09-16)
 
 Deferred from ADR-058, which fixes four false advisories and nothing else so that a re-measure can
 attribute each removed message. Measured the same day on the session that executed ADR-057: the
@@ -13053,7 +13147,9 @@ advisory. It changes every gate's behaviour, so it needs its own record — afte
 
 **Measured for ADR-060, 2026-09-22, beside §213's 21.** The installed claims ledger has no `events/1` row, so no chat has run these hooks. A session was driven on the branch at `365706b`: `SessionStart`, one edit, `Stop`, one `qh-check`, `Stop`, then a commit of that edit. It spoke twice — the SessionStart named the project's check, and the first Stop delivered R1 for the edited file. The Stop after `qh-check` (exit 0, `check.passed`) said nothing. `action.emitted` was R1 once. Commits in that repository: 2. `qh-check` runs: 1. This is a driven session of the landed hooks, not a replay of the transcript behind the 21.
 
-## 218. Shell grammar words make a loop or a conditional an unrecognised family (2026-09-16)
+**CLOSED 2026-09-24.** Closed with the classifiers, per §247: ADR-060 was Accepted and released in v2.101.0.
+
+## 218. CLOSED 2026-09-24 — Shell grammar words make a loop or a conditional an unrecognised family (2026-09-16)
 
 Found by ADR-058 T2's class audit ("a family outside `MEASURED_FAMILIES` whose invocation is a
 read"). Every Bash command of the session that executed ADR-057 and ADR-058 was replayed through
@@ -13083,7 +13179,9 @@ A loop glob is a member too, found while drafting ADR-059 (2026-09-17): at `4e9c
 `touch b.log; for f in docs/*.md; do cat "$f"; done` makes `bashMarkdownMutationPaths` expand
 `docs/*.md` into every Markdown file under `docs/` as a changed path. ADR-059 leaves it here.
 
-## 219. The foreign-shell check in `classify-command.mjs` survives its deletion (2026-09-16)
+**CLOSED 2026-09-24.** Closed with the classifiers, per §247: ADR-060 was Accepted and released in v2.101.0.
+
+## 219. CLOSED 2026-09-24 — The foreign-shell check in `classify-command.mjs` survives its deletion (2026-09-16)
 
 ADR-058 T2 recorded a mutant that deletes `if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks)))
 return 'unrecognised'`; `tests/classify.test.mjs` and `tests/reviewer-guard.test.mjs` stayed green
@@ -13098,7 +13196,9 @@ The catalogue already behaves as if it knew: `classify: foreign family is unreco
 letters (ADR-047 T2)` in `tests/mutations.json` deletes this line together with both family checks,
 and no entry deletes it alone.
 
-## 220. Arguments of every read-only family are changed paths inside a mutating command (2026-09-16)
+**CLOSED 2026-09-24.** Closed with the classifiers, per §247: ADR-060 was Accepted and released in v2.101.0.
+
+## 220. CLOSED 2026-09-24 — Arguments of every read-only family are changed paths inside a mutating command (2026-09-16)
 
 Found by ADR-058 T3's class audit ("an argument of a command that writes only through a redirect is
 read as a path"). T3 fixed `echo` and `printf`. In a temp project holding `notes.md`,
@@ -13147,7 +13247,9 @@ ADR-059 T4 (2026-09-17, from a Codex review) made the classifier call a measured
 `-execdir`, `-ok` and `-okdir`, whose inner command decides; and git tools chosen by `-c`, `--config-env`,
 a `GIT_…=` prefix or configuration (`diff.external`, textconv, pager), which still classify as before.
 
-## 221. A git mutation in another repository marks this project's work unverified (2026-09-16)
+**CLOSED 2026-09-24.** Closed with the classifiers, per §247: ADR-060 was Accepted and released in v2.101.0.
+
+## 221. CLOSED 2026-09-24 — A git mutation in another repository marks this project's work unverified (2026-09-16)
 
 Found by ADR-058 T4's class audit ("a gate that reacts to a git command without asking which
 repository it targets"). T4 silenced the PreToolUse commit advisory when the commit being made targets
@@ -13172,7 +13274,9 @@ commit in a scratch repository under `/private/tmp` is a member too), `publishPr
 own prefix, so not a member), the reviewer guard's `bashVerdict` (a read-only role may not commit
 anywhere, so not a member), and the two commit-branch checks T4 edited.
 
-## 222. The tutorial test saw a mutant survive once, under load (2026-09-17)
+**CLOSED 2026-09-24.** Closed with the classifiers, per §247: ADR-060 was Accepted and released in v2.101.0.
+
+## 222. DECLINED 2026-09-24 — The tutorial test saw a mutant survive once, under load (2026-09-17)
 
 The first selftest after ADR-059 T3's change failed one test: `tests/tutorial.test.mjs` "the tutorial
 walkthrough still produces the two outcomes it prints", with `mutant survived` for the parser mutation
@@ -13184,7 +13288,9 @@ was imported from a `__pycache__` entry written within the same second by the cl
 CPython validates bytecode by source mtime (second resolution) and size, and the mutant does not
 always change the size. Reproduce with repeated fast runs before changing the tutorial.
 
-## 223. Three over-reports from ADR-058 T7 and ADR-059 T4/T5 ship open (2026-09-17)
+**Declined 2026-09-24.** Not reproduced: one survivor under load, and the bytecode hypothesis was never tested. `mutate.mjs` now gives each child its own bytecode cache. Reopen on a second occurrence.
+
+## 223. CLOSED 2026-09-24 — Three over-reports from ADR-058 T7 and ADR-059 T4/T5 ship open (2026-09-17)
 
 A Codex re-review (`gpt-6-astra`, xhigh) of ADR-058 T7 and ADR-059 T4/T5 at `a7c5e57` found five
 regressions against the commit before them. The two fail-opens were fixed before release as ADR-059 T6
@@ -13202,7 +13308,9 @@ and T7. These three over-report, so the owner released with them open on 2026-09
   parser fix`, and unchecked edits in this repository, warns that the commit would publish them. The
   heredoc body is read as another executable publish.
 
-## 224. A quoted `bash -c` payload is read as one Markdown path (2026-09-17)
+**CLOSED 2026-09-24.** Fixed by 026c21c: `uniqWritesOutput` and `segmentWriteChannel` are gone; the heredoc member lives on as a limit ADR-061 names.
+
+## 224. CLOSED 2026-09-24 — A quoted `bash -c` payload is read as one Markdown path (2026-09-17)
 
 Found while writing ADR-059 T6's test. `bashMarkdownMutationPaths('printf x > a.js && bash -c "rg --pre
 false x README.md"', dir)` returns `<dir>/rg --pre false x README.md`, and the commit hook prints
@@ -13210,6 +13318,8 @@ false x README.md"', dir)` returns `<dir>/rg --pre false x README.md`, and the c
 hook still speaks, so it is not a fail-open. It predates this work: `git archive v2.99.6 plugin`
 returns the same path for `bash -c "cat README.md"` and `bash -c "wc -l README.md"`. It is the invented
 path class CLAUDE.md §17 names. ADR-060 removes command-derived paths.
+
+**CLOSED 2026-09-24.** Fixed by 026c21c: `bashMarkdownMutationPaths` is deleted.
 
 ## 225. CLOSED 2026-09-24 — `adr-verify` blames the sha width when a clean fence is killed (2026-09-17)
 
@@ -13227,7 +13337,7 @@ sent to `core.abbrev`. Test `test_a_refused_entry_names_the_field_that_failed`, 
 signal 9 in the original report stays unattributed, as does the SIGKILL that ended a gate run in this
 session on 2026-09-24.
 
-## 226. Shell-quote patterns whose escape handling nobody assessed (2026-09-17)
+## 226. CLOSED 2026-09-24 — Shell-quote patterns whose escape handling nobody assessed (2026-09-17)
 
 ADR-059 T7's record says its two helpers were the only quote scanners that ignore a backslash. That
 was wrong: its sweep, a `grep` with `\|` alternation, matched only the `quote ===` lines, and a Codex
@@ -13247,7 +13357,9 @@ Line numbers are at `e31187e` before T8's two added lines. A member whose miss y
 fail safe (`CD_ONLY`), while one that extracts a target (`REDIRECT_TARGET`) may drop a path. Assess each
 against bash before trusting it, or let ADR-060 delete them.
 
-## 227. Three older redirect gaps a Codex review listed as residual (2026-09-17)
+**CLOSED 2026-09-24.** Moot after 026c21c: every pattern named here was deleted with the classifiers.
+
+## 227. CLOSED 2026-09-24 — Three older redirect gaps a Codex review listed as residual (2026-09-17)
 
 A Codex review (`gpt-6-astra`, high) of ADR-059 T8 listed these as older than T8. Each was measured the
 same at `v2.99.6` (`git archive v2.99.6 plugin`) and at T9's tree:
@@ -13266,7 +13378,9 @@ same at `v2.99.6` (`git archive v2.99.6 plugin`) and at T9's tree:
 ADR-059 does not fix them. They were found while preparing the 2.99.7 release, and ADR-060 (Proposed)
 replaces this parsing with observation.
 
-## 228. ADR-059 T8 and T9 were reverted; the quote strip stays as released (2026-09-17)
+**CLOSED 2026-09-24.** Moot after 026c21c: the redirect readers are deleted; writes are observed through git instead.
+
+## 228. CLOSED 2026-09-24 — ADR-059 T8 and T9 were reverted; the quote strip stays as released (2026-09-17)
 
 ADR-059 T8 (`1f823d0`) and T9 (`57b8182`) made `withoutQuotedSegments` honour a backslash, to close
 `T=README.md; printf \" > "$T"`. That input writes README.md, but classifies `neither` with authorship
@@ -13287,6 +13401,8 @@ entries:
 
 Open: `printf \" > "$T"`, `printf a\"b > "$T"` and `echo \" >> "x.md"` stay unrecorded. A fix should
 tokenise the command as the shell does, not extend the regular expression; ADR-060 removes the need.
+
+**CLOSED 2026-09-24.** Moot after 026c21c: the quote strip is deleted; the tree is observed instead.
 
 ## 229. A space in the checkout path made a run where NO test ran a passing baseline (2026-09-18) — FIXED
 
@@ -13345,7 +13461,7 @@ people who read it BEFORE cloning, and cloning is how they get it — so the rea
 future record makes it cheap, is a path-length rule for NEW task filenames so the ceiling stops
 rising. ADR-060's longest is 134; ADR-059's T10 at 149 is the current ceiling.
 
-## 232. `node --test` cannot find test files through a UNC path (2026-09-18)
+## 232. DECLINED 2026-09-24 — `node --test` cannot find test files through a UNC path (2026-09-18)
 
 From `\\localhost\Y$\qh` (the same tree over SMB loopback), `bash scripts/selftest.sh` exits 1 with
 `Could not find '//localhost/Y$/qh/tests/adr-next.test.mjs, ...'` — all 59 files, comma-joined into
@@ -13363,7 +13479,9 @@ NOT tested, and named so nobody assumes it: a genuine mapped network drive to an
 `\\localhost\Y$` is SMB loopback to a local disk, so it exercises UNC path handling but not network
 latency, reconnection, or a drive letter that is actually remote.
 
-## 233. Three green signals, each blind for a different reason (2026-09-18)
+**Declined 2026-09-24.** The zero-tests UNRUN line for a UNC path is not added; `selftest.sh` already exits 1 with node's own error. A real network drive cannot be tested here.
+
+## 233. CLOSED 2026-09-24 — Three green signals, each blind for a different reason (2026-09-18)
 
 The junction fix in `1e5fae2` regressed the dangling case and reached `main`. `statSync(points)`
 was written INSIDE `archive()`'s try; a dangling target makes it throw ENOENT, and that catch means
@@ -13392,7 +13510,9 @@ Windows reporters confirmed that test RUNS and PASSES on an unprivileged account
 this already ("a Windows-only branch with no injectable seam has no test"); an inline expression
 inside a `try` was the form that evaded it.
 
-## 234. A dangling link still archives as a plain file on an ordinary Windows account (2026-09-18)
+**CLOSED 2026-09-24.** A lesson record; its fix is 5be1280. Nothing owed.
+
+## 234. CLOSED 2026-09-24 — A dangling link still archives as a plain file on an ordinary Windows account (2026-09-18)
 
 ⚠ OPEN, and it is a decision rather than a defect to go and fix. Reproduced end to end and
 INDEPENDENTLY by two Windows sessions on separate accounts, through the real `archive()`:
@@ -13431,7 +13551,9 @@ is one decision with two parts, not two independent tidy-ups:
 
 Whoever rules on this should rule on both at once.
 
-## 235. Nothing anywhere executes a `.cmd` forwarder (2026-09-18)
+**CLOSED 2026-09-24.** Fixed by 4501999 (v2.100.0) under §239's ruling: a dangling link is refused with "could not archive the link".
+
+## 235. DECLINED 2026-09-24 — Nothing anywhere executes a `.cmd` forwarder (2026-09-18)
 
 `forwarderCmd` is asserted as TEXT at six sites (`tests/standalone-link.test.mjs` 75, 161, 338,
 1079, 1108; `tests/lifecycle.test.mjs` 2288). Nothing EXECUTES one, on any platform. The only
@@ -13469,7 +13591,9 @@ LITERAL `%USERPROFILE%`, so the cache resolves at RUN time from the environment.
 arms B and C selectable by env alone, and it is itself worth asserting: the forwarder's "resolves
 the newest installed plugin at call time" claim rests on it.
 
-## 236. Windows + a real symlink + a relative target, in the archive type probe (2026-09-18)
+**Declined 2026-09-24.** No Windows CI test executes a `.cmd` forwarder; not scheduled. A windows-latest test spawning `cmd.exe /c` would settle it.
+
+## 236. CLOSED 2026-09-24 — Windows + a real symlink + a relative target, in the archive type probe (2026-09-18)
 
 `readlinkSync` returns a link's target VERBATIM, so it can be relative, and a relative target
 resolves against the LINK's own directory rather than `process.cwd()`. `linkTypeFor` now does
@@ -13484,7 +13608,9 @@ Windows + a REAL symlink (Developer Mode or an elevated shell) + a relative targ
 account available to this project has that privilege, so nobody can build the fixture. The reporter
 withdrew the broader claim themselves rather than leave it standing.
 
-## 237. What no configuration available to this project can test (2026-09-18)
+**CLOSED 2026-09-24.** Measured and narrowed; a seam test exists, and the remaining case needs a privilege neither account has. Nothing owed.
+
+## 237. CLOSED 2026-09-24 — What no configuration available to this project can test (2026-09-18)
 
 Stated together so none of them reads as merely unattempted:
 
@@ -13503,7 +13629,9 @@ Stated together so none of them reads as merely unattempted:
   is thin; widening it is a separate decision from the Windows work and was deliberately not slipped
   into a Windows commit.
 
-## 238. Re-announce per RUN, not once per session — §237's rule was too weak (2026-09-18)
+**CLOSED 2026-09-24.** An inventory of what no available configuration can test. Nothing to fix.
+
+## 238. CLOSED 2026-09-24 — Re-announce per RUN, not once per session — §237's rule was too weak (2026-09-18)
 
 §237 recorded that two of three Windows "sessions" were one machine, and that assuming otherwise
 manufactured the first round's timeout-kill data. That is the observation. The OPERATIONAL rule it
@@ -13527,7 +13655,9 @@ Two corollaries for reading any contended number:
   thin enough that contention reaches it first. Widening the budget, or bounding concurrency, is a
   deliberate change and was kept out of the Windows commits on purpose.
 
-## 239. A different-lineage ruling on §234 picked an option neither side had (2026-09-18)
+**CLOSED 2026-09-24.** A coordination lesson, recorded. Nothing owed.
+
+## 239. CLOSED 2026-09-24 — A different-lineage ruling on §234 picked an option neither side had (2026-09-18)
 
 §234 put the dangling-link archive as a two-way choice: keep today's silent text fallback (A), or
 return `'junction'` on a failed stat and rebuild the fixture (B). A Codex review at `6290a95`,
@@ -13579,7 +13709,9 @@ NOT DONE: none of this is implemented. It changes `archive()` from always-succee
 which reaches every caller of `write()`, so it is a decision for the owner rather than a fix to slip
 in behind a Windows commit. Recorded so the ruling is not lost with the session.
 
-## 240. A defect that switched off its own regression guard, and the tooling that nearly hid it (2026-09-18)
+**CLOSED 2026-09-24.** Implemented by 4501999.
+
+## 240. CLOSED 2026-09-24 — A defect that switched off its own regression guard, and the tooling that nearly hid it (2026-09-18)
 
 Two findings from the same thread, and the first is the sharpest version of this whole day.
 
@@ -13641,7 +13773,9 @@ returns a number, and it is reached for precisely when someone is being careful.
 project's own machine-readable output over a parser written in the moment, and when a verification
 command produces a surprising count, suspect the command before the finding.
 
-## 241. The suite runs a real mutation campaign against its own tracked files (2026-09-18)
+**CLOSED 2026-09-24.** A lesson record; the nesting was fixed in 6290a95. Nothing owed.
+
+## 241. DECLINED 2026-09-24 — The suite runs a real mutation campaign against its own tracked files (2026-09-18)
 
 ⚠ OPEN. A Windows session reported `every catalogue entry still matches the source it mutates,
 exactly once` failing with `plugin/scripts/post-edit-check.sh matches 0x`, then passing on the next
@@ -13695,7 +13829,9 @@ NOT DONE. Recorded rather than fixed: it is a test-isolation change with a real 
 behaviour it is meant to keep, and it deserves its own red test rather than being folded into a day
 of Windows work.
 
-## 242. The containment property is measured true and guarded by nothing (2026-09-18)
+**Declined 2026-09-24.** Isolating the suite's real mutation campaign from tracked files is not scheduled; §272's rule covers the live-peer half.
+
+## 242. DECLINED 2026-09-24 — The containment property is measured true and guarded by nothing (2026-09-18)
 
 ⚠ OPEN, and it is the clause §239's reversal rests on. `archive()` now REFUSES rather than writing a
 text stand-in it cannot restore from (4501999). The argument that made that safe is that
@@ -13754,7 +13890,9 @@ Windows runs (junctions for directory links, the un-nesting, "the guard was appl
 so the next person doing the encouraged thing arms this as a side effect. A dormant trap whose safety
 catch is a skip people are actively being asked to remove.
 
-## 243. The mutation gate's granularity is the FILE; the risk is the MECHANISM (2026-09-18)
+**Declined 2026-09-24.** The seam and test for the partial-install exit are not scheduled; there is no live defect.
+
+## 243. DECLINED 2026-09-24 — The mutation gate's granularity is the FILE; the risk is the MECHANISM (2026-09-18)
 
 ⚠ OPEN. `tests/package.test.mjs::every shipped gate carries at least one mutation` asserts that a
 FILE has a catalogue entry. It does exactly that and nothing more — and a file that already has
@@ -13805,6 +13943,8 @@ Two things to decide, neither done here:
   and the file looks covered again. ⚠ Any such gate is itself a classifier over an open input space
   (§16) — "exported symbol with no entry naming it" will have false positives, and a gate that
   refuses correct work is one people turn off (§3).
+
+**Declined 2026-09-24.** Per-mechanism catalogue entries are not scheduled; the file-granular gate stays.
 
 ## 244. CLOSED 2026-09-24 — The inferred check can be NARROWER than the project's real gate (2026-09-18)
 
@@ -13858,7 +13998,7 @@ the manifest does not name — so its pass is not that gate's pass; a declared c
 caveat. Reading a pre-push hook for the real gate is not built, for the reasons given above. Test `the
 orientation says an inferred check may be narrower than the project gate`, one mutant.
 
-## 245. Three rounds of review, three rounds of my fixes introducing new defects (2026-09-18)
+## 245. CLOSED 2026-09-24 — Three rounds of review, three rounds of my fixes introducing new defects (2026-09-18)
 
 A release gate refused the same release three times. Round one found seven issues; round two found
 that two of my three fixes had introduced NEW defects; round three found that my replacement for one
@@ -13915,7 +14055,9 @@ material derived from another repository's corpus, and rounding a figure hides i
 removing it. The methods in it are good and the contributor's work is real; it needs a rewrite from
 the procedures alone, by someone who did not read that audit, and that is not a release-day edit.
 
-## 246. The status line's header says it never spawns a process, and it does (2026-09-17)
+**CLOSED 2026-09-24.** Its open items are moot: `VALIDATION_PATTERNS` went with 026c21c, and evidence is now a `qh-check` event.
+
+## 246. DECLINED 2026-09-24 — The status line's header says it never spawns a process, and it does (2026-09-17)
 
 `plugin/scripts/statusline.mjs` opens with "NEVER spawns a process: a status line renders constantly
 and a command that waits on git or a gate freezes the prompt for as long as they take". Found while
@@ -13935,7 +14077,9 @@ whose new commit is not renders `QH ✓ checked` while R2 has something to say a
 Storing the last completion's evidence in the log would close it, at the cost of putting a verdict
 into a file of observations.
 
-## 247. §213, §216, §217, §218, §219, §220 and §221 close with the classifiers (2026-09-18)
+**Declined 2026-09-24.** The header was narrowed to what it does; a spawn-free lookup and the unchecked-commit case are not scheduled.
+
+## 247. CLOSED 2026-09-24 — §213, §216, §217, §218, §219, §220 and §221 close with the classifiers (2026-09-18)
 
 ADR-060 T7 deleted every rule that read a command's text to decide what happened, so seven entries
 have nothing left to fix. Closed here rather than edited in place, because the entries are history
@@ -13956,7 +14100,9 @@ and what closed them is a decision, not a repair:
 (§223's over-reports, §224, §227, §228) are about the released 2.99.7 classifiers and stay open
 there until ADR-060 is accepted and released.
 
-## 248. A Windows install sat twenty minors behind, and nothing said so (2026-09-18)
+**CLOSED 2026-09-24.** Its condition is met: ADR-060 was Accepted and released in v2.101.0 (not v2.103.0, as some notes elsewhere say).
+
+## 248. DECLINED 2026-09-24 — A Windows install sat twenty minors behind, and nothing said so (2026-09-18)
 
 Asked to test, a Windows 11 Pro (26200) session reported `quality-harness` at **2.79.0** while the
 published release was **2.99.7**. `claude plugin update quality-harness` fetched cleanly from the
@@ -13982,7 +14128,9 @@ updated.
 Recorded because it is an ADOPTION fact, not a code defect: the corpus can only be judged against
 what people are actually running.
 
-## 249. The Windows fixes from a real machine, carried onto this branch (2026-09-18)
+**Declined 2026-09-24.** Not reproducible here: why that install sat behind needs its origin, which only that machine has. Reopen with it.
+
+## 249. CLOSED 2026-09-24 — The Windows fixes from a real machine, carried onto this branch (2026-09-18)
 
 Three defects a Windows 11 Pro session found by running the suite on a real machine, fixed on `main`
 as `f266411` and cherry-picked here so this branch can be tested on Windows without drowning in them.
@@ -14002,6 +14150,8 @@ knows the fixes are here and where the argument lives.
 ⚠ THE PATH CEILING IS THIS BRANCH'S PROBLEM TOO. ADR-060's longest task filename is 134 characters
 against ADR-059's ceiling of 149, so this branch does not raise it — but every new task file written
 here spends the same 110-character budget a Windows clone has for its checkout root.
+
+**CLOSED 2026-09-24.** A carry-over note pointing at §229-§231. Nothing owed.
 
 ## 250. CLOSED 2026-09-24 — `selftest.sh` no longer says whether it was a PASS or a PARTIAL (2026-09-22)
 
@@ -14028,7 +14178,7 @@ the last thing it does`, which asserts the last executable line is the print; th
 the words exist is left as it was. A runtime test of the PARTIAL arm was not written: running the
 script from inside its own suite re-enters the suite. One catalogue mutant.
 
-## 251. The session-ledger location key folds case on every macOS volume (2026-09-22)
+## 251. DECLINED 2026-09-24 — The session-ledger location key folds case on every macOS volume (2026-09-22)
 
 `locationKey` (`plugin/scripts/lifecycle.mjs`) realpaths a root and lowercases it whenever
 `platform` is `darwin` or `win32`. `previousSessionHere` compares only keys built the same way, so
@@ -14044,7 +14194,9 @@ this can only produce a wrong ADVISORY, never a refusal. What would close it: as
 instead of the OS (for example, whether the path with its case flipped resolves to the same inode),
 behind the existing `platform` seam so a test can drive both answers.
 
-## 252. The id rules ADR-063 left per gate, and the members a grep cannot see (2026-09-22)
+**Declined 2026-09-24.** The case-folding location key is keyed on the OS, and changing it is not scheduled.
+
+## 252. DECLINED 2026-09-24 — The id rules ADR-063 left per gate, and the members a grep cannot see (2026-09-22)
 
 ADR-063 moved record identity into `plugin/lib/record.py` for `adr-retire-check`, and T2 and T3 carry
 it into `lifecycle.mjs`, `adr-state.mjs` and `adr-verify`. Every other gate still reads a record
@@ -14069,7 +14221,9 @@ mode). It cannot see a glob or a regex built from a template; two cold reviews o
 members by reading. What would close this: route each gate through `record.record_id` (and lifecycle's
 pinned copy), one gate per change, each with the numbered corpora as its control.
 
-## 253. A build diagnostic anywhere in a failing fence makes a real kill inconclusive (2026-09-22)
+**Declined 2026-09-24.** Per-gate id unification is not scheduled; ADR-063 stands, one gate per change when taken up.
+
+## 253. OPEN 2026-09-24 — A build diagnostic anywhere in a failing fence makes a real kill inconclusive (2026-09-22)
 
 `adr-verify` classifies a mutant run as `inconclusive` when any `BUILD_BROKE` pattern matches
 anywhere in the fence output (`plugin/bin/adr-verify`, the `elif any(re.search(pat, out, re.M) for pat
@@ -14090,7 +14244,7 @@ failed on a build/parse error, not an assertion", because the full suite's outpu
 `BUILD_BROKE` pattern somewhere. The same mutant is RED in `scripts/mutate.mjs`'s campaign, which
 grades by the named test file.
 
-## 254. `adr-debt` reports follow-ups that a later Accepted record disposes of (2026-09-22)
+## 254. DECLINED 2026-09-24 — `adr-debt` reports follow-ups that a later Accepted record disposes of (2026-09-22)
 
 Reported from memory-runtime (adr-debt 2.100.0, 2026-09-20): eleven open follow-up rows from frozen
 ADR-008 to ADR-014, while its BACKLOG Follow-ups section is empty and Accepted ADR-015's Out of Scope
@@ -14098,7 +14252,9 @@ disposes of the exact texts. The frozen records are SHA-pinned and must not be e
 tool. The question for this project: should a superseding record's disposition suppress or qualify a
 historical row, and in what grammar. Not reproduced here.
 
-## 255. Peer-probe leads from 2026-09-18 to 2026-09-22 that nothing has confirmed or closed (2026-09-22)
+**Declined 2026-09-24.** Needs a corpus that shows it and a grammar decision for disposing of a follow-up in a later record; neither is here.
+
+## 255. PARTLY CLOSED 2026-09-24 — Peer-probe leads from 2026-09-18 to 2026-09-22 that nothing has confirmed or closed (2026-09-22)
 
 Moved out of the `wing_quality-harness` inbox so they are tracked in this file. Each is a lead from
 another repository's session, not a measurement here. The inbox items that were fixed or already had
@@ -14126,6 +14282,8 @@ requires a `*.md` directly under `tasks/`).
   whether the next session should see the attempt.
 - **The peer-probe script changed between a peer reading it and running it** (2026-09-19). A request for
   a peer run should carry the script's sha256, so the peer can show which version it ran.
+
+**Partly closed 2026-09-24.** the errno/FIFO lead is fixed (`event-log.mjs` `contentId` uses fstat) and two leads are moot after 026c21c; the rest stay unconfirmed leads, not scheduled.
 
 ## 256. CLOSED 2026-09-24 — An inherited `FORCE_COLOR` makes the mutation runner read no test output (2026-09-22)
 
@@ -14160,7 +14318,7 @@ Tests `an inherited FORCE_COLOR is dropped, so a real run still counts its tests
 error is inconclusive, not a kill`; one catalogue mutant each, and the `NODE_TEST_CONTEXT` entry's `from`
 follows the edited line. `NO_COLOR` and `NODE_DISABLE_COLORS` only remove colour and were not added.
 
-## 257. `adr-verify --sweep` cannot see a claim recorded with its run time (2026-09-22)
+## 257. CLOSED 2026-09-24 — `adr-verify --sweep` cannot see a claim recorded with its run time (2026-09-22)
 
 `CLAIM_RE` in `plugin/bin/adr-verify` ends a claim row at its digest, `acceptance-sha256:<64 hex>\s*$`.
 ADR-020 T1 (`dab3afe`) made every row `adr-verify` writes end in ` · ms:<N>`, so no row recorded
@@ -14176,6 +14334,8 @@ T3's test, whose fixture now strips the suffix so the sweep can observe the demo
 What would close it: let `CLAIM_RE` accept the optional ` · ms:<N>` suffix (and any later field
 the writer adds), with a test that records a row through `adr-verify` and asserts the sweep counts
 it. Then re-read what the corrected rate says about this corpus before trusting it.
+
+**CLOSED 2026-09-24.** Fixed by c1f546a (v2.105.0): `CLAIM_RE` reads a row with a run time; recorded as §265 item 1.
 
 ## 258. MITIGATED 2026-09-24 — The observed-events object count fails about one run in three, in a linked worktree under load (2026-09-22)
 
@@ -14195,7 +14355,7 @@ start detached auto-maintenance after a commit, so a background process may be t
 `tests/record-identity.test.mjs` already carries. Whether background maintenance was the cause was not
 reproduced; the next failure of the object count under load falsifies it and reopens this.
 
-## 259. An ADR-named directory takes a note from the record around it (2026-09-22, pre-existing)
+## 259. DECLINED 2026-09-24 — An ADR-named directory takes a note from the record around it (2026-09-22, pre-existing)
 
 `adr-retire-check` attributes a file by the first ADR-N token in its heading, its own name, or any
 directory up to the archive root, walking inward-out. So `ADR-001-old/notes-ADR-999/plan.md`
@@ -14209,7 +14369,9 @@ What would close it: decide which of the two the rule should honour, the token n
 the outermost record directory, and re-seal any archive the change moves a file in; that needs its
 own record, since it changes what a seal covers.
 
-## 260. A decision unit's seal order depended on the host's filesystem case rule (2026-09-23, pre-existing)
+**Declined 2026-09-24.** An ADR-named directory taking a note from the record around it needs its own record; none is opened.
+
+## 260. CLOSED 2026-09-24 — A decision unit's seal order depended on the host's filesystem case rule (2026-09-23, pre-existing)
 
 Windows CI on PR #15 (run 35818555302, job 107045283739) failed three ADR-063 tests with
 `2026-07-15-app-tier-provisioning: SHA-256 does not match the frozen decision unit`. The cause
@@ -14239,7 +14401,9 @@ without Unicode normalisation, so a composed `é.md` and a decomposed one hash d
 stores names decomposed. Unit files whose names differ only by case collide on Windows as well.
 Normalising names would move existing seals, so it needs its own decision.
 
-## 261. `qh-check` ran the project's check through cmd.exe on Windows (2026-09-23, reported from outside)
+**CLOSED 2026-09-24.** Fixed by d14d597, which names this section. Its two residuals — adr-next's sibling cap and Unicode name normalisation — are named in the body.
+
+## 261. CLOSED 2026-09-24 — `qh-check` ran the project's check through cmd.exe on Windows (2026-09-23, reported from outside)
 
 **Reported by a downstream Windows session against 2.103.0:** its declared check
 `./.venv/Scripts/python.exe -m pytest` failed under `qh-check` with `'.' is not recognized`, so its
@@ -14285,7 +14449,9 @@ No other Windows member was found.
 which ends bash but not the runner it started, such as python. That was just as true under cmd.exe.
 A tree kill (`taskkill /T`, as `run-shell-hook.mjs` does) would close it, and it is not done here.
 
-## 262. Duplicates §231 (2026-09-23) — kept for two facts §231 did not have
+**CLOSED 2026-09-24.** Fixed by 354cb75, which names this section. The Windows tree-kill sibling stays named in the body.
+
+## 262. CLOSED 2026-09-24 — Duplicates §231 (2026-09-23) — kept for two facts §231 did not have
 
 Filed before searching for "deep root"; §231 (2026-09-18) already records the Windows MAX_PATH clone
 failure, the 110-character root budget and the workarounds, and `docs/INSTALL.md` documents it. What
@@ -14301,7 +14467,9 @@ is new here:
   retirement is caught while it can still be renamed. Advisory (§3); it speaks today only on the two
   archived ADR-059 tasks already past it.
 
-## 263. Every corpus reader but SessionStart read test fixtures as this repository's records (2026-09-23)
+**CLOSED 2026-09-24.** A duplicate of §231, kept for two facts; the repair shipped in 6bc0330 (v2.104.0).
+
+## 263. CLOSED 2026-09-24 — Every corpus reader but SessionStart read test fixtures as this repository's records (2026-09-23)
 
 `work-next` on this repository said the next thing to do was to execute
 `tests/fixtures/foreign/adr/ADR-001-cross-repo/tasks/T2-partial-with-a-decision-blocker.md`. Two
@@ -14350,7 +14518,9 @@ now: `node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|f
 The cheaper error stays: a fixture record under a bare `tests/adr/` is read as real and
 over-reported. SessionStart reads `spec/` corpora now that it did not before.
 
-## 264. Every CLI here went silent when invoked through a symlink (2026-09-23, reported from a peer probe)
+**CLOSED 2026-09-24.** Fixed by 870a230 (v2.104.0): every reader shares `listedUnderUninterestingDirectory`.
+
+## 264. CLOSED 2026-09-24 — Every CLI here went silent when invoked through a symlink (2026-09-23, reported from a peer probe)
 
 A peer session running a PR #18 probe from `/tmp/qh18/…` on macOS reported that `work-next.mjs`
 and `adr-state.mjs` "print NOTHING and exit 0". Reproduced here with a symlink to this checkout.
@@ -14400,6 +14570,8 @@ helper the refreshed file imports — so an old home copy refreshed today cannot
 `claim-status.mjs` and every helper `lifecycle.mjs` gained since the copies were made; the global
 instruction file already says a copy is stale by the next release and `--link` is the repair. A
 dependency-aware planner is its own decision.
+
+**CLOSED 2026-09-24.** Fixed by 8ac14af and c42ea7d. The residual — sync-standalone never copies imported helpers — stays named in the body.
 
 ## 265. PARTLY CLOSED 2026-09-23 — what the readers said about five consumer-shaped corpora, side by side
 
@@ -14602,7 +14774,7 @@ cleverer, and §6's direction is that over-scrubbing costs a question while a le
 Pinned in the test as a decision. No fourth round is planned on this boundary; a leak found in the
 field goes here as a new item.
 
-## 267. The outside run is release evidence now, not a rule (2026-09-23)
+## 267. PARTLY CLOSED 2026-09-24 — The outside run is release evidence now, not a rule (2026-09-23)
 
 §18 says a reader is not shipped until somebody else has run it; the day it was written, nothing
 enforced it — the same shape as every rule this repository has had to turn into a gate. Now
@@ -14623,6 +14795,8 @@ one overlapping figure. The read-but-capped line prints first and says what it c
 
 Open: `branch-state` does not yet say on every prompt whether an outside run exists since the tag;
 the release check is the enforcement, the prompt line would be the reminder.
+
+**Partly closed 2026-09-24.** the release gate shipped in 013149e. Still open: `branch-state.mjs` prints no reminder line about the outside run.
 
 ## 268. CLOSED 2026-09-24 — adr-lint read a red run's quoted output as log entries (2026-09-23, reported from a Rust corpus)
 
@@ -14655,7 +14829,7 @@ function merely named like one does not. Test `test_a_rust_assertion_macro_is_a_
 `tests/gate-regressions.py`, catalogue mutant through `tests/gates.test.mjs`. §271's "may share this
 cause" is answered: it did not; §271 was the masker.
 
-## 269. ADR-061's refusal keys on the command TEXT, and a session learns the way around it in one refusal (2026-09-23)
+## 269. CLOSED 2026-09-24 — ADR-061's refusal keys on the command TEXT, and a session learns the way around it in one refusal (2026-09-23)
 
 Measured on this session first, then shown to me from another. `containsCommitOrPush`
 (`plugin/scripts/lifecycle.mjs`) tests the Bash command string for the words `commit` or `push`;
@@ -14734,6 +14908,8 @@ by removing the arm: `handleHook` neither observes nor records a read-only role'
 guard decides it alone. `tests/late-baseline.test.mjs` holds the parent's log byte-identical through
 a reviewer's `$GIT push` and shows the same command from the session itself warned about.
 
+**CLOSED 2026-09-24.** Fixed over f67cede…c7da73b. The git-hook repair is ADR-061's open follow-up, where it is owned.
+
 ## 270. CLOSED 2026-09-24 — Two leads from the outside run at f67cede: adr-next offers a Superseded record's tasks, and exits 1 on an empty task directory (2026-09-23)
 
 Reported by the peer that ran the readers over a private Rust corpus (attested in
@@ -14764,7 +14940,7 @@ one mutant each. Lead 2 is a contract, not a defect: exit 1 for a tasks director
 files is pinned by `tests/adr-next.test.mjs` and now named in the gate's own exit-code list, beside
 corpus mode's 3 for the same directory.
 
-## 271. The Rust masker read a lifetime as a char literal and lost every test after it (2026-09-24, reported from a Rust corpus)
+## 271. CLOSED 2026-09-24 — The Rust masker read a lifetime as a char literal and lost every test after it (2026-09-24, reported from a Rust corpus)
 
 Reported by the peer that ran the readers over a private Rust corpus, with a bisect: a 5,171-line
 test file with 99 `#[test]`/`#[tokio::test]` fns gave `extract_test_names(…, rust=True)` 94, the
@@ -14792,7 +14968,9 @@ a unicode escape is one to six hex digits EACH followed by any number of `_` (th
 grammar), so `'\u{0_0_0_0_4_1}'` is valid Rust and was no literal to `[0-9a-fA-F_]{1,6}`; the
 fixture carries it beside the hex escape, and a third mutant reverts the arm.
 
-## 272. A mutation campaign in this checkout is live in every session that runs this checkout as its plugin (2026-09-24)
+**CLOSED 2026-09-24.** Fixed in three rounds: c7da73b, 153b762, a93491a (v2.106.0).
+
+## 272. DECLINED 2026-09-24 — A mutation campaign in this checkout is live in every session that runs this checkout as its plugin (2026-09-24)
 
 A peer session on this machine reported that at b149b50 the mention advisory BLOCKED a Bash
 command — the advisory's own text, "Advisory; nothing is refused", delivered as a denial, the
@@ -14809,7 +14987,9 @@ having `mutate.mjs` refuse or warn when another live session's plugin root resol
 this machine run the checkout rather than the cache. Inconclusive by the peer's own account; the
 correlation is the clock and the case list, not a reproduction.
 
-## 273. A green `go test ./...` with one testless package was zero work, and the publish refusal denied every commit (2026-09-24, reported from a Go repository)
+**Declined 2026-09-24.** The mechanism — `mutate.mjs` detecting a peer running this checkout — is not built. The rule is in `.claude/rules/02-running-the-checks.md`.
+
+## 273. CLOSED 2026-09-24 — A green `go test ./...` with one testless package was zero work, and the publish refusal denied every commit (2026-09-24, reported from a Go repository)
 
 Reported by a peer session on this machine, with the cause read from source: `.quality-harness.json`
 declares `go test ./...`; `qh-check` exits 0 and records verdict `no-work` on every run, because
@@ -14834,7 +15014,9 @@ are from a real `go test -json` run (go1.27.1), not the documentation; mutant re
 split across events, so a long package path can put `[no tests to run]` in the event AFTER the `ok `
 fragment — the fragment then read as work. Only an Output ending in a newline is a summary now.
 
-## 274. A green-only Verification Log was told to "run adr-verify again", and a green never locks (2026-09-24, reported from tool-multipathreadwrite)
+**CLOSED 2026-09-24.** Fixed in 6331340, 6783a61 and b94c1c4 (v2.106.0).
+
+## 274. CLOSED 2026-09-24 — A green-only Verification Log was told to "run adr-verify again", and a green never locks (2026-09-24, reported from tool-multipathreadwrite)
 
 Reported by a peer session with the cause read from source, on ADR-052-T1 and ADR-053-T1 of that
 repository under 2.105.0. `lock_findings` refused `done` with "no first-red test-lock-sha256 … run
@@ -14852,3 +15034,19 @@ same thing. Test `a green-only log is told a red run is required, not another ad
 `tests/test-lock.test.mjs`, appended rather than edited because that file is named by locked Tests
 tables; mutant in the catalogue. Answered to the reporter the same day: that is the sanctioned
 path, and `partial` is honest only when the tests cannot fail without the implementation.
+
+## 275. DECLINED 2026-09-24 — Found while closing the backlog, 2026-09-24: four things no section owned
+
+Recorded so they do not have to be found again; none is scheduled.
+
+- **ADR-060 was released in v2.101.0, not v2.103.0.** `git show v2.101.0:docs/adr/ADR-060-*.md` reads
+  Accepted and v2.100.0 reads Proposed; the classifier deletion (026c21c) shipped with it. Palace notes
+  written this morning said v2.103.0 and were corrected.
+- **adr-debt and adr-retire-check disagree about an empty follow-up.** adr-debt counts an empty
+  `- [ ]` and skips "none at authoring"; adr-retire-check skips an empty box and counts "none at
+  authoring" as an obligation. The ADR template says `<item, or leave empty when authored>`, which
+  produces the box adr-debt counts. Only a tick clears both; this pass ticked seven such boxes.
+- **adr-lint carries its own `starts_regex`, and it differs** from the one spec-verify and the lock
+  masker now share in `plugin/lib/record.py` (§212). Which is right was not decided.
+- **Reported by the audit, not reproduced here:** adr-lint's `code_only` blanks a Rust raw string to
+  the end of its line. It did not affect §268's two shapes, which were reproduced.

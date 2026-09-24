@@ -10287,6 +10287,26 @@
       "from": "            if digest and m.group(\"digest\") == digest:\n",
       "to": "            if False:\n",
       "only": "names a moved test lock"
+    },
+    {
+      "label": "lint: a raw Rust lifetime is blanked as one token",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "re.finditer(r\"'((?:r#)?[A-Za-z_]\\w*)\", text)",
+      "to": "re.finditer(r\"'([A-Za-z_]\\w*)\", text)",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "next: the reason is decided over the whole log, not the first row",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if current:\n",
+      "to": "    if current and not other:\n",
+      "only": "names a moved test lock"
     }
   ]
 }

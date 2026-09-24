@@ -4852,6 +4852,15 @@ def test_a_rust_test_after_a_lifetime_exists(lint):
         assert lint.resolve_enforcement("tests/case.rs::ghost", root) is None
         labelled = rows(lint.check_tests_can_fail, "dead")
         assert any("dead" in f for f in labelled), labelled
+        # Codex round 5: a RAW lifetime or label (`'r#ghost`, Rust 2024) is one
+        # token; blanking only `r` left `#ghost` and `#expect` to answer as code.
+        (root / "tests" / "case.rs").write_text(
+            "fn actual<'r#ghost>() {}\n\n#[test]\nfn dead() { 'r#expect: {} }\n", encoding="utf-8")
+        raw_ghost = rows(lint.check_tests_exist, "ghost")
+        assert any("no executable definition" in f for f in raw_ghost), raw_ghost
+        assert lint.resolve_enforcement("tests/case.rs::ghost", root) is None
+        raw_labelled = rows(lint.check_tests_can_fail, "dead")
+        assert any("dead" in f for f in raw_labelled), raw_labelled
 
     print("PASS — a Rust test after a lifetime exists")
 

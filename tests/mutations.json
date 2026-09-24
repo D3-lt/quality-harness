@@ -6486,8 +6486,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM  # noqa: E402",
-      "to": "from record import acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
+      "from": "from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402",
+      "to": "from record import acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
       "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
     },
     {
@@ -6777,8 +6777,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first)),",
-      "to": "            \"unproven\": None if done else unprovable_evidence(text, digest, fence, first),",
+      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first, root)),",
+      "to": "            \"unproven\": None if done else unprovable_evidence(text, digest, fence, first, root),",
       "only": "^a task whose code fence never closes is READY with a note saying its sections could not be read$"
     },
     {
@@ -9868,8 +9868,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first)),",
-      "to": "            \"unproven\": unreadable_note(text) or unprovable_evidence(text, digest, fence, first),"
+      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first, root)),",
+      "to": "            \"unproven\": unreadable_note(text) or unprovable_evidence(text, digest, fence, first, root),"
     },
     {
       "label": "adr-lint: 'Acceptance changed after verification' needs a digest row to have observed it",
@@ -10277,6 +10277,16 @@
       "from": "test, so no test outcome was observed \u2014 only structure and test existence \"",
       "to": "test, so this PASS covers structure and test existence \"",
       "only": "implemented mode ran no test"
+    },
+    {
+      "label": "next: a row for the current fence withheld by the lock names the lock",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if digest and m.group(\"digest\") == digest:\n",
+      "to": "            if False:\n",
+      "only": "names a moved test lock"
     }
   ]
 }

@@ -2971,3 +2971,46 @@ test('a division after a regex literal is not a regex, and the lock keeps the as
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// Reported from a Go repository 2026-09-24 (BACKLOG §278): a READY task whose
+// exit-0 row matched the CURRENT fence was withheld from done by a moved test
+// lock, and adr-next said "the fence changed after that run". The fence had one
+// commit and every digest in the log was the same, so the reader named a cause it
+// never observed and sent the session to the wrong remedy.
+test('adr-next names a moved test lock, not a changed fence, when the digest still matches', async () => {
+  const { createHash } = await import('node:crypto')
+  const dir = tmpRepo()
+  try {
+    const row = redRow(dir)
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "test('locked dirty', () => {\n"
+      + '  assert.equal(1, 2)\n'
+      + '})\n')
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 10_000 }).status, 0)
+    const fence = 'node --test tests/lock-subject.test.mjs'
+    const digest = createHash('sha256').update(fence).digest('hex')
+    const tasks = join(dir, 'ADR-001-probe', 'tasks')
+    mkdirSync(tasks, { recursive: true })
+    writeFileSync(join(dir, 'ADR-001-probe.md'), '# ADR-001: Probe\n\n**Status:** Accepted\n')
+    const task = logged => [
+      '# Task ADR-001-T1: lock', '', '## Acceptance', '', '```bash', fence, '```', '',
+      '## Tests', '', '| Test name | File | Verifies | Covers |', '|---|---|---|---|', NAMED_ROW, '',
+      '## Verification Log', '', row,
+      `- 2026-09-14 · no-git · exit 0 · \`${fence}\` · acceptance-sha256:${logged} · ms:12`, '',
+    ].join('\n')
+    const next = () => spawnSync('python3', [join(bin, 'adr-next'), tasks, '--all'],
+      { cwd: dir, env: pyEnv, encoding: 'utf8', timeout: 30_000 })
+    writeFileSync(join(tasks, 'T1-lock.md'), task(digest))
+    const moved = next()
+    assert.match(moved.stdout, /T1 .*hash moved/, `${moved.stdout}\n${moved.stderr}`)
+    assert.doesNotMatch(moved.stdout, /fence changed/, moved.stdout)
+    // The other cause, on the same call: a row against a different fence.
+    writeFileSync(join(tasks, 'T1-lock.md'), task('1'.repeat(64)))
+    const edited = next()
+    assert.match(edited.stdout, /T1 .*fence changed after that run/, `${edited.stdout}\n${edited.stderr}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

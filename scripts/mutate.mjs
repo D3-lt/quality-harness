@@ -519,21 +519,123 @@ export function summarise(results) {
   }
 }
 
+
+/**
+ * Catalogue entries whose `from` no longer matches its file exactly once, each with
+ * the count and, when it matches nothing, the current line most like the first
+ * line of `from` — the re-anchor hint. Pure (`read` is the seam).
+ *
+ * Every fix that moves a line a mutant names leaves that entry matching nothing, and
+ * the suite says so only as a list of labels at the end of a five-minute gate. This
+ * answers the same question in a second, with where the line went (BACKLOG §280).
+ */
+export function staleEntries(mutations, read) {
+  const texts = new Map()
+  const textOf = file => {
+    if (!texts.has(file)) texts.set(file, read(file))
+    return texts.get(file)
+  }
+  const words = line => new Set(line.split(/[^A-Za-z0-9_]+/).filter(word => word.length > 2))
+  const stale = []
+  for (const mutation of mutations) {
+    const text = textOf(mutation.file)
+    if (text == null) {
+      stale.push({ label: mutation.label, file: mutation.file, count: null, hint: null })
+      continue
+    }
+    const count = text.split(mutation.from).length - 1
+    if (count === 1) continue
+    let hint = null
+    if (count === 0) {
+      const wanted = words(mutation.from.split('\n').find(line => line.trim()) ?? '')
+      let best = 0
+      text.split('\n').forEach((line, index) => {
+        const have = words(line)
+        const shared = [...wanted].filter(word => have.has(word)).length
+        const score = wanted.size ? shared / wanted.size : 0
+        if (score > best) { best = score; hint = { line: index + 1, text: line.trim() } }
+      })
+      if (best < 0.5) hint = null
+    }
+    stale.push({ label: mutation.label, file: mutation.file, count, hint })
+  }
+  return stale
+}
+
+/**
+ * The entries a change reaches: those whose `from` shares a line with a line the
+ * change ADDED to that entry's file. A new mutant names new code, and a mutant whose
+ * code was edited names the edit, so both are picked; an untouched mutant in a
+ * touched file is not, which is what keeps this narrower than "every entry for
+ * adr-lint" (all of them, when one line of adr-lint changed). `added` maps a file
+ * to its added lines, trimmed. Pure; `main` builds it from `git diff -U0 <ref>`.
+ */
+export function touchedBy(mutations, added) {
+  return mutations.filter(mutation => {
+    const lines = added.get(mutation.file)
+    return lines !== undefined && mutation.from.split('\n').some(line => line.trim() && lines.has(line.trim()))
+  })
+}
+
+/** Added lines per file from `git diff -U0` output, each trimmed. */
+export function addedLines(diff) {
+  const added = new Map()
+  let file = null
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+++ ')) {
+      file = line === '+++ /dev/null' ? null : line.replace(/^\+\+\+ b\//, '')
+      if (file && !added.has(file)) added.set(file, new Set())
+    } else if (file && line.startsWith('+') && line.slice(1).trim()) {
+      added.get(file).add(line.slice(1).trim())
+    }
+  }
+  return added
+}
+
 export function main(argv) {
   // An unknown option used to be ignored in silence, and the run it produced
   // looked exactly like the run that was asked for. Measured 2026-08-27:
   // `--filter 'sync:'` — the flag is `--case` — selected nothing, so the filter
   // stayed null and all 181 mutations ran for twenty minutes while the caller
   // waited on three. Every gate in this project names the offending option.
-  const KNOWN = new Set(['--case', '--list', '--force', '--shard', '--no-cache', '--cache'])
+  const KNOWN = new Set(['--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed'])
   const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
   if (unknown.length) {
     process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
-      + 'usage: mutate.mjs [--case <substring>] [--shard i/n] [--list] [--force] [--no-cache] [--cache <path>]\n')
+      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--force] [--no-cache] [--cache <path>]\n')
     return 2
   }
   const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
+  // `--stale` and `--changed` are read-only questions about the catalogue, so
+  // they are answered before the campaign lock (BACKLOG §280, the tooling half).
+  if (argv.includes('--stale')) {
+    const readSource = file => { try { return readFileSync(path.join(root, file), 'utf8') } catch { return null } }
+    const stale = staleEntries(catalogue.mutations, readSource)
+    for (const entry of stale) {
+      console.log(`${entry.count === null ? 'unreadable' : `${entry.count}x`}  ${entry.file} :: ${entry.label}`
+        + (entry.hint ? `\n  nearest now: ${entry.file}:${entry.hint.line}  ${entry.hint.text}` : ''))
+    }
+    console.log(stale.length
+      ? `${stale.length} catalogue entr${stale.length === 1 ? 'y does' : 'ies do'} not match the source exactly once`
+      : 'every entry matches its source exactly once')
+    return stale.length ? 1 : 0
+  }
   let selected = catalogue.mutations.filter(m => !filter || m.label.includes(filter))
+  // `--changed <ref>`: only the entries a change since <ref> could affect, so a fix
+  // is checked by the mutants that name its files, not by labels picked by hand.
+  if (argv.includes('--changed')) {
+    const ref = argv[argv.indexOf('--changed') + 1] ?? ''
+    const diff = ref && !ref.startsWith('--')
+      ? spawnSync('git', ['-C', root, 'diff', '-U0', ref, '--'], { encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024 * 1024 })
+      : null
+    if (!diff || diff.error || diff.status !== 0) {
+      process.stderr.write(`mutate: --changed wants a git ref to diff against, not ${JSON.stringify(ref)}\n`)
+      return 2
+    }
+    const before = selected.length
+    selected = touchedBy(selected, addedLines(diff.stdout))
+    console.log(`--changed ${ref}: ${selected.length} of ${before} entries name a line added since it`)
+  }
 
   // `--shard i/n` runs the i-th of n equal slices, 1-based. The campaign is the
   // most valuable check here and the slowest: it is the only one that measures

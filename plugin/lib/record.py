@@ -1894,8 +1894,13 @@ def _iter_swift_tests(text):
         yield name, after_paren
 
 def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
-                      shell=False, swift=False):
-    """Best-effort body of `name`, or None."""
+                      shell=False, swift=False, before_regex_masking=False):
+    """Best-effort body of `name`, or None.
+
+    `before_regex_masking` reproduces the JavaScript extraction as it was before
+    regex literals were masked (BACKLOG §212), so a lock recorded then can be
+    told apart from a test that changed since. It decides nothing else.
+    """
     if python:
         try:
             tree = ast.parse(text)
@@ -1963,11 +1968,11 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
     for found, after in _iter_bdd_calls(text, php=php):
         if found != name:
             continue
-        return bdd_callback_body(text, after, php=php)
+        return bdd_callback_body(text, after, php=php, js=not before_regex_masking)
     return None
 
 
-def bdd_callback_body(text, after, php=False):
+def bdd_callback_body(text, after, php=False, js=True):
     """Body of the callback that follows a BDD test's `name,` at `after`, or None.
 
     Bounded to that call. An unbounded find("{") lands in the NEXT test's block
@@ -1986,7 +1991,7 @@ def bdd_callback_body(text, after, php=False):
     truncated expression must not get a proven hash, so such a slice is still
     refused — UNPROVEN, never a prefix.
     """
-    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=not php)
+    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=js and not php)
     n = len(masked)
     depth, i, brace = 0, after, None
     while i < n and brace is None:
@@ -2024,6 +2029,23 @@ def bdd_callback_body(text, after, php=False):
     if end is None:
         return None
     return text[brace:end + 1]
+
+
+
+def _digest_before_regex_masking(root, rel, name):
+    """The digest a JavaScript test body had before §212's regex masking, or None.
+
+    None when the file cannot be read, is not a JavaScript-family test file, or
+    the old extraction found no body — each means "cannot say", never "moved".
+    """
+    path = None if root is None else Path(root, *rel.split("/"))
+    if path is None or path.suffix.lower() not in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"):
+        return None
+    source = _read_file(path)
+    if source is None:
+        return None
+    body = extract_test_body(source, name, before_regex_masking=True)
+    return None if body is None else body_digest(body)
 
 
 def _read_file(path):
@@ -2345,7 +2367,21 @@ def lock_findings(vlog, *, root, tests, label=""):
         if now is None:
             blocks.append(f"{prefix}locked test `{rel}`::{name} vanished — done is refused")
         elif now != digest:
-            blocks.append(f"{prefix}locked test `{rel}`::{name} hash moved — done is refused")
+            # A lock taken before regex literals were masked could stop at a `}`
+            # or a quote inside one and hash only a PREFIX of the test. If the old
+            # extraction still reproduces the recorded digest, that prefix is
+            # unchanged and the rest of the body was never locked — which is not
+            # "hash moved" (that reads as tampering) and not "unchanged" either
+            # (an edit after the prefix is invisible to such a lock). UNPROVEN.
+            if _digest_before_regex_masking(root, rel, name) == digest:
+                blocks.append(
+                    f"{prefix}locked test `{rel}`::{name} was locked before regex literals "
+                    "were masked, over a span that stopped inside one (BACKLOG §212): that "
+                    "span is unchanged and the rest of the body was never locked — UNPROVEN, "
+                    "done is refused until `adr-verify --relock --replace-hashes` locks the "
+                    "whole body")
+            else:
+                blocks.append(f"{prefix}locked test `{rel}`::{name} hash moved — done is refused")
     return blocks, advice
 
 

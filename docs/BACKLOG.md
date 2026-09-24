@@ -12893,6 +12893,16 @@ refused" will reach every adopter with a regex literal in a locked JavaScript te
 the test had changed; that is a false refusal and blocks the release until the message tells the two
 apart.
 
+**The adopter case is told apart now, and more carefully than first written.** When a locked body's
+digest no longer matches, `lock_findings` re-extracts it the way it was extracted before regex literals
+were masked (`extract_test_body(before_regex_masking=True)`). If that reproduces the recorded digest,
+the refusal says the lock covered only a span that stopped inside a regex literal, that span is
+unchanged, and the rest of the body was never locked — UNPROVEN, with `--relock --replace-hashes` as
+the remedy — instead of "hash moved". The first wording said "the test did not move", and the test's
+own control disproved it: an edit AFTER the old span is invisible to such a lock, so it earns the same
+UNPROVEN, while an edit inside the span is still "hash moved". Test `a lock taken before regex masking
+is told apart from a test that changed`, one mutant.
+
 ## 213. The commit advisory ignored a wrapped selftest and counted an `mrw read` as a write (2026-09-16)
 
 Observed twice executing ADR-057, not yet reproduced in a fixture. Before `git commit` of `d29734d`

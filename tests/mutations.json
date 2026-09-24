@@ -7967,9 +7967,19 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=not php)",
+      "from": "    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=js and not php)",
       "to": "    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php)",
       "only": "inside a JS regex literal does not cost"
+    },
+    {
+      "label": "lock: a lock taken before regex masking is told apart from a moved hash",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if _digest_before_regex_masking(root, rel, name) == digest:",
+      "to": "            if False:",
+      "only": "taken before regex masking is told apart"
     },
     {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",

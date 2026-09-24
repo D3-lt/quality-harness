@@ -1307,12 +1307,19 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
     go treats backtick strings as raw (backslash is content). Interpreted quotes still C-escape.
     """
     out = list(text)
+    # What the JS operand rule reads: `out` with every masked regex literal ending
+    # in a value character. A blanked literal left the token BEFORE it as the
+    # previous one, so `/x/ / 2` read `=` and the division opened a regex that
+    # swallowed the next `{` (Codex review, round 3).
+    view = list(text) if js else None
     i, n = 0, len(text)
 
     def blank(start, end, keep_quotes=False):
         for j in range(start, end):
             if out[j] != "\n" and not (keep_quotes and j in (start, end - 1)):
                 out[j] = " "
+                if view is not None:
+                    view[j] = " "
 
     while i < n:
         if swift:
@@ -1370,12 +1377,13 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
                 end = n if end < 0 else end + 2
                 blank(i, end)
                 i = end
-        elif js and text[i] == "/" and starts_regex("".join(out[:i]), i) and js_regex_end(text, i) is not None:
+        elif js and text[i] == "/" and starts_regex("".join(view[:i]), i) and js_regex_end(text, i) is not None:
             # A quote inside a regex literal opened a phantom string and a `)`
             # inside one closed the call early, so the body could not be bounded
             # and the first red locked the test `unproven` (BACKLOG §212).
             end = js_regex_end(text, i)
             blank(i, end)
+            view[end - 1] = "0"  # the literal is a value, so a `/` after it divides
             i = end
         elif hash_comments and text[i] == "#" and not text.startswith("#[", i):
             end = text.find("\n", i + 1)

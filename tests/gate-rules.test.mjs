@@ -2085,3 +2085,23 @@ test('a Swift binding the gate cannot place uniquely is UNRUN', { skip: NO_POSIX
     assert.match(run.stdout, /cannot attribute a Swift run/, label)
   }
 })
+
+// Codex review, round 3: the nested-type guard read a type name as `[\w.]+`, so a
+// qualification spelled with spaces or a comment around the dot, and an escaped
+// enclosing name, each reached it as one plain name — and a stub reporting the
+// inner name passed. Every spelling of a nested type is UNRUN.
+test('a Swift nested type is UNRUN however its name is spelled', { skip: NO_POSIX_STUB }, () => {
+  const cases = [
+    ['spaced-dot', 'extension Outer . Inner { @Test func probe() { #expect(1 == 1) } }\n'],
+    ['comment-dot', 'extension Outer /* note */ . Inner { @Test func probe() { #expect(1 == 1) } }\n'],
+    ['escaped-outer', 'struct `Outer` { struct Inner { @Test func probe() { #expect(1 == 1) } } }\n'],
+  ]
+  for (const [label, body] of cases) {
+    const files = { 'Package.swift': '// swift-tools-version:6.0\n', 'Tests/LibTests/LibTests.swift': 'import Testing\n' + body }
+    const bound = bindImplemented(`spec-swift-r3-${label}`, 'Tests/LibTests/LibTests.swift::probe', files)
+    const run = specVerifyImplemented(bound.dir, bound.spec, stubRunner(bound.dir, 'swift',
+      "printf '\\342\\234\\224 Test probe() passed after 0.001 seconds.\\n'"))
+    assert.equal(run.status, 4, `${label}: not attributable, so not a pass\n${run.stdout}`)
+    assert.match(run.stdout, /cannot attribute a Swift run/, label)
+  }
+})

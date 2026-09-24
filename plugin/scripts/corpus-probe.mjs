@@ -122,7 +122,10 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
 export function compareReaders(adrNext, workNext) {
   if (!workNext || !Array.isArray(workNext.ready)) return []
   const unread = new Set(workNext.readinessUnproven ?? [])
-  const answered = adrNext.filter(entry => entry.ready !== null && !unread.has(entry.tasksDir))
+  // A record that is not Accepted is a plan, not a work order (CLAUDE.md §10):
+  // adr-next still answers for it and says so, and work-next never offers it, so
+  // its tasks are not a disagreement between the two (BACKLOG §270).
+  const answered = adrNext.filter(entry => entry.ready !== null && !unread.has(entry.tasksDir) && entry.undecided !== true)
   const workNextReady = new Set(workNext.ready)
   const disagreements = []
   for (const entry of answered) {
@@ -224,6 +227,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     return {
       tasksDir: rel(dir),
       ready: answer?.ready?.map(task => ({ id: task.id, path: rel(path.resolve(resolved, task.path)), unproven: task.unproven ? scrub(task.unproven) : null })) ?? null,
+      undecided: answer?.undecided ?? null,
     }
   })
 

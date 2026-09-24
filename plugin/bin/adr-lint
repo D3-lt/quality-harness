@@ -3832,7 +3832,7 @@ def invalidates_pointer(text):
 # so the retire gate and this one read one spelling: RECORD_FILE_RE,
 # TASK_SHAPED_RE (`003-T2.md`, a task file) and DATE_SHAPED_RE (`2026-07-12-x.md`
 # in every separator and width — a dated note, or an ADR-2026).
-from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE  # noqa: E402
+from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, title_line  # noqa: E402
 # Checked in this order: `# ADR-003-T2` is both, and it is a task.
 TITLE_TASK_RE = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I)
 TITLE_RECORD_RE = re.compile(r"^﻿?#\s*ADR[-_ ]?\d", re.I)
@@ -3855,16 +3855,31 @@ def corpus_prefix(root, corpus_dir):
     return "" if prefix == "." else prefix + "/"
 
 
+# A YAML frontmatter block above a record's title. Stripped before the title is
+# looked for, so a `# comment` inside it is never mistaken for the title.
+_FRONTMATTER = re.compile(r"\A﻿?---[ \t]*\r?\n.*?^(?:---|\.\.\.)[ \t]*$", re.M | re.S)
+
+
 def _title_says_record(path):
-    """True record, False not a record, None could not read the title."""
+    """True record, False not a record, None could not read the file.
+
+    The title is the first `# ` heading in the file after any frontmatter
+    (`record.title_line`, ADR-063's one rule), not line one: a blank line or a
+    frontmatter block above the title made a real record read as "not a
+    record", so a dependency on it failed to resolve — a false BLOCK (BACKLOG
+    §194 row 2). A file with no heading at all stays "not a record": dated notes
+    carry none and a corpus holds them, and demoting every such corpus to
+    could-not-look would trade one false answer for a blind gate. The title's
+    number is compared with the filename's by the caller.
+    """
     try:
-        with open(path, encoding="utf-8", errors="replace") as fh:
-            first = fh.readline()
+        text = Path(path).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
-    if TITLE_TASK_RE.match(first):
+    title = title_line(_FRONTMATTER.sub("", text, count=1))
+    if title is None or TITLE_TASK_RE.match(title):
         return False
-    return bool(TITLE_RECORD_RE.match(first))
+    return bool(TITLE_RECORD_RE.match(title))
 
 
 def record_files(root, corpus_dir, tracked):

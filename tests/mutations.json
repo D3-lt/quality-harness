@@ -10204,8 +10204,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        return _mask_lock_noncode(text, rust_raw=True)\n",
-      "to": "        pass\n",
+      "from": "        masked = list(_mask_lock_noncode(text, rust_raw=True))\n",
+      "to": "        return scan_code_only(text, hash_comments=True)\n",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -10256,6 +10256,26 @@
       ],
       "from": "        if not ran:\n",
       "to": "        if True:\n",
+      "only": "implemented mode ran no test"
+    },
+    {
+      "label": "lint: a Rust lifetime or label name is not code",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if masked[found.start()] == \" \":\n",
+      "to": "            if False:\n",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "spec: the ran-no-test advice never claims a PASS",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "test, so no test outcome was observed \u2014 only structure and test existence \"",
+      "to": "test, so this PASS covers structure and test existence \"",
       "only": "implemented mode ran no test"
     }
   ]

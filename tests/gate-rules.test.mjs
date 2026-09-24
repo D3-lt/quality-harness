@@ -2118,6 +2118,15 @@ test('spec-verify says so when implemented mode ran no test', () => {
   const none = specVerifyImplemented(dir, join(dir, 'spec-selftest.md'), env)
   assert.equal(none.status, 0, `${none.stdout}\n${none.stderr}`)
   assert.match(none.stdout, /advice +implemented mode ran no test: nothing is tagged @implemented/, none.stdout)
+  // Codex review, round 4: the line said "this PASS" on a run that FAILed its
+  // existence check. It describes what was not run, never the verdict.
+  assert.doesNotMatch(none.stdout, /advice[^\n]*PASS/, none.stdout)
+  const specPath = join(dir, 'spec-selftest.md')
+  writeFileSync(specPath, readFileSync(specPath, 'utf8').replaceAll('test_gates_run', 'test_does_not_exist'))
+  const failed = specVerifyImplemented(dir, specPath, env)
+  assert.equal(failed.status, 2, failed.stdout)
+  assert.match(failed.stdout, /advice +implemented mode ran no test/, failed.stdout)
+  assert.doesNotMatch(failed.stdout, /advice[^\n]*PASS/, failed.stdout)
   // The other direction: a spec that did run a bound test must not say it ran none.
   const { dir: ranDir, spec } = bindImplemented('spec-ran-one', 'pkg/a_test.go::TestYes', {
     'go.mod': 'module example.com/m\n\ngo 1.22\n',

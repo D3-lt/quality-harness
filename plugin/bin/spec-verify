@@ -171,63 +171,9 @@ def split_binding(test):
     return None, test.strip()
 
 
-REGEX_MAY_FOLLOW = set("(,=:[!&|?{};+-*~^%")
-REGEX_MAY_FOLLOW_WORD = {"return", "typeof", "case", "in", "of", "delete", "void", "instanceof",
-                         "do", "else", "yield", "await"}
-
-
-CONTROL_HEADER = {"if", "while", "for", "with"}
-
-
-def starts_regex(text, i):
-    """Whether the `/` at `i` opens a regex literal rather than dividing.
-
-    JavaScript decides this from the previous significant token: after a VALUE it
-    is division, after an operator or an opening bracket it is a regex.
-
-    Getting it wrong in the DIVISION direction is the expensive one, which the
-    first version of this function had backwards. A `/` misread as division
-    leaves a real regex unmasked, and an apostrophe inside it — `/it's/` — then
-    opens a string that runs on until the next apostrophe ANYWHERE in the file.
-    A `/` misread as a regex only blanks to the end of one line. The quote
-    scanner is line-bounded for the same reason, so neither mistake can reach
-    past the line any more; this function still tries to be right.
-    """
-    j = i - 1
-    while j >= 0 and text[j] in " \t\r\n":
-        j -= 1
-    if j < 0:
-        return True
-    if text[j] in REGEX_MAY_FOLLOW:
-        return True
-    # `)` is the ambiguous one. Closing a CALL or a grouping it is a value, so
-    # `/` divides; closing an `if`/`while`/`for` header it is not, and a regex
-    # may follow — `if (ready) /it's/.test(v)` is valid JavaScript. Found
-    # 2026-08-28 by an independent review, in the fix for this same defect one
-    # shape over. Walk back to the matching `(` and read the word before it.
-    if text[j] == ")":
-        depth, k = 0, j
-        while k >= 0:
-            if text[k] == ")":
-                depth += 1
-            elif text[k] == "(":
-                depth -= 1
-                if depth == 0:
-                    break
-            k -= 1
-        if k < 0:
-            return False
-        k -= 1
-        while k >= 0 and text[k] in " \t\r\n":
-            k -= 1
-        end = k
-        while k >= 0 and (text[k].isalnum() or text[k] == "_"):
-            k -= 1
-        return text[k + 1:end + 1] in CONTROL_HEADER
-    k = j
-    while k >= 0 and (text[k].isalnum() or text[k] == "_"):
-        k -= 1
-    return text[k + 1:j + 1] in REGEX_MAY_FOLLOW_WORD
+# The regex-or-division rule lives in plugin/lib/record.py, shared with the
+# test-lock masker (BACKLOG §212).
+from record import starts_regex, js_regex_end  # noqa: E402
 
 
 def mask_noncode(text, hash_comments=False, heredocs=False, ruby_blocks=False,
@@ -293,22 +239,8 @@ def mask_noncode(text, hash_comments=False, heredocs=False, ruby_blocks=False,
             # A regex cannot span a line, and `/` inside a character class is
             # literal. If no closing `/` is found on the line it was division
             # after all, so nothing is masked.
-            end, in_class, closed = i + 1, False, False
-            while end < n and text[end] != "\n":
-                char = text[end]
-                if char == "\\":
-                    end += 2
-                    continue
-                if char == "[":
-                    in_class = True
-                elif char == "]":
-                    in_class = False
-                elif char == "/" and not in_class:
-                    end += 1
-                    closed = True
-                    break
-                end += 1
-            if closed:
+            end = js_regex_end(text, i)
+            if end is not None:
                 blank(i, end)
                 i = end
             else:

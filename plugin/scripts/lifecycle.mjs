@@ -93,6 +93,19 @@ function reportsZeroTestWork(text, command) {
       .map(match => Number(match[1]))
     if (passed.length > 0) return passed.every(count => count === 0)
   }
+  if (/\bgo\s+test\b/i.test(command)) {
+    // `go test ./...` prints one line per package: `ok  <pkg>  0.1s` where tests
+    // ran, `?  <pkg>  [no test files]` where none exist, and `ok  <pkg>  [no tests
+    // to run]` where a filter matched nothing. A testless package beside tested
+    // ones is every module with a main-only or generated package; the phrase
+    // match below read it as zero work, and ADR-061's refusal then denied every
+    // commit of a green tree — reported from a Go repository on this machine
+    // (BACKLOG §273, 2026-09-24). Work happened if any package line says `ok`
+    // without `[no tests to run]`; adr-lint has said the same of fences since
+    // §"rejects Go's healthy [no test files] status".
+    const packageRan = text.split('\n').some(line => /^ok\s+\S/.test(line) && !/\[no tests to run\]/.test(line))
+    if (packageRan) return false
+  }
   return /\b(?:no tests? (?:found|ran|collected|matched|to run)|ran 0 tests?|running 0 tests?|collected 0 items|0 tests? (?:run|executed|collected|passed)|0 passing|tests\s+0|no test files)\b/i.test(text)
 }
 

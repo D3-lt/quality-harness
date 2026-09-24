@@ -12880,6 +12880,19 @@ The module-scope workaround in `tests/routing.test.mjs` stays, since it is harml
 paren inside a JS regex literal does not cost a test its locked body`; two mutants, and the
 `CONTROL_HEADER` mutant moved with the code.
 
+**The fix moved one lock in this repository, and the lock it moved was wrong.** Class sweep:
+`tests/corpus-lint.test.mjs` (`every record this repository tracks passes its own adr-lint`) runs the
+gate over every tracked record and found one member — ADR-057 T3,
+`tests/workflows.test.mjs`::`declaring a capability does not cost a role its schema`, "hash moved".
+Measured by extracting that body with the masker before and after this change: the old extractor
+stopped at a `}` inside the regex text and locked a 128-character prefix holding no assertion at all;
+the fixed one reads the whole 917-character body. A lock that editing the assertions could never move
+is §212 in its worst form. Recovered with `adr-verify --relock --replace-hashes`, the path ADR-052 and
+§209 sanction, which records the row as weaker than first-red. ⚠ The same "hash moved — done is
+refused" will reach every adopter with a regex literal in a locked JavaScript test body, worded as if
+the test had changed; that is a false refusal and blocks the release until the message tells the two
+apart.
+
 ## 213. The commit advisory ignored a wrapped selftest and counted an `mrw read` as a write (2026-09-16)
 
 Observed twice executing ADR-057, not yet reproduced in a fixture. Before `git commit` of `d29734d`

@@ -2882,3 +2882,32 @@ print(json.dumps({"digest": digest, "token": token, "body": body}))
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// Codex review of the §212 fix: the `+` of a postfix `n++` was read as an operator
+// that opens a regex, so `n++ / 2; if (true) { /x/.test('x') }` blanked from the
+// division through the next regex, `{` included, and the lock ended before the
+// assertion — an edit to it left the digest unchanged. Fail-open, in the lock.
+test('a division after a postfix increment is not a regex, and the lock keeps the assertion', () => {
+  const dir = tmpRepo()
+  const rel = 'tests/postfix-subject.test.mjs'
+  const name = 'division'
+  const source = expected => "import test from 'node:test'\n"
+    + "import assert from 'node:assert/strict'\n"
+    + `test('${name}', () => {\n`
+    + '  let n = 2;\n'
+    + "  n++ / 2; if (true) { /x/.test('x'); }\n"
+    + `  assert.equal(1, ${expected});\n`
+    + '})\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source(2))
+    const row = `- 2026-09-13 · no-git · exit 2 · \`node --test ${rel}\` · acceptance-sha256:${'0'.repeat(64)} · ms:12`
+      + recordOp({ op: 'suffix', root: dir, text: taskMarkdown([`| \`${name}\` | \`${rel}\` | lock | F-1 |`]) }).suffix
+    writeFileSync(join(dir, rel), source(1))
+    const edited = findings(dir, [row], [[name, rel]])
+    assert.ok(edited.blocks.some(b => /hash moved — done is refused/.test(b)),
+      `an edit to the assertion must move the lock:\n${edited.blocks.join('\n')}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

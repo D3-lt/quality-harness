@@ -13010,6 +13010,15 @@ own control disproved it: an edit AFTER the old span is invisible to such a lock
 UNPROVEN, while an edit inside the span is still "hash moved". Test `a lock taken before regex masking
 is told apart from a test that changed`, one mutant.
 
+**Codex review of this fix (gpt-6-astra, xhigh, 2026-09-24) found a fail-open in it.** The operand rule
+read the `+` of a postfix `n++` as an operator that opens a regex, so `n++ / 2; if (true) { /x/…`
+masked from the division through the next regex's opening slash, `{` included, and the lock ended
+before the assertion: an edit to the assertion left the digest unchanged. Reproduced through
+`findings`, fixed in `starts_regex` (a `++`/`--` before the slash ends a value, so it divides), which
+spec-verify shares. Test `a division after a postfix increment is not a regex, and the lock keeps the
+assertion`, one mutant. **Residual, named:** a `/` after an object literal's `}` still reads as a regex,
+and the masker still blanks a mis-read span that holds a brace rather than refusing it.
+
 ## 213. CLOSED 2026-09-24 — The commit advisory ignored a wrapped selftest and counted an `mrw read` as a write (2026-09-16)
 
 Observed twice executing ADR-057, not yet reproduced in a fixture. Before `git commit` of `d29734d`

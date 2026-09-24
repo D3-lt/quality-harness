@@ -1233,6 +1233,12 @@ def starts_regex(text, i):
         j -= 1
     if j < 0:
         return True
+    # A POSTFIX `++`/`--` ends a value, so the `/` after it divides. Read as the
+    # operator `+`, `n++ / 2; if (x) { /re/ }` masked from the division through
+    # the next regex, a `{` included, and the test-lock hashed a body that ended
+    # before its assertion — found by the Codex review of the §212 fix.
+    if text[j] in "+-" and j > 0 and text[j - 1] == text[j]:
+        return False
     if text[j] in REGEX_MAY_FOLLOW:
         return True
     # `)` is the ambiguous one. Closing a CALL or a grouping it is a value, so

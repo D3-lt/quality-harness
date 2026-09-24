@@ -123,4 +123,13 @@ test('the same Go shapes under `go test -json` (real event lines) read the same'
   assert.equal(json(testless), 'no-work', 'every package testless')
   assert.equal(json([filteredWarn, filteredOk, packagePass].join('\n'), 'go test -json -run zzz ./p'), 'no-work',
     'a package-level pass with [no tests to run] is not work')
+  // test2json splits an Output above 1,024 bytes (cmd/internal/test2json), so a long
+  // package path lands `[no tests to run]` in the NEXT event; the `ok ` fragment has
+  // no newline and is not a summary (Codex, 6783a61).
+  const long = 'example.com/' + 'segment/'.repeat(130) + 'p'
+  const splitHead = `{"Time":"T","Action":"output","Package":"${long}","Output":"ok  \\t${long}\\t0.066s "}`
+  const splitTail = `{"Time":"T","Action":"output","Package":"${long}","Output":"[no tests to run]\\n"}`
+  const longPass = `{"Time":"T","Action":"pass","Package":"${long}","Elapsed":0.07}`
+  assert.equal(json([splitHead, splitTail, longPass].join('\n'), 'go test -json -run zzz ./...'), 'no-work',
+    'a split summary is not a summary')
 })

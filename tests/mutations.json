@@ -9857,8 +9857,17 @@
       "tests": [
         "tests/validation-verdict.test.mjs"
       ],
-      "from": "    const packageRan = text.split('\\n').some(line => /^ok\\s+\\S/.test(line) && !/\\[no tests to run\\]/.test(line))",
-      "to": "    const packageRan = false"
+      "from": "      if (/^ok\\s+\\S/.test(line)) return !/\\[no tests to run\\]/.test(line)",
+      "to": "      if (/^ok\\s+\\S/.test(line)) return false"
+    },
+    {
+      "label": "qh-check: under go test -json a test-level pass or an ok Output line is work (§273 round 2)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "      if (!line.startsWith('{')) return false",
+      "to": "      if (!line.startsWith('{')) return false\n      return false"
     }
   ]
 }

@@ -14674,3 +14674,9 @@ adr-lint's "rejects Go's healthy `[no test files]` status" advice (`tests/gates.
 already knew the line is ordinary — the knowledge was in one reader and not the other (CLAUDE.md
 §5). Test in `tests/validation-verdict.test.mjs`, mutant in the catalogue. The peer's report is in
 the palace inbox (`wing_quality-harness`), read and closed by this entry.
+Round 2 (Codex review of 6331340, the one finding): under `go test -json` every line is an event
+object, the `ok` line sits inside `"Output":"…"`, and the testless package's Output still says `no
+test files` — a `-json` run of the same green tree was `no-work` again. Now a `{"Action":"pass"}`
+event with a `"Test"` field, or an `"Output"` beginning `ok ` without `[no tests to run]`, is work;
+a package-level pass alone is not (a filter that matched nothing passes the package). Fixture lines
+are from a real `go test -json` run (go1.27.1), not the documentation; mutant reverts the arm.

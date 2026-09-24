@@ -13979,7 +13979,7 @@ knows the fixes are here and where the argument lives.
 against ADR-059's ceiling of 149, so this branch does not raise it — but every new task file written
 here spends the same 110-character budget a Windows clone has for its checkout root.
 
-## 250. `selftest.sh` no longer says whether it was a PASS or a PARTIAL (2026-09-22)
+## 250. CLOSED 2026-09-24 — `selftest.sh` no longer says whether it was a PASS or a PARTIAL (2026-09-22)
 
 `scripts/selftest.sh` still assigns `verdict="PASS — …"` and, when the Claude CLI is absent,
 `verdict="PARTIAL — tests and syntax checks passed; plugin validation was skipped."`. Nothing prints
@@ -13996,6 +13996,13 @@ Found by: `grep -n 'verdict' scripts/selftest.sh` (two assignments, no use) and
 asserts the verdict line. None failed when it went, so none does. What would close it: print it
 again, and add a test that runs the PARTIAL arm with the CLI absent from `PATH` and asserts the
 PARTIAL line.
+
+**CLOSED 2026-09-24.** The print is back as the script's last line, with a comment saying why it
+matters and how it went (collateral in 39abcf1's leak-check rewrite, not a decision — that commit's
+message is entirely about the leak check). The guard is a sibling test, `selftest prints its verdict as
+the last thing it does`, which asserts the last executable line is the print; the existing guard that
+the words exist is left as it was. A runtime test of the PARTIAL arm was not written: running the
+script from inside its own suite re-enters the suite. One catalogue mutant.
 
 ## 251. The session-ledger location key folds case on every macOS volume (2026-09-22)
 

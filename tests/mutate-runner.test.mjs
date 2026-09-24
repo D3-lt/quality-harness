@@ -635,7 +635,7 @@ test('touchedBy keeps an entry whose mutated line was added by the change, and o
   assert.deepEqual([...added.get('plugin/x.mjs')], ['if (named) return', 'keep()'])
   const entries = [
     { label: 'edited', file: 'plugin/x.mjs', from: '  if (named) return', tests: [] },
-    { label: 'same file, untouched', file: 'plugin/x.mjs', from: '  other()', tests: [] },
+    { label: 'same file, untouched', file: 'plugin/x.mjs', from: '  otherCallThatThisChangeNeverTouched()', tests: [] },
     { label: 'other file', file: 'plugin/y.mjs', from: '  if (named) return', tests: [] },
   ]
   assert.deepEqual(touchedBy(entries, added).map(entry => entry.label), ['edited'])

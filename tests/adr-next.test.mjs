@@ -143,6 +143,11 @@ test('a pre-digest exit-0 row proves a single-line fence, and only that', () => 
 
   assert.equal(doneOf(withTask(legacy('bun run test'))), true,
     'a legacy exit-0 row whose displayed command matches the single-line fence is evidence')
+  // A task done by that legacy row carries no unproven note: the note says what
+  // withheld done, and nothing did. Since §278 reads the whole log, this is the
+  // done task a note computed for every task would still mislabel.
+  const legacyDone = JSON.parse(withTask(legacy('bun run test')).stdout).done.find(t => t.id === 'T1')
+  assert.equal(legacyDone.unproven, null, JSON.stringify(legacyDone))
 
   // The three conditions that keep the allowance narrow, each asserted to still
   // REFUSE — without these, "accept any exit-0 row" would satisfy the case above

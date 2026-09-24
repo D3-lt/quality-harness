@@ -133,3 +133,9 @@ else
   fi
   rm -f "$leak_list"
 fi
+
+# The verdict is the last line, because it is the line a reader skims. PARTIAL
+# exits 0 like PASS; printing neither made a run that skipped plugin validation
+# end looking like one that did not. The print went with 39abcf1's leak-check
+# rewrite, unnoticed, because nothing asserted it (BACKLOG §250).
+printf '%s\n' "$verdict"

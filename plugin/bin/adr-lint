@@ -4603,7 +4603,16 @@ def code_only(text, python=False, swift=False, rust=False):
         # exist for this gate — while the test lock, which reads Rust with the
         # record module's masker, hashed the same test (reported from a Rust
         # corpus, 2026-09-24). One masker for both readers.
-        return _mask_lock_noncode(text, rust_raw=True)
+        masked = list(_mask_lock_noncode(text, rust_raw=True))
+        # The masker blanks a lifetime's or a label's QUOTE and keeps the name after
+        # it, which is right for the lock's brace matching and wrong here: `'ghost`
+        # read as a declaration named `ghost`, and a label `'expect:` as a failure
+        # call (Codex review, round 4). A char literal keeps its quotes, so a blanked
+        # quote followed by an identifier is exactly a lifetime or a label.
+        for found in re.finditer(r"'([A-Za-z_]\w*)", text):
+            if masked[found.start()] == " ":
+                masked[found.start(1):found.end(1)] = " " * (found.end(1) - found.start(1))
+        return "".join(masked)
     if python:
         # D2 fix. Python has NO backtick string literal, and its docstrings use
         # backticks freely - 417 in one real file measured 2026-08-24. Applying

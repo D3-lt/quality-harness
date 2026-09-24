@@ -4827,6 +4827,32 @@ def test_a_rust_test_after_a_lifetime_exists(lint):
         dead = findings(lint.check_tests_can_fail, "never_fails")
         assert any("never_fails" in f for f in dead), dead
 
+    # Codex review, round 4: the masker blanks a lifetime's or label's QUOTE and
+    # keeps the identifier, so `'ghost` read as a declaration named `ghost`, and a
+    # label `'expect:` read as a failure call. Neither name is code.
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "tests").mkdir()
+        (root / "tests" / "case.rs").write_text(
+            "fn actual<'ghost>() {}\n\n#[test]\nfn dead() { 'expect: {} }\n", encoding="utf-8")
+
+        def rows(check, name):
+            infos = {"T1": {
+                "path": root / "T1.md",
+                "tests": [(name, "tests/case.rs")],
+                "vlog": ["- 2026-09-24 · abc1234 · exit 0 · `cargo test` · "
+                         "acceptance-sha256:" + "0" * 64],
+            }}
+            errs = lint.Findings()
+            check(infos, "| T1 | x | done |", errs, root)
+            return [str(e) for e in list(errs) + list(errs.advice)]
+
+        ghost = rows(lint.check_tests_exist, "ghost")
+        assert any("no executable definition" in f for f in ghost), ghost
+        assert lint.resolve_enforcement("tests/case.rs::ghost", root) is None
+        labelled = rows(lint.check_tests_can_fail, "dead")
+        assert any("dead" in f for f in labelled), labelled
+
     print("PASS — a Rust test after a lifetime exists")
 
 def test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint):

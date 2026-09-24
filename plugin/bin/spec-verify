@@ -838,7 +838,8 @@ def check_spec(path, mode, root_override, collect):
         # nothing observed failed — but it says what it did not observe.
         if not ran:
             errors.advise("implemented mode ran no test: nothing is tagged @implemented with a bound "
-                          "test, so this PASS covers structure and test existence only")
+                          "test, so no test outcome was observed — only structure and test existence "
+                          "were checked")
 
     return errors, missing, failing, unrun
 

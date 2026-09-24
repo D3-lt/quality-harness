@@ -7957,7 +7957,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        elif js and text[i] == \"/\" and starts_regex(\"\".join(out[:i]), i) and js_regex_end(text, i) is not None:",
+      "from": "        elif js and text[i] == \"/\" and starts_regex(\"\".join(view[:i]), i) and js_regex_end(text, i) is not None:",
       "to": "        elif False:",
       "only": "inside a JS regex literal does not cost"
     },
@@ -8087,7 +8087,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "starts_regex(\"\".join(out[:i]), i)",
+      "from": "starts_regex(\"\".join(view[:i]), i)",
       "to": "starts_regex(text, i)",
       "only": "a comment before a division"
     },
@@ -8107,7 +8107,7 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "    if len(enclosing) > 1 or any(\".\" in each for each in enclosing):",
+      "from": "    if len(enclosing) > 1 or any(\".\" in each or \"`\" in each for each in enclosing):",
       "to": "    if False:",
       "only": "cannot place uniquely"
     },
@@ -10167,6 +10167,36 @@
       ],
       "from": "      return output !== undefined && /^ok\\s/.test(output) && output.endsWith('\\\\n') && !output.includes('[no tests to run]')",
       "to": "      return output !== undefined && /^ok\\s/.test(output) && !output.includes('[no tests to run]')"
+    },
+    {
+      "label": "lock: a masked regex literal is a value, so a `/` after it divides",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            view[end - 1] = \"0\"  # the literal is a value, so a `/` after it divides\n",
+      "to": "",
+      "only": "after a regex literal is not a regex"
+    },
+    {
+      "label": "spec: a Swift type name is read with its whole qualification",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "r\"\\b(?:class|struct|actor|enum|extension)\\s+(`?\\w+`?(?:\\s*\\.\\s*`?\\w+`?)*)[^{;]*\\{\"",
+      "to": "r\"\\b(?:class|struct|actor|enum|extension)\\s+([\\w.]+)[^{;]*\\{\"",
+      "only": "however its name is spelled"
+    },
+    {
+      "label": "spec: an escaped Swift type name is not guessed",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "any(\".\" in each or \"`\" in each for each in enclosing)",
+      "to": "any(\".\" in each for each in enclosing)",
+      "only": "however its name is spelled"
     }
   ]
 }

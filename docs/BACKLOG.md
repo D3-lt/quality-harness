@@ -15098,6 +15098,8 @@ Recorded so they do not have to be found again; none is scheduled.
 
 **This also answers §275's last bullet** for Rust: a raw string is now read by the Rust masker, not by `scan_code_only`.
 
+**Codex review, round 4 (high, 2026-09-24): the masker keeps a lifetime's NAME.** It blanks the quote and leaves the identifier, which the lock's brace matching needs and this reader does not. So `fn actual<'ghost>() {}` satisfied a binding to a test named `ghost`, in both the tests-exist check and the pointer resolver, and a label `'expect: {}` read as a failure call and hid a test that asserts nothing. adr-lint's Rust branch now also blanks the identifier after a blanked quote. A char literal keeps its quotes, so it is not touched. Both shapes are in `test_a_rust_test_after_a_lifetime_exists`; one mutant.
+
 ## 277. CLOSED 2026-09-24 — spec-verify's implemented mode ran no test and printed a bare PASS (2026-09-24, reported from a Go repository's 2.107.0 run)
 
 **Reported** by the tool-multipathreadwrite session in its §18 outside run of 2.107.0: `spec-verify --implemented` over a spec binding ten Go tests printed only `[PASS] … (mode: implemented)`, exit 0. Every fact and scenario was tagged `@spec`, none `@implemented`, so no test ran, and the line read exactly like a run that ran all ten. The reporter left open whether that is intended. Reproduced here on this repository's own `tests/fixtures/ok` spec.
@@ -15105,3 +15107,5 @@ Recorded so they do not have to be found again; none is scheduled.
 **Decided:** the verdict stays PASS with exit 0, because nothing observed failed and the existence checks did run for every bound `@spec` test. What changes is that the gate now says what it did not observe (CLAUDE.md §3, ADR-005). When implemented mode runs no bound `@implemented` test, it prints an advice line saying so. Test `spec-verify says so when implemented mode ran no test`, with the direction where one test ran on the same call path. Two mutants.
 
 **Also from that run, not a defect:** the request that asked for the run named a flag `--mode implemented`, which spec-verify rejects with exit 2. The flag is `--implemented`, and the asker's message was wrong.
+
+**Codex review, round 4 (high, 2026-09-24): the first wording claimed a PASS.** It said "this PASS covers structure and test existence only", and it printed on a run that FAILed its existence check with exit 2 too. It now says that no test outcome was observed and only structure and test existence were checked, which is true whatever the verdict. The test asserts the FAIL case as well; one mutant.

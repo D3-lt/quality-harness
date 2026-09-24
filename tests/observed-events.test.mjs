@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
@@ -1696,4 +1696,28 @@ test('a torn checks.jsonl cannot leave an older pass standing as the verdict', (
     `a check source that could not be read whole must say so: ${said}`)
   assert.doesNotMatch(said, /\bverified\b/,
     `and the older pass must not stand as the verdict: ${said}`)
+})
+
+// BACKLOG §201. An Edit through a symlink inside the repository to a file outside
+// it: git lists the link, and the link does not change when the file behind it
+// does, so the tree hash cannot see the write. Recorded as observable, a check
+// that ran before the write would read as covering it.
+test('a write through an in-repository link to an outside file is not observable', { skip: process.platform === 'win32' && 'a symlink needs a privilege the Windows runner account does not hold' }, () => {
+  const dir = repository('t201-')
+  const session = sessionId('link-out')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  const outside = path.join(testTmp, 'behind-' + session + '.md')
+  writeFileSync(outside, 'x\n')
+  symlinkSync(outside, path.join(dir, 'link.md'))
+  git(dir, 'add', 'link.md')
+  git(dir, 'commit', '-q', '-m', 'link')
+  writeFileSync(outside, 'y\n')
+  hook({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: path.join(dir, 'link.md') }, session_id: session, cwd: dir })
+  // The control: an ordinary tracked file in the same repository still is.
+  writeFileSync(path.join(dir, 'a.md'), 'changed\n')
+  hook({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: path.join(dir, 'a.md') }, session_id: session, cwd: dir })
+  const written = named(eventsIn(path.join(dir, '.git', 'quality-harness'), session), 'file.written')
+  assert.equal(written.length, 2)
+  assert.equal(written[0].observable, false, 'git cannot see a write behind an in-tree link')
+  assert.equal(written[1].observable, true)
 })

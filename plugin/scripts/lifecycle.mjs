@@ -3137,7 +3137,18 @@ function recordFileWritten(input) {
   if (root && parent) {
     const resolved = path.join(canonical(parent), path.relative(parent, absolute))
     const relative = path.relative(root, resolved)
-    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+    // A symlink inside the tree to a file outside it: git lists the link, and the
+    // link does not change when the file behind it does, so the tree hash cannot
+    // see this write. Recorded as observable, a check that ran BEFORE the write
+    // would be read as covering it (BACKLOG §201). A path that does not exist yet
+    // has nothing behind it and keeps the ordinary rule.
+    let behind = null
+    try { behind = realpathSync(resolved) } catch { behind = null }
+    const escapes = behind !== null && (() => {
+      const inside = path.relative(canonical(root), behind)
+      return inside.startsWith('..') || path.isAbsolute(inside)
+    })()
+    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative) && !escapes) {
       const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', relative], { encoding: 'utf8', timeout: 5_000 })
       if (!ignored.error && ignored.status === 1) {
         const hashed = spawnSync('git', ['-C', root, 'hash-object', '--', relative], { encoding: 'utf8', timeout: 5_000 })

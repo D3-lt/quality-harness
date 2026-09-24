@@ -2798,3 +2798,32 @@ test('a green-only log is told a red run is required, not another adr-verify', (
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// BACKLOG §212: the lock's JS masker knew strings and comments but not regex
+// literals, so a quote inside one opened a phantom string and a `)` inside one
+// closed the call early. The body could not be bounded, and the first red locked
+// the test `unproven` — `done` then refused for a test nobody could fault.
+test('a quote or a paren inside a JS regex literal does not cost a test its locked body', () => {
+  const dir = tmpRepo()
+  const rel = 'tests/regex-subject.test.mjs'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "test('reads an apostrophe', () => {\n"
+      + "  assert.ok(/it's/.test('its'.replace('s', \"'s\")))\n"
+      + "})\n"
+      + "test('reads a paren class', () => assert.ok(/[)]/.test(')')))\n"
+      + "test('after both', () => {\n"
+      + "  assert.equal(1, 1)\n"
+      + "})\n")
+    const rows = ['reads an apostrophe', 'reads a paren class', 'after both']
+      .map(name => `| \`${name}\` | \`${rel}\` | lock | F-1 |`)
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown(rows) }).suffix
+    const payload = decodeLock(suffix.match(/test-lock-b64:(\S+)/)[1])
+    assert.doesNotMatch(payload, /^unproven\t/m, `a regex literal cost a test its body:\n${payload}`)
+    for (const name of rows) assert.match(payload, new RegExp(`\\t${name}$`, 'm'), payload)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

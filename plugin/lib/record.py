@@ -1199,8 +1199,96 @@ def _in_arithmetic(text, i):
 # grammar, not "up to six of digits-or-underscore": `'\u{0_0_0_0_4_1}'` is valid Rust and was
 # no literal to the shorter form (Codex, 153b762).
 _RUST_CHAR_LITERAL = re.compile(r"'(?:[^'\\\n]|\\(?:x[0-9a-fA-F]{2}|u\{(?:[0-9a-fA-F]_*){1,6}\}|[^xu\n]))'")
+
+
+# JavaScript reads `/` as a regex literal or a division from the previous
+# significant token. The rule lived in spec-verify, which imports it back from
+# here, so the test-lock masker and spec-verify's definition check read one
+# rule (BACKLOG §212). adr-lint carries a third copy that differs; that is
+# §212's named sibling, not reconciled here.
+REGEX_MAY_FOLLOW = set("(,=:[!&|?{};+-*~^%")
+REGEX_MAY_FOLLOW_WORD = {"return", "typeof", "case", "in", "of", "delete", "void", "instanceof",
+                         "do", "else", "yield", "await"}
+
+
+CONTROL_HEADER = {"if", "while", "for", "with"}
+
+
+def starts_regex(text, i):
+    """Whether the `/` at `i` opens a regex literal rather than dividing.
+
+    JavaScript decides this from the previous significant token: after a VALUE it
+    is division, after an operator or an opening bracket it is a regex.
+
+    Getting it wrong in the DIVISION direction is the expensive one, which the
+    first version of this function had backwards. A `/` misread as division
+    leaves a real regex unmasked, and an apostrophe inside it — `/it's/` — then
+    opens a string that runs on until the next apostrophe ANYWHERE in the file.
+    A `/` misread as a regex only blanks to the end of one line. The quote
+    scanner is line-bounded for the same reason, so neither mistake can reach
+    past the line any more; this function still tries to be right.
+    """
+    j = i - 1
+    while j >= 0 and text[j] in " \t\r\n":
+        j -= 1
+    if j < 0:
+        return True
+    if text[j] in REGEX_MAY_FOLLOW:
+        return True
+    # `)` is the ambiguous one. Closing a CALL or a grouping it is a value, so
+    # `/` divides; closing an `if`/`while`/`for` header it is not, and a regex
+    # may follow — `if (ready) /it's/.test(v)` is valid JavaScript. Found
+    # 2026-08-28 by an independent review, in the fix for this same defect one
+    # shape over. Walk back to the matching `(` and read the word before it.
+    if text[j] == ")":
+        depth, k = 0, j
+        while k >= 0:
+            if text[k] == ")":
+                depth += 1
+            elif text[k] == "(":
+                depth -= 1
+                if depth == 0:
+                    break
+            k -= 1
+        if k < 0:
+            return False
+        k -= 1
+        while k >= 0 and text[k] in " \t\r\n":
+            k -= 1
+        end = k
+        while k >= 0 and (text[k].isalnum() or text[k] == "_"):
+            k -= 1
+        return text[k + 1:end + 1] in CONTROL_HEADER
+    k = j
+    while k >= 0 and (text[k].isalnum() or text[k] == "_"):
+        k -= 1
+    return text[k + 1:j + 1] in REGEX_MAY_FOLLOW_WORD
+
+
+def js_regex_end(text, i):
+    """End of the regex literal opening at `i`, or None when it was a division.
+
+    A regex cannot span a line, and `/` inside a character class is literal. If
+    no closing `/` is found on the line it was division after all.
+    """
+    end, in_class, n = i + 1, False, len(text)
+    while end < n and text[end] != "\n":
+        char = text[end]
+        if char == "\\":
+            end += 2
+            continue
+        if char == "[":
+            in_class = True
+        elif char == "]":
+            in_class = False
+        elif char == "/" and not in_class:
+            return end + 1
+        end += 1
+    return None
+
+
 def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,
-                       shell_heredocs=False, swift=False, go=False):
+                       shell_heredocs=False, swift=False, go=False, js=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.
 
     spec-verify imports this module, so the masker cannot be imported from there.
@@ -1276,6 +1364,13 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
                 end = n if end < 0 else end + 2
                 blank(i, end)
                 i = end
+        elif js and text[i] == "/" and starts_regex(text, i) and js_regex_end(text, i) is not None:
+            # A quote inside a regex literal opened a phantom string and a `)`
+            # inside one closed the call early, so the body could not be bounded
+            # and the first red locked the test `unproven` (BACKLOG §212).
+            end = js_regex_end(text, i)
+            blank(i, end)
+            i = end
         elif hash_comments and text[i] == "#" and not text.startswith("#[", i):
             end = text.find("\n", i + 1)
             end = n if end < 0 else end
@@ -1885,12 +1980,13 @@ def bdd_callback_body(text, after, php=False):
     depth 0 before either means the call closed with no body (`test('x',
     helper)`). Both are the ORIGINAL slice (ADR-050).
 
-    A `)` inside a regex literal closes the call early (`/[)]/.test(')')`);
-    the masker does not know regex literals. A truncated expression must not
-    get a proven hash, so an unbalanced slice is refused — UNPROVEN, never a
-    prefix.
+    A regex literal is masked for JavaScript, so a `)` or a quote inside one no
+    longer ends the call or opens a string (BACKLOG §212). A `/` left in the
+    masked text is a division, or a regex the operand rule could not place; a
+    truncated expression must not get a proven hash, so such a slice is still
+    refused — UNPROVEN, never a prefix.
     """
-    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php)
+    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=not php)
     n = len(masked)
     depth, i, brace = 0, after, None
     while i < n and brace is None:
@@ -1913,10 +2009,10 @@ def bdd_callback_body(text, after, php=False):
                 close = _closing_paren(masked, i)
                 if close is None:
                     return None
-                # A `/` outside a string is a regex literal or a division, and
-                # the masker knows neither: `/[)]/` and `/\)/` both close the
-                # call early, and `/\)/` leaves nothing unbalanced to notice.
-                # No boundary can be established, so refuse — UNPROVEN.
+                # A `/` still visible here is a division or a regex the operand
+                # rule could not place, and either can end the call at the wrong
+                # `)` — `/\)/` leaves nothing unbalanced to notice. No boundary can
+                # be established, so refuse — UNPROVEN.
                 if "/" in masked[i:close]:
                     return None
                 return text[i:close].strip()

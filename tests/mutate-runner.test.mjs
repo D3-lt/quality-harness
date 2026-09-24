@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
-import { baselineOf, cacheKey, childEnv, classify, killedBy, leafTestsRun, renderLine, reusable, setKeyOf, shardByCost, summarise, testArgs, testSets } from '../scripts/mutate.mjs'
+import { addedLines, baselineOf, cacheKey, childEnv, classify, killedBy, leafTestsRun, renderLine, reusable, setKeyOf, shardByCost, staleEntries, summarise, testArgs, testSets, touchedBy } from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -602,4 +602,49 @@ test('an inherited FORCE_COLOR is dropped, so a real run still counts its tests'
   } finally {
     rmSync(probe, { recursive: true, force: true })
   }
+})
+
+// BACKLOG §280, the tooling half: a fix that moves a line a mutant names leaves the
+// entry matching nothing, and until now only the full suite said so. `--stale` says
+// which entries, and where their line most likely went.
+test('staleEntries names each entry that no longer matches once, with where its line went', () => {
+  const files = {
+    'a.mjs': 'const one = 1\nif (readiness.listed.has(file)) return true\n',
+    'b.mjs': 'x()\nx()\n',
+  }
+  const read = file => files[file] ?? null
+  const entries = [
+    { label: 'fine', file: 'a.mjs', from: 'const one = 1', tests: [] },
+    { label: 'moved', file: 'a.mjs', from: '    if (readiness.answeredDirs.has(file)) return true', tests: [] },
+    { label: 'twice', file: 'b.mjs', from: 'x()', tests: [] },
+    { label: 'gone', file: 'missing.mjs', from: 'y', tests: [] },
+  ]
+  const stale = staleEntries(entries, read)
+  assert.deepEqual(stale.map(entry => [entry.label, entry.count]), [['moved', 0], ['twice', 2], ['gone', null]])
+  assert.deepEqual(stale[0].hint, { line: 2, text: 'if (readiness.listed.has(file)) return true' })
+  // An entry with nothing like it left gets no hint rather than a wild guess.
+  assert.equal(staleEntries([{ label: 'z', file: 'a.mjs', from: 'zzz_unrelated_token_qq', tests: [] }], read)[0].hint, null)
+})
+
+test('touchedBy keeps an entry whose mutated line was added by the change, and only those', () => {
+  const diff = [
+    'diff --git a/plugin/x.mjs b/plugin/x.mjs', '--- a/plugin/x.mjs', '+++ b/plugin/x.mjs',
+    '@@ -3 +3,2 @@', '-  old()', '+  if (named) return', '+  keep()',
+  ].join('\n')
+  const added = addedLines(diff)
+  assert.deepEqual([...added.get('plugin/x.mjs')], ['if (named) return', 'keep()'])
+  const entries = [
+    { label: 'edited', file: 'plugin/x.mjs', from: '  if (named) return', tests: [] },
+    { label: 'same file, untouched', file: 'plugin/x.mjs', from: '  other()', tests: [] },
+    { label: 'other file', file: 'plugin/y.mjs', from: '  if (named) return', tests: [] },
+  ]
+  assert.deepEqual(touchedBy(entries, added).map(entry => entry.label), ['edited'])
+  assert.deepEqual(touchedBy(entries, new Map()), [])
+})
+
+test('mutate --stale over the real catalogue exits 0 and says every entry matches', () => {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  const run = spawnSync(process.execPath, [join(repoRoot, 'scripts', 'mutate.mjs'), '--stale'], { cwd: repoRoot, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+  assert.match(run.stdout, /every entry matches its source exactly once/)
 })

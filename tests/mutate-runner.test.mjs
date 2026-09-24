@@ -566,3 +566,18 @@ test('a checkout path with a space is still an unrun baseline when nothing match
     rmSync(spaced, { recursive: true, force: true })
   }
 })
+
+// BACKLOG §256: a shell that exports FORCE_COLOR made the spec reporter prefix
+// every leaf line with an escape code, so a baseline in which tests really ran
+// read as `unrun` and the whole campaign measured nothing.
+test('an inherited FORCE_COLOR is dropped, so a real run still counts its tests', () => {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  const env = childEnv({ ...process.env, FORCE_COLOR: '3' })
+  assert.ok(!('FORCE_COLOR' in env), 'the colour switch must not reach the child')
+  const one = spawnSync(process.execPath,
+    testArgs(repoRoot, { tests: ['tests/mutate-runner.test.mjs'], only: '^a stale entry is decided before any baseline' }),
+    { cwd: repoRoot, encoding: 'utf8', env, timeout: 120_000 })
+  assert.equal(one.status, 0, one.stderr)
+  assert.equal(leafTestsRun(one.stdout), 1, `a colour-forcing parent must not blind the count: ${one.stdout.slice(0, 300)}`)
+  assert.equal(baselineOf(one).state, 'pass')
+})

@@ -283,7 +283,11 @@ export function testArgs(root, entry) {
  * nobody could read — it worked because exit status alone used to decide.
  */
 export function childEnv(base = process.env) {
-  const { NODE_TEST_CONTEXT: _inherited, ...rest } = base
+  // FORCE_COLOR is dropped for the same reason as the two below it: it changes
+  // what a child prints. Under it the spec reporter prefixes every `✔`/`✖` line
+  // with an escape code, leafTestsRun finds none, and every baseline in a campaign
+  // run from such a shell is `unrun` — nothing measured (BACKLOG §256).
+  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, ...rest } = base
   const tokens = (rest.NODE_OPTIONS ?? '').split(/\s+/).filter(Boolean)
   const kept = tokens.filter((token, i, all) => !/^--test-reporter(?:-destination)?(?:=|$)/.test(token)
     && !(i > 0 && /^--test-reporter(?:-destination)?$/.test(all[i - 1])))

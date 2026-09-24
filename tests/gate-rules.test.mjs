@@ -2063,3 +2063,25 @@ test('a Swift pass is attributed to the bound test, not a same-named one elsewhe
   assert.equal(unplaced.status, 4, unplaced.stdout)
   assert.match(unplaced.stdout, /cannot attribute a Swift run/)
 })
+
+// Codex review, round 2: a nested suite or a qualified extension got an identity
+// built from one name, which could select an unrelated suite with that name; and
+// two same-named declarations in one file narrowed to the first, so a failing
+// second one never ran. The runner's identity for a nested type was not measured
+// here, so each of these is UNRUN rather than guessed.
+test('a Swift binding the gate cannot place uniquely is UNRUN', { skip: NO_POSIX_STUB }, () => {
+  const cases = [
+    ['nested', 'struct Outer { @Suite struct Inner { @Test func deepYes() { #expect(1 == 1) } } }\n', 'deepYes'],
+    ['qualified-extension', 'extension Outer.Inner { @Test func extYes() { #expect(1 == 1) } }\n', 'extYes'],
+    ['duplicate', 'final class A: XCTestCase { func testDup() { XCTAssertEqual(1, 1) } }\n'
+      + 'final class B: XCTestCase { func testDup() { XCTAssertEqual(1, 2) } }\n', 'testDup'],
+  ]
+  for (const [label, body, name] of cases) {
+    const files = { 'Package.swift': '// swift-tools-version:6.0\n', 'Tests/LibTests/LibTests.swift': 'import XCTest\nimport Testing\n' + body }
+    const bound = bindImplemented(`spec-swift-${label}`, `Tests/LibTests/LibTests.swift::${name}`, files)
+    const run = specVerifyImplemented(bound.dir, bound.spec, stubRunner(bound.dir, 'swift',
+      `printf '\\342\\234\\224 Test ${name}() passed after 0.001 seconds.\\n'`))
+    assert.equal(run.status, 4, `${label}: not attributable, so not a pass\n${run.stdout}`)
+    assert.match(run.stdout, /cannot attribute a Swift run/, label)
+  }
+})

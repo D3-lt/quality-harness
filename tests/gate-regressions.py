@@ -751,6 +751,7 @@ def main():
     test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint)
     test_a_refused_entry_names_the_field_that_failed(verify)
     test_a_fenced_example_is_not_a_title_and_the_number_comes_from_the_title(lint)
+    test_a_fence_is_read_with_the_corpus_rule(lint)
     test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
@@ -4844,6 +4845,29 @@ def test_a_fenced_example_is_not_a_title_and_the_number_comes_from_the_title(lin
         assert numbers == {"001-plain.md": 1, "010-T1-yaml.md": 10}, numbers
 
     print("PASS — a fenced example is not a title, and the number comes from the title")
+
+
+def test_a_fence_is_read_with_the_corpus_rule(lint):
+    """Codex round 2 — a closer with an info string closed the fence, and an invalid opener hid a title."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        corpus = root / "docs" / "adr"
+        corpus.mkdir(parents=True)
+        files = {
+            "001-plain.md": "# ADR-001: a plain record\n",
+            # "```python" inside a ```markdown fence is content, not a closer.
+            "009-T1-example.md": "```markdown\n```python\n# ADR-009 example\n```\n# Task ADR-009-T1 real\n",
+            "012-T1-tilde.md": "~~~md\n~~~py\n# ADR-012 example\n~~~\n# Task ADR-012-T1 real\n",
+            # A backtick "opener" whose info string holds a backtick is not a fence at all.
+            "011-T1-inline.md": "```inline ` code```\n# ADR-011: the real title\n",
+        }
+        for name, text in files.items():
+            (corpus / name).write_text(text, encoding="utf-8")
+        tracked = {f"docs/adr/{name}" for name in files}
+        numbers = {p.name: n for p, n in lint.record_files(root, corpus, tracked)}
+        assert numbers == {"001-plain.md": 1, "011-T1-inline.md": 11}, numbers
+
+    print("PASS — a fence is read with the corpus rule")
 
 
 

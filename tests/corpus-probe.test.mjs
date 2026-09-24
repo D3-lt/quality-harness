@@ -5,7 +5,11 @@
 // component is a root name, a directory one reader did not read.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { compareReaders, failedToRun, scrubber } from '../plugin/scripts/corpus-probe.mjs'
+import { compareReaders, failedToRun, probe, scrubber } from '../plugin/scripts/corpus-probe.mjs'
+import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { spawnSync } from 'node:child_process'
+import os from 'node:os'
+import path from 'node:path'
 
 test('scrubber: every absolute path is a placeholder, and a repository-relative one is untouched', () => {
   const scrub = scrubber({ root: '/Users/alice/proj', pluginRoot: '/Users/alice/.claude/plugins/qh', tmp: '/var/folders/xy/T', home: '/Users/alice' })
@@ -90,4 +94,23 @@ test('compareReaders: a task of a record that is not Accepted is not a disagreem
   // S is a plan; A and U are compared — U because "could not tell" is not "undecided".
   assert.deepEqual(compareReaders(adrNext, { ready: [], readinessUnproven: [] }).map(d => d.task),
     ['docs/adr/A/tasks/T2.md', 'docs/adr/U/tasks/T3.md'])
+})
+
+// Reported from a static-site repository's 2.107.0 run: the working tree was
+// byte-identical before and after, but the SessionStart call appended
+// `.git/quality-harness/sessions/corpus-probe-<pid>.jsonl`. The probe pointed its
+// plugin data and temp directories at scratch and said nothing was written beside
+// the corpus; the session log is resolved from the repository's git dir, which
+// neither variable controls. A read-only probe leaves nothing in the corpus.
+test('probe: a run leaves nothing in the probed repository, its git dir included', () => {
+  const repo = mkdtempSync(path.join(os.tmpdir(), 'qh-probe-readonly-'))
+  try {
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, encoding: 'utf8', timeout: 10_000 }).status, 0)
+    const report = probe(repo)
+    assert.deepEqual(report.couldNotRun, [], JSON.stringify(report.couldNotRun))
+    assert.ok(!existsSync(path.join(repo, '.git', 'quality-harness')),
+      'the probe must not write quality-harness state into the probed repository')
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
 })

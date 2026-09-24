@@ -15125,3 +15125,29 @@ Recorded so they do not have to be found again; none is scheduled.
 **Fixed:** a row whose digest matches the current fence now reports the lock's own first finding, "carries exit-0 evidence for this Acceptance, but its test lock withholds done — … ; `adr-lint` names the remedy". A row against a different fence keeps the old wording. Test `adr-next names a moved test lock, not a changed fence, when the digest still matches` runs the adr-next command line, the call the report came through, in both directions. One mutant.
 
 **Codex review, round 5 (high, 2026-09-24): the first row decided it.** The function still returned on the first exit-0 row it met. So with the first-red row, then an older row against a previous fence, then the current row, a task withheld by its lock was again told "the fence changed". It now reads the whole log first: a row for the current fence names the lock finding, and returns nothing when there is none, rather than a cause it did not observe. A row against another fence is named only when no current-fence row exists. The adr-next test covers that order; one mutant.
+
+## 279. OPEN — Corpus chaos over three new shapes, 2026-09-24: what the readers said wrong (reported by three peer sessions at 6ddf59b)
+
+The owner made outside corpus runs the main verification loop on 2026-09-24. Three peer sessions ran `corpus-probe.mjs --json` at 6ddf59b over shapes no run had covered: a static site with no corpus (macOS), a PHP/Laravel repository with three corpus roots (macOS), and a 72-record corpus on native Windows 11. All three exited 0, with no `couldNotRun` and no `disagreements`. Everything below came from reading the rest of the output. Each item was confirmed read-only against the probed repository where that was possible; "reported" marks the ones taken on the peer's word.
+
+**Changed after the run, not yet released:**
+1. **The probe wrote into the probed repository's `.git`.** Its SessionStart call appended `.git/quality-harness/sessions/corpus-probe-<pid>.jsonl`. The probe pointed plugin data and temp at scratch, and its comment said nothing was written beside the corpus. The session-log directory comes from the repository's git dir, which neither variable controls. `stateDir` now honours `QUALITY_HARNESS_STATE_DIR`, the probe sets it to scratch, and test `probe: a run leaves nothing in the probed repository, its git dir included` asserts it.
+
+**Blocking findings that may be false refusals, to fix first:**
+2. **A dependency cycle built from a symbol both sides mention.** The Laravel ADR-006 T3 consumes "backend accepts `is_heavy` … (T2)", and T5 consumes "`api-docs.json` documents `is_heavy` (T4)". adr-lint reports `dependency cycle: T3 → T5 … T5 → T3`, matching the backticked `is_heavy` across both Produces lines, while each Consumes line names its producer task explicitly.
+3. **Inline tasks are not read.** `docs/decisions/008_….md` keeps its tasks as `### T1` sections inside the record, with Depends-on, Produces and Consumes on each. adr-lint pairs the record with the shared `docs/decisions/tasks/`, finds no task files, and fails every Inter-task Contracts row. Either inline tasks become a supported shape, or the finding says the record's tasks were not read, not that the contract names a task that does not exist.
+
+**Reader output that reads wrong:**
+4. **Frozen records are linted.** The probe skips frozen records for adr-next but runs adr-lint on all of them, so two `docs/adr-archive/` records read FAIL beside the live corpus. That repository's convention is that the archive is outside lint.
+5. **Path separators differ by field on Windows (reported).** Every `adrState.governingNothing[].file` uses backslashes (57 of 57), while `records`, `adrLint`, `workNext` and `adrNext` use forward slashes. A consumer joining on the file field matches nothing (CLAUDE.md §7).
+6. **"ADR tasks in flight:" heads directories that are finished (reported).** SessionStart lists "all N task(s) carry exit-0 evidence" under that heading.
+7. **`governing: 72` beside 57 in `governingNothing` (reported).** Governing a decision and governing a code path share one word, and read as a contradiction.
+8. **A README marked done beside a task offered READY (reported).** On the Windows corpus's ADR-076, work-next offers T1 and T7 as ready while adr-lint says the README marks them done without evidence for the current fence. Both readers agree the evidence is missing, but nothing puts the two statements side by side, and `disagreements` compares adr-next with work-next only.
+9. **An adrLint entry carries no reason.** Entries hold only `{file, exit, verdict}`, so a runner who sees FAIL has to find and run adr-lint by hand. The Laravel runner could not locate the CLI and reported the FAIL without its cause.
+
+**Adopter environment:**
+10. **The repository does not clone on default Windows settings (reported).** `git clone` into a normal path fails with "Filename too long" on four task files under `docs/adr-archive/ADR-059-…` and `docs/adr/ADR-060-…`. It succeeds with `core.longpaths=true`. Whether a marketplace install clones the whole repository, and so hits this, is not established.
+
+**Noted, not defects:**
+11. A status line of the form "Accepted (… superseded in production by ADR-031/032 …)" counts as Accepted, and `danglingSupersession` is empty. That is how that corpus writes it.
+12. adr-lint's identity line prints its own plugin root unredacted. That is the gate identity (§143), and it is not probe output.

@@ -14508,7 +14508,7 @@ one overlapping figure. The read-but-capped line prints first and says what it c
 Open: `branch-state` does not yet say on every prompt whether an outside run exists since the tag;
 the release check is the enforcement, the prompt line would be the reminder.
 
-## 268. adr-lint read a red run's quoted output as log entries (2026-09-23, reported from a Rust corpus)
+## 268. CLOSED 2026-09-24 — adr-lint read a red run's quoted output as log entries (2026-09-23, reported from a Rust corpus)
 
 A fence that prints `  - <problem>` on failure, one red `adr-verify` run, and `adr-lint` refused the
 log `adr-verify` had just written: every captured output line — indented, inside the excerpt fence
@@ -14528,6 +14528,16 @@ recognised in its body" on two Rust tests that call `assert_eq!` — one holding
 extractor stops at a `}` inside the raw string or the struct literal before the asserts are reached.
 Both tests killed a mutant through `adr-verify --mutant`, so they can fail; the advisory is a false
 UNPROVEN. Reproduce on a Rust fixture with those two shapes before changing the extractor.
+
+**CLOSED 2026-09-24.** The open item had a different cause from the one guessed. Reproduced through
+adr-lint's own `test_body` and `code_only` with both reported shapes (a `r#"{…}"#` raw string and a
+`TokenTotals { … }` literal): the extractor reached the asserts both times. `FAIL_CALLS` did not match
+`assert_eq!` — `\b(assert|…)\b` has no boundary before the `_`, and `\bassert\w*\s*\(` stops at the `!` —
+so the first call in the body was named instead. An arm for a Rust assertion macro now matches
+`assert_eq!`, `assert_ne!`, `debug_`/`prop_` prefixes and the `[`/`{` delimiters; a binding or a
+function merely named like one does not. Test `test_a_rust_assertion_macro_is_a_failure_call` in
+`tests/gate-regressions.py`, catalogue mutant through `tests/gates.test.mjs`. §271's "may share this
+cause" is answered: it did not; §271 was the masker.
 
 ## 269. ADR-061's refusal keys on the command TEXT, and a session learns the way around it in one refusal (2026-09-23)
 

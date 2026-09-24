@@ -747,6 +747,7 @@ def main():
     test_a_fence_that_cannot_parse_is_reported_and_no_shell_is_said(lint)
     test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint)
     test_a_test_that_expects_an_exception_is_not_a_dead_test(lint)
+    test_a_rust_assertion_macro_is_a_failure_call(lint)
     test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
@@ -4757,6 +4758,18 @@ def test_a_test_that_expects_an_exception_is_not_a_dead_test(lint):
 
     print("PASS — a test that expects an exception is not a dead test")
 
+
+def test_a_rust_assertion_macro_is_a_failure_call(lint):
+    """BACKLOG 268 — `assert_eq!` matched no arm, so a real Rust test read as dead."""
+    for body in ('assert_eq!(parse("1"), 1);', 'assert_ne!(x, 0);',
+                 'debug_assert_eq!(a, b);', 'prop_assert_eq!(a, b);',
+                 'assert_eq![a, b];', 'assert_eq! (a, b);'):
+        assert lint.FAIL_CALLS.search(body), body
+    # The must-fail direction: a binding or a call NAMED like the macro is not one.
+    for body in ('let assert_eq = 1;', 'let v = compute_assert_eq(1);'):
+        assert not lint.FAIL_CALLS.search(body), body
+
+    print("PASS — a Rust assertion macro is a failure call")
 
 
 

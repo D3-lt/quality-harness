@@ -7872,6 +7872,16 @@
       "only": "adr-judge that could not read its named path"
     },
     {
+      "label": "lint: a Rust assertion macro is a failure call",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"|\\b(?:\\w+_)?assert\\w*!\\s*[(\\[{]\"\n",
+      "to": "    r\"|\\bzzzNeverMatchesThisToken\\b\"\n",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
       "label": "lock: missing lock names frozen first-red and adr-verify recovery",
       "file": "plugin/lib/record.py",
       "tests": [

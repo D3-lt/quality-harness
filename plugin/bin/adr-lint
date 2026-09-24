@@ -4609,7 +4609,7 @@ def code_only(text, python=False, swift=False, rust=False):
         # read as a declaration named `ghost`, and a label `'expect:` as a failure
         # call (Codex review, round 4). A char literal keeps its quotes, so a blanked
         # quote followed by an identifier is exactly a lifetime or a label.
-        for found in re.finditer(r"'([A-Za-z_]\w*)", text):
+        for found in re.finditer(r"'((?:r#)?[A-Za-z_]\w*)", text):  # `'r#x` is one raw token
             if masked[found.start()] == " ":
                 masked[found.start(1):found.end(1)] = " " * (found.end(1) - found.start(1))
         return "".join(masked)

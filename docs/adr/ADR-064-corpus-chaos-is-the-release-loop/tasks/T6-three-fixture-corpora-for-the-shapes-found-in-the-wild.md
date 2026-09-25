@@ -16,7 +16,7 @@ Three fixture corpora. Each is a small repository with a reviewed `expected.json
 
 - `rust-crate`:
   - a Rust test file with lifetimes, labels, raw lifetimes, char literals and raw strings ahead of its tests, so adrLint PASSes (§276 and the review-round shapes);
-  - a Tests row resolved by basename, with an untracked same-named decoy under a gitignored `target/` (its own `.gitignore`), so resolution comes from git, not the disk (§281 item 4's CLAUDE.md §8 half).
+  - a Tests row resolved by basename, with an untracked same-named decoy in `scratch/`, which the fixture's own `.gitignore` ignores, so resolution comes from git, not the disk (§281 item 4's CLAUDE.md §8 half). Not `target/`: both the old disk walk and the git listing exclude it, so a decoy there pins nothing.
 - `php-multi-root`:
   - `docs/adr` and `docs/decisions`;
   - an unmarked `docs/adr-archive`, read as live and named: `workNext.unmarkedArchives` plus a SessionStart line (§281 item 3);
@@ -61,9 +61,7 @@ node --test --test-reporter=tap tests/corpus-matrix.test.mjs 2>&1 | tee /dev/std
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `corpus rust-crate: every reader answers as reviewed, through a symlink` | `tests/corpus-matrix.test.mjs` | the Rust shapes lint PASS, and the basename row resolves to the tracked file, not the decoy | none | S1, S2 |
-| `corpus php-multi-root: every reader answers as reviewed, through a symlink` | `tests/corpus-matrix.test.mjs` | no dependency cycle; the unmarked archive named in `workNext.unmarkedArchives` and SessionStart; the pnpm record PASSes; the quoted sign-off is not unbacked; the README claim is | none | S1, S2 |
-| `corpus js-vitest-spa: every reader answers as reviewed, through a symlink` | `tests/corpus-matrix.test.mjs` | the inferred-check sentence in SessionStart; the stale row's FAIL reason matches its `file:line`; the READY-and-claimed-done task in `workNext.readyButClaimedDone` | none | S1, S2 |
+| `the matrix discovers the three ADR-064 corpora` | `tests/corpus-matrix.test.mjs` | the three corpora are selected by directory discovery; the fence also requires `corpus <name>: every reader answers as reviewed, through a symlink` to pass for each — Rust shapes lint PASS and the basename row resolves from git; the PHP corpus's cycle-free Consumes, unmarked archive, pnpm filter, quoted sign-off and README claim; the SPA's inferred-check sentence, the stale row's `file:line` and the READY-and-claimed-done task. Those per-corpus tests are named by a template, which no test lock can extract, so this row names the literal test | none | S1, S2 |
 
 ## Reachability
 
@@ -75,6 +73,9 @@ node --test --test-reporter=tap tests/corpus-matrix.test.mjs 2>&1 | tee /dev/std
 | 4 — it is used | every CI platform runs them |
 
 ## Mutation Log
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/bin/adr-lint` · reverts §281 item 4: the basename row resolves against the disk, and the untracked decoy makes it ambiguous · acceptance-sha256:b747f8e28882f2fecb9572e5c6f2a5397ede3a46e2e27354cecd7f97f80671bd · covers:each pins the finding it came from
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · reverts §281 item 3: the unmarked archive is no longer named · acceptance-sha256:b747f8e28882f2fecb9572e5c6f2a5397ede3a46e2e27354cecd7f97f80671bd · covers:each corpus answers as reviewed
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/bin/adr-lint` · reverts §280 item 2: the stale row's FAIL no longer names its line · acceptance-sha256:b747f8e28882f2fecb9572e5c6f2a5397ede3a46e2e27354cecd7f97f80671bd · covers:an unexpected reason fails the matrix
 
 ## Invariants
 
@@ -98,3 +99,21 @@ Stop and ask if a pinned fix is not on `main` when this task starts, or if a sha
 - A Windows-only corpus (permanent: boundary: the matrix already runs every corpus on windows-latest)
 
 ## Verification Log
+- 2026-09-25 · 286cbb1 · exit 1 · `set -o pipefail …` · acceptance-sha256:b747f8e28882f2fecb9572e5c6f2a5397ede3a46e2e27354cecd7f97f80671bd · ms:3594 · test-lock-sha256:cb7bfdd5eb7f3564148f8eb4758123733791158104979657c71e2efe2077b91d · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngp1bnByb3Zlbgl0ZXN0cy9jb3JwdXMtbWF0cml4LnRlc3QubWpzCWNvcnB1cyBqcy12aXRlc3Qtc3BhOiBldmVyeSByZWFkZXIgYW5zd2VycyBhcyByZXZpZXdlZCwgdGhyb3VnaCBhIHN5bWxpbmsKdW5wcm92ZW4JdGVzdHMvY29ycHVzLW1hdHJpeC50ZXN0Lm1qcwljb3JwdXMgcGhwLW11bHRpLXJvb3Q6IGV2ZXJ5IHJlYWRlciBhbnN3ZXJzIGFzIHJldmlld2VkLCB0aHJvdWdoIGEgc3ltbGluawp1bnByb3Zlbgl0ZXN0cy9jb3JwdXMtbWF0cml4LnRlc3QubWpzCWNvcnB1cyBydXN0LWNyYXRlOiBldmVyeSByZWFkZXIgYW5zd2VycyBhcyByZXZpZXdlZCwgdGhyb3VnaCBhIHN5bWxpbms
+  ```
+  --- last 10 line(s) of stderr (of 40 after folding 40 raw)
+    ...
+  1..5
+  # tests 5
+  # suites 0
+  # pass 5
+  # fail 0
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 3536.01175
+  ```
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:b747f8e28882f2fecb9572e5c6f2a5397ede3a46e2e27354cecd7f97f80671bd · ms:6731
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:b747f8e28882f2fecb9572e5c6f2a5397ede3a46e2e27354cecd7f97f80671bd · ms:6815
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:b747f8e28882f2fecb9572e5c6f2a5397ede3a46e2e27354cecd7f97f80671bd · ms:6765
+- 2026-09-25 · 286cbb1* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:b747f8e28882f2fecb9572e5c6f2a5397ede3a46e2e27354cecd7f97f80671bd · ms:0 · test-lock-sha256:981c058dd0c78204042b3367aefc0a78aa5933fdc5437b7a0d44ec2f6d32a9ef · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2NvcnB1cy1tYXRyaXgudGVzdC5tanMJdGhlIG1hdHJpeCBkaXNjb3ZlcnMgdGhlIHRocmVlIEFEUi0wNjQgY29ycG9yYQk1ZDFkMjY0NzgzOGFkMTFjYTk0MDkyZTM3MDkxODYzN2JmNTQ4ZjQ5OWQwNmI4ZGM1NzJlODUyNzE1NzFkYzZm · test-lock-kind:replace

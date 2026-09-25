@@ -10,6 +10,42 @@
   ],
   "mutations": [
     {
+      "label": "next: a follow-up label passes only on an affirmation BEFORE it (Codex review of f905d8a)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    return not AFFIRMATIVE.search(text[:hits[0].start()])",
+      "to": "    return not AFFIRMATIVE.search(NEGATED_AFFIRMATIVE.sub(\" \", text))"
+    },
+    {
+      "label": "work-next: a spec Status that only starts like a known value is not one (Codex review of f905d8a)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)(?![\\w-])/i",
+      "to": "const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)/i"
+    },
+    {
+      "label": "work-next: a fence closes only on the same character at least as long (Codex review of f905d8a)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null",
+      "to": "      if (close) fence = null"
+    },
+    {
+      "label": "arch-lint: tracked_paths reads git's listing as bytes, so a CR in a name survives (Codex review of f905d8a)",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return {(root / os.fsdecode(name)).resolve() for name in r.stdout.split(b\"\\0\") if name}",
+      "to": "    return {(root / os.fsdecode(name).replace(\"\\r\", \"\\n\")).resolve() for name in r.stdout.split(b\"\\0\") if name}"
+    },
+    {
       "label": "work-next: a spec holding binary bytes has no readable Status (2.110.0-rc chaos L1)",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [
@@ -33,8 +69,8 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "    .replace(/^(```|~~~)[^\\n]*\\n[\\s\\S]*?^\\1[ \\t]*$/gm, '')\n",
-      "to": ""
+      "from": "    if (open && !(open[1][0] === '`' && open[2].includes('`'))) {",
+      "to": "    if (false) {"
     },
     {
       "label": "work-next: a task git lists but the disk does not hold is unproven (2.110.0-rc chaos L4)",
@@ -78,7 +114,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    return not AFFIRMATIVE.search(rest)",
+      "from": "    return not AFFIRMATIVE.search(text[:hits[0].start()])",
       "to": "    return True"
     },
     {

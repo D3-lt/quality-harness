@@ -440,6 +440,7 @@ test('corpus-probe --diff names a reader absent on one side once', () => {
 test('an attestation falls back to corpus-report counts when work-next did not answer', () => {
   const unread = attestable()
   unread.workNext = null
-  unread.corpusReport = [{ root: 'docs/adr', totals: { tasks: 3 }, records: [{}, {}] }, { root: 'x', totals: null, records: null }]
+  // The real reader's shape: `records` is a count (corpus-report.mjs recordCount).
+  unread.corpusReport = [{ root: 'docs/adr', totals: { tasks: 3 }, records: 2 }, { root: 'x', totals: null, records: null }]
   assert.deepEqual(attestOf(unread).corpus, { records: 2, tasks: 3, taskDirectories: 2, countsFrom: 'corpusReport' })
 })

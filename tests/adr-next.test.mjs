@@ -581,7 +581,7 @@ test('a negator directly before an affirmative is a stop, and a bare "not" elsew
     return /^done\s+T1/m.test(next([tasksDir, '--all'], root).stdout)
   }
   for (const note of ['not approved', 'never shipped', 'it is not done', "didn't pass",
-    'not yet signed off', 'no longer ok']) {
+    'not yet signed off', 'no longer ok', 'has not yet been approved']) {
     assert.equal(done(note), false, `a negated sign-off was counted as done: ${note}`)
   }
   for (const note of ['confirmed it does not crash',

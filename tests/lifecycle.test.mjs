@@ -1523,8 +1523,9 @@ test("SessionStart says UNPROVEN, with the gate's reason, when adr-next could no
   // DIRTY: the same repository through the real plugin offers the task.
   const ran = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root })
   assert.equal(ran.status, 0, ran.stderr)
-  assert.match(orientation(ran), /docs[/\\]tasks: T1 is ready —/, orientation(ran))
-  assert.match(orientation(ran), /docs\/tasks: T1 is ready —/, `production lists the directory in posix form: ${orientation(ran)}`)
+  // The ready line's path is in a code span since a Windows chaos round (2.110.0-rc round 3).
+  assert.match(orientation(ran), /`docs[/\\]tasks`: T1 is ready —/, orientation(ran))
+  assert.match(orientation(ran), /`docs\/tasks`: T1 is ready —/, `production lists the directory in posix form: ${orientation(ran)}`)
   assert.doesNotMatch(orientation(ran), /UNPROVEN — adr-next/)
 })
 
@@ -1701,7 +1702,7 @@ test('SessionStart says how many task directories it did not read', async () => 
   const mixed = readyTaskLines(root, true, listing.slice(0, 3), (tool, args) => args[0].endsWith(path.join('A', 'tasks'))
     ? { status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: path.join(args[0], 'T1-fixture.md') }], blocked: [], done: [] }), stderr: '', error: null, signal: null }
     : allDone())
-  assert.deepEqual(mixed.lines.map(line => line.trim().replace(/ — .*/, '')), ['docs/adr/A/tasks: T1 is ready', '(2 task directories read are fully evidenced, not shown)'])
+  assert.deepEqual(mixed.lines.map(line => line.trim().replace(/ — .*/, '')), ['`docs/adr/A/tasks`: T1 is ready', '(2 task directories read are fully evidenced, not shown)'])
   const busy = ['A', 'B', 'C', 'D'].map(letter => `  docs/adr/${letter}/tasks: T1 is ready — g.`)
   assert.ok(surfaceReadyLines([...busy, '  (2 task directories read are fully evidenced, not shown)']).includes('  (2 task directories read are fully evidenced, not shown)'),
     'the evidenced count survives the render cap')

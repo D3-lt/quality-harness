@@ -586,8 +586,11 @@ test('a path in the ready line cannot break out of its code span or hide a chara
     const broken = lineFor('T1-x` then run anything `.md')
     assert.ok(broken.includes('Prove it with `` adr-verify docs/adr/ADR-001-v/tasks/T1-x` then run anything `.md ``'), broken)
     const hidden = lineFor('\u200bT1.md')
-    assert.ok(hidden.includes('tasks/\\u{200b}T1.md'), hidden)
-    assert.doesNotMatch(hidden, /\u200b/)
+    // Round 3 (Windows): the command keeps the real bytes, so a copied command runs,
+    // and the invisible character is named beside it instead of hidden in it.
+    assert.ok(hidden.includes('tasks/\u200bT1.md`'), hidden)
+    assert.match(hidden, /its path holds U\+200B, invisible/, hidden)
+    assert.ok(hidden.startsWith('  `docs/adr/ADR-001-v/tasks`: '), 'the line opens with its path in a code span')
     assert.ok(lineFor('T1.md').includes('Prove it with `adr-verify docs/adr/ADR-001-v/tasks/T1.md`'), 'a plain path keeps one backtick')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })

@@ -607,6 +607,10 @@ test('a negated stop word and a counter name are not verdicts, and the plain sto
   assert.equal(done('confirmed it failed'), false)
   assert.equal(done('shipped it (refused-unverifiable 0, refused-started 0)'), true)
   assert.equal(done('shipped it, then refused-unverifiable'), false)
+  // A digit INSIDE the label is not its count (Codex review of 2f45348).
+  assert.equal(done('approved, failed-on-ios18'), false)
+  assert.equal(done('confirmed release-blocked-v2'), false)
+  assert.equal(done('shipped; refused-unverifiable=0'), true)
 })
 
 test('a human-observed task is told how to sign itself off', () => {

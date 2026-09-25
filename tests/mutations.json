@@ -4188,8 +4188,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    r\"(?<![a-z])\" + NEGATOR + r\"(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"\n    r\"|",
-      "to": "    r\"(?!x)x\"\n    r\"|"
+      "from": "    r\"(?<![a-z])\" + NEGATOR + r\"(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"\n",
+      "to": "    r\"(?!x)x\"\n"
     },
     {
       "label": "next: a hyphen-joined counter with its count is a metric, not a verdict",
@@ -4197,7 +4197,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\", re.I)",
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\", re.I)",
       "to": "    r\"|(?!x)x\", re.I)"
     },
     {
@@ -4217,6 +4217,15 @@
       ],
       "from": "        if any(a < opening.start() < b - 1 for a, b in spans):\n            continue",
       "to": "        pass"
+    },
+    {
+      "label": "next: a digit inside a hyphen-joined label is not its count",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\", re.I)",
+      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\", re.I)"
     },
     {
       "label": "flag-sweep: an unchanged flag surface reports nothing",

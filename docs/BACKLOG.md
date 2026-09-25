@@ -15294,6 +15294,8 @@ The leads, all wording or performance:
 2. **`readyButClaimedDone` is a subset of `ready`, and nothing says so** (PHP/React): one task sits in three lists and reads as a contradiction.
 3. **A top-level `look: PARTIAL` does not say which record made it partial** (Laravel).
 4. **work-next did not finish in the probe's 120 s budget on a 68-directory corpus**, because adr-next took 51, 26 and 26 s on the three largest Verification/Mutation logs (Go). adr-lint also takes about 2 s on four archived PHP/React records whose neighbours take 130 ms. Measure where the time goes before changing any budget.
+**Codex review of 2f45348 (one round):** one blocking finding, confirmed and fixed. The counter pattern's separator was optional, so backtracking read the digits inside `failed-on-ios18` or `release-blocked-v2` as the count and erased a real stop. The pattern now needs the whole label, a separator and a whole number. Twin tests were added, plus a mutant restoring the old pattern (RED). The real sign-offs classify as before.
+
 5. **`--attest` reports null `records`/`tasks` when work-next did not answer**, although `corpusReport` in the same report holds both (Go). Null-not-0 is right, but falling back is better.
 6. **`--diff` lists one missing reader as five "after lacks workNext.…" lines** before it names the reader in `couldNotRun` (Go).
 7. **A design lead:** a later record edited a test that two older records lock, and both went red on code of their own that did not change (Go). The relock remedy is named; nothing at the later record's merge warned that it would happen.

@@ -35,4 +35,7 @@ reachable from the sha being released — a run at the tag itself ran the OLD re
 is for the person reading the record. One file per run, named `<date>-<platform>-<corpus label>.json`;
 the label is yours, not the corpus's real name if that would identify it.
 
+A finding a run confirms changes the reader and lands in a fixture corpus; the rule, and the sweep
+that checks it, are in `/quality-harness:corpus-chaos`.
+
 How to get one: `/quality-harness:corpus-chaos`.

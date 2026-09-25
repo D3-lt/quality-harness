@@ -38,6 +38,7 @@ node scripts/flag-claim-sweep.mjs     # advisory sweeps: a place to look, never 
 node scripts/backlog-claim-sweep.mjs
 node scripts/orphan-sweep.mjs
 node scripts/backlog-record-sweep.mjs
+node scripts/chaos-fixture-sweep.mjs
 node --expose-internals scripts/untimed-spawns.mjs   # every JS child carries a timeout; UNKNOWN is a place to look
 ```
 

@@ -10,6 +10,87 @@
   ],
   "mutations": [
     {
+      "label": "work-next: a spec holding binary bytes has no readable Status (2.110.0-rc chaos L1)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (!text || text.includes('\\0')) return null",
+      "to": "  if (!text) return null"
+    },
+    {
+      "label": "work-next: a spec Status must be one of the template's values (2.110.0-rc chaos)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  return SPEC_STATUS.test(values[0]) ? values[0] : null",
+      "to": "  return values[0]"
+    },
+    {
+      "label": "work-next: a Status inside a code fence is not the spec's Status (2.110.0-rc chaos)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    .replace(/^(```|~~~)[^\\n]*\\n[\\s\\S]*?^\\1[ \\t]*$/gm, '')\n",
+      "to": ""
+    },
+    {
+      "label": "work-next: a task git lists but the disk does not hold is unproven (2.110.0-rc chaos L4)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    try { statSync(file); return false } catch { return true }",
+      "to": "    return false"
+    },
+    {
+      "label": "lifecycle: trackedPaths lists names git would quote (2.110.0-rc chaos)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  for (const args of [['ls-files', '-z'], ['ls-files', '--others', '--exclude-standard', '-z']]) {",
+      "to": "  for (const args of [['ls-files'], ['ls-files', '--others', '--exclude-standard']]) {"
+    },
+    {
+      "label": "lifecycle: SessionStart quotes a task's title and fence, defanged (2.110.0-rc chaos L7)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    .replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]/g, ' ')\n",
+      "to": ""
+    },
+    {
+      "label": "next: human output shows a task heading defanged (2.110.0-rc chaos L7)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    clean = \" \".join(_UNSAFE.sub(\" \", str(value or \"\")).split())",
+      "to": "    clean = str(value or \"\")"
+    },
+    {
+      "label": "next: a NOT-done label after an affirmation is a follow-up list, not a stop (2.110.0-rc chaos)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    return not AFFIRMATIVE.search(rest)",
+      "to": "    return True"
+    },
+    {
+      "label": "work-next: a record it cannot classify is not no-corpus (§293)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (!state.records && !state.specs && !state.tasks && !state.undecided) return STAGES.find(s => s.id === 'core')",
+      "to": "  if (!state.records && !state.specs && !state.tasks) return STAGES.find(s => s.id === 'core')"
+    },
+    {
       "label": "probe: the work-next summary carries the unproven-spec list (inbox, quality-blueprints)",
       "file": "plugin/scripts/corpus-probe.mjs",
       "tests": [
@@ -4305,7 +4386,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if NEGATED_AFFIRMATIVE.search(outside):\n        return \"stop\"",
+      "from": "    if negated_verdict(outside):\n        return \"stop\"",
       "to": "    if False:\n        return \"stop\""
     },
     {
@@ -7009,8 +7090,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\"],",
-      "to": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\", \"--others\", \"--exclude-standard\"],",
+      "from": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\", \"-z\"],",
+      "to": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\", \"--others\", \"--exclude-standard\", \"-z\"],",
       "only": "^adr\\-lint's tracked_or_unignored_paths includes an untracked file; arch\\-lint's tracked_paths excludes it$"
     },
     {

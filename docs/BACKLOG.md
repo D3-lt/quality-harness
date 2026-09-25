@@ -15372,3 +15372,99 @@ Read here, not reproduced:
 A name rule for `golden`, or a `.quality-harness.json` key naming fixture roots, is a design choice (a new config surface) and is not made here.
 
 The report's second point is fixed in this batch. corpus-probe's work-next summary now carries `specs` and `unprovenSpecs`, which the text's "N spec file(s) have an UNPROVEN Status" line had and the JSON summary dropped. `expected.json` of `js-vitest-spa` pins the fields, plus a mutant (RED).
+
+## 292. OPEN — A symlinked tasks directory makes adr-next offer another record's tasks under the requesting record's name (2026-09-25, 2.110.0-rc chaos round, macOS Laravel corpus, seed 1790359703, code A9)
+
+Reported from outside, as the first finding of the Chaos section. The record's own `tasks/` directory was replaced by a symlink to another record's (`ln -s ../ADR-006/tasks docs/adr/ADR-018/tasks`), and then `adr-next docs/adr/ADR-018/tasks --json` ran. The answer carried `"tasks_dir": "docs/adr/ADR-018/tasks"` and `"status": "Accepted"`, and its `ready` list held ADR-006's six tasks, with paths spelled under ADR-018. Only each goal string ("Task ADR-006-T1: …") showed the mismatch. A session acting on `ready` would work the wrong record's task under the right record's name.
+
+Not confirmed here yet. Triage: an instruction that is wrong to follow, from an unusual shape, is next batch. It is not a gate verdict passing. The fix to weigh: adr-next checks that each task's own `# Task ADR-<n>-T<k>` id belongs to the record whose directory it was asked about, and names a mismatch the way it names an unrecognised status.
+
+Also reported, and not a tool leak: when `adr-next` is run by hand, it prints a task's Acceptance command verbatim, including an absolute path that is the corpus's own content. The probe's scrubber covers the probe's output only.
+
+## 293. OPEN — A record whose Status line uses a fullwidth colon is lost by the probe, and work-next routes as if no corpus existed (2026-09-25, 2.110.0-rc chaos round, macOS Laravel corpus, shrunk from abomination X1)
+
+
+**Half fixed in the 2.110.0 re-cut (§294):** work-next no longer routes "No QH corpus is in use" while it counts a record it cannot classify. It says a corpus is in use and none of its records carries a status it acts on. A playtrix run argued that half was fail-open-shaped. The probe's silence is the half still open.
+Reproduced here on a one-record corpus. The only record's Status line reads `**Status：** Accepted`, with U+FF1A.
+- `corpus-probe --json`: `records: []`, `adrLint: []`, `adrState.read: 0`. The record appears nowhere.
+- `work-next`: "0 record(s)… 1 further record(s) carry a status this reader does not act on", then "No QH corpus is in use" and "Next: verify or execute the current work".
+- `adr-state`: "could-not-look: a listed record could not be read (PARTIAL)".
+- `adr-lint` on the file directly finds and lints it.
+
+With a plain colon, the same file is 1 record, 1 accepted. So the readers disagree about the same file: the probe says nothing; work-next counts it and still says no corpus; adr-state says PARTIAL.
+
+Triage: a silent skip in the probe, plus a routing sentence that contradicts the count printed above it. Wording and reporting, so next batch. It is not a gate passing over the record: adr-lint still lints it when handed the file. The fix to weigh has two parts:
+- The probe reports work-next's `undecidedRecords`, and lints every record-shaped file, not only the classified ones.
+- work-next does not say "No QH corpus is in use" while it counts a record it could not classify.
+Whether a fullwidth colon should be READ as a colon is a separate question, for §16: measure before deciding.
+
+**Two notes on the Chaos section itself from the same run**, for its next revision:
+- The runner's permission classifier refused a Bash `printf` that built B10's literal backticks and `${}`, reading them as injection-shaped. The runner then built the content with its file tool, and described the characters rather than writing them. The catalogue should say to write such bytes with the file-writing tool, or with `node -e` reading a separate file, rather than a shell literal.
+- V1 did not reach output, because neither reader prints a task's `## Goal` body. Whether adr-lint's advice lines, which quote task content, carry such text was not checked. Worth a V round of its own.
+
+## 294. CLOSED 2026-09-25 — The 2.110.0-rc chaos round: what re-cut the release (reported from outside runs at 026658a)
+
+The first round to use the Chaos section. Five sessions ran it:
+- pirkiniukampelis: macOS, Laravel;
+- quality-blueprints: macOS, TS generator;
+- desktop-3laqmbq-declarative-pie: Windows, TS monorepo;
+- playtrix: macOS, PHP/React;
+- desktop-3laqmbq-idempotent-hammock: Windows, over this repository itself, so a weaker §18 run.
+
+Four more were refused by their own permission classifiers until their users approved. The owner chose to hold 2.110.0 until these were fixed, and to re-run the round at the new RC.
+
+**Fixed in the re-cut:**
+- **A false refusal §287 introduced** (playtrix, bisected to 2f45348). A real approval ending "NOT done: no real rollback …, tracked as an ADR-086 follow-up" read as a stop, so a done task went back to unbacked. A colon-labelled negation now counts as a follow-up list only when the note affirms something outside it. "not approved: waiting on QA" and "verified, but not approved" still stop. Test in `tests/adr-next.test.mjs`; mutant RED.
+- **The shared git listing dropped names git C-quotes** (quality-blueprints). `lifecycle.mjs trackedPaths` and `arch-lint tracked_paths` ran `ls-files` without `-z`, so a file name holding a control character or `"` came back quoted and every reader dropped it, naming it nowhere. `.trim()` would also have eaten edge spaces. adr-lint's `tracked_paths` already had `-z`: prior art that was not copied (§5). A backslash in a POSIX name stays a separator by design, because CLAUDE.md §7 normalises both separators. Test; mutant RED.
+- **A spec's Status was read from anywhere, and any value counted** (quality-blueprints, declarative-pie L1). This covered:
+  - binary bytes;
+  - a code fence, an HTML comment or an inline code span;
+  - `**Status:**` then a newline, which took the next line;
+  - two different values;
+  - `banana`.
+  Each is UNPROVEN now. Only the template's four values are known, and a spec must carry a single one. Measured first: over 132 real specs in the local corpora, no answer moved. Without the inline-code stripping, one real spec of this repository's own flipped, because it quotes the header in prose. Test; three mutants RED.
+- **A task git lists but the disk does not hold** (declarative-pie L4, a sparse checkout) was counted as a task and asked about nowhere. Its directory is in `readinessUnproven` now. Test with the twin; mutant RED.
+- **A task's title and Acceptance fence reached a session's context unmarked** (declarative-pie L7, playtrix C8, idempotent-hammock F4). It sat beside this tool's own "Prove it with adr-verify", which RUNS that fence. The text included an injected instruction, a fake `</system-reminder>`, ANSI clear-screen and a bidi override. Now:
+  - SessionStart quotes both as "the task file calls it «…»" and "its Acceptance fence reads «…»", and says adr-verify runs that fence as written.
+  - adr-next's human output quotes the `Next:` goal and a stop reason.
+  - Every line is stripped of controls, ANSI and bidi characters, with its angle brackets neutralised, collapsed to one line and bounded.
+  Tests; two mutants RED.
+- **§293's routing half**: work-next no longer says "No QH corpus is in use" while it counts a record it cannot classify.
+
+**Also found, by CI:** the Windows job at 026658a failed on this batch's own §288 test, which expected `/` where work-next's text prints native separators. The test now compares in posix form.
+
+## 295. OPEN — The 2.110.0-rc chaos round: leads for the next batch (reported from outside runs at 026658a)
+
+None of these is fixed in 2.110.0. Each needs its fix weighed, or its own record. The runner and replay are in that session's report.
+
+Hangs and crashes:
+1. A FIFO in a tasks directory hangs work-next, adr-next, adr-lint and the probe, which writes no report (playtrix C1). A FIFO record hangs adr-lint, and work-next and adr-state skip it silently (C2).
+2. The probe crashes with a stack trace, after running every reader, when `TMPDIR` names a missing directory (playtrix C4).
+3. The lifecycle hook crashes on a `null` payload and on `cwd: 42`, and says nothing on `[1,2]` (playtrix C5).
+4. One unreadable task file crashes adr-lint for EVERY record through `check_cross_record_cycles`. The probe then shows 57 `exit 1` verdicts with no reason (idempotent-hammock F3). ADR-049's could-not-run rule was never applied to that neighbour read.
+
+Inputs skipped silently:
+5. A 0-byte record is skipped silently by every sweeping reader (playtrix C3).
+6. A task renamed with a leading zero-width space is reported ready under a name that prints identically to the real one. BOM and RLM record names are printed raw (playtrix C6).
+
+Verdicts over forged or contested evidence:
+7. A Verification Log holding unresolved merge-conflict markers PASSes, and the task stays done (idempotent-hammock F6). A **fail-open**, found after the owner's hold was scoped to L1, L4 and L7.
+8. Hand-forged log rows are accepted without a word: a duplicate, a 41-char sha, a sha of no commit, rows out of order (idempotent-hammock F3/D2).
+9. A forged `check.passed` event with no `at`, command or record id, appended to the session log, lets an unchecked-tree commit through (quality-blueprints lead 4). Anything able to append the log can also forge a well-formed pass, so the fix is to tie a pass to the `checks.jsonl` record it claims. That is a design question for its own record, not a field check.
+
+Reporting gaps:
+10. `--attest` carries no `look` and gives the wrong `atReason` when git is not on PATH (declarative-pie L5). `--diff` and `--attest` are blind to `specs`, `unprovenSpecs`, `partialBecause` and `uncoveredReadySpecs` (quality-blueprints R1, declarative-pie L3, playtrix R2).
+11. Duplicate record ids are flagged by no reader (declarative-pie C1, idempotent-hammock C1). Homoglyph and fullwidth-digit file names keep the heading's id, and work-next and the probe read different file sets without a disagreement (idempotent-hammock A4).
+12. work-next's text calls a record with an unreadable (NUL) Status a "discovery failure" beside "1 further record(s)" (declarative-pie L2).
+
+Wording:
+13. The damaged-ledger wording names the session log when the damaged file is `checks.jsonl` (quality-blueprints finding 3). The downgrade to a warning is by design (ADR-005).
+14. The `--adopt` remedy reads as one command when it is a migration of hundreds of obligations, and it echoes relative paths as absolute (playtrix own).
+
+Readers judging the wrong tree:
+15. A worktree commit is judged on the main tree (quality-blueprints lead 5). The publish hook also refuses a Bash call that only MENTIONS a commit or a push: a commit inside a scratch repository, or a heredoc test body naming a force push. Both were seen while fixing this entry.
+16. One NTFS junction loop blinds every reader over the whole corpus, honestly but completely (idempotent-hammock own).
+
+To the corpus-chaos skill:
+17. On Windows the skill's clone line needs `-c core.longpaths=true` (idempotent-hammock).
+18. The catalogue should say to build bytes with the file tool or `node -e` rather than a shell literal: a classifier refused backticks and `${}` (pirkiniukampelis).

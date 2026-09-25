@@ -10,6 +10,15 @@
   ],
   "mutations": [
     {
+      "label": "work-next: a PARTIAL look still names the directories it withheld (§288)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  readiness UNPROVEN: ${relative(dir)}\\n`)",
+      "to": ""
+    },
+    {
       "label": "dispatch: a Tasks/README.md is a tasks index in any case (§285)",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": [

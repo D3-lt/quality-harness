@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-25",
+  "at": "7b0b71c2835f54535f1903023c64411df743437d",
+  "plugin": "2.109.0",
+  "kind": "probe",
+  "probeSha256": "1bf3409aee95356f7d71733b5c739ddce11e28b700eba9f9e785fbfc1566f0a4",
+  "readers": "732db9ab0202fb404cfbc1a6686d240c1871052518ba42cd1c8ba214ba576824",
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 90, "tasks": 267, "taskDirectories": 38 },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "macos-php-react",
+  "found": "--diff against its 2.108.0 report: disagreements 29 → 0, because work-next now reads the unmarked docs/adr-archive as live, as SessionStart and adr-next already did (the marker-only rule; the remedy is adr-retire-check --adopt). The §281.1 pnpm false FAIL is now PASS, §281.2's sign-off is no longer unbacked, and Tests-row FAILs name file:line. Wording leads for the next batch: the unmarked-archive warning prints beside 'T1 is ready' for the same directory; readyButClaimedDone is a subset of ready, and nothing says so; four archived records take about 2 s each in adr-lint."
+}

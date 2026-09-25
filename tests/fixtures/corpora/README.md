@@ -15,8 +15,11 @@ readers (`listedUnderUninterestingDirectory`, BACKLOG §263).
 | `dated-archive` | dated stems, a frozen `adr-archive/` with a real catalog, an active `archive-policy.md`, an `archive-service/` directory | §263 (archived records offered for retirement; the archive-prefix controls), ADR-063 ids |
 | `ansible-nested-fixtures` | `roles/*/tasks/main.yml`, a nested `tests/fixtures/adr/` beside the real corpus | §263 (fixtures read as records), the Ansible `tasks` case (2026-09-19) |
 | `madr` | MADR/Nygard records with `NNN-slug` names and `## Status` sections | ADR-038's `not-recognised` verdict, stated rather than a failure |
+| `rust-crate` | a Rust test file whose tests sit after a lifetime, a raw lifetime, a loop label, quote char literals and a raw string; Tests rows giving the bare basename `lib_tests.rs`, beside an ignored same-named `scratch/lib_tests.rs` (force-added here, untracked in the staged copy) | §276 (a lifetime's quote read as a string, hiding the tests after it), §281 item 4 (a basename resolved from the disk, not from git) |
+| `php-multi-root` | `docs/adr`, `docs/decisions`, and a `docs/adr-archive` with no Lifecycle marker; Consumes lines naming their producers over a shared backticked token; a `pnpm --filter` fence beside `php artisan test`; a human-observed sign-off quoting a refusal; a README `done` with no evidence | §279 item 2 (a cycle built from a shared token), §279 item 8 (a README claim not unbacked), §281 item 1 (pnpm's filter read as a test filter), §281 item 2 (a quoted refusal read as a stop), §281 item 3 (an unmarked archive read as live without saying so) |
+| `js-vitest-spa` | a `package.json` with `lint` and `test` and no `.quality-harness.json`; a done task with a stale Tests row naming a `.test.ts`; a task READY and claimed done | §281 item 8 (the inferred-check sentence said the manifest "does not name" a step it names), §280 item 2 (a stale-row FAIL naming no `file:line`), §280 item 4 (READY and unbacked with nothing marking the overlap) |
 
-`../foreign/` (cross-repo paths, a `partial` task, a `Blocked-on` task) is the fifth corpus; it
+`../foreign/` (cross-repo paths, a `partial` task, a `Blocked-on` task) is one more corpus; it
 predates this directory and stays where it is because `tests/foreign-corpus.test.mjs` reads it there.
 
 `expected.json` is REVIEWED, not snapshotted: each value was checked against what the corpus

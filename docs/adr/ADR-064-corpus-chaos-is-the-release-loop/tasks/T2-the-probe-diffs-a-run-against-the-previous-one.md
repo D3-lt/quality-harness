@@ -66,6 +66,10 @@ node --test --test-reporter=tap tests/corpus-probe.test.mjs 2>&1 | tee /dev/stde
 | 4 — it is used | every runner in the batch's chaos round |
 
 ## Mutation Log
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · a changed adrLint verdict is not printed · acceptance-sha256:74e524044b0585d31cf77c3d1982b9cebef03e475a82f85414da85d719741613 · covers:a changed verdict is named
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · two identical reports print nothing instead of saying so · acceptance-sha256:74e524044b0585d31cf77c3d1982b9cebef03e475a82f85414da85d719741613 · covers:an unchanged report says nothing changed
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · values from the reports are printed unscrubbed · acceptance-sha256:74e524044b0585d31cf77c3d1982b9cebef03e475a82f85414da85d719741613 · covers:no absolute path leaves the runner
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · a run that could not look is compared as if it had · acceptance-sha256:74e524044b0585d31cf77c3d1982b9cebef03e475a82f85414da85d719741613 · covers:an unreadable run is never compared
 
 ## Invariants
 
@@ -85,3 +89,21 @@ Stop and ask if a useful diff needs a value the scrubber cannot make path-free.
 - Diffing two reports of different corpora (permanent: boundary: the runner diffs its own corpus; a mismatch in `corpora` is reported, not compared)
 
 ## Verification Log
+- 2026-09-25 · 286cbb1* · exit 1 · `set -o pipefail …` · acceptance-sha256:74e524044b0585d31cf77c3d1982b9cebef03e475a82f85414da85d719741613 · ms:1076 · test-lock-sha256:51b6a164f585701befd57af0dc6082ed46adcfcfc8b715381dcea312fab3d7ad · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2NvcnB1cy1wcm9iZS50ZXN0Lm1qcwljb21wYXJlUmVhZGVyczogYSBkaXJlY3Rvcnkgd29yay1uZXh0IGNvdWxkIG5vdCByZWFkIGlzIG5vdCBhIGRpc2FncmVlbWVudCwgYW5kIGEgY3Jhc2hlZCByZWFkZXIgY29tcGFyZXMgbm90aGluZwk1MTQ1ZjJlZjI4NTRkOWZjZGIxZGUwZDNlOWVlZDQxNzUzNjEyMjAxMTNhMDQ1Y2U5ZWVmYTgyMDBmYWJhNjQzCmJvZHkJdGVzdHMvY29ycHVzLXByb2JlLnRlc3QubWpzCWNvbXBhcmVSZWFkZXJzOiBhIHRhc2sgb2YgYSByZWNvcmQgdGhhdCBpcyBub3QgQWNjZXB0ZWQgaXMgbm90IGEgZGlzYWdyZWVtZW50CTNlYmZjNDY1ODIxN2Y5YzA0MTdiYjBiMDZmOTQ0MmY5N2RkOGNjOWVkYWJmYWM0ZjM3MTI5MWFjNWRlNjM1MzUKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJY29ycHVzLXByb2JlIC0tZGlmZiBuYW1lcyB3aGF0IGNoYW5nZWQgYmV0d2VlbiB0d28gcnVucyBvZiBvbmUgY29ycHVzCWQ3MTEwNWViMzBmYjNjYWQwODc1ODE2MmU1ODI5ZWM5MjM2YzFiYzZmZjBlNDBmNTA4ZDY3NjFmYTMwN2ZkNzUKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJY29ycHVzLXByb2JlIC0tZGlmZiBvdmVyIHR3byBpZGVudGljYWwgcmVwb3J0cyBzYXlzIG5vdGhpbmcgY2hhbmdlZAkyMzg3MTE4YjM0MWU1Zjk2NzY0NDE2ZDIzMjYzODZhMGYyODMyMWFmOGMxOWM0N2U4MDIyNThiY2EyY2VhNmI3CmJvZHkJdGVzdHMvY29ycHVzLXByb2JlLnRlc3QubWpzCWNvcnB1cy1wcm9iZSAtLWRpZmYgcmUtc2NydWJzIGl0cyBpbnB1dHMgYW5kIG5ldmVyIGNvbXBhcmVzIGFuIHVucmVhZGFibGUgcnVuCTZjMzE1MzM3YTc0YTA4NzllNDlhOWJkM2FmY2UyYmYyYzE1MGQ1MzQ4ZmYzZTQzNWU4NTNkMDJjNmQ5OTA2YTEKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJZXZlcnkgcmVhZGVyIHNwYXduIGluIHRoZSBwcm9iZSByZXBvcnQgaXMgdGltZWQJZWEwNDBmYjM4YzE4OTc1MDIxMjczZDVhYWRhYmNmNTVmOWFiMDJiYmVhZjlhZGRjMTk1MmQ4MGEyZjVlMjNiOApib2R5CXRlc3RzL2NvcnB1cy1wcm9iZS50ZXN0Lm1qcwlmYWlsZWRUb1J1bjogYSBjaGlsZCBraWxsZWQgYXQgdGhlIGRlYWRsaW5lIGlzIHNhaWQgdG8gaGF2ZSBiZWVuIGtpbGxlZCwgd2l0aCB0aGUgYnVkZ2V0CWM5MWY3OTc0MjgwMmU0N2ZlOWI2NzlkZDUzZWI0NmI4YTEwNWEwNTRhY2RjMDlmZTczYWQ5NTFlNTQzNTk1NGEKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJcHJvYmU6IGEgcnVuIGxlYXZlcyBub3RoaW5nIGluIHRoZSBwcm9iZWQgcmVwb3NpdG9yeSwgaXRzIGdpdCBkaXIgaW5jbHVkZWQJY2Q5NmNjYjU2NWUxZjIzNDY2M2EwZWZkNTE2MTI2YmFlY2U5MjZmMGIzMzdkMjQyNmMzNmIyNzU2OGQ2YjkyMApib2R5CXRlc3RzL2NvcnB1cy1wcm9iZS50ZXN0Lm1qcwlzY3J1YmJlcjogZXZlcnkgYWJzb2x1dGUgcGF0aCBpcyBhIHBsYWNlaG9sZGVyLCBhbmQgYSByZXBvc2l0b3J5LXJlbGF0aXZlIG9uZSBpcyB1bnRvdWNoZWQJYTUzNjhjZjJkMDYxNzgyNWQzOGRjZDBmZDlmOTYzYjU2MzQyMmJjZDc2YTQyODExNDM4Y2QxMTk1ZTQ4Y2MxZApib2R5CXRlc3RzL2NvcnB1cy1wcm9iZS50ZXN0Lm1qcwlzdGF0ZURpcjogYW4gb3ZlcnJpZGUga2VlcHMgZWFjaCByZXBvc2l0b3J5IGFwYXJ0CTRkODRhMjAyOTUxODY5ODEyOWZkNDNjNTRkMDk0YjJkNzg0MTdmZDYzZTlkMjFmMjc5ZTA2MDIwMDE3ZTcxNWQKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJdGhlIHByb2JlIGZpbmdlcnByaW50cyB0aGUgcmVhZGVycyBpdCByYW4JMmQ2ODUyYTMyMjdiNDY2MzM5NTFiYjZlYWUxZDg3MThjZDU5Mzc1YTAxYjc0NTAxMGU2NWZhM2EzNmU4NDA1NApib2R5CXRlc3RzL2NvcnB1cy1wcm9iZS50ZXN0Lm1qcwl0aGUgcmVhZGVyIGZpbmdlcnByaW50IGNvdmVycyBsaWIgYW5kIGhvb2tzCTU2MzQ0MjQ2YmFkMTU3YTZlYzVhZDExY2VkZDVhYzk2Yjc1YzBlNmRmYzZiYWM0YzhmZTQzYzg2MThiMWJhNjAKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJdW5jb21taXR0ZWQgcmVhZGVyIGVkaXRzIG1hcmsgdGhlIGZpbmdlcnByaW50IGRpcnR5CWYwMDZlYTU0OTgxMzBhYWFlMGUyNjdiOTM4MDVhOTliOTk1MTE3ZTM3MDU4YzJmOWYwOWRlYjZkNzgzZTc4ZDE
+  ```
+  --- last 10 line(s) of stderr (of 153 after folding 154 raw)
+    ...
+  1..13
+  # tests 13
+  # suites 0
+  # pass 10
+  # fail 3
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 1023.526542
+  ```
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:74e524044b0585d31cf77c3d1982b9cebef03e475a82f85414da85d719741613 · ms:1355
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:74e524044b0585d31cf77c3d1982b9cebef03e475a82f85414da85d719741613 · ms:1269
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:74e524044b0585d31cf77c3d1982b9cebef03e475a82f85414da85d719741613 · ms:1340
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:74e524044b0585d31cf77c3d1982b9cebef03e475a82f85414da85d719741613 · ms:1279

@@ -10752,8 +10752,8 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "    probe: { version: pluginVersion(), sha256: probeDigest(), readers: readerFingerprint(pluginRoot) },",
-      "to": "    probe: { version: pluginVersion(), sha256: probeDigest() },",
+      "from": "      version: pluginVersion(), sha256: probeDigest(), readers: readerFingerprint(pluginRoot),",
+      "to": "      version: pluginVersion(), sha256: probeDigest(),",
       "only": "leaves nothing in the probed repository"
     },
     {

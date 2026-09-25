@@ -38,4 +38,7 @@ the label is yours, not the corpus's real name if that would identify it.
 A finding a run confirms changes the reader and lands in a fixture corpus; the rule, and the sweep
 that checks it, are in `/quality-harness:corpus-chaos`.
 
-How to get one: `/quality-harness:corpus-chaos`.
+How to get one: `/quality-harness:corpus-chaos`. The probe writes it from a saved report:
+`node corpus-probe.mjs --attest <label> <report.json>`. Its `at` is `null`, with `atReason`, when the
+probe ran on an installed plugin (no git checkout) or on reader files that differ from their commit —
+release-evidence compares commits, so neither can place the run. `found` is left for you to fill.

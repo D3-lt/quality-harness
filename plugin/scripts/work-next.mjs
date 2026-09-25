@@ -203,10 +203,28 @@ function specFiles(directory, listing) {
     .map(rel => path.join(directory, rel))
 }
 
+// The template's four values. Anything else is not a status this reader knows, and
+// "not recognised" is never "known to be fine" (CLAUDE.md §16).
+const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)\b/i
+
+// A spec's Status, or null when it cannot be read as one (UNPROVEN). Measured on
+// 132 real specs across local corpora before it changed (no answer moved), and it
+// closes what a chaos round built (2026-09-25):
+// - binary: a zip header or NUL bytes around `**Status:** Ready-for-ADR` read as Ready;
+// - a Status inside a code fence, an HTML comment or an inline code span counted;
+// - `**Status:**` then a newline took the NEXT line as its value;
+// - two different values: the first silently won;
+// - `**Status:** banana` counted as a known, proven status.
 function specStatus(text) {
-  if (!text) return null
-  const block = text.match(/\*\*Status:\*\*\s*([^\n*]+)/)
-  return block ? block[1].trim().replace(/\s*·.*$/, '').trim() : null
+  if (!text || text.includes('\0')) return null
+  const visible = text
+    .replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/`[^`\n]*`/g, '')
+  const values = [...visible.matchAll(/\*\*Status:\*\*[ \t]*([^\n*]+)/g)]
+    .map(match => match[1].trim().replace(/\s*·.*$/, '').trim()).filter(Boolean)
+  if (new Set(values.map(value => value.toLowerCase())).size !== 1) return null
+  return SPEC_STATUS.test(values[0]) ? values[0] : null
 }
 
 function specBoundIds(text) {
@@ -246,7 +264,16 @@ export function observe(directory, { spawn = spawnGate } = {}) {
   const corpus = adrCorpus(directory, { tracked: listing })
   const look = listing == null ? 'UNPROVEN' : (corpus.look ?? 'ok')
   const listedTasks = taskFiles(directory, listing)
-  const tasks = listedTasks?.files ?? []
+  // ⚠ LISTED IS NOT PRESENT. A sparse or partial checkout lists a task git tracks
+  // and leaves the file off the disk; it was counted as a task, asked about nowhere,
+  // and a done claim on it vanished (a Windows chaos round, 2026-09-25). The file's
+  // presence IS the observation here, so the disk is the right thing to ask (ADR-008
+  // is about gating on a file that git does not know, not this). Its directory is
+  // named as unproven instead of counted.
+  const absentTasks = new Set((listedTasks?.files ?? []).filter(file => {
+    try { statSync(file); return false } catch { return true }
+  }))
+  const tasks = (listedTasks?.files ?? []).filter(file => !absentTasks.has(file))
   const specPaths = specFiles(directory, listing) ?? []
 
   const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
@@ -406,7 +433,9 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // would be the ADR-005 conflation.
     // …and those under a README whose archive marker could not be decided, which
     // are neither live nor frozen here (BACKLOG §288).
-    readinessUnproven: [...new Set([...readiness.unproven, ...(listedTasks?.archiveUnknown ?? [])])],
+    // …and those holding a task git lists that is not on the disk (a sparse checkout).
+    readinessUnproven: [...new Set([...readiness.unproven, ...(listedTasks?.archiveUnknown ?? []),
+      ...[...absentTasks].map(file => path.resolve(path.dirname(file)))])],
     records: corpus.length,
     accepted: corpus.filter(record => record.kind === 'governing').length,
     // `records` counts what this reader could CLASSIFY, and until §48 that was
@@ -451,7 +480,10 @@ export function nextStage(state) {
   if (state.retirable.length) return STAGES.find(s => s.id === 'adr-retire')
   if (state.uncoveredReadySpecs?.length) return STAGES.find(s => s.id === 'adr-write')
   if (state.accepted && !state.tasks) return STAGES.find(s => s.id === 'adr-write-no-tasks')
-  if (!state.records && !state.specs && !state.tasks) return STAGES.find(s => s.id === 'core')
+  // ⚠ NOT "no corpus" when a record was found and could not be classified: that is a
+  // confident negative over input this reader could not read, and it routed away from
+  // every corpus stage (BACKLOG §293, a fullwidth-colon Status from a chaos round).
+  if (!state.records && !state.specs && !state.tasks && !state.undecided) return STAGES.find(s => s.id === 'core')
   return null
 }
 
@@ -538,7 +570,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       : '\n'))
   if (state.unprovenSpecs?.length) {
     process.stdout.write(`\n${state.unprovenSpecs.length} spec file(s) have an UNPROVEN Status `
-      + '(unreadable or missing). They are not counted as "not Ready-for-ADR".\n')
+      + '(unreadable, binary, missing, unknown, or two different values). They are not counted as "not Ready-for-ADR".\n')
   }
   // Said whatever the next stage is, and BEFORE it: work that exists and is not
   // executable is the answer to "why is nothing waiting?", and a reader who does
@@ -598,6 +630,11 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       process.stdout.write(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `
         + 'this corpus records evidence some other way, so the execution stages cannot see it. '
         + 'Everything below is still the flow; only the state reading is blind here.\n')
+    } else if (!state.records && state.undecided) {
+      // True of a Proposed-only corpus as well as of an unreadable Status: found, not acted on.
+      process.stdout.write(`\nA QH corpus is in use here: ${state.undecided} record(s) were found, and none carries a status `
+        + 'this reader acts on (unreadable, missing, or not yet Accepted), so this is not "no corpus" and not an all-clear. '
+        + 'Read them with `adr-state` or `adr-lint <record>`.\n')
     } else {
       process.stdout.write(state.readinessUnproven.length
         ? '\nNothing this reader could see is waiting; the directories above were not read, so this is not an all-clear.\n'

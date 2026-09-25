@@ -1915,7 +1915,12 @@ def check_task(path, all_stems, errors, root, tracked):
             "human": "Acceptance is human-observed:" in acc, "adds": adds,
             # ADR-022 T3. Carried rather than re-read: the declaration was
             # already parsed above to report a malformed one.
-            "rests_on": declared}
+            "rests_on": declared,
+            # The task's own text. `check_produced_symbols` read it and nothing put
+            # it here, so the §61 advisory never fired outside its hand-built test;
+            # and a Tests-row finding needs it to name the row's line (BACKLOG §280
+            # item 2).
+            "text": text}
     return set(re.findall(r"(F-\d+|UC\d+-S\d+)", covers)), info
 
 
@@ -2545,10 +2550,39 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                               f"set up for itself — fix the fence FIRST, or the log gains a failed "
                               f"run on a task that was done")
 
-def check_test_lock(infos, readme_text, errors, root):
-    """Refuse done when a first-red test-body lock no longer holds (ADR-050)."""
+def record_is_frozen(record, root, tracked):
+    """Whether the record sits under a directory whose tracked `README.md` carries the
+    archive's Lifecycle marker, at any depth up to the repository root — the one rule
+    every reader applies. Only a tracked catalog counts (CLAUDE.md §8), and without a
+    listing nothing is frozen, which leaves every finding exactly as it was."""
+    if root is None or tracked is None:
+        return False
+    try:
+        rel = Path(record).resolve().relative_to(Path(root).resolve())
+    except (ValueError, OSError):
+        return False
+    for parent in rel.parents:
+        readme = (parent / "README.md").as_posix()
+        if readme not in tracked:
+            continue
+        try:
+            text = (Path(root) / readme).read_text(encoding="utf-8", errors="replace")
+        except OSError:
+            continue
+        if ARCHIVE_LIFECYCLE_RE.search(text):
+            return True
+    return False
+
+
+def check_test_lock(infos, readme_text, errors, root, record=None, tracked=None):
+    """Refuse done when a first-red test-body lock no longer holds (ADR-050).
+
+    A FROZEN record's lock findings are advice: tests are deleted after a record
+    is retired, so a vanished or moved lock there is history, and "done is
+    refused" spoke as if it were still work (BACKLOG §281 item 6)."""
     if not readme_text:
         return
+    frozen = record is not None and record_is_frozen(record, root, tracked)
     for tid in done_task_ids(readme_text):
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
@@ -2563,7 +2597,10 @@ def check_test_lock(infos, readme_text, errors, root):
         for msg in advice:
             errors.advise(msg)
         for msg in blocks:
-            errors.append(msg, evidence=True)
+            if frozen:
+                errors.advise(f"archived record: {msg} — history, not a refusal")
+            else:
+                errors.append(msg, evidence=True)
 
 
 
@@ -2621,7 +2658,17 @@ def looks_like_a_test(path):
             or "test" in path.name.lower() or "spec" in path.name.lower())
 
 
-def resolve_test_file(root, rel):
+def tests_row_ref(inf, name, rel):
+    """`T7.md:43`: the task file and the line of the Tests row naming `name` in
+    `rel`, or the file alone when no row matches. A finding about a row that does
+    not say which row sends the reader to grep for it (BACKLOG §280 item 2)."""
+    for number, line in enumerate(inf.get("text", "").splitlines(), 1):
+        if line.lstrip().startswith("|") and f"`{name}`" in line and f"`{rel}`" in line:
+            return f"{inf['path'].name}:{number}"
+    return inf["path"].name
+
+
+def resolve_test_file(root, rel, tracked=None):
     """Find the file a Tests-table row names, or None.
 
     Rows are written for humans and often give a bare filename rather than a
@@ -2632,16 +2679,41 @@ def resolve_test_file(root, rel):
     same name mean the row does not say which, and guessing would be worse than
     saying nothing.
     """
+    # ⚠ THE FALLBACK READS GIT'S LISTING, NOT THE DISK, whenever there is one. It was
+    # `root.rglob(base)`, filtered for `target/` only after the walk: on a Rust
+    # corpus that is 1.3 million directory entries and minutes per record, and an
+    # untracked copy made a row ambiguous on one machine only (BACKLOG §281 item 4,
+    # CLAUDE.md §8). `tracked` is None only when git could not answer, and then the
+    # walk is the one listing left.
     direct = root / rel
     if direct.exists():
         return direct
     base = Path(rel).name
     if not base or base in (".", "/"):
         return None
-    hits = [q for q in root.rglob(base)
-            if q.is_file() and ".git/" not in str(q) and "/node_modules/" not in str(q)
-            and "/target/" not in str(q) and "/vendor/" not in str(q)]
+    excluded = (".git/", "/node_modules/", "/target/", "/vendor/")
+    if tracked is not None:
+        hits = sorted(root / p for p in _tracked_by_basename(tracked).get(base, ())
+                      if not any(part in f"/{p}" for part in excluded))
+    else:
+        hits = [q for q in root.rglob(base)
+                if q.is_file() and not any(part in str(q) for part in excluded)]
     return hits[0] if len(hits) == 1 else None
+
+
+_BASENAME_INDEX = {}
+
+
+def _tracked_by_basename(tracked):
+    """The listing grouped by basename, built once per listing: a record's Tests
+    table asks once per row, and a listing can hold a hundred thousand paths."""
+    cached = _BASENAME_INDEX.get(id(tracked))
+    if cached is None or cached[0] is not tracked:
+        index = {}
+        for p in tracked:
+            index.setdefault(p.rsplit("/", 1)[-1], []).append(p)
+        cached = _BASENAME_INDEX[id(tracked)] = (tracked, index)
+    return cached[1]
 
 
 def report_uncovered_mechanisms(inf, tid, killed, errors):
@@ -3459,7 +3531,7 @@ def leaves_the_tree(pointer):
             or re.match(r"^[A-Za-z]:", pointer) is not None)
 
 
-def resolve_enforcement(pointer, root):
+def resolve_enforcement(pointer, root, tracked=None):
     """Which FORM a pointer resolved as, or None when it names nothing here.
 
     Three forms, deliberately ordered by how much they prove:
@@ -3488,7 +3560,7 @@ def resolve_enforcement(pointer, root):
             pass
     if "::" in pointer:
         rel, name = pointer.split("::", 1)
-        f = resolve_test_file(root, rel.strip())
+        f = resolve_test_file(root, rel.strip(), tracked)
         if f is not None and f.is_file():
             source = code_only(f.read_text(errors="replace", encoding="utf-8"),
                                python=f.suffix == ".py", swift=f.suffix == ".swift",
@@ -3558,7 +3630,7 @@ def resolve_enforcement(pointer, root):
     return None
 
 
-def check_enforcement(text, path, errors, root):
+def check_enforcement(text, path, errors, root, tracked=None):
     """Advise when a record names a check that does not exist.
 
     ADVICE, never blocking, and it stays that way. Most decisions in most
@@ -3572,7 +3644,7 @@ def check_enforcement(text, path, errors, root):
     a year later — and the task's tests are freely rewritten once it is.
     """
     for pointer in enforcement_pointers(text):
-        if resolve_enforcement(pointer, root) is None:
+        if resolve_enforcement(pointer, root, tracked) is None:
             errors.advise(f"{path.name}: Enforced-by names `{pointer}`, which is not a mutation "
                           f"label in tests/mutations.json, a `path::name` test that exists, or a "
                           f"gate in bin/ — a pointer to nothing is the rot this header exists to "
@@ -4274,7 +4346,7 @@ def ignored_paths(root, candidates):
     return found
 
 
-def check_tests_exist(infos, readme_text, errors, root):
+def check_tests_exist(infos, readme_text, errors, root, tracked=None):
     # Paths outside the tree are reported ONCE each: a task naming one file in
     # eight Tests rows has one problem, not eight.
     reported_outside = set()
@@ -4300,7 +4372,7 @@ def check_tests_exist(infos, readme_text, errors, root):
         for name, rel in inf.get("tests", []):
             if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
                 continue  # placeholder like "—" or a prose description
-            f = resolve_test_file(root, rel)
+            f = resolve_test_file(root, rel, tracked)
             # A Tests-table cell naming a DIRECTORY (a suite path like `tests/Feature/`) resolved to
             # a real path and then crashed read_text with "Is a directory" — the linter died instead
             # of reporting, which exits non-zero and so reads as a finding while having checked
@@ -4346,7 +4418,7 @@ def check_tests_exist(infos, readme_text, errors, root):
                 # because no mutant died that was not already dying (BACKLOG §181).
                 # The row is still wrong and still blocks; what it may not do is
                 # call the behaviour unfenced.
-                errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence and its "
+                errors.append(f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
                               f"Tests table names `{rel}` for `{name}`, and that path names no file "
                               f"in the repo — so the row points nowhere. Whether the behaviour is "
                               f"fenced ELSEWHERE is unproven here: a file that was planned and never "
@@ -4390,7 +4462,7 @@ def check_tests_exist(infos, readme_text, errors, root):
                 # is always right there: the cheap resolution becomes writing it
                 # into the table, which closes the finding by asserting coverage
                 # nobody verified. A gate must not prompt a fabrication.
-                errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence and its "
+                errors.append(f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
                               f"Tests table names `{name}` in `{rel}`, but that file contains no "
                               f"executable definition with that name — so the row describes a test "
                               f"the acceptance run cannot have exercised. Either the test was never "
@@ -5028,7 +5100,7 @@ def check_go_acceptance_fences(infos, errors, root, tracked):
                 f"or make the exclusion package-specific")
 
 
-def check_tests_can_fail(infos, readme_text, errors, root):
+def check_tests_can_fail(infos, readme_text, errors, root, tracked=None):
     """A test named by a `done` task must contain a failure path.
 
     Measured 2026-08-21: the existence check passes on a function that asserts
@@ -5052,7 +5124,7 @@ def check_tests_can_fail(infos, readme_text, errors, root):
         for name, rel in inf.get("tests", []):
             if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
                 continue
-            f = resolve_test_file(root, rel)
+            f = resolve_test_file(root, rel, tracked)
             if f is None or f.is_dir():
                 continue  # check_tests_exist already reported both cases
             # RAW for the languages that name a test with a STRING, stripped for
@@ -5217,7 +5289,7 @@ def check_named_tests_are_run(infos, readme_text, errors):
             if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
                 continue
             if not selected_by_filter(acc, name, rel):
-                errors.append(f"{inf['path'].name}: {tid} names `{name}` in its Tests table, but "
+                errors.append(f"{tests_row_ref(inf, name, rel)}: {tid} names `{name}` in its Tests table, but "
                               f"the Acceptance command's filter does not select it — the row "
                               f"promises a test the gate never runs")
 
@@ -5875,12 +5947,12 @@ def main():
         check_produced_symbols(infos, readme_text, errors, tracked_text(root, tracked))
         with errors.protected():
             check_verification(infos, readme_text, errors)
-            check_test_lock(infos, readme_text, errors, root)
+            check_test_lock(infos, readme_text, errors, root, adr, tracked)
             check_task_status_vocabulary(infos, readme_text, errors)
 
             check_status_allows_execution(adr, readme_text, errors)
-            check_tests_exist(infos, readme_text, errors, root)
-            check_tests_can_fail(infos, readme_text, errors, root)
+            check_tests_exist(infos, readme_text, errors, root, tracked)
+            check_tests_can_fail(infos, readme_text, errors, root, tracked)
             check_mutation_evidence(infos, readme_text, errors)
             check_named_tests_are_run(infos, readme_text, errors)
         check_file_collisions(infos, errors)
@@ -5890,7 +5962,7 @@ def main():
     # to every record whether or not it has tasks, and it is advice — a pointer
     # to nothing is worth saying and is never worth blocking a record over.
     check_enforcement(text, adr, errors,
-                      root)
+                      root, tracked)
     check_pointers(text, adr, errors,
                    root, adr.parent, tracked)
     check_cross_record_cycles(root, adr.parent, tracked, errors)

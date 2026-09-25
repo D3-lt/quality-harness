@@ -471,6 +471,9 @@ test('disk-only specs and tasks are not the corpus; git failure is UNPROVEN', as
   const archived = mkdtempSync(path.join(testTmp, 'archive-tasks-'))
   mkdirSync(path.join(archived, 'docs', 'adr-archive', 'ADR-012', 'tasks'), { recursive: true })
   writeFileSync(path.join(archived, 'docs', 'adr-archive', 'ADR-012', 'tasks', 'T1.md'), readyTask('012-T1'))
+  // The Lifecycle marker makes it an archive, not the directory's name (BACKLOG §281
+  // item 3); an unmarked `adr-archive/` is live and named instead.
+  writeFileSync(path.join(archived, 'docs', 'adr-archive', 'README.md'), '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n')
   gitInit(archived)
   assert.equal(observe(archived).tasks, 0)
 })

@@ -2402,7 +2402,11 @@ def lock_findings(vlog, *, root, tests, label=""):
                     "done is refused until `adr-verify --relock --replace-hashes` locks the "
                     "whole body")
             else:
-                blocks.append(f"{prefix}locked test `{rel}`::{name} hash moved — done is refused")
+                # The way out is named, and gated on review: work-next named bare
+                # `adr-verify`, which this same lock refuses again (BACKLOG §281 item 7).
+                blocks.append(f"{prefix}locked test `{rel}`::{name} hash moved — done is refused; "
+                              "once the change to the test is reviewed, "
+                              "`adr-verify --relock --replace-hashes` re-locks it")
     return blocks, advice
 
 

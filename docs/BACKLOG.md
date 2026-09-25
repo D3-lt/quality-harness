@@ -15255,9 +15255,18 @@ Left, named:
 
 **Codex review of b85877c (one round):** one blocking finding, confirmed and fixed. Existence was decided by `test_body`, which also needs an inline callback it can slice. So `it('doesn\'t remove items', …)` and `it('removes an item', checkCart)` were advised as stale. Existence is now `js_title_exists`: the decoded literal title of any `it`/`test`/`describe` call, whatever the callback is. Regressions cover both shapes, plus a mutant on the decoding (RED). Re-measured: 325 found, 110 advised. The 2 abbreviations are still advised, because they are not the title.
 
-## 285. OPEN — The artifact hook lints a tasks/README.md as a record (2026-09-25, observed in this session)
+## 285. CLOSED 2026-09-25 — The artifact hook lints a tasks/README.md as a record (2026-09-25, observed in this session)
 
 On every commit touching an ADR's `tasks/README.md`, the PreToolUse artifact validation ran adr-lint on that README and printed `UNPROVEN: adr-lint could not run (exit 2): not-recognised: …/tasks/README.md has no **Status:** line …`. adr-lint says it is not a finding, and it is not one, but it prints on every such commit. So it is a line a session learns to skip (CLAUDE.md §17). The hook should send the record that owns the index, or send nothing. Wording or noise, so it goes to the next batch.
+
+**Reproduced, then fixed.** `bash plugin/scripts/facts-gate-dispatch.sh docs/adr/ADR-064-…/tasks/README.md` printed `UNPROVEN: adr-lint could not run (exit 2): not-recognised: …/tasks/README.md`. The cause is the title, not the path. The README opens `# ADR-064 tasks`, which matches the record-title arm added for §190 (`^# ADR-[0-9]` without `-T<n>`), so adr-lint was handed the index itself.
+- A tasks index (`tasks/README.md`, case-insensitive) now skips the record arm and falls to the task arm, which lints the record that owns it.
+- When no single owner can be told apart, the index says nothing. Otherwise a corpus whose records lack the four ADR sections would trade the not-recognised line for a "FAILED (ADR ownership)" line on every such commit. The ownership finding belongs to the task files, which still carry it.
+- Regression in `tests/dispatch-streams.test.mjs`: an ownerless index is silent, and an owned one reports its owning record's lint (the dirty twin). Two mutants, both RED. The §190 title-arm mutant was repointed and re-run RED.
+
+**The inbox finding (tool-multipathreadwrite, 2026-09-24) raised two more points:**
+1. "The gate names files not in the commit." By design: the artifact path set is the SESSION's changes (the diff since the session's start HEAD, plus `git status`, plus logged writes; `lifecycle.mjs` `artifactRule`), not the staged diff. The wording does not say so. That is a wording lead, left for the next batch.
+2. "could not classify" on a real task file. The dispatcher prints that when the path does not exist at the time it looks (`facts-gate-dispatch.sh` missing-file arm). A task file renamed or deleted earlier in the session is still in the session's path set, so a stale path reaches it. Not reproduced here. It is a sibling of point 1: a session-scoped set that includes paths gone since.
 
 ## 286. OPEN — ADR-064 T6's per-platform matrix time (2026-09-25)
 

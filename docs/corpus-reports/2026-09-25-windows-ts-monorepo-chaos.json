@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-25",
+  "at": "026658ace90fc6d681be9818b85340058393c9f3",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "d05300f96f1a4d70d3d2ca2e685082a2c0d4436c970fca38d50c6c4e9380b503",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 0,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "ts-monorepo-no-adr",
+  "found": "Runner clean. Chaos seed 1790360467: binary spec read as Ready (L1), a sparse-checkout task counted and asked nowhere (L4), task title and fence carried into SessionStart unmarked (L7), all fixed in the 2.110.0 re-cut (§294); attest look/atReason, probe drops uncoveredReadySpecs and a fullwidth-colon record, duplicate ids (§293, §295)."
+}

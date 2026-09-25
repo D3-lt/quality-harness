@@ -515,6 +515,10 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   if (state.look === 'PARTIAL') {
     process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
       + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
+    // A PARTIAL look returns here, so the directories this reader withheld are named
+    // HERE too, or the text says less than the JSON (Codex review of 17edd2d).
+    for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  readiness UNPROVEN: ${relative(dir)}\n`)
+    if (state.readinessUnproven.length > 5) process.stdout.write(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
     return 0
   }
 

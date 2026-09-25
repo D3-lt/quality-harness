@@ -521,3 +521,26 @@ test('an unmarked archive is named only in a decision corpus, and only when it h
     assert.deepEqual(adrCorpus(root).unmarkedArchives, ['docs/adr-archive'], 'a folder of notes is not an archive of records')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+// BACKLOG §289 item 1: under an archive-named folder with no Lifecycle marker, the
+// ready line said "Prove it with `adr-verify`" beside the warning naming `--adopt`,
+// and the instruction a session acts on is the last one it reads. It leads with the
+// question now; a directory in the active corpus keeps the ordinary line.
+test('a ready task under an unmarked archive leads with adopting it, not with adr-verify', () => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-unmarked-')))
+  try {
+    const listing = ['docs/adr/ADR-002-current.md', 'docs/adr/ADR-002-current/tasks/T1-live.md',
+      'docs/adr-archive/ADR-001-retired.md', 'docs/adr-archive/ADR-001-retired/tasks/T1-old.md']
+    for (const relative of listing) {
+      mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(root, ...relative.split('/')), '# x\n')
+    }
+    const spawn = (tool, args) => ({ status: 0, stderr: '',
+      stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'a task', path: join(args[0], 'T1.md') }] }) })
+    const { lines } = readyTaskLines(root, true, listing, spawn)
+    const archived = lines.find(line => line.includes('adr-archive/ADR-001-retired/tasks'))
+    assert.match(archived ?? '', /adopt it first \(`adr-retire-check --adopt <active> docs\/adr-archive`\)/, lines.join('\n'))
+    assert.doesNotMatch(archived ?? '', /Prove it with/, archived)
+    assert.match(lines.find(line => line.includes('docs/adr/ADR-002-current/tasks')) ?? '', /Prove it with `adr-verify/, lines.join('\n'))
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

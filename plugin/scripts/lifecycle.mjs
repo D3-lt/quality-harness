@@ -1301,6 +1301,11 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
   // them under that heading read as work twice (BACKLOG §279 item 6, §280 item 3).
   // They are counted instead; ADR-046's heading stays.
   let evidenced = 0
+  // A directory under an archive-named folder with no Lifecycle marker is read as
+  // live, and its ready line said "Prove it with `adr-verify`" beside the warning
+  // naming `--adopt`: the instruction a session acts on is the one it reads last
+  // (BACKLOG §289 item 1). Such a line leads with the question instead.
+  const unmarked = unmarkedArchives(root, listing)
   const { read, unread } = taskDirectories(root, listing)
   for (const { directory, archive } of read) {
     if (archive === 'unknown') {
@@ -1338,7 +1343,11 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     }
     if (report.ready?.length) {
       const next = report.ready[0]
-      lines.push(`  ${relative}: ${next.id} is ready — ${next.goal}`
+      const archive = unmarked.find(dir => relative === dir || relative.startsWith(`${dir}/`))
+      lines.push(archive
+        ? `  ${relative}: read as live only because \`${archive}\` has no Lifecycle marker — if it is an archive, `
+          + `adopt it first (\`adr-retire-check --adopt <active> ${archive}\`); if it is not, ${next.id} is ready — ${next.goal}.`
+        : `  ${relative}: ${next.id} is ready — ${next.goal}`
         + (next.acceptance ? `; acceptance \`${next.acceptance}\`` : '')
         + `. Prove it with \`adr-verify ${posixListed(path.relative(root, next.path) || next.path)}\`.`)
     } else if (report.blocked?.length) {

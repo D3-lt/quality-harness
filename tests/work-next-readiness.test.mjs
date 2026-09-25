@@ -176,9 +176,15 @@ test('a task under an archive whose README spelling is ambiguous is unproven, no
     { encoding: 'utf8', timeout: 120_000 })
   assert.match(cli([]).stdout, /readiness UNPROVEN: docs\/adr-archive\/ADR-000-old\/tasks/, cli([]).stdout)
   assert.ok(JSON.parse(cli(['--json']).stdout).readinessUnproven.some(d => d.endsWith('ADR-000-old/tasks')))
+  // And the PARTIAL says WHICH record made it partial, and why (BACKLOG §289 item 3).
+  const partial = JSON.parse(cli(['--json']).stdout).partialBecause
+  assert.ok(partial.some(entry => entry.file.endsWith('ADR-000-old.md') && /effect UNPROVEN/.test(entry.reason)), JSON.stringify(partial))
+  assert.match(cli([]).stdout, /ADR-000-old\.md: frozen, effect UNPROVEN/)
   const live = build({ name: 'NOTES.md', text: '# notes\n' })
   assert.ok(live.unbacked.some(f => f.endsWith('T1-old.md')), `with no archive question, the task is live: ${live.unbacked}`)
   assert.deepEqual(live.readinessUnproven.filter(d => d.includes('ADR-000-old')), [])
+  assert.deepEqual(JSON.parse(spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'work-next.mjs'), '--json', live.temp],
+    { encoding: 'utf8', timeout: 120_000 }).stdout).partialBecause, [], 'a look that is not PARTIAL names nothing')
 })
 
 // BACKLOG §281 item 7, reported from Windows: workNext.next named `adr-verify` for a
@@ -238,5 +244,6 @@ test('work-next marks a task that is both READY and claimed done without evidenc
   // Native separators, like work-next's other path fields; the probe normalises them.
   const posix = value => value.replaceAll('\\', '/')
   assert.deepEqual(JSON.parse(run([temp, '--json'])).readyButClaimedDone.map(posix), ['docs/adr/ADR-001-x/tasks/T1-a.md'])
-  assert.match(posix(run([temp])), /1 task is both READY and claimed done without evidence — `adr-verify` it first:\n {2}docs\/adr\/ADR-001-x\/tasks\/T1-a\.md\n/)
+  // …and it says the overlap out loud, or one task in three lists reads as a contradiction (BACKLOG §289 item 2).
+  assert.match(posix(run([temp])), /1 task is both READY and claimed done without evidence — `adr-verify` it first \(it is also counted among the ready tasks and the unbacked done claims\):\n {2}docs\/adr\/ADR-001-x\/tasks\/T1-a\.md\n/)
 })

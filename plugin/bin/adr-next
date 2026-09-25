@@ -158,6 +158,23 @@ RECORD_NUMBER = re.compile(r"(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?0*(\d{1,4})\b", r
 # observed, not the verdict. Single quotes count only as a pair around words, so the
 # apostrophe in "didn't" opens nothing.
 QUOTED = re.compile(r"(?<!\w)'[^'\n]*'(?!\w)|\"[^\"\n]*\"|`[^`\n]*`")
+# Quoted text is the PROGRAM's output only when a marker introduces it — an arrow,
+# an exit status, "printed", "stdout". A quote after anything else may be a
+# person's verdict ("QA said 'fails on Safari'"), and that verdict is the note's
+# own word. The first cut exempted every quote beside an affirmative word, which
+# read "confirmed 'rejected'" as done (cold review of 833ea52).
+PROGRAM_MARKER = re.compile(r"(?:->|→|\bexit(?:ed)?(?:\s+(?:code|status))?\s+-?\d+|\bprint(?:s|ed)\b|\boutputs?\b|\bstdout\b|\bstderr\b|\bechoe?s?d?\b)\W*$", re.I)
+
+
+def program_output_removed(note):
+    """The note with every quote a program marker introduces blanked out."""
+    out, last = [], 0
+    for m in QUOTED.finditer(note):
+        if PROGRAM_MARKER.search(note[max(0, m.start() - 32):m.start()]):
+            out.append(note[last:m.start()] + " ")
+            last = m.end()
+    return "".join(out) + note[last:]
+
 
 def human_outcome(note):
     """"stop", "pass", or None when the note states neither.
@@ -176,11 +193,12 @@ def human_outcome(note):
     The harm reported 2026-08-28 was narrower and sharper than that: a note that
     said the OPPOSITE of done was read as done. That is what this refuses.
     """
-    # A negative word in the note's own words still wins. One only INSIDE quotes
-    # wins too, unless the note affirms outside them: "verified … -> exit 1
+    # A negative word in the note's own words still wins, and a quote no program
+    # marker introduces is the note's own words. One only inside a program's quoted
+    # output wins too, unless the note affirms outside it: "verified … -> exit 1
     # 'refusing an empty tag'" reported a program refusing as it should, and was
     # read as a stop (BACKLOG §281 item 2, a product repository).
-    outside = QUOTED.sub(" ", note)
+    outside = program_output_removed(note)
     if NEGATIVE.search(outside):
         return "stop"
     if NEGATIVE.search(note):

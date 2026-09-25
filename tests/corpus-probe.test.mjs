@@ -5,11 +5,12 @@
 // component is a root name, a directory one reader did not read.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { compareReaders, failedToRun, probe, readerFingerprint, scrubber } from '../plugin/scripts/corpus-probe.mjs'
+import { attestation, compareReaders, failedToRun, probe, readerFingerprint, readersOfRun, scrubber } from '../plugin/scripts/corpus-probe.mjs'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { outsideRun } from '../scripts/release-evidence.mjs'
 
@@ -248,7 +249,7 @@ test('the reader fingerprint covers lib and hooks', () => {
 // hand: unbacked 15 → 47, readinessUnproven 3 → 2, an adrLint total 67/92 → 68/91.
 // `--diff <before> <after>` reads two saved reports, runs nothing, and prints only
 // what changed — scrubbed again, because an older probe's scrubber leaked paths.
-const probeScript = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'plugin', 'scripts', 'corpus-probe.mjs')
+const probeScript = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'plugin', 'scripts', 'corpus-probe.mjs')
 const baseReport = () => ({
   probe: { version: '2.109.0', sha256: 'p'.repeat(64), readers: { sha256: 'a'.repeat(64), git: null, dirty: null } },
   root: '.', look: 'ok', corpora: ['docs/adr'],
@@ -370,4 +371,54 @@ test('corpus-probe --attest leaves at null over uncommitted readers', () => {
   const unread = attestable()
   unread.workNext = null
   assert.deepEqual(attestOf(unread).corpus, { records: null, tasks: null, taskDirectories: 2 }, 'a reader that did not answer is null, never 0')
+})
+
+// Cold review of 833ea52. The fingerprint was taken once, after every reader ran, so a
+// run whose readers moved under it — a commit mid-run, a mutation campaign restoring
+// files — reported the commit it ENDED at, which release-evidence would accept. And a
+// dirty check that could not run was worded as an observation of modified files.
+test('an attestation has no commit when the readers moved during the run, and says why it has none', () => {
+  const same = { sha256: 'a'.repeat(64), git: 'c'.repeat(40), dirty: false }
+  assert.deepEqual(readersOfRun(same, { ...same }), same)
+  const moved = readersOfRun(same, { ...same, sha256: 'b'.repeat(64) })
+  assert.equal(moved.moved, true)
+  const committed = readersOfRun(same, { ...same, git: 'd'.repeat(40) })
+  assert.equal(committed.moved, true, 'a commit during the run moves the readers too')
+  const reason = readers => {
+    const attested = attestation({ probe: { readers } }, 'x')
+    assert.equal(attested.at, null)
+    return attested.atReason
+  }
+  assert.match(reason(moved), /readers changed while the probe ran/)
+  assert.match(reason({ ...same, dirty: null }), /could not be checked/)
+  assert.match(reason({ ...same, dirty: true }), /reader files modified at HEAD/)
+  assert.match(reason({ sha256: 'a'.repeat(64), git: null, dirty: null }), /not a git checkout/)
+})
+
+// Codex review of 833ea52. A FAIL that stays a FAIL for a DIFFERENT reason — one defect
+// fixed, another exposed — printed "nothing changed". And a saved file that is not a
+// report was echoed into the error (a JSON parse message quotes the input) or, as
+// `null`, crashed with a stack full of absolute paths.
+test('corpus-probe --diff names a changed FAIL reason, and a file that is not a report is refused cleanly', () => {
+  const before = baseReport()
+  before.adrLint[0] = { file: 'docs/adr/ADR-001-a.md', exit: 1, verdict: 'FAIL', reason: 'T1-a.md:12: first defect' }
+  const after = baseReport()
+  after.adrLint[0] = { file: 'docs/adr/ADR-001-a.md', exit: 1, verdict: 'FAIL', reason: 'T1-a.md:30: second defect' }
+  assert.deepEqual(diffOf(before, after).lines, ['adrLint docs/adr/ADR-001-a.md: FAIL, reason changed — T1-a.md:30: second defect'])
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-probe-notreport-'))
+  try {
+    // An invalid token, which V8's parse error quotes back ("…" is not valid JSON).
+    writeFileSync(path.join(dir, 'secret.json'), 'SECRET-VALUE-123 is not json')
+    writeFileSync(path.join(dir, 'null.json'), 'null')
+    writeFileSync(path.join(dir, 'ok.json'), JSON.stringify(baseReport()))
+    for (const bad of ['secret.json', 'null.json']) {
+      for (const args of [['--diff', path.join(dir, bad), path.join(dir, 'ok.json')], ['--attest', 'x', path.join(dir, bad)]]) {
+        const run = spawnSync(process.execPath, [probeScript, ...args], { encoding: 'utf8', timeout: 30_000 })
+        assert.equal(run.status, 2, `${args.join(' ')}: ${run.stderr}`)
+        assert.match(run.stderr, bad === 'null.json' ? /is not a report \(not a JSON object\)/ : /is not a report \(not valid JSON\)/)
+        // /SECRET/, not the whole value: V8 truncates the excerpt it quotes ("SECRET-VAL"...).
+        assert.doesNotMatch(run.stderr, /SECRET|at .*\.mjs:\d+|TypeError/, run.stderr)
+      }
+    }
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })

@@ -4928,7 +4928,11 @@ def test_a_package_manager_filter_is_not_a_test_filter(lint):
         return errors
     for acc in ("pnpm --filter @app/web exec vitest run src/x && cd api && php artisan test",
                 "pnpm -F @app/web test && php artisan test",
-                "pnpm --filter=@app/web --filter @app/api test && php artisan test"):
+                "pnpm --filter=@app/web --filter @app/api test && php artisan test",
+                # `-C <dir>` / `--dir <dir>` take a value; the filter after them is still
+                # a workspace selector (cold review of 833ea52).
+                "pnpm -C web --filter @app/web test && php artisan test",
+                "pnpm --dir web --filter @app/web test && php artisan test"):
         assert findings(acc) == [], (acc, findings(acc))
     # The must-fail direction: a real PHP test filter that does not select the row.
     assert findings("pnpm --filter @app/web build && php artisan test --filter=OtherTest"), \
@@ -4946,7 +4950,7 @@ def test_a_test_row_resolves_against_git_not_the_disk(lint):
         root = Path(tmp)
         (root / "tests" / "unit").mkdir(parents=True)
         real = root / "tests" / "unit" / "case.test.mjs"
-        real.write_text("test('alpha works', () => { assert.ok(1) })\n", encoding="utf-8")
+        real.write_text("test('alpha_works', () => { assert.ok(1) })\n", encoding="utf-8")
         # An untracked same-named copy outside every excluded directory: on disk,
         # never in the listing. The old walk found two and resolved nothing.
         (root / "scratch").mkdir()
@@ -4961,17 +4965,35 @@ def test_a_test_row_resolves_against_git_not_the_disk(lint):
             assert walked == [], f"with a listing there is no disk walk: {walked}"
             assert lint.resolve_test_file(root, "case.test.mjs", tracked | {"other/case.test.mjs"}) is None, \
                 "two tracked files with the name are still ambiguous"
-            info = {"path": Path("T1.md"), "human": False, "tests": [("alpha works", "case.test.mjs")]}
+            # Identifier-shaped, or check_tests_exist skips the row before it resolves
+            # anything and this assertion passes vacuously (Codex review of 833ea52).
+            info = {"path": Path("T1.md"), "human": False, "tests": [("alpha_works", "case.test.mjs")]}
             out = lint.Findings()
             lint.check_tests_exist({"T1": info}, "| 1 | T1 | done |", out, root, tracked)
             assert [e for e in out if "Tests table names" in e] == [], list(out)
-            assert lint.resolve_enforcement("case.test.mjs::alpha works", root, tracked) == "test"
+            assert lint.resolve_enforcement("case.test.mjs::alpha_works", root, tracked) == "test"
             assert walked == [], f"the callers pass the listing through: {walked}"
         finally:
             Path.rglob = original
         # The must-fail direction: with no listing (git could not answer) the old
         # walk still runs, and still finds the untracked copy.
         assert lint.resolve_test_file(root, "case.test.mjs") is None, "without a listing, the disk decides as before"
+        # …and through the caller: without the listing the untracked copy makes the row
+        # ambiguous, so the same row is a finding. The listing is what cleared it above.
+        out = lint.Findings()
+        lint.check_tests_exist({"T1": info}, "| 1 | T1 | done |", out, root)
+        assert any("names no file" in e for e in out), list(out)
+        # A path git lists and the disk does not hold — an unstaged `rm`, a sparse
+        # checkout — is not a file to read: the listing branch returned it, and both
+        # checks crashed on read_text where the old walk named the row as pointing
+        # nowhere (cold review of 833ea52).
+        gone = {"tests/unit/gone.test.mjs"}
+        assert lint.resolve_test_file(root, "gone.test.mjs", gone) is None
+        info = {"path": Path("T1.md"), "human": False, "tests": [("alpha_works", "gone.test.mjs")]}
+        out = lint.Findings()
+        lint.check_tests_exist({"T1": info}, "| 1 | T1 | done |", out, root, gone)
+        assert any("names no file" in e for e in out), list(out)
+        lint.check_tests_can_fail({"T1": info}, "| 1 | T1 | done |", lint.Findings(), root, gone)
 
     print("PASS — a Tests row resolves against git, not the disk")
 
@@ -5027,7 +5049,7 @@ def test_a_frozen_records_lock_drift_is_history(lint):
         assert lint.record_is_frozen(frozen_record, root, tracked) is True
         assert lint.record_is_frozen(live_record, root, tracked) is False
         assert lint.record_is_frozen(frozen_record, root, tracked - {"docs/adr-archive/README.md"}) is False, \
-            "an untracked catalog freezes nothing (CLAUDE.md §8)"
+            "a catalog git does not list freezes nothing (CLAUDE.md §8)"
 
         infos = {"T1": {"path": Path("T1.md"), "human": False, "vlog": [], "tests": []}}
         original = lint.lock_findings

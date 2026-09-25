@@ -563,24 +563,47 @@ export function staleEntries(mutations, read) {
 }
 
 /**
- * The entries a change reaches: those whose `from` shares a line with a line the
- * change ADDED to that entry's file. A new mutant names new code, and a mutant whose
- * code was edited names the edit, so both are picked; an untouched mutant in a
- * touched file is not, which is what keeps this narrower than "every entry for
- * adr-lint" (all of them, when one line of adr-lint changed). `added` maps a file
- * to its added lines, trimmed. Pure; `main` builds it from `git diff -U0 <ref>`.
+ * The entries a change reaches: those whose `from` sits on a line the change ADDED
+ * to that entry's file. A new mutant names new code, and a mutant whose code was
+ * edited names the edit, so both are picked; an untouched mutant in a touched file
+ * is not, which is what keeps this narrower than "every entry for adr-lint" (all of
+ * them, when one line of adr-lint changed). `added` maps a file to its added lines,
+ * trimmed. Pure; `main` builds it from `git diff -U0 <ref>`.
+ *
+ * Where `where` can locate the `from` in the file as it is now, WHERE it sits
+ * decides, however short its text: the twelve-character text rule below skipped
+ * `if frozen:`, a mutant the change itself added (Codex review of 833ea52). The
+ * text rule remains for a file that cannot be read.
  */
-export function touchedBy(mutations, added) {
-  // A mutant often names PART of a line (`lines.has(x)` inside a longer
-  // condition), so a from-line counts when an added line contains it. Lines under
-  // twelve characters — `return 1`, `}` — are too common to say which code a
-  // mutant names, and matched unrelated entries when they counted.
+export function touchedBy(mutations, added, where = null) {
   return mutations.filter(mutation => {
     const lines = added.get(mutation.file)
     if (lines === undefined) return false
+    const numbers = where?.numbers?.get(mutation.file)
+    const source = numbers ? where.readSource(mutation.file) : null
+    const at = typeof source === 'string' ? source.indexOf(mutation.from) : -1
+    if (at >= 0) {
+      const first = source.slice(0, at).split('\n').length
+      const count = mutation.from.split('\n').length
+      return Array.from({ length: count }, (_, i) => first + i).some(line => numbers.has(line))
+    }
+    // A mutant often names PART of a line (`lines.has(x)` inside a longer
+    // condition), so a from-line counts when an added line contains it. Lines under
+    // twelve characters — `return 1`, `}` — are too common to say which code a
+    // mutant names, and matched unrelated entries when they counted.
     return mutation.from.split('\n').map(line => line.trim()).filter(line => line.length >= 12)
       .some(line => [...lines].some(addedLine => addedLine.includes(line)))
   })
+}
+
+/**
+ * The `git diff` `--changed` reads, in one fixed shape: `addedLines` parses
+ * `+++ b/<file>`, and a user's own `diff.noprefix`, `diff.mnemonicPrefix`, colour
+ * or external diff tool changes that header, so every entry missed and the run
+ * said "no mutation matches" (cold review of 833ea52).
+ */
+export function changedDiffArgs(root, ref) {
+  return ['-C', root, 'diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '-U0', ref, '--']
 }
 
 /** Added lines per file from `git diff -U0` output, each trimmed. */
@@ -596,6 +619,26 @@ export function addedLines(diff) {
     }
   }
   return added
+}
+
+/** The NUMBERS of the added lines per file, from the `@@ … +start,count @@` headers of `git diff -U0`. */
+export function addedLineNumbers(diff) {
+  const numbers = new Map()
+  let file = null
+  for (const line of diff.split('\n')) {
+    if (line.startsWith('+++ ')) {
+      file = line === '+++ /dev/null' ? null : line.replace(/^\+\+\+ b\//, '')
+      if (file && !numbers.has(file)) numbers.set(file, new Set())
+      continue
+    }
+    const hunk = file && /^@@ -\S+ \+(\d+)(?:,(\d+))? @@/.exec(line)
+    if (hunk) {
+      const start = Number(hunk[1])
+      const count = hunk[2] === undefined ? 1 : Number(hunk[2])
+      for (let n = start; n < start + count; n += 1) numbers.get(file).add(n)
+    }
+  }
+  return numbers
 }
 
 export function main(argv) {
@@ -632,14 +675,15 @@ export function main(argv) {
   if (argv.includes('--changed')) {
     const ref = argv[argv.indexOf('--changed') + 1] ?? ''
     const diff = ref && !ref.startsWith('--')
-      ? spawnSync('git', ['-C', root, 'diff', '-U0', ref, '--'], { encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024 * 1024 })
+      ? spawnSync('git', changedDiffArgs(root, ref), { encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024 * 1024 })
       : null
     if (!diff || diff.error || diff.status !== 0) {
       process.stderr.write(`mutate: --changed wants a git ref to diff against, not ${JSON.stringify(ref)}\n`)
       return 2
     }
     const before = selected.length
-    selected = touchedBy(selected, addedLines(diff.stdout))
+    const readSource = file => { try { return readFileSync(path.join(root, file), 'utf8') } catch { return null } }
+    selected = touchedBy(selected, addedLines(diff.stdout), { numbers: addedLineNumbers(diff.stdout), readSource })
     console.log(`--changed ${ref}: ${selected.length} of ${before} entries name a line added since it`)
   }
 

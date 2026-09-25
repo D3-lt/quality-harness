@@ -15274,9 +15274,11 @@ On every commit touching an ADR's `tasks/README.md`, the PreToolUse artifact val
 
 Now both names are compared lowercased, and a tasks index enters the task arm explicitly. A regression covers each shape, and two mutants are RED.
 
-## 286. OPEN — ADR-064 T6's per-platform matrix time (2026-09-25)
+## 286. CLOSED 2026-09-25 — ADR-064 T6's per-platform matrix time (2026-09-25)
 
 T6 step 2 records the matrix's added time on each CI platform in `tests/fixtures/corpora/README.md`. The three corpora land in the push after this entry, so the time is read from that push's CI log and recorded after it.
+
+**Recorded** in `tests/fixtures/corpora/README.md` ("What the matrix costs"). It was read from the dispatched 2.109.0 run (36126550653 at 7b0b71c), because the push run for 8902ada reused its cache and is not the full catalogue. The three corpora add 7.5 s on ubuntu, 7.9 s on macOS and 10.7 s on Windows. That is one run on shared runners, so it is a scale, not a budget.
 
 ## 287. CLOSED 2026-09-25 — adr-next's `not ` and `never ` can never match, so "not approved" reads as done (2026-09-25, a cold review of 833ea52)
 

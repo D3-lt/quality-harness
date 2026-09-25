@@ -2553,8 +2553,9 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
 def record_is_frozen(record, root, tracked):
     """Whether the record sits under a directory whose tracked `README.md` carries the
     archive's Lifecycle marker, at any depth up to the repository root — the one rule
-    every reader applies. Only a tracked catalog counts (CLAUDE.md §8), and without a
-    listing nothing is frozen, which leaves every finding exactly as it was."""
+    every reader applies. Only a LISTED catalog counts — tracked, or on disk and not
+    ignored, the membership `tracked_or_unignored_paths` gives (CLAUDE.md §8) — and
+    without a listing nothing is frozen, which leaves every finding exactly as it was."""
     if root is None or tracked is None:
         return False
     try:
@@ -2693,8 +2694,15 @@ def resolve_test_file(root, rel, tracked=None):
         return None
     excluded = (".git/", "/node_modules/", "/target/", "/vendor/")
     if tracked is not None:
+        # The LISTING decides which file a row names, and whether two share the name
+        # (CLAUDE.md §8). The disk decides only whether that one file can be read: a
+        # path git lists after an unstaged `rm`, or outside a sparse checkout, is no
+        # file, and both callers crashed reading it where the walk had said the row
+        # points nowhere (cold review of 833ea52).
         hits = sorted(root / p for p in _tracked_by_basename(tracked).get(base, ())
                       if not any(part in f"/{p}" for part in excluded))
+        if len(hits) == 1 and not hits[0].is_file():
+            return None
     else:
         hits = [q for q in root.rglob(base)
                 if q.is_file() and not any(part in str(q) for part in excluded)]
@@ -5248,8 +5256,11 @@ def selected_by_filter(acc, name, rel=None):
 # a test filter, `pnpm --filter @app/web exec vitest … && php artisan test` made every
 # PHP row "not selected", though the second command runs the whole PHP suite: a
 # false FAIL on a correct fence (BACKLOG §281 item 1, a PHP/React corpus).
+# `-C <dir>` / `--dir <dir>` take a VALUE, so they are consumed as a pair before the
+# filter; the first cut admitted only valueless flags and kept `pnpm -C web --filter
+# @app/web` as a test filter (cold review of 833ea52).
 PNPM_WORKSPACE_FILTER = re.compile(
-    r"(\bpnpm\b(?:[^\S\n]+-{1,2}[\w-]+(?:=\S+)?)*?)[^\S\n]+(?:--filter|-F)(?:=\S+|[^\S\n]+\S+)")
+    r"(\bpnpm\b(?:[^\S\n]+(?:-C|--dir)(?:=\S+|[^\S\n]+\S+)|[^\S\n]+-{1,2}[\w-]+(?:=\S+)?)*?)[^\S\n]+(?:--filter|-F)(?:=\S+|[^\S\n]+\S+)")
 
 
 def without_workspace_filters(acc):

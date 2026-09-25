@@ -10492,8 +10492,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    outside = QUOTED.sub(\" \", note)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
-      "to": "    outside = QUOTED.sub(\" \", note)\n",
+      "from": "    outside = program_output_removed(note)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
+      "to": "    outside = program_output_removed(note)\n",
       "only": "inside quoted program output"
     },
     {
@@ -10752,7 +10752,7 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "      version: pluginVersion(), sha256: probeDigest(), readers: readerFingerprint(pluginRoot),",
+      "from": "      version: pluginVersion(), sha256: probeDigest(), readers: readersOfRun(readersAtStart, readerFingerprint(pluginRoot)),",
       "to": "      version: pluginVersion(), sha256: probeDigest(),",
       "only": "leaves nothing in the probed repository"
     },
@@ -10765,6 +10765,116 @@
       "from": "    && !FIXTURE.test(section.body) && !WAIVER.test(section.body))",
       "to": "    && false)",
       "only": "names an outside finding"
+    },
+    {
+      "label": "next: a quote no program marker introduces is the note's own verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if PROGRAM_MARKER.search(note[max(0, m.start() - 32):m.start()]):",
+      "to": "        if True:",
+      "only": "inside quoted program output"
+    },
+    {
+      "label": "lint: a listed test file that is not on disk resolves to nothing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if len(hits) == 1 and not hits[0].is_file():",
+      "to": "        if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: pnpm -C and --dir are consumed with their value before the filter",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"(\\bpnpm\\b(?:[^\\S\\n]+(?:-C|--dir)(?:=\\S+|[^\\S\\n]+\\S+)|[^\\S\\n]+-{1,2}[\\w-]+(?:=\\S+)?)*?)[^\\S\\n]+(?:--filter|-F)(?:=\\S+|[^\\S\\n]+\\S+)\")",
+      "to": "    r\"(\\bpnpm\\b(?:[^\\S\\n]+-{1,2}[\\w-]+(?:=\\S+)?)*?)[^\\S\\n]+(?:--filter|-F)(?:=\\S+|[^\\S\\n]+\\S+)\")",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "orientation: an unmarked archive is named only in a decision corpus",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (corpusLook === true) {\n    for (const archive of unmarkedArchives(root, listing)) {",
+      "to": "  if (true) {\n    for (const archive of unmarkedArchives(root, listing)) {",
+      "only": "only in a decision corpus"
+    },
+    {
+      "label": "archive: only a directory holding records is named as an unmarked archive",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (!RECORD_SHAPED.test(rel.split('/').pop()) && !/(?:^|\\/)tasks\\//.test(rel)) continue",
+      "to": "    if (false) continue",
+      "only": "only in a decision corpus"
+    },
+    {
+      "label": "probe: readers that moved during the run carry no commit",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  return start.sha256 === end.sha256 && start.git === end.git ? end : { ...end, moved: true }",
+      "to": "  return end",
+      "only": "moved during the run"
+    },
+    {
+      "label": "mutate: --changed asks for the diff in one fixed shape",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  return ['-C', root, 'diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '-U0', ref, '--']",
+      "to": "  return ['-C', root, 'diff', '-U0', ref, '--']",
+      "only": "one shape"
+    },
+    {
+      "label": "probe: --diff names a FAIL whose reason changed",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "      else if ((old.reason ?? null) !== (entry.reason ?? null)) say(",
+      "to": "      else if (false) say(",
+      "only": "changed FAIL reason"
+    },
+    {
+      "label": "probe: a saved file's parse error is not quoted back",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  try { parsed = JSON.parse(text) } catch { return { why: 'not valid JSON' } }",
+      "to": "  try { parsed = JSON.parse(text) } catch (error) { return { why: error.message } }",
+      "only": "changed FAIL reason"
+    },
+    {
+      "label": "probe: a saved file that is null is not a report",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { why: 'not a JSON object' }",
+      "to": "  if (false) return { why: 'not a JSON object' }",
+      "only": "changed FAIL reason"
+    },
+    {
+      "label": "mutate: --changed selects a short mutant by where it was added",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (at >= 0) {",
+      "to": "    if (false) {",
+      "only": "short mutant"
     }
   ]
 }

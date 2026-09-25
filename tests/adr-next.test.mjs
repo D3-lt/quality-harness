@@ -501,6 +501,12 @@ test('a negative word inside quoted program output does not stop an affirmative 
   assert.doesNotMatch(outcome("- 2026-08-21 · human-observed · verified, but refusing to ship: 'ok' was a fluke"), /^done\s+T1/m)
   // …or it is only inside quotes and nothing outside affirms anything.
   assert.doesNotMatch(outcome("- 2026-08-21 · human-observed · the tool printed 'blocked'"), /^done\s+T1/m)
+  // …or the quotes hold a PERSON's verdict, not a program's output: only text a
+  // program marker introduces (`->`, `exit N`, `printed`, stdout) is what was
+  // observed. The first cut exempted every quote beside an affirmative word, so
+  // these read as done (cold review of 833ea52).
+  assert.doesNotMatch(outcome("- 2026-08-21 · human-observed · confirmed 'rejected'"), /^done\s+T1/m)
+  assert.doesNotMatch(outcome("- 2026-08-21 · human-observed · ok — QA said 'fails on Safari'"), /^done\s+T1/m)
 })
 
 // Found 2026-09-04 on this repository's own ADR-012 T4, which the tasks README

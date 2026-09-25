@@ -247,6 +247,10 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // Every reader's free text goes through here before it is emitted (see `scrubber`).
   const pluginRoot = path.resolve(here, '..')
   const scrub = scrubber({ root: resolved, pluginRoot })
+  // Fingerprinted before the first reader runs as well as after the last: a run
+  // whose readers moved under it — a commit mid-run, a mutation campaign restoring
+  // files — must not report the commit it ended at (cold review of 833ea52).
+  const readersAtStart = readerFingerprint(pluginRoot)
   const couldNotRun = []
   const note = (readerName, why) => couldNotRun.push({ reader: scrub(readerName), why: scrub(why) })
   const node = (script, args, options = {}) => spawnSync(process.execPath, [path.join(here, script), ...args],
@@ -375,7 +379,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
 
   return {
     probe: {
-      version: pluginVersion(), sha256: probeDigest(), readers: readerFingerprint(pluginRoot),
+      version: pluginVersion(), sha256: probeDigest(), readers: readersOfRun(readersAtStart, readerFingerprint(pluginRoot)),
       // What an attestation carries about the run (ADR-064 T3), recorded here so
       // `--attest` can be pure over the saved report.
       date: new Date().toISOString().slice(0, 10), platform: `${os.type()} ${os.release()}`, node: process.versions.node, python: pythonVersion(),
@@ -460,6 +464,9 @@ export function diffReports(before, after, scrub = text => String(text)) {
       const old = was.get(file)
       if (!old) say(`adrLint ${file}: new, ${entry.verdict}`)
       else if (old.verdict !== entry.verdict) say(`adrLint ${file}: ${old.verdict} → ${entry.verdict}${entry.reason ? ` — ${entry.reason}` : ''}`)
+      // A FAIL that stays a FAIL for another reason — one defect fixed, another
+      // exposed — is a change too (Codex review of 833ea52).
+      else if ((old.reason ?? null) !== (entry.reason ?? null)) say(`adrLint ${file}: ${entry.verdict}, reason changed — ${entry.reason ?? '(none)'}`)
     }
     for (const file of was.keys()) if (!now.has(file)) say(`adrLint ${file}: removed`)
   }
@@ -490,21 +497,34 @@ function pythonVersion() {
 }
 
 /**
+ * The readers a run can vouch for: the end fingerprint, marked `moved` when it
+ * differs from the start's in content or commit — then no single commit describes
+ * what ran, and an attestation must not name one.
+ */
+export function readersOfRun(start, end) {
+  return start.sha256 === end.sha256 && start.git === end.git ? end : { ...end, moved: true }
+}
+
+/**
  * The counts-only attestation docs/corpus-reports/README.md defines, from a saved
  * report (ADR-064 T3). Pure. `at` is the readers' commit only when no reader file
- * differs from it: release-evidence compares commits and cannot see a working
- * tree, so a commit here over edited readers would attest readers nobody ran. A
- * count whose reader did not answer is null, never 0. `found` is left empty for
- * the session that reads the diff: this tool never says what a run found.
+ * differs from it and the readers did not move during the run: release-evidence
+ * compares commits and cannot see a working tree, so a commit here over edited or
+ * moving readers would attest readers nobody ran. A count whose reader did not
+ * answer is null, never 0. `found` is left empty for the session that reads the
+ * diff: this tool never says what a run found.
  */
 export function attestation(report, label) {
   const readers = report.probe?.readers ?? {}
-  const committed = typeof readers.git === 'string' && readers.dirty === false
+  const committed = typeof readers.git === 'string' && readers.dirty === false && !readers.moved
   const count = list => (Array.isArray(list) ? list.length : null)
   return {
     date: report.probe?.date ?? null,
     at: committed ? readers.git : null,
-    ...(committed ? {} : { atReason: readers.git ? 'reader files modified at HEAD' : 'the plugin is not a git checkout' }),
+    ...(committed ? {} : { atReason: !readers.git ? 'the plugin is not a git checkout'
+      : readers.moved ? 'the readers changed while the probe ran'
+        : readers.dirty === true ? 'reader files modified at HEAD'
+          : 'whether the reader files match HEAD could not be checked' }),
     plugin: report.probe?.version ?? null,
     kind: 'probe',
     probeSha256: report.probe?.sha256 ?? null,
@@ -525,25 +545,41 @@ export function attestation(report, label) {
   }
 }
 
-/** `--attest`: read a saved report and print its attestation. Exit 2 when it does not parse. */
+/**
+ * A saved report, or why a file is not one. The reason never quotes the file: a
+ * JSON parse message excerpts the input, and a file that parses to `null` or an
+ * array used to reach property access and crash with a stack of absolute paths
+ * (Codex review of 833ea52).
+ */
+function readReport(file) {
+  let text
+  try { text = readFileSync(file, 'utf8') } catch (error) { return { why: error.code ?? 'unreadable' } }
+  let parsed
+  try { parsed = JSON.parse(text) } catch { return { why: 'not valid JSON' } }
+  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { why: 'not a JSON object' }
+  return { report: parsed }
+}
+
+function notAReport(file, why) {
+  process.stderr.write(`corpus-probe: ${publicPath(file, process.cwd())} is not a report (${why})\n`)
+  return 2
+}
+
+/** `--attest`: read a saved report and print its attestation. Exit 2 when it is not one. */
 function attestMain(label, file) {
-  let report
-  try { report = JSON.parse(readFileSync(file, 'utf8')) } catch (error) {
-    process.stderr.write(`corpus-probe: ${publicPath(file, process.cwd())} is not a report (${error.code ?? error.message})\n`)
-    return 2
-  }
+  const { report, why } = readReport(file)
+  if (!report) return notAReport(file, why)
   process.stdout.write(`${JSON.stringify(attestation(report, label), null, 2)}\n`)
   return 0
 }
 
-/** `--diff`: read two saved reports and print what changed. Exit 2 when one does not parse. */
+/** `--diff`: read two saved reports and print what changed. Exit 2 when one is not a report. */
 function diffMain(beforeFile, afterFile) {
   const reports = []
   for (const file of [beforeFile, afterFile]) {
-    try { reports.push(JSON.parse(readFileSync(file, 'utf8'))) } catch (error) {
-      process.stderr.write(`corpus-probe: ${publicPath(file, process.cwd())} is not a report (${error.code ?? error.message})\n`)
-      return 2
-    }
+    const { report, why } = readReport(file)
+    if (!report) return notAReport(file, why)
+    reports.push(report)
   }
   const scrub = scrubber({ root: null, pluginRoot: path.resolve(here, '..') })
   process.stdout.write(`${diffReports(reports[0], reports[1], scrub).join('\n')}\n`)

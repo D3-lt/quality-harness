@@ -46,7 +46,7 @@ export function main (argv = process.argv.slice(2)) {
   for (const section of found) {
     process.stdout.write(`§${section.number} ${section.heading}\n  reported from an outside run, and names no tests/fixtures/corpora/ path and no (fixture-waived: …)\n`)
   }
-  process.stdout.write(`${found.length} section(s) after §${CUTOFF}. A place to look, not a census: a heading this sweep's regex does not match is not swept.\n`)
+  process.stdout.write(`${found.length} section(s) after §${CUTOFF} reported from an outside run name no fixture and no waiver. A place to look, not a census: a heading this sweep's regex does not match is not swept.\n`)
   return 0
 }
 

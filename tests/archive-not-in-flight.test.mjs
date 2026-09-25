@@ -500,3 +500,24 @@ test('an archive-named directory with no Lifecycle marker is named, with the ado
     assert.doesNotMatch(text, /decisions-archive` looks like|archive-service` looks like/)
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+// Cold review of 833ea52: SessionStart told a repository with no decision corpus to
+// adopt its blog's `content/archive/`, and would name any archive-named folder of
+// notes. The line is for a corpus, about a directory holding records or tasks.
+test('an unmarked archive is named only in a decision corpus, and only when it holds records', async () => {
+  const { sessionOrientation } = await import('../plugin/scripts/lifecycle.mjs')
+  const blog = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-blog-')))
+  try {
+    mkdirSync(join(blog, 'content', 'archive'), { recursive: true })
+    writeFileSync(join(blog, 'content', 'archive', '2019-hello.md'), '# Hello\n')
+    writeFileSync(join(blog, 'README.md'), '# A blog\n')
+    assert.equal(spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: blog, encoding: 'utf8', timeout: 15_000 }).status ?? 0, 0)
+    assert.doesNotMatch(sessionOrientation(blog), /looks like an archive/, 'no corpus, no adoption advice')
+  } finally { rmSync(blog, { recursive: true, force: true }) }
+  const root = unmarkedArchiveRepo('qh-arc-notes-')
+  try {
+    mkdirSync(join(root, 'docs', 'archive'), { recursive: true })
+    writeFileSync(join(root, 'docs', 'archive', 'meeting-notes.md'), '# Notes\n')
+    assert.deepEqual(adrCorpus(root).unmarkedArchives, ['docs/adr-archive'], 'a folder of notes is not an archive of records')
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

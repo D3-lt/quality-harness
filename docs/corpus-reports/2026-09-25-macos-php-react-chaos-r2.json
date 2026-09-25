@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-25",
+  "at": "145c794f130692876816ca295c1f7c48535c4953",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "c9b40a940d22baed062eae943a8208460187584a16d13f0a657ae2d0447afd95",
+  "platform": "Darwin 27.0.0",
+  "node": "26.8.2",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 90,
+    "tasks": 267,
+    "taskDirectories": 38
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "macos-php-react",
+  "found": "Round 2 (seed 1790363816): ADR-086 T3 left unbacked (the §287 false refusal is fixed); hostile-title quoting held in SessionStart and adr-next text. Q1 look-alike brackets and Markdown inside quotes, Q3 an all-clear over a task missing from disk, Q4 damaged-ledger wording, Q5 a report offered as a READY task, Q6 a homoglyph record name: all §295."
+}

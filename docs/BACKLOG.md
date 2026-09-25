@@ -15242,3 +15242,13 @@ On every commit touching an ADR's `tasks/README.md`, the PreToolUse artifact val
 ## 286. OPEN — ADR-064 T6's per-platform matrix time (2026-09-25)
 
 T6 step 2 records the matrix's added time on each CI platform in `tests/fixtures/corpora/README.md`. The three corpora land in the push after this entry, so the time is read from that push's CI log and recorded after it.
+
+## 287. OPEN — adr-next's `not ` and `never ` can never match, so "not approved" reads as done (2026-09-25, a cold review of 833ea52)
+
+`NEGATIVE` in `plugin/bin/adr-next` lists `not ` and `never ` (each with a trailing space) inside a group that ends with `(?![a-z])`. A space followed by "no letter" cannot occur before a word, so the two alternatives match only before a digit or punctuation: `NEGATIVE.search("not approved")`, `("never shipped")` and `("it is not done")` are all False, `("not 5")` is True. `human_outcome("not approved")` then finds the affirmative "approved" and returns `pass`, so a human-observed sign-off that says the opposite of done counts as done. That is the fail-open the function's own docstring says it refuses. It is the same at v2.108.0, so it predates the 2.109.0 batch.
+
+Not fixed in the batch, because the obvious fix has a cost. Matching `not` as a word would turn "confirmed it does not crash" into a stop, a false refusal of a correct sign-off. Which phrasing real sign-offs use is an empirical question (CLAUDE.md §16): measure the human-observed rows across the corpora we can read, then choose, for example negation directly before an affirmative word ("not approved", "never shipped").
+
+## 288. OPEN — work-next's JSON names tasks under an archive whose catalog it cannot establish (2026-09-25, a cold review of 833ea52)
+
+With the archive README spelled `readme.md` (the marker present, but the spelling ambiguous), SessionStart calls the directory UNPROVEN. work-next's JSON instead lists its done-claimed task in `unbackedDoneClaims` and `tasksUnderAnUndecidedRecord`, and leaves `readinessUnproven` empty. The damage is limited: `look` is `PARTIAL`, and the text output stops at could-not-look. But a JSON consumer reading those lists sees work where the reader could not tell. `frozenArchiveOf` returns `'unknown'` there, and `taskFiles` keeps the task. It should be reported as unproven, the way SessionStart reports it. This is wording and a JSON field, so it goes to the next batch.

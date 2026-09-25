@@ -1118,6 +1118,8 @@ const ARCHIVE_DIRECTORY_NAME = /(?:^|[-_])archived?s?$|^archives?[-_](?:adrs?|de
 // Archive-named directories holding listed Markdown with no Lifecycle marker above
 // them. Each is read as live by every reader; this names it so its owner can adopt it
 // with `adr-retire-check --adopt`, rather than finding out from a ready task.
+// A file named the way a decision record is: `ADR-001-…`, `0001-…`, `2026-09-24-…`.
+const RECORD_SHAPED = /^(?:adr[-_]?\d+|\d{3,4}-|\d{4}-\d{2}-\d{2}-)/i
 export function unmarkedArchives(root, listing) {
   if (listing == null) return []
   const listed = new Set(listing.map(rel => posixListed(rel)))
@@ -1125,6 +1127,9 @@ export function unmarkedArchives(root, listing) {
   const found = new Set()
   for (const rel of listed) {
     if (!/\.md$/i.test(rel) || /(?:^|\/)readme\.md$/i.test(rel)) continue
+    // Only a directory holding records or task files: an archive-named folder of
+    // notes is not an archive of decisions (cold review of 833ea52).
+    if (!RECORD_SHAPED.test(rel.split('/').pop()) && !/(?:^|\/)tasks\//.test(rel)) continue
     const parts = rel.split('/').filter(Boolean)
     if (listedUnderUninterestingDirectory(parts.slice(0, -1))) continue
     for (let depth = 1; depth < parts.length; depth++) {
@@ -2891,13 +2896,15 @@ export function sessionOrientation(cwd) {
   if (inside && ready.look === 'UNPROVEN') {
     lines.push('could-not-look: git could not list the tree (UNPROVEN). Ready tasks and corpus existence are not known.')
   }
-  if (inside && listing != null) {
+  const corpusLook = inside ? hasDecisionCorpus(root, listing) : false
+  // Only where there is a decision corpus: a repository that never opted in was
+  // told to adopt its blog's `content/archive/` (cold review of 833ea52).
+  if (corpusLook === true) {
     for (const archive of unmarkedArchives(root, listing)) {
       lines.push(`\`${archive}\` looks like an archive but has no Lifecycle marker, so it is read as live — `
         + '`adr-retire-check --adopt <active> <archive>` adopts it (skills/adr-retire §Existing Archives).')
     }
   }
-  const corpusLook = inside ? hasDecisionCorpus(root, listing) : false
 
   // A stale standalone copy can only give a wrong answer where a gate actually
   // runs, so the warning belongs in a repository that has a corpus for one to

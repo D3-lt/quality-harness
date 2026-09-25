@@ -6,7 +6,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
-import { addedLines, baselineOf, cacheKey, childEnv, classify, killedBy, leafTestsRun, renderLine, reusable, setKeyOf, shardByCost, staleEntries, summarise, testArgs, testSets, touchedBy } from '../scripts/mutate.mjs'
+import { addedLineNumbers, addedLines, baselineOf, cacheKey, changedDiffArgs, childEnv, classify, killedBy, leafTestsRun, renderLine, reusable, setKeyOf, shardByCost, staleEntries, summarise, testArgs, testSets, touchedBy } from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -648,9 +648,43 @@ test('touchedBy keeps an entry whose mutated line was added by the change, and o
   assert.deepEqual(touchedBy(entries, new Map()), [])
 })
 
+// Codex review of 833ea52: the twelve-character floor skipped a SHORT mutant the
+// change itself added — `if frozen:` — so --changed never ran it. Where the source
+// can be read, an entry is selected by WHERE its `from` sits: inside an added hunk,
+// however short; outside, not, however common its text.
+test('--changed selects a short mutant by where the change added it', () => {
+  const source = ['def f():', '    if frozen:', '        pass', '    return 1', ''].join('\n')
+  const diff = ['+++ b/bin/x', '@@ -1,0 +2,2 @@', '+    if frozen:', '+        pass'].join('\n')
+  assert.deepEqual([...addedLineNumbers(diff).get('bin/x')], [2, 3])
+  const entries = [
+    { label: 'short and added', file: 'bin/x', from: '    if frozen:', tests: [] },
+    { label: 'short, not added', file: 'bin/x', from: '    return 1', tests: [] },
+  ]
+  const where = { numbers: addedLineNumbers(diff), readSource: () => source }
+  assert.deepEqual(touchedBy(entries, addedLines(diff), where).map(entry => entry.label), ['short and added'])
+})
+
 test('mutate --stale over the real catalogue exits 0 and says every entry matches', () => {
   const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
   const run = spawnSync(process.execPath, [join(repoRoot, 'scripts', 'mutate.mjs'), '--stale'], { cwd: repoRoot, encoding: 'utf8', timeout: 60_000 })
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
   assert.match(run.stdout, /every entry matches its source exactly once/)
+})
+
+// Cold review of 833ea52: `--changed` parsed `+++ b/<file>`, and a user's own
+// `diff.noprefix` or `diff.mnemonicPrefix` changes that header, so every entry
+// missed and the run reported "no mutation matches". The diff is asked for in one
+// fixed shape, whatever the user's git config says.
+test('--changed reads its diff in one shape whatever the user configured', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-changed-prefix-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    git('init', '-q')
+    writeFileSync(join(repo, 'x.mjs'), 'export const a = 1\n')
+    git('add', '.'); git('commit', '-qm', 'one')
+    writeFileSync(join(repo, 'x.mjs'), 'export const a = 1\nexport const changedLine = 2\n')
+    for (const [key, value] of [['diff.noprefix', 'true'], ['diff.mnemonicPrefix', 'true'], ['color.diff', 'always']]) git('config', key, value)
+    const diff = spawnSync('git', changedDiffArgs(repo, 'HEAD'), { encoding: 'utf8', timeout: 30_000 })
+    assert.deepEqual([...addedLines(diff.stdout).keys()], ['x.mjs'], diff.stdout)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
 })

@@ -5,8 +5,8 @@
 // component is a root name, a directory one reader did not read.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { compareReaders, failedToRun, probe, scrubber } from '../plugin/scripts/corpus-probe.mjs'
-import { existsSync, mkdtempSync, rmSync } from 'node:fs'
+import { compareReaders, failedToRun, probe, readerFingerprint, scrubber } from '../plugin/scripts/corpus-probe.mjs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
@@ -109,6 +109,8 @@ test('probe: a run leaves nothing in the probed repository, its git dir included
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, encoding: 'utf8', timeout: 10_000 }).status, 0)
     const report = probe(repo)
     assert.deepEqual(report.couldNotRun, [], JSON.stringify(report.couldNotRun))
+    // ADR-064 T1: every report says which readers answered.
+    assert.match(report.probe.readers?.sha256 ?? '', /^[0-9a-f]{64}$/, JSON.stringify(report.probe))
     assert.ok(!existsSync(path.join(repo, '.git', 'quality-harness')),
       'the probe must not write quality-harness state into the probed repository')
   } finally {
@@ -136,4 +138,107 @@ test('stateDir: an override keeps each repository apart', () => {
     else process.env.QUALITY_HARNESS_STATE_DIR = saved
     for (const dir of [a, b, root]) rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// ADR-064 T1. `probe.sha256` covers corpus-probe.mjs alone, so attestations at four
+// different shas carried one hash while the readers changed. The fingerprint covers
+// every reader file, and is built in a scratch plugin of its own (CLAUDE.md §9).
+function scratchPlugin(prefix, nest = []) {
+  const top = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), prefix)))
+  const plugin = path.join(top, ...nest, 'plugin')
+  const put = (rel, text) => {
+    mkdirSync(path.dirname(path.join(plugin, rel)), { recursive: true })
+    writeFileSync(path.join(plugin, rel), text)
+  }
+  put('bin/adr-lint', '#!/usr/bin/env python3\nprint(1)\n')
+  put('hooks/hooks.json', '{}\n')
+  put('lib/record.py', 'X = 1\n')
+  put('scripts/a.mjs', 'export const a = 1\n')
+  put('scripts/z.mjs', 'export const z = 1\n')
+  writeFileSync(path.join(top, '.gitignore'), '__pycache__/\n')
+  return { top, plugin, put }
+}
+const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd, encoding: 'utf8', timeout: 30_000 })
+
+test('the probe fingerprints the readers it ran', () => {
+  const { top, plugin, put } = scratchPlugin('qh-fp-')
+  try {
+    const first = readerFingerprint(plugin).sha256
+    assert.match(first, /^[0-9a-f]{64}$/)
+    put('scripts/z.mjs', 'export const z = 2\n')
+    const changed = readerFingerprint(plugin).sha256
+    assert.notEqual(changed, first, 'a change to the LAST reader file in sort order moves the fingerprint')
+    put('scripts/z.mjs', 'export const z = 2\r\n')
+    assert.equal(readerFingerprint(plugin).sha256, changed, 'a CRLF copy hashes as its LF twin')
+    put('lib/__pycache__/record.cpython-314.pyc', 'bytecode')
+    put('scripts/.DS_Store', 'finder')
+    assert.equal(readerFingerprint(plugin).sha256, changed, '__pycache__ and dotfiles are not readers')
+    // The commit is never hashed in: the same files in a checkout hash the same.
+    assert.equal(git(top, 'init', '-q').status, 0)
+    assert.equal(git(top, 'add', '.').status, 0)
+    assert.equal(git(top, 'commit', '-qm', 'x').status, 0)
+    assert.equal(readerFingerprint(plugin).sha256, changed)
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+test('uncommitted reader edits mark the fingerprint dirty', () => {
+  const { top, plugin, put } = scratchPlugin('qh-fp-dirty-')
+  const nested = scratchPlugin('qh-fp-nested-', ['vendor'])
+  try {
+    for (const dir of [top, nested.top]) {
+      assert.equal(git(dir, 'init', '-q').status, 0)
+      assert.equal(git(dir, 'add', '.').status, 0)
+      assert.equal(git(dir, 'commit', '-qm', 'x').status, 0)
+    }
+    const head = git(top, 'rev-parse', 'HEAD').stdout.trim()
+    assert.deepEqual({ git: readerFingerprint(plugin).git, dirty: readerFingerprint(plugin).dirty }, { git: head, dirty: false })
+    put('bin/adr-lint', '#!/usr/bin/env python3\nprint(2)\n')
+    assert.equal(readerFingerprint(plugin).dirty, true, 'an uncommitted reader edit is dirty')
+    const vendored = readerFingerprint(nested.plugin)
+    assert.deepEqual({ git: vendored.git, dirty: vendored.dirty }, { git: null, dirty: null },
+      'a plugin inside another repository is not that repository\'s checkout')
+  } finally {
+    rmSync(top, { recursive: true, force: true })
+    rmSync(nested.top, { recursive: true, force: true })
+  }
+})
+
+// ADR-064 T4. A disk walk that took minutes per record, and an adr-next run past
+// work-next's 60 s budget, were found only because a peer noticed: the report had
+// no timing. Every spawn is timed, including one that failed.
+test('every reader spawn in the probe report is timed', () => {
+  const repo = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-probe-timed-')))
+  try {
+    mkdirSync(path.join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks'), { recursive: true })
+    writeFileSync(path.join(repo, 'docs', 'adr', 'ADR-001-x.md'), '# ADR-001: x\n\n**Status:** Accepted\n\n## Context\n\nx\n\n## Decision\n\ny\n')
+    writeFileSync(path.join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks', 'T1-a.md'), '# Task ADR-001-T1: a\n\n## Verification Log\n\n')
+    assert.equal(git(repo, 'init', '-q').status, 0)
+    const report = probe(repo)
+    assert.ok(report.adrLint.length >= 1, 'the scratch corpus has a record, so adr-lint ran')
+    const readers = new Set(report.timings.map(entry => entry.reader))
+    for (const name of ['adr-lint', 'adr-next', 'work-next', 'adr-state', 'SessionStart', 'corpus-report']) {
+      assert.ok(readers.has(name), `${name} is timed: ${JSON.stringify(report.timings)}`)
+    }
+    assert.ok(report.timings.every(entry => Number.isInteger(entry.ms) && entry.ms >= 0), JSON.stringify(report.timings))
+    assert.ok(report.slowest.length <= 5 && report.slowest.every((entry, i, all) => i === 0 || all[i - 1].ms >= entry.ms), JSON.stringify(report.slowest))
+    // A reader killed at its budget is timed too: a null reader still has its time.
+    const starved = probe(repo, { timeoutMs: 1 })
+    assert.ok(starved.couldNotRun.length > 0, 'a 1 ms budget kills the readers')
+    assert.ok(starved.timings.some(entry => entry.reader === 'work-next'), JSON.stringify(starved.timings))
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+// The fingerprint reads every reader directory, not only `scripts/`: a `record.py`
+// change changes what adr-lint and adr-next decide, and `hooks` wires which reader
+// runs when (plugin/scripts/reader-paths.mjs).
+test('the reader fingerprint covers lib and hooks', () => {
+  const { top, plugin, put } = scratchPlugin('qh-fp-dirs-')
+  try {
+    const before = readerFingerprint(plugin).sha256
+    put('lib/record.py', 'X = 2\n')
+    const afterLib = readerFingerprint(plugin).sha256
+    assert.notEqual(afterLib, before, 'a lib/ change moves the fingerprint')
+    put('hooks/hooks.json', '{"x": 1}\n')
+    assert.notEqual(readerFingerprint(plugin).sha256, afterLib, 'a hooks/ change moves the fingerprint')
+  } finally { rmSync(top, { recursive: true, force: true }) }
 })

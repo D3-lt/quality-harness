@@ -27,22 +27,80 @@
 // start" (peer-run, 2026-09-23); a killed reader now says it was killed, and by what.
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { adrCorpus, spawnGate, trackedPaths } from './lifecycle.mjs'
 import { publicPath, pluginVersion } from './corpus-report.mjs'
 import { isMainModule } from './main-module.mjs'
+import { READER_DIRECTORIES } from './reader-paths.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const bin = path.join(here, '..', 'bin')
 const DEFAULT_TIMEOUT_MS = 120_000
 const DEFAULT_SWEEP_BUDGET_MS = 1_800_000
 
-/** The digest of this file, so a pasted report says which probe produced it. */
+/**
+ * The digest of THIS FILE ALONE, so a pasted report says which probe produced it.
+ * It says nothing about the readers the probe ran: attestations at four different
+ * shas carried one value while the readers changed. `readerFingerprint` does that.
+ */
 export function probeDigest(read = readFileSync) {
   return createHash('sha256').update(read(fileURLToPath(import.meta.url))).digest('hex')
+}
+
+/**
+ * Which readers answered (ADR-064 T1): `sha256` over every file under the reader
+ * directories as the disk holds them — an untracked reader that runs is hashed
+ * too — skipping `__pycache__`, `.pyc` and dotfiles, which Python and the OS write
+ * on their own and which would make two runs of the same readers disagree. Text is
+ * LF-normalised, so a CRLF checkout hashes as its LF twin.
+ *
+ * `git` is the commit only when the plugin root's PARENT is the top of a work tree:
+ * a plugin vendored inside another repository is not that repository's checkout.
+ * It is a separate field, never hashed in, so the fingerprint moves only when a
+ * reader does. `dirty` says whether any reader file differs from that commit, which
+ * is what lets an attestation refuse to claim readers the runner did not commit.
+ * Two git spawns at most. `run` is the seam.
+ */
+export function readerFingerprint(pluginRoot, { run = args => spawnSync('git', ['-C', pluginRoot, ...args], { encoding: 'utf8', timeout: 30_000 }) } = {}) {
+  const files = []
+  const walk = relative => {
+    for (const entry of readdirSync(path.join(pluginRoot, relative), { withFileTypes: true })) {
+      if (entry.name.startsWith('.') || entry.name === '__pycache__' || entry.name.endsWith('.pyc')) continue
+      const child = path.posix.join(relative, entry.name)
+      if (entry.isDirectory()) walk(child)
+      else if (entry.isFile()) files.push(child)
+    }
+  }
+  let sha256 = null
+  let reason = null
+  try {
+    for (const directory of READER_DIRECTORIES) walk(directory)
+    const hash = createHash('sha256')
+    for (const file of files.sort()) {
+      hash.update(`${file}\0`)
+      hash.update(readFileSync(path.join(pluginRoot, file), 'utf8').replaceAll('\r\n', '\n'))
+      hash.update('\0')
+    }
+    sha256 = hash.digest('hex')
+  } catch (error) {
+    // Never a hash of the files it could read: that would name readers nobody ran.
+    reason = `a reader file could not be read (${error.code ?? error.message})`
+  }
+  let git = null
+  let dirty = null
+  const head = run(['rev-parse', '--show-toplevel', 'HEAD'])
+  const [top, commit] = !head.error && head.status === 0 ? String(head.stdout).trim().split('\n') : []
+  let checkout = false
+  try { checkout = Boolean(top && commit) && realpathSync(top) === realpathSync(path.dirname(pluginRoot)) } catch { checkout = false }
+  if (checkout) {
+    git = commit
+    const status = run(['status', '--porcelain', '--untracked-files=all', '--', ...READER_DIRECTORIES])
+    dirty = !status.error && status.status === 0 ? String(status.stdout).trim() !== '' : null
+  }
+  return { sha256, git, dirty, ...(reason ? { reason } : {}) }
 }
 
 function parseJson(text) {
@@ -185,6 +243,17 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const node = (script, args, options = {}) => spawnSync(process.execPath, [path.join(here, script), ...args],
     { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, ...options })
   const gate = (tool, args, timeout = timeoutMs) => spawnGate(path.join(bin, tool), args, { cwd: resolved, encoding: 'utf8', timeout })
+  // ADR-064 T4: every spawn is timed, including one that failed, so a reader that
+  // is `null` below still has its time here. A disk walk that took minutes per
+  // record and an adr-next past work-next's 60 s budget were found only because a
+  // peer noticed. `ms` is wall time; the report never calls a reader slow.
+  const timings = []
+  const timed = (readerName, target, run) => {
+    const start = performance.now()
+    try { return run() } finally {
+      timings.push({ reader: readerName, target: target == null ? null : scrub(target), ms: Math.round(performance.now() - start) })
+    }
+  }
 
   const listing = trackedPaths(resolved)
   const corpus = adrCorpus(resolved, { tracked: listing })
@@ -204,7 +273,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const frozen = record => (record.frozen ? { frozen: true } : {})
   const adrLint = corpus.map(record => {
     const tasksDir = (record.taskFiles ?? []).length ? path.dirname(record.taskFiles[0]) : null
-    const run = gate('adr-lint', tasksDir ? [record.file, tasksDir] : [record.file])
+    const run = timed('adr-lint', rel(record.file), () => gate('adr-lint', tasksDir ? [record.file, tasksDir] : [record.file]))
     if (run.error) {
       note(`adr-lint ${rel(record.file)}`, failedToRun(run.error, timeoutMs))
       return { file: rel(record.file), exit: null, verdict: null, ...frozen(record) }
@@ -220,8 +289,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     return { file: rel(record.file), exit: run.status, verdict, ...(finding ? { reason: scrub(finding.trim()) } : {}), ...frozen(record) }
   })
 
-  const workNext = reader('work-next', () => node('work-next.mjs', ['--json']), note)
-  const adrState = reader('adr-state', () => node('adr-state.mjs', ['--json']), note)
+  const workNext = reader('work-next', () => timed('work-next', null, () => node('work-next.mjs', ['--json'])), note)
+  const adrState = reader('adr-state', () => timed('adr-state', null, () => node('adr-state.mjs', ['--json'])), note)
 
   // adr-next per task directory of a governing, unfrozen record — the same set
   // SessionStart and work-next ask about. A frozen archive's tasks are history;
@@ -232,7 +301,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const liveTaskDirs = [...new Set(corpus.filter(record => !record.frozen)
     .flatMap(record => (record.taskFiles ?? []).map(file => path.dirname(file))))]
   const adrNext = liveTaskDirs.map(dir => {
-    const answer = reader(`adr-next ${rel(dir)}`, () => gate('adr-next', [dir, '--json']), note)
+    const answer = reader(`adr-next ${rel(dir)}`, () => timed('adr-next', rel(dir), () => gate('adr-next', [dir, '--json'])), note)
     return {
       tasksDir: rel(dir),
       ready: answer?.ready?.map(task => ({ id: task.id, path: rel(path.resolve(resolved, task.path)), unproven: task.unproven ? scrub(task.unproven) : null })) ?? null,
@@ -246,10 +315,10 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-corpus-probe-'))
   let sessionStart = null
   try {
-    const hook = node('lifecycle.mjs', [], {
+    const hook = timed('SessionStart', null, () => node('lifecycle.mjs', [], {
       input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: `corpus-probe-${process.pid}`, cwd: resolved }),
       env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(scratch, 'data'), TMPDIR: scratch, TMP: scratch, TEMP: scratch, QUALITY_HARNESS_STATE_DIR: path.join(scratch, 'state') },
-    })
+    }))
     // A hook that crashed, was signalled, or printed something other than the
     // JSON the host expects made no observation; it is could-not-run, not an
     // empty orientation (Codex review of c1f546a, P2). An empty stdout with exit
@@ -269,14 +338,14 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   }
 
   const corpusReport = corpusDirs.map(dir => {
-    const report = reader(`corpus-report ${rel(dir)}`, () => node('corpus-report.mjs', [dir, '--json']), note)
+    const report = reader(`corpus-report ${rel(dir)}`, () => timed('corpus-report', rel(dir), () => node('corpus-report.mjs', [dir, '--json'])), note)
     return { root: rel(dir), totals: report?.totals ?? null, records: report?.records ?? null }
   })
 
   const sweeps = sweep
     ? corpusDirs.map(dir => {
       const answer = reader(`adr-verify --sweep ${rel(dir)}`,
-        () => gate('adr-verify', ['--sweep', dir, '--json', '--timeout', String(sweepTimeoutSeconds)], sweepBudgetMs), note, sweepBudgetMs)
+        () => timed('adr-verify --sweep', rel(dir), () => gate('adr-verify', ['--sweep', dir, '--json', '--timeout', String(sweepTimeoutSeconds)], sweepBudgetMs)), note, sweepBudgetMs)
       return answer ? { root: rel(dir), claims: answer.claims, held: answer.held, false: answer.false, superseded: answer.superseded, unrunnable: answer.unrunnable } : { root: rel(dir), buckets: null }
     })
     : null
@@ -296,7 +365,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const disagreements = compareReaders(adrNext, workNext && { ready: workNextReadyList, readinessUnproven: workNextUnproven })
 
   return {
-    probe: { version: pluginVersion(), sha256: probeDigest() },
+    probe: { version: pluginVersion(), sha256: probeDigest(), readers: readerFingerprint(pluginRoot) },
     root: '.',
     look,
     corpora: corpusDirs.map(rel),
@@ -326,6 +395,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     sweep: sweeps,
     disagreements,
     couldNotRun,
+    timings,
+    slowest: [...timings].sort((a, b) => b.ms - a.ms).slice(0, 5),
   }
 }
 

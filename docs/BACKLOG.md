@@ -15442,6 +15442,18 @@ Four more were refused by their own permission classifiers until their users app
 
 Each fix has a test and a mutant. The fence-length mutant came back GREEN until a nested-fence case was added.
 
+**Round 2, at 145c794** (declarative-pie: Windows, TS monorepo; pirkiniukampelis: macOS, Laravel). L1 and L7 replay as fixed, and the sign-off rule holds in both directions on a real corpus. Four flaws in this entry's own fixes were found and fixed:
+- **N1:** the L4 fix routed a record whose tasks were off the disk to "adr-write: accepted records have no task files", right under its own UNPROVEN line. That route now needs no unread task directory.
+- **N2:** the inline-code mask crossed a blank line, so a stray backtick hid a real Status two paragraphs later.
+- **N3:** a mid-paragraph unclosed `<!--` masked to the end of the file. Now neither a code span nor an inline comment crosses a blank line, and only a line-start comment runs on unclosed. That is CommonMark.
+- **N4:** paths were spoken unquoted. A backtick in a task's file name broke out of the `adr-verify …` code span into the session's context, and a zero-width character hid in it. The span is now longer than any backtick run in the path, and invisible characters show as `\u{…}`.
+
+Each has a test and a mutant (RED). No real spec moved (117).
+
+CI at 145c794 also failed on Windows. My own L7 test forbade the `\r` of Windows' CRLF; that test is fixed. A second failure, `hook-work.test.mjs` "edits do not launch project-wide compilers" (the hook ran an edited `.ts` file's content, exit 127), touches nothing this entry changed, passed on Windows at 026658a and does not reproduce on macOS. It is recorded as unattributed, to be judged by the next run.
+
+Also found while fixing: this session's file-writing tool decoded some `\uXXXX` escapes into raw bidi and zero-width characters, and a zsh `echo` decoded `\r`. Nine test lines and one source line held them. Each is escaped again now, checked by a byte scan. The `lifecycle.mjs` title regexes that match a BOM predate this batch and were left as they are.
+
 ## 295. OPEN — The 2.110.0-rc chaos round: leads for the next batch (reported from outside runs at 026658a)
 
 None of these is fixed in 2.110.0. Each needs its fix weighed, or its own record. The runner and replay are in that session's report.
@@ -15477,3 +15489,9 @@ Readers judging the wrong tree:
 To the corpus-chaos skill:
 17. On Windows the skill's clone line needs `-c core.longpaths=true` (idempotent-hammock).
 18. The catalogue should say to build bytes with the file tool or `node -e` rather than a shell literal: a classifier refused backticks and `${}` (pirkiniukampelis).
+19. **From round 2, at 145c794.**
+    - A task deleted while another `depends_on` it leaves the dependents ready, and nothing names the missing task (pirkiniukampelis F1). A verdict over input that is not there.
+    - adr-next never sees a task git lists but the disk does not hold. It asks the disk, not git, so the work-next half of L4 is fixed and this half is not (pirkiniukampelis F2).
+    - On Windows, a DIRECTORY named like a task raises PermissionError, and adr-next reports the whole tasks directory as could-not-run with "Permission denied" as the reason (declarative-pie N5).
+    - A task holding conflict markers with `Done` above and `Todo` below counts as a done claim, because the first value wins (declarative-pie).
+    - By design, recorded: adr-next's `--json` carries the goal and stop reason as data, JSON-escaped, and does not quote or strip them (pirkiniukampelis F3). A consumer that prints them is where quoting belongs; SessionStart does, and the human output does.

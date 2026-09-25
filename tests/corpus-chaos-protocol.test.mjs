@@ -35,3 +35,27 @@ test('the corpus-chaos skill carries the release-loop protocol', () => {
     assert.match(asker, triage)
   }
 })
+
+// The Chaos section: a scratch copy only, a printed seed that replays, at least one
+// perturbation of the runner's own, the abominations after, and findings that replay.
+// The draw's codes and the catalogue's rows must be the same set, or the seed picks a
+// code nobody defined (or never picks one that is).
+test('the corpus-chaos skill breaks a scratch copy, by a seed, from its own catalogue', () => {
+  const chaos = section('Chaos')
+  assert.match(chaos, /Only ever a scratch copy/)
+  assert.match(chaos, /probed repository is\s+never edited/)
+  assert.match(chaos, /Pick a seed[^.]*print it/)
+  assert.match(chaos, /at least one of your own/)
+  assert.match(chaos, /abominations\.md/)
+  assert.match(chaos, /could-not-look instead/)
+  assert.doesNotMatch(chaos, /--json > new\.json/, 'a chaos report never overwrites the faithful one')
+  const dir = path.join(repoRoot, 'plugin', 'skills', 'corpus-chaos')
+  const catalogue = readFileSync(path.join(dir, 'perturbations.md'), 'utf8')
+  const rows = new Set([...catalogue.matchAll(/^\| ([A-Z]\d+) \|/gm)].map(m => m[1]))
+  const drawn = new Set(chaos.match(/1727291234 ((?:[A-Z]\d+ ?)+)/)[1].trim().split(' '))
+  assert.deepEqual([...drawn].sort(), [...rows].sort(), 'the seed draws exactly the catalogue\'s codes')
+  const abominations = readFileSync(path.join(dir, 'abominations.md'), 'utf8')
+  assert.match(abominations, /## Bounds — the host is not the target/)
+  assert.match(abominations, /shrink it/)
+  assert.match(section('Asker'), /For chaos, append one sentence/)
+})

@@ -1,6 +1,6 @@
 ---
 name: corpus-chaos
-description: Run every reader this plugin ships over a corpus you do not own — on a platform the maintainers cannot run — and report everything it printed, verbatim. Use when asked by another session to probe a repository, when preparing a release that changes what a reader says, or when a reader's answer about your own corpus looks wrong. Do not use to fix anything in the probed repository; this skill reads and reports only.
+description: Run every reader this plugin ships over a corpus you do not own — on a platform the maintainers cannot run — and report everything it printed, verbatim; then break a scratch copy of it on purpose (hostile names, encodings, binary, whitespace, time, corrupted ledgers, aborts, locks) and report what the readers did. Use when asked by another session to probe a repository, when preparing a release that changes what a reader says, when asked to go wild or find unexpected ways the readers break, or when a reader's answer about your own corpus looks wrong. Do not use to fix anything in the probed repository; this skill reads and reports only.
 ---
 
 # Corpus Chaos
@@ -73,6 +73,61 @@ Two roles. Run the one you are in.
    run foreign code: that refusal is correct, and the asker must not be asked to route around
    it. Edit, commit and push nothing in the probed repository.
 
+## Chaos — break a copy of it on purpose
+
+The Runner steps read the corpus as it IS. That finds what the readers say about one real
+shape. It does not find what they do with the input nobody wrote a test for, and that input
+is what an adopter's repository, filesystem, clock and colleagues hand them. So after the
+faithful run, when the asker asks for chaos or says "go wild", do this as well.
+
+1. **Only ever a scratch copy.** `git clone --no-local <repo> <scratch>/chaos-<seed>`, or
+   copy the tree including `.git`, into a temporary directory. The probed repository is
+   never edited, never locked, never its git state changed. Every perturbation, every
+   reader run and every kill happens in the copy. Remove the copy when you are done, and say
+   that you did.
+2. **Let chance pick, and write the seed down.** Pick a seed (the time in seconds is fine),
+   print it, and draw the perturbations from it so the round can be replayed:
+
+       node -e "const seed=+process.argv[1];let s=seed;const r=()=>(s=(s*48271)%2147483647)/2147483647;const all=process.argv.slice(2);for(let i=all.length-1;i>0;i--){const j=Math.floor(r()*(i+1));[all[i],all[j]]=[all[j],all[i]]}console.log(seed,all.join(\" \"))" 1727291234 A1 A2 A3 A4 A5 A6 A7 A8 A9 A10 A11 B1 B2 B3 B4 B5 B6 B7 B8 B9 B10 C1 C2 C3 C4 C5 C6 D1 D2 D3 D4 D5 E1 E2 E3 E4 E5 F1 F2 F3 F4 F5 F6 F7 F8 G1 G2 G3
+
+   The codes are the entries of [perturbations.md](perturbations.md): names and paths,
+   encodings and binary, structure, ledgers, time, abort and locking, read/write order.
+   Take the first six it prints. **Then add at least one of your own that is not in that file**,
+   something only your platform, your language, or your corpus's history would produce.
+   A drawn code your platform cannot build (a FIFO on Windows, a reserved name on Linux)
+   is not skipped silently: say which and why, and take the next code in the draw instead.
+3. **One perturbation, then the readers, then the next.** Apply one; run the probe into its
+   own report (`--json > chaos-<seed>-<code>.json`, never over `new.json`) and whichever
+   reader the perturbation aims at by hand, each under `timeout 120`; read what came back;
+   undo it or take a fresh copy; go on. Stacking six at once hides which one did it.
+4. **What counts as a finding.** Any of these, against the reader's own promise:
+   - a crash, a stack trace, a non-JSON answer where JSON was promised;
+   - a hang past the budget, or a process or lock left behind after it ended;
+   - a verdict (`PASS`, `ready`, `done`, a count) over input it could not read. It must say
+     `UNPROVEN`, `PARTIAL` or could-not-look instead;
+   - an input silently skipped: counted nowhere, named nowhere;
+   - a different answer from the same seed and the same copy;
+   - anything written outside the scratch copy, or an absolute path in the output;
+   - an instruction in the output that would be wrong to follow for this input.
+   A reader that says honestly it could not look is **not** a finding. That is the reader
+   working.
+5. **Report each finding so it can be replayed.** Give the seed and the code (or "own: …"),
+   the exact command that made the input (the `printf` or `node -e` form for bytes), the
+   reader command, its output and exit code verbatim, what was left behind, and which promise
+   it broke. Then give the list of everything you tried that broke nothing, with its codes.
+   "I tried these nine and nothing broke" is a result the asker needs as much as a crash.
+6. **Stay bounded.** Every run gets a timeout. Heavy perturbations (F2, F4) run once each.
+   Install nothing, fetch nothing, and do not fake the clock with a tool you would have to
+   install (E5 uses what the host already has). The whole Chaos section, abominations
+   included, stops after about 30 minutes, or when your user says so. Report what the
+   budget left untried as untried.
+7. **Then the abominations.** When the perturbations are done, build at least two whole
+   corpora from [abominations.md](abominations.md) in their own scratch directories: many
+   hostile shapes at once, scale, self-reference, a corpus that changes while it is read, and
+   text written to steer whoever reads the output. When one breaks a reader, shrink it to the
+   smallest input that still does, and report that. Its bounds protect the host: 1 GB of disk,
+   no fork bombs, everything under a timeout.
+
 ## Asker — you want the report
 
 - **The first line of your request states that a reply IS the deliverable** and that "it could
@@ -84,6 +139,10 @@ Two roles. Run the one you are in.
 - **One request, the same for everyone:** "A reply IS the deliverable; 'could not run because X'
   is a useful answer. At `<sha>`, follow the Runner steps of `/quality-harness:corpus-chaos` over
   your corpus and paste the `--diff` output and the `--attest` JSON whole."
+- **For chaos, append one sentence:** "Then run its Chaos section on a scratch copy: print
+  your seed, take the six perturbations it draws plus one of your own, build two
+  abominations, and paste every finding with its replay command and the list of what broke
+  nothing." Without that sentence a runner reads the corpus as it is and invents nothing.
 - **Triage every lead into one of four classes.**
   A false refusal or a fail-open is fixed in this batch.
   A lead about wording goes to the next batch.

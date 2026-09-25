@@ -101,7 +101,7 @@
   "disagreements": [],
   "sessionStart": {
     "mustMatch": [
-      "2026-06-01-db-doctor-repair/tasks: T1 is ready"
+      "2026-06-01-db-doctor-repair/tasks`: T1 is ready"
     ],
     "mustNotMatch": [
       "adr-archive",

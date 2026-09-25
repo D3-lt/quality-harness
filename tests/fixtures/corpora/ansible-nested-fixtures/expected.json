@@ -53,7 +53,7 @@
   "disagreements": [],
   "sessionStart": {
     "mustMatch": [
-      "one-role-per-host-class/tasks: T1 is ready"
+      "one-role-per-host-class/tasks`: T1 is ready"
     ],
     "mustNotMatch": [
       "roles/",

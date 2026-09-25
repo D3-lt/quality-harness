@@ -15252,3 +15252,23 @@ Not fixed in the batch, because the obvious fix has a cost. Matching `not` as a 
 ## 288. OPEN — work-next's JSON names tasks under an archive whose catalog it cannot establish (2026-09-25, a cold review of 833ea52)
 
 With the archive README spelled `readme.md` (the marker present, but the spelling ambiguous), SessionStart calls the directory UNPROVEN. work-next's JSON instead lists its done-claimed task in `unbackedDoneClaims` and `tasksUnderAnUndecidedRecord`, and leaves `readinessUnproven` empty. The damage is limited: `look` is `PARTIAL`, and the text output stops at could-not-look. But a JSON consumer reading those lists sees work where the reader could not tell. `frozenArchiveOf` returns `'unknown'` there, and `taskFiles` keeps the task. It should be reported as unproven, the way SessionStart reports it. This is wording and a JSON field, so it goes to the next batch.
+
+## 289. OPEN — The 2.109.0 corpus-chaos round: leads for the next batch (2026-09-25, reported from outside runs at 7b0b71c)
+
+Five peer sessions on this machine were asked by the ADR-064 T7 protocol. Four ran and one could not:
+- Laravel, PHP/React and Go attested with `--attest` (`kind: probe`).
+- The JS SPA's classifier refused `--attest`, so its attestation was transcribed (`kind: hand`).
+- The Rust corpus's classifier refused the probe itself.
+
+No run found a false refusal or a fail-open, so the release was not reopened. The runs confirmed §281.1 (the pnpm false FAIL is gone), §281.2 (the quoted sign-off reads as done), §280.2 (a Tests-row FAIL names file:line), §281.3 (the unmarked archive is named), and the A8 evidenced-directory line.
+
+The leads, all wording or performance:
+1. **The unmarked-archive warning prints beside "T1 is ready … Prove it with `adr-verify`" for the same directory** (PHP/React). The remedy (`--adopt`) is named, but the instruction a session acts on is the one below it. Under the marker-only rule, 29 July-shipped archive tasks became "ready" there, and disagreements went 29 → 0 because the readers now share one reading. That is by design; the wording is not.
+2. **`readyButClaimedDone` is a subset of `ready`, and nothing says so** (PHP/React): one task sits in three lists and reads as a contradiction.
+3. **A top-level `look: PARTIAL` does not say which record made it partial** (Laravel).
+4. **work-next did not finish in the probe's 120 s budget on a 68-directory corpus**, because adr-next took 51, 26 and 26 s on the three largest Verification/Mutation logs (Go). adr-lint also takes about 2 s on four archived PHP/React records whose neighbours take 130 ms. Measure where the time goes before changing any budget.
+5. **`--attest` reports null `records`/`tasks` when work-next did not answer**, although `corpusReport` in the same report holds both (Go). Null-not-0 is right, but falling back is better.
+6. **`--diff` lists one missing reader as five "after lacks workNext.…" lines** before it names the reader in `couldNotRun` (Go).
+7. **A design lead:** a later record edited a test that two older records lock, and both went red on code of their own that did not change (Go). The relock remedy is named; nothing at the later record's merge warned that it would happen.
+
+(fixture-waived: none of these is a reader defect the matrix could pin until it is fixed; each fix that lands adds its field to a fixture corpus, per ADR-064)

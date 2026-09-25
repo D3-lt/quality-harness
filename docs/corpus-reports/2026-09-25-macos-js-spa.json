@@ -1,0 +1,16 @@
+{
+  "date": "2026-09-25",
+  "at": "7b0b71c2835f54535f1903023c64411df743437d",
+  "plugin": "2.109.0",
+  "kind": "hand",
+  "probeSha256": null,
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 2, "tasks": 9, "taskDirectories": 2 },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "a peer Claude Code session on this machine over a JS/vitest SPA, read-only, no --sweep; it verified the plugin checkout at 7b0b71c with an empty git status, and the probe's own readers block said git 7b0b71c, dirty false. --attest was denied by its permission classifier, so this was transcribed from its pasted report header and counts (kind: hand)",
+  "found": "Nothing reads wrong. The §280.2 fix is confirmed in the wild: the stale Tests-row FAIL names its task file:line, and the runner checked the finding is true (a table left stale by a rename in its own repository). The §281.8 inferred-check sentence reads right. unmarkedArchives, readyButClaimedDone, disagreements and couldNotRun are all empty, as expected for this corpus."
+}

@@ -26,3 +26,20 @@ predates this directory and stays where it is because `tests/foreign-corpus.test
 should make a reader say, and a `disagreements` entry records where two readers currently
 contradict each other on purpose — so that fixing the contradiction has to change the expectation
 in the open (BACKLOG §265).
+
+## What the matrix costs
+
+ADR-064 T6 step 2. The three corpora T6 added (`js-vitest-spa`, `php-multi-root`,
+`rust-crate`) took, per platform, in the dispatched release run for 2.109.0 (run
+36126550653 at 7b0b71c; `gh run view --job <id> --log`, the "every reader answers as
+reviewed" test durations):
+
+| Platform | js-vitest-spa | php-multi-root | rust-crate | Added |
+|---|---|---|---|---|
+| ubuntu-latest | 3.93 s | 2.53 s | 1.08 s | 7.5 s |
+| macos-latest | 3.21 s | 3.22 s | 1.49 s | 7.9 s |
+| windows | 3.35 s | 4.91 s | 2.40 s | 10.7 s |
+
+Tests inside `tests/corpus-matrix.test.mjs` run in sequence, so these add to that file's
+wall time. The whole matrix of eight corpora took 18.5 s, 22.3 s and 32.8 s on the same run.
+One run, measured on shared CI runners: read these as a scale, not a budget.

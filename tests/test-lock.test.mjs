@@ -2878,6 +2878,9 @@ print(json.dumps({"digest": digest, "token": token, "body": body}))
     // An edit INSIDE the span the old lock covered is a moved hash.
     writeFileSync(join(dir, rel), source('a}c', 'ab'))
     assert.match(verdict(), /hash moved — done is refused/)
+    // And the refusal names its way out, gated on review (BACKLOG §281 item 7):
+    // work-next named bare `adr-verify`, which this very lock would refuse again.
+    assert.match(verdict(), /hash moved — done is refused; once the change to the test is reviewed, `adr-verify --relock --replace-hashes` re-locks it/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

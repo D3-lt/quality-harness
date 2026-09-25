@@ -20,7 +20,7 @@ import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, listedUnderUninterestingDirectory, spawnGate, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, frozenArchiveOf, listedUnderUninterestingDirectory, spawnGate, trackedPaths } from './lifecycle.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
@@ -65,6 +65,10 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
   // and never reads a task adr-next did not read as a task it judged not done.
   const done = new Set()
   const listed = new Set()
+  // adr-next's own reason for each task it did not call done. A moved test lock
+  // needs `--relock --replace-hashes`, and the router named bare `adr-verify`,
+  // which that lock refuses again (BACKLOG §281 item 7).
+  const notes = new Map()
   for (const dir of [...dirs].sort()) {
     const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000 })
     // adr-next answers 0 (a ready task) or 3 (nothing ready) — BOTH with JSON. Reading
@@ -75,7 +79,10 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
     if (answered) { try { answer = JSON.parse(run.stdout) } catch { answer = null } }
     if (!answer || !Array.isArray(answer.ready)) { unproven.push(dir); continue }
     for (const bucket of ['ready', 'done', 'blocked', 'stopped']) {
-      for (const task of answer[bucket] ?? []) listed.add(path.resolve(root, task.path))
+      for (const task of answer[bucket] ?? []) {
+        listed.add(path.resolve(root, task.path))
+        if (task.unproven) notes.set(path.resolve(root, task.path), task.unproven)
+      }
     }
     for (const task of answer.done ?? []) done.add(path.resolve(root, task.path))
     for (const task of answer.ready) {
@@ -86,7 +93,7 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
       ready.push(file)
     }
   }
-  return { ready, unproven, done, listed }
+  return { ready, unproven, done, listed, notes }
 }
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
@@ -156,13 +163,10 @@ function posixRel(rel) {
   return String(rel).replaceAll('\\', '/')
 }
 
-function isArchivePath(rel) {
-  return posixRel(rel).split('/').some(part =>
-    /(^|[-_])archive(d|s)?$|^archive/i.test(part))
-}
 
 function taskFiles(directory, listing) {
   if (listing == null) return null
+  const frozen = frozenArchiveOf(directory, listing)
   const found = []
   for (const rel of listing) {
     const norm = posixRel(rel)
@@ -173,7 +177,10 @@ function taskFiles(directory, listing) {
     if (!/(?:^|\/)tasks\/[^/]+$/.test(norm)) continue
     if (!/\.md$/i.test(norm)) continue
     if (/readme\.md$/i.test(norm)) continue
-    if (isArchivePath(norm)) continue
+    // Frozen by the Lifecycle marker, the rule every other reader applies. A name
+    // test here hid an unadopted `adr-archive/` that SessionStart offered as live
+    // (BACKLOG §281 item 3), and before that `archive-policy.md` (§263).
+    if (frozen(norm) === true) continue
     // The same exclusion `adrCorpus` applies, or the count of task files and the
     // `unbacked` list would still carry fixtures whose records were dropped.
     if (listedUnderUninterestingDirectory(norm.split('/').slice(0, -1))) continue
@@ -278,6 +285,9 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     if (readiness.listed.has(path.resolve(file))) return !readiness.done.has(path.resolve(file))
     return !/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)
   })
+  // Unbacked tasks whose own withholding reason is a moved test lock: `adr-verify`
+  // alone would be refused, so the remedy is named (BACKLOG §281 item 7).
+  const relock = unbacked.filter(file => /--relock --replace-hashes/.test(readiness.notes?.get(path.resolve(file)) ?? ''))
 
   // Attributed by the corpus reader, not by walking the filesystem. A task file
   // is READY only when the record that owns it is Accepted: `Proposed`, `Draft`
@@ -334,6 +344,10 @@ export function observe(directory, { spawn = spawnGate } = {}) {
   // mutant on shard 4/48, because no fixture shared a directory); restored on a
   // shared-directory probe (Codex review of 1032720, P2), with that fixture.
   const ready = readiness.ready.filter(file => executable(file))
+  // Both true at once, and said once: not done, so it may be started; claimed done
+  // without evidence, so `adr-verify` comes first (BACKLOG §280 item 4).
+  const claimedDone = new Set(unbacked.map(file => path.resolve(file)))
+  const readyButClaimedDone = ready.filter(file => claimedDone.has(path.resolve(file)))
   // Named rather than dropped in silence: a corpus whose only unfinished work
   // sits under a record nobody has accepted would otherwise read as finished,
   // which is the same "I could not look" / "there is nothing" conflation the
@@ -392,9 +406,13 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     undecided: (corpus.unreadable ?? []).length,
     tasks: tasks.length,
     unbacked,
+    relock,
     ready,
+    readyButClaimedDone,
     notYetDecided,
     retirable,
+    // Archive-named directories with no Lifecycle marker: read as live, and named.
+    unmarkedArchives: corpus.unmarkedArchives ?? [],
     specs: specPaths.length,
     uncoveredReadySpecs: uncoveredReady,
     unprovenSpecs,
@@ -438,7 +456,7 @@ export function productLayer(look, nextId) {
  * process was gone before the runner could say otherwise. The healthier the
  * corpus, the fewer tests ran. Three sibling scripts already had this guard.
  */
-export function main(argv = process.argv.slice(2)) {
+export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   const json = argv.includes('--json')
   const unknown = argv.filter(a => a.startsWith('--') && a !== '--json')
   if (unknown.length) {
@@ -446,7 +464,10 @@ export function main(argv = process.argv.slice(2)) {
     return 2
   }
   const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
-  const state = observe(root)
+  const state = observe(root, { spawn })
+  const remedy = stage => stage?.id === 'adr-verify' && state.relock.length
+    ? `adr-verify --relock --replace-hashes ${relative(state.relock[0])} — once the change to the test is reviewed`
+    : undefined
   const stage = nextStage(state)
   const relative = file => path.relative(root, file) || file
 
@@ -462,10 +483,12 @@ export function main(argv = process.argv.slice(2)) {
       tasksUnderAnUndecidedRecord: state.notYetDecided.map(relative),
       retirableInActiveCorpus: state.retirable.map(record => relative(record.file)),
       readinessUnproven: state.readinessUnproven.map(relative),
+      unmarkedArchives: state.unmarkedArchives,
+      readyButClaimedDone: state.readyButClaimedDone.map(relative),
       specs: state.specs,
       uncoveredReadySpecs: (state.uncoveredReadySpecs ?? []).map(relative),
       unprovenSpecs: (state.unprovenSpecs ?? []).map(relative),
-      next: stage ? { id: stage.id, entry: stage.entry, when: stage.when } : null,
+      next: stage ? { id: stage.id, entry: stage.entry, when: stage.when, remedy: remedy(stage) } : null,
       layer: productLayer(state.look, stage?.id),
       stages: STAGES.map(({ id, entry, when }) => ({ id, entry, when })),
     }, null, 2)}\n`)
@@ -531,6 +554,16 @@ export function main(argv = process.argv.slice(2)) {
     for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  ${relative(dir)}\n`)
     if (state.readinessUnproven.length > 5) process.stdout.write(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
   }
+  if (state.readyButClaimedDone.length) {
+    const n = state.readyButClaimedDone.length
+    process.stdout.write(`\n${n} task${n === 1 ? ' is' : 's are'} both READY and claimed done without evidence — \`adr-verify\` ${n === 1 ? 'it' : 'them'} first:\n`)
+    for (const file of state.readyButClaimedDone.slice(0, 5)) process.stdout.write(`  ${relative(file)}\n`)
+    if (n > 5) process.stdout.write(`  (+${n - 5} more; --json for all)\n`)
+  }
+  for (const archive of state.unmarkedArchives) {
+    process.stdout.write(`\n\`${archive}\` looks like an archive but has no Lifecycle marker, so it is read as live; `
+      + '`adr-retire-check --adopt <active> <archive>` adopts it.\n')
+  }
   if (!stage) {
     if (state.tasks && !state.usesVerificationLog) {
       process.stdout.write(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `
@@ -555,6 +588,10 @@ export function main(argv = process.argv.slice(2)) {
           : []
   for (const file of evidence.slice(0, 5)) process.stdout.write(`    ${relative(file)}\n`)
   if (evidence.length > 5) process.stdout.write(`    (+${evidence.length - 5} more)\n`)
+  if (remedy(stage)) {
+    process.stdout.write(`\n  ${state.relock.length} of these carry a moved test lock, which bare \`adr-verify\` `
+      + `would refuse again: ${remedy(stage)}.\n`)
+  }
   return 0
 }
 

@@ -12,7 +12,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { observe, readinessFrom } from '../plugin/scripts/work-next.mjs'
+import { main, observe, readinessFrom } from '../plugin/scripts/work-next.mjs'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(testDir, '..')
@@ -30,11 +30,11 @@ test('readinessFrom: exit 3 is adr-next saying nothing is ready, not a directory
   const root = path.join(os.tmpdir(), 'qh-readiness-root')
   const dir = path.join(root, 'docs', 'adr', 'A', 'tasks')
   const corpus = [{ kind: 'governing', frozen: false, taskFiles: [path.join(dir, 'T1.md')] }]
-  assert.deepEqual(readinessFrom(corpus, root, () => answer(3, [])), { ready: [], unproven: [], done: new Set(), listed: new Set() },
+  assert.deepEqual(readinessFrom(corpus, root, () => answer(3, [])), { ready: [], unproven: [], done: new Set(), listed: new Set(), notes: new Map() },
     'exit 3 with valid JSON is an answer')
   // DIRTY: exit 2 is the gate not running (a lib missing beside bin/), and that IS unproven.
   const missing = readinessFrom(corpus, root, () => ({ status: 2, error: null, signal: null, stdout: '', stderr: '[adr-next] could not run' }))
-  assert.deepEqual(missing, { ready: [], unproven: [dir], done: new Set(), listed: new Set() })
+  assert.deepEqual(missing, { ready: [], unproven: [dir], done: new Set(), listed: new Set(), notes: new Map() })
   const ready = readinessFrom(corpus, root, () => answer(0, [{ id: 'T1', path: path.join(dir, 'T1.md') }]))
   assert.deepEqual(ready.ready, [path.join(dir, 'T1.md')])
 })
@@ -141,4 +141,62 @@ test("a directory two records share offers only the Accepted record's task", () 
     `only the Accepted record's task is ready:\n${state.ready.join('\n')}`)
   assert.ok(state.notYetDecided.some(f => f.endsWith('T2.md')),
     "the Proposed record's task is named as waiting on the decision, not dropped")
+})
+
+// BACKLOG §281 item 7, reported from Windows: workNext.next named `adr-verify` for a
+// task whose moved test lock needs `--relock --replace-hashes` first, so the step it
+// named would be refused. adr-next's note already said why; work-next dropped it.
+test('work-next names the relock remedy when a claimed-done task is withheld by a moved lock', () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-readiness-relock-')); temps.push(temp)
+  const tasks = path.join(temp, 'docs', 'adr', 'ADR-001-x', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  writeFileSync(path.join(temp, 'docs', 'adr', 'ADR-001-x.md'), '# ADR-001: x\n\n**Status:** Accepted\n\n## Context\n\nx\n\n## Decision\n\ny\n')
+  const file = path.join(tasks, 'T1-a.md')
+  writeFileSync(file, '# Task ADR-001-T1: a\n\n**Status:** done\n\n## Verification Log\n\n- 2026-09-20 · abc1234 · exit 0 · `true`\n')
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main', '.'], { cwd: temp, encoding: 'utf8', timeout: 60_000 }).status, 0)
+  const note = 'carries exit-0 evidence for this Acceptance, but its test lock withholds done — locked test `t.py`::x hash moved — done is refused; '
+    + 'once the change to the test is reviewed, `adr-verify --relock --replace-hashes` re-locks it; `adr-lint` names the remedy'
+  const spawnWith = unproven => () => answer(0, [{ id: 'T1', path: file, unproven }])
+  const capture = spawn => {
+    const written = []
+    const real = process.stdout.write.bind(process.stdout)
+    process.stdout.write = chunk => { written.push(String(chunk)); return true }
+    try { main([temp, '--json'], { spawn }) } finally { process.stdout.write = real }
+    return JSON.parse(written.join(''))
+  }
+  const json = capture(spawnWith(note))
+  assert.equal(json.next?.id, 'adr-verify')
+  assert.equal(json.next?.remedy, 'adr-verify --relock --replace-hashes docs/adr/ADR-001-x/tasks/T1-a.md — once the change to the test is reviewed')
+  // The must-fail direction: an unbacked task withheld for another reason keeps the bare step.
+  assert.equal(capture(spawnWith('carries exit-0 evidence recorded against a different Acceptance')).next?.remedy, undefined)
+  const written = []
+  const real = process.stdout.write.bind(process.stdout)
+  process.stdout.write = chunk => { written.push(String(chunk)); return true }
+  try { main([temp], { spawn: spawnWith(note) }) } finally { process.stdout.write = real }
+  assert.match(written.join(''), /1 of these carry a moved test lock, which bare `adr-verify` would refuse again: adr-verify --relock --replace-hashes /)
+})
+
+// BACKLOG §280 item 4, a Windows 72-record corpus: after §279 item 8 three tasks sat
+// in both `ready` and `unbacked`. Both are true — not done, so startable; claimed
+// done without evidence — but one answer said both about one task and marked nothing.
+test('work-next marks a task that is both READY and claimed done without evidence', () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-readiness-both-')); temps.push(temp)
+  const tasks = path.join(temp, 'docs', 'adr', 'ADR-001-x', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  writeFileSync(path.join(temp, 'docs', 'adr', 'ADR-001-x.md'), '# ADR-001: x\n\n**Status:** Accepted\n\n## Context\n\nx\n\n## Decision\n\ny\n')
+  const claimed = path.join(tasks, 'T1-a.md')
+  const plain = path.join(tasks, 'T2-b.md')
+  writeFileSync(claimed, '# Task ADR-001-T1: a\n\n**Status:** done\n\n## Verification Log\n\n')
+  writeFileSync(plain, '# Task ADR-001-T2: b\n\n## Verification Log\n\n- 2026-09-20 · abc1234 · exit 0 · `true`\n')
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main', '.'], { cwd: temp, encoding: 'utf8', timeout: 60_000 }).status, 0)
+  const spawn = () => answer(0, [{ id: 'T1', path: claimed }, { id: 'T2', path: plain }])
+  const run = argv => {
+    const written = []
+    const real = process.stdout.write.bind(process.stdout)
+    process.stdout.write = chunk => { written.push(String(chunk)); return true }
+    try { main(argv, { spawn }) } finally { process.stdout.write = real }
+    return written.join('')
+  }
+  assert.deepEqual(JSON.parse(run([temp, '--json'])).readyButClaimedDone, ['docs/adr/ADR-001-x/tasks/T1-a.md'])
+  assert.match(run([temp]), /1 task is both READY and claimed done without evidence — `adr-verify` it first:\n {2}docs\/adr\/ADR-001-x\/tasks\/T1-a\.md\n/)
 })

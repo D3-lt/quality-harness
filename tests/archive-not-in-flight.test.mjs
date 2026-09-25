@@ -431,3 +431,72 @@ test('work-next does not offer a record in the frozen archive for retirement', a
     assert.equal(nextStage(state)?.id, 'adr-retire', 'the control still routes to adr-retire')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+// One archive rule: the Lifecycle marker (BACKLOG §281 item 3). work-next kept a
+// name test of its own, so a product repository's `docs/adr-archive/` — named like an
+// archive, never adopted, no marker — was live to SessionStart and adr-next and
+// hidden from work-next: 29 disagreements over one corpus. An unmarked directory is
+// read as live by every reader now, and NAMED, so its owner can adopt it.
+function unmarkedArchiveRepo(prefix) {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), prefix)))
+  const write = (relative, text) => {
+    mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
+    writeFileSync(join(root, ...relative.split('/')), text)
+  }
+  const accepted = n => `# ADR-${n}: x\n\n**Status:** Accepted\n\n## Context\n\nx\n\n## Decision\n\ny\n`
+  write('docs/adr/ADR-002-live.md', accepted('002'))
+  write('docs/adr/ADR-002-live/tasks/T1-live.md', '# Task ADR-002-T1: live\n')
+  write('docs/adr-archive/README.md', '# Old decisions\n\nKept beside the live corpus so adr-lint does not touch it.\n')
+  write('docs/adr-archive/ADR-001-old.md', accepted('001'))
+  write('docs/adr-archive/ADR-001-old/tasks/T1-old.md', '# Task ADR-001-T1: old\n')
+  // Controls: a MARKED archive stays frozen, and a directory that only starts with
+  // the word holds no archive at all.
+  write('docs/decisions-archive/README.md', '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n')
+  write('docs/decisions-archive/ADR-003-frozen.md', accepted('003'))
+  write('docs/decisions-archive/ADR-003-frozen/tasks/T1-frozen.md', '# Task ADR-003-T1: frozen\n')
+  write('archive-service/docs/adr/ADR-004-svc.md', accepted('004'))
+  const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, encoding: 'utf8', timeout: 15_000 })
+  assert.equal(init.status ?? 0, 0, init.stderr)
+  return root
+}
+
+test('work-next reads an unmarked archive as live, as every other reader does', async () => {
+  const { observe } = await import('../plugin/scripts/work-next.mjs')
+  const root = unmarkedArchiveRepo('qh-arc-unmarked-')
+  try {
+    const asked = []
+    const spawn = (tool, args) => {
+      asked.push(args[0].slice(root.length + 1).split('\\').join('/'))
+      return { status: 3, stdout: JSON.stringify({ ready: [], done: [], blocked: [], stopped: [] }), stderr: '' }
+    }
+    const state = observe(root, { spawn })
+    // work-next's own scope, not only what it asks adr-next: the live task and the
+    // unmarked archive's task are counted, the marked archive's is not.
+    assert.equal(state.tasks, 2, 'the frozen task is out of scope, the unmarked one is in')
+    const sessionAsked = []
+    readyTaskLines(root, true, spawnSync('git', ['ls-files', '--others', '--exclude-standard'], { cwd: root, encoding: 'utf8', timeout: 15_000 }).stdout.split('\n').filter(Boolean),
+      (tool, args) => { sessionAsked.push(args[0].slice(root.length + 1).split('\\').join('/')); return { status: 3, stdout: '{"ready":[]}', stderr: '' } })
+    assert.ok(asked.includes('docs/adr/ADR-002-live/tasks'), `the control: the live corpus is asked about: ${asked}`)
+    assert.ok(asked.includes('docs/adr-archive/ADR-001-old/tasks'), `an unmarked archive is live to work-next: ${asked}`)
+    assert.ok(sessionAsked.includes('docs/adr-archive/ADR-001-old/tasks'), `and to SessionStart, so the two agree: ${sessionAsked}`)
+    assert.deepEqual(asked.filter(dir => dir.startsWith('docs/decisions-archive/')), [], 'a marked archive stays frozen')
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+test('an archive-named directory with no Lifecycle marker is named, with the adopt remedy', async () => {
+  const { observe } = await import('../plugin/scripts/work-next.mjs')
+  const { sessionOrientation } = await import('../plugin/scripts/lifecycle.mjs')
+  const root = unmarkedArchiveRepo('qh-arc-named-')
+  try {
+    assert.deepEqual(adrCorpus(root).unmarkedArchives, ['docs/adr-archive'])
+    const state = observe(root, { spawn: () => ({ status: 3, stdout: '{"ready":[]}', stderr: '' }) })
+    assert.deepEqual(state.unmarkedArchives, ['docs/adr-archive'])
+    const json = spawnSync(process.execPath, [join(import.meta.dirname, '..', 'plugin', 'scripts', 'work-next.mjs'), '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000 })
+    assert.deepEqual(JSON.parse(json.stdout).unmarkedArchives, ['docs/adr-archive'], json.stderr)
+    const probe = spawnSync(process.execPath, [join(import.meta.dirname, '..', 'plugin', 'scripts', 'corpus-probe.mjs'), root, '--json'], { encoding: 'utf8', timeout: 120_000 })
+    assert.deepEqual(JSON.parse(probe.stdout).workNext.unmarkedArchives, ['docs/adr-archive'], probe.stderr)
+    const text = sessionOrientation(root)
+    assert.match(text, /`docs\/adr-archive` looks like an archive but has no Lifecycle marker, so it is read as live — `adr-retire-check --adopt <active> <archive>`/)
+    assert.doesNotMatch(text, /decisions-archive` looks like|archive-service` looks like/)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

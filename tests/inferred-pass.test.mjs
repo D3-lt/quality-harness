@@ -70,10 +70,14 @@ test('the orientation says an inferred check may be narrower than the project ga
   const repo = mkdtempSync(join(tmpdir(), 'qh-narrower-'))
   try {
     spawnSync('git', ['init', '-q', repo], { encoding: 'utf8', timeout: 60_000 })
-    writeFileSync(join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'vitest' } }))
+    // A manifest that DOES name a lint step: the sentence said the manifest "does not
+    // name" one, which was false there (BACKLOG §281 item 8, a React frontend on Windows).
+    writeFileSync(join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'vitest', lint: 'eslint .' } }))
     const inferred = sessionOrientation(repo)
     assert.match(inferred, /inferred `npm run test`/)
     assert.match(inferred, /may be narrower than this project's own gate/)
+    assert.match(inferred, /\(a step the inference did not pick, such as a typecheck or lint\)/)
+    assert.doesNotMatch(inferred, /the manifest does not name/)
     // A declared check is the project's own word, and gets no such caveat.
     writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check: 'npm run test' }))
     assert.doesNotMatch(sessionOrientation(repo), /narrower/)

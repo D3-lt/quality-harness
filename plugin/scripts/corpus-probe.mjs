@@ -306,6 +306,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       ready: workNextReadyList, unbacked: workNextPaths('unbackedDoneClaims'),
       underUndecided: workNextPaths('tasksUnderAnUndecidedRecord'), retirable: workNextPaths('retirableInActiveCorpus'),
       readinessUnproven: workNextUnproven,
+      unmarkedArchives: workNextPaths('unmarkedArchives'),
+      readyButClaimedDone: workNextPaths('readyButClaimedDone'),
       next: workNext.next,
     },
     frozenTaskDirs,

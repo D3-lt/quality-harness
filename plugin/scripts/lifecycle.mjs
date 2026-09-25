@@ -974,14 +974,17 @@ export function posixListed(rel) {
 // SessionStart used to slice(0, 3) and hide a later directory's UNPROVEN
 // behind "(+N more)". A could-not-look is never an ordinary ready line: it
 // always surfaces; the cap still applies to ready/blocked/done lines (ADR-046 T5).
+const EVIDENCED_SUMMARY = /^ {2}\(\d+ task director(?:y|ies) read (?:is|are) fully evidenced, not shown\)$/
 export function surfaceReadyLines(lines, cap = 3) {
   let ordinary = 0
   const shown = []
   for (const line of lines) {
-    const unproven = line.includes('UNPROVEN')
-    if (unproven || ordinary < cap) {
+    // The evidenced count is never capped either: it is the answer to "why is
+    // nothing listed", and hiding it re-creates the all-clear it replaced.
+    const always = line.includes('UNPROVEN') || EVIDENCED_SUMMARY.test(line)
+    if (always || ordinary < cap) {
       shown.push(line)
-      if (!unproven) ordinary += 1
+      if (!always) ordinary += 1
     }
   }
   const hidden = lines.length - shown.length
@@ -1094,6 +1097,45 @@ function underFrozenArchive(root, dirParts, cache, listed) {
     if (cache.get(key) === 'unknown') unknown = true
   }
   return unknown ? 'unknown' : false
+}
+
+// The ONE archive rule, for a reader that walks the listing itself: true under a
+// directory whose README carries the Lifecycle marker, 'unknown' where that README
+// cannot be established, false otherwise. work-next kept a NAME test of its own, so an
+// unadopted `docs/adr-archive/` was live here and hidden there — 29 disagreements over
+// one product corpus (BACKLOG §281 item 3).
+export function frozenArchiveOf(root, listing) {
+  const cache = new Map()
+  const listed = new Set((listing ?? []).map(rel => posixListed(rel)))
+  return rel => underFrozenArchive(root, posixListed(rel).split('/').filter(Boolean).slice(0, -1), cache, listed)
+}
+
+// A directory NAMED like an archive. Only ever used to NAME one that carries no
+// marker, never to freeze anything: "looks like an archive" is a guess about a name
+// (CLAUDE.md §16), and it once hid `archive-policy.md` and `archive-service/`.
+const ARCHIVE_DIRECTORY_NAME = /(?:^|[-_])archived?s?$|^archives?[-_](?:adrs?|decisions?|records?)$/i
+
+// Archive-named directories holding listed Markdown with no Lifecycle marker above
+// them. Each is read as live by every reader; this names it so its owner can adopt it
+// with `adr-retire-check --adopt`, rather than finding out from a ready task.
+export function unmarkedArchives(root, listing) {
+  if (listing == null) return []
+  const listed = new Set(listing.map(rel => posixListed(rel)))
+  const cache = new Map()
+  const found = new Set()
+  for (const rel of listed) {
+    if (!/\.md$/i.test(rel) || /(?:^|\/)readme\.md$/i.test(rel)) continue
+    const parts = rel.split('/').filter(Boolean)
+    if (listedUnderUninterestingDirectory(parts.slice(0, -1))) continue
+    for (let depth = 1; depth < parts.length; depth++) {
+      if (!ARCHIVE_DIRECTORY_NAME.test(parts[depth - 1])) continue
+      // Only `false`: `true` is the archive working, and `unknown` is already
+      // reported as unproven wherever its records are read.
+      if (underFrozenArchive(root, parts.slice(0, depth + 1), cache, listed) === false) found.add(parts.slice(0, depth).join('/'))
+      break
+    }
+  }
+  return [...found].sort()
 }
 
 // ADR task directories from the git listing, not a disk walk. A gitignored
@@ -1250,6 +1292,10 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
   const tool = path.join(PLUGIN_ROOT, 'bin', 'adr-next')
   if (!existsSync(tool)) return { look: 'ok', lines: [] }
   const lines = []
+  // Directories whose every task carries evidence are not in flight, and listing
+  // them under that heading read as work twice (BACKLOG §279 item 6, §280 item 3).
+  // They are counted instead; ADR-046's heading stays.
+  let evidenced = 0
   const { read, unread } = taskDirectories(root, listing)
   for (const { directory, archive } of read) {
     if (archive === 'unknown') {
@@ -1293,8 +1339,11 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     } else if (report.blocked?.length) {
       lines.push(`  ${relative}: nothing ready; ${report.blocked.length} task(s) blocked.`)
     } else if (report.done?.length) {
-      lines.push(`  ${relative}: all ${report.done.length} task(s) carry exit-0 evidence.`)
+      evidenced += 1
     }
+  }
+  if (evidenced > 0) {
+    lines.push(`  (${evidenced} task director${evidenced === 1 ? 'y' : 'ies'} read ${evidenced === 1 ? 'is' : 'are'} fully evidenced, not shown)`)
   }
   if (unread > 0) {
     // Not a verdict about those directories — this hook did not look. Carries
@@ -1897,6 +1946,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     value: tracked == null ? 'UNPROVEN' : 'ok', enumerable: false, writable: true,
   })
   if (tracked == null) return records
+  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked), enumerable: false })
   const reader = corpusReader()
   const listedFiles = new Set(tracked.map(rel => listedAbsolute(root, rel)))
   const files = recordFilesFromListing(root, tracked, reader)
@@ -2819,7 +2869,7 @@ export function sessionOrientation(cwd) {
   } else if (check) {
     const named = origin === 'declared'
       ? `this project's own check is \`${check}\``
-      : `no \`check\` is declared in \`.quality-harness.json\`; inferred \`${check}\` from a manifest — that is not this project's own check, and it may be narrower than this project's own gate (a typecheck or lint step the manifest does not name), so its pass is not that gate's pass`
+      : `no \`check\` is declared in \`.quality-harness.json\`; inferred \`${check}\` from a manifest — that is not this project's own check, and it may be narrower than this project's own gate (a step the inference did not pick, such as a typecheck or lint), so its pass is not that gate's pass`
     lines.push(`Verification: ${named}. `
       // ADR-060: a check is an EVENT `qh-check` writes, so how the command is
       // spelled, piped or redirected no longer decides anything — but running it
@@ -2840,6 +2890,12 @@ export function sessionOrientation(cwd) {
   const ready = readyTaskLines(root, inside, listing)
   if (inside && ready.look === 'UNPROVEN') {
     lines.push('could-not-look: git could not list the tree (UNPROVEN). Ready tasks and corpus existence are not known.')
+  }
+  if (inside && listing != null) {
+    for (const archive of unmarkedArchives(root, listing)) {
+      lines.push(`\`${archive}\` looks like an archive but has no Lifecycle marker, so it is read as live — `
+        + '`adr-retire-check --adopt <active> <archive>` adopts it (skills/adr-retire §Existing Archives).')
+    }
   }
   const corpusLook = inside ? hasDecisionCorpus(root, listing) : false
 

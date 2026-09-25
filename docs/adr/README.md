@@ -65,3 +65,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-061](ADR-061-an-unchecked-publish-is-refused.md) | An unchecked publish is refused | Accepted |
 | [ADR-062](ADR-062-a-review-is-a-host-result.md) | A review is a host result | Accepted |
 | [ADR-063](ADR-063-a-record-is-its-number-or-its-stem.md) | A record is its number, or its stem | Accepted |
+| [ADR-064](ADR-064-corpus-chaos-is-the-release-loop.md) | Corpus chaos is the release loop | Accepted |

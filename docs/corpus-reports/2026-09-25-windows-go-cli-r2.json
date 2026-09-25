@@ -1,0 +1,22 @@
+{
+  "date": "2026-09-25",
+  "at": "2daedc41fa7dc32246c0ad0d9f11c90235d9472c",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "3a7e26eaa4af91deeba08d2ce0a4a1bb9eda9b73825d792b56ea8d33d7df5dc9",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 70,
+    "tasks": 177,
+    "taskDirectories": 68,
+    "countsFrom": "corpusReport"
+  },
+  "couldNotRun": 2,
+  "disagreements": 0,
+  "readinessUnproven": null,
+  "runner": "go-cli-adr-windows",
+  "found": "Over a Go CLI corpus this repository does not own: work-next and adr-next ADR-052 killed at the 120 s budget; cProfile names record.py _js_like_in_code (147 of 149 s) as §289.4's cause (§295 item 23). adrLint 68 PASS, 2 FAIL for the corpus's own test locks."
+}

@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-25",
+  "at": "026658ace90fc6d681be9818b85340058393c9f3",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "d05300f96f1a4d70d3d2ca2e685082a2c0d4436c970fca38d50c6c4e9380b503",
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 17, "tasks": 24, "taskDirectories": 7 },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "macos-laravel",
+  "found": "Runner clean. First use of the Chaos section (seed 1790359703): two real defects, filed as BACKLOG §292 (a symlinked tasks dir makes adr-next offer another record's tasks as ready under the requesting record's name) and §293 (a record whose Status line uses a fullwidth colon is absent from the probe's records and adrLint, and work-next routes as if no corpus existed). A2 could not be built on APFS; B3, B5, B10, A7, F8, an own unterminated-quote fence, and abominations X1 and V1 broke nothing."
+}

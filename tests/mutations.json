@@ -10,6 +10,24 @@
   ],
   "mutations": [
     {
+      "label": "dispatch: a Tasks/README.md is a tasks index in any case (§285)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "tasks_dir_lc=$(basename \"$(dirname \"$f\")\" | tr '[:upper:]' '[:lower:]')",
+      "to": "tasks_dir_lc=$(basename \"$(dirname \"$f\")\")"
+    },
+    {
+      "label": "dispatch: a relative tasks/README.md still reaches the task arm (§285)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "elif [ \"$tasks_index\" = 1 ] || [[ \"$f\" == */tasks/*.md ]]",
+      "to": "elif [[ \"$f\" == */tasks/*.md ]]"
+    },
+    {
       "label": "lint: a spaced title is compared by its decoded value, so an escaped quote is not stale (§284)",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -24,7 +42,7 @@
       "tests": [
         "tests/dispatch-streams.test.mjs"
       ],
-      "from": "[[ \"$base_lc\" == readme.md && \"$(basename \"$(dirname \"$f\")\")\" == tasks ]] && tasks_index=1",
+      "from": "[[ \"$base_lc\" == readme.md && \"$tasks_dir_lc\" == tasks ]] && tasks_index=1",
       "to": "true"
     },
     {

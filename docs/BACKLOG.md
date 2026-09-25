@@ -15268,6 +15268,12 @@ On every commit touching an ADR's `tasks/README.md`, the PreToolUse artifact val
 1. "The gate names files not in the commit." By design: the artifact path set is the SESSION's changes (the diff since the session's start HEAD, plus `git status`, plus logged writes; `lifecycle.mjs` `artifactRule`), not the staged diff. The wording does not say so. That is a wording lead, left for the next batch.
 2. "could not classify" on a real task file. The dispatcher prints that when the path does not exist at the time it looks (`facts-gate-dispatch.sh` missing-file arm). A task file renamed or deleted earlier in the session is still in the session's path set, so a stale path reaches it. Not reproduced here. It is a sibling of point 1: a session-scoped set that includes paths gone since.
 
+**Codex review of 12a1341 (one round):** two blocking findings, both confirmed and fixed.
+- The `tasks` directory was compared case-sensitively, so `Tasks/README.md` still reached adr-lint as a record.
+- A relative `tasks/README.md` was kept out of the record arm but never entered the task arm, whose `*/tasks/*.md` needs a slash before `tasks/`.
+
+Now both names are compared lowercased, and a tasks index enters the task arm explicitly. A regression covers each shape, and two mutants are RED.
+
 ## 286. OPEN — ADR-064 T6's per-platform matrix time (2026-09-25)
 
 T6 step 2 records the matrix's added time on each CI platform in `tests/fixtures/corpora/README.md`. The three corpora land in the push after this entry, so the time is read from that push's CI log and recorded after it.

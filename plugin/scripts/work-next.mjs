@@ -240,9 +240,15 @@ export function maskedMarkdown(text) {
     return line
   })
   const blank = match => match.replace(/[^\n]/g, ' ')
+  // Neither an inline comment nor a code span crosses a blank line, and a comment
+  // opened mid-paragraph with no `-->` is literal text; only one opened at the start
+  // of a line runs on, to the end if unclosed. Both were masked across paragraphs,
+  // hiding a real Status (a Windows chaos round, 2.110.0-rc round 2).
+  const inParagraph = '(?:(?!\\n[ \\t]*\\n)[\\s\\S])*?'
   return lines.join('\n')
-    .replace(/<!--[\s\S]*?(?:-->|$)/g, blank)
-    .replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, blank)
+    .replace(/^ {0,3}<!--[\s\S]*?(?:-->|(?![\s\S]))/gm, blank)
+    .replace(new RegExp(`<!--${inParagraph}-->`, 'g'), blank)
+    .replace(new RegExp(`(?<!\`)(\`+)(?!\`)${inParagraph}(?<!\`)\\1(?!\`)`, 'g'), blank)
 }
 
 export function specStatus(text) {
@@ -505,7 +511,10 @@ export function nextStage(state) {
   }
   if (state.retirable.length) return STAGES.find(s => s.id === 'adr-retire')
   if (state.uncoveredReadySpecs?.length) return STAGES.find(s => s.id === 'adr-write')
-  if (state.accepted && !state.tasks) return STAGES.find(s => s.id === 'adr-write-no-tasks')
+  // Not "no task files" while a task directory could not be read: a sparse checkout
+  // filtered its tasks out of `tasks`, and this routed to adr-write right under the
+  // UNPROVEN line naming that directory (a Windows chaos round, 2.110.0-rc round 2).
+  if (state.accepted && !state.tasks && !state.readinessUnproven?.length) return STAGES.find(s => s.id === 'adr-write-no-tasks')
   // ⚠ NOT "no corpus" when a record was found and could not be classified: that is a
   // confident negative over input this reader could not read, and it routed away from
   // every corpus stage (BACKLOG §293, a fullwidth-colon Status from a chaos round).

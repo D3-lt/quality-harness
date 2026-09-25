@@ -305,6 +305,10 @@ test('a spec Status is read only where it is a Status, and only as a known value
     'noted.md': '# S\n\n**Status:** Draft — see the note below\n',
     // A shorter fence line inside a longer fence does not close it.
     'nested.md': '# S\n\n**Status:** Draft\n\n````\n```\n**Status:** Ready-for-ADR\n```\n````\n',
+    // Round 2 (Windows): neither a code span nor a mid-paragraph comment crosses a
+    // blank line, so a stray backtick or an unclosed `<!--` does not hide this Status.
+    'stray.md': '# S\n\nUse a ` to quote.\n\n**Status:** Ready-for-ADR\n\nSee `x`.\n',
+    'midcomment.md': '# S\n\nText <!-- not closed\n\n**Status:** Ready-for-ADR\n',
   }
   mkdirSync(path.join(temp, 'docs', 'specs'), { recursive: true })
   for (const [name, text] of Object.entries(specs)) writeFileSync(path.join(temp, 'docs', 'specs', name), text)
@@ -320,7 +324,7 @@ test('a spec Status is read only where it is a Status, and only as a known value
   const names = list => list.map(file => path.basename(file)).sort()
   assert.deepEqual(names(state.unprovenSpecs),
     ['banana.md', 'binary.md', 'comment.md', 'crossing.md', 'fenced.md', 'newline.md', 'pending.md', 'two.md'])
-  assert.deepEqual(names(state.uncoveredReadySpecs), ['good.md'], 'the real template form still reads as Ready')
+  assert.deepEqual(names(state.uncoveredReadySpecs), ['good.md', 'midcomment.md', 'stray.md'], 'the real template form still reads as Ready')
 })
 
 // A chaos round, 2026-09-25: `git ls-files` without `-z` C-quotes a name holding a
@@ -364,10 +368,15 @@ test('a task git lists but the disk does not hold is unproven, not counted', () 
       assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
     }
     if (remove) rmSync(path.join(adr, 'ADR-007-x', 'tasks'), { recursive: true, force: true })
-    return observe(temp)
+    return Object.assign(observe(temp), { temp })
   }
   const absent = build(true)
   assert.equal(absent.tasks, 0, 'a task that is not on the disk is not counted')
+  // Round 2 (Windows): with its tasks off the disk, the record does not read as one
+  // with no task files, which routed to adr-write under the UNPROVEN line.
+  const routed = JSON.parse(spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'work-next.mjs'), '--json', absent.temp],
+    { encoding: 'utf8', timeout: 120_000 }).stdout)
+  assert.notEqual(routed.next?.id, 'adr-write-no-tasks', JSON.stringify(routed.next))
   assert.ok(absent.readinessUnproven.some(dir => dir.endsWith(path.join('ADR-007-x', 'tasks'))), `named: ${absent.readinessUnproven}`)
   const present = build(false)
   assert.equal(present.tasks, 1)

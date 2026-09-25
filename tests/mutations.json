@@ -10,6 +10,42 @@
   ],
   "mutations": [
     {
+      "label": "work-next: no 'no task files' route while a task directory is unread (2.110.0-rc round 2 N1)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (state.accepted && !state.tasks && !state.readinessUnproven?.length) return STAGES.find(s => s.id === 'adr-write-no-tasks')",
+      "to": "  if (state.accepted && !state.tasks) return STAGES.find(s => s.id === 'adr-write-no-tasks')"
+    },
+    {
+      "label": "work-next: a code span or comment does not cross a blank line (2.110.0-rc round 2 N2/N3)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const inParagraph = '(?:(?!\\\\n[ \\\\t]*\\\\n)[\\\\s\\\\S])*?'",
+      "to": "  const inParagraph = '[\\\\s\\\\S]*?'"
+    },
+    {
+      "label": "lifecycle: a path in the ready line cannot break out of its code span (2.110.0-rc round 2 N4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  const fence = '`'.repeat(longest + 1)",
+      "to": "  const fence = '`'"
+    },
+    {
+      "label": "lifecycle: an invisible character in a path is shown as an escape (2.110.0-rc round 2 N4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    char => `\\\\u{${char.codePointAt(0).toString(16)}}`)",
+      "to": "    char => char)"
+    },
+    {
       "label": "next: a follow-up label passes only on an affirmation BEFORE it (Codex review of f905d8a)",
       "file": "plugin/bin/adr-next",
       "tests": [

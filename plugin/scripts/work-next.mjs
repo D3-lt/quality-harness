@@ -205,23 +205,49 @@ function specFiles(directory, listing) {
 
 // The template's four values. Anything else is not a status this reader knows, and
 // "not recognised" is never "known to be fine" (CLAUDE.md §16).
-const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)\b/i
+// A known value, then nothing that extends the word: "Draft — see the note below" is
+// Draft, "Ready-for-ADR-pending" is not Ready (Codex review of f905d8a).
+const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)(?![\w-])/i
 
 // A spec's Status, or null when it cannot be read as one (UNPROVEN). Measured on
-// 132 real specs across local corpora before it changed (no answer moved), and it
+// 117 real specs across local corpora before it changed (no answer moved), and it
 // closes what a chaos round built (2026-09-25):
 // - binary: a zip header or NUL bytes around `**Status:** Ready-for-ADR` read as Ready;
 // - a Status inside a code fence, an HTML comment or an inline code span counted;
 // - `**Status:**` then a newline took the NEXT line as its value;
 // - two different values: the first silently won;
 // - `**Status:** banana` counted as a known, proven status.
-function specStatus(text) {
+// Markdown code and comments as spaces, every newline kept, so no Status is read from
+// an example and no value runs onto the next line. A fence is CommonMark's: three or
+// more backticks or tildes, indented at most three spaces, closed only by the same
+// character at least as long, and an unclosed one runs to the end. The first cut used
+// one regex for fences and dropped comments whole: four-backtick, indented and unclosed
+// fences were read, and a comment spanning lines let a value cross them (Codex review
+// of f905d8a).
+export function maskedMarkdown(text) {
+  let fence = null
+  const lines = text.split('\n').map(line => {
+    if (fence) {
+      const close = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/)
+      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null
+      return ''
+    }
+    const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
+    if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
+      fence = open[1]
+      return ''
+    }
+    return line
+  })
+  const blank = match => match.replace(/[^\n]/g, ' ')
+  return lines.join('\n')
+    .replace(/<!--[\s\S]*?(?:-->|$)/g, blank)
+    .replace(/(?<!`)(`+)(?!`)[\s\S]*?(?<!`)\1(?!`)/g, blank)
+}
+
+export function specStatus(text) {
   if (!text || text.includes('\0')) return null
-  const visible = text
-    .replace(/^(```|~~~)[^\n]*\n[\s\S]*?^\1[ \t]*$/gm, '')
-    .replace(/<!--[\s\S]*?-->/g, '')
-    .replace(/`[^`\n]*`/g, '')
-  const values = [...visible.matchAll(/\*\*Status:\*\*[ \t]*([^\n*]+)/g)]
+  const values = [...maskedMarkdown(text).matchAll(/\*\*Status:\*\*[ \t]*([^\n*]+)/g)]
     .map(match => match[1].trim().replace(/\s*·.*$/, '').trim()).filter(Boolean)
   if (new Set(values.map(value => value.toLowerCase())).size !== 1) return null
   return SPEC_STATUS.test(values[0]) ? values[0] : null

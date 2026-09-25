@@ -295,6 +295,16 @@ test('a spec Status is read only where it is a Status, and only as a known value
     'newline.md': '# S\n\n**Status:**\n## Ready-for-ADR\n',
     'two.md': '# S\n\n**Status:** Draft\n\n**Status:** Ready-for-ADR\n',
     'banana.md': '# S\n\n**Status:** banana\n',
+    // Codex review of f905d8a: fence shapes one regex missed, a comment spanning
+    // lines, and a value that only starts like a known one.
+    'fourfence.md': '# S\n\n**Status:** Draft\n\n````\n**Status:** Ready-for-ADR\n````\n',
+    'tildefence.md': '# S\n\n**Status:** Draft\n\n   ~~~\n**Status:** Ready-for-ADR\n   ~~~\n',
+    'unclosed.md': '# S\n\n**Status:** Draft\n\n```\n**Status:** Ready-for-ADR\n',
+    'crossing.md': '# S\n\n**Status:** <!--\ncomment\n-->Ready-for-ADR\n',
+    'pending.md': '# S\n\n**Status:** Ready-for-ADR-pending\n',
+    'noted.md': '# S\n\n**Status:** Draft — see the note below\n',
+    // A shorter fence line inside a longer fence does not close it.
+    'nested.md': '# S\n\n**Status:** Draft\n\n````\n```\n**Status:** Ready-for-ADR\n```\n````\n',
   }
   mkdirSync(path.join(temp, 'docs', 'specs'), { recursive: true })
   for (const [name, text] of Object.entries(specs)) writeFileSync(path.join(temp, 'docs', 'specs', name), text)
@@ -308,7 +318,8 @@ test('a spec Status is read only where it is a Status, and only as a known value
   }
   const state = observe(temp)
   const names = list => list.map(file => path.basename(file)).sort()
-  assert.deepEqual(names(state.unprovenSpecs), ['banana.md', 'binary.md', 'comment.md', 'fenced.md', 'newline.md', 'two.md'])
+  assert.deepEqual(names(state.unprovenSpecs),
+    ['banana.md', 'binary.md', 'comment.md', 'crossing.md', 'fenced.md', 'newline.md', 'pending.md', 'two.md'])
   assert.deepEqual(names(state.uncoveredReadySpecs), ['good.md'], 'the real template form still reads as Ready')
 })
 

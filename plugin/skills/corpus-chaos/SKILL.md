@@ -23,14 +23,26 @@ Two roles. Run the one you are in.
 1. **Say what you ran on.** Plugin version (`installed_plugins.json` or the plugin cache path),
    OS and version, Node and Python versions, the repository's branch and HEAD, whether the tree
    was clean. Every number in your report is read against these.
-2. **Run the probe from the repository root:**
+2. **Run the probe once, from the repository root, and keep the report:**
 
-       node "${CLAUDE_PLUGIN_ROOT}/scripts/corpus-probe.mjs" --json
+       node "<checkout>/plugin/scripts/corpus-probe.mjs" --json > new.json
 
-   Add `--sweep` **only with the corpus
+   Run it from a plugin **checkout at the release-candidate sha** the asker names, not from the
+   plugin your session loaded. An installed plugin cache has no git, so its attestation carries `at: null`
+   and does not count for the release (ADR-064). Add `--sweep` **only with the corpus
    owner's approval**: it executes every recorded Acceptance fence, which may need databases,
    containers or credentials the host lacks, and it has its own budget (`--sweep-budget
    <seconds>`, default 30 minutes).
+
+   Then read the saved report twice. Neither command runs anything:
+
+       node "<checkout>/plugin/scripts/corpus-probe.mjs" --diff old.json new.json
+       node "<checkout>/plugin/scripts/corpus-probe.mjs" --attest <label> new.json
+
+   `--diff` compares against your report from the previous batch, when you have one. `--attest`
+   prints the counts-only attestation, where `<label>` names the corpus's shape, never its real
+   name. Send both. Keep `new.json` as next batch's `old.json`, and never send the report itself:
+   it holds the corpus's record ids and task names.
 3. **Read everything, not the summary.** In the JSON: `couldNotRun` (a reader that did not
    start, was killed, or printed no JSON — never a silent gap), `disagreements` (two readers
    about one task), `workNext.readinessUnproven` (directories `adr-next` could not answer for),
@@ -65,6 +77,18 @@ Two roles. Run the one you are in.
 
 - **The first line of your request states that a reply IS the deliverable** and that "it could
   not run because X" is a useful answer. A request that says "no reply needed" gets none.
+- **Probe once per batch, at one sha.** Ask when the batch's fixes are in and the release
+  candidate is pushed. Name that sha, and ask each runner once. The roster is by shape, so each run
+  covers something the others do not: Rust, Go, a PHP/Laravel repository, a PHP/React product, a
+  JS SPA, a static site, and at least two Windows sessions.
+- **One request, the same for everyone:** "A reply IS the deliverable; 'could not run because X'
+  is a useful answer. At `<sha>`, follow the Runner steps of `/quality-harness:corpus-chaos` over
+  your corpus and paste the `--diff` output and the `--attest` JSON whole."
+- **Triage every lead into one of four classes.**
+  A false refusal or a fail-open is fixed in this batch.
+  A lead about wording goes to the next batch.
+  The corpus's own problem is told to its owner.
+  Behaviour that is by design is recorded, with the reason.
 - **Ask for verbatim output, never a verdict.** Name the exact commands, the fields to read,
   and that the probe's sweep needs the owner's approval.
 - **Expect the runner's permission classifier to block foreign code** on the first attempt. The

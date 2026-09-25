@@ -9,7 +9,8 @@
 // 2026-08-30, its test imported `observe()` instead of spawning, and at one point
 // it explicitly ALLOWED the answer that became v2.83.0's defect. So this file
 // drives `plugin/scripts/corpus-probe.mjs` — the same command an adopter pastes —
-// over five corpora, on every CI platform, and holds each answer to
+// over every corpus under `tests/fixtures/corpora/` and the foreign one, on every
+// CI platform, and holds each answer to
 // `expected.json`, which was read and judged, not snapshotted (§112 rejected
 // golden text; these are structured values with a reason beside each corpus).
 import assert from 'node:assert/strict'
@@ -68,6 +69,14 @@ const corpora = [
   ['foreign', path.join(repoRoot, 'tests', 'fixtures', 'foreign')],
 ]
 
+// ADR-064 T6's three corpora are selected by the directory discovery above, and a
+// test the lock can hash says so: the per-corpus tests below are named by a
+// template, which no test lock can extract.
+test('the matrix discovers the three ADR-064 corpora', () => {
+  const names = corpora.map(([name]) => name)
+  for (const name of ['rust-crate', 'php-multi-root', 'js-vitest-spa']) assert.ok(names.includes(name), `${name} is discovered: ${names}`)
+})
+
 for (const [name, dir] of corpora) {
   test(`corpus ${name}: every reader answers as reviewed, through a symlink`, () => {
     const expected = expectations(dir)
@@ -79,16 +88,32 @@ for (const [name, dir] of corpora) {
     assert.deepEqual(report.records.map(r => [r.file, r.kind, r.frozen]), expected.records, `${name}: records read, with kind and frozen:\n${JSON.stringify(report.records, null, 2)}`)
     // `readinessUnproven` is asserted: a valid exit-3 answer was read as unproven
     // for a whole review round because nothing here looked (Codex, bdeba73).
+    const fixedWorkNext = ['records', 'accepted', 'tasks', 'ready', 'unbacked', 'retirable', 'readinessUnproven', 'next']
     assert.deepEqual({ records: report.workNext.records, accepted: report.workNext.accepted, tasks: report.workNext.tasks,
       ready: report.workNext.ready, unbacked: report.workNext.unbacked, retirable: report.workNext.retirable,
       readinessUnproven: report.workNext.readinessUnproven, next: report.workNext.next?.id ?? null },
-    expected.workNext, `${name}: work-next:\n${JSON.stringify(report.workNext, null, 2)}`)
+    Object.fromEntries(Object.entries(expected.workNext).filter(([key]) => fixedWorkNext.includes(key))),
+    `${name}: work-next:\n${JSON.stringify(report.workNext, null, 2)}`)
+    // Any other work-next key is compared only where an expectation names it —
+    // `unmarkedArchives` (§281 item 3), `readyButClaimedDone` (§280 item 4) — so a
+    // corpus that names none answers exactly as before (ADR-064 T6).
+    for (const [key, value] of Object.entries(expected.workNext).filter(([key]) => !fixedWorkNext.includes(key))) {
+      assert.deepEqual(report.workNext[key], value, `${name}: work-next ${key}:\n${JSON.stringify(report.workNext, null, 2)}`)
+    }
     assert.deepEqual({ read: report.adrState.read, governing: report.adrState.governing }, expected.adrState, `${name}: adr-state`)
     assert.deepEqual(report.adrNext.map(entry => ({ tasksDir: entry.tasksDir, ready: entry.ready?.map(task => task.id) ?? null })), expected.adrNext, `${name}: adr-next:\n${JSON.stringify(report.adrNext, null, 2)}`)
     // The gate's own verdict per record — where ADR-038's `not-recognised` shows
     // beside readers that counted the same file. Declared in every expectation
     // and, until a review noticed, asserted by none (Codex, c1f546a).
-    assert.deepEqual(report.adrLint.map(entry => ({ file: entry.file, verdict: entry.verdict })), expected.adrLint, `${name}: adr-lint:\n${JSON.stringify(report.adrLint, null, 2)}`)
+    assert.deepEqual(report.adrLint.map(entry => ({ file: entry.file, verdict: entry.verdict })),
+      expected.adrLint.map(({ reasonMatches, ...entry }) => entry), `${name}: adr-lint:\n${JSON.stringify(report.adrLint, null, 2)}`)
+    // A verdict can be right for the wrong reason. Where an expectation names the
+    // reason, the report's must match it: a stale Tests row's FAIL names the row's
+    // `file:line` (§280 item 2), and a different FAIL on the same record is not it.
+    for (const { file, reasonMatches } of expected.adrLint.filter(entry => entry.reasonMatches !== undefined)) {
+      const reason = report.adrLint.find(entry => entry.file === file)?.reason
+      assert.ok(typeof reason === 'string' && new RegExp(reasonMatches).test(reason), `${name}: ${file} reason must match /${reasonMatches}/, got ${JSON.stringify(reason)}`)
+    }
     // A frozen record is still linted, and its entry says it is frozen, so a reader
     // can set an archive's verdicts aside. Reported from a Laravel corpus whose
     // archive read FAIL beside the live records (BACKLOG §279 item 4).

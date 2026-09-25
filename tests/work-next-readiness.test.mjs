@@ -197,6 +197,8 @@ test('work-next marks a task that is both READY and claimed done without evidenc
     try { main(argv, { spawn }) } finally { process.stdout.write = real }
     return written.join('')
   }
-  assert.deepEqual(JSON.parse(run([temp, '--json'])).readyButClaimedDone, ['docs/adr/ADR-001-x/tasks/T1-a.md'])
-  assert.match(run([temp]), /1 task is both READY and claimed done without evidence — `adr-verify` it first:\n {2}docs\/adr\/ADR-001-x\/tasks\/T1-a\.md\n/)
+  // Native separators, like work-next's other path fields; the probe normalises them.
+  const posix = value => value.replaceAll('\\', '/')
+  assert.deepEqual(JSON.parse(run([temp, '--json'])).readyButClaimedDone.map(posix), ['docs/adr/ADR-001-x/tasks/T1-a.md'])
+  assert.match(posix(run([temp])), /1 task is both READY and claimed done without evidence — `adr-verify` it first:\n {2}docs\/adr\/ADR-001-x\/tasks\/T1-a\.md\n/)
 })

@@ -1705,6 +1705,12 @@ test('SessionStart says how many task directories it did not read', async () => 
   const busy = ['A', 'B', 'C', 'D'].map(letter => `  docs/adr/${letter}/tasks: T1 is ready — g.`)
   assert.ok(surfaceReadyLines([...busy, '  (2 task directories read are fully evidenced, not shown)']).includes('  (2 task directories read are fully evidenced, not shown)'),
     'the evidenced count survives the render cap')
+  // The two counts in the order a reader sums them — read-but-capped first, then
+  // not-read (two Windows sessions read the reverse order as one figure, 2026-09-23).
+  const capped = surfaceReadyLines([...busy, '  (+1 more task directory: UNPROVEN — not read; this hook reads 6 per session start.)'])
+  const readNotShown = capped.findIndex(line => /\(\+1 more task directory read, not shown above\)/.test(line))
+  const cappedNotRead = capped.findIndex(line => /more task directory: UNPROVEN — not read/.test(line))
+  assert.ok(readNotShown >= 0 && cappedNotRead > readNotShown, `read-but-capped before not-read:\n${capped.join('\n')}`)
   // CLEAN: six directories are all read, so nothing is said about unread ones.
   const six = readyTaskLines(root, true, listing.slice(0, 6), allDone)
   assert.ok(!six.lines.some(line => /more task director/.test(line)), six.lines.join('\n'))

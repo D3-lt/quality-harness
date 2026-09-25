@@ -15231,9 +15231,27 @@ Keys read: `acc_all`, `acc_first`, `adds`, `consumes`, `dep`, `has_mlog`, `human
 
 **Fixed.** `check_task` puts `text` in the info. The regression, `test_a_tests_row_finding_names_its_line_and_produces_is_read`, builds the info through `check_task`. A lint of every task directory in this repository's corpus afterwards raised no new advice and no FAIL. Adopters may now see the §61 advice for the first time; it is advisory (CLAUDE.md §3).
 
-## 284. OPEN — A Tests-table row whose test name has spaces is never checked (2026-09-25, found authoring ADR-064 T6)
+## 284. CLOSED 2026-09-25 — A Tests-table row whose test name has spaces is never checked (2026-09-25, found authoring ADR-064 T6)
 
 `check_tests_exist` and `check_tests_can_fail` in `plugin/bin/adr-lint` skip any name that fails `^[A-Za-z_][\w:.\-]*$`, which is how a prose cell or a `—` placeholder is left alone. That same filter also skips every vitest or jest title with a space in it (`it('removes an item', …)`), and most real JS test titles have one. So a stale row naming such a test PASSes silently. It is a fail-open for the JS shape the §280 finding came from. The §280 fixture (`js-vitest-spa`) uses an identifier-shaped name, so it does not cover this. Not fixed in the 2.109.0 batch: widening the filter turns a blocking check on for prose cells that pass today, and those would be false refusals. A fix has to tell a quoted test title from a prose description, measured on a real JS corpus (CLAUDE.md §16).
+
+**Measured, then decided by the owner.** Every Tests row with a backticked name in a backticked file was read across the corpora under the owner's projects directory, and each spaced name was looked up with `test_body` (the command is below). This repository: 435 spaced titles in JS/TS test files, 323 found, 112 not. Of the 112, 110 exist in no test file anywhere, and 2 are abbreviations of a real title. They sit in 25 records, 53 of them in active records. A product repository had 2 rows whose file is absent. So a blocking check would turn this repository's own corpus-lint red, on history that is never rewritten (§10). The owner chose **advice everywhere**.
+
+```
+python3 - (loads plugin/bin/adr-lint; for each docs/**/tasks/*.md Tests row whose name fails ^[A-Za-z_][\w:.\-]*$ and whose file matches \.(test|spec)\.[cm]?[jt]sx?$, calls test_body(source, name))
+{'absent everywhere': 110, 'prefix/substring in same file': 2}   # of the 112 not found
+```
+
+**Fixed as advice.** `spaced_js_title` in `plugin/bin/adr-lint`:
+- `check_tests_exist` now looks up a spaced title in a JS/TS test file's row. When no `it`/`test`/`describe` call carries it, the lint ADVISES. A spaced name in any other file is still left alone as prose.
+- `check_tests_can_fail` reads such a title too. Its one blocking arm is advice for a spaced title.
+- Regression in `tests/gate-regressions.py`: found, stale and prose, through `check_tests_exist`.
+- Two mutants, both RED. The existing "a test that cannot go red is reported" mutant was repointed and re-run RED.
+
+Left, named:
+- (a) `check_named_tests_are_run` still skips spaced titles, so a `vitest -t` filter is not checked against them.
+- (b) The corpus probe does not report advice lines, so the matrix cannot pin this. Fixture-waived until the probe carries advice.
+- (c) This repository's own 110 stale rows now print as advice when their records are linted. Under §17 each needs an answer. The records are history, so the answer is to name them, not rewrite them.
 
 ## 285. OPEN — The artifact hook lints a tasks/README.md as a record (2026-09-25, observed in this session)
 
@@ -15276,6 +15294,8 @@ Tests are in `tests/adr-next.test.mjs`, through the CLI, each clean case with it
 
 **Sibling, left as a new task:** `plugin/scripts/work-next.mjs:335` accepts any human-observed line as backing a done claim without reading its outcome. §290.
 
+**Codex review of 2f45348 (one round):** one blocking finding, confirmed and fixed. The counter pattern's separator was optional, so backtracking read the digits inside `failed-on-ios18` or `release-blocked-v2` as the count and erased a real stop. The pattern now needs the whole label, a separator and a whole number. Twin tests were added, plus a mutant restoring the old pattern (RED). The real sign-offs classify as before.
+
 ## 288. OPEN — work-next's JSON names tasks under an archive whose catalog it cannot establish (2026-09-25, a cold review of 833ea52)
 
 With the archive README spelled `readme.md` (the marker present, but the spelling ambiguous), SessionStart calls the directory UNPROVEN. work-next's JSON instead lists its done-claimed task in `unbackedDoneClaims` and `tasksUnderAnUndecidedRecord`, and leaves `readinessUnproven` empty. The damage is limited: `look` is `PARTIAL`, and the text output stops at could-not-look. But a JSON consumer reading those lists sees work where the reader could not tell. `frozenArchiveOf` returns `'unknown'` there, and `taskFiles` keeps the task. It should be reported as unproven, the way SessionStart reports it. This is wording and a JSON field, so it goes to the next batch.
@@ -15294,8 +15314,6 @@ The leads, all wording or performance:
 2. **`readyButClaimedDone` is a subset of `ready`, and nothing says so** (PHP/React): one task sits in three lists and reads as a contradiction.
 3. **A top-level `look: PARTIAL` does not say which record made it partial** (Laravel).
 4. **work-next did not finish in the probe's 120 s budget on a 68-directory corpus**, because adr-next took 51, 26 and 26 s on the three largest Verification/Mutation logs (Go). adr-lint also takes about 2 s on four archived PHP/React records whose neighbours take 130 ms. Measure where the time goes before changing any budget.
-**Codex review of 2f45348 (one round):** one blocking finding, confirmed and fixed. The counter pattern's separator was optional, so backtracking read the digits inside `failed-on-ios18` or `release-blocked-v2` as the count and erased a real stop. The pattern now needs the whole label, a separator and a whole number. Twin tests were added, plus a mutant restoring the old pattern (RED). The real sign-offs classify as before.
-
 5. **`--attest` reports null `records`/`tasks` when work-next did not answer**, although `corpusReport` in the same report holds both (Go). Null-not-0 is right, but falling back is better.
 6. **`--diff` lists one missing reader as five "after lacks workNext.…" lines** before it names the reader in `couldNotRun` (Go).
 7. **A design lead:** a later record edited a test that two older records lock, and both went red on code of their own that did not change (Go). The relock remedy is named; nothing at the later record's merge warned that it would happen.

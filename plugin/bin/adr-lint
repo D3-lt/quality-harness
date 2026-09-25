@@ -4354,6 +4354,23 @@ def ignored_paths(root, candidates):
     return found
 
 
+
+# A Tests-row name that is not identifier-shaped was skipped as prose, and that
+# also skipped every JS test title with a space in it (`it('removes an item', …)`),
+# which is most of them: a stale row naming one passed silently (BACKLOG §284).
+# Such a name is now looked up when the row's file is a JS/TS test file, and what
+# it finds is ADVICE, never a block. Measured before choosing: over this
+# repository's own done records, 110 spaced titles name tests that exist nowhere
+# any more, on history that is never rewritten (§10); a block there is a red
+# corpus-lint nobody can turn green. The owner chose advice everywhere.
+IDENTIFIER_TEST_NAME = re.compile(r"^[A-Za-z_][\w:.\-]*$")
+JS_TEST_FILE = re.compile(r"\.(?:test|spec)\.[cm]?[jt]sx?$", re.I)
+
+
+def spaced_js_title(name, rel):
+    """True for a test title with a space in a JS/TS test file's row."""
+    return not IDENTIFIER_TEST_NAME.match(name) and bool(JS_TEST_FILE.search(rel))
+
 def check_tests_exist(infos, readme_text, errors, root, tracked=None):
     # Paths outside the tree are reported ONCE each: a task naming one file in
     # eight Tests rows has one problem, not eight.
@@ -4378,9 +4395,25 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None):
         if inf is None or inf.get("human"):
             continue
         for name, rel in inf.get("tests", []):
-            if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
+            spaced = spaced_js_title(name, rel)
+            if not spaced and not IDENTIFIER_TEST_NAME.match(name):
                 continue  # placeholder like "—" or a prose description
             f = resolve_test_file(root, rel, tracked)
+            if spaced:
+                # Advice only, and only for the one observation it can make: the
+                # title is not in the file. A missing file stays unreported for a
+                # spaced name, as before, rather than gaining a block by the back door.
+                if f is None or f.is_dir():
+                    continue
+                if test_body(f.read_text(errors="replace", encoding="utf-8"), name) is None:
+                    errors.advise(
+                        f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
+                        f"Tests table names the test title `{name}` in `{rel}`, but no `it`/`test`/"
+                        f"`describe` call in that file carries that exact title — so the row describes "
+                        f"a test the acceptance run cannot have exercised. Either it was never written, or "
+                        f"the table is stale after a rename; a sibling in that file fencing the same "
+                        f"behaviour is what separates the two")
+                continue
             # A Tests-table cell naming a DIRECTORY (a suite path like `tests/Feature/`) resolved to
             # a real path and then crashed read_text with "Is a directory" — the linter died instead
             # of reporting, which exits non-zero and so reads as a finding while having checked
@@ -5130,7 +5163,8 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None):
         if inf is None or inf.get("human"):
             continue
         for name, rel in inf.get("tests", []):
-            if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
+            spaced = spaced_js_title(name, rel)
+            if not spaced and not IDENTIFIER_TEST_NAME.match(name):
                 continue
             f = resolve_test_file(root, rel, tracked)
             if f is None or f.is_dir():
@@ -5187,7 +5221,7 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None):
                         f"assertion does — so whether this test can go red is UNPROVEN here, not "
                         f"disproven. If it genuinely asserts nothing, give it one")
                 else:
-                    errors.append(
+                    (errors.advise if spaced else errors.append)(
                         f"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body "
                         f"calls nothing and asserts nothing — there is no path by which it can go "
                         f"red, so a green run of it proves nothing")

@@ -15230,3 +15230,15 @@ grep -o 'inf\["[a-z_]*"\]' plugin/bin/adr-lint | sort | uniq -c
 Keys read: `acc_all`, `acc_first`, `adds`, `consumes`, `dep`, `has_mlog`, `human`, `mlog`, `path`, `produces`, `rests_on`, `tests`, `text`, `vlog`. Only `text` was read and never built.
 
 **Fixed.** `check_task` puts `text` in the info. The regression, `test_a_tests_row_finding_names_its_line_and_produces_is_read`, builds the info through `check_task`. A lint of every task directory in this repository's corpus afterwards raised no new advice and no FAIL. Adopters may now see the §61 advice for the first time; it is advisory (CLAUDE.md §3).
+
+## 284. OPEN — A Tests-table row whose test name has spaces is never checked (2026-09-25, found authoring ADR-064 T6)
+
+`check_tests_exist` and `check_tests_can_fail` in `plugin/bin/adr-lint` skip any name that fails `^[A-Za-z_][\w:.\-]*$`, which is how a prose cell or a `—` placeholder is left alone. That same filter also skips every vitest or jest title with a space in it (`it('removes an item', …)`), and most real JS test titles have one. So a stale row naming such a test PASSes silently. It is a fail-open for the JS shape the §280 finding came from. The §280 fixture (`js-vitest-spa`) uses an identifier-shaped name, so it does not cover this. Not fixed in the 2.109.0 batch: widening the filter turns a blocking check on for prose cells that pass today, and those would be false refusals. A fix has to tell a quoted test title from a prose description, measured on a real JS corpus (CLAUDE.md §16).
+
+## 285. OPEN — The artifact hook lints a tasks/README.md as a record (2026-09-25, observed in this session)
+
+On every commit touching an ADR's `tasks/README.md`, the PreToolUse artifact validation ran adr-lint on that README and printed `UNPROVEN: adr-lint could not run (exit 2): not-recognised: …/tasks/README.md has no **Status:** line …`. adr-lint says it is not a finding, and it is not one, but it prints on every such commit. So it is a line a session learns to skip (CLAUDE.md §17). The hook should send the record that owns the index, or send nothing. Wording or noise, so it goes to the next batch.
+
+## 286. OPEN — ADR-064 T6's per-platform matrix time (2026-09-25)
+
+T6 step 2 records the matrix's added time on each CI platform in `tests/fixtures/corpora/README.md`. The three corpora land in the push after this entry, so the time is read from that push's CI log and recorded after it.

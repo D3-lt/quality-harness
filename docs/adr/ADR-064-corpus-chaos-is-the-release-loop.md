@@ -138,4 +138,4 @@ Revert the commits. Every report field is additive and every mode is new; no att
 
 ## Follow-ups
 
-- [ ] None at authoring.
+- [ ] T6 step 2 asks for the matrix's added time per platform, read from a CI log; the corpora land in this push, so it is recorded in `tests/fixtures/corpora/README.md` from that push's run (deferred: docs/BACKLOG.md §286).

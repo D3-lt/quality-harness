@@ -57,6 +57,9 @@ node --test --test-reporter=tap tests/corpus-chaos-protocol.test.mjs 2>&1 | tee 
 | 4 — it is used | the batch's chaos round follows it |
 
 ## Mutation Log
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/skills/corpus-chaos/SKILL.md` · the runner is no longer told to diff · acceptance-sha256:766372fd13aa275af22838c773fd6a2649c57ce630f0c91916724d97708c1688 · covers:the runner steps probe once and read the saved report twice
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/skills/corpus-chaos/SKILL.md` · a runner may attest from an installed cache, whose at is null · acceptance-sha256:766372fd13aa275af22838c773fd6a2649c57ce630f0c91916724d97708c1688 · covers:an attestation needs a checkout at the candidate sha
+- 2026-09-25 · 286cbb1* · mutant killed · exit 1 · `plugin/skills/corpus-chaos/SKILL.md` · wording leads are chased one at a time again · acceptance-sha256:766372fd13aa275af22838c773fd6a2649c57ce630f0c91916724d97708c1688 · covers:the triage classes are named
 
 ## Invariants
 
@@ -75,3 +78,20 @@ Stop and ask if the protocol would ask a runner to send anything the probe does 
 - Naming specific peer sessions in the skill (permanent: boundary: the skill ships to adopters; sessions are this machine's)
 
 ## Verification Log
+- 2026-09-25 · 286cbb1* · exit 1 · `set -o pipefail …` · acceptance-sha256:766372fd13aa275af22838c773fd6a2649c57ce630f0c91916724d97708c1688 · ms:96 · test-lock-sha256:f002781e10de4f9a538da142c0e0019308286c9c59f337904867c1c6bb847298 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2NvcnB1cy1jaGFvcy1wcm90b2NvbC50ZXN0Lm1qcwl0aGUgY29ycHVzLWNoYW9zIHNraWxsIGNhcnJpZXMgdGhlIHJlbGVhc2UtbG9vcCBwcm90b2NvbAkyYTc1MmI3YzU1NWExNzdiM2ZjMzY1MTBkZGU5NGUyMWVjZWEyNDA0NjNjOGI3MzBkOWRhNTY5MTlhMTJlZGZl
+  ```
+  --- last 10 line(s) of stderr (of 75 after folding 75 raw)
+    ...
+  1..1
+  # tests 1
+  # suites 0
+  # pass 0
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 40.399
+  ```
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:766372fd13aa275af22838c773fd6a2649c57ce630f0c91916724d97708c1688 · ms:75
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:766372fd13aa275af22838c773fd6a2649c57ce630f0c91916724d97708c1688 · ms:78
+- 2026-09-25 · 286cbb1* · exit 0 · `set -o pipefail …` · acceptance-sha256:766372fd13aa275af22838c773fd6a2649c57ce630f0c91916724d97708c1688 · ms:74

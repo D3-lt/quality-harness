@@ -15313,9 +15313,15 @@ Tests are in `tests/adr-next.test.mjs`, through the CLI, each clean case with it
 
 **Codex review of 2f45348 (one round):** one blocking finding, confirmed and fixed. The counter pattern's separator was optional, so backtracking read the digits inside `failed-on-ios18` or `release-blocked-v2` as the count and erased a real stop. The pattern now needs the whole label, a separator and a whole number. Twin tests were added, plus a mutant restoring the old pattern (RED). The real sign-offs classify as before.
 
-## 288. OPEN — work-next's JSON names tasks under an archive whose catalog it cannot establish (2026-09-25, a cold review of 833ea52)
+## 288. CLOSED 2026-09-25 — work-next's JSON names tasks under an archive whose catalog it cannot establish (2026-09-25, a cold review of 833ea52)
 
 With the archive README spelled `readme.md` (the marker present, but the spelling ambiguous), SessionStart calls the directory UNPROVEN. work-next's JSON instead lists its done-claimed task in `unbackedDoneClaims` and `tasksUnderAnUndecidedRecord`, and leaves `readinessUnproven` empty. The damage is limited: `look` is `PARTIAL`, and the text output stops at could-not-look. But a JSON consumer reading those lists sees work where the reader could not tell. `frozenArchiveOf` returns `'unknown'` there, and `taskFiles` keeps the task. It should be reported as unproven, the way SessionStart reports it. This is wording and a JSON field, so it goes to the next batch.
+
+**Fixed.** `taskFiles` in `plugin/scripts/work-next.mjs` now separates `frozenArchiveOf`'s `'unknown'` from live:
+- Such a task is left out of `tasks`, `unbacked`, `ready` and `notYetDecided`, and its directory joins `readinessUnproven`. That is how SessionStart already reports it.
+- The text line for `readinessUnproven` now names both reasons.
+
+Test in `tests/work-next-readiness.test.mjs`: a `readme.md` archive whose done-claimed task is not unbacked and whose directory is unproven. Its twin, with no archive question, keeps the task live. One mutant, RED. Two archive mutants were repointed at the renamed line and re-run RED. Fixture-waived: no fixture corpus spells an archive README `readme.md`. The matrix can pin this when one does.
 
 ## 289. OPEN — The 2.109.0 corpus-chaos round: leads for the next batch (2026-09-25, reported from outside runs at 7b0b71c)
 

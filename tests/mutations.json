@@ -28,6 +28,15 @@
       "to": "elif [[ \"$f\" == */tasks/*.md ]]"
     },
     {
+      "label": "work-next: a task under an undecided archive is unproven, not work (§288)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    if (archived === 'unknown') { archiveUnknown.add(path.resolve(directory, path.dirname(rel))); continue }",
+      "to": "    if (false) { continue }"
+    },
+    {
       "label": "lint: a spaced title is compared by its decoded value, so an escaped quote is not stale (§284)",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -2705,7 +2714,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (frozen(norm) === true) continue",
+      "from": "    if (archived === true) continue",
       "to": "    if (false) continue"
     },
     {
@@ -10631,8 +10640,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    if (frozen(norm) === true) continue",
-      "to": "    if (frozen(norm) === 'never') continue",
+      "from": "    if (archived === true) continue",
+      "to": "    if (archived === 'never') continue",
       "only": "work-next reads an unmarked archive"
     },
     {

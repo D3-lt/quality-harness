@@ -143,6 +143,38 @@ test("a directory two records share offers only the Accepted record's task", () 
     "the Proposed record's task is named as waiting on the decision, not dropped")
 })
 
+// BACKLOG §288, a cold review of 833ea52: with an archive's README spelled
+// `readme.md`, whether the directory is frozen is UNKNOWN — SessionStart says so —
+// and work-next listed its done-claimed task as unbacked work instead. The twin:
+// the same tree with no archive marker at all is live, and its task IS listed.
+test('a task under an archive whose README spelling is ambiguous is unproven, not work', () => {
+  const build = readme => {
+    const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-readiness-readme-')); temps.push(temp)
+    const adr = path.join(temp, 'docs', 'adr')
+    const arc = path.join(temp, 'docs', 'adr-archive')
+    mkdirSync(path.join(adr), { recursive: true })
+    mkdirSync(path.join(arc, 'ADR-000-old', 'tasks'), { recursive: true })
+    writeFileSync(path.join(adr, 'ADR-001-live.md'), '# ADR-001: live\n\n**Status:** Accepted\n**Date:** 2026-09-25\n\n## Context\n\nx\n\n## Decision\n\ny\n')
+    writeFileSync(path.join(arc, 'ADR-000-old.md'), '# ADR-000: old\n\n**Status:** Accepted\n**Date:** 2026-07-01\n\n## Context\n\nx\n\n## Decision\n\ny\n')
+    writeFileSync(path.join(arc, readme.name), readme.text)
+    writeFileSync(path.join(arc, 'ADR-000-old', 'tasks', 'T1-old.md'), '# Task ADR-000-T1: old\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n## Verification Log\n\n')
+    const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
+      GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
+    for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
+      const r = spawnSync('git', args, { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+    }
+    return observe(temp)
+  }
+  const ambiguous = build({ name: 'readme.md', text: '# ADR Archive\n\n**Lifecycle:** Frozen historical ADR records\n' })
+  assert.deepEqual(ambiguous.unbacked.filter(f => f.endsWith('T1-old.md')), [], 'an undecided archive task is not unbacked work')
+  assert.ok(ambiguous.readinessUnproven.some(d => d.endsWith(path.join('ADR-000-old', 'tasks'))),
+    `its directory is named as unproven: ${ambiguous.readinessUnproven}`)
+  const live = build({ name: 'NOTES.md', text: '# notes\n' })
+  assert.ok(live.unbacked.some(f => f.endsWith('T1-old.md')), `with no archive question, the task is live: ${live.unbacked}`)
+  assert.deepEqual(live.readinessUnproven.filter(d => d.includes('ADR-000-old')), [])
+})
+
 // BACKLOG §281 item 7, reported from Windows: workNext.next named `adr-verify` for a
 // task whose moved test lock needs `--relock --replace-hashes` first, so the step it
 // named would be refused. adr-next's note already said why; work-next dropped it.

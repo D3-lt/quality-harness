@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-25",
+  "at": "7b0b71c2835f54535f1903023c64411df743437d",
+  "plugin": "2.109.0",
+  "kind": "probe",
+  "probeSha256": "1bf3409aee95356f7d71733b5c739ddce11e28b700eba9f9e785fbfc1566f0a4",
+  "readers": "732db9ab0202fb404cfbc1a6686d240c1871052518ba42cd1c8ba214ba576824",
+  "platform": "Darwin 27.0.0",
+  "node": "26.8.2",
+  "python": "3.14.7",
+  "corpus": { "records": null, "tasks": null, "taskDirectories": 68 },
+  "couldNotRun": 1,
+  "disagreements": 0,
+  "readinessUnproven": null,
+  "runner": "macos-go",
+  "found": "work-next was killed at the probe's 120 s budget on this corpus, so records, tasks and readinessUnproven are null here; the same report's corpusReport has 70 records and 165 tasks. adr-next took 51, 26 and 26 s on the three largest logs. Two PASS → FAIL on ADR-052 and ADR-054 are true: a test they lock was edited later under another record, and the relock remedy is named. Leads for the next batch: work-next's budget and adr-next's cost on large logs; --attest could take counts from corpusReport when work-next did not answer; --diff lists one missing reader as five 'lacks' lines."
+}

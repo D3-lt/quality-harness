@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-25",
+  "at": "7b0b71c2835f54535f1903023c64411df743437d",
+  "plugin": "2.109.0",
+  "kind": "probe",
+  "probeSha256": "1bf3409aee95356f7d71733b5c739ddce11e28b700eba9f9e785fbfc1566f0a4",
+  "readers": "732db9ab0202fb404cfbc1a6686d240c1871052518ba42cd1c8ba214ba576824",
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 17, "tasks": 24, "taskDirectories": 7 },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "macos-laravel",
+  "found": "Clean. The A8 'fully evidenced, not shown' line appears, and the probe's SessionStart matched the runner's live hook exactly. Three adrLint FAILs are true, with fixes on the runner's unmerged branch. One wording lead: the top-level look was PARTIAL, and no field says which record made it partial."
+}

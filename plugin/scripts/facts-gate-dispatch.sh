@@ -244,7 +244,9 @@ fi
 # A tasks index (`tasks/README.md`) is derived from its task files (§10), and its
 # `# ADR-064 tasks` title reads as a record's (BACKLOG §285); see the record arm.
 tasks_index=0
-[[ "$base_lc" == readme.md && "$(basename "$(dirname "$f")")" == tasks ]] && tasks_index=1
+# Both names case-insensitive, like `base_lc` (CLAUDE.md §7; Codex review of 12a1341).
+tasks_dir_lc=$(basename "$(dirname "$f")" | tr '[:upper:]' '[:lower:]')
+[[ "$base_lc" == readme.md && "$tasks_dir_lc" == tasks ]] && tasks_index=1
 if [ -n "$archive_readme" ]; then
   gate="adr-retire-check"
   out=$("$BIN/adr-retire-check" "$archive_readme" 2>&1); rc=$?
@@ -277,7 +279,9 @@ elif [ "$tasks_index" = 0 ] \
 # without it fell through to here — and a record titled `# ADR-001: …` matched
 # `^# (Task )?ADR-`. It was then told its owning ADR was missing, while the record
 # IS the ADR. Section presence is not a proxy for record-ness; the title is.
-elif [[ "$f" == */tasks/*.md ]] || bom_free "$f" | grep -qE '^# Task ADR-[A-Za-z0-9._-]+' \
+# An index goes HERE, whatever its path looks like: a relative `tasks/README.md`
+# has no slash before `tasks/`, and excluding it above sent it nowhere.
+elif [ "$tasks_index" = 1 ] || [[ "$f" == */tasks/*.md ]] || bom_free "$f" | grep -qE '^# Task ADR-[A-Za-z0-9._-]+' \
     || bom_free "$f" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; then
   # Resolve the ADR id from the task itself. Never pick the first nearby ADR: a wrong green
   # verdict is worse than an explicit ambiguity failure.

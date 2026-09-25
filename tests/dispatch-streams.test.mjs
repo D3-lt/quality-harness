@@ -81,3 +81,26 @@ test('a tasks README is linted through its owning record, never as a record itse
     assert.match(both, /ADR-007-a-thing\.md/, `the owning record must be what was linted:\n${both}`)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
+
+// Codex review of 12a1341: the `tasks` directory was compared case-sensitively, and
+// a RELATIVE `tasks/README.md` was kept out of the record arm but never reached the
+// task arm (it has no slash before `tasks/`), so its owner was never linted.
+test('a tasks README is routed to its owner in any case and from a relative path', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-readme-case-')))
+  try {
+    const bash = resolveBashExecutable()
+    assert.ok(bash, 'bash is needed to run the dispatcher')
+    const record = '# ADR-007: a thing\n\n**Status:** Accepted\n\n'
+      + '## Existing Primitives Audit\n\n## Decision\n\n## Alternatives Considered\n\n## Consequences\n'
+    const own = join(top, 'ADR-007')
+    for (const dir of ['Tasks', 'tasks']) mkdirSync(join(own, dir), { recursive: true })
+    writeFileSync(join(own, 'ADR-007-a-thing.md'), record)
+    for (const dir of ['Tasks', 'tasks']) writeFileSync(join(own, dir, 'README.md'), '# ADR-007 tasks\n')
+    for (const file of [join(own, 'Tasks', 'README.md'), join('tasks', 'README.md')]) {
+      const run = spawnSync(bash, [dispatcher, file, ''], { cwd: own, encoding: 'utf8', timeout: 60_000 })
+      const both = `${run.stdout}${run.stderr}`
+      assert.doesNotMatch(both, /not-recognised/, `${file} was read as a record or not at all:\n${both}`)
+      assert.match(both, /ADR-007-a-thing/, `${file}: the owning record must be what was linted:\n${both}`)
+    }
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})

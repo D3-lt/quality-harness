@@ -10,12 +10,21 @@
   ],
   "mutations": [
     {
+      "label": "lint: a spaced title is compared by its decoded value, so an escaped quote is not stale (§284)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if re.sub(r\"\\\\(.)\", r\"\\1\", m.group(2)) == name:",
+      "to": "        if m.group(2) == name:"
+    },
+    {
       "label": "lint: a stale spaced JS test title is advised, not skipped as prose (§284)",
       "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                if test_body(f.read_text(errors=\"replace\", encoding=\"utf-8\"), name) is None:",
+      "from": "                if not js_title_exists(f.read_text(errors=\"replace\", encoding=\"utf-8\"), name):",
       "to": "                if False:"
     },
     {
@@ -6399,7 +6408,7 @@
         "tests/gates.test.mjs"
       ],
       "from": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\" \\\n    || { bom_free \"$f\" | grep -qE '^# ADR-[0-9]' \\\n         && ! bom_free \"$f\" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; }; then\n",
-      "to": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\"; then\n"
+      "to": "    && { [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\"; }; then\n"
     },
     {
       "label": "lint: a cited token needs a file extension, not merely a slash",

@@ -4371,6 +4371,23 @@ def spaced_js_title(name, rel):
     """True for a test title with a space in a JS/TS test file's row."""
     return not IDENTIFIER_TEST_NAME.match(name) and bool(JS_TEST_FILE.search(rel))
 
+
+# A BDD title as the runner sees it: the string literal's DECODED value, whatever
+# the callback is. Existence is not body extraction — `test_body` also needs an
+# inline callback it can slice, so `it('doesn\'t remove items', …)` and
+# `it('removes an item', checkCart)` read as absent (Codex review of b85877c).
+JS_TITLE_CALL = re.compile(
+    r"""\b(?:it|test|describe|context|specify|scenario)(?:\.\w+)*\s*\(\s*"""
+    r"""(['"`])((?:\\.|(?!\1)[^\\])*)\1""", re.S)
+
+
+def js_title_exists(source, name):
+    """True when some it/test/describe call's literal title decodes to `name`."""
+    for m in JS_TITLE_CALL.finditer(source):
+        if re.sub(r"\\(.)", r"\1", m.group(2)) == name:
+            return True
+    return False
+
 def check_tests_exist(infos, readme_text, errors, root, tracked=None):
     # Paths outside the tree are reported ONCE each: a task naming one file in
     # eight Tests rows has one problem, not eight.
@@ -4405,7 +4422,7 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None):
                 # spaced name, as before, rather than gaining a block by the back door.
                 if f is None or f.is_dir():
                     continue
-                if test_body(f.read_text(errors="replace", encoding="utf-8"), name) is None:
+                if not js_title_exists(f.read_text(errors="replace", encoding="utf-8"), name):
                     errors.advise(
                         f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
                         f"Tests table names the test title `{name}` in `{rel}`, but no `it`/`test`/"

@@ -15253,6 +15253,8 @@ Left, named:
 - (b) The corpus probe does not report advice lines, so the matrix cannot pin this. Fixture-waived until the probe carries advice.
 - (c) This repository's own 110 stale rows now print as advice when their records are linted. Under §17 each needs an answer. The records are history, so the answer is to name them, not rewrite them.
 
+**Codex review of b85877c (one round):** one blocking finding, confirmed and fixed. Existence was decided by `test_body`, which also needs an inline callback it can slice. So `it('doesn\'t remove items', …)` and `it('removes an item', checkCart)` were advised as stale. Existence is now `js_title_exists`: the decoded literal title of any `it`/`test`/`describe` call, whatever the callback is. Regressions cover both shapes, plus a mutant on the decoding (RED). Re-measured: 325 found, 110 advised. The 2 abbreviations are still advised, because they are not the title.
+
 ## 285. OPEN — The artifact hook lints a tasks/README.md as a record (2026-09-25, observed in this session)
 
 On every commit touching an ADR's `tasks/README.md`, the PreToolUse artifact validation ran adr-lint on that README and printed `UNPROVEN: adr-lint could not run (exit 2): not-recognised: …/tasks/README.md has no **Status:** line …`. adr-lint says it is not a finding, and it is not one, but it prints on every such commit. So it is a line a session learns to skip (CLAUDE.md §17). The hook should send the record that owns the index, or send nothing. Wording or noise, so it goes to the next batch.

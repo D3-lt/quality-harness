@@ -1,0 +1,124 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/adr-archive",
+    "docs/adr",
+    "docs/decisions"
+  ],
+  "records": [
+    [
+      "docs/adr-archive/ADR-004-notes-were-plain-text.md",
+      "governing",
+      false
+    ],
+    [
+      "docs/adr/ADR-001-notes-can-be-pinned.md",
+      "governing",
+      false
+    ],
+    [
+      "docs/adr/ADR-002-a-note-needs-a-title.md",
+      "governing",
+      false
+    ],
+    [
+      "docs/decisions/ADR-003-notes-are-soft-deleted.md",
+      "governing",
+      false
+    ]
+  ],
+  "workNext": {
+    "records": 4,
+    "accepted": 4,
+    "tasks": 7,
+    "ready": [
+      "docs/adr/ADR-001-notes-can-be-pinned/tasks/T1-api-accepts-the-flag.md",
+      "docs/adr/ADR-001-notes-can-be-pinned/tasks/T3-route-document-names-the-flag.md",
+      "docs/decisions/ADR-003-notes-are-soft-deleted/tasks/T1-the-model-soft-deletes.md"
+    ],
+    "unbacked": [
+      "docs/decisions/ADR-003-notes-are-soft-deleted/tasks/T1-the-model-soft-deletes.md"
+    ],
+    "retirable": [],
+    "readinessUnproven": [],
+    "next": "adr-verify",
+    "unmarkedArchives": [
+      "docs/adr-archive"
+    ]
+  },
+  "adrState": {
+    "read": 4,
+    "governing": 4
+  },
+  "adrNext": [
+    {
+      "tasksDir": "docs/adr/ADR-001-notes-can-be-pinned/tasks",
+      "ready": [
+        "T1",
+        "T3"
+      ]
+    },
+    {
+      "tasksDir": "docs/adr/ADR-002-a-note-needs-a-title/tasks",
+      "ready": []
+    },
+    {
+      "tasksDir": "docs/decisions/ADR-003-notes-are-soft-deleted/tasks",
+      "ready": [
+        "T1"
+      ]
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "docs/adr-archive/ADR-004-notes-were-plain-text.md",
+      "verdict": "PASS"
+    },
+    {
+      "file": "docs/adr/ADR-001-notes-can-be-pinned.md",
+      "verdict": "PASS"
+    },
+    {
+      "file": "docs/adr/ADR-002-a-note-needs-a-title.md",
+      "verdict": "PASS"
+    },
+    {
+      "file": "docs/decisions/ADR-003-notes-are-soft-deleted.md",
+      "verdict": "FAIL",
+      "reasonMatches": "^README\\.md: T1 marked done but its Verification Log has no exit-0 entry"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "docs/adr-archive",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    },
+    {
+      "root": "docs/adr",
+      "claims": 1,
+      "held": 1,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    },
+    {
+      "root": "docs/decisions",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [
+      "`docs/adr-archive` looks like an archive but has no Lifecycle marker, so it is read as live"
+    ]
+  },
+  "couldNotRun": []
+}

@@ -18,6 +18,15 @@
 // (`publicPath`, CLAUDE.md §6): the output is designed to be posted in public.
 //
 //   node corpus-probe.mjs [<repo-root>] [--json] [--sweep] [--timeout <seconds>] [--sweep-budget <seconds>]
+//   node corpus-probe.mjs --diff <before.json> <after.json>
+//   node corpus-probe.mjs --attest <label> <report.json>
+//
+// `--attest` reads one saved report and prints the counts-only attestation
+// docs/corpus-reports/README.md defines (ADR-064 T3), so no count is transcribed.
+//
+// `--diff` reads two saved reports of ONE corpus and prints only what changed. It
+// runs nothing, so a runner probes once and compares against its own last report
+// (ADR-064 T2).
 //
 // `--sweep` re-runs every recorded claim through `adr-verify --sweep`, which
 // EXECUTES the corpus's acceptance fences; it is opt-in for that reason, and it
@@ -31,7 +40,7 @@ import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'no
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { adrCorpus, spawnGate, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, resolvePython, spawnGate, trackedPaths } from './lifecycle.mjs'
 import { publicPath, pluginVersion } from './corpus-report.mjs'
 import { isMainModule } from './main-module.mjs'
 import { READER_DIRECTORIES } from './reader-paths.mjs'
@@ -365,7 +374,12 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const disagreements = compareReaders(adrNext, workNext && { ready: workNextReadyList, readinessUnproven: workNextUnproven })
 
   return {
-    probe: { version: pluginVersion(), sha256: probeDigest(), readers: readerFingerprint(pluginRoot) },
+    probe: {
+      version: pluginVersion(), sha256: probeDigest(), readers: readerFingerprint(pluginRoot),
+      // What an attestation carries about the run (ADR-064 T3), recorded here so
+      // `--attest` can be pure over the saved report.
+      date: new Date().toISOString().slice(0, 10), platform: `${os.type()} ${os.release()}`, node: process.versions.node, python: pythonVersion(),
+    },
     root: '.',
     look,
     corpora: corpusDirs.map(rel),
@@ -400,8 +414,146 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   }
 }
 
+/**
+ * What changed between two saved reports of one corpus (ADR-064 T2), as lines.
+ * Pure. Every line goes through `scrub` again: an older probe's scrubber let
+ * Windows paths out, and copying its values verbatim would re-emit them. A run
+ * that could not look, or two reports of different corpora, are said and not
+ * compared. A field only one report carries is named as missing, never read as
+ * empty. A timing is a line only when it at least doubled AND grew by a second, so
+ * load noise on a fast reader stays quiet.
+ */
+export function diffReports(before, after, scrub = text => String(text)) {
+  const lines = []
+  const say = text => lines.push(scrub(text))
+  if (before.look !== 'ok' || after.look !== 'ok') return [scrub(`look: ${before.look} → ${after.look}: not compared`)]
+  const corpora = report => (report.corpora ?? []).join(', ')
+  if (corpora(before) !== corpora(after)) return [scrub(`corpora differ (${corpora(before)} → ${corpora(after)}): not compared`)]
+  const lacks = (field, b, a) => {
+    if (b === undefined && a !== undefined) { say(`before lacks ${field}`); return true }
+    if (a === undefined && b !== undefined) { say(`after lacks ${field}`); return true }
+    return b === undefined
+  }
+  const readers = [before.probe?.readers, after.probe?.readers]
+  if (!lacks('probe.readers', ...readers) && readers[0].sha256 !== readers[1].sha256) {
+    say(`readers: ${String(readers[0].sha256).slice(0, 12)}… → ${String(readers[1].sha256).slice(0, 12)}…`)
+  }
+  for (const [group, keys] of [['workNext', ['records', 'accepted', 'tasks']], ['adrState', ['read', 'governing']]]) {
+    for (const key of keys) {
+      const [b, a] = [before[group]?.[key], after[group]?.[key]]
+      if (!lacks(`${group}.${key}`, b, a) && b !== a) say(`${group}.${key}: ${b} → ${a}`)
+    }
+  }
+  const setChange = (field, b, a) => {
+    if (lacks(field, b, a)) return
+    const [was, now] = [new Set(b ?? []), new Set(a ?? [])]
+    const changes = [...[...now].filter(x => !was.has(x)).map(x => `+ ${x}`), ...[...was].filter(x => !now.has(x)).map(x => `- ${x}`)]
+    if (changes.length) say(`${field}: ${changes.join(', ')}`)
+  }
+  for (const key of ['ready', 'unbacked', 'readinessUnproven', 'unmarkedArchives', 'readyButClaimedDone']) {
+    setChange(`workNext.${key}`, before.workNext?.[key], after.workNext?.[key])
+  }
+  if (!lacks('adrLint', before.adrLint, after.adrLint)) {
+    const was = new Map(before.adrLint.map(entry => [entry.file, entry]))
+    const now = new Map(after.adrLint.map(entry => [entry.file, entry]))
+    for (const [file, entry] of now) {
+      const old = was.get(file)
+      if (!old) say(`adrLint ${file}: new, ${entry.verdict}`)
+      else if (old.verdict !== entry.verdict) say(`adrLint ${file}: ${old.verdict} → ${entry.verdict}${entry.reason ? ` — ${entry.reason}` : ''}`)
+    }
+    for (const file of was.keys()) if (!now.has(file)) say(`adrLint ${file}: removed`)
+  }
+  setChange('couldNotRun', before.couldNotRun?.map(entry => entry.reader), after.couldNotRun?.map(entry => entry.reader))
+  setChange('disagreements', before.disagreements?.map(entry => entry.task), after.disagreements?.map(entry => entry.task))
+  if (!lacks('sessionStart', before.sessionStart, after.sessionStart) && before.sessionStart && after.sessionStart) {
+    const [was, now] = [new Set(before.sessionStart.lines), new Set(after.sessionStart.lines)]
+    for (const line of now) if (!was.has(line)) say(`SessionStart + ${line}`)
+    for (const line of was) if (!now.has(line)) say(`SessionStart - ${line}`)
+  }
+  if (!lacks('timings', before.timings, after.timings)) {
+    const key = entry => `${entry.reader}${entry.target ? ` ${entry.target}` : ''}`
+    const was = new Map(before.timings.map(entry => [key(entry), entry.ms]))
+    for (const entry of after.timings) {
+      const old = was.get(key(entry))
+      if (old !== undefined && entry.ms >= 2 * old && entry.ms - old >= 1000) say(`slower: ${key(entry)} ${old} → ${entry.ms} ms`)
+    }
+  }
+  return lines.length ? lines : ['nothing changed']
+}
+
+/** The version of the interpreter the gates run under, or null when none answered. */
+function pythonVersion() {
+  const command = process.platform === 'win32' ? resolvePython() : ['python3']
+  if (!command) return null
+  const run = spawnSync(command[0], [...command.slice(1), '--version'], { encoding: 'utf8', timeout: 10_000 })
+  return /Python (\S+)/.exec(`${run.stdout ?? ''}${run.stderr ?? ''}`)?.[1] ?? null
+}
+
+/**
+ * The counts-only attestation docs/corpus-reports/README.md defines, from a saved
+ * report (ADR-064 T3). Pure. `at` is the readers' commit only when no reader file
+ * differs from it: release-evidence compares commits and cannot see a working
+ * tree, so a commit here over edited readers would attest readers nobody ran. A
+ * count whose reader did not answer is null, never 0. `found` is left empty for
+ * the session that reads the diff: this tool never says what a run found.
+ */
+export function attestation(report, label) {
+  const readers = report.probe?.readers ?? {}
+  const committed = typeof readers.git === 'string' && readers.dirty === false
+  const count = list => (Array.isArray(list) ? list.length : null)
+  return {
+    date: report.probe?.date ?? null,
+    at: committed ? readers.git : null,
+    ...(committed ? {} : { atReason: readers.git ? 'reader files modified at HEAD' : 'the plugin is not a git checkout' }),
+    plugin: report.probe?.version ?? null,
+    kind: 'probe',
+    probeSha256: report.probe?.sha256 ?? null,
+    readers: readers.sha256 ?? null,
+    platform: report.probe?.platform ?? null,
+    node: report.probe?.node ?? null,
+    python: report.probe?.python ?? null,
+    corpus: {
+      records: report.workNext?.records ?? null,
+      tasks: report.workNext?.tasks ?? null,
+      taskDirectories: Array.isArray(report.adrNext) ? report.adrNext.length + (report.frozenTaskDirs?.length ?? 0) : null,
+    },
+    couldNotRun: count(report.couldNotRun),
+    disagreements: count(report.disagreements),
+    readinessUnproven: count(report.workNext?.readinessUnproven),
+    runner: label,
+    found: '',
+  }
+}
+
+/** `--attest`: read a saved report and print its attestation. Exit 2 when it does not parse. */
+function attestMain(label, file) {
+  let report
+  try { report = JSON.parse(readFileSync(file, 'utf8')) } catch (error) {
+    process.stderr.write(`corpus-probe: ${publicPath(file, process.cwd())} is not a report (${error.code ?? error.message})\n`)
+    return 2
+  }
+  process.stdout.write(`${JSON.stringify(attestation(report, label), null, 2)}\n`)
+  return 0
+}
+
+/** `--diff`: read two saved reports and print what changed. Exit 2 when one does not parse. */
+function diffMain(beforeFile, afterFile) {
+  const reports = []
+  for (const file of [beforeFile, afterFile]) {
+    try { reports.push(JSON.parse(readFileSync(file, 'utf8'))) } catch (error) {
+      process.stderr.write(`corpus-probe: ${publicPath(file, process.cwd())} is not a report (${error.code ?? error.message})\n`)
+      return 2
+    }
+  }
+  const scrub = scrubber({ root: null, pluginRoot: path.resolve(here, '..') })
+  process.stdout.write(`${diffReports(reports[0], reports[1], scrub).join('\n')}\n`)
+  return 0
+}
+
 function usage() {
-  process.stderr.write('usage: corpus-probe.mjs [<repo-root>] [--json] [--sweep] [--timeout <seconds>] [--sweep-budget <seconds>]\n')
+  process.stderr.write('usage: corpus-probe.mjs [<repo-root>] [--json] [--sweep] [--timeout <seconds>] [--sweep-budget <seconds>]\n'
+    + '       corpus-probe.mjs --diff <before.json> <after.json>\n'
+    + '       corpus-probe.mjs --attest <label> <report.json>\n')
   return 2
 }
 
@@ -413,6 +565,8 @@ export function main(argv = process.argv.slice(2)) {
   let sweepBudgetMs = DEFAULT_SWEEP_BUDGET_MS
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
+    if (arg === '--diff') return argv[i + 1] && argv[i + 2] ? diffMain(argv[i + 1], argv[i + 2]) : usage()
+    if (arg === '--attest') return argv[i + 1] && argv[i + 2] ? attestMain(argv[i + 1], argv[i + 2]) : usage()
     if (arg === '--json') json = true
     else if (arg === '--sweep') sweep = true
     else if (arg === '--timeout' || arg === '--sweep-budget') {

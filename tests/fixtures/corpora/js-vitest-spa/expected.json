@@ -1,0 +1,82 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/adr"
+  ],
+  "records": [
+    [
+      "docs/adr/ADR-001-the-cart-is-a-pure-reducer.md",
+      "governing",
+      false
+    ],
+    [
+      "docs/adr/ADR-002-prices-are-integer-cents.md",
+      "governing",
+      false
+    ]
+  ],
+  "workNext": {
+    "records": 2,
+    "accepted": 2,
+    "tasks": 2,
+    "ready": [
+      "docs/adr/ADR-002-prices-are-integer-cents/tasks/T1-format-cents.md"
+    ],
+    "unbacked": [
+      "docs/adr/ADR-002-prices-are-integer-cents/tasks/T1-format-cents.md"
+    ],
+    "retirable": [],
+    "readinessUnproven": [],
+    "next": "adr-verify",
+    "readyButClaimedDone": [
+      "docs/adr/ADR-002-prices-are-integer-cents/tasks/T1-format-cents.md"
+    ]
+  },
+  "adrState": {
+    "read": 2,
+    "governing": 2
+  },
+  "adrNext": [
+    {
+      "tasksDir": "docs/adr/ADR-001-the-cart-is-a-pure-reducer/tasks",
+      "ready": []
+    },
+    {
+      "tasksDir": "docs/adr/ADR-002-prices-are-integer-cents/tasks",
+      "ready": [
+        "T1"
+      ]
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "docs/adr/ADR-001-the-cart-is-a-pure-reducer.md",
+      "verdict": "FAIL",
+      "reasonMatches": "^T1-add-and-remove-items\\.md:38: T1 .*names `removes_an_item` in `src/cart\\.test\\.ts`, but that file contains no executable definition with that name"
+    },
+    {
+      "file": "docs/adr/ADR-002-prices-are-integer-cents.md",
+      "verdict": "FAIL"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "docs/adr",
+      "claims": 1,
+      "held": 1,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [
+      "inferred `npm run test` from a manifest .*\\(a step the inference did not pick, such as a typecheck or lint\\)"
+    ],
+    "mustNotMatch": [
+      "does not name"
+    ]
+  },
+  "couldNotRun": []
+}

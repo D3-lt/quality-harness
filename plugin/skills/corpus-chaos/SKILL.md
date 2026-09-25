@@ -74,8 +74,10 @@ Two roles. Run the one you are in.
   withdrawn by the runner after one question (a capture read in the wrong encoding, an invalid
   payload). A withdrawn finding still tells you which silence to break.
 - **A confirmed finding changes two things:** the reader, and the field of `expected.json` in
-  `tests/corpus-matrix.test.mjs` that would have caught it. A fixed sentence nobody asserts is
-  the next release's defect.
+  `tests/corpus-matrix.test.mjs` that would have caught it — in a fixture corpus under
+  `tests/fixtures/corpora/`, or a `(fixture-waived: <reason>)` in its BACKLOG section when the
+  matrix cannot observe it (ADR-064). `node scripts/chaos-fixture-sweep.mjs` names the sections
+  that did neither. A fixed sentence nobody asserts is the next release's defect.
 - Record what was found and what was left in `docs/BACKLOG.md`, with the runner's numbers and
   platform, so the next reader of the record knows how the finding was made.
 

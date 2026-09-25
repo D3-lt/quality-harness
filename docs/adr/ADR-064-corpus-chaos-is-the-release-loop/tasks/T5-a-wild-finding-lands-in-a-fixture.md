@@ -60,6 +60,9 @@ node --test --test-reporter=tap tests/chaos-fixture-sweep.test.mjs 2>&1 | tee /d
 | 4 — it is used | the batch's closing step runs it |
 
 ## Mutation Log
+- 2026-09-25 · c4acfae* · mutant killed · exit 1 · `scripts/chaos-fixture-sweep.mjs` · every section reads as naming a fixture, so nothing is listed · acceptance-sha256:c775a140275fa67a6ca292b900554bb44092dfb3192f3f7efcc6c30e1320a4d2 · covers:an outside finding with no fixture is named
+- 2026-09-25 · c4acfae* · mutant killed · exit 1 · `scripts/chaos-fixture-sweep.mjs` · a waived section is listed · acceptance-sha256:c775a140275fa67a6ca292b900554bb44092dfb3192f3f7efcc6c30e1320a4d2 · covers:a section that names a fixture or a waiver is not
+- 2026-09-25 · c4acfae* · mutant killed · exit 1 · `scripts/chaos-fixture-sweep.mjs` · history before the cutoff is swept · acceptance-sha256:c775a140275fa67a6ca292b900554bb44092dfb3192f3f7efcc6c30e1320a4d2 · covers:history before the cutoff is not swept
 
 ## Invariants
 
@@ -80,3 +83,20 @@ Stop and ask if the only reliable signal for an outside finding turns out to be 
 - Sweeping sections up to §282 (permanent: boundary: CLAUDE.md §10 — the backlog is history and is not rewritten to meet a later rule)
 
 ## Verification Log
+- 2026-09-25 · c4acfae* · exit 1 · `set -o pipefail …` · acceptance-sha256:c775a140275fa67a6ca292b900554bb44092dfb3192f3f7efcc6c30e1320a4d2 · ms:239 · test-lock-sha256:27b2fb9c75b21d7e471bf4f7c7d15ccec5abdab3e3e93d801252bbab359a159f · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2NoYW9zLWZpeHR1cmUtc3dlZXAudGVzdC5tanMJdGhlIGNoYW9zIGZpeHR1cmUgc3dlZXAgbGVhdmVzIGhpc3RvcnkgYW5kIG9yZGluYXJ5IHNlY3Rpb25zIGFsb25lCWMzOTI0NTJjZjFmNGUxZjllNDFkZDNlNmJjMGQxYzM2OTIwZWJkODk2ZTY2MTZkNzhjZThiYzdlZGJhNDg4NzgKYm9keQl0ZXN0cy9jaGFvcy1maXh0dXJlLXN3ZWVwLnRlc3QubWpzCXRoZSBjaGFvcyBmaXh0dXJlIHN3ZWVwIG5hbWVzIGFuIG91dHNpZGUgZmluZGluZyB3aXRoIG5vIGZpeHR1cmUJMzBlMTViNjRiYTNkNWZhZmJhNmNlNGExZTFmNDRhYzMxNTViN2U4NzAxZTAzZjVlOTM4MWE3NmYzMDJjNWFjYQ
+  ```
+  --- last 10 line(s) of stderr (of 110 after folding 112 raw)
+    ...
+  1..2
+  # tests 2
+  # suites 0
+  # pass 0
+  # fail 2
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 140.286291
+  ```
+- 2026-09-25 · c4acfae* · exit 0 · `set -o pipefail …` · acceptance-sha256:c775a140275fa67a6ca292b900554bb44092dfb3192f3f7efcc6c30e1320a4d2 · ms:149
+- 2026-09-25 · c4acfae* · exit 0 · `set -o pipefail …` · acceptance-sha256:c775a140275fa67a6ca292b900554bb44092dfb3192f3f7efcc6c30e1320a4d2 · ms:148
+- 2026-09-25 · c4acfae* · exit 0 · `set -o pipefail …` · acceptance-sha256:c775a140275fa67a6ca292b900554bb44092dfb3192f3f7efcc6c30e1320a4d2 · ms:145

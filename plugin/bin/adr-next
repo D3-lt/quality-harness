@@ -159,7 +159,10 @@ NEGATED_AFFIRMATIVE = re.compile(r"(?<![a-z])" + NEGATOR + AFFIRMATIVE.pattern[l
 # real approval reporting zero refusals read as a stop (pirkiniukampelis ADR-017 T4).
 NEUTRALISED = re.compile(
     r"(?<![a-z])" + NEGATOR + r"(?:" + NEGATIVE_WORD + r")(?![a-z])"
-    r"|\b\w+(?:-\w+)+\s*[=:]?\s*\d", re.I)
+    # The WHOLE label, then a separator, then a whole number: with the separator
+    # optional, backtracking read the digits inside `failed-on-ios18` as its count
+    # and erased a real stop (Codex review of 2f45348).
+    r"|(?<![\w-])\w+(?:-\w+)+(?:\s*[=:]\s*|\s+)\d+(?![\w-])", re.I)
 
 
 # A record NUMBER from a filename, and NOT the year of an ISO date. Every

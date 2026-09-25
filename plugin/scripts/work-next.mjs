@@ -415,6 +415,12 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // right by checking. A count that omits what it could not read reads as
     // coverage; the reader is told the remainder rather than left to subtract.
     undecided: (corpus.unreadable ?? []).length,
+    // WHICH records made the look PARTIAL, and why: a bare PARTIAL sent the reader
+    // hunting through the corpus for the one file (BACKLOG §289 item 3).
+    partialBecause: corpus.look === 'PARTIAL'
+      ? (corpus.unreadable ?? []).filter(entry => entry.reason || /effect UNPROVEN/.test(entry.status ?? ''))
+        .map(entry => ({ file: entry.file, reason: entry.reason ?? entry.status }))
+      : [],
     tasks: tasks.length,
     unbacked,
     relock,
@@ -489,6 +495,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       records: state.records,
       accepted: state.accepted,
       undecidedRecords: state.undecided,
+      partialBecause: state.partialBecause.map(entry => ({ file: relative(entry.file), reason: entry.reason })),
       tasks: state.tasks,
       unbackedDoneClaims: state.unbacked.map(relative),
       tasksWithoutEvidence: state.ready.map(relative),
@@ -515,6 +522,8 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   if (state.look === 'PARTIAL') {
     process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
       + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
+    for (const entry of state.partialBecause.slice(0, 5)) process.stdout.write(`  ${relative(entry.file)}: ${entry.reason}\n`)
+    if (state.partialBecause.length > 5) process.stdout.write(`  (+${state.partialBecause.length - 5} more; --json for all)\n`)
     // A PARTIAL look returns here, so the directories this reader withheld are named
     // HERE too, or the text says less than the JSON (Codex review of 17edd2d).
     for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  readiness UNPROVEN: ${relative(dir)}\n`)
@@ -573,7 +582,10 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   }
   if (state.readyButClaimedDone.length) {
     const n = state.readyButClaimedDone.length
-    process.stdout.write(`\n${n} task${n === 1 ? ' is' : 's are'} both READY and claimed done without evidence — \`adr-verify\` ${n === 1 ? 'it' : 'them'} first:\n`)
+    // One task in three lists read as a contradiction (BACKLOG §289 item 2): these
+    // are a subset of the ready list AND of the unbacked claims, said here once.
+    process.stdout.write(`\n${n} task${n === 1 ? ' is' : 's are'} both READY and claimed done without evidence — \`adr-verify\` ${n === 1 ? 'it' : 'them'} first `
+      + `(${n === 1 ? 'it is' : 'they are'} also counted among the ready tasks and the unbacked done claims):\n`)
     for (const file of state.readyButClaimedDone.slice(0, 5)) process.stdout.write(`  ${relative(file)}\n`)
     if (n > 5) process.stdout.write(`  (+${n - 5} more; --json for all)\n`)
   }

@@ -422,3 +422,24 @@ test('corpus-probe --diff names a changed FAIL reason, and a file that is not a 
     }
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// BACKLOG §289 item 6. Standalone rather than added to the diff tests above, which
+// ADR-064 T2/T3 lock: a reader that did not answer on one side is ONE line, not one
+// per field (the locked twin shows a missing single FIELD is still named).
+test('corpus-probe --diff names a reader absent on one side once', () => {
+  const unanswered = baseReport()
+  unanswered.workNext = null
+  const missing = diffOf(baseReport(), unanswered).lines
+  assert.deepEqual(missing.filter(line => /workNext/.test(line)),
+    ['workNext: after has no answer from this reader (see couldNotRun), so its fields are not compared'], missing.join('\n'))
+})
+
+// BACKLOG §289 item 5: when work-next did not answer and corpus-report DID count,
+// those counts are used and say where from, rather than null beside a report that
+// holds both. Null stays null when neither answered (the locked test above).
+test('an attestation falls back to corpus-report counts when work-next did not answer', () => {
+  const unread = attestable()
+  unread.workNext = null
+  unread.corpusReport = [{ root: 'docs/adr', totals: { tasks: 3 }, records: [{}, {}] }, { root: 'x', totals: null, records: null }]
+  assert.deepEqual(attestOf(unread).corpus, { records: 2, tasks: 3, taskDirectories: 2, countsFrom: 'corpusReport' })
+})

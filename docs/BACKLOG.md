@@ -15325,7 +15325,7 @@ Test in `tests/work-next-readiness.test.mjs`: a `readme.md` archive whose done-c
 
 **Codex review of 17edd2d (one round):** one blocking finding, confirmed and fixed. The look is PARTIAL in exactly this case, and the text output returned at could-not-look before naming anything, so only the JSON carried the withheld directory. The PARTIAL branch now names each one. The test asserts both CLI outputs, plus a mutant (RED).
 
-## 289. OPEN — The 2.109.0 corpus-chaos round: leads for the next batch (2026-09-25, reported from outside runs at 7b0b71c)
+## 289. CLOSED 2026-09-25 — The 2.109.0 corpus-chaos round: leads for the next batch (2026-09-25, reported from outside runs at 7b0b71c)
 
 Five peer sessions on this machine were asked by the ADR-064 T7 protocol. Four ran and one could not:
 - Laravel, PHP/React and Go attested with `--attest` (`kind: probe`).
@@ -15345,6 +15345,28 @@ The leads, all wording or performance:
 
 (fixture-waived: none of these is a reader defect the matrix could pin until it is fixed; each fix that lands adds its field to a fixture corpus, per ADR-064)
 
+**Worked, 2026-09-25.** Each item below has a test, and each fix has a mutant (all RED).
+1. **Fixed.** `readyTaskLines` (`lifecycle.mjs`): a ready directory under an unmarked archive now leads with `adopt it first (adr-retire-check --adopt <active> <archive>)` and does not say "Prove it with `adr-verify`". A directory in the active corpus keeps the ordinary line. Test in `tests/archive-not-in-flight.test.mjs`.
+2. **Fixed.** work-next's text says the overlap out loud: the READY-and-claimed-done tasks "are also counted among the ready tasks and the unbacked done claims".
+3. **Fixed.** work-next gains `partialBecause` (`{file, reason}`, from `corpus.unreadable`: an unread file's reason, or a frozen record's `effect UNPROVEN`) in the JSON, the text and the probe summary.
+4. **Measured; not reproduced here, so not changed.** `/usr/bin/time adr-next docs/adr/ADR-060-…/tasks --json` (this corpus's largest task directory, 294 KB) took 0.39 s. cProfile names no hot path: most of it is the 7 `git_root` subprocess calls. The 51 s is a property of the Go corpus's shape, which cannot be read from here. It goes to that peer in the next chaos round with a cProfile request, per "measure where the time goes before changing any budget".
+5. **Fixed.** `attestation` falls back to corpus-report's counts when work-next did not answer, and marks them `countsFrom: 'corpusReport'`. It is still null when neither answered.
+6. **Fixed.** `diffReports` says a reader absent on one side as ONE line and skips its fields. A missing single field is still named, as the existing test shows.
+7. **Deferred:** a design lead that needs its own record. Nothing warns at merge time when a later record edits a test that older records lock.
+
 ## 290. OPEN — work-next counts a STOP sign-off as backing a done claim (2026-09-25, found closing §287)
 
 `unfinished` in `plugin/scripts/work-next.mjs` (the `Acceptance is human-observed:` branch) returns false (finished) for any `· human-observed · \S` line, whatever it says. adr-next reads the same line's outcome (`human_outcome`) and withholds done on a stop, so the two readers disagree about a task whose only sign-off says "not approved" or "decision BLOCKED": adr-next says not done, and work-next does not list its done claim as unbacked. Readiness is unaffected, because work-next takes it from adr-next. What is affected is only the `unbacked` list and its count. It is the same rule spelled twice. The fix asks adr-next rather than copying the classifier, so there is one reading.
+
+## 291. OPEN — The artifact gate reads generated fixture trees as the repository's own specs (2026-09-25, inbox from quality-blueprints, 2026-09-24)
+
+Reported from quality-blueprints (plugin 2.106.0, main bbac79c, macOS). On every commit touching `tests/golden*`, the artifact validation ran `spec-verify --draft` on rendered founder-project output kept as byte-for-byte golden fixtures (`tests/golden-baselines/*/docs/specs/*.md`). It also printed "could not classify" for their `.ts` sources. It ended "Fix the artifact, not the gate", which is the wrong instruction for a fixture. The session learned to ignore the block entirely.
+
+Read here, not reproduced:
+- `UNINTERESTING_DIRECTORY` (`plugin/scripts/uninteresting.mjs`) names `fixtures?` and `testdata` but not `golden`.
+- `facts-gate-dispatch.sh` routes any `*/docs/specs/*.md` to `spec-verify --draft`.
+- The uninteresting-directory skip is applied in `runShellHook` from the payload's `cwd`. The artifact batch payload carries no `cwd`, so whether the skip applies there may depend on the process's cwd. That is **unverified, and the first thing to check**: if it holds, every fixture skip is affected at the commit boundary, not only `golden`.
+
+A name rule for `golden`, or a `.quality-harness.json` key naming fixture roots, is a design choice (a new config surface) and is not made here.
+
+The report's second point is fixed in this batch. corpus-probe's work-next summary now carries `specs` and `unprovenSpecs`, which the text's "N spec file(s) have an UNPROVEN Status" line had and the JSON summary dropped. `expected.json` of `js-vitest-spa` pins the fields, plus a mutant (RED).

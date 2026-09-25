@@ -395,6 +395,12 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       readinessUnproven: workNextUnproven,
       unmarkedArchives: workNextPaths('unmarkedArchives'),
       readyButClaimedDone: workNextPaths('readyButClaimedDone'),
+      // The spec count and the specs whose Status could not be read: work-next's text
+      // said "77 spec file(s) have an UNPROVEN Status" and this summary dropped it, so
+      // a pasted probe said less than the reader (inbox, quality-blueprints 2026-09-24).
+      specs: workNext.specs ?? null,
+      unprovenSpecs: workNextPaths('unprovenSpecs'),
+      partialBecause: (workNext.partialBecause ?? []).map(entry => ({ file: normal(entry.file), reason: entry.reason })),
       next: workNext.next,
     },
     frozenTaskDirs,
@@ -438,11 +444,23 @@ export function diffReports(before, after, scrub = text => String(text)) {
     if (a === undefined && b !== undefined) { say(`after lacks ${field}`); return true }
     return b === undefined
   }
+  // A reader that did not answer on one side is ONE line, naming it; its fields
+  // were then listed one by one as "after lacks workNext.records" and so on
+  // before `couldNotRun` said why (BACKLOG §289 item 6).
+  const absent = new Set()
+  for (const group of ['workNext', 'adrState']) {
+    const [b, a] = [before[group], after[group]]
+    if ((b == null) !== (a == null)) {
+      absent.add(group)
+      say(`${group}: ${b == null ? 'before' : 'after'} has no answer from this reader (see couldNotRun), so its fields are not compared`)
+    }
+  }
   const readers = [before.probe?.readers, after.probe?.readers]
   if (!lacks('probe.readers', ...readers) && readers[0].sha256 !== readers[1].sha256) {
     say(`readers: ${String(readers[0].sha256).slice(0, 12)}… → ${String(readers[1].sha256).slice(0, 12)}…`)
   }
   for (const [group, keys] of [['workNext', ['records', 'accepted', 'tasks']], ['adrState', ['read', 'governing']]]) {
+    if (absent.has(group)) continue
     for (const key of keys) {
       const [b, a] = [before[group]?.[key], after[group]?.[key]]
       if (!lacks(`${group}.${key}`, b, a) && b !== a) say(`${group}.${key}: ${b} → ${a}`)
@@ -454,7 +472,7 @@ export function diffReports(before, after, scrub = text => String(text)) {
     const changes = [...[...now].filter(x => !was.has(x)).map(x => `+ ${x}`), ...[...was].filter(x => !now.has(x)).map(x => `- ${x}`)]
     if (changes.length) say(`${field}: ${changes.join(', ')}`)
   }
-  for (const key of ['ready', 'unbacked', 'readinessUnproven', 'unmarkedArchives', 'readyButClaimedDone']) {
+  for (const key of absent.has('workNext') ? [] : ['ready', 'unbacked', 'readinessUnproven', 'unmarkedArchives', 'readyButClaimedDone']) {
     setChange(`workNext.${key}`, before.workNext?.[key], after.workNext?.[key])
   }
   if (!lacks('adrLint', before.adrLint, after.adrLint)) {
@@ -514,6 +532,19 @@ export function readersOfRun(start, end) {
  * answer is null, never 0. `found` is left empty for the session that reads the
  * diff: this tool never says what a run found.
  */
+function corpusCounts(report) {
+  const taskDirectories = Array.isArray(report.adrNext) ? report.adrNext.length + (report.frozenTaskDirs?.length ?? 0) : null
+  if (report.workNext?.records != null) return { records: report.workNext.records, tasks: report.workNext.tasks ?? null, taskDirectories }
+  const answered = (report.corpusReport ?? []).filter(entry => entry.totals && Array.isArray(entry.records))
+  if (!answered.length) return { records: null, tasks: null, taskDirectories }
+  return {
+    records: answered.reduce((sum, entry) => sum + entry.records.length, 0),
+    tasks: answered.reduce((sum, entry) => sum + (entry.totals.tasks ?? 0), 0),
+    taskDirectories,
+    countsFrom: 'corpusReport',
+  }
+}
+
 export function attestation(report, label) {
   const readers = report.probe?.readers ?? {}
   const committed = typeof readers.git === 'string' && readers.dirty === false && !readers.moved
@@ -532,11 +563,10 @@ export function attestation(report, label) {
     platform: report.probe?.platform ?? null,
     node: report.probe?.node ?? null,
     python: report.probe?.python ?? null,
-    corpus: {
-      records: report.workNext?.records ?? null,
-      tasks: report.workNext?.tasks ?? null,
-      taskDirectories: Array.isArray(report.adrNext) ? report.adrNext.length + (report.frozenTaskDirs?.length ?? 0) : null,
-    },
+    // Falls back to corpus-report when work-next did not answer, and says so: null
+    // is right when nothing counted, and a report holding both numbers is not
+    // nothing (BACKLOG §289 item 5, a Go corpus whose work-next ran out of budget).
+    corpus: corpusCounts(report),
     couldNotRun: count(report.couldNotRun),
     disagreements: count(report.disagreements),
     readinessUnproven: count(report.workNext?.readinessUnproven),

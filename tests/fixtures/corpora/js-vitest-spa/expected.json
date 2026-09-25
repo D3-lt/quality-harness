@@ -27,6 +27,9 @@
     ],
     "retirable": [],
     "readinessUnproven": [],
+    "specs": 0,
+    "unprovenSpecs": [],
+    "partialBecause": [],
     "next": "adr-verify",
     "readyButClaimedDone": [
       "docs/adr/ADR-002-prices-are-integer-cents/tasks/T1-format-cents.md"

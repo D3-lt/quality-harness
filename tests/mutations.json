@@ -10,6 +10,51 @@
   ],
   "mutations": [
     {
+      "label": "probe: the work-next summary carries the unproven-spec list (inbox, quality-blueprints)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      unprovenSpecs: workNextPaths('unprovenSpecs'),",
+      "to": ""
+    },
+    {
+      "label": "orientation: a ready task under an unmarked archive leads with adopting it (§289.1)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      const archive = unmarked.find(dir => relative === dir || relative.startsWith(`${dir}/`))",
+      "to": "      const archive = undefined"
+    },
+    {
+      "label": "work-next: a PARTIAL look says which record made it partial (§289.3)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    partialBecause: corpus.look === 'PARTIAL'",
+      "to": "    partialBecause: false"
+    },
+    {
+      "label": "probe: an attestation falls back to corpus-report counts, and says so (§289.5)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (!answered.length) return { records: null, tasks: null, taskDirectories }",
+      "to": "  return { records: null, tasks: null, taskDirectories }"
+    },
+    {
+      "label": "probe: a reader absent on one side of a diff is one line, not one per field (§289.6)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (absent.has(group)) continue\n",
+      "to": ""
+    },
+    {
       "label": "work-next: a PARTIAL look still names the directories it withheld (§288)",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [

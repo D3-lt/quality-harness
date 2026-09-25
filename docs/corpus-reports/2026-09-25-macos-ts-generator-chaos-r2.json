@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-25",
+  "at": "2daedc41fa7dc32246c0ad0d9f11c90235d9472c",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "3a7e26eaa4af91deeba08d2ce0a4a1bb9eda9b73825d792b56ea8d33d7df5dc9",
+  "platform": "Darwin 27.0.0",
+  "node": "26.8.2",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 0,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "ts-generator-no-adr",
+  "found": "Round 2 (chaos at 145c794, seed 1790364394; attestation at 2daedc4): 11 of 12 hostile names are now seen; 'has not yet been approved' read as done (fixed in the next commit, §294); symlinked specs outside the tree, ENOBUFS wording, indented-code Status and more (§295 item 22)."
+}

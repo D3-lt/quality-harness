@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-25",
+  "at": "2daedc41fa7dc32246c0ad0d9f11c90235d9472c",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "3a7e26eaa4af91deeba08d2ce0a4a1bb9eda9b73825d792b56ea8d33d7df5dc9",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 0,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "ts-monorepo-no-adr",
+  "found": "Round 3, replays only: L1, L7, N1, N2 and N3 fixed. N4 fixed for file names; a directory name still opens the ready line unquoted, and a zero-width path is shown as an escape that does not name the file (§295 item 21)."
+}

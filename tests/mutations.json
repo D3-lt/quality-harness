@@ -4161,8 +4161,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "r\"(?<![a-z])(block(?:ed|s|ing)|stop(?:ped|s|ping)?|\"",
-      "to": "r\"(?<![a-z])(block(?:ed|s|ing)?|stop(?:ped|s|ping)?|\""
+      "from": "NEGATIVE_WORD = (r\"block(?:ed|s|ing)|stop(?:ped|s|ping)?|\"",
+      "to": "NEGATIVE_WORD = (r\"block(?:ed|s|ing)?|stop(?:ped|s|ping)?|\""
     },
     {
       "label": "next: the -s and -ing forms of a stop word are caught, not only -ed",
@@ -4170,8 +4170,35 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "r\"abort(?:ed|s|ing)?)(?![a-z])\", re.I)",
-      "to": "r\"abort(?:ed)?)(?![a-z])\", re.I)"
+      "from": "r\"abort(?:ed|s|ing)?\")",
+      "to": "r\"abort(?:ed)?\")"
+    },
+    {
+      "label": "next: a negator before an affirmative is a stop, so \"not approved\" is not done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if NEGATED_AFFIRMATIVE.search(outside):\n        return \"stop\"",
+      "to": "    if False:\n        return \"stop\""
+    },
+    {
+      "label": "next: a negated negative word is not a stop, so \"approved, not blocked\" is done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    r\"(?<![a-z])\" + NEGATOR + r\"(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"\n    r\"|",
+      "to": "    r\"(?!x)x\"\n    r\"|"
+    },
+    {
+      "label": "next: a hyphen-joined counter with its count is a metric, not a verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\", re.I)",
+      "to": "    r\"|(?!x)x\", re.I)"
     },
     {
       "label": "next: a task stopped by a human sign-off is not offered as ready",
@@ -10492,8 +10519,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    outside = program_output_removed(note)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
-      "to": "    outside = program_output_removed(note)\n",
+      "from": "    outside = NEUTRALISED.sub(\" \", outside)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
+      "to": "    outside = NEUTRALISED.sub(\" \", outside)\n",
       "only": "inside quoted program output"
     },
     {

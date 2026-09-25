@@ -136,10 +136,30 @@ AFFIRMATIVE = re.compile(r"(?<![a-z])(pass(?:ed|es)?|confirm(?:ed|s)?|observed|"
 # reachable through every entry that lacked an `-s`/`-ing` form. Both directions
 # are asserted in tests/adr-next.test.mjs, one test each, because a change that
 # only narrowed would be indistinguishable from deleting the word.
-NEGATIVE = re.compile(r"(?<![a-z])(block(?:ed|s|ing)|stop(?:ped|s|ping)?|"
-                      r"fail(?:ed|s|ing)?|refus(?:e|ed|es|ing)?|"
-                      r"withdraw(?:n|s|ing)?|reject(?:ed|s|ing)?|not |never |cannot|"
-                      r"abort(?:ed|s|ing)?)(?![a-z])", re.I)
+NEGATIVE_WORD = (r"block(?:ed|s|ing)|stop(?:ped|s|ping)?|"
+                 r"fail(?:ed|s|ing)?|refus(?:e|ed|es|ing)?|"
+                 r"withdraw(?:n|s|ing)?|reject(?:ed|s|ing)?|cannot|"
+                 r"abort(?:ed|s|ing)?")
+NEGATIVE = re.compile(r"(?<![a-z])(" + NEGATIVE_WORD + r")(?![a-z])", re.I)
+
+# ⚠ `not ` AND `never ` USED TO SIT IN NEGATIVE AND COULD NEVER MATCH A WORD: the
+# trailing `(?![a-z])` rejects the letter that follows the space, so "not approved"
+# found the affirmative and read as DONE (BACKLOG §287). Matching `not` as a word is
+# not the fix either — two real approvals on disk say "NOT visible to the model" and
+# "has never been exercised end to end", and would become false stops. What makes a
+# note say the opposite of done is a negator DIRECTLY BEFORE an affirmative, at most
+# one auxiliary between them: "not approved", "never shipped", "didn't pass",
+# "not yet signed off". Measured over every human-observed line on disk (§287).
+NEGATOR = r"(?:not|never|no\s+longer|[a-z]+n['’]t)\s+(?:(?:yet|been|be|being)\s+)?"
+NEGATED_AFFIRMATIVE = re.compile(r"(?<![a-z])" + NEGATOR + AFFIRMATIVE.pattern[len("(?<![a-z])"):], re.I)
+# The mirror image: a negator before a NEGATIVE word reports that the bad thing did
+# NOT happen — "approved, not blocked", "confirmed it did not fail" — and was read
+# as a stop. And a hyphen-joined counter name followed by its count
+# (`refused-unverifiable 0`, `blocked-total: 3`) names a metric, not a verdict: a
+# real approval reporting zero refusals read as a stop (pirkiniukampelis ADR-017 T4).
+NEUTRALISED = re.compile(
+    r"(?<![a-z])" + NEGATOR + r"(?:" + NEGATIVE_WORD + r")(?![a-z])"
+    r"|\b\w+(?:-\w+)+\s*[=:]?\s*\d", re.I)
 
 
 # A record NUMBER from a filename, and NOT the year of an ISO date. Every
@@ -199,9 +219,15 @@ def human_outcome(note):
     # 'refusing an empty tag'" reported a program refusing as it should, and was
     # read as a stop (BACKLOG §281 item 2, a product repository).
     outside = program_output_removed(note)
+    # A negator directly before an affirmative is the note saying NOT done, and it
+    # wins before anything else can find the affirmative inside it (§287).
+    if NEGATED_AFFIRMATIVE.search(outside):
+        return "stop"
+    # "not blocked" and a counter named `refused-unverifiable 0` are not verdicts.
+    outside = NEUTRALISED.sub(" ", outside)
     if NEGATIVE.search(outside):
         return "stop"
-    if NEGATIVE.search(note):
+    if NEGATIVE.search(NEUTRALISED.sub(" ", note)):
         return "pass" if AFFIRMATIVE.search(outside) else "stop"
     if AFFIRMATIVE.search(note):
         return "pass"

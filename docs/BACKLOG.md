@@ -15243,11 +15243,38 @@ On every commit touching an ADR's `tasks/README.md`, the PreToolUse artifact val
 
 T6 step 2 records the matrix's added time on each CI platform in `tests/fixtures/corpora/README.md`. The three corpora land in the push after this entry, so the time is read from that push's CI log and recorded after it.
 
-## 287. OPEN — adr-next's `not ` and `never ` can never match, so "not approved" reads as done (2026-09-25, a cold review of 833ea52)
+## 287. CLOSED 2026-09-25 — adr-next's `not ` and `never ` can never match, so "not approved" reads as done (2026-09-25, a cold review of 833ea52)
 
 `NEGATIVE` in `plugin/bin/adr-next` lists `not ` and `never ` (each with a trailing space) inside a group that ends with `(?![a-z])`. A space followed by "no letter" cannot occur before a word, so the two alternatives match only before a digit or punctuation: `NEGATIVE.search("not approved")`, `("never shipped")` and `("it is not done")` are all False, `("not 5")` is True. `human_outcome("not approved")` then finds the affirmative "approved" and returns `pass`, so a human-observed sign-off that says the opposite of done counts as done. That is the fail-open the function's own docstring says it refuses. It is the same at v2.108.0, so it predates the 2.109.0 batch.
 
 Not fixed in the batch, because the obvious fix has a cost. Matching `not` as a word would turn "confirmed it does not crash" into a stop, a false refusal of a correct sign-off. Which phrasing real sign-offs use is an empirical question (CLAUDE.md §16): measure the human-observed rows across the corpora we can read, then choose, for example negation directly before an affirmative word ("not approved", "never shipped").
+
+**Measured, then fixed.** Every `· human-observed ·` line readable from here was classified before and after the change: 4 in this repository, 2 in a product repository (pirkiniukampelis), 1 in the fixtures. The script loads `plugin/bin/adr-next` and calls `human_outcome` on each line's note, plus a list of probe strings:
+
+```
+python3 <scratchpad>/classify.py   # globs docs/adr/**/tasks/*.md, ../pirkiniukampelis*/docs/adr/**/tasks/*.md, tests/fixtures/corpora/**/tasks/*.md
+                                   before  after
+ADR-035 T4 (says "withdrawn")      stop    stop
+ADR-035 T4 (reworded sign-off)     pass    pass
+ADR-060 T1                         pass    pass
+ADR-012 T4 ("NOT visible", "did not surface")   pass  pass
+pirkiniukampelis ADR-017 T4 ("has never been exercised", "refused-unverifiable 0")  stop  pass
+pirkiniukampelis ADR-018 T3        None    None
+fixture php-multi-root T2          pass    pass
+"not approved" / "never shipped" / "it is not done" / "didn't pass"   pass  stop
+"approved, not blocked" / "confirmed it did not fail"                  stop  pass
+```
+
+Two real approvals carry a bare `not`/`never` away from the verdict, so a word-level `not` would have been a false refusal, as this entry predicted. The measurement found a second defect, in the opposite direction: the pirkiniukampelis approval was a **false stop**. `refus…` matched inside the counter name `refused-unverifiable`, which was followed by its count.
+
+The fix, in `plugin/bin/adr-next`:
+- The dead `not ` and `never ` alternatives are gone.
+- `NEGATED_AFFIRMATIVE` (a negator — `not`, `never`, `no longer`, `…n't` — directly before an affirmative, with at most one of `yet`/`been`/`be`/`being` between) is a stop, and it is checked first.
+- `NEUTRALISED` blanks a negator before a negative word ("not blocked"), and a hyphen-joined counter followed by its count, before the NEGATIVE search.
+
+Tests are in `tests/adr-next.test.mjs`, through the CLI, each clean case with its dirty twin. Three new mutants (all RED). Three existing mutants were repointed at the changed lines and re-run RED.
+
+**Sibling, left as a new task:** `plugin/scripts/work-next.mjs:335` accepts any human-observed line as backing a done claim without reading its outcome. §290.
 
 ## 288. OPEN — work-next's JSON names tasks under an archive whose catalog it cannot establish (2026-09-25, a cold review of 833ea52)
 
@@ -15272,3 +15299,7 @@ The leads, all wording or performance:
 7. **A design lead:** a later record edited a test that two older records lock, and both went red on code of their own that did not change (Go). The relock remedy is named; nothing at the later record's merge warned that it would happen.
 
 (fixture-waived: none of these is a reader defect the matrix could pin until it is fixed; each fix that lands adds its field to a fixture corpus, per ADR-064)
+
+## 290. OPEN — work-next counts a STOP sign-off as backing a done claim (2026-09-25, found closing §287)
+
+`unfinished` in `plugin/scripts/work-next.mjs` (the `Acceptance is human-observed:` branch) returns false (finished) for any `· human-observed · \S` line, whatever it says. adr-next reads the same line's outcome (`human_outcome`) and withholds done on a stop, so the two readers disagree about a task whose only sign-off says "not approved" or "decision BLOCKED": adr-next says not done, and work-next does not list its done claim as unbacked. Readiness is unaffected, because work-next takes it from adr-next. What is affected is only the `unbacked` list and its count. It is the same rule spelled twice. The fix asks adr-next rather than copying the classifier, so there is one reading.

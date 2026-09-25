@@ -569,6 +569,46 @@ test('the verb forms of a negative word are still read as a stop', () => {
     'the bare noun must stay outside NEGATIVE, or this fix has been reverted')
 })
 
+// BACKLOG §287. `not ` and `never ` sat in NEGATIVE with a trailing space, so the
+// `(?![a-z])` after them rejected every word that could follow: "not approved"
+// found "approved" and read as DONE. The fix is scoped, not a word match, because
+// two real approvals on disk say "NOT visible to the model" and "has never been
+// exercised end to end" — so both directions are asserted, each through the CLI.
+test('a negator directly before an affirmative is a stop, and a bare "not" elsewhere is not', () => {
+  const done = note => {
+    const signoff = `- 2026-09-25 · human-observed · ${note}`
+    const { tasksDir } = corpus([{ id: 'T1', human: true, evidence: true, signoff }])
+    return /^done\s+T1/m.test(next([tasksDir, '--all'], root).stdout)
+  }
+  for (const note of ['not approved', 'never shipped', 'it is not done', "didn't pass",
+    'not yet signed off', 'no longer ok']) {
+    assert.equal(done(note), false, `a negated sign-off was counted as done: ${note}`)
+  }
+  for (const note of ['confirmed it does not crash',
+    'Zy confirmed the tool answered; SERVER INSTRUCTIONS: NOT visible to the model',
+    'shipped it; the wire shape has never been exercised end to end']) {
+    assert.equal(done(note), true, `a bare negator away from the verdict became a stop: ${note}`)
+  }
+})
+
+// The mirror image, found measuring §287: a negator before a NEGATIVE word says
+// the bad thing did NOT happen, and a hyphen-joined counter with its count is a
+// metric. A real approval (pirkiniukampelis ADR-017 T4) reporting
+// `refused-unverifiable 0` read as a stop. Each clean case has a dirty twin.
+test('a negated stop word and a counter name are not verdicts, and the plain stop still is', () => {
+  const done = note => {
+    const signoff = `- 2026-09-25 · human-observed · ${note}`
+    const { tasksDir } = corpus([{ id: 'T1', human: true, evidence: true, signoff }])
+    return /^done\s+T1/m.test(next([tasksDir, '--all'], root).stdout)
+  }
+  assert.equal(done('approved, not blocked'), true)
+  assert.equal(done('approved, blocked'), false)
+  assert.equal(done('confirmed it did not fail'), true)
+  assert.equal(done('confirmed it failed'), false)
+  assert.equal(done('shipped it (refused-unverifiable 0, refused-started 0)'), true)
+  assert.equal(done('shipped it, then refused-unverifiable'), false)
+})
+
 test('a human-observed task is told how to sign itself off', () => {
   const { tasksDir } = corpus([{ id: 'T1', human: true }])
   const result = next([tasksDir], root)

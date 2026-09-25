@@ -164,12 +164,18 @@ test('a task under an archive whose README spelling is ambiguous is unproven, no
       const r = spawnSync('git', args, { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
       assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
     }
-    return observe(temp)
+    return Object.assign(observe(temp), { temp })
   }
   const ambiguous = build({ name: 'readme.md', text: '# ADR Archive\n\n**Lifecycle:** Frozen historical ADR records\n' })
   assert.deepEqual(ambiguous.unbacked.filter(f => f.endsWith('T1-old.md')), [], 'an undecided archive task is not unbacked work')
   assert.ok(ambiguous.readinessUnproven.some(d => d.endsWith(path.join('ADR-000-old', 'tasks'))),
     `its directory is named as unproven: ${ambiguous.readinessUnproven}`)
+  // And in BOTH outputs: the look is PARTIAL there, and the text returned before it
+  // named anything (Codex review of 17edd2d).
+  const cli = args => spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'work-next.mjs'), ...args, ambiguous.temp],
+    { encoding: 'utf8', timeout: 120_000 })
+  assert.match(cli([]).stdout, /readiness UNPROVEN: docs\/adr-archive\/ADR-000-old\/tasks/, cli([]).stdout)
+  assert.ok(JSON.parse(cli(['--json']).stdout).readinessUnproven.some(d => d.endsWith('ADR-000-old/tasks')))
   const live = build({ name: 'NOTES.md', text: '# notes\n' })
   assert.ok(live.unbacked.some(f => f.endsWith('T1-old.md')), `with no archive question, the task is live: ${live.unbacked}`)
   assert.deepEqual(live.readinessUnproven.filter(d => d.includes('ADR-000-old')), [])

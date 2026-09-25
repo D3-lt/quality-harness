@@ -15323,6 +15323,8 @@ With the archive README spelled `readme.md` (the marker present, but the spellin
 
 Test in `tests/work-next-readiness.test.mjs`: a `readme.md` archive whose done-claimed task is not unbacked and whose directory is unproven. Its twin, with no archive question, keeps the task live. One mutant, RED. Two archive mutants were repointed at the renamed line and re-run RED. Fixture-waived: no fixture corpus spells an archive README `readme.md`. The matrix can pin this when one does.
 
+**Codex review of 17edd2d (one round):** one blocking finding, confirmed and fixed. The look is PARTIAL in exactly this case, and the text output returned at could-not-look before naming anything, so only the JSON carried the withheld directory. The PARTIAL branch now names each one. The test asserts both CLI outputs, plus a mutant (RED).
+
 ## 289. OPEN — The 2.109.0 corpus-chaos round: leads for the next batch (2026-09-25, reported from outside runs at 7b0b71c)
 
 Five peer sessions on this machine were asked by the ADR-064 T7 protocol. Four ran and one could not:

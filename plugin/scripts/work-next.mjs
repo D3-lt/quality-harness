@@ -164,10 +164,13 @@ function posixRel(rel) {
 }
 
 
+// The task files this reader lists, and the task directories it could NOT decide
+// about: under a README spelled so that whether it is a frozen archive is unknown.
 function taskFiles(directory, listing) {
   if (listing == null) return null
   const frozen = frozenArchiveOf(directory, listing)
   const found = []
+  const archiveUnknown = new Set()
   for (const rel of listing) {
     const norm = posixRel(rel)
     // A `.md` DIRECTLY under `tasks/`, the same rule as SessionStart's
@@ -180,13 +183,18 @@ function taskFiles(directory, listing) {
     // Frozen by the Lifecycle marker, the rule every other reader applies. A name
     // test here hid an unadopted `adr-archive/` that SessionStart offered as live
     // (BACKLOG §281 item 3), and before that `archive-policy.md` (§263).
-    if (frozen(norm) === true) continue
+    const archived = frozen(norm)
+    if (archived === true) continue
+    // ⚠ UNKNOWN IS NOT LIVE. A README the listing spells `readme.md` may be the
+    // archive's catalog; SessionStart calls such a directory UNPROVEN, and this
+    // listed its tasks as unbacked and undecided work instead (BACKLOG §288).
+    if (archived === 'unknown') { archiveUnknown.add(path.resolve(directory, path.dirname(rel))); continue }
     // The same exclusion `adrCorpus` applies, or the count of task files and the
     // `unbacked` list would still carry fixtures whose records were dropped.
     if (listedUnderUninterestingDirectory(norm.split('/').slice(0, -1))) continue
     found.push(path.join(directory, rel))
   }
-  return found
+  return { files: found, archiveUnknown: [...archiveUnknown] }
 }
 
 function specFiles(directory, listing) {
@@ -237,7 +245,8 @@ export function observe(directory, { spawn = spawnGate } = {}) {
   const listing = trackedPaths(directory)
   const corpus = adrCorpus(directory, { tracked: listing })
   const look = listing == null ? 'UNPROVEN' : (corpus.look ?? 'ok')
-  const tasks = taskFiles(directory, listing) ?? []
+  const listedTasks = taskFiles(directory, listing)
+  const tasks = listedTasks?.files ?? []
   const specPaths = specFiles(directory, listing) ?? []
 
   const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
@@ -395,7 +404,9 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // Task directories adr-next could not answer for; their tasks are neither
     // ready nor finished here, and a router that read them as "nothing ready"
     // would be the ADR-005 conflation.
-    readinessUnproven: readiness.unproven,
+    // …and those under a README whose archive marker could not be decided, which
+    // are neither live nor frozen here (BACKLOG §288).
+    readinessUnproven: [...new Set([...readiness.unproven, ...(listedTasks?.archiveUnknown ?? [])])],
     records: corpus.length,
     accepted: corpus.filter(record => record.kind === 'governing').length,
     // `records` counts what this reader could CLASSIFY, and until §48 that was
@@ -551,7 +562,8 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
     // Rendered, not only serialised: the JSON carried this while the text printed
     // an all-clear over the same directories (Codex review of bdeba73, P2).
     process.stdout.write(`\n${state.readinessUnproven.length} task director${state.readinessUnproven.length === 1 ? 'y' : 'ies'} `
-      + 'could not be read by adr-next, so readiness there is UNPROVEN — not "nothing ready" (ADR-005):\n')
+      + 'could not be read by adr-next, or sit under a README whose archive marker could not be decided, '
+      + 'so readiness there is UNPROVEN — not "nothing ready" (ADR-005):\n')
     for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  ${relative(dir)}\n`)
     if (state.readinessUnproven.length > 5) process.stdout.write(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
   }

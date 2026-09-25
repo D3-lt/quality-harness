@@ -15171,7 +15171,7 @@ The owner made outside corpus runs the main verification loop on 2026-09-24. Thr
 - **A task adr-next never listed was judged by its absence**, for example an upper-case `.MD` it does not glob. work-next now takes adr-next's verdict only for tasks adr-next listed, and uses the tool-written-row fallback otherwise. While fixing this I found my own edit had deleted that fallback line, so no unlisted task could be unbacked. It is restored, and the test covers both directions.
 - **The state override merged worktrees.** One shared directory let two repositories read each other's checks. `QUALITY_HARNESS_STATE_DIR` is now a root, with one directory per repository under it.
 
-## 280. OPEN — Leads from the 2.108.0 outside runs (2026-09-24, a React/vitest SPA and a Laravel repository)
+## 280. CLOSED 2026-09-25 — Leads from the 2.108.0 outside runs (2026-09-24, a React/vitest SPA and a Laravel repository)
 
 Recorded for the next release rather than folded into 2.108.0, because none is a regression and each changes what a reader prints.
 
@@ -15182,7 +15182,14 @@ Recorded for the next release rather than folded into 2.108.0, because none is a
 
 5. **The per-fix overhead, the tooling half (owner, 2026-09-24): "seems we stuck again on small invariants".** Each small fix paid a red test, hand-written catalogue entries, hand-repaired `from` strings that the fix had moved, a five-to-eight-minute gate, and mutants picked by label. Two parts of that are now one command each. `node scripts/mutate.mjs --stale` names every catalogue entry that no longer matches exactly once, with the nearest current line as a re-anchor hint, in about a second. `--changed <ref>` runs only the entries whose mutated line the change added: 6 of 1128 for the §281 fix, where selecting by changed file gave 256. Scaffolding a new entry and a load-aware gate are still by hand.
 
-## 281. OPEN — The 2.108.0 corpus-chaos round over nine repositories: what is still wrong (2026-09-24)
+**Closed 2026-09-25, each by a red test first:**
+- Item 1: `qh-check` writes one stderr line once the record exists: `qh-check: ran \`<command>\` (<declared|inferred>) — <verdict>; recorded in <path>`. Test `qh-check says what it ran, where it came from, and where the record went` in `tests/qh-check-shell.test.mjs`, run through the gate as a process.
+- Item 2: the three Tests-row findings name `<task>.md:<line>` (`tests_row_ref`). Doing it exposed §283.
+- Item 3, reconsidered as asked: the heading ADR-046 names stays. A directory whose every task carries evidence is no longer listed under it; it is counted, as `(N task directories read are fully evidenced, not shown)`, and the render cap never hides that count.
+- Item 4: `readyButClaimedDone` in work-next's JSON, a text block saying `adr-verify` comes first, and the probe copies it.
+- The outermost regressions for items 2 and 4 on a corpus shape land with ADR-064 T6's `js-vitest-spa` fixture.
+
+## 281. CLOSED 2026-09-25 — The 2.108.0 corpus-chaos round over nine repositories: what is still wrong (2026-09-24)
 
 Nine outside runs at dbeb5cf: Laravel, React SPA, a Rust corpus, a PHP/React product repository, and five Windows sessions (one blocked by its classifier, two with no corpus, one over this repository at an older HEAD, one over a 72-record corpus). Every §279 fix held where it applied. None of the items below is new in 2.108.0; each is pre-existing.
 
@@ -15196,3 +15203,30 @@ Nine outside runs at dbeb5cf: Laravel, React SPA, a Rust corpus, a PHP/React pro
 6. **For a frozen record, a vanished locked test reads "done is refused"**, and a FAIL carries a reason saying UNPROVEN (this repository, on Windows at an older HEAD). For an archived record that is expected drift, and the wording speaks as if it were still work.
 7. **workNext.next names `adr-verify` for a task whose lock needs `--relock --replace-hashes`** first, so the step it names would be refused (this repository, on Windows).
 8. **The inferred-check sentence says the manifest "does not name" a step it does name** (a React frontend on Windows): its `package.json` has `lint`; the inference just did not pick it.
+
+**Closed 2026-09-25.** Items 1 and 2 changed on 2026-09-24, above. The rest:
+- Item 3: the Lifecycle marker is the only archive rule (owner's decision, 2026-09-24). work-next's name test `isArchivePath` is gone; its task scope uses `frozenArchiveOf`, the same marker walk SessionStart uses. An archive-named directory with no marker is read as live by every reader and named with `adr-retire-check --adopt` (SessionStart, work-next's `unmarkedArchives`, the probe). Tests in `tests/archive-not-in-flight.test.mjs`. `adr-lint`'s own name test (`check_task_path_length`) and `adr-debt`'s serve other purposes and were left.
+- Item 4: `resolve_test_file` resolves a bare basename against git's listing (a basename index built once per listing), threaded through the tests-exist, can-fail and Enforced-by checks. The disk walk remains only where git could not answer. Test `test_a_test_row_resolves_against_git_not_the_disk`.
+- Item 5: kept as decided under §18; the scrubber over-scrubs on purpose.
+- Item 6: a record under a directory whose tracked README carries the marker (`record_is_frozen`) reports its lock findings as advice, `archived record: … — history, not a refusal`. Live records are unchanged.
+- Item 7: the "hash moved" refusal names `adr-verify --relock --replace-hashes`, gated on the test change being reviewed. work-next keeps adr-next's per-task reason and puts the remedy in `next.remedy` and in the text.
+- Item 8: the sentence now reads "a step the inference did not pick, such as a typecheck or lint".
+
+## 282. OPEN — A Go fixture corpus, deferred by ADR-064 T6 (2026-09-24)
+
+ADR-064 T6 adds three fixture corpora for the shapes the 2.108.0 round found: a Rust crate, a PHP repository with three corpus roots, and a JS/vitest SPA. Go is not among them, although three of this week's outside reports came from a Go repository (§273, §277, §278). Each of those is pinned by a unit test, not by a corpus the matrix runs on every platform. A `go-module` corpus would carry `[no test files]` packages, a `go test -run` fence that selects nothing, and a spec bound to Go tests. Deferred rather than added because T6 is sized to the shapes the round reported as still wrong; pick it up when a Go run next reports a reader defect, or with ADR-064's first follow-up batch.
+
+## 283. CLOSED 2026-09-25 — The §61 Produces advisory could never fire on a real record (found while fixing §280 item 2)
+
+**What happened.** `check_produced_symbols` (added in `992e148` for §61) reads `header_val(inf.get("text", ""), "Produces")`. `check_task` builds each task's info without a `text` key, so `produces` was always empty and the advisory never ran outside its own test. That test built the info dict by hand, with `text` in it. It is the defect this repository's rules name: a check exercised through a component the production path never produces.
+
+**The class, enumerated with a command:** every key read from task info against the keys `check_task` builds.
+
+```
+grep -o 'inf\.get("[a-z_]*"' plugin/bin/adr-lint | sort | uniq -c
+grep -o 'inf\["[a-z_]*"\]' plugin/bin/adr-lint | sort | uniq -c
+```
+
+Keys read: `acc_all`, `acc_first`, `adds`, `consumes`, `dep`, `has_mlog`, `human`, `mlog`, `path`, `produces`, `rests_on`, `tests`, `text`, `vlog`. Only `text` was read and never built.
+
+**Fixed.** `check_task` puts `text` in the info. The regression, `test_a_tests_row_finding_names_its_line_and_produces_is_read`, builds the info through `check_task`. A lint of every task directory in this repository's corpus afterwards raised no new advice and no FAIL. Adopters may now see the §61 advice for the first time; it is advisory (CLAUDE.md §3).

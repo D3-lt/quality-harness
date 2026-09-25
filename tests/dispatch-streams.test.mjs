@@ -48,3 +48,36 @@ test('could-not-look is on stderr, and a plain observation is on stdout', () => 
     assert.equal(`${perEdit.stdout}${perEdit.stderr}`, '')
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
+
+// BACKLOG §285: a tasks index titled `# ADR-007 tasks` matched the record-title
+// arm, so adr-lint was handed the index and printed an UNPROVEN not-recognised on
+// every commit touching one. It is now routed to the record that owns it — shown
+// by the owning record's own failure reaching the output (the dirty twin), and by
+// the index itself never being named as unreadable.
+test('a tasks README is linted through its owning record, never as a record itself', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-readme-')))
+  try {
+    const bash = resolveBashExecutable()
+    assert.ok(bash, 'bash is needed to run the dispatcher')
+    const adr = join(top, 'docs', 'adr')
+    mkdirSync(join(adr, 'ADR-007-a-thing', 'tasks'), { recursive: true })
+    const readme = join(adr, 'ADR-007-a-thing', 'tasks', 'README.md')
+    writeFileSync(readme, '# ADR-007 tasks\n\n| Task | Title | Status |\n|---|---|---|\n')
+    const run = () => spawnSync(bash, [dispatcher, readme, ''], { encoding: 'utf8', timeout: 60_000 })
+
+    // No owning record yet: the index has nothing of its own to say — the ownership
+    // finding belongs to the task files, which carry it at commit.
+    const orphan = run()
+    assert.equal(`${orphan.stdout}${orphan.stderr}`, '', 'an ownerless index must not replace one noise line with another')
+
+    // With a broken owning record, THAT record's lint is what the index reports.
+    writeFileSync(join(adr, 'ADR-007-a-thing.md'), '# ADR-007: a thing\n\n**Status:** Accepted\n\n'
+      + '## Existing Primitives Audit\n\n## Decision\n\n## Alternatives Considered\n\n## Consequences\n')
+    const owned = run()
+    const both = `${owned.stdout}${owned.stderr}`
+    assert.doesNotMatch(both, /not-recognised: .*README\.md/, both)
+    assert.match(both, /ADR-007-a-thing/, `the owning record must be what was linted:\n${both}`)
+    assert.doesNotMatch(both, /not-recognised: .*README\.md/, both)
+    assert.match(both, /ADR-007-a-thing\.md/, `the owning record must be what was linted:\n${both}`)
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})

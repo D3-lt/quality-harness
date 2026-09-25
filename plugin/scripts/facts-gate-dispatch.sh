@@ -241,6 +241,10 @@ if [ -z "$archive_readme" ]; then
     *) exit 0 ;;
   esac
 fi
+# A tasks index (`tasks/README.md`) is derived from its task files (§10), and its
+# `# ADR-064 tasks` title reads as a record's (BACKLOG §285); see the record arm.
+tasks_index=0
+[[ "$base_lc" == readme.md && "$(basename "$(dirname "$f")")" == tasks ]] && tasks_index=1
 if [ -n "$archive_readme" ]; then
   gate="adr-retire-check"
   out=$("$BIN/adr-retire-check" "$archive_readme" 2>&1); rc=$?
@@ -255,9 +259,15 @@ elif [[ "$f" == */docs/postmortems/*.md ]] || is_postmortem "$f"; then
 # older corpus predates, and those corpora also name records without the `ADR-`
 # prefix, so neither existing arm sees them. The title does — with the same
 # `-T<n>` discriminator §185 used, so a task is still a task.
-elif [[ "$base" == ADR-*.md ]] || is_adr "$f" \
+# ⚠ NOT A TASKS INDEX. `tasks/README.md` is titled `# ADR-064 tasks`, which the
+# title test below reads as a record, so adr-lint was handed the index itself and
+# answered not-recognised as UNPROVEN on every commit that touched one (BACKLOG
+# §285). The index is derived from the task files (§10); it falls through to the
+# task arm, which lints the record that owns it.
+elif [ "$tasks_index" = 0 ] \
+    && { [[ "$base" == ADR-*.md ]] || is_adr "$f" \
     || { bom_free "$f" | grep -qE '^# ADR-[0-9]' \
-         && ! bom_free "$f" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; }; then
+         && ! bom_free "$f" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; }; }; then
   gate="adr-lint"
   out=$(run_adr_lint "$f" 2>&1); rc=$?
 # A TASK, and the `Task ` prefix is the signal — it used to be parsed and thrown
@@ -287,6 +297,10 @@ elif [[ "$f" == */tasks/*.md ]] || bom_free "$f" | grep -qE '^# Task ADR-[A-Za-z
   fi
   shopt -u nullglob
   if [ "${#candidates[@]}" -ne 1 ]; then
+    # An index whose owner cannot be told apart has nothing of its own to report:
+    # the ownership finding belongs to its task files, which carry it at commit.
+    # Said by the index it would replace one noise line with another (§285).
+    [ "$tasks_index" = 1 ] && exit 0
     # Ownership is a SET property too: mid-sequence the owning ADR may simply
     # not be written yet, which is the same legitimate incompleteness the
     # boundary rule below exists for.

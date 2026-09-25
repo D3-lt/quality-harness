@@ -19,6 +19,24 @@
       "to": "        if m.group(2) == name:"
     },
     {
+      "label": "dispatch: a tasks README is not linted as a record (§285)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "[[ \"$base_lc\" == readme.md && \"$(basename \"$(dirname \"$f\")\")\" == tasks ]] && tasks_index=1",
+      "to": "true"
+    },
+    {
+      "label": "dispatch: a tasks README with no single owner says nothing (§285)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "    [ \"$tasks_index\" = 1 ] && exit 0\n",
+      "to": ""
+    },
+    {
       "label": "lint: a stale spaced JS test title is advised, not skipped as prose (§284)",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -6407,7 +6425,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\" \\\n    || { bom_free \"$f\" | grep -qE '^# ADR-[0-9]' \\\n         && ! bom_free \"$f\" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; }; then\n",
+      "from": "    && { [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\" \\\n    || { bom_free \"$f\" | grep -qE '^# ADR-[0-9]' \\\n         && ! bom_free \"$f\" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; }; }; then\n",
       "to": "    && { [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\"; }; then\n"
     },
     {

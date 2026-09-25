@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-25",
+  "at": "355e91a470c2e53a40d7bfc9ec42652057869aa8",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "b5c753eef3b41fa70f0e9f8a7cb4a16e732312cb536a9cc0068be2eb1b7d7d73",
+  "platform": "Darwin 27.0.0",
+  "node": "26.8.2",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 17,
+    "tasks": 24,
+    "taskDirectories": 7
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "macos-laravel",
+  "found": "Round 4, runner only: clean. Sign-offs replay: 'not approved: waiting on QA to confirm' stops, 'confirmed … NOT done: follow-up' does not, 'has not yet been approved' stops."
+}

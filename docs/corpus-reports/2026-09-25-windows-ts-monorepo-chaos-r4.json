@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-25",
+  "at": "355e91a470c2e53a40d7bfc9ec42652057869aa8",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "b5c753eef3b41fa70f0e9f8a7cb4a16e732312cb536a9cc0068be2eb1b7d7d73",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 0,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "ts-monorepo-no-adr",
+  "found": "Round 4, replays: L1, L7, N1, N2, N3 and all three N4 cases fixed; a backtick in a directory name also holds. N5 not replayed (unchanged, §295)."
+}

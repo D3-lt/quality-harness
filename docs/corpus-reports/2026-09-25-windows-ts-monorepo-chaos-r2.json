@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-25",
+  "at": "145c794f130692876816ca295c1f7c48535c4953",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "c9b40a940d22baed062eae943a8208460187584a16d13f0a657ae2d0447afd95",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 0,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "ts-monorepo-no-adr",
+  "found": "Round 2 (seed 1790363704): L1 and L7 replay fixed. N1 (the L4 fix routed to adr-write-no-tasks), N2/N3 (spec masks crossed paragraphs), N4 (a backtick in a path broke out of the adr-verify span) fixed in the next commit (§294); N5 (a directory named like a task on Windows) filed (§295)."
+}

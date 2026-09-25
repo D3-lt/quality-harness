@@ -466,7 +466,8 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
   const state = observe(root, { spawn })
   const remedy = stage => stage?.id === 'adr-verify' && state.relock.length
-    ? `adr-verify --relock --replace-hashes ${relative(state.relock[0])} — once the change to the test is reviewed`
+    // POSIX separators: a command a person copies, and `adr-verify` reads either (CLAUDE.md §7).
+    ? `adr-verify --relock --replace-hashes ${relative(state.relock[0]).replaceAll('\\', '/')} — once the change to the test is reviewed`
     : undefined
   const stage = nextStage(state)
   const relative = file => path.relative(root, file) || file

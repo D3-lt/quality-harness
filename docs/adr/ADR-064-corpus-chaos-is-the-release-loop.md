@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage. On 2026-09-24 the owner chose to make corpus chaos the main verification loop, to cap review rounds on heuristic readers at one per behaviour change, to record this strategy as a record and execute it, and to add fixture corpora for the shapes found in the wild.
 **Cross-references:** ADR-005, ADR-063, `docs/BACKLOG.md`, `docs/corpus-reports/README.md`, `plugin/skills/corpus-chaos/SKILL.md`
-**Governs:** `plugin/scripts/corpus-probe.mjs`, `plugin/skills/corpus-chaos/SKILL.md`, `docs/corpus-reports/README.md`, `tests/fixtures/corpora/**`
+**Governs:** `plugin/scripts/corpus-probe.mjs`, `plugin/scripts/reader-paths.mjs`, `plugin/skills/corpus-chaos/SKILL.md`, `docs/corpus-reports/README.md`, `scripts/chaos-fixture-sweep.mjs`, `tests/fixtures/corpora/**`
 **Enforced-by:** `tests/corpus-probe.test.mjs::corpus-probe --diff names what changed between two runs of one corpus`
 **Invalidates:** none — checked
 **Served-path change:** A corpus-chaos runner probes once, then gets its diff against its own previous run, and its counts-only attestation, from two commands that read the saved report, where both were written by hand. Its report says which readers answered, whether they were committed, and how long each took. Nothing a session's gates say about its own work changes.
@@ -129,7 +129,7 @@ See `tasks/README.md`: seven tasks in three waves. T1 and T4 extend the report; 
 | `--diff` re-emits an absolute path an older report leaked | Med | High | the diff re-scrubs both inputs; a test feeds it a report carrying one |
 | an attestation claims readers the runner did not run | Med | High | `at` is `null` when `readers.dirty` is true or the plugin is not a checkout; a test covers both |
 | an `expected.json` pins an accident rather than a decision | Med | Med | reviewed, per the fixtures README; each pinned value names the BACKLOG section it came from |
-| the fingerprint changes between two runs of the same readers | Med | Low | files come from `git ls-files` in a checkout; a directory walk skips `__pycache__` and `.pyc`; a CRLF copy hashes as its LF twin |
+| the fingerprint changes between two runs of the same readers | Med | Low | the walk skips `__pycache__`, `.pyc` and dotfiles; a CRLF copy hashes as its LF twin |
 | peers stop answering once asked every batch | Med | Med | one request per batch, at one sha, with one template; "could not run" is a useful answer |
 
 ## Rollback

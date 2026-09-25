@@ -14,9 +14,9 @@
 
 The probe report carries `probe.readers = { sha256, git, dirty }`.
 - `sha256` hashes `path\0text\0` for every reader file in sorted path order, with CRLF replaced by LF. The reader files are those under the plugin's `scripts`, `bin`, `lib` and `hooks`, the directories `READER_PATHS` names.
-- The files come from `git ls-files` when the plugin root's parent is the top of a git work tree (`git rev-parse --show-toplevel` equals it, so a plugin vendored inside another repository is not read as that repository's checkout). Otherwise they come from a directory walk that skips `__pycache__/` and `*.pyc`, which Python writes on first import.
-- `git` is `HEAD` of that checkout, else `null`. It is a separate field, never hashed in, so the fingerprint moves only when a reader does.
-- `dirty` is whether `git status --porcelain` names any reader file, else `null`.
+- The files come from a walk of those directories on disk, skipping `__pycache__/`, `*.pyc` and dotfiles, so an untracked reader that runs is hashed too. Python writes `__pycache__` on first import, so hashing it would make two runs of the same readers disagree.
+- `git` is `HEAD` when the plugin root's parent is the top of a git work tree, else `null`. `git rev-parse --show-toplevel HEAD` answers both in one spawn, so a plugin vendored inside another repository is not read as that repository's checkout. It is a separate field, never hashed in, so the fingerprint moves only when a reader does.
+- `dirty` is whether `git status --porcelain --untracked-files=all` names any reader file, else `null` when there is no checkout.
 
 `READER_PATHS` moves from `scripts/release-evidence.mjs:292` into `plugin/scripts/reader-paths.mjs`, because `scripts/` never ships and the probe does. Release-evidence imports it, and its logic is unchanged. `probe.sha256` keeps its meaning, and a comment says it covers `corpus-probe.mjs` alone.
 
@@ -61,6 +61,9 @@ node --test --test-reporter=tap tests/corpus-probe.test.mjs 2>&1 | tee /dev/stde
 | 4 — it is used | T2's diff and T3's attestation read it |
 
 ## Mutation Log
+- 2026-09-25 · c4acfae* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · hashes only the first reader file, so a change under scripts/ goes unseen · acceptance-sha256:4f2124f86de4bb5ff9d2d1021d1552fbc2a77be1f1ec7ecc4c548ceffec75d32 · covers:the fingerprint covers every reader file
+- 2026-09-25 · c4acfae* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · hashes CRLF and LF copies differently · acceptance-sha256:4f2124f86de4bb5ff9d2d1021d1552fbc2a77be1f1ec7ecc4c548ceffec75d32 · covers:line endings do not change it
+- 2026-09-25 · c4acfae* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · never reports uncommitted reader edits · acceptance-sha256:4f2124f86de4bb5ff9d2d1021d1552fbc2a77be1f1ec7ecc4c548ceffec75d32 · covers:uncommitted reader edits are marked dirty
 
 ## Invariants
 
@@ -80,3 +83,20 @@ Stop and ask if the fingerprint cannot be taken without more than two git spawns
 - Making release-evidence read the fingerprint (permanent: boundary: ADR-064's Alternatives)
 
 ## Verification Log
+- 2026-09-25 · c4acfae* · exit 1 · `set -o pipefail …` · acceptance-sha256:4f2124f86de4bb5ff9d2d1021d1552fbc2a77be1f1ec7ecc4c548ceffec75d32 · ms:109 · test-lock-sha256:94a46448180b78030e71a07f31f060ef228c81035c31b12986e0a013f73ab3f8 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2NvcnB1cy1wcm9iZS50ZXN0Lm1qcwljb21wYXJlUmVhZGVyczogYSBkaXJlY3Rvcnkgd29yay1uZXh0IGNvdWxkIG5vdCByZWFkIGlzIG5vdCBhIGRpc2FncmVlbWVudCwgYW5kIGEgY3Jhc2hlZCByZWFkZXIgY29tcGFyZXMgbm90aGluZwk1MTQ1ZjJlZjI4NTRkOWZjZGIxZGUwZDNlOWVlZDQxNzUzNjEyMjAxMTNhMDQ1Y2U5ZWVmYTgyMDBmYWJhNjQzCmJvZHkJdGVzdHMvY29ycHVzLXByb2JlLnRlc3QubWpzCWNvbXBhcmVSZWFkZXJzOiBhIHRhc2sgb2YgYSByZWNvcmQgdGhhdCBpcyBub3QgQWNjZXB0ZWQgaXMgbm90IGEgZGlzYWdyZWVtZW50CTNlYmZjNDY1ODIxN2Y5YzA0MTdiYjBiMDZmOTQ0MmY5N2RkOGNjOWVkYWJmYWM0ZjM3MTI5MWFjNWRlNjM1MzUKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJZmFpbGVkVG9SdW46IGEgY2hpbGQga2lsbGVkIGF0IHRoZSBkZWFkbGluZSBpcyBzYWlkIHRvIGhhdmUgYmVlbiBraWxsZWQsIHdpdGggdGhlIGJ1ZGdldAljOTFmNzk3NDI4MDJlNDdmZTliNjc5ZGQ1M2ViNDZiOGExMDVhMDU0YWNkYzA5ZmU3M2FkOTUxZTU0MzU5NTRhCmJvZHkJdGVzdHMvY29ycHVzLXByb2JlLnRlc3QubWpzCXByb2JlOiBhIHJ1biBsZWF2ZXMgbm90aGluZyBpbiB0aGUgcHJvYmVkIHJlcG9zaXRvcnksIGl0cyBnaXQgZGlyIGluY2x1ZGVkCWNkOTZjY2I1NjVlMWYyMzQ2NjNhMGVmZDUxNjEyNmJhZWNlOTI2ZjBiMzM3ZDI0MjZjMzZiMjc1NjhkNmI5MjAKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJc2NydWJiZXI6IGV2ZXJ5IGFic29sdXRlIHBhdGggaXMgYSBwbGFjZWhvbGRlciwgYW5kIGEgcmVwb3NpdG9yeS1yZWxhdGl2ZSBvbmUgaXMgdW50b3VjaGVkCWE1MzY4Y2YyZDA2MTc4MjVkMzhkY2QwZmQ5Zjk2M2I1NjM0MjJiY2Q3NmE0MjgxMTQzOGNkMTE5NWU0OGNjMWQKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJc3RhdGVEaXI6IGFuIG92ZXJyaWRlIGtlZXBzIGVhY2ggcmVwb3NpdG9yeSBhcGFydAk0ZDg0YTIwMjk1MTg2OTgxMjlmZDQzYzU0ZDA5NGIyZDc4NDE3ZmQ2M2U5ZDIxZjI3OWUwNjAyMDAxN2U3MTVkCmJvZHkJdGVzdHMvY29ycHVzLXByb2JlLnRlc3QubWpzCXRoZSBwcm9iZSBmaW5nZXJwcmludHMgdGhlIHJlYWRlcnMgaXQgcmFuCTJkNjg1MmEzMjI3YjQ2NjMzOTUxYmI2ZWFlMWQ4NzE4Y2Q1OTM3NWEwMWI3NDUwMTBlNjVmYTNhMzZlODQwNTQKYm9keQl0ZXN0cy9jb3JwdXMtcHJvYmUudGVzdC5tanMJdW5jb21taXR0ZWQgcmVhZGVyIGVkaXRzIG1hcmsgdGhlIGZpbmdlcnByaW50IGRpcnR5CWYwMDZlYTU0OTgxMzBhYWFlMGUyNjdiOTM4MDVhOTliOTk1MTE3ZTM3MDU4YzJmOWYwOWRlYjZkNzgzZTc4ZDE
+  ```
+  --- last 10 line(s) of stderr (of 31 after folding 31 raw)
+    ...
+  1..1
+  # tests 1
+  # suites 0
+  # pass 0
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 44.229166
+  ```
+- 2026-09-25 · c4acfae* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f2124f86de4bb5ff9d2d1021d1552fbc2a77be1f1ec7ecc4c548ceffec75d32 · ms:524
+- 2026-09-25 · c4acfae* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f2124f86de4bb5ff9d2d1021d1552fbc2a77be1f1ec7ecc4c548ceffec75d32 · ms:613
+- 2026-09-25 · c4acfae* · exit 0 · `set -o pipefail …` · acceptance-sha256:4f2124f86de4bb5ff9d2d1021d1552fbc2a77be1f1ec7ecc4c548ceffec75d32 · ms:509

@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
 import {
-  classifyArgument, evaluateRun, fetchRun, outsideRun, outsideRunEvidence, readAttestations, runListArgv, selectRun,
+  classifyArgument, evaluateRun, fetchRun, outsideRun, outsideRunEvidence, readAttestations, READER_PATHS, runListArgv, selectRun,
 } from '../scripts/release-evidence.mjs'
 
 const job = (name, conclusion, status = 'completed') => ({ name, status, conclusion })
@@ -394,4 +394,11 @@ test('an attestation git cannot check is coverage unknown, never coverage absent
     assert.match(r.reason, /far\.json/)
     assert.doesNotMatch(r.reason, /old\.json/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// ADR-064 T1 moved the list into plugin/scripts/reader-paths.mjs so the shipped probe
+// can fingerprint the same directories. What the release question diffs must still
+// be every plugin directory a reader is made of, as repository paths.
+test('READER_PATHS names every plugin directory a reader is made of', () => {
+  assert.deepEqual(READER_PATHS, ['plugin/scripts', 'plugin/bin', 'plugin/lib', 'plugin/hooks'])
 })

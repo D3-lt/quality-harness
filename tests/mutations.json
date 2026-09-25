@@ -10725,6 +10725,46 @@
       "from": "  if (state.readyButClaimedDone.length) {",
       "to": "  if (false) {",
       "only": "both READY"
+    },
+    {
+      "label": "readers: the fingerprint and the release question read every reader directory",
+      "file": "plugin/scripts/reader-paths.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "export const READER_DIRECTORIES = ['scripts', 'bin', 'lib', 'hooks']",
+      "to": "export const READER_DIRECTORIES = ['scripts', 'bin', 'hooks']",
+      "only": "covers lib and hooks"
+    },
+    {
+      "label": "readers: release-evidence diffs the reader directories as repository paths",
+      "file": "plugin/scripts/reader-paths.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "export const READER_PATHS = READER_DIRECTORIES.map(directory => `plugin/${directory}`)",
+      "to": "export const READER_PATHS = READER_DIRECTORIES.map(directory => directory)",
+      "only": "names every plugin directory"
+    },
+    {
+      "label": "probe: every report carries the reader fingerprint",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    probe: { version: pluginVersion(), sha256: probeDigest(), readers: readerFingerprint(pluginRoot) },",
+      "to": "    probe: { version: pluginVersion(), sha256: probeDigest() },",
+      "only": "leaves nothing in the probed repository"
+    },
+    {
+      "label": "chaos sweep: an outside finding with no fixture is named",
+      "file": "scripts/chaos-fixture-sweep.mjs",
+      "tests": [
+        "tests/chaos-fixture-sweep.test.mjs"
+      ],
+      "from": "    && !FIXTURE.test(section.body) && !WAIVER.test(section.body))",
+      "to": "    && false)",
+      "only": "names an outside finding"
     }
   ]
 }

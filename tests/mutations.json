@@ -10,6 +10,24 @@
   ],
   "mutations": [
     {
+      "label": "lint: a stale spaced JS test title is advised, not skipped as prose (§284)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if test_body(f.read_text(errors=\"replace\", encoding=\"utf-8\"), name) is None:",
+      "to": "                if False:"
+    },
+    {
+      "label": "lint: a spaced title in a JS/TS test file's row is recognised as a title (§284)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return not IDENTIFIER_TEST_NAME.match(name) and bool(JS_TEST_FILE.search(rel))",
+      "to": "    return False"
+    },
+    {
       "label": "evidence: done status is checked at all",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -186,8 +204,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                    errors.append(\n                        f\"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body \"\n",
-      "to": "                    pass\n                    _unused = (\n"
+      "from": "                    (errors.advise if spaced else errors.append)(\n                        f\"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body \"\n",
+      "to": "                    (lambda *a: None)(\n                        f\"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body \"\n"
     },
     {
       "label": "gates: postmortem dates are YYYY-MM-DD",
@@ -4201,6 +4219,15 @@
       "to": "    r\"|(?!x)x\", re.I)"
     },
     {
+      "label": "next: a digit inside a hyphen-joined label is not its count",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\", re.I)",
+      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\", re.I)"
+    },
+    {
       "label": "next: a task stopped by a human sign-off is not offered as ready",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -4217,15 +4244,6 @@
       ],
       "from": "        if any(a < opening.start() < b - 1 for a, b in spans):\n            continue",
       "to": "        pass"
-    },
-    {
-      "label": "next: a digit inside a hyphen-joined label is not its count",
-      "file": "plugin/bin/adr-next",
-      "tests": [
-        "tests/adr-next.test.mjs"
-      ],
-      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\", re.I)",
-      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\", re.I)"
     },
     {
       "label": "flag-sweep: an unchanged flag surface reports nothing",

@@ -2659,6 +2659,32 @@ def main():
         assert any("no executable definition" in f for f in absent), \
             f"a row naming a test that does not exist must still be reported: {absent}"
 
+        # BACKLOG §284: a title with a SPACE was skipped as prose, so a stale row
+        # naming one passed silently. It is now looked up, and the finding is
+        # ADVICE — never a block (the owner's call, after 110 such titles on this
+        # repository's own done records were found to name tests that are gone).
+        (root / "src" / "cart.test.ts").write_text(
+            "import { it, expect } from 'vitest'\n"
+            "it('removes an item', () => {\n  expect(remove([1], 1)).toEqual([])\n})\n",
+            encoding="utf-8")
+        def spaced(name, rel):
+            infos = {"T1": {"path": root / "T1.md", "tests": [(name, rel)],
+                            "vlog": ["- 2026-08-29 · abc1234 · exit 0 · `npx vitest run` · "
+                                     "acceptance-sha256:" + "0" * 64]}}
+            errs = lint.Findings()
+            lint.check_tests_exist(infos, "| T1 | x | done |", errs, root)
+            return [str(e) for e in errs], [str(a) for a in errs.advice]
+        blocks, advice = spaced("removes an item", "src/cart.test.ts")
+        assert not blocks and not advice, f"a spaced title that exists was reported: {blocks} {advice}"
+        blocks, advice = spaced("adds an item", "src/cart.test.ts")
+        assert not blocks, f"a spaced title must never block: {blocks}"
+        assert any("adds an item" in a for a in advice), \
+            f"a stale spaced title must be advised, or §284's fail-open is back: {advice}"
+        # Prose in a row whose file is not a JS/TS test file stays unread, as before.
+        (root / "notes.md").write_text("x\n", encoding="utf-8")
+        blocks, advice = spaced("checked by hand", "notes.md")
+        assert not blocks and not advice, f"prose was read as a test title: {blocks} {advice}"
+
     # BACKLOG §60. A rejection that quotes the first 70 characters of a bad row
     # shows the PREFIX — which, for a row correct up to a trailing addition, is
     # exactly the part that was fine. Reported 2026-08-29 by a session that

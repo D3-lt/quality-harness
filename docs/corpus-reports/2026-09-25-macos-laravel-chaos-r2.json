@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-25",
+  "at": "145c794f130692876816ca295c1f7c48535c4953",
+  "plugin": "2.110.0",
+  "kind": "probe",
+  "probeSha256": "454bb40c3a68f2dcb2b79e85d7e682cc9ba60d9b94d306e8bfde089e59277a04",
+  "readers": "c9b40a940d22baed062eae943a8208460187584a16d13f0a657ae2d0447afd95",
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 17,
+    "tasks": 24,
+    "taskDirectories": 7
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "macos-laravel",
+  "found": "Round 2 (seed 1790363722): runner clean; the sign-off rule holds both ways. A deleted dependency leaves dependents ready, and adr-next never sees a task git lists but the disk lacks (§295); --json carries goal/stop text as data, by design."
+}

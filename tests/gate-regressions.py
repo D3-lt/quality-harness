@@ -2684,6 +2684,14 @@ def main():
         (root / "notes.md").write_text("x\n", encoding="utf-8")
         blocks, advice = spaced("checked by hand", "notes.md")
         assert not blocks and not advice, f"prose was read as a test title: {blocks} {advice}"
+        # Existence is the decoded title, not an extractable body (Codex review of
+        # b85877c): an escaped quote and a named callback are both real tests.
+        (root / "src" / "more.test.ts").write_text(
+            "it('doesn\\'t remove items', () => { expect(1).toBe(1) })\n"
+            "it('removes a line', checkCart)\n", encoding="utf-8")
+        for title in ("doesn't remove items", "removes a line"):
+            blocks, advice = spaced(title, "src/more.test.ts")
+            assert not blocks and not advice, f"a real title was advised as stale: {title}: {advice}"
 
     # BACKLOG §60. A rejection that quotes the first 70 characters of a bad row
     # shows the PREFIX — which, for a row correct up to a trailing addition, is

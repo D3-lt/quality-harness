@@ -15521,3 +15521,16 @@ To the corpus-chaos skill:
     - The spec Status reader still reads a 4-space indented code block, and a table cell. A tab after the colon reads as Ready while an em space does not. A blockquote is the template's own form, so it is correct.
     - A backslash in a POSIX file name is dropped; that is CLAUDE.md §7 by design, and it goes unsaid.
     - Recorded again: `adr-next --json` carries the goal and fence as data (item 19).
+23. **From idempotent-hammock's round 2** (Windows; chaos at 145c794, attested at 2daedc4, over a Go CLI corpus the project does not own and over this repository). Items 1 and 2 are known open in 2.110.0, by the owner's choice to ship 355e91a.
+    1. **§289.4's profile, measured at last.** On the Go corpus, `python3 -m cProfile … adr-next docs/adr/ADR-052-…/tasks --json` took 149 s. 147 s of that was tottime in `record.py _js_like_in_code`, over 25,612 calls from `_iter_go_func_tests`, through `snapshot_lock` and `lock_findings`. `load` runs twice, and `snapshot_lock` runs 10 times for 4 task files. work-next and adr-next on that directory hit the probe's 120 s budget. This is the next performance fix, and it has a named hot spot.
+    2. **The spec Status reader still reads a Status from code CommonMark renders as code:**
+       - an indented code block (4 spaces or a tab);
+       - a numbered-list fence (`1. ```…`);
+       - a `<pre>` or multi-line `<code>` block;
+       - an HTML attribute value (`Ready-for-ADR"></div>` passes the allowlist).
+       Through work-next that routes to adr-write from an example. quality-blueprints reported the indented case too (item 22). ⚠ `maskedMarkdown`'s comment says "no Status is read from an example", which overclaims. Correct it with the fix, or before it.
+    3. Windows reserved names (`CON.md`, `nul.md`, `aux`, and names ending in a dot or a space) are counted as tasks by work-next and read by no reader.
+    4. A Verification Log row dated 2099-01-01, 1970-01-01 or 2026-02-30 passes adr-lint; a malformed timestamp is refused. Only a calendar check is missing (with item 8).
+    5. A record whose Status holds invalid UTF-8 drops out of the probe with no entry; work-next counts it as "1 further record(s)" without naming it. `Accepted (partially)` counts as Accepted.
+    6. A Windows 8.3 alias in `Governs:` (`STANDA~1.MJS`) is keyed as a different path from the file's real name, so areas and contests split by spelling.
+    7. A case-only rename on Windows is not restored by `git checkout -- .` (git core.ignorecase). This is a runner note, not a reader defect.

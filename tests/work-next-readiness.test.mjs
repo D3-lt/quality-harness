@@ -174,8 +174,10 @@ test('a task under an archive whose README spelling is ambiguous is unproven, no
   // named anything (Codex review of 17edd2d).
   const cli = args => spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'work-next.mjs'), ...args, ambiguous.temp],
     { encoding: 'utf8', timeout: 120_000 })
-  assert.match(cli([]).stdout, /readiness UNPROVEN: docs\/adr-archive\/ADR-000-old\/tasks/, cli([]).stdout)
-  assert.ok(JSON.parse(cli(['--json']).stdout).readinessUnproven.some(d => d.endsWith('ADR-000-old/tasks')))
+  // Native separators on Windows (docs\adr-archive\…, CI at 026658a): compare in posix form.
+  const posixText = value => value.replaceAll('\\', '/')
+  assert.match(posixText(cli([]).stdout), /readiness UNPROVEN: docs\/adr-archive\/ADR-000-old\/tasks/, cli([]).stdout)
+  assert.ok(JSON.parse(cli(['--json']).stdout).readinessUnproven.some(d => posixText(d).endsWith('ADR-000-old/tasks')))
   // And the PARTIAL says WHICH record made it partial, and why (BACKLOG §289 item 3).
   const partial = JSON.parse(cli(['--json']).stdout).partialBecause
   assert.ok(partial.some(entry => entry.file.endsWith('ADR-000-old.md') && /effect UNPROVEN/.test(entry.reason)), JSON.stringify(partial))
@@ -246,4 +248,118 @@ test('work-next marks a task that is both READY and claimed done without evidenc
   assert.deepEqual(JSON.parse(run([temp, '--json'])).readyButClaimedDone.map(posix), ['docs/adr/ADR-001-x/tasks/T1-a.md'])
   // …and it says the overlap out loud, or one task in three lists reads as a contradiction (BACKLOG §289 item 2).
   assert.match(posix(run([temp])), /1 task is both READY and claimed done without evidence — `adr-verify` it first \(it is also counted among the ready tasks and the unbacked done claims\):\n {2}docs\/adr\/ADR-001-x\/tasks\/T1-a\.md\n/)
+})
+
+// BACKLOG §293, from a chaos round: a corpus whose only record carries a Status this
+// reader cannot classify (a fullwidth colon) was routed as "No QH corpus is in use" —
+// a confident negative over input it could not read. The twin: a repository with no
+// record at all still is no corpus.
+test('a record this reader cannot classify is not "no corpus"', () => {
+  const repo = files => {
+    const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-undecided-')); temps.push(temp)
+    for (const [rel, text] of Object.entries(files)) {
+      mkdirSync(path.dirname(path.join(temp, rel)), { recursive: true })
+      writeFileSync(path.join(temp, rel), text)
+    }
+    const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
+      GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
+    for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture', '--allow-empty']]) {
+      const r = spawnSync('git', args, { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+    }
+    const cli = args => spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'work-next.mjs'), ...args, temp],
+      { encoding: 'utf8', timeout: 120_000 })
+    return { text: cli([]).stdout, json: JSON.parse(cli(['--json']).stdout) }
+  }
+  const undecided = repo({ 'docs/adr/ADR-003-minimal.md': '# ADR-003: minimal\n\n**Status：** Accepted\n\n## Goal\n\nx\n' })
+  assert.doesNotMatch(undecided.text, /No QH corpus is in use/, undecided.text)
+  assert.match(undecided.text, /A QH corpus is in use here: 1 record\(s\) were found/, undecided.text)
+  assert.notEqual(undecided.json.next?.id, 'core')
+  const none = repo({ 'README.md': '# nothing here\n' })
+  assert.match(none.text, /No QH corpus is in use/, none.text)
+  assert.equal(none.json.next?.id, 'core')
+})
+
+// A chaos round, 2026-09-25 (two peers): a spec's Status was read from anywhere —
+// a code fence, an HTML comment, across a newline, from binary bytes — and any
+// value, even "banana", counted as a known status. Each shape here must be UNPROVEN,
+// and the real template form (the Status mid-line after the date, and a quote of
+// the header in inline code further down) must still read as Ready.
+test('a spec Status is read only where it is a Status, and only as a known value', () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-spec-status-')); temps.push(temp)
+  const specs = {
+    'good.md': '# S\n\n> **Date:** 2026-09-25 · **Status:** Ready-for-ADR\n\nA file with no `**Status:**` line is refused.\n',
+    'draft.md': '# S\n\n**Status:** Draft\n',
+    'fenced.md': '# S\n\n```\n**Status:** Ready-for-ADR\n```\n',
+    'comment.md': '# S\n\n<!-- **Status:** Ready-for-ADR -->\n',
+    'newline.md': '# S\n\n**Status:**\n## Ready-for-ADR\n',
+    'two.md': '# S\n\n**Status:** Draft\n\n**Status:** Ready-for-ADR\n',
+    'banana.md': '# S\n\n**Status:** banana\n',
+  }
+  mkdirSync(path.join(temp, 'docs', 'specs'), { recursive: true })
+  for (const [name, text] of Object.entries(specs)) writeFileSync(path.join(temp, 'docs', 'specs', name), text)
+  writeFileSync(path.join(temp, 'docs', 'specs', 'binary.md'),
+    Buffer.concat([Buffer.from('504b0304', 'hex'), Buffer.from('**Status:** Ready-for-ADR\n'), Buffer.alloc(16, 0)]))
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
+    GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
+  for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
+    const r = spawnSync('git', args, { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+  }
+  const state = observe(temp)
+  const names = list => list.map(file => path.basename(file)).sort()
+  assert.deepEqual(names(state.unprovenSpecs), ['banana.md', 'binary.md', 'comment.md', 'fenced.md', 'newline.md', 'two.md'])
+  assert.deepEqual(names(state.uncoveredReadySpecs), ['good.md'], 'the real template form still reads as Ready')
+})
+
+// A chaos round, 2026-09-25: `git ls-files` without `-z` C-quotes a name holding a
+// control character, `"` or `\\`, so trackedPaths returned `"tab\\there.md"` in quotes
+// and every reader dropped the file, naming it nowhere. The plain file is the twin.
+test('a tracked file whose name git would quote is still listed', (t) => {
+  if (process.platform === 'win32') {
+    t.skip('Windows cannot create a file name holding a tab, a double quote or a backslash')
+    return
+  }
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-quoted-names-')); temps.push(temp)
+  mkdirSync(path.join(temp, 'docs', 'specs'), { recursive: true })
+  // No backslash name: CLAUDE.md §7 normalises both separators before any structural
+  // test on a path, so a literal `\\` in a POSIX name reads as a separator, by design.
+  const names = ['plain.md', 'tab\there.md', 'quote"d.md', ' lead.md', 'nl\nx.md']
+  for (const name of names) writeFileSync(path.join(temp, 'docs', 'specs', name), '# S\n\n**Status:** Draft\n')
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
+    GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
+  for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
+    const r = spawnSync('git', args, { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+  }
+  assert.equal(observe(temp).specs, names.length, 'every tracked spec is counted, whatever git would quote')
+})
+
+// A Windows chaos round, 2026-09-25: a sparse checkout lists a task git tracks and
+// leaves it off the disk. work-next counted it and named it nowhere, while
+// SessionStart said UNPROVEN. Deleting the committed file from the working tree is
+// the same shape without sparse-checkout: git lists it, the disk does not hold it.
+test('a task git lists but the disk does not hold is unproven, not counted', () => {
+  const build = remove => {
+    const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-absent-task-')); temps.push(temp)
+    const adr = path.join(temp, 'docs', 'adr')
+    mkdirSync(path.join(adr, 'ADR-007-x', 'tasks'), { recursive: true })
+    writeFileSync(path.join(adr, 'ADR-007-x.md'), '# ADR-007: x\n\n**Status:** Accepted\n**Date:** 2026-09-25\n\n## Context\n\nx\n\n## Decision\n\ny\n')
+    writeFileSync(path.join(adr, 'ADR-007-x', 'tasks', 'T1-a.md'), '# Task ADR-007-T1: a\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n## Verification Log\n\n')
+    const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
+      GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
+    for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
+      const r = spawnSync('git', args, { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+    }
+    if (remove) rmSync(path.join(adr, 'ADR-007-x', 'tasks'), { recursive: true, force: true })
+    return observe(temp)
+  }
+  const absent = build(true)
+  assert.equal(absent.tasks, 0, 'a task that is not on the disk is not counted')
+  assert.ok(absent.readinessUnproven.some(dir => dir.endsWith(path.join('ADR-007-x', 'tasks'))), `named: ${absent.readinessUnproven}`)
+  const present = build(false)
+  assert.equal(present.tasks, 1)
+  assert.deepEqual(present.readinessUnproven, [])
+  assert.ok(present.unbacked.some(file => file.endsWith('T1-a.md')), 'the twin still reports the unbacked done claim')
 })

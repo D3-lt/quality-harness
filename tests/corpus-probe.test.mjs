@@ -11,6 +11,7 @@ import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
+import { outsideRun } from '../scripts/release-evidence.mjs'
 
 test('scrubber: every absolute path is a placeholder, and a repository-relative one is untouched', () => {
   const scrub = scrubber({ root: '/Users/alice/proj', pluginRoot: '/Users/alice/.claude/plugins/qh', tmp: '/var/folders/xy/T', home: '/Users/alice' })
@@ -241,4 +242,132 @@ test('the reader fingerprint covers lib and hooks', () => {
     put('hooks/hooks.json', '{"x": 1}\n')
     assert.notEqual(readerFingerprint(plugin).sha256, afterLib, 'a hooks/ change moves the fingerprint')
   } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+// ADR-064 T2. Every comparison between two runs of one corpus was done by a peer by
+// hand: unbacked 15 → 47, readinessUnproven 3 → 2, an adrLint total 67/92 → 68/91.
+// `--diff <before> <after>` reads two saved reports, runs nothing, and prints only
+// what changed — scrubbed again, because an older probe's scrubber leaked paths.
+const probeScript = path.join(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Za-z]:)/, '$1')), '..', 'plugin', 'scripts', 'corpus-probe.mjs')
+const baseReport = () => ({
+  probe: { version: '2.109.0', sha256: 'p'.repeat(64), readers: { sha256: 'a'.repeat(64), git: null, dirty: null } },
+  root: '.', look: 'ok', corpora: ['docs/adr'],
+  workNext: { records: 1, accepted: 1, tasks: 1, ready: [], unbacked: [], readinessUnproven: [] },
+  adrState: { read: 1, governing: 1 },
+  adrLint: [{ file: 'docs/adr/ADR-001-a.md', exit: 0, verdict: 'PASS' }],
+  sessionStart: { exit: 0, lines: ['Verification: x'] },
+  couldNotRun: [], disagreements: [],
+  timings: [{ reader: 'adr-next', target: 'docs/adr/ADR-001-a/tasks', ms: 1000 }, { reader: 'work-next', target: null, ms: 100 }],
+})
+function diffOf(before, after) {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-probe-diff-'))
+  try {
+    writeFileSync(path.join(dir, 'before.json'), JSON.stringify(before))
+    writeFileSync(path.join(dir, 'after.json'), JSON.stringify(after))
+    const run = spawnSync(process.execPath, [probeScript, '--diff', path.join(dir, 'before.json'), path.join(dir, 'after.json')], { encoding: 'utf8', timeout: 30_000 })
+    return { status: run.status, lines: run.stdout.split('\n').filter(Boolean), stderr: run.stderr }
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+}
+
+test('corpus-probe --diff names what changed between two runs of one corpus', () => {
+  const before = baseReport()
+  const after = baseReport()
+  after.probe.readers.sha256 = 'b'.repeat(64)
+  after.adrLint[0] = { file: 'docs/adr/ADR-001-a.md', exit: 1, verdict: 'FAIL', reason: 'T1-a.md:12: a row' }
+  after.workNext.unbacked = ['docs/adr/ADR-001-a/tasks/T1-a.md']
+  after.timings = [{ reader: 'adr-next', target: 'docs/adr/ADR-001-a/tasks', ms: 3000 }, { reader: 'work-next', target: null, ms: 900 }]
+  const { status, lines, stderr } = diffOf(before, after)
+  assert.equal(status, 0, stderr)
+  assert.deepEqual(lines, [
+    `readers: ${'a'.repeat(12)}… → ${'b'.repeat(12)}…`,
+    'workNext.unbacked: + docs/adr/ADR-001-a/tasks/T1-a.md',
+    'adrLint docs/adr/ADR-001-a.md: PASS → FAIL — T1-a.md:12: a row',
+    'slower: adr-next docs/adr/ADR-001-a/tasks 1000 → 3000 ms',
+  ], 'work-next went 100 → 900 ms, doubled by under a second: no line')
+})
+
+test('corpus-probe --diff over two identical reports says nothing changed', () => {
+  assert.deepEqual(diffOf(baseReport(), baseReport()).lines, ['nothing changed'])
+  const older = baseReport()
+  delete older.workNext.unbacked
+  delete older.timings
+  const { lines } = diffOf(older, baseReport())
+  assert.deepEqual(lines, ['before lacks workNext.unbacked', 'before lacks timings'])
+})
+
+test('corpus-probe --diff re-scrubs its inputs and never compares an unreadable run', () => {
+  const before = baseReport()
+  const after = baseReport()
+  after.adrLint[0] = { file: 'docs/adr/ADR-001-a.md', exit: 1, verdict: 'FAIL', reason: 'C:\\Users\\Someone\\repo\\x.md and /home/someone/repo/y.md' }
+  const leaked = diffOf(before, after).lines.join('\n')
+  assert.match(leaked, /PASS → FAIL/)
+  assert.doesNotMatch(leaked, /Someone|someone/, leaked)
+  const moved = baseReport()
+  moved.corpora = ['docs/decisions']
+  assert.deepEqual(diffOf(baseReport(), moved).lines, ['corpora differ (docs/adr → docs/decisions): not compared'])
+  const blind = baseReport()
+  blind.look = 'UNPROVEN'
+  assert.deepEqual(diffOf(baseReport(), blind).lines, ['look: ok → UNPROVEN: not compared'])
+  const broken = diffOf(baseReport(), baseReport())
+  assert.equal(broken.status, 0)
+})
+
+// ADR-064 T3. Eight attestations were transcribed by hand, and seven of the eleven
+// written on 2026-09-24 carry null counts because the report had no scalar to copy.
+// `--attest <label> <report>` writes it from the saved report. Its `at` is a commit
+// only when the reader files match that commit: release-evidence compares commits
+// and cannot see a runner's working tree.
+function attestOf(report, label = 'macos-rust') {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-probe-attest-'))
+  try {
+    writeFileSync(path.join(dir, 'new.json'), JSON.stringify(report))
+    const run = spawnSync(process.execPath, [probeScript, '--attest', label, path.join(dir, 'new.json')], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, run.stderr)
+    return JSON.parse(run.stdout)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+}
+const attestable = () => {
+  const report = baseReport()
+  report.probe = { ...report.probe, date: '2026-09-25', platform: 'Darwin 27.0.0', node: '24.11.1', python: '3.14.7',
+    readers: { sha256: 'a'.repeat(64), git: 'c'.repeat(40), dirty: false } }
+  report.adrNext = [{ tasksDir: 'docs/adr/ADR-001-a/tasks', ready: [{ id: 'T1', path: 'docs/adr/ADR-001-a/tasks/T1-a.md' }] }]
+  report.frozenTaskDirs = ['docs/adr-archive/ADR-000-old/tasks']
+  report.workNext.readinessUnproven = ['docs/adr/ADR-002-b/tasks']
+  report.couldNotRun = [{ reader: 'adr-state', why: 'x' }]
+  return report
+}
+
+test('corpus-probe --attest writes an attestation release-evidence accepts', () => {
+  const attestation = attestOf(attestable())
+  assert.equal(attestation.at, 'c'.repeat(40))
+  assert.equal(outsideRun(['plugin/scripts/lifecycle.mjs'], [{ file: 'x.json', ...attestation }], () => true).verdict, 'attested')
+  assert.deepEqual({ date: attestation.date, plugin: attestation.plugin, kind: attestation.kind, probeSha256: attestation.probeSha256,
+    readers: attestation.readers, platform: attestation.platform, node: attestation.node, python: attestation.python,
+    corpus: attestation.corpus, couldNotRun: attestation.couldNotRun, disagreements: attestation.disagreements,
+    readinessUnproven: attestation.readinessUnproven, runner: attestation.runner, found: attestation.found }, {
+    date: '2026-09-25', plugin: '2.109.0', kind: 'probe', probeSha256: 'p'.repeat(64), readers: 'a'.repeat(64),
+    platform: 'Darwin 27.0.0', node: '24.11.1', python: '3.14.7', corpus: { records: 1, tasks: 1, taskDirectories: 2 },
+    couldNotRun: 1, disagreements: 0, readinessUnproven: 1, runner: 'macos-rust', found: '',
+  })
+  const text = JSON.stringify(attestation)
+  assert.doesNotMatch(text, /docs\/|ADR-001|T1-a/, `counts only, nothing from the corpus: ${text}`)
+})
+
+test('corpus-probe --attest leaves at null over uncommitted readers', () => {
+  const dirty = attestable()
+  dirty.probe.readers.dirty = true
+  const edited = attestOf(dirty)
+  assert.equal(edited.at, null)
+  assert.match(edited.atReason, /reader files modified at HEAD/)
+  const cached = attestable()
+  cached.probe.readers = { sha256: 'a'.repeat(64), git: null, dirty: null }
+  const installed = attestOf(cached)
+  assert.equal(installed.at, null)
+  assert.match(installed.atReason, /not a git checkout/)
+  for (const attestation of [edited, installed]) {
+    assert.notEqual(outsideRun(['plugin/scripts/lifecycle.mjs'], [{ file: 'x.json', ...attestation }], () => true).verdict, 'attested')
+  }
+  const unread = attestable()
+  unread.workNext = null
+  assert.deepEqual(attestOf(unread).corpus, { records: null, tasks: null, taskDirectories: 2 }, 'a reader that did not answer is null, never 0')
 })

@@ -1,0 +1,52 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/adr"
+  ],
+  "records": [
+    [
+      "docs/adr/ADR-001-quotes-are-classified-once.md",
+      "governing",
+      false
+    ]
+  ],
+  "workNext": {
+    "records": 1,
+    "accepted": 1,
+    "tasks": 1,
+    "ready": [],
+    "unbacked": [],
+    "retirable": [],
+    "readinessUnproven": [],
+    "next": null
+  },
+  "adrState": {
+    "read": 1,
+    "governing": 1
+  },
+  "adrNext": [
+    {
+      "tasksDir": "docs/adr/ADR-001-quotes-are-classified-once/tasks",
+      "ready": []
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "docs/adr/ADR-001-quotes-are-classified-once.md",
+      "verdict": "PASS"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "docs/adr",
+      "claims": 1,
+      "held": 1,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {},
+  "couldNotRun": []
+}

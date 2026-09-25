@@ -160,3 +160,13 @@ A negative word anywhere in `--human` text wins (`withdraw`, `not `, `fail`, `st
 ### 2026-09-16 — a regex literal in a JS test body locks that test `unproven`
 
 ADR-057 T4's first red recorded `unproven` for a test whose name the hasher extracted fine: the body held `/…|`review`/g` and `/agentType:\s*['"]…['"]/g`. The masker skips strings and comments but not regex literals, so a quote, backtick or `)` inside one derails the span and `extract_test_body` returns None. Before the first `adr-verify`, run `record.extract_test_body(text, name)` from the plugin's `lib/` and require a non-None body; keep patterns at module scope or build them with `new RegExp('…')` from strings. An uncommitted `unproven` row is discarded with `git checkout -- <task.md>` and re-taken (BACKLOG §212).
+
+### 2026-09-25 — a Tests row that names a test built in a loop can never be locked
+
+The first-red lock hashes each Tests-table name it can extract from the file, and a test
+whose name is a template (`test(\`corpus ${name}: …\`)`) yields no literal name. So every
+such row is "could not be hashed — UNPROVEN, done is refused; frozen at the first red", and
+re-running the fence cannot cure it: the lock was taken at the red. Name a literal test in the
+Tests table BEFORE the red run: a small test asserting the generated cases are selected, while
+the fence keeps grepping the generated names it runs. Found executing ADR-064 T6; it cost a
+`--relock --replace-hashes`, which adr-lint rightly reports as weaker than first-red.

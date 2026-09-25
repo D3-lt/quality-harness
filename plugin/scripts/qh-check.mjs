@@ -124,7 +124,14 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   try {
     const directory = stateDir(root)
     mkdirSync(directory, { recursive: true })
-    appendFileSync(path.join(directory, 'checks.jsonl'), `${JSON.stringify(record)}\n`, 'utf8')
+    const file = path.join(directory, 'checks.jsonl')
+    appendFileSync(file, `${JSON.stringify(record)}\n`, 'utf8')
+    // Said on STDERR, once, after the record exists: a check run by hand showed only
+    // its own output, so nobody could tell what ran, whether it was declared or
+    // inferred, or that a record was written (BACKLOG §280 item 1). Stdout stays
+    // the check's own.
+    const shown = path.relative(root, file)
+    stderr.write(`qh-check: ran \`${command}\` (${origin}) — ${verdict}; recorded in ${shown.startsWith('..') || path.isAbsolute(shown) ? file : shown}\n`)
   } catch (failure) {
     stderr.write(`qh-check: the check ran, but its record could not be written (${failure.code ?? failure.message}).\n`)
   }

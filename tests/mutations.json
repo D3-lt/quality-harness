@@ -1787,7 +1787,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if resolve_enforcement(pointer, root) is None:",
+      "from": "        if resolve_enforcement(pointer, root, tracked) is None:",
       "to": "        if False:"
     },
     {
@@ -2642,7 +2642,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (isArchivePath(norm)) continue",
+      "from": "    if (frozen(norm) === true) continue",
       "to": "    if (false) continue"
     },
     {
@@ -6877,7 +6877,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    const unproven = line.includes('UNPROVEN')\n    if (unproven || ordinary < cap) {\n      shown.push(line)\n      if (!unproven) ordinary += 1\n    }",
+      "from": "    const always = line.includes('UNPROVEN') || EVIDENCED_SUMMARY.test(line)\n    if (always || ordinary < cap) {\n      shown.push(line)\n      if (!always) ordinary += 1\n    }",
       "only": "^SessionStart always surfaces an UNPROVEN ready line and still caps ordinary ones$",
       "to": "    if (ordinary < cap) {\n      shown.push(line)\n      ordinary += 1\n    }"
     },
@@ -7787,7 +7787,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            check_test_lock(infos, readme_text, errors, root)",
+      "from": "            check_test_lock(infos, readme_text, errors, root, adr, tracked)",
       "to": "            pass",
       "only": "rewriting a locked assertion refuses done"
     },
@@ -8027,7 +8027,7 @@
       "tests": [
         "tests/inferred-pass.test.mjs"
       ],
-      "from": ", and it may be narrower than this project's own gate (a typecheck or lint step the manifest does not name), so its pass is not that gate's pass",
+      "from": ", and it may be narrower than this project's own gate (a step the inference did not pick, such as a typecheck or lint), so its pass is not that gate's pass",
       "to": "",
       "only": "may be narrower than the project gate"
     },
@@ -10525,6 +10525,206 @@
       "from": ".filter(line => line.length >= 12)",
       "to": ".filter(line => line.length >= 0)",
       "only": "touchedBy keeps an entry"
+    },
+    {
+      "label": "archive: work-next freezes a task only under the Lifecycle marker",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (frozen(norm) === true) continue",
+      "to": "    if (frozen(norm) === 'never') continue",
+      "only": "work-next reads an unmarked archive"
+    },
+    {
+      "label": "archive: an unmarked archive-named directory is named",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "cache, listed) === false) found.add(",
+      "to": "cache, listed) === 'x') found.add(",
+      "only": "an archive-named directory"
+    },
+    {
+      "label": "archive: SessionStart names an unmarked archive",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    for (const archive of unmarkedArchives(root, listing)) {",
+      "to": "    for (const archive of []) {",
+      "only": "an archive-named directory"
+    },
+    {
+      "label": "archive: work-next --json carries unmarkedArchives",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      unmarkedArchives: state.unmarkedArchives,",
+      "to": "      unmarkedArchives: [],",
+      "only": "an archive-named directory"
+    },
+    {
+      "label": "archive: corpus-probe copies unmarkedArchives",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      unmarkedArchives: workNextPaths('unmarkedArchives'),",
+      "to": "      unmarkedArchives: [],",
+      "only": "an archive-named directory"
+    },
+    {
+      "label": "lint: a Tests row's basename resolves against git's listing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if tracked is not None:",
+      "to": "    if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: an Enforced-by pointer resolves against git's listing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        f = resolve_test_file(root, rel.strip(), tracked)",
+      "to": "        f = resolve_test_file(root, rel.strip())",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "qh-check: a run says what it ran and where the record went",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/qh-check-shell.test.mjs"
+      ],
+      "from": "    stderr.write(`qh-check: ran",
+      "to": "    String(`qh-check: ran",
+      "only": "says what it ran"
+    },
+    {
+      "label": "lint: task info carries the task's text, so Produces is read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            \"text\": text}",
+      "to": "            \"unused\": text}",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a Tests-row finding names the row's line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            return f\"{inf['path'].name}:{number}\"",
+      "to": "            return inf[\"path\"].name",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: the unselected-row finding names the row's line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                errors.append(f\"{tests_row_ref(inf, name, rel)}: {tid} names `{name}` in its Tests table, but \"",
+      "to": "                errors.append(f\"{inf['path'].name}: {tid} names `{name}` in its Tests table, but \"",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lock: a moved hash names the reviewed relock remedy",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                              \"once the change to the test is reviewed, \"",
+      "to": "                              \"\"",
+      "only": "a lock taken before regex masking"
+    },
+    {
+      "label": "work-next: adr-next's withholding reason is kept per task",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "        if (task.unproven) notes.set(path.resolve(root, task.path), task.unproven)",
+      "to": "        if (false) notes.set(path.resolve(root, task.path), task.unproven)",
+      "only": "relock remedy"
+    },
+    {
+      "label": "work-next: the text names the relock remedy",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (remedy(stage)) {",
+      "to": "  if (false) {",
+      "only": "relock remedy"
+    },
+    {
+      "label": "lint: a frozen record's lock drift is advice",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if frozen:",
+      "to": "            if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: only a tracked catalog freezes a record",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if readme not in tracked:",
+      "to": "        if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "orientation: a fully evidenced directory is counted, not listed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      evidenced += 1",
+      "to": "      evidenced += 0",
+      "only": "did not read"
+    },
+    {
+      "label": "orientation: the evidenced count survives the render cap",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    const always = line.includes('UNPROVEN') || EVIDENCED_SUMMARY.test(line)",
+      "to": "    const always = line.includes('UNPROVEN')",
+      "only": "did not read"
+    },
+    {
+      "label": "work-next: a READY task claimed done is marked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const readyButClaimedDone = ready.filter(file => claimedDone.has(path.resolve(file)))",
+      "to": "  const readyButClaimedDone = []",
+      "only": "both READY"
+    },
+    {
+      "label": "work-next: the text names READY-and-claimed-done tasks",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (state.readyButClaimedDone.length) {",
+      "to": "  if (false) {",
+      "only": "both READY"
     }
   ]
 }

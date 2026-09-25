@@ -733,6 +733,9 @@ def main():
     nxt = load_script("adr_next_regressions", bin_dir / "adr-next")
     test_a_named_producer_is_the_only_producer(lint, nxt)
     test_a_package_manager_filter_is_not_a_test_filter(lint)
+    test_a_test_row_resolves_against_git_not_the_disk(lint)
+    test_a_tests_row_finding_names_its_line_and_produces_is_read(lint)
+    test_a_frozen_records_lock_drift_is_history(lint)
     test_first_red_lock_grammar_and_identity(lint, verify, nxt)
     test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt)
 
@@ -4932,6 +4935,116 @@ def test_a_package_manager_filter_is_not_a_test_filter(lint):
         "a test filter beside a workspace filter still has to select the row"
 
     print("PASS — a package-manager filter is not a test filter")
+
+def test_a_test_row_resolves_against_git_not_the_disk(lint):
+    """BACKLOG §281 item 4, from a Rust corpus: a Tests row giving a bare basename
+    fell back to `root.rglob(base)` — 1.3 million directory entries under a build
+    tree, minutes per record, three records timed out — and filtered `target/`
+    only AFTER the walk. It is CLAUDE.md §8 as well: an untracked copy on one
+    machine made the row ambiguous there and nowhere else."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "tests" / "unit").mkdir(parents=True)
+        real = root / "tests" / "unit" / "case.test.mjs"
+        real.write_text("test('alpha works', () => { assert.ok(1) })\n", encoding="utf-8")
+        # An untracked same-named copy outside every excluded directory: on disk,
+        # never in the listing. The old walk found two and resolved nothing.
+        (root / "scratch").mkdir()
+        (root / "scratch" / "case.test.mjs").write_text("// not a test\n", encoding="utf-8")
+        tracked = {"tests/unit/case.test.mjs", "src/lib.rs"}
+
+        walked = []
+        original = Path.rglob
+        Path.rglob = lambda self, pattern: walked.append(pattern) or original(self, pattern)
+        try:
+            assert lint.resolve_test_file(root, "case.test.mjs", tracked) == real
+            assert walked == [], f"with a listing there is no disk walk: {walked}"
+            assert lint.resolve_test_file(root, "case.test.mjs", tracked | {"other/case.test.mjs"}) is None, \
+                "two tracked files with the name are still ambiguous"
+            info = {"path": Path("T1.md"), "human": False, "tests": [("alpha works", "case.test.mjs")]}
+            out = lint.Findings()
+            lint.check_tests_exist({"T1": info}, "| 1 | T1 | done |", out, root, tracked)
+            assert [e for e in out if "Tests table names" in e] == [], list(out)
+            assert lint.resolve_enforcement("case.test.mjs::alpha works", root, tracked) == "test"
+            assert walked == [], f"the callers pass the listing through: {walked}"
+        finally:
+            Path.rglob = original
+        # The must-fail direction: with no listing (git could not answer) the old
+        # walk still runs, and still finds the untracked copy.
+        assert lint.resolve_test_file(root, "case.test.mjs") is None, "without a listing, the disk decides as before"
+
+    print("PASS — a Tests row resolves against git, not the disk")
+
+def test_a_tests_row_finding_names_its_line_and_produces_is_read(lint):
+    """BACKLOG §280 item 2, from a React/vitest SPA: "T7 … Tests table names `x` in
+    `…test.ts`, but that file contains no executable definition" was right, and
+    named no line, so the runner had to grep for the row. And the class it led to:
+    `check_produced_symbols` read `inf.get("text")`, a key `check_task` never built,
+    so the §61 advisory could not fire on any real record — its own test built the
+    info by hand (found 2026-09-25 while adding the line)."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "tests").mkdir()
+        (root / "tests" / "case_test.py").write_text("def test_alpha():\n    assert 1\n", encoding="utf-8")
+        row = "- 2026-08-20 · no-git · exit 0 · `true` · acceptance-sha256:" + "0" * 64 + "\n"
+        probe = root / "T1-probe.md"
+        body = _probe_task("pytest -k test_other tests/case_test.py", log=row,
+                           tests="| `test_ghost` | `tests/case_test.py` | v | — |")
+        body = body.replace("**Produces:** none", "**Produces:** `neverWritten()`")
+        probe.write_text(body, encoding="utf-8")
+        line = next(n for n, text in enumerate(body.splitlines(), 1) if "`test_ghost`" in text)
+        errs = lint.Findings()
+        _, info = lint.check_task(probe, set(), errs, None, None)
+        done = "| 1 | T1 | done |"
+        out = lint.Findings()
+        lint.check_tests_exist({"T1": info}, done, out, root)
+        exist = [e for e in out if "Tests table names" in e]
+        assert exist and exist[0].startswith(f"T1-probe.md:{line}: "), exist
+        out = lint.Findings()
+        lint.check_named_tests_are_run({"T1": info}, done, out)
+        assert out and list(out)[0].startswith(f"T1-probe.md:{line}: "), list(out)
+        # The must-fail direction for the class: a record built by check_task, not by hand.
+        out = lint.Findings()
+        lint.check_produced_symbols({"T1": info}, done, out, "def something_else(): pass")
+        assert any("neverWritten" in a for a in out.advice), list(out.advice)
+
+    print("PASS — a Tests-row finding names its line, and Produces is read from the task")
+
+def test_a_frozen_records_lock_drift_is_history(lint):
+    """BACKLOG §281 item 6, from Windows at an older HEAD: for a record retired into
+    a marked archive, a vanished locked test read "done is refused". Tests are
+    deleted after retirement by design, so that is expected drift, and the wording
+    spoke as if it were still work. A live record is unchanged."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "docs" / "adr-archive" / "ADR-001-old" / "tasks").mkdir(parents=True)
+        (root / "docs" / "adr" / "ADR-002-live" / "tasks").mkdir(parents=True)
+        (root / "docs" / "adr-archive" / "README.md").write_text(
+            "# Archive\n\n**Lifecycle:** Frozen historical ADR records\n", encoding="utf-8")
+        frozen_record = root / "docs" / "adr-archive" / "ADR-001-old.md"
+        live_record = root / "docs" / "adr" / "ADR-002-live.md"
+        tracked = {"docs/adr-archive/README.md", "docs/adr-archive/ADR-001-old.md", "docs/adr/ADR-002-live.md"}
+        assert lint.record_is_frozen(frozen_record, root, tracked) is True
+        assert lint.record_is_frozen(live_record, root, tracked) is False
+        assert lint.record_is_frozen(frozen_record, root, tracked - {"docs/adr-archive/README.md"}) is False, \
+            "an untracked catalog freezes nothing (CLAUDE.md §8)"
+
+        infos = {"T1": {"path": Path("T1.md"), "human": False, "vlog": [], "tests": []}}
+        original = lint.lock_findings
+        lint.lock_findings = lambda vlog, root, tests, label="": (
+            [f"{label}: locked test `t.py`::test_x vanished — done is refused"], [])
+        try:
+            out = lint.Findings()
+            lint.check_test_lock(infos, "| 1 | T1 | done |", out, root, frozen_record, tracked)
+            assert list(out) == [], list(out)
+            assert any("archived record" in a and "history, not a refusal" in a for a in out.advice), list(out.advice)
+            out = lint.Findings()
+            lint.check_test_lock(infos, "| 1 | T1 | done |", out, root, live_record, tracked)
+            assert any("vanished — done is refused" in e for e in out), "a live record still refuses"
+        finally:
+            lint.lock_findings = original
+
+    print("PASS — a frozen record's lock drift is history, not a refusal")
 
 def test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint):
     """BACKLOG 194 row 2 — only line one was read, so a real record read as 'not a record'."""

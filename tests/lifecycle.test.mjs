@@ -1682,17 +1682,29 @@ test('SessionStart says how many task directories it did not read', async () => 
     status: 3, stdout: JSON.stringify({ ready: [], blocked: [], done: [{ id: 'T1' }] }), stderr: '', error: null, signal: null,
   })
   const seven = readyTaskLines(root, true, listing, allDone)
-  assert.equal(seven.lines.filter(line => /carry exit-0 evidence/.test(line)).length, 6, seven.lines.join('\n'))
+  // A directory whose every task carries evidence is not in flight, so it is counted
+  // rather than listed under that heading (BACKLOG §280 item 3, §279 item 6).
+  assert.equal(seven.lines.filter(line => /carry exit-0 evidence/.test(line)).length, 0, seven.lines.join('\n'))
+  assert.equal(seven.lines.filter(line => /^ {2}\(6 task directories read are fully evidenced, not shown\)$/.test(line)).length, 1, seven.lines.join('\n'))
   const unread = seven.lines.filter(line => /\(\+1 more task directory: UNPROVEN — not read/.test(line))
   assert.equal(unread.length, 1, `the seventh directory is said, not dropped: ${seven.lines.join('\n')}`)
   const rendered = surfaceReadyLines(seven.lines)
   assert.ok(rendered.some(line => /more task directory: UNPROVEN/.test(line)), 'and the render cap never hides it')
-  // The two counts print in the order a reader sums them — read-but-capped first,
-  // then not-read — each saying what it counts (two Windows sessions read the
-  // reverse order as one overlapping figure, 2026-09-23).
-  const readNotShown = rendered.findIndex(line => /\(\+3 more task directories read, not shown above\)/.test(line))
+  // The two counts print in the order a reader sums them — read first, then
+  // not-read — each saying what it counts (two Windows sessions read the reverse
+  // order as one overlapping figure, 2026-09-23). The evidenced count is never
+  // capped away: it is the answer to "why is nothing listed".
+  const evidenced = rendered.findIndex(line => /\(6 task directories read are fully evidenced, not shown\)/.test(line))
   const notRead = rendered.findIndex(line => /more task directory: UNPROVEN — not read/.test(line))
-  assert.ok(readNotShown >= 0 && notRead > readNotShown, `read-but-capped before not-read:\n${rendered.join('\n')}`)
+  assert.ok(evidenced >= 0 && notRead > evidenced, `read before not-read:\n${rendered.join('\n')}`)
+  // A ready directory beside evidenced ones is still listed, first.
+  const mixed = readyTaskLines(root, true, listing.slice(0, 3), (tool, args) => args[0].endsWith(path.join('A', 'tasks'))
+    ? { status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: path.join(args[0], 'T1-fixture.md') }], blocked: [], done: [] }), stderr: '', error: null, signal: null }
+    : allDone())
+  assert.deepEqual(mixed.lines.map(line => line.trim().replace(/ — .*/, '')), ['docs/adr/A/tasks: T1 is ready', '(2 task directories read are fully evidenced, not shown)'])
+  const busy = ['A', 'B', 'C', 'D'].map(letter => `  docs/adr/${letter}/tasks: T1 is ready — g.`)
+  assert.ok(surfaceReadyLines([...busy, '  (2 task directories read are fully evidenced, not shown)']).includes('  (2 task directories read are fully evidenced, not shown)'),
+    'the evidenced count survives the render cap')
   // CLEAN: six directories are all read, so nothing is said about unread ones.
   const six = readyTaskLines(root, true, listing.slice(0, 6), allDone)
   assert.ok(!six.lines.some(line => /more task director/.test(line)), six.lines.join('\n'))
@@ -2654,6 +2666,14 @@ test('a date-named record is read, and a docs/adr that yields nothing says so', 
   await writeFile(path.join(archived, 'docs', 'adr-archive', 'ADR-012', 'tasks', 'T1.md'), task)
   await writeFile(path.join(archived, 'docs', 'adr', 'ADR-020.md'), record('ADR-020: live'))
   await writeFile(path.join(archived, 'docs', 'adr', 'ADR-020', 'tasks', 'T1.md'), task)
+  // The Lifecycle marker is what makes it an archive, not the directory's name: an
+  // unmarked `adr-archive/` is read as live by every reader and named instead
+  // (BACKLOG §281 item 3; tests/archive-not-in-flight.test.mjs holds that half).
+  await writeFile(path.join(archived, 'docs', 'adr-archive', 'README.md'), [
+    '# ADR Archive', '', '**Lifecycle:** Frozen historical ADR records', '',
+    '| ADR | Title | Decision effect | Retired | Reason | Obligations | SHA-256 |',
+    '|-----|-------|-----------------|---------|--------|-------------|---------|',
+    '| [ADR-012](ADR-012.md) | old | withdrawn | 2026-08-29 | history | none | - |', ''].join('\n'))
   gitInit(archived)
   const scoped = observe(archived)
   assert.deepEqual(scoped.ready.map(f => path.basename(path.dirname(path.dirname(f)))), ['ADR-020'],

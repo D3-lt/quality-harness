@@ -112,3 +112,17 @@ test('a declared ./ check runs through qh-check on this platform, and a failing 
   const failing = run(project('./sub/check', FAILS))
   assert.equal(failing.status, 3, failing.stdout + failing.stderr)
 })
+
+// BACKLOG §280 item 1, from a React SPA: qh-check ran the inferred `npm run test`
+// and wrote a correct record, and the console showed only vitest. Whoever ran it
+// by hand could not tell what ran, whether it was declared, or that anything was
+// recorded. One line on STDERR says so, and the check's own stdout is untouched.
+test('qh-check says what it ran, where it came from, and where the record went', () => {
+  const run = cwd => spawnSync('python3', [qhCheck], { cwd, encoding: 'utf8', timeout: 60_000 })
+  const passing = run(project('./sub/check', PASSES))
+  assert.equal(passing.status, 0, passing.stdout + passing.stderr)
+  assert.match(passing.stderr, /^qh-check: ran `\.\/sub\/check` \(declared\) — passed; recorded in \S*checks\.jsonl$/m)
+  assert.doesNotMatch(passing.stdout, /qh-check:/, 'the check\'s stdout stays the check\'s')
+  const failing = run(project('./sub/check', FAILS))
+  assert.match(failing.stderr, /^qh-check: ran `\.\/sub\/check` \(declared\) — failed; recorded in /m)
+})

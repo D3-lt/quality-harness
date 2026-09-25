@@ -2807,6 +2807,38 @@ test("adr-lint's tracked_or_unignored_paths includes an untracked file; arch-lin
   } finally { rmSync(sandbox, { recursive: true, force: true }) }
 })
 
+// A chaos round of 2.110.0-rc and the Codex review of its re-cut: without `-z` git
+// C-quotes a name holding a control character or `"`, and text-mode decoding turns a
+// CR inside a name into LF, so the path named no file and arch-lint dropped it. The
+// plain name is the twin. POSIX only: Windows cannot create these names.
+test("arch-lint's tracked_paths keeps a name git would quote, and a CR inside one", (t) => {
+  if (process.platform === 'win32') {
+    t.skip('Windows cannot create a file name holding a CR, a tab or a double quote')
+    return
+  }
+  const sandbox = mkdtempSync(join(os.tmpdir(), 'qh-quoted-listing-'))
+  const git = (...args) => {
+    const r = spawnSync('git', ['-C', sandbox, ...args], { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+  }
+  try {
+    const names = ['plain.txt', 'with\rcr.txt', 'tab\there.txt', 'quote"d.txt']
+    git('init', '-q')
+    for (const name of names) writeFileSync(join(sandbox, name), 'x\n')
+    git('add', '.')
+    git('-c', 'user.name=probe', '-c', 'user.email=probe@example.invalid', 'commit', '-q', '-m', 'seed')
+    const probe = [
+      'import json, pathlib, runpy, sys',
+      'arch = runpy.run_path(sys.argv[1])',
+      'root = pathlib.Path(sys.argv[2]).resolve()',
+      'print(json.dumps(sorted(p.name for p in arch["tracked_paths"](root) if p.exists())))',
+    ].join('\n')
+    const out = run('python3', ['-c', probe, join(bin, 'arch-lint'), sandbox])
+    expectExit(out, 0, 'quoted-name listing probe')
+    assert.deepEqual(JSON.parse(out.stdout), [...names].sort(), out.stdout)
+  } finally { rmSync(sandbox, { recursive: true, force: true }) }
+})
+
 test('a path::name pointer at a production function does not resolve as a test', () => {
   // The mechanism is `looks_like_a_test`. `test_body` matches any FUNCTION with
   // the wanted name — right where a test IS a function (Python, Go), and silent

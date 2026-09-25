@@ -15422,7 +15422,7 @@ Four more were refused by their own permission classifiers until their users app
   - `**Status:**` then a newline, which took the next line;
   - two different values;
   - `banana`.
-  Each is UNPROVEN now. Only the template's four values are known, and a spec must carry a single one. Measured first: over 132 real specs in the local corpora, no answer moved. Without the inline-code stripping, one real spec of this repository's own flipped, because it quotes the header in prose. Test; three mutants RED.
+  Each is UNPROVEN now. Only the template's four values are known, and a spec must carry a single one. Measured first: over 117 real specs (this entry first said 132, a count read wrong from the per-repository totals) in the local corpora, no answer moved. Without the inline-code stripping, one real spec of this repository's own flipped, because it quotes the header in prose. Test; three mutants RED.
 - **A task git lists but the disk does not hold** (declarative-pie L4, a sparse checkout) was counted as a task and asked about nowhere. Its directory is in `readinessUnproven` now. Test with the twin; mutant RED.
 - **A task's title and Acceptance fence reached a session's context unmarked** (declarative-pie L7, playtrix C8, idempotent-hammock F4). It sat beside this tool's own "Prove it with adr-verify", which RUNS that fence. The text included an injected instruction, a fake `</system-reminder>`, ANSI clear-screen and a bidi override. Now:
   - SessionStart quotes both as "the task file calls it «…»" and "its Acceptance fence reads «…»", and says adr-verify runs that fence as written.
@@ -15432,6 +15432,15 @@ Four more were refused by their own permission classifiers until their users app
 - **§293's routing half**: work-next no longer says "No QH corpus is in use" while it counts a record it cannot classify.
 
 **Also found, by CI:** the Windows job at 026658a failed on this batch's own §288 test, which expected `/` where work-next's text prints native separators. The test now compares in posix form.
+
+**Codex review of f905d8a (one round):** five blocking findings, all confirmed and fixed.
+1. The follow-up-label exception looked for an affirmation anywhere, including inside the labelled clause, so "not approved: waiting for QA to confirm" passed. The affirmation must now come BEFORE the first label.
+2. Four-backtick, indented and unclosed fences were read, and a comment spanning lines let a value cross them. `maskedMarkdown` is a line scanner with CommonMark's fence rule, and it keeps every newline.
+3. The allowlist matched prefixes, so "Ready-for-ADR-pending" read as Ready. A known value must now not be followed by a letter, digit or hyphen. The exact match first tried would have refused this repository's own "Draft — see the note below".
+4. Both `--all` branches still printed a stop reason raw.
+5. arch-lint decoded the listing in text mode, turning a CR inside a name into LF. It now reads bytes.
+
+Each fix has a test and a mutant. The fence-length mutant came back GREEN until a nested-fence case was added.
 
 ## 295. OPEN — The 2.110.0-rc chaos round: leads for the next batch (reported from outside runs at 026658a)
 

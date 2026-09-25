@@ -302,15 +302,16 @@ def tracked_paths(root):
     than reporting a narrower search as a finding (ADR-005).
     """
     try:
-        # `-z`: without it git C-quotes a name holding a control character, `"` or
-        # `\`, which then resolves to no file (the same defect lifecycle.mjs had).
+        # `-z`, read as BYTES: without -z git C-quotes a name holding a control
+        # character, `"` or `\`; and text mode's universal newlines turn a CR inside a
+        # name into LF, so the path no longer names the file (Codex review of f905d8a).
         r = subprocess.run(["git", "-C", str(root), "ls-files", "--cached", "-z"],
-                           capture_output=True, timeout=30, text=True, encoding="utf-8", errors="replace")
+                           capture_output=True, timeout=30)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0:
         return None
-    return {(root / name).resolve() for name in r.stdout.split("\0") if name}
+    return {(root / os.fsdecode(name)).resolve() for name in r.stdout.split(b"\0") if name}
 
 
 def repo_files(root, limit=6000):

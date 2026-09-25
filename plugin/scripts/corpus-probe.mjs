@@ -535,10 +535,11 @@ export function readersOfRun(start, end) {
 function corpusCounts(report) {
   const taskDirectories = Array.isArray(report.adrNext) ? report.adrNext.length + (report.frozenTaskDirs?.length ?? 0) : null
   if (report.workNext?.records != null) return { records: report.workNext.records, tasks: report.workNext.tasks ?? null, taskDirectories }
-  const answered = (report.corpusReport ?? []).filter(entry => entry.totals && Array.isArray(entry.records))
+  // corpus-report's `records` is a COUNT (recordCount), not a list (Codex review of 991f400).
+  const answered = (report.corpusReport ?? []).filter(entry => entry.totals && Number.isFinite(entry.records))
   if (!answered.length) return { records: null, tasks: null, taskDirectories }
   return {
-    records: answered.reduce((sum, entry) => sum + entry.records.length, 0),
+    records: answered.reduce((sum, entry) => sum + entry.records, 0),
     tasks: answered.reduce((sum, entry) => sum + (entry.totals.tasks ?? 0), 0),
     taskDirectories,
     countsFrom: 'corpusReport',

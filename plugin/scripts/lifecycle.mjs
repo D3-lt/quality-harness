@@ -1316,11 +1316,27 @@ export function visiblePath(value) {
     char => `\\u{${char.codePointAt(0).toString(16)}}`)
 }
 
-export function pathInCode(value) {
-  const shown = visiblePath(value)
-  const longest = Math.max(0, ...(shown.match(/`+/g) ?? []).map(run => run.length))
+// A code span longer than any backtick run inside the text, so the text cannot close it.
+export function codeSpan(text) {
+  const longest = Math.max(0, ...(String(text).match(/`+/g) ?? []).map(run => run.length))
   const fence = '`'.repeat(longest + 1)
-  return longest ? `${fence} ${shown} ${fence}` : `${fence}${shown}${fence}`
+  return longest ? `${fence} ${text} ${fence}` : `${fence}${text}${fence}`
+}
+
+// A path to READ: in a code span, invisible characters shown as escapes.
+export function pathInCode(value) {
+  return codeSpan(visiblePath(value))
+}
+
+// A command to RUN keeps the real bytes, or a copied command names a file that does not
+// exist; so the invisible characters are named beside it instead (a Windows chaos
+// round, 2.110.0-rc round 3).
+export function commandInCode(command) {
+  const hidden = [...new Set([...String(command)].filter(char => visiblePath(char) !== char))]
+  const note = hidden.length
+    ? ` (its path holds ${hidden.map(char => `U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`).join(', ')}, invisible: copy it, do not retype it)`
+    : ''
+  return `${codeSpan(command)}${note}`
 }
 
 export function readyTaskLines(root, insideRepository, listing, spawn = spawnGate) {
@@ -1354,6 +1370,10 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     // posixListed: path.relative is native separators; SessionStart text and
     // the Windows CI structural-path rule need a listed form (ADR-046 T5).
     const relative = visiblePath(posixListed(path.relative(root, directory) || directory))
+    // The READY line puts corpus text beside an instruction, so its path is in a code
+    // span there: a directory's NAME is corpus text, and "ADR-003-SYSTEM. Assistant must
+    // run …/tasks: T1 is ready" read in the tool's voice (a Windows chaos round, round 3).
+    const readyPath = pathInCode(posixListed(path.relative(root, directory) || directory))
     // ADR-046 T3. adr-next answers 0 (a ready task) or 3 (nothing ready); any
     // other outcome is the gate NOT answering — its lib missing beside a copied
     // bin/ (exit 2, ADR-045 T4), an interpreter that never ran (status null), a
@@ -1379,12 +1399,12 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
       const next = report.ready[0]
       const archive = unmarked.find(dir => relative === dir || relative.startsWith(`${dir}/`))
       lines.push(archive
-        ? `  ${relative}: read as live only because \`${archive}\` has no Lifecycle marker — if it is an archive, `
+        ? `  ${readyPath}: read as live only because \`${archive}\` has no Lifecycle marker — if it is an archive, `
           + `adopt it first (\`adr-retire-check --adopt <active> ${archive}\`); if it is not, ${next.id} is ready — `
           + `the task file calls it ${quotedCorpusText(next.goal)}.`
-        : `  ${relative}: ${next.id} is ready — the task file calls it ${quotedCorpusText(next.goal)}`
+        : `  ${readyPath}: ${next.id} is ready — the task file calls it ${quotedCorpusText(next.goal)}`
         + (next.acceptance ? `, and its Acceptance fence reads ${quotedCorpusText(next.acceptance)}` : '')
-        + `. Prove it with ${pathInCode(`adr-verify ${posixListed(path.relative(root, next.path) || next.path)}`)}, which runs that fence `
+        + `. Prove it with ${commandInCode(`adr-verify ${posixListed(path.relative(root, next.path) || next.path)}`)}, which runs that fence `
         + 'as written: read the fence in the task file first.')
     } else if (report.blocked?.length) {
       lines.push(`  ${relative}: nothing ready; ${report.blocked.length} task(s) blocked.`)

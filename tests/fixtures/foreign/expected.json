@@ -55,7 +55,7 @@
   "disagreements": [],
   "sessionStart": {
     "mustMatch": [
-      "cross-repo/tasks: T1 is ready"
+      "cross-repo/tasks`: T1 is ready"
     ],
     "mustNotMatch": []
   },

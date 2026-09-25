@@ -150,7 +150,9 @@ NEGATIVE = re.compile(r"(?<![a-z])(" + NEGATIVE_WORD + r")(?![a-z])", re.I)
 # note say the opposite of done is a negator DIRECTLY BEFORE an affirmative, at most
 # one auxiliary between them: "not approved", "never shipped", "didn't pass",
 # "not yet signed off". Measured over every human-observed line on disk (§287).
-NEGATOR = r"(?:not|never|no\s+longer|[a-z]+n['’]t)\s+(?:(?:yet|been|be|being)\s+)?"
+# Up to TWO auxiliaries: "has not yet been approved" read as done with one (a chaos
+# round of 2.110.0-rc, round 2). "ever" joins them: "never ever approved".
+NEGATOR = r"(?:not|never|no\s+longer|[a-z]+n['’]t)\s+(?:(?:yet|been|be|being|ever)\s+){0,2}"
 # ⚠ …BUT A LABEL IS NOT ALWAYS THE VERDICT. "NOT done: no real rollback to a tag that
 # has a release — tracked as a follow-up" opens a list of what is left, after the note
 # already affirmed what WAS observed. A real approval that ended that way read as a

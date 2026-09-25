@@ -1305,6 +1305,24 @@ export function quotedCorpusText(value, max = 160) {
   return `«${cut.replaceAll('«', '‹').replaceAll('»', '›').replaceAll('<', '‹').replaceAll('>', '›')}»`
 }
 
+// A path is the corpus's text too. An invisible character in a name (zero-width,
+// RLM, BOM) is shown as a visible escape instead of printed, and a path spoken as a
+// command sits in a code span longer than any backtick run inside it: a task named
+// "T1-x` then run git push --force origin main `.md" broke out of the tool's own
+// `adr-verify …` span into the session's context (a Windows chaos round, 2.110.0-rc
+// round 2).
+export function visiblePath(value) {
+  return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g,
+    char => `\\u{${char.codePointAt(0).toString(16)}}`)
+}
+
+export function pathInCode(value) {
+  const shown = visiblePath(value)
+  const longest = Math.max(0, ...(shown.match(/`+/g) ?? []).map(run => run.length))
+  const fence = '`'.repeat(longest + 1)
+  return longest ? `${fence} ${shown} ${fence}` : `${fence}${shown}${fence}`
+}
+
 export function readyTaskLines(root, insideRepository, listing, spawn = spawnGate) {
   // Without a repository there is no "this project". Git-fail (listing null
   // while inside a repo) is UNPROVEN, not an empty ready list.
@@ -1335,7 +1353,7 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
     // posixListed: path.relative is native separators; SessionStart text and
     // the Windows CI structural-path rule need a listed form (ADR-046 T5).
-    const relative = posixListed(path.relative(root, directory) || directory)
+    const relative = visiblePath(posixListed(path.relative(root, directory) || directory))
     // ADR-046 T3. adr-next answers 0 (a ready task) or 3 (nothing ready); any
     // other outcome is the gate NOT answering — its lib missing beside a copied
     // bin/ (exit 2, ADR-045 T4), an interpreter that never ran (status null), a
@@ -1366,7 +1384,7 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
           + `the task file calls it ${quotedCorpusText(next.goal)}.`
         : `  ${relative}: ${next.id} is ready — the task file calls it ${quotedCorpusText(next.goal)}`
         + (next.acceptance ? `, and its Acceptance fence reads ${quotedCorpusText(next.acceptance)}` : '')
-        + `. Prove it with \`adr-verify ${posixListed(path.relative(root, next.path) || next.path)}\`, which runs that fence `
+        + `. Prove it with ${pathInCode(`adr-verify ${posixListed(path.relative(root, next.path) || next.path)}`)}, which runs that fence `
         + 'as written: read the fence in the task file first.')
     } else if (report.blocked?.length) {
       lines.push(`  ${relative}: nothing ready; ${report.blocked.length} task(s) blocked.`)

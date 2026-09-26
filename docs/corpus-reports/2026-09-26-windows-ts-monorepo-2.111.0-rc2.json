@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-26",
+  "at": "736e275519444f7edf07da9f9c1be760da4e8e9a",
+  "plugin": "2.111.0",
+  "kind": "probe",
+  "probeSha256": "07e3396c26cd84cf481188ba59a679e5059ea531466f2c7bd6c2d8cb74faa094",
+  "readers": "c523d21845da1de88abfe6f5314253b9dc7dba32040e2a7944f089e3a4d64021",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 0,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "ts-monorepo-no-adr",
+  "found": "rc2 replay: the PowerShell tool is refused and denied to a reviewer; git.exe, quoted/drive paths, cmd /c, cmd //c, wsl and pwsh -c git.exe are refused, cmd /c echo is not; an unreadable owner is said by adr-next and SessionStart; LF and CRLF specs agree. One false UNPROVEN residual (a list-content fence) filed for 2.112.0."
+}

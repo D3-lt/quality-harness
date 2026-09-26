@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-26",
+  "at": "736e275519444f7edf07da9f9c1be760da4e8e9a",
+  "plugin": "2.111.0",
+  "kind": "probe",
+  "probeSha256": "07e3396c26cd84cf481188ba59a679e5059ea531466f2c7bd6c2d8cb74faa094",
+  "readers": "c523d21845da1de88abfe6f5314253b9dc7dba32040e2a7944f089e3a4d64021",
+  "platform": "Darwin 27.0.0",
+  "node": "26.10.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 0,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "ts-generator-no-adr",
+  "found": "rc2 replay: an empty tracked task is stopped 'is empty'; a qualified self-dependency (ADR-001-T3) is blocked, never ready, and adr-lint FAILs it. Wording lead filed for 2.112.0."
+}

@@ -5363,31 +5363,73 @@ def without_workspace_filters(acc):
 # call does run (reported from outside, 2026-09-26). A runner not listed adds nothing.
 # cargo is NOT listed: its `-E` and positional names are filters this gate does not
 # parse, so "no -run/--filter/-k" is not "unfiltered" there (a catalogue GREEN, 2026-09-26).
+# The runner must START its segment (after any `VAR=value` prefix): `echo python3 -m
+# unittest …` runs nothing (Codex review of 3.0.0).
 _UNFILTERED_RUNNERS = (
-    (re.compile(r"\bgo\s+test\b"), (".go",)),
-    (re.compile(r"\b(?:pytest|py\.test|python3?\s+-m\s+(?:pytest|unittest))\b"), (".py",)),
-    (re.compile(r"\b(?:phpunit|artisan\s+test)\b"), (".php",)),
+    (re.compile(r"^\s*(?:\w+=\S*\s+)*go\s+test\b"), (".go",)),
+    (re.compile(r"^\s*(?:\w+=\S*\s+)*(?:pytest|py\.test|python3?\s+-m\s+(?:pytest|unittest))\b"), (".py",)),
+    (re.compile(r"^\s*(?:\w+=\S*\s+)*(?:(?:vendor/bin/)?phpunit|php\s+artisan\s+test)\b"), (".php",)),
 )
+_SEGMENTS = re.compile(r"&&|\|\||;|\||\n")
 
 
-def unfiltered_runner_runs(acc, rel, narrowing):
+def unfiltered_runner_runs(acc, rel, narrowing, name=None):
     """Whether some unfiltered command of the fence runs the file `rel`.
 
-    Runner and language must agree, and the command must NAME the row's file, its
-    directory, or Go's every-package `...`: `python3 -m unittest tools/x.py` runs one
-    file, not every Python row in the table."""
+    Runner and language must agree, and the command's path arguments must reach the
+    row: none at all (the runner discovers its whole suite), the row's own file, a
+    directory holding it, a dotted unittest module naming it, or Go's `...`. A
+    DIRECTORY SUBSTRING is not enough — `unittest tools/test_a.py` does not run
+    `tools/test_b.py` — and a pytest `::` selector runs only what it names (Codex
+    review of 3.0.0)."""
     path = str(rel or "").replace("\\", "/")
+    path = path[2:] if path.startswith("./") else path
     suffix = PurePosixPath(path).suffix.lower()
     if not suffix:
         return False
-    name = PurePosixPath(path).name
-    parent = str(PurePosixPath(path).parent)
-    for segment in re.split(r"&&|\|\||;|\||\n", acc):
+    for segment in _SEGMENTS.split(acc):
         if narrowing.search(segment):
             continue
-        if not any(pattern.search(segment) and suffix in suffixes for pattern, suffixes in _UNFILTERED_RUNNERS):
+        runner = next((m for pattern, suffixes in _UNFILTERED_RUNNERS
+                       if suffix in suffixes for m in [pattern.search(segment)] if m), None)
+        if runner is None:
             continue
-        if name in segment or "..." in segment or (parent not in ("", ".") and parent in segment):
+        args = [a.strip("'\"") for a in segment[runner.end():].split() if not a.startswith("-")]
+        if not args:
+            return True
+        for arg in args:
+            # A pytest `file::test` selector runs exactly the test it names — the row
+            # is run when both halves match it, and no other row in that file is.
+            target, _, selector = arg.partition("::")
+            target = target.rstrip("/")
+            if target in ("...", "./..."):
+                return True
+            base = target[:-4] if target.endswith("/...") else target
+            base = base[2:] if base.startswith("./") else base
+            if selector:
+                if path == base and name is not None and selector.split("::")[-1].split("[")[0] == name:
+                    return True
+                continue
+            module = base.replace(".", "/") + ".py" if suffix == ".py" and "/" not in base else None
+            if path == base or path.startswith(base + "/") or path == module:
+                return True
+
+
+def cargo_runs(acc, rel):
+    """Whether a cargo command of the fence runs the file `rel`.
+
+    `--test <name>` selects ONE integration binary, `tests/<name>.rs`: not a name
+    filter, and not everything either (Codex review of 3.0.0). A cargo command
+    without it has name filters (`-E`, positional) this gate does not parse, so it
+    cannot be shown NOT to run a Rust row, and a block needs that (CLAUDE.md §16)."""
+    path = str(rel or "").replace("\\", "/")
+    if not path.endswith(".rs"):
+        return False
+    for segment in _SEGMENTS.split(acc):
+        if not re.search(r"^\s*(?:\w+=\S*\s+)*cargo\s+(?:test|nextest\s+run)\b", segment):
+            continue
+        binaries = re.findall(r"--test[= ]+([^\s'\"]+)", segment)
+        if not binaries or any(path.endswith(f"tests/{b}.rs") or f"tests/{b}/" in path for b in binaries):
             return True
     return False
 
@@ -5418,12 +5460,14 @@ def check_named_tests_are_run(infos, readme_text, errors):
         if inf is None or inf.get("human"):
             continue
         acc = without_workspace_filters(inf.get("acc_all") or inf.get("acc_first") or "")
-        if not acc or not narrowing.search(acc):
+        # A cargo `--test` scopes which rows run, so it asks the question too.
+        if not acc or not (narrowing.search(acc) or re.search(r"\bcargo\b.*--test[= ]", acc)):
             continue
         for name, rel in inf.get("tests", []):
             if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
                 continue
-            if not selected_by_filter(acc, name, rel) and not unfiltered_runner_runs(acc, rel, narrowing):
+            if not selected_by_filter(acc, name, rel) and not unfiltered_runner_runs(acc, rel, narrowing, name) \
+                    and not cargo_runs(acc, rel):
                 errors.append(f"{tests_row_ref(inf, name, rel)}: {tid} names `{name}` in its Tests table, but "
                               f"the Acceptance command's filter does not select it — the row "
                               f"promises a test the gate never runs")

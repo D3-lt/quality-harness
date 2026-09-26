@@ -247,3 +247,21 @@ test('the sourced env file makes git run the hook over a repo-local disable', { 
   const bare = spawnSync('git', ['hook', 'list', 'prepare-commit-msg'], { cwd: dir, encoding: 'utf8', timeout: 30_000 })
   assert.match(bare.stdout, /^disabled\s+qh-publish-commit$/m)
 })
+
+test('an installation path with shell characters survives the exports', { skip: needsConfigHooks }, async () => {
+  // Codex review of 3.0.0: the stored command double-quoted its paths, and git runs
+  // it through sh, so a `$` in the installation path was expanded away. The paths are
+  // single-quoted now; this one holds a `$`, a backtick and a single quote.
+  const { publishHookExports } = await import('../plugin/scripts/lifecycle.mjs')
+  const odd = mkdtempSync(path.join(testTmp, 'ins$tall `q` it\'s-'))
+  const script = path.join(odd, 'report.mjs')
+  writeFileSync(script, "process.stdout.write('ran ' + process.argv[2])\n")
+  const envFile = path.join(testTmp, `env-${process.pid}-odd`)
+  writeFileSync(envFile, publishHookExports(process.execPath, script))
+  const dir = repository('odd-')
+  const run = spawnSync('sh', ['-c', `. ${quoted(envFile)} && sh -c "$(git config --get hook.qh-publish-commit.command)"`], {
+    cwd: dir, encoding: 'utf8', timeout: 30_000, env: process.env,
+  })
+  assert.equal(run.status, 0, run.stderr)
+  assert.equal(run.stdout, 'ran prepare-commit-msg')
+})

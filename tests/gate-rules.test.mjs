@@ -1100,6 +1100,10 @@ test('arch-lint reads a Go package pattern as a pattern, not a missing path', ()
   // DIRTY twin: a real file path that is missing still blocks.
   const missing = lint('grep -q foo src/missing.py')
   assert.match(missing.stdout, /path 'src\/missing\.py' does not exist in the repo/, missing.stdout)
+  // Codex review of 3.0.0: the exemption covered ANY token containing `...`; only a
+  // token ending in it is Go's pattern, and a missing path inside it still blocks.
+  const dotted = lint('! grep -q forbidden ./missing.../source.py')
+  assert.match(dotted.stdout, /does not exist in the repo/, dotted.stdout)
 })
 
 // --- an unrecognized flag is a typo, not an instruction ---------------------

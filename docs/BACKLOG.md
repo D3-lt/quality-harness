@@ -15759,3 +15759,20 @@ Also recorded:
 - 25 new across the re-cut, all RED.
 - Repointed where lines moved; RED where run.
 - "a signed-off human-observed task is finished" came back UNPROVEN locally. The whole `lifecycle.test.mjs` hung at baseline under load 20+, before any mutation was applied, so that entry's verdict rests on the dispatched CI campaign.
+
+**rc2 replays at 736e275, all four runners.** Every fix aimed at held:
+- the PowerShell tool;
+- the Windows spellings and eval;
+- the unreadable owner, on both lines;
+- a self-dependency, empty and UTF-16 tasks;
+- comment and `<pre>` blocks, including `</pre >`;
+- LF/CRLF agreement.
+
+ADR-052 on the Windows Go corpus: 1.67 s. Four attestations are filed.
+
+Residuals, for 2.112.0:
+- A qualified self-reference (`Depends-on: ADR-001-T3` in T3) is blocked but reads "waiting on ADR-001-T3", not "(the task itself)".
+- A fence opened inside list-item content, then an unindented paragraph, reads UNPROVEN where CommonMark gives Ready (a false UNPROVEN).
+- adr-lint prints its "not UTF-8 text" line after an unrelated finding, and still lists its consequences as independent defects.
+- adr-lint never says an empty task file is empty.
+- playtrix's "slower adr-lint" --diff lines were taken at load 12-24. Interleaved CPU time here is unchanged: 0.57-0.68 s for 2.110.1 and rc2 alike on ADR-064.

@@ -958,6 +958,66 @@ test('a legacy record is not routed as a task and told its own ADR is missing', 
   rmSync(temp, { recursive: true, force: true })
 })
 
+test('a record, task, architecture or postmortem shown inside a code block is an example, not the document', () => {
+  // BACKLOG §297, seen while committing v2.110.1: TUTORIALS.md shows an example
+  // task inside a ```` fence, and the commit dispatcher grepped the whole file for a
+  // task title, routed the tutorial as a task and reported its owning ADR missing.
+  // The section detectors had the same shape. Each arm has its dirty twin: the same
+  // text outside a fence is still routed, or the fix would be "never route".
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-fenced-example-'))
+  const docs = join(temp, 'docs')
+  mkdirSync(docs, { recursive: true })
+  spawnSync('git', ['init', '-q', '.'], { cwd: temp, timeout: 60_000 })
+  const said = (name, body) => {
+    writeFileSync(join(docs, name), body)
+    const r = run('bash', [join(root, 'scripts', 'facts-gate-dispatch.sh'), join(docs, name)], temp,
+      undefined, { ...env, CLAUDE_PROJECT_DIR: temp })
+    return `${r.stdout}${r.stderr}`
+  }
+  const fenced = (body, marker = '```') => `# Guide\n\n${marker}markdown\n${body}${marker}\n`
+  const task = '# Task ADR-001-T1: parse seconds\n\n**Depends-on:** none\n'
+  const record = ['# ADR-009: Example', '## Existing Primitives Audit', 'x', '## Decision', 'x',
+    '## Alternatives Considered', '- x', '## Consequences', 'x', ''].join('\n\n')
+  const architecture = '# Architecture: Example\n\n**Tier:** 1\n\n## Module Map\n\nx\n\n## Dependency Contracts\n\nx\n'
+  const frontMatter = '---\ndate: 2026-09-26\n---\n\n# Postmortem\n\n'
+  const postmortem = '## Symptom\n\nx\n\n## Root Cause\n\nx\n\n## Investigation\n\nx\n\n## Lesson\n\nx\n'
+
+  // UNCLAIMED is the dispatcher's own `not-recognised:` line and no gate's name. A gate
+  // that ran and passed prints nothing, and a misrouted adr-lint answers "could not
+  // run: not-recognised", so neither signal alone shows the file went nowhere.
+  const unclaimed = (name, body, why) => {
+    const out = said(name, body)
+    assert.match(out, /^not-recognised: /m, `${why}: ${out}`)
+    assert.doesNotMatch(out, /adr-lint|arch-lint|postmortem-verify|ADR ownership/, `${why}: ${out}`)
+  }
+  unclaimed('tutorial.md', fenced(task, '````'), 'a task in a four-backtick fence')
+  unclaimed('tilde.md', fenced(task, '~~~'), 'a task in a tilde fence')
+  unclaimed('guide.md', fenced(record), 'a record in a fence')
+  unclaimed('arch-guide.md', fenced(architecture), 'an architecture document in a fence')
+  unclaimed('pm-guide.md', `${frontMatter}\`\`\`markdown\n${postmortem}\`\`\`\n`, 'postmortem sections in a fence')
+
+  assert.match(said('bare-task.md', `# Guide\n\n${task}`), /ADR ownership/, 'the same task outside a fence is still a task')
+  assert.match(said('bare-record.md', record), /adr-lint/, 'the same record outside a fence is still a record')
+  assert.match(said('bare-arch.md', architecture), /arch-lint/, 'the same architecture document is still one')
+  assert.match(said('bare-pm.md', `${frontMatter}${postmortem}`), /postmortem-verify/, 'the same postmortem is still one')
+  // A fence closed by a CRLF line ends there, so a real title after it is still read.
+  assert.match(said('crlf.md', `# Guide\r\n\r\n\`\`\`text\r\nexample\r\n\`\`\`\r\n${task}`), /ADR ownership/,
+    'a CRLF closer closes the fence')
+  // The fence grammar is record.py's, rule by rule. A shorter fence, a fence of the
+  // other character, or a fence line with an info string does not close the outer
+  // one, so the title after it is still inside the example...
+  const outer = '`'.repeat(4)
+  for (const [name, inner] of [['shorter', '```bash\nx\n```'], ['other-char', '~~~~'], ['info', `${outer}bash`]]) {
+    unclaimed(`nested-${name}.md`, `# Guide\n\n${outer}markdown\n${inner}\n${task}${outer}\n`,
+      `${name}: the outer fence is still open`)
+  }
+  // ...and a backtick line whose info string holds a backtick is inline code, not a
+  // fence, so the title after it is the document's own.
+  assert.match(said('inline.md', '# Guide\n\n```not a `fence`\n' + task), /ADR ownership/,
+    'a backtick in the info string means no fence opened')
+  rmSync(temp, { recursive: true, force: true })
+})
+
 test('a corpus that does not prefix its records with ADR- is still seen, and still spoken to', () => {
   // docs/BACKLOG.md §190, reported 2026-09-09 from a 41-record corpus. Two
   // findings, and the first is a REGRESSION this project shipped in v2.96.0.
@@ -2640,6 +2700,40 @@ test('record.py: an unclosed fence is named by line, a tilde fence is a fence, a
   assert.deepEqual(got.safe, ['  \\```', '\\~~~x', '\t\\```bash', 'plain', 'a ``` inside', ''],
     `fence_safe: ${JSON.stringify(got.safe)}`)
   assert.equal(got.safe_closes, null, 'a fence holding only fence_safe lines closes where the writer closed it')
+})
+
+// BACKLOG §295 item 23.1: `_js_like_in_code` rescanned the whole prefix on every
+// call, once per `func Test` match per extracted name, and one adr-next run on a Go
+// corpus spent 147 s there. It now reads one table per text. The table must answer
+// exactly as the prefix scan did, including the position between `*` and `/`,
+// which the scan's two-character step carried past with the state already reset.
+test('record.py: _js_like_in_code answers from one scan per text, as the prefix scan did', () => {
+  const probe = [
+    'import importlib.util, json, sys',
+    'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
+    'record = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(record)',
+    'text = "a /* b */ c // d\\ne \\"f\\" g"',
+    'answers = [record._js_like_in_code(text, i) for i in range(-1, len(text) + 1)]',
+    'for _ in range(500): record._js_like_in_code(text, 3)',
+    'print(json.dumps({"answers": answers, "misses": record._js_like_code_positions.cache_info().misses}))',
+  ].join('\n')
+  const out = run('python3', ['-c', probe, join(root, 'lib', 'record.py')])
+  expectExit(out, 0, 'record.py probe')
+  const got = JSON.parse(out.stdout)
+  const text = 'a /* b */ c // d\ne "f" g'
+  const expected = [false]
+  for (let i = 0; i < text.length; i++) {
+    // The prefix scan, written out: code until `/*`, comment through `*/`'s `*`,
+    // code from its `/`, comment after `//` to the newline, string inside quotes.
+    const inBlock = i >= 3 && i <= 7
+    const inLine = i >= 13 && i <= 16
+    const inString = i >= 20 && i <= 21
+    expected.push(!(inBlock || inLine || inString))
+  }
+  expected.push(false)
+  assert.deepEqual(got.answers, expected, JSON.stringify(got.answers))
+  assert.equal(got.misses, 1, 'every position of one text is answered from one scan')
 })
 
 // ADR-045 T11. Only CR, LF and CRLF break a line. `str.splitlines()` also breaks

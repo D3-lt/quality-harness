@@ -260,6 +260,49 @@ def unterminated_fence(text):
     return None if open_fence is None else open_fence[:2]
 
 
+# Git's merge-conflict markers as `git merge` writes them: seven `<`, `|` or `>`
+# followed by a label or nothing, and seven `=` alone (BACKLOG §295 item 7).
+_CONFLICT_MARKER = re.compile(r"^(?:(?:<{7}|\|{7}|>{7})(?:[ \t].*)?|={7})$")
+
+
+def conflict_markers(text):
+    """1-based line numbers of unresolved merge-conflict markers, or [].
+
+    A conflicted file holds both sides of a merge at once, so every section the
+    walk reads is a mix of two files. An exit-0 row from one side kept a task done
+    while the other side said the run failed, and adr-lint PASSed it (BACKLOG §295
+    item 7). A Status with `Done` above the marker and `Todo` below read as a done
+    claim (item 19). Neither side is evidence until a person resolves the merge.
+
+    A conflict is a hunk: a `<<<<<<<` line and the next `>>>>>>>` after it, so a
+    lone `=======` (a setext heading underline) or a lone `>>>>>>>` is not one. A hunk
+    shown whole inside a code fence is an example. But a fence opened INSIDE a hunk hid
+    every marker after it (Codex review of the first cut), so a hunk counts unless BOTH
+    of its ends are fenced. Same fence grammar as `_scan`.
+    """
+    found, fence, lineno = [], None, 0
+    for line, _start, _end in split_lines(text):
+        lineno += 1
+        marker = _CONFLICT_MARKER.match(line)
+        if fence is None:
+            opened = _fence_opened(line)
+            if opened:
+                fence = opened
+            elif marker:
+                found.append((lineno, line[0], False))
+        else:
+            if marker:
+                found.append((lineno, line[0], True))
+            if _fence_closes(line, fence):
+                fence = None
+    for index, (_n, kind, fenced) in enumerate(found):
+        if kind != "<":
+            continue
+        closing = next((f for f in found[index + 1:] if f[1] == ">"), None)
+        if closing is not None and not (fenced and closing[2]):
+            return [n for n, _kind, _fenced in found]
+    return []
+
 def fence_safe(line):
     """`line` spelled so it can never open or close a fence.
 
@@ -1043,14 +1086,20 @@ def _matching_js_brace(text, start):
         index += 1
     return None
 
-def _js_like_in_code(text, pos):
-    """True when pos is in code, same machine as `_matching_js_brace`."""
-    if pos < 0 or pos >= len(text):
-        return False
+# Pure, so memoised like `_mask_lock_noncode`. A Go file is asked once per `func
+# Test`/`t.Run` match, and the lock re-iterates those matches once per extracted
+# name, so rescanning the prefix on every call was quadratic in the number of tests
+# times the file size: 147 s of one adr-next run on a Windows Go corpus (BACKLOG §295
+# item 23.1). One scan answers every position.
+@lru_cache(maxsize=32)
+def _js_like_code_positions(text):
+    """bytes: 1 where `_js_like_in_code` answers True. One scan per text."""
+    out = bytearray(len(text))
     state = "code"
     escaped = False
     index = 0
-    while index < pos:
+    while index < len(text):
+        out[index] = state == "code"
         char = text[index]
         pair = text[index:index + 2]
         if state == "code":
@@ -1073,6 +1122,10 @@ def _js_like_in_code(text, pos):
         elif state == "block-comment":
             if pair == "*/":
                 state = "code"
+                # The position between the two characters is past `*/` too: the
+                # prefix scan answered "code" there, because its step of two
+                # carried it past the asked position with the state already reset.
+                out[index + 1] = 1
                 index += 2
                 continue
         elif state == "raw-string":
@@ -1086,7 +1139,14 @@ def _js_like_in_code(text, pos):
             elif char == state:
                 state = "code"
         index += 1
-    return state == "code"
+    return bytes(out)
+
+
+def _js_like_in_code(text, pos):
+    """True when pos is in code, same machine as `_matching_js_brace`."""
+    if pos < 0 or pos >= len(text):
+        return False
+    return _js_like_code_positions(text)[pos] == 1
 
 
 def _iter_go_func_tests(text):

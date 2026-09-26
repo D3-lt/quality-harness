@@ -280,6 +280,33 @@ test('a check event is written by qh-check', () => {
   assert.deepEqual(checkEvents(eventsIn(temporaryStateDirectory(plain), plainSession)).map(entry => entry.event), ['check.passed'])
 })
 
+// BACKLOG §295 item 24: a check a signal ended was summarised "— failed", nine times
+// over runs that had been SIGKILLed. It has no verdict, in the record or in the line a
+// person reads. A test of its own, because the one above is locked by ADR-060. Async,
+// because spawnSync stops reading the pipes at its own timeout kill, and the summary
+// is written after the forwarded signal ends the check.
+test('a check a signal ended records no verdict, and says so', async t => {
+  if (process.platform === 'win32') {
+    t.skip('POSIX signals: the check above sends none on Windows either')
+    return
+  }
+  const dir = repository('t2i-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const interrupted = await new Promise(resolve => {
+    const child = spawn('python3', [qhCheck], { cwd: dir, env: { ...HOOK_ENV, QH_PROBE_MODE: 'sleep' }, timeout: 30_000 })
+    let stderr = ''
+    child.stderr.on('data', chunk => { stderr += chunk })
+    const timer = setTimeout(() => child.kill('SIGTERM'), 3_000)
+    child.on('close', () => { clearTimeout(timer); resolve({ stderr }) })
+  })
+  const last = JSON.parse(readFileSync(path.join(dir, '.git', 'quality-harness', 'checks.jsonl'), 'utf8').trim().split('\n').at(-1))
+  assert.equal(last.signal, 'SIGTERM', JSON.stringify(last))
+  assert.equal(last.verdict, 'interrupted', JSON.stringify(last))
+  assert.match(interrupted.stderr, /— interrupted by SIGTERM before it finished, so there is no verdict;/, interrupted.stderr)
+})
+
 // ---- T3: a read-only role cannot commit or push, and its other changes are reported.
 const REVIEWER = 'quality-harness:qh-correctness-reviewer'
 const DENIED_FOR_REVIEWER = [

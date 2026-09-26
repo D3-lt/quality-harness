@@ -1271,6 +1271,95 @@ test('a task whose code fence never closes is READY with a note saying its secti
   assert.doesNotMatch(clean.unproven ?? '', /never closes/, `a closed fence is not reported: ${JSON.stringify(clean)}`)
 })
 
+// BACKLOG §295 item 7. A Verification Log holding both sides of a merge kept its
+// task done, because the exit-0 row on one side was read. The task is stopped
+// with the marker lines named, and what depends on it is not offered.
+test('a task holding unresolved merge-conflict markers is stopped, not done', () => {
+  const { tasksDir } = corpus([{ id: 'T1', evidence: true }, { id: 'T2', dependsOn: 'T1' }])
+  const taskPath = join(tasksDir, 'T1-t.md')
+  const text = readFileSync(taskPath, 'utf8')
+  const row = text.split('\n').find(line => line.includes('· exit 0 ·'))
+  const conflicted = text.replace(row, `<<<<<<< HEAD\n${row}\n=======\n${row.replace('exit 0', 'exit 1')}\n>>>>>>> feature`)
+  writeFileSync(taskPath, conflicted)
+  const lines = conflicted.split('\n')
+  const marks = ['<<<<<<< HEAD', '=======', '>>>>>>> feature'].map(m => lines.indexOf(m) + 1)
+  const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.ok(!(parsed.done ?? []).some(t => t.id === 'T1'), `not done: ${JSON.stringify(parsed)}`)
+  const stopped = (parsed.stopped ?? []).find(t => t.id === 'T1')
+  assert.ok(stopped, `stopped: ${JSON.stringify(parsed)}`)
+  assert.match(stopped.stopped_by, new RegExp(`merge-conflict markers \\(lines ${marks.join(', ')}\\)`), JSON.stringify(stopped))
+  assert.ok(!(parsed.ready ?? []).some(t => t.id === 'T2'), `its dependent is not offered: ${JSON.stringify(parsed)}`)
+  // Codex review: a fence opened INSIDE a hunk hid the markers after it.
+  writeFileSync(taskPath, `${text}<<<<<<< HEAD\n\`\`\`sh\na\n=======\nb\n>>>>>>> feature\n\`\`\`\n`)
+  const hidden = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.ok((hidden.stopped ?? []).some(t => t.id === 'T1'), `a fence inside a hunk hides no marker: ${JSON.stringify(hidden)}`)
+
+  // CLEAN: the same markers inside a fence are an example, and a lone `=======` is a
+  // setext underline, not a conflict. The task is done again.
+  writeFileSync(taskPath, `${text}\n\`\`\`text\n<<<<<<< HEAD\n=======\n>>>>>>> feature\n\`\`\`\n\nTitle\n=======\n\n>>>>>>> one side alone is not a conflict\n\n<<<<<<< nor is the other side alone\n`)
+  const clean = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.ok((clean.done ?? []).some(t => t.id === 'T1'), `fenced markers and a setext line are not a conflict: ${JSON.stringify(clean)}`)
+})
+
+// Codex review of §295.7: `foreign_state` read another record's task past the conflict
+// guard `load` has, so a dependent went READY on conflicted evidence. The edge is
+// unknown instead, and the dependent waits.
+test('a dependency on a conflicted task in another record cannot be evaluated', () => {
+  const { dir, tasksDir } = twoRecords('ADR-003-T1')
+  const target = join(dir, 'ADR-003-target', 'tasks', 'T1-t.md')
+  const done = task({ id: 'T1', evidence: true })
+  writeFileSync(target, done)
+  const clean = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.ok((clean.ready ?? []).some(t => t.id === 'T1'), `a done foreign task lets its dependent go: ${JSON.stringify(clean)}`)
+  writeFileSync(target, `${done}<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> feature\n`)
+  const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.deepEqual((parsed.blocked ?? []).find(t => t.id === 'T1')?.blocked_by, ['ADR-003-T1 (cannot evaluate)'], JSON.stringify(parsed))
+})
+
+// BACKLOG §295 item 19. A dependency on a task that is not in the record was
+// dropped, so its dependent printed READY; and a task git lists that the disk does
+// not hold was never seen, so "All N task(s) carry exit-0 evidence" was printed over
+// it. Both now withhold ready and say why.
+test('a dependency on a missing task blocks, and a task git lists but the disk lacks is stopped', () => {
+  const { tasksDir } = corpus([{ id: 'T2', dependsOn: 'T1' }, { id: 'T3', consumes: 'T1 output' }])
+  const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  for (const id of ['T2', 'T3']) {
+    const blocked = (parsed.blocked ?? []).find(t => t.id === id)
+    assert.ok(blocked, `${id} is not offered: ${JSON.stringify(parsed)}`)
+    assert.deepEqual(blocked.blocked_by, ['T1 (no such task in this record)'], JSON.stringify(blocked))
+  }
+  // CLEAN: with T1 present and done, both are ready.
+  writeFileSync(join(tasksDir, 'T1-t.md'), task({ id: 'T1', evidence: true }))
+  const whole = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.deepEqual((whole.ready ?? []).map(t => t.id).sort(), ['T2', 'T3'], JSON.stringify(whole))
+
+  // A tracked task the checkout does not hold.
+  const repo = corpus([{ id: 'T1', evidence: true }, { id: 'T4', evidence: true }])
+  // A file whose title names another id than its name is on disk, and is not absent.
+  writeFileSync(join(repo.tasksDir, 'T6-renamed.md'), task({ id: 'T8', evidence: true }))
+  // Codex review: a lowercase file name still names its task when it is absent.
+  writeFileSync(join(repo.tasksDir, 't7-lower.md'), task({ id: 'T7', evidence: true }))
+  for (const args of [['init', '-q', '.'], ['add', '.']]) {
+    const r = spawnSync('git', args, { cwd: repo.dir, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(r.status, 0, r.stderr)
+  }
+  const human = () => next([repo.tasksDir], repo.tasksDir)
+  assert.match(human().stdout, /All 4 task\(s\) carry exit-0 evidence/, 'the twin: a directory the disk holds whole is all done')
+  rmSync(join(repo.tasksDir, 'T4-t.md'))
+  rmSync(join(repo.tasksDir, 't7-lower.md'))
+  const said = human()
+  assert.doesNotMatch(said.stdout, /carry exit-0 evidence/, `no all-clear over a task nobody read: ${said.stdout}`)
+  assert.match(said.stderr, /Nothing is ready: every remaining task is stopped\./, said.stderr)
+  writeFileSync(join(repo.tasksDir, 'T5-t.md'), task({ id: 'T5', dependsOn: 'T4' }))
+  const absent = JSON.parse(next(['--all', '--json', repo.tasksDir], repo.tasksDir).stdout)
+  const stopped = (absent.stopped ?? []).find(t => t.id === 'T4')
+  assert.ok(stopped, JSON.stringify(absent))
+  assert.match(stopped.stopped_by, /git lists T4-t\.md here but the disk does not hold it/, JSON.stringify(stopped))
+  assert.ok(!(absent.stopped ?? []).some(t => /T6-renamed/.test(t.stopped_by ?? '')), `a file on disk is not absent: ${JSON.stringify(absent)}`)
+  assert.match((absent.stopped ?? []).find(t => t.id === 'T7')?.stopped_by ?? '', /git lists t7-lower\.md here/, JSON.stringify(absent))
+  assert.deepEqual((absent.blocked ?? []).find(t => t.id === 'T5')?.blocked_by, ['T4'], `its dependent waits on it: ${JSON.stringify(absent)}`)
+})
+
 // BACKLOG §270: the single-record --json answer dropped the record's status that
 // corpus mode already carried, so a machine caller got a Superseded record's tasks
 // as plain `ready`. It still answers (CLAUDE.md §3); it now says what it answered.

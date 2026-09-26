@@ -117,9 +117,13 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const after = { ...observe(root), at: new Date().toISOString() }
   const signal = received ?? ended.signal ?? null
   const exit = ended.error ? null : ended.code
+  // A check a signal ended did not finish, so it has no verdict: "failed" said it had
+  // one, five times over a run that was SIGKILLed (BACKLOG §295 item 24, ADR-005).
   const verdict = ended.error
     ? 'unstarted'
-    : validationVerdict({ exit_code: exit ?? 1, stdout: kept.toString('utf8') }, command, { anyCommand: true })
+    : signal
+      ? 'interrupted'
+      : validationVerdict({ exit_code: exit ?? 1, stdout: kept.toString('utf8') }, command, { anyCommand: true })
   const record = { id: randomUUID(), at: after.at, git, command, origin, before, after, exit, signal, verdict }
   try {
     const directory = stateDir(root)
@@ -131,7 +135,8 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     // inferred, or that a record was written (BACKLOG §280 item 1). Stdout stays
     // the check's own.
     const shown = path.relative(root, file)
-    stderr.write(`qh-check: ran \`${command}\` (${origin}) — ${verdict}; recorded in ${shown.startsWith('..') || path.isAbsolute(shown) ? file : shown}\n`)
+    const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : verdict
+    stderr.write(`qh-check: ran \`${command}\` (${origin}) — ${said}; recorded in ${shown.startsWith('..') || path.isAbsolute(shown) ? file : shown}\n`)
   } catch (failure) {
     stderr.write(`qh-check: the check ran, but its record could not be written (${failure.code ?? failure.message}).\n`)
   }

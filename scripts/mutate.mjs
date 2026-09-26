@@ -91,8 +91,12 @@ const lockPath = process.env.QUALITY_HARNESS_MUTATE_LOCK || path.join(root, '.mu
 function claimTheRun() {
   if (existsSync(lockPath)) {
     const owner = readFileSync(lockPath, 'utf8').trim()
-    let alive = true
-    try { process.kill(Number(owner), 0) } catch { alive = false }
+    // An empty or unparsable lock names no process: `Number('')` is 0, and
+    // `kill(0, 0)` probes THIS process group, which always answers — so a stale empty
+    // lock read as a live run and refused every campaign (BACKLOG §295 item 24).
+    const pid = Number(owner)
+    let alive = Number.isInteger(pid) && pid > 0
+    if (alive) try { process.kill(pid, 0) } catch { alive = false }
     if (alive) {
       process.stderr.write(`mutate: another run is in flight (pid ${owner}). `
         + 'Two runners restore each other\'s files and both report nonsense.\n')

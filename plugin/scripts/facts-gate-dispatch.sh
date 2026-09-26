@@ -109,9 +109,39 @@ bom_free() {
   fi
 }
 
+# The file as its structure reads: BOM-free, CR-free, and every fenced code block
+# blanked line for line, so an example in a document is not the document's own
+# title or sections (BACKLOG §297). A tutorial's example task, inside a ```` fence,
+# routed the tutorial as a task and told it its owning ADR was missing. The fence
+# grammar is `record.py`'s: an opener of three or more backticks or tildes after
+# any indent (a backtick opener whose info string holds a backtick is not one),
+# closed by the same character at least as long with only blanks after it. An
+# unclosed fence runs to the end, as it does there.
+unfenced() {
+  bom_free "$1" | awk '
+    {
+      line = $0
+      sub(/\r$/, "", line)
+      lead = ""; rest = ""
+      if (match(line, /^[ \t]*(`{3,}|~{3,})/)) {
+        lead = substr(line, 1, RSTART + RLENGTH - 1); sub(/^[ \t]*/, "", lead)
+        rest = substr(line, RSTART + RLENGTH)
+      }
+      if (fence == "") {
+        if (lead != "" && !(substr(lead, 1, 1) == "`" && index(rest, "`"))) { fence = lead; print ""; next }
+        print line
+        next
+      }
+      if (lead != "" && substr(lead, 1, 1) == substr(fence, 1, 1) && length(lead) >= length(fence) && rest ~ /^[ \t]*$/) fence = ""
+      print ""
+    }'
+}
+
 is_postmortem() {
-  grep -q '^## Symptom' "$1" && grep -q '^## Root Cause' "$1" \
-    && grep -q '^## Investigation' "$1" && grep -q '^## Lesson' "$1" \
+  local text
+  text=$(unfenced "$1")
+  grep -q '^## Symptom' <<< "$text" && grep -q '^## Root Cause' <<< "$text" \
+    && grep -q '^## Investigation' <<< "$text" && grep -q '^## Lesson' <<< "$text" \
     && awk 'NR==1 && $0!="---" {exit 1} NR>1 && $0=="---" {exit 1}
             /^(date|category|severity):[ \t]/ {found=1; exit 0}
             END {exit found?0:1}' "$1"
@@ -205,17 +235,20 @@ collect_owning_adrs() {
 }
 
 is_adr() {
-  grep -q '^## Existing Primitives Audit' "$1" && grep -q '^## Decision' "$1" \
-    && grep -q '^## Alternatives Considered' "$1" && grep -q '^## Consequences' "$1"
+  local text
+  text=$(unfenced "$1")
+  grep -q '^## Existing Primitives Audit' <<< "$text" && grep -q '^## Decision' <<< "$text" \
+    && grep -q '^## Alternatives Considered' <<< "$text" && grep -q '^## Consequences' <<< "$text"
 }
 
 is_architecture() {
-  local markers
-  if bom_free "$1" | grep -q '^# Architecture:' \
-    && grep -qE '^\*\*(Tier|Gate command|Last full audit):\*\*|^## (Module Map|Dependency Contracts|Concept Ownership \(DRY\)|Composition Root|Test Doubles|Trust & Data Boundaries|Superseded)$' "$1"; then
+  local markers text
+  text=$(unfenced "$1")
+  if grep -q '^# Architecture:' <<< "$text" \
+    && grep -qE '^\*\*(Tier|Gate command|Last full audit):\*\*|^## (Module Map|Dependency Contracts|Concept Ownership \(DRY\)|Composition Root|Test Doubles|Trust & Data Boundaries|Superseded)$' <<< "$text"; then
     return 0
   fi
-  markers=$(grep -cE '^\*\*(Tier|Gate command|Last full audit):\*\*|^## (Module Map|Dependency Contracts|Concept Ownership \(DRY\)|Composition Root|Test Doubles|Trust & Data Boundaries|Superseded)$' "$1")
+  markers=$(grep -cE '^\*\*(Tier|Gate command|Last full audit):\*\*|^## (Module Map|Dependency Contracts|Concept Ownership \(DRY\)|Composition Root|Test Doubles|Trust & Data Boundaries|Superseded)$' <<< "$text")
   [ "$markers" -ge 3 ]
 }
 
@@ -247,6 +280,9 @@ tasks_index=0
 # Both names case-insensitive, like `base_lc` (CLAUDE.md §7; Codex review of 12a1341).
 tasks_dir_lc=$(basename "$(dirname "$f")" | tr '[:upper:]' '[:lower:]')
 [[ "$base_lc" == readme.md && "$tasks_dir_lc" == tasks ]] && tasks_index=1
+# Titles are read from the unfenced text: a record's or a task's title is its own,
+# never an example's (BACKLOG §297).
+structure=$(unfenced "$f" 2>/dev/null)
 if [ -n "$archive_readme" ]; then
   gate="adr-retire-check"
   out=$("$BIN/adr-retire-check" "$archive_readme" 2>&1); rc=$?
@@ -268,8 +304,8 @@ elif [[ "$f" == */docs/postmortems/*.md ]] || is_postmortem "$f"; then
 # task arm, which lints the record that owns it.
 elif [ "$tasks_index" = 0 ] \
     && { [[ "$base" == ADR-*.md ]] || is_adr "$f" \
-    || { bom_free "$f" | grep -qE '^# ADR-[0-9]' \
-         && ! bom_free "$f" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; }; }; then
+    || { grep -qE '^# ADR-[0-9]' <<< "$structure" \
+         && ! grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< "$structure"; }; }; then
   gate="adr-lint"
   out=$(run_adr_lint "$f" 2>&1); rc=$?
 # A TASK, and the `Task ` prefix is the signal — it used to be parsed and thrown
@@ -281,8 +317,8 @@ elif [ "$tasks_index" = 0 ] \
 # IS the ADR. Section presence is not a proxy for record-ness; the title is.
 # An index goes HERE, whatever its path looks like: a relative `tasks/README.md`
 # has no slash before `tasks/`, and excluding it above sent it nowhere.
-elif [ "$tasks_index" = 1 ] || [[ "$f" == */tasks/*.md ]] || bom_free "$f" | grep -qE '^# Task ADR-[A-Za-z0-9._-]+' \
-    || bom_free "$f" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; then
+elif [ "$tasks_index" = 1 ] || [[ "$f" == */tasks/*.md ]] || grep -qE '^# Task ADR-[A-Za-z0-9._-]+' <<< "$structure" \
+    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< "$structure"; then
   # Resolve the ADR id from the task itself. Never pick the first nearby ADR: a wrong green
   # verdict is worse than an explicit ambiguity failure.
   tdir=$(dirname "$f"); parent=$(dirname "$tdir")

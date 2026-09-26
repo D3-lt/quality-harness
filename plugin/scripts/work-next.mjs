@@ -14,8 +14,8 @@
 // the corpus — never maintained beside it, for the same reason adr-state is
 // derived: a summary kept next to the truth drifts from it.
 //
-// Reads only. Suggests only. Exit 0 whatever it finds; a router that refused
-// would be the thing this harness spent a week removing.
+// Reads only. Suggests only. Exit 0 whatever it finds, and 2 on an option it does
+// not know; a router that refused would be the thing this harness spent a week removing.
 import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -218,7 +218,10 @@ const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)(?![\w-])/i
 // - two different values: the first silently won;
 // - `**Status:** banana` counted as a known, proven status.
 // Markdown code and comments as spaces, every newline kept, so no Status is read from
-// an example and no value runs onto the next line. A fence is CommonMark's: three or
+// a fenced example, a comment or a code span, and no value runs onto the next line.
+// NOT masked yet (BACKLOG §295 item 23.2): an indented code block, a fence inside a
+// numbered list, and `<pre>`; a Status in one of those is still read.
+// A fence is CommonMark's: three or
 // more backticks or tildes, indented at most three spaces, closed only by the same
 // character at least as long, and an unclosed one runs to the end. The first cut used
 // one regex for fences and dropped comments whole: four-backtick, indented and unclosed
@@ -642,7 +645,8 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
     // Rendered, not only serialised: the JSON carried this while the text printed
     // an all-clear over the same directories (Codex review of bdeba73, P2).
     process.stdout.write(`\n${state.readinessUnproven.length} task director${state.readinessUnproven.length === 1 ? 'y' : 'ies'} `
-      + 'could not be read by adr-next, or sit under a README whose archive marker could not be decided, '
+      + 'could not be read by adr-next, sit under a README whose archive marker could not be decided, '
+      + 'or hold a task git lists that is not on disk, '
       + 'so readiness there is UNPROVEN — not "nothing ready" (ADR-005):\n')
     for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  ${relative(dir)}\n`)
     if (state.readinessUnproven.length > 5) process.stdout.write(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)

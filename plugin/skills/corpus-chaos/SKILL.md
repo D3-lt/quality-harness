@@ -39,18 +39,26 @@ Two roles. Run the one you are in.
        node "<checkout>/plugin/scripts/corpus-probe.mjs" --diff old.json new.json
        node "<checkout>/plugin/scripts/corpus-probe.mjs" --attest <label> new.json
 
-   `--diff` compares against your report from the previous batch, when you have one. `--attest`
-   prints the counts-only attestation, where `<label>` names the corpus's shape, never its real
-   name. Send both. Keep `new.json` as next batch's `old.json`, and never send the report itself:
-   it holds the corpus's record ids and task names.
+   `--diff` compares against your report from the previous batch, when you have one: the counts,
+   and the `ready`, `unbacked`, `readinessUnproven`, `unmarkedArchives` and `readyButClaimedDone`
+   lists. It does not compare `partialBecause` or the spec fields, so read those in `new.json`.
+   `--attest` prints the counts-only attestation, where `<label>` names the corpus's shape, never
+   its real name; when `work-next` did not answer, it takes the counts from `corpus-report` and
+   says so in `countsFrom`. Send both. Keep `new.json` as next batch's `old.json`, and never send
+   the report itself: it holds the corpus's record ids and task names.
 3. **Read everything, not the summary.** In the JSON: `couldNotRun` (a reader that did not
    start, was killed, or printed no JSON — never a silent gap), `disagreements` (two readers
-   about one task), `workNext.readinessUnproven` (directories `adr-next` could not answer for),
-   every line of `sessionStart.lines`, every `adrLint[].verdict` and its `reason`, every
-   `adrNext[].ready[]` note. `adrState.governingNothing` is a SUBSET of `governing`: governing
-   records whose code no `Governs:` header or task `Affected Files` points at, not a contradiction
-   of the count. The defects the maintainers' matrix missed were all in fields nobody had chosen to
-   assert. If a sentence reads wrong for your corpus, quote it.
+   about one task), `workNext.readinessUnproven` (task directories whose readiness nobody could
+   establish: `adr-next` could not answer, the archive marker above them could not be decided, or
+   git lists a task the disk does not hold), `workNext.partialBecause` (which records made the
+   look PARTIAL, and why), `workNext.specs` and `workNext.unprovenSpecs` (specs whose Status is
+   not exactly one of Grilling, Draft, Ready-for-ADR or Superseded), every line of
+   `sessionStart.lines`, every `adrLint[].verdict` and its `reason`, every `adrNext[].ready[]`
+   note. Two fields are SUBSETS, not contradictions of a count: `adrState.governingNothing` is the
+   governing records whose code no `Governs:` header or task `Affected Files` points at, and
+   `workNext.readyButClaimedDone` is the tasks in both `ready` and `unbacked` — a README calls them
+   done and nothing proves it. The defects the maintainers' matrix missed were all in fields
+   nobody had chosen to assert. If a sentence reads wrong for your corpus, quote it.
 4. **Where the probe cannot reach, run the readers by hand** and paste the output whole:
    `work-next.mjs --json`, `adr-state.mjs`, `adr-next <tasks-dir> --json`, `adr-lint <record>
    <tasks-dir>`, and a real SessionStart (a new session, or the hook fed a valid JSON payload on
@@ -80,9 +88,11 @@ shape. It does not find what they do with the input nobody wrote a test for, and
 is what an adopter's repository, filesystem, clock and colleagues hand them. So after the
 faithful run, when the asker asks for chaos or says "go wild", do this as well.
 
-1. **Only ever a scratch copy.** `git clone --no-local <repo> <scratch>/chaos-<seed>`, or
-   copy the tree including `.git`, into a temporary directory. The probed repository is
-   never edited, never locked, never its git state changed. Every perturbation, every
+1. **Only ever a scratch copy.** `git clone --no-local <repo> <scratch>/chaos-<seed>` (on
+   Windows, `git clone -c core.longpaths=true --no-local …`, or a long path fails at the clone
+   rather than in a reader), or copy the tree including `.git`, into a temporary directory. The
+   probed repository is never edited, never locked, never its git state changed. Every
+   perturbation, every
    reader run and every kill happens in the copy. Remove the copy when you are done, and say
    that you did.
 2. **Let chance pick, and write the seed down.** Pick a seed (the time in seconds is fine),
@@ -98,8 +108,10 @@ faithful run, when the asker asks for chaos or says "go wild", do this as well.
    is not skipped silently: say which and why, and take the next code in the draw instead.
 3. **One perturbation, then the readers, then the next.** Apply one; run the probe into its
    own report (`--json > chaos-<seed>-<code>.json`, never over `new.json`) and whichever
-   reader the perturbation aims at by hand, each under `timeout 120`; read what came back;
-   undo it or take a fresh copy; go on. Stacking six at once hides which one did it.
+   reader the perturbation aims at by hand, each under `timeout 120` (stock macOS has no
+   `timeout`: use `perl -e 'alarm shift; exec @ARGV' 120 <command>`, which exits 142 when it
+   fires); read what came back; undo it or take a fresh copy; go on. Stacking six at once hides
+   which one did it.
 4. **What counts as a finding.** Any of these, against the reader's own promise:
    - a crash, a stack trace, a non-JSON answer where JSON was promised;
    - a hang past the budget, or a process or lock left behind after it ended;
@@ -112,8 +124,11 @@ faithful run, when the asker asks for chaos or says "go wild", do this as well.
    A reader that says honestly it could not look is **not** a finding. That is the reader
    working.
 5. **Report each finding so it can be replayed.** Give the seed and the code (or "own: …"),
-   the exact command that made the input (the `printf` or `node -e` form for bytes), the
-   reader command, its output and exit code verbatim, what was left behind, and which promise
+   the exact command that made the input (for bytes, a `node -e` form built from escapes such
+   as `\x60` for a backtick and `\x24` for a dollar sign, or a file written with your file tool:
+   a shell literal holding a backtick or `${` is rewritten by the shell and refused by permission
+   classifiers), the reader command, its output and exit code verbatim, what was left behind,
+   and which promise
    it broke. Then give the list of everything you tried that broke nothing, with its codes.
    "I tried these nine and nothing broke" is a result the asker needs as much as a crash.
 6. **Stay bounded.** Every run gets a timeout. Heavy perturbations (F2, F4) run once each.

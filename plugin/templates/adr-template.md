@@ -137,7 +137,7 @@ Required for multi-task ADRs. If none, write `None`.
 
 ## Implementation
 
-Use inline tasks for <=3 tasks; otherwise reference `tasks/README.md`. Every task must have files, ordered steps, acceptance command, tests, invariants, risks, stop condition, and `Produces`/`Consumes`.
+Reference `tasks/README.md` and task files at every size — inline tasks cannot hold tool-written evidence. Every task must have files, ordered steps, acceptance command, tests, invariants, risks, stop condition, and `Produces`/`Consumes`.
 
 ## Consequences
 

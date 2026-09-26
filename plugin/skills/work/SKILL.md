@@ -103,7 +103,8 @@ measures exactly that.
 Before a release that changes what a reader says about a corpus, one run from outside — another
 session, another platform, a corpus this repository does not own, everything it printed pasted
 back verbatim — is the check the suite cannot be: `/quality-harness:corpus-chaos` carries the
-protocol for both the runner and the asker.
+protocol for both the runner and the asker, and its Chaos section goes further, breaking a scratch
+copy of the corpus on purpose from a seed the runner prints, so the round can be replayed.
 For an explicit until-clean request, invoke `/quality-harness:review-ring` with this evidence. The workflow may make
 one minimal fix and then returns `revalidation-required`; rerun the command in the coordinator and
 invoke the ring once more with fresh evidence. If a material finding remains or repeats without new

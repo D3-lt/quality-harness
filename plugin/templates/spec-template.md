@@ -1,6 +1,6 @@
 # Spec: <Verb + noun title>
 
-> **Date:** YYYY-MM-DD · **Status:** Grilling | Draft | Ready-for-ADR | Superseded
+> **Date:** YYYY-MM-DD · **Status:** Grilling <!-- exactly one of: Grilling, Draft, Ready-for-ADR, Superseded -->
 > **Owner:** <name> · **Becomes:** ADR-NNN (`<adr path>`) | standalone
 > **Gate:** Status may become Ready-for-ADR only after `spec-verify --spec <this file>` exits 0.
 > **Cross-references:** <ADR/doc paths or none>

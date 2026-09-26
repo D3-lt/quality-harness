@@ -14,9 +14,9 @@ one-liners work on macOS, Linux and Windows; the shell forms are POSIX).
 |---|---|---|
 | A1 | Space inside, before, after a name | rename `<f>` to `ADR 007 x.md`, ` T1.md`, `T1.md ` |
 | A2 | Unicode normalisation: the same name as NFC and NFD | `node -e "fs.renameSync(f, f.replace('e','é'))"`, then a second file with `é` |
-| A3 | Invisible characters | zero-width space `​`, right-to-left mark `‏`, BOM `﻿` at the START of a file name |
-| A4 | Homoglyphs | Cyrillic `А` (`А`) for Latin `A` in `ADR-`, fullwidth digits `０７` |
-| A5 | Shell and glob metacharacters | names holding `*`, `?`, `[1]`, `$HOME`, `` ` ``, `'`, `"`, `;`, `&`, `|`, `#`, a leading `-` |
+| A3 | Invisible characters | zero-width space (U+200B), right-to-left mark (U+200F), BOM (U+FEFF) at the START of a file name: `node -e "fs.writeFileSync('\ufeffT1.md','x')"` |
+| A4 | Homoglyphs | Cyrillic `А` (U+0410) for Latin `A` in `ADR-`, fullwidth digits `０７` (U+FF10, U+FF17) |
+| A5 | Shell and glob metacharacters | names holding `*`, `?`, `[1]`, `$HOME`, `` ` ``, `'`, `"`, `;`, `&`, `\|`, `#`, a leading `-`; a backslash splits the name, because the readers treat it as a path separator on every platform (by design, for Windows paths) |
 | A6 | Newline, tab or carriage return in a file name (POSIX only) | `node -e "fs.writeFileSync('T1\nT2.md','x')"` |
 | A7 | Very long names and paths | a 255-byte component; a path past 260 characters on Windows; 40 nested directories |
 | A8 | Case collisions | `README.md` and `readme.md` side by side (Linux); a case-only rename (macOS, Windows) |
@@ -28,16 +28,16 @@ one-liners work on macOS, Linux and Windows; the shell forms are POSIX).
 
 | # | Perturbation | Make it |
 |---|---|---|
-| B1 | UTF-8 BOM on a record, a task, a JSON payload | prepend `﻿` |
+| B1 | UTF-8 BOM on a record, a task, a JSON payload | prepend U+FEFF: `node -e "fs.writeFileSync(f,'\ufeff'+fs.readFileSync(f,'utf8'))"` |
 | B2 | UTF-16LE (with and without BOM), Latin-1, Windows-1252 smart quotes | `node -e "fs.writeFileSync(f, Buffer.from(fs.readFileSync(f,'utf8'),'utf16le'))"` |
 | B3 | Invalid UTF-8 | insert bytes `\xc3\x28` or a lone `\xff` into a header line |
 | B4 | Line endings | CRLF everywhere, CR only, mixed per line, no final newline, 10 000 blank lines |
 | B5 | Binary where text is expected | a PNG or a zip renamed to `.md`; NUL bytes inside a `**Status:**` line |
 | B6 | Size | 0 bytes; one 5 MB line; a record just over and just under 512 KiB |
-| B7 | Whitespace that is not a space | NBSP ` `, tabs, em space ` ` in `**Status:**`, in table pipes, before a heading `#` |
-| B8 | Header near-misses | `**status:**`, `**Status**:`, `Status：` (fullwidth colon), `**Status:** Accepted <!-- no -->`, the header inside a code fence, twice with different values |
+| B7 | Whitespace that is not a space | NBSP (U+00A0), tabs, em space (U+2003) in `**Status:**`, in table pipes, before a heading `#`; write them as `\u00a0` and `\u2003` in a `node -e` string |
+| B8 | Header near-misses | `**status:**`, `**Status**:`, `Status：` (fullwidth colon, U+FF1A), `**Status:** Accepted <!-- no -->`, the header inside a code fence, twice with different values. Known and open for a spec's Status in 2.110: inside an indented code block, a fence inside a numbered list, or `<pre>` it is still read; report only what differs from that |
 | B9 | Markdown that parses unlike it looks | a `|` inside backticks in a table cell, a table with a missing or extra column, a heading inside an HTML comment, a fenced block never closed |
-| B10 | Escapes and quotes | `\'`, `\"`, `` \` ``, emoji, `${}` in a test title; a sign-off quoting program output that says "failed" |
+| B10 | Escapes and quotes | `\'`, `\"`, `` \` ``, emoji, `${}` in a test title; a sign-off quoting program output that says "failed". Build them with `node -e` escapes (`\x60`, `\x24`) or your file tool, not shell literals |
 
 ## C. Structure and identity
 

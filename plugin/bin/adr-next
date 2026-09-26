@@ -32,8 +32,9 @@ wrong default for a router that tells a session what to build next: a task whose
 file says it will never be built was offered as the DEFAULT NEXT ACTION, because the
 word was unknown and unknown meant ready (BACKLOG §166).
 
-Exit: 0 = a ready task was printed (or --all rendered)
-      3 = nothing ready: everything is done, or the rest is blocked or stopped
+Exit: 0 = a task is ready (printed alone, or among --all's rows)
+      3 = nothing ready: everything is done, or the rest is blocked or stopped (--all still
+          prints every row)
       1 = the ADR or tasks directory could not be read, a named path that exists but could not be read,
           or a tasks directory holding no task files (a corpus answers 3 for the same directory,
           where it is one record among several — BACKLOG §270)
@@ -117,10 +118,10 @@ VLOG_LEGACY_RE = re.compile(
 # ship nor withdraw" was printed done, and the task it gated printed READY. The
 # reader was one step from executing the sequence that sign-off forbade.
 #
-# So an affirmative outcome has to be STATED. Anything else — a stop, a refusal,
-# or a note this cannot classify — is NOT done, which is ADR-006's rule in the
-# one place the corpus had no verdict at all: a claim that was never observed is
-# not evidence, and the safe direction is to withhold `done` rather than grant it.
+# So a stated STOP withholds `done`, and so does a refusal. A note this cannot
+# classify still counts as done — `human_outcome` says why: a person looked and wrote
+# it down, and refusing every note without a keyword would make the one human route
+# unusable. What must never happen is a note saying the OPPOSITE of done read as done.
 AFFIRMATIVE = re.compile(r"(?<![a-z])(pass(?:ed|es)?|confirm(?:ed|s)?|observed|"
                          r"verified|signed[- ]off|approved|ship(?:ped)?|done|ok)(?![a-z])", re.I)
 # ⚠ `block` IS MATCHED AS A VERB ONLY, and the missing inflections are here for
@@ -148,7 +149,7 @@ NEGATIVE = re.compile(r"(?<![a-z])(" + NEGATIVE_WORD + r")(?![a-z])", re.I)
 # not the fix either — two real approvals on disk say "NOT visible to the model" and
 # "has never been exercised end to end", and would become false stops. What makes a
 # note say the opposite of done is a negator DIRECTLY BEFORE an affirmative, at most
-# one auxiliary between them: "not approved", "never shipped", "didn't pass",
+# two auxiliaries between them: "not approved", "never shipped", "didn't pass",
 # "not yet signed off". Measured over every human-observed line on disk (§287).
 # Up to TWO auxiliaries: "has not yet been approved" read as done with one (a chaos
 # round of 2.110.0-rc, round 2). "ever" joins them: "never ever approved".
@@ -250,9 +251,12 @@ def quoted(value, limit=160):
 def human_outcome(note):
     """"stop", "pass", or None when the note states neither.
 
-    A NEGATIVE word anywhere wins over an affirmative one: "confirmed BLOCKED"
-    and "passed, but stop" both mean stop, and reading the first word only is how
-    a sign-off gets skimmed into the opposite of what it says.
+    A NEGATIVE word in the note's own words wins over an affirmative one: "confirmed
+    BLOCKED" and "passed, but stop" both mean stop. So does a negator directly before
+    an affirmative ("not approved"). A negated negative ("not blocked"), a counter with
+    its count ("refused-unverifiable 0") and program output quoted after a marker are
+    not the note's verdict. Reading the first word only is how a sign-off gets skimmed
+    into the opposite of what it says.
 
     An UNCLASSIFIABLE note is None and still counts as done, which is the
     deliberate half. "Zy read it end to end" states no outcome and is a perfectly
@@ -413,9 +417,9 @@ def is_done(text, digest, human, fence=None, first=None, root=None):
     for line in log.split("\n"):
         line = line.strip()
         if human and (m := VLOG_HUMAN_RE.match(line)):
-            # Only an affirmative sign-off is evidence. A stop, or a note this
-            # cannot classify, leaves the task not done — and `human_verdict`
-            # below carries the reason so the report says which it was.
+            # Only a stated stop withholds done. An affirmative note, or one this
+            # cannot classify, is evidence (see human_outcome), and `human_verdict`
+            # below carries a stop's reason so the report says which it was.
             if human_outcome(m.group("note")) != "stop":
                 return True
         m = VLOG_DIGEST_RE.match(line)

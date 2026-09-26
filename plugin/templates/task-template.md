@@ -185,10 +185,12 @@ permits and no test covered, all of them past a spec gate that RAN its bound tes
 the tests you wrote; a mutation proves a test binds to what it names. Neither invents the missing
 one.>
 
-<Every name here must exist in the file beside it before the README may say `done` — `adr-lint` reads
-the real files, because a table kept beside the truth is a thing somebody has to remember. And each
-test must be able to FAIL: remove the mechanism it is about, watch it go red, put it back. Confirm the
-mutant still compiles first — a mutant that does not build has not been tested, it has been skipped.>
+<Every identifier-shaped name here must exist in the file beside it once the task has passing evidence — `adr-lint`
+reads the real files, because a table kept beside the truth is a thing somebody has to remember. A test title with
+spaces, in a row whose file is a JS/TS `*.test.*`/`*.spec.*`, is matched against the literal `it`/`test`/`describe`
+titles in that file, and a miss there is advice, not a block; a spaced name in any other file is read as prose and
+not checked. And each test must be able to FAIL: remove the mechanism it is about, watch it go red, put it back.
+Confirm the mutant still compiles first — a mutant that does not build has not been tested, it has been skipped.>
 
 ## Reachability
 
@@ -322,5 +324,5 @@ file that never received anything passes every check there is.>
 
 <Tool-written by `adr-verify <this-file>` — do not hand-write entries. Append-only; failures stay (first entry should be the TDD red run). Grammar, enforced by adr-lint:
 `- YYYY-MM-DD · <git-sha[*]|no-git> · exit <N> · <command in backticks> · acceptance-sha256:<64 hex>` (`*` = dirty tree, ` …` = multi-line command; the digest covers the complete normalized Acceptance fence)
-`- YYYY-MM-DD · human-observed · <sign-off>` via `adr-verify --human "<sign-off>"` for human-observed Acceptance.
-README may mark this task `done` only when the log holds an exit-0 entry matching the current Acceptance command.>
+`- YYYY-MM-DD · human-observed · <sign-off>` via `adr-verify --human "<sign-off>"` for human-observed Acceptance. Word the sign-off as a verdict: `adr-next` reads `not approved`, `has not yet been approved` or a negative word (`withdrawn`, `failed`, `blocked`) as a STOP.
+README may mark this task `done` only when the log holds an exit-0 entry matching the current Acceptance command — or, for a human-observed Acceptance, a human-observed entry.>

@@ -67,7 +67,7 @@ Run 2026-09-26: `plugin/scripts/lifecycle.mjs` (7), `tests/publish-command.test.
    `prepare-commit-msg` is used, not `pre-commit`, because `--no-verify` does not skip it.
 
 3. **SessionStart offers the hook; the hook proves it.** When `CLAUDE_ENV_FILE` is set, and git run in the session's repository names a probe config hook, SessionStart appends exports:
-   - `hook.qh-publish.command`, both events, and `hook.qh-publish.enabled=true`;
+   - two hooks, `hook.qh-publish-commit` on `prepare-commit-msg` and `hook.qh-publish-push` on `pre-push`, each with its `command`, its `event` and `enabled=true` (two names because git appends its own arguments to a config hook's command without saying which event is running, so each command names its event);
    - the index is written as a shell expansion over the `GIT_CONFIG_COUNT` in force when the file is sourced;
    - the exports are skipped when the file already carries them.
 
@@ -108,7 +108,7 @@ Each can be built today in a temporary repository, and T1-T3 build them. Valid f
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| `CLAUDE_ENV_FILE` | appended `GIT_CONFIG_*` exports for `hook.qh-publish` (`prepare-commit-msg`, `pre-push`, `enabled=true`) | SessionStart (T2) | the Bash tool's git |
+| `CLAUDE_ENV_FILE` | appended `GIT_CONFIG_*` exports for `hook.qh-publish-commit` (`prepare-commit-msg`) and `hook.qh-publish-push` (`pre-push`), each `enabled=true` | SessionStart (T2) | the Bash tool's git |
 | `plugin/scripts/publish-hook.mjs <event>` | new; exit 1 refuses the git event | T1 | git |
 | session log | `publish.hook-ran` (T1), `publish.offered` / `publish.unarmed` (T2) | T1, T2 | rule P (T3), `session-profile` |
 | PreToolUse rule P | armed + Bash + plain invocation: advice; otherwise ADR-061 | T3 | Claude Code |

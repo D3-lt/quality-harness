@@ -59,7 +59,9 @@ Why: `.claude/rules/02-running-the-checks.md`
 - A gate advises and never prevents an attempt. `errors.advise(...)` is advisory,
   `errors.append(...)` is blocking; moving a finding between them is a behaviour change.
 - **Two refusals are sanctioned, and no others.** ADR-061's publish refusal: a command naming
-  commit or push on a tree no `qh-check` has passed on, when the session log was read whole; a
+  commit or push on a tree no `qh-check` has passed on, when the session log was read whole — and,
+  where the session's git hook has run (ADR-066), the commit or push refused by git at the event
+  itself, whatever launched it; a
   project turns it back into a warning with `"publish": "warn"` in `.quality-harness.json`. And
   ADR-060's reviewer guard: a role spawned read-only may not edit, commit or push. A new refusal
   needs an Accepted record, and an opt-out unless it only fences a role the caller made read-only.

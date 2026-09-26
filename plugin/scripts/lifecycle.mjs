@@ -3692,6 +3692,92 @@ function inferredCheckCaveat(cwd) {
 // when the tree or the index is unchecked and differs from the session's start.
 // It says the command is about to run while this repository is unchecked; it
 // does not claim the command publishes this repository, which it may not.
+// ── ADR-066 T2: SessionStart offers git the publish hook ────────────────────
+//
+// Through the env file the host sources before every Bash call, so nothing is
+// written into any repository. It is an OFFER, not arming: a session counts as
+// armed only once the hook itself has run (`publish.hook-ran`, T1). A shell that
+// never sourced the file, a git below 2.54 and a different git on PATH would
+// otherwise be recorded as protected while nothing ran (ADR-066 review, P1).
+//
+// Two hook names, not one: git appends its own arguments to a config hook's
+// command but does not say which event it is running, so each command names its
+// event. `enabled=true` is exported too, because configuration from the
+// environment outranks a repository's own file — a repo-local `enabled false`
+// does not switch it off (measured 2026-09-26).
+const PUBLISH_HOOK_SCRIPT = fileURLToPath(new URL('./publish-hook.mjs', import.meta.url))
+
+/** The POSIX shell lines that add the hook for a session, after any GIT_CONFIG_* already in force. */
+export function publishHookExports(node = process.execPath, script = PUBLISH_HOOK_SCRIPT) {
+  const quote = value => `'${String(value).replace(/'/g, `'\\''`)}'`
+  // Forward slashes: git runs the command through sh, including Git for Windows.
+  const run = event => `"${String(node).replace(/\\/g, '/')}" "${String(script).replace(/\\/g, '/')}" ${event}`
+  const entries = [
+    ['hook.qh-publish-commit.command', run('prepare-commit-msg')],
+    ['hook.qh-publish-commit.event', 'prepare-commit-msg'],
+    ['hook.qh-publish-commit.enabled', 'true'],
+    ['hook.qh-publish-push.command', run('pre-push')],
+    ['hook.qh-publish-push.event', 'pre-push'],
+    ['hook.qh-publish-push.enabled', 'true'],
+  ]
+  // The index is taken WHEN THE FILE IS SOURCED, not when it is written: another
+  // SessionStart hook or the user's profile may have set GIT_CONFIG_COUNT since.
+  return ['# quality-harness (ADR-066): git refuses an unchecked commit or push for this session',
+    '__qh_n=${GIT_CONFIG_COUNT:-0}',
+    ...entries.map(([key, value], i) => `__qh_k=$((__qh_n + ${i})); export GIT_CONFIG_KEY_$__qh_k=${quote(key)} GIT_CONFIG_VALUE_$__qh_k=${quote(value)}`),
+    `export GIT_CONFIG_COUNT=$((__qh_n + ${entries.length}))`,
+    'unset __qh_n __qh_k', ''].join('\n')
+}
+
+/** Offer the hook for this session, and record what happened. */
+export function offerPublishHook({ cwd, session, env = process.env, run = spawnSync, exports = publishHookExports }) {
+  const record = entry => appendEvent(cwd, session, entry)
+  const file = env.CLAUDE_ENV_FILE
+  if (typeof file !== 'string' || !file) return record({ event: 'publish.unarmed', reason: 'CLAUDE_ENV_FILE is not set' })
+  let existing = ''
+  try { existing = readFileSync(file, 'utf8') } catch (error) {
+    if (error?.code !== 'ENOENT') return record({ event: 'publish.unarmed', reason: `the env file could not be read (${error?.code ?? error})` })
+  }
+  // Once per env file: a resume or compact SessionStart must not add a second copy.
+  if (existing.includes('hook.qh-publish-')) return null
+  const probe = run('git', ['-c', 'hook.qhprobe.command=true', '-c', 'hook.qhprobe.event=pre-commit', 'hook', 'list', 'pre-commit'],
+    { cwd, encoding: 'utf8', timeout: 10_000 })
+  if (probe.error || probe.status !== 0 || !/\bqhprobe\b/.test(probe.stdout ?? '')) {
+    const why = probe.error ? probe.error.code ?? probe.error.message : `exit ${probe.status}: ${String(probe.stderr ?? '').trim().split('\n')[0]}`
+    return record({ event: 'publish.unarmed', reason: `git here does not list a config-based hook (${why}); git 2.54 or later runs them` })
+  }
+  try { appendFileSync(file, exports()) } catch (error) {
+    return record({ event: 'publish.unarmed', reason: `the env file could not be written (${error?.code ?? error})` })
+  }
+  return record({ event: 'publish.offered' })
+}
+
+/**
+ * Whether a matched publish provably leaves git's hook in place (ADR-066 T3).
+ *
+ * Rule P hands a command to git only when this is true, so an error here must
+ * fail CLOSED: an unrecognised form keeps ADR-061's refusal (CLAUDE.md §16). It
+ * is an allowlist of SHAPE — every segment that runs a publish starts with `git`
+ * itself — plus the things measured to turn the hook off: `-c hook.*` and
+ * `-c core.hooksPath`, anything naming GIT_CONFIG* or the session id, the shell
+ * builtins that edit the environment, an abbreviated `--no-verify`, and a short
+ * option cluster holding `n` (measured 2026-09-26: `commit -anm` skipped it). A
+ * wrapper — sudo, env, exec -c, ssh, a container — may run git without this
+ * session's environment, and is not git at the start of its segment.
+ */
+export function leavesHookInPlace(command) {
+  const text = String(command ?? '')
+  const publishing = text.split(/&&|\|\||[;&|\n()`]/)
+    .filter(segment => /\bgit\b/.test(segment) && /\b(?:commit|push)\b/.test(segment))
+  if (publishing.length === 0) return false
+  if (!publishing.every(segment => /^\s*git\s/.test(segment))) return false
+  if (/(?:^|\s)-c\s*['"]?(?:hook\.|core\.hookspath)/i.test(text) || /--config-env/.test(text)) return false
+  if (/\b(?:GIT_CONFIG|GIT_DIR|GIT_EXEC_PATH|CLAUDE_CODE_SESSION_ID|CLAUDE_ENV_FILE)/.test(text)) return false
+  if (/(?:^|[\s;&|(`])(?:unset|export|declare|typeset|readonly|local|env|exec|sudo|doas|su|ssh)(?=\s|$)/.test(text)) return false
+  if (/--no-v/.test(text)) return false
+  return !publishing.some(segment => /(?:^|\s)-[A-Za-z]*n[A-Za-z]*(?=\s|$)/.test(segment))
+}
+
 /**
  * Rule P's decision, for both of its callers (ADR-066 T1): PreToolUse, which sees
  * a command's text, and `publish-hook.mjs`, which git runs at the event itself.
@@ -3770,13 +3856,21 @@ export function publishVerdict({ cwd, session, observation, invoked }) {
 
 function publishUnchecked(input, requested) {
   if (requested?.event !== 'publish.requested' && requested?.event !== 'publish.mentioned') return
-  const verdict = publishVerdict({
+  let verdict = publishVerdict({
     cwd: input.cwd, session: input.session_id, observation: requested.observation,
     // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
     // evidence than advice). A command that merely mentions the words is warned.
     invoked: publishCommandIn(input.tool_input?.command),
   })
   if (!verdict) return
+  // ADR-066 T3: in a Bash session where git's own hook has RUN, a plain invocation
+  // is left to git, which refuses it at the event in the repository it commits
+  // into. An offer is not arming, PowerShell does not source the env file, and a
+  // form that could have switched the hook off keeps the refusal.
+  if (verdict.deny && input.tool_name === 'Bash' && leavesHookInPlace(input.tool_input?.command)
+    && readEvents(input.cwd, input.session_id).some(entry => entry.event === 'publish.hook-ran')) {
+    verdict = { ...verdict, deny: false, text: `${verdict.text} In this session git's own hook refuses it at the event (ADR-066), so this is advice.` }
+  }
   // A denial has to happen on every attempt. Saying it once and then allowing
   // the same command is the warning's dedupe applied to a refusal.
   if (!verdict.deny && readEvents(input.cwd, input.session_id).some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === verdict.key)) return
@@ -4361,6 +4455,11 @@ export async function handleHook(input) {
     // After compaction the session has none of the context the once-per-session
     // markers gated; a new generation makes every first mention first again.
     if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)
+    // ADR-066 T2: offer git the publish hook for this session's Bash. A failure
+    // here is said and costs the session nothing but the offer.
+    try { offerPublishHook({ cwd: input.cwd, session: input.session_id }) } catch (failure) {
+      process.stderr.write(`[quality-harness] the publish hook was not offered (${failure?.message ?? failure}).\n`)
+    }
     const sections = []
     const orientation = sessionOrientation(input.cwd)
     if (orientation) sections.push(orientation)

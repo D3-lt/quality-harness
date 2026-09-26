@@ -67,7 +67,7 @@ node --test --test-reporter=tap tests/publish-hook.test.mjs 2>&1 | tee /dev/stde
 |------|------------------------|
 | 1 — exists | `publishVerdict`, `publish-hook.mjs` |
 | 2 — something selects it | git, through the injected config (T2); the "ignores the verdict" mutant |
-| 3 — the caller can discover it | `git hook list prepare-commit-msg` names `qh-publish` in an offered session |
+| 3 — the caller can discover it | `git hook list prepare-commit-msg` names `qh-publish-commit` in an offered session |
 | 4 — it is used | `publish.hook-ran` in session logs |
 
 ## Mutation Log

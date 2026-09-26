@@ -62,7 +62,9 @@ function startSession(dir, session) {
   const run = spawnSync(process.execPath, [lifecycleScript], {
     cwd: testTmp, encoding: 'utf8', timeout: 120_000,
     input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir }),
-    env: { ...process.env, ...GIT_IDENTITY, TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp },
+    // No CLAUDE_ENV_FILE: SessionStart appends to it (ADR-066 T2), and a test run
+    // from inside a hook must never write the real session's file.
+    env: { ...process.env, ...GIT_IDENTITY, TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp, CLAUDE_ENV_FILE: '' },
   })
   assert.equal(run.status, 0, run.stderr)
 }
@@ -159,4 +161,80 @@ test('a cherry-pick in progress is concluded without the hook refusing it', () =
   // DIRTY twin: the same unchecked tree, with nothing in progress, is refused.
   writeFileSync(path.join(dir, 'a.md'), 'again\n')
   assert.notEqual(shell(dir, 'git commit -qam again\n', session).status, 0, 'a plain commit is still refused')
+})
+
+// ── ADR-066 T2: SessionStart offers the hook through the env file ─────────────
+
+// SessionStart through the real hook entry, with the host's env file in its environment.
+function startSessionWithEnvFile(dir, session, envFile) {
+  const run = spawnSync(process.execPath, [lifecycleScript], {
+    cwd: testTmp, encoding: 'utf8', timeout: 120_000,
+    input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir }),
+    env: { ...process.env, ...GIT_IDENTITY, TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp, CLAUDE_ENV_FILE: envFile },
+  })
+  assert.equal(run.status, 0, run.stderr)
+}
+
+test('sessionstart offers the hook only where git runs config hooks', async () => {
+  const { offerPublishHook } = await import('../plugin/scripts/lifecycle.mjs')
+  // Through SessionStart itself, so what SELECTS the offer is what is tested.
+  const dir = repository('offer-')
+  const envFile = path.join(testTmp, `env-${process.pid}-a`)
+  startSessionWithEnvFile(dir, `offer-real-${process.pid}`, envFile)
+  assert.match(readFileSync(envFile, 'utf8'), /hook\.qh-publish-commit\.command/)
+  assert.ok(events(dir, `offer-real-${process.pid}`).includes('publish.offered'))
+
+  // DIRTY twin: a git that does not list the probe hook is offered nothing.
+  const session = `offer-old-${process.pid}`
+  startSession(dir, session)
+  const oldFile = path.join(testTmp, `env-${process.pid}-b`)
+  const tooOld = () => ({ status: 129, stdout: '', stderr: "error: unknown subcommand: `list'" })
+  offerPublishHook({ cwd: dir, session, env: { CLAUDE_ENV_FILE: oldFile }, run: tooOld })
+  assert.throws(() => readFileSync(oldFile, 'utf8'), /ENOENT/, 'nothing was appended')
+  offerPublishHook({ cwd: dir, session, env: {}, run: tooOld })
+  const seen = events(dir, session)
+  // One from startSession, which runs with no env file, and one per call above.
+  assert.equal(seen.filter(name => name === 'publish.unarmed').length, 3, seen.join(','))
+  assert.ok(!seen.includes('publish.offered'))
+})
+
+test('an existing GIT_CONFIG_COUNT keeps its entries', async () => {
+  const { offerPublishHook } = await import('../plugin/scripts/lifecycle.mjs')
+  const dir = repository('count-')
+  const session = `count-${process.pid}`
+  startSession(dir, session)
+  const envFile = path.join(testTmp, `env-${process.pid}-c`)
+  offerPublishHook({ cwd: dir, session, env: { CLAUDE_ENV_FILE: envFile } })
+  const written = readFileSync(envFile, 'utf8')
+  // A second SessionStart for the same env file appends nothing.
+  offerPublishHook({ cwd: dir, session, env: { CLAUDE_ENV_FILE: envFile } })
+  assert.equal(readFileSync(envFile, 'utf8'), written)
+  const run = spawnSync('sh', ['-c', `. ${quoted(envFile)} && git config --get their.key && echo "$GIT_CONFIG_COUNT" && git config --get hook.qh-publish-commit.event`], {
+    cwd: dir, encoding: 'utf8', timeout: 30_000,
+    env: { ...process.env, GIT_CONFIG_COUNT: '1', GIT_CONFIG_KEY_0: 'their.key', GIT_CONFIG_VALUE_0: 'kept' },
+  })
+  assert.equal(run.status, 0, run.stderr)
+  assert.deepEqual(run.stdout.trim().split('\n'), ['kept', '7', 'prepare-commit-msg'])
+})
+
+test('the sourced env file makes git run the hook over a repo-local disable', async () => {
+  const { offerPublishHook } = await import('../plugin/scripts/lifecycle.mjs')
+  const dir = repository('override-')
+  const session = `override-${process.pid}`
+  startSession(dir, session)
+  // The repository defines the same hook and switches it off, so the bare listing
+  // below shows the switch working, and the sourced one shows it overridden.
+  git(dir, 'config', 'hook.qh-publish-commit.command', 'true')
+  git(dir, 'config', 'hook.qh-publish-commit.event', 'prepare-commit-msg')
+  git(dir, 'config', 'hook.qh-publish-commit.enabled', 'false')
+  const envFile = path.join(testTmp, `env-${process.pid}-d`)
+  offerPublishHook({ cwd: dir, session, env: { CLAUDE_ENV_FILE: envFile } })
+  const run = spawnSync('sh', ['-c', `. ${quoted(envFile)} && git hook list prepare-commit-msg`], {
+    cwd: dir, encoding: 'utf8', timeout: 30_000, env: process.env,
+  })
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(run.stdout, /^qh-publish-commit$/m, 'listed, and not as disabled')
+  // DIRTY twin: without the file sourced, the repository's own disable holds.
+  const bare = spawnSync('git', ['hook', 'list', 'prepare-commit-msg'], { cwd: dir, encoding: 'utf8', timeout: 30_000 })
+  assert.match(bare.stdout, /^disabled\s+qh-publish-commit$/m)
 })

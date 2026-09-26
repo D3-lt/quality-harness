@@ -46,7 +46,8 @@ In a repository with nothing set up:
 No QH corpus is in use.
 
 Next: verify or execute the current work
-  because there is nothing here for the lifecycle to route yet.
+  because no QH corpus is in use.
+  Claim verification does not require a decision corpus.
 ```
 
 (This block is what `work-next` prints today; an earlier version of this page showed a

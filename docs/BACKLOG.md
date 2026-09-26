@@ -15534,3 +15534,8 @@ To the corpus-chaos skill:
     5. A record whose Status holds invalid UTF-8 drops out of the probe with no entry; work-next counts it as "1 further record(s)" without naming it. `Accepted (partially)` counts as Accepted.
     6. A Windows 8.3 alias in `Governs:` (`STANDA~1.MJS`) is keyed as a different path from the file's real name, so areas and contests split by spelling.
     7. A case-only rename on Windows is not restored by `git checkout -- .` (git core.ignorecase). This is a runner note, not a reader defect.
+24. **`qh-check` was SIGKILLed about 30 s in, three times in one session (2026-09-25 and 26), and reported it as "failed".**
+    - Each time, `bash scripts/selftest.sh` died right after the plugin validations, before `node --test` printed anything. `checks.jsonl` recorded `"exit":null,"signal":"SIGKILL"`.
+    - A direct `bash scripts/selftest.sh`, and an immediate re-run through `qh-check`, passed each time.
+    - At the third kill, memory was 48% free, `log show` had no jetsam entry, and load was about 11 on 10 cores. `qh-check`'s own timeout is 3600 s, and a 45 s dummy check passed through it. The killer is unattributed.
+    - Separately, whatever the cause: the summary line says "— failed" for a check a signal ended. A killed check did not look, so ADR-005's vocabulary is could-not-look, not a verdict. `qh-check`'s exit-1-on-signal is documented; the word is not.

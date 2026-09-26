@@ -30,16 +30,20 @@ in the open (BACKLOG §265).
 ## What the matrix costs
 
 ADR-064 T6 step 2. The three corpora T6 added (`js-vitest-spa`, `php-multi-root`,
-`rust-crate`) took, per platform, in the dispatched release run for 2.109.0 (run
-36126550653 at 7b0b71c; `gh run view --job <id> --log`, the "every reader answers as
-reviewed" test durations):
+`rust-crate`) took, per platform, in the dispatched release runs for 2.109.0 (run
+36126550653 at 7b0b71c) and 2.110.0 (run 36181631975 at 355e91a). The figures are the
+"every reader answers as reviewed" test durations, read with `gh api
+repos/<owner>/<repo>/actions/jobs/<id>/logs`:
 
-| Platform | js-vitest-spa | php-multi-root | rust-crate | Added |
-|---|---|---|---|---|
-| ubuntu-latest | 3.93 s | 2.53 s | 1.08 s | 7.5 s |
-| macos-latest | 3.21 s | 3.22 s | 1.49 s | 7.9 s |
-| windows | 3.35 s | 4.91 s | 2.40 s | 10.7 s |
+| Platform | Release | js-vitest-spa | php-multi-root | rust-crate | Added | Whole matrix |
+|---|---|---|---|---|---|---|
+| ubuntu-latest | 2.109.0 | 3.93 s | 2.53 s | 1.08 s | 7.5 s | 18.5 s |
+| ubuntu-latest | 2.110.0 | 3.06 s | 3.86 s | 0.84 s | 7.8 s | 19.5 s |
+| macos-latest | 2.109.0 | 3.21 s | 3.22 s | 1.49 s | 7.9 s | 22.3 s |
+| macos-latest | 2.110.0 | 2.70 s | 4.21 s | 1.35 s | 8.3 s | 20.2 s |
+| windows | 2.109.0 | 3.35 s | 4.91 s | 2.40 s | 10.7 s | 32.8 s |
+| windows | 2.110.0 | 2.84 s | 4.10 s | 2.07 s | 9.0 s | 25.8 s |
 
 Tests inside `tests/corpus-matrix.test.mjs` run in sequence, so these add to that file's
-wall time. The whole matrix of eight corpora took 18.5 s, 22.3 s and 32.8 s on the same run.
-One run, measured on shared CI runners: read these as a scale, not a budget.
+wall time. Each row is one run on shared CI runners, and the rows move by a second or more
+between releases whose corpora did not change: read them as a scale, not a budget.

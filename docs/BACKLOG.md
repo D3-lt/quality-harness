@@ -15784,3 +15784,18 @@ Residuals, for 2.112.0:
 - The guard's comment claimed the self-edge printed READY. That was stale since the self-dependency fix and is corrected.
 - The other 47 mutation shards were green. The class is the same as §18's refactor rule: a fix that moves an observable turns the old site's test vacuous.
 
+## 301. OPEN — Roadmap: take the model out of the loop, and a terse state protocol (2026-09-26)
+
+The owner's direction after 2.111.0. The reasoning, the measurements and the papers are in
+`docs/research/2026-09-26-model-out-of-the-loop.md`. Each stage is work only once its ADR is
+Accepted (§10), and each states its success as a number against Stage 1's baseline.
+
+1. Measure: hook injection per hook and event, cache-prefix hygiene, mutation campaign time and stale entries.
+2. The terse state protocol `qh1`: one facts object, two renderers, deltas only, a cached legend, findings by id, a `backlog` § reader.
+3. A zero-dependency shell lexer for the publish classifier. The existing tables are the acceptance.
+4. Mutation tooling: `--repoint`, worktree-isolated campaigns, test-impact selection.
+5. Finding to fixture: a peer finding schema, `finding-to-fixture`, `attest-import`, differential readers.
+6. Latency: a content-addressed gate cache and compile cache. Then a daemon or a Rust core, chosen by measurement.
+7. Research-grade: cascades, Datalog gates, mutant schemata, a job lease, predictive mutation testing, a Merkle release root.
+
+Non-goals: binary or hex encoding, lossy compression on evidence, a semantic answer cache, and any runtime npm dependency in `plugin/`.

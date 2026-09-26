@@ -1080,6 +1080,7 @@ test('arch-lint reads a Go package pattern as a pattern, not a missing path', ()
   // offered — defer the project's real check — would have been wrong.
   const dir = scratch('arch-go')
   const doc = join(dir, 'architecture.md')
+  mkdirSync(join(dir, 'cmd'))  // a Go pattern is exempt only where its base exists (round 2)
   const lint = gate => {
     writeFileSync(doc, ['# Architecture: probe', '',
       '**Status:** Living — updated with every structural change.',
@@ -1104,6 +1105,9 @@ test('arch-lint reads a Go package pattern as a pattern, not a missing path', ()
   // token ending in it is Go's pattern, and a missing path inside it still blocks.
   const dotted = lint('! grep -q forbidden ./missing.../source.py')
   assert.match(dotted.stdout, /does not exist in the repo/, dotted.stdout)
+  // Round 2: a token ENDING in `...` is a pattern only where its base exists —
+  // `! grep` over a missing one passes for ever.
+  assert.match(lint('! grep -q forbidden ./missing...').stdout, /does not exist in the repo/)
 })
 
 // --- an unrecognized flag is a typo, not an instruction ---------------------

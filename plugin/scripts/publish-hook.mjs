@@ -19,7 +19,7 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 
 import { appendEvent, readEvents } from './event-log.mjs'
-import { observe, publishVerdict } from './lifecycle.mjs'
+import { importCheckRecords, observe, publishVerdict } from './lifecycle.mjs'
 import { isMainModule } from './main-module.mjs'
 
 // What each event stands for, in the words rule P's refusal already uses.
@@ -53,6 +53,11 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
   // What makes a session ARMED (ADR-066 Decision 3): the hook itself, not the offer.
   appendEvent(cwd, session, { event: 'publish.hook-ran', hook: event })
   if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }
+  // A `qh-check` that ran just before this, in the same script as the commit, is on
+  // record only once imported. PreToolUse imports at its own boundary; git's hook
+  // has no such boundary, and refused the tree that check had just passed (ADR-066
+  // review, P2). One import per caller: a second one in the verdict hid the first.
+  importCheckRecords(cwd, session)
   const verdict = publishVerdict({ cwd, session, observation: observe(cwd), invoked })
   if (!verdict?.deny) return { code: 0 }
   return { code: 1, message: `${verdict.text}\n(refused by git's ${event} hook — ADR-066)` }

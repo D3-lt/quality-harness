@@ -1488,6 +1488,30 @@ def main():
         errors = []
         lint.check_named_tests_are_run(named(fence, [row]), "| T1 | probe | done |", errors)
         assert errors == [], (fence, errors)
+    # Codex review of 3.0.0, round 2. A pytest CLASS selector runs the class's tests,
+    # and which class a row is in is not in the table — so it is not blocked; a
+    # unittest dotted class or test is the same shape. Go does not recurse: `./pkg`
+    # and a bare `go test` run one package's own files.
+    for fence, row in [
+        ("go test -run TestSelected ./pkg && pytest tools/test_a.py::TestSuite", ("test_one", "tools/test_a.py")),
+        ("go test -run TestSelected ./pkg && python3 -m unittest tools.test_a.TestSuite", ("test_one", "tools/test_a.py")),
+        ("go test -run TestSelected ./pkg && python3 -m unittest tools.test_a.TestSuite.test_one", ("test_one", "tools/test_a.py")),
+        ("go test -run TestSelected ./pkg && go test ./pkg/sub", ("TestOther", "pkg/sub/other_test.go")),
+        ("go test -run TestSelected ./pkg && go test ./pkg/...", ("TestOther", "pkg/sub/other_test.go")),
+        ("go test -run TestSelected ./pkg && cd svc && go test", ("TestOther", "svc/other_test.go")),
+    ]:
+        errors = []
+        lint.check_named_tests_are_run(named(fence, [row]), "| T1 | probe | done |", errors)
+        assert errors == [], (fence, errors)
+    for fence, row in [
+        ("go test -run TestSelected ./pkg && pytest tools/test_a.py::TestSuite::test_two", ("test_one", "tools/test_a.py")),
+        ("go test -run TestSelected ./pkg && python3 -m unittest tools.test_a.TestSuite.test_two", ("test_one", "tools/test_a.py")),
+        ("go test -run TestSelected ./pkg && go test ./pkg", ("TestOther", "pkg/sub/other_test.go")),
+        ("go test -run TestSelected ./pkg && go test", ("TestOther", "pkg/other_test.go")),
+    ]:
+        errors = []
+        lint.check_named_tests_are_run(named(fence, [row]), "| T1 | probe | done |", errors)
+        assert errors and row[0] in errors[0], (fence, errors)
 
     # Codex review of 3.0.0: cargo's `--test <binary>` selects ONE integration binary.
     # It is no name filter, and it is not "everything" either: a row in another binary
@@ -1498,6 +1522,18 @@ def main():
     assert errors and "rejects_bad_token" in errors[0], errors
     errors = []
     lint.check_named_tests_are_run(named("cargo test --test smoke", [("boots", "tests/smoke.rs")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors == [], errors
+    # A quoted binary name is the same binary (Codex review of 3.0.0, round 2).
+    errors = []
+    lint.check_named_tests_are_run(named('cargo test --test "smoke"', [("rejects_bad_token", "tests/security.rs")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors and "rejects_bad_token" in errors[0], errors
+    # `node --test` is a MODE flag, not a name filter: every row of the file it is given
+    # runs. With cargo's binaries now read by cargo_runs, this is what keeps `--test` out
+    # of the narrowing flags (a catalogue GREEN at fd3922b).
+    errors = []
+    lint.check_named_tests_are_run(named("node --test tests/parse.test.mjs", [("parsesRecord", "tests/parse.test.mjs")]),
                                    "| T1 | probe | done |", errors)
     assert errors == [], errors
 
@@ -5079,6 +5115,19 @@ def test_a_package_manager_filter_is_not_a_test_filter(lint):
                 "pnpm -C web --filter @app/web test && php artisan test",
                 "pnpm --dir web --filter @app/web test && php artisan test"):
         assert findings(acc) == [], (acc, findings(acc))
+    # Alone, with no second runner to credit the row, the strip is the only thing
+    # between a workspace selector and a block. 3.0.0's two-runner credit covered
+    # every fixture above, and the catalogue found the strip unproven (GREEN at
+    # fd3922b).
+    # `-C <dir>` and `--dir <dir>` take a value before the filter (a second GREEN).
+    for acc in ("pnpm --filter @app/web exec vitest run src/x",
+                "pnpm -C web --filter @app/web exec vitest run src/x",
+                "pnpm --dir web --filter @app/web exec vitest run src/x"):
+        infos = {"T1": {"path": Path("T1.md"), "human": False, "acc_all": acc,
+                        "tests": [("renders_the_voucher", "web/src/x.test.ts")]}}
+        errors = []
+        lint.check_named_tests_are_run(infos, "| T1 | x | done |", errors)
+        assert errors == [], (acc, errors)
     # The must-fail direction: a real PHP test filter that does not select the row.
     assert findings("pnpm --filter @app/web build && php artisan test --filter=OtherTest"), \
         "a test filter beside a workspace filter still has to select the row"

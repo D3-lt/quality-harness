@@ -3303,7 +3303,7 @@ export function checkEventName(record) {
  * line and is unparseable with it. Measured by the reader. That is why this
  * reports a state rather than trying to recover the tail.
  */
-function importCheckRecords(cwd, session) {
+export function importCheckRecords(cwd, session) {
   let text
   try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch (error) {
     // Never written is not the same as could-not-read.
@@ -3756,36 +3756,184 @@ export function offerPublishHook({ cwd, session, env = process.env, run = spawnS
   return record({ event: 'publish.offered' })
 }
 
+// The words a segment may not start with, because they change what a later `git`
+// runs or inherits: the environment builtins, sourcing, aliases, and wrappers that
+// may run git without this session's environment (ADR-066 T3).
+const HOOK_UNSAFE_FIRST = new Set(['export', 'unset', 'declare', 'typeset', 'readonly', 'local', 'source', '.',
+  'eval', 'alias', 'unalias', 'env', 'exec', 'command', 'builtin', 'set', 'shopt', 'hash', 'sudo', 'doas', 'su', 'ssh'])
+// What a plain `git commit` / `git push` may carry: options that never touch hooks.
+// Short letters that take a value (`m`, `F`) end their cluster; `n` is in no set.
+const HOOK_SAFE_OPTIONS = {
+  commit: { long: new Set(['--amend', '--all', '--no-edit', '--quiet', '--signoff', '--allow-empty', '--verbose']),
+    valued: /^--(?:message|file)=/, takesNext: new Set(['--message', '--file']), short: 'aqvs', takes: 'mF' },
+  push: { long: new Set(['--set-upstream', '--tags', '--quiet', '--follow-tags', '--verbose', '--atomic', '--force-with-lease']),
+    valued: /^--force-with-lease=/, takesNext: new Set(), short: 'uqvf', takes: '' },
+}
+
+// Commands whose quoted text, or heredoc body, is data or runs with this shell's
+// environment: a publish written there may count. Under any other command it is an
+// unknown program running git, and keeps the refusal (Codex review of 3.0.0, round
+// 4: `bash -c "git commit -m x;"`; a heredoc fed to a container runs without it).
+const HOOK_DATA_COMMANDS = new Set(['echo', 'printf', 'cat', 'git', 'node'])
+
+// A command split as the shell splits it: segments of words, quotes grouping and
+// removed, backslashes escaping. Only a space or a tab separates words, as the
+// shell's IFS does; a newline ends a segment. A quoted span holding an operator is
+// code an interpreter may run, so it is returned with its segment's index for the
+// same judgement and stands in its word as a NUL. A segment a newline began says so
+// (`line`), because that is where a heredoc's body starts. Null when a quote never
+// closes.
+function hookSegments(text) {
+  const segments = [[]]
+  const nested = []
+  let word = null
+  const end = () => { if (word !== null) segments.at(-1).push(word); word = null }
+  for (let i = 0; i < text.length; i += 1) {
+    const c = text[i]
+    if (c === "'" || c === '"') {
+      let close = i + 1
+      while (close < text.length && text[close] !== c) close += c === '"' && text[close] === '\\' ? 2 : 1
+      if (close >= text.length) return null
+      let inner = text.slice(i + 1, close)
+      if (c === '"') inner = inner.replace(/\\(["\\])/g, '$1')
+      if (/[;&|()\n]/.test(inner)) { nested.push({ inner, segment: segments.length - 1 }); inner = '\0' }
+      word = (word ?? '') + inner
+      i = close
+    } else if (c === '\\') {
+      word = (word ?? '') + (text[i + 1] ?? '')
+      i += 1
+    } else if (/[;&|()\n]/.test(c)) {
+      end()
+      const next = []
+      next.line = c === '\n'
+      segments.push(next)
+    } else if (c === ' ' || c === '\t') {
+      end()
+    } else {
+      word = (word ?? '') + c
+    }
+  }
+  end()
+  return { segments, nested }
+}
+
+// Whether a `git commit` / `git push` segment's arguments are all known to leave
+// hooks alone; anything unlisted is not. A word hiding quoted code (a NUL) is not
+// known — `git commit '-nm;x'` hands git `-n` (round 4).
+function plainGitArguments(verb, args) {
+  const safe = HOOK_SAFE_OPTIONS[verb]
+  for (let i = 0; i < args.length; i += 1) {
+    const arg = args[i]
+    if (!arg.startsWith('-')) {
+      if (arg.includes('\0')) return false
+      continue
+    }
+    if (safe.long.has(arg) || safe.valued.test(arg)) continue
+    if (safe.takesNext.has(arg)) { i += 1; continue }
+    if (!/^-[A-Za-z]/.test(arg)) return false
+    for (let at = 1; at < arg.length; at += 1) {
+      if (safe.takes.includes(arg[at])) { if (at === arg.length - 1) i += 1; break }
+      if (!safe.short.includes(arg[at])) return false
+    }
+  }
+  return true
+}
+
+// One segment: -1 when it could turn the hook off or run git some other way, 1 for a
+// plain publish, 0 for anything else.
+function segmentVerdict(words) {
+  const [first] = words
+  if (/^[A-Za-z_]\w*=/.test(first) || HOOK_UNSAFE_FIRST.has(first)) return -1
+  if (first !== 'git') {
+    // A wrapper that runs git: `bash -c 'git commit'`, `xargs git push`.
+    return words.some(w => /\bgit\b/.test(w)) && words.some(w => /\b(?:commit|push)\b/.test(w)) ? -1 : 0
+  }
+  let at = 1
+  // Git's own options before the verb: only the ones that leave hooks alone.
+  while (at < words.length && words[at].startsWith('-')) {
+    if (words[at] === '--no-pager' || words[at] === '-P') at += 1
+    else if (words[at] === '-C' && at + 1 < words.length) at += 2
+    else if (words[at] === '-c' && /^user\.\w+=/.test(words[at + 1] ?? '')) at += 2
+    else return -1
+  }
+  const verb = words[at]
+  if (verb === 'config') return -1
+  // A verb with anything glued to it — `commit</dev/null` — is not a verb this reads.
+  if (verb !== 'commit' && verb !== 'push') return words.some(w => /\b(?:commit|push)\b/.test(w)) ? -1 : 0
+  return plainGitArguments(verb, words.slice(at + 1)) ? 1 : -1
+}
+
+// Judge every segment of `text`, and the quoted code and heredoc bodies inside it.
+// Returns the number of plain publishes, or -1 when something could turn the hook
+// off. A publish in quoted code or a heredoc body counts only under a data command;
+// a bare quoted literal inside such code — `console.log('a; git push')`, where the
+// literal opens its own segment after `(` — counts under the command that encloses it.
+function plainPublishes(text, depth, inherited = false) {
+  const parsed = depth > 4 ? null : hookSegments(text)
+  if (!parsed) return -1
+  let found = 0
+  const allowed = words => HOOK_DATA_COMMANDS.has(words?.[0]) || (words?.[0] === '\0' && inherited)
+  const counted = (count, words) => {
+    if (count < 0 || (count > 0 && !allowed(words))) return false
+    found += count
+    return true
+  }
+  for (const { inner, segment } of parsed.nested) {
+    const words = parsed.segments[segment]
+    if (!counted(plainPublishes(inner, depth + 1, allowed(words)), words)) return -1
+  }
+  let body = null
+  for (const words of parsed.segments) {
+    if (words.length === 0) continue
+    // A heredoc's body starts on the next LINE; anything after it on its own line —
+    // `cat <<EOF | docker … sh` — may carry the body anywhere, so it counts for none.
+    if (body && !body.started) {
+      if (words.line) body.started = true
+      else body.feeder = null
+    }
+    if (body?.started) {
+      if (words.length === 1 && words[0] === body.delimiter) body = null
+      else if (!counted(segmentVerdict(words), body.feeder)) return -1
+      continue
+    }
+    const verdict = segmentVerdict(words)
+    if (verdict < 0) return -1
+    found += verdict
+    const at = words.findIndex(w => /^<<-?(?!<)/.test(w))
+    if (at >= 0) body = { delimiter: words[at].replace(/^<<-?/, '') || words[at + 1], feeder: words, started: false }
+  }
+  return found
+}
+
 /**
  * Whether a matched publish provably leaves git's hook in place (ADR-066 T3).
  *
- * Rule P hands a command to git only when this is true, so an error here must
- * fail CLOSED: an unrecognised form keeps ADR-061's refusal (CLAUDE.md §16). It
- * is an allowlist of SHAPE — every segment that runs a publish starts with `git`
- * itself — plus the things measured to turn the hook off: `-c hook.*` and
- * `-c core.hooksPath`, anything naming GIT_CONFIG* or the session id, the shell
- * builtins that edit the environment, an abbreviated `--no-verify`, and a short
- * option cluster holding `n` (measured 2026-09-26: `commit -anm` skipped it). A
- * wrapper — sudo, env, exec -c, ssh, a container — may run git without this
- * session's environment, and is not git at the start of its segment.
+ * Rule P hands a command to git only when this is true, so it fails CLOSED: an
+ * unrecognised form keeps ADR-061's refusal (CLAUDE.md §16), which costs nothing,
+ * because on an unchecked tree that refusal is what 2.111.0 did. So it is a
+ * GRAMMAR of what is known to be plain, never a list of what is known to be
+ * dangerous — three Codex rounds on 3.0.0 each found a new way past such a list:
+ * quotes and escapes, then continuations and braces, then redirections, attached
+ * values, `--work-tree`, `--exec-path`, `PATH=`, `source` and inline aliases.
+ *
+ * A program the command runs before git can still reconfigure git, the same as a
+ * script file can; this judges only what the command's own text hands git.
  */
 export function leavesHookInPlace(command) {
-  const raw = String(command ?? '')
-  // A `$` or a backtick can build any argument at run time, so nothing about what git
-  // receives is provable: the refusal stays. And the shell removes quotes and escapes
-  // before git sees an argument — `--no""-verify` IS `--no-verify` — so the checks
-  // below judge the text with them removed (Codex review of 3.0.0, P1).
+  // The shell joins a backslash-newline before anything else reads the line.
+  const raw = String(command ?? '').replace(/\\\r?\n/g, '')
+  // A `$` or a backtick can build any argument at run time.
   if (/[$`]/.test(raw)) return false
-  const text = raw.replace(/["'\\]/g, '')
-  const publishing = text.split(/&&|\|\||[;&|\n()`]/)
-    .filter(segment => /\bgit\b/.test(segment) && /\b(?:commit|push)\b/.test(segment))
-  if (publishing.length === 0) return false
-  if (!publishing.every(segment => /^\s*git\s/.test(segment))) return false
-  if (/(?:^|\s)-c\s*['"]?(?:hook\.|core\.hookspath)/i.test(text) || /--config-env/.test(text)) return false
-  if (/\b(?:GIT_CONFIG|GIT_DIR|GIT_EXEC_PATH|CLAUDE_CODE_SESSION_ID|CLAUDE_ENV_FILE)/.test(text)) return false
-  if (/(?:^|[\s;&|(`])(?:unset|export|declare|typeset|readonly|local|env|exec|sudo|doas|su|ssh)(?=\s|$)/.test(text)) return false
-  if (/--no-v/.test(text)) return false
-  return !publishing.some(segment => /(?:^|\s)-[A-Za-z]*n[A-Za-z]*(?=\s|$)/.test(segment))
+  // Outside quotes the shell also EXPANDS — braces, globs, a tilde — so what stands
+  // there must be plain text, and a carriage return or a form feed is no separator.
+  const unquoted = raw.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, ' ')
+  if (/[^\w \t\n./:=@,%+\-;&|()<>\\]/.test(unquoted)) return false
+  // A write into the repository's own configuration, or a hooks path named at all.
+  if (/\.git\/|hookspath/i.test(raw)) return false
+  // A name git or this session reads from the environment, anywhere in the text:
+  // `printf -v GIT_CONFIG_COUNT %s 0` assigns one with no builtin listed (round 4).
+  if (/\b(?:GIT_\w*|CLAUDE_\w*|PATH|HOME|XDG_CONFIG_HOME|env)\b/.test(raw)) return false
+  return plainPublishes(raw, 0) > 0
 }
 
 /**
@@ -3803,10 +3951,6 @@ export function publishVerdict({ cwd, session, observation, invoked }) {
   const found = place ? gitRepositoryLookup(place) : { ok: false, root: null, reason: 'the working directory does not exist' }
   const origin = checkCommandOrigin(cwd, found)
   if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven') return null
-  // A `qh-check` that ran just before this, in the same script as the commit, is
-  // on record only once imported. PreToolUse had already imported; a git hook had
-  // not, and refused the tree that check had just passed (ADR-066 review, P2).
-  importCheckRecords(cwd, session)
   const now = observation
   const log = readEvents(cwd, session)
   const baseline = log.find(entry => entry.event === 'session.started')?.observation

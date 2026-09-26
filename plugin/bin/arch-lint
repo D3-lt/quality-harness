@@ -133,7 +133,9 @@ def vacuous_gate_errors(label, cell, roots):
     for cmd in re.findall(r"`([^`]+)`", cell):
         for tok in cmd.split():
             tok = tok.strip("'\";,").split("::")[0]
-            if tok.startswith("-") or "/" not in tok or "*" in tok or tok.startswith("$"):
+            # `...` is Go's package pattern (`./...`, `./cmd/...`), never a file: read as
+            # a path it refused a project's real gate (reported from outside, 2026-09-26).
+            if tok.startswith("-") or "/" not in tok or "*" in tok or tok.startswith("$") or "..." in tok:
                 continue
             if not any((r / tok).exists() for r in roots):
                 errs.append(f"{label}: path '{tok}' does not exist in the repo — a gate on a "

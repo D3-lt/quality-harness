@@ -9,11 +9,11 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { budgeted, cached, collect, gitDir, render, shell, usableCache } from '../plugin/scripts/branch-state.mjs'
+import { budgeted, cached, collect, gitDir, refreshBehind, render, shell, snapshotKey, usableCache } from '../plugin/scripts/branch-state.mjs'
 
 const ok = out => ({ ok: true, out })
 const no = note => ({ ok: false, out: '', note })
@@ -127,24 +127,25 @@ test('the cache serves a fresh answer, ages a stale one, and survives a broken f
   const gather = () => { gathered += 1; return state }
 
   // Nothing cached yet: gather, and write what was gathered.
-  const first = cached(120, { read: () => null, write: p => { written = p }, now: () => 1_000_000, gather })
+  // A fixed key stands in for an unmoved repository (ADR-065 T1 keys the snapshot).
+  const first = cached(120, { read: () => null, write: p => { written = p }, now: () => 1_000_000, gather, key: 'k' })
   assert.equal(gathered, 1)
   assert.equal(first.ageSeconds, 0)
   assert.equal(written.at, 1_000_000, 'the time it was taken travels with it, or staleness is invisible')
 
   // Inside the window: no new gather, and the age is reported.
-  const warm = cached(120, { read: () => written, write: () => {}, now: () => 1_030_000, gather })
+  const warm = cached(120, { read: () => written, write: () => {}, now: () => 1_030_000, gather, key: 'k' })
   assert.equal(gathered, 1, 'a cached answer must not spawn gh again')
   assert.equal(warm.ageSeconds, 30)
 
   // Past the window: gathered again.
-  cached(120, { read: () => written, write: () => {}, now: () => 1_500_000, gather })
+  cached(120, { read: () => written, write: () => {}, now: () => 1_500_000, gather, key: 'k' })
   assert.equal(gathered, 2, 'a stale cache is refreshed, never served as current')
 
   // Unreadable or malformed: refreshed, never fatal.
-  cached(120, { read: () => null, write: () => {}, now: () => 2_000_000, gather })
+  cached(120, { read: () => null, write: () => {}, now: () => 2_000_000, gather, key: 'k' })
   assert.equal(gathered, 3)
-  cached(120, { read: () => ({ at: 'not a number', state }), write: () => {}, now: () => 2_000_000, gather })
+  cached(120, { read: () => ({ at: 'not a number', key: 'k', state }), write: () => {}, now: () => 2_000_000, gather, key: 'k' })
   assert.equal(gathered, 4, 'a corrupt timestamp is not a fresh answer')
 })
 
@@ -210,7 +211,8 @@ test('a cache is only reused when what it holds survives inspection', () => {
 
   // And the age never rounds to zero, or a cached answer is indistinguishable
   // from one just taken.
-  const warm = cached(120, { read: () => good, write: () => {}, now: () => now, gather: () => { throw new Error('must not gather') } })
+  const warm = cached(120, { read: () => ({ ...good, key: 'k' }), write: () => {}, now: () => now, key: 'k',
+    gather: () => { throw new Error('must not gather') } })
   assert.equal(warm.fromCache, true)
   assert.equal(warm.ageSeconds, 1)
 })
@@ -473,14 +475,18 @@ test('collect checkpoints the git half BEFORE it spawns gh, and the next prompt 
   assert.equal(store.state.ci.looked, false, 'a checkpoint never claims a CI answer it does not have')
 
   let gathered = 0
+  // ADR-065 T1: a checkpoint is kept, marked partial, and never served as current
+  // by `cached` — the next prompt's brief serves it while a refresh runs BEHIND the
+  // prompt (T2), which is where the no-re-pay guarantee now lives and is asserted.
+  assert.equal(store.partial, true, 'the checkpoint says it is partial')
   const second = cached(120, {
     read: () => store,
     write: () => {},
     now: () => 21_000,
-    gather: () => { gathered += 1; return {} },
+    gather: () => { gathered += 1; return store.state },
   })
-  assert.equal(gathered, 0, 'the second prompt must not re-pay for the run that was killed')
-  assert.equal(second.fromCache, true)
+  assert.equal(gathered, 1, 'a partial snapshot is not served as current')
+  assert.equal(second.fromCache, false)
 
   // A floor, never a clean bill: what it serves says what it does not know.
   const out = render(second.state, { brief: true })
@@ -494,6 +500,12 @@ test('the cached branch CLI reads a fresh answer without starting Git', t => {
   t.after(() => rmSync(project, { recursive: true, force: true }))
   const init = spawnSync('git', ['init', '-q', project], { encoding: 'utf8', timeout: 10_000 })
   assert.equal(init.status, 0, init.stderr)
+  // ADR-065 T1: a snapshot is served only when keyed to the HEAD it was taken at,
+  // and an unborn branch has no HEAD sha to key it to.
+  const base = spawnSync('git', ['-C', project, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid',
+    'commit', '--allow-empty', '-qm', 'base'], { encoding: 'utf8', timeout: 10_000 })
+  assert.equal(base.status, 0, base.stderr)
+  const key = () => snapshotKey(path.join(project, '.git'))
   const cache = path.join(project, '.git', 'qh-branch-state.json')
   const state = { looked: true, branch: 'main', head: 'abc1234', dirty: 0, ahead: 0, behind: 0,
     ci: { looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] },
@@ -506,7 +518,7 @@ test('the cached branch CLI reads a fresh answer without starting Git', t => {
     cwd, env: { ...process.env, PATH: '', QUALITY_HARNESS_TRACE_FILE: trace,
       QUALITY_HARNESS_TRACE_UNTIL: String(Date.now() + 60_000), ...extra }, encoding: 'utf8', timeout: 10_000,
   })
-  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, state }))
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: key(), state }))
   const warm = read()
   assert.equal(warm.status, 0, warm.stderr)
   assert.match(warm.stdout, /main @ abc1234/)
@@ -517,14 +529,14 @@ test('the cached branch CLI reads a fresh answer without starting Git', t => {
   const warmAgain = read()
   assert.equal(warmAgain.stdout, '', 'an unchanged brief line is not reprinted')
   writeFileSync(cache, JSON.stringify({
-    at: Date.now() - 1000,
+    at: Date.now() - 1000, key: key(),
     state: { ...state, ci: { ...state.ci, conclusion: 'failure', failed: ['coverage'] } },
   }))
   const alarm = read()
   assert.match(alarm.stdout, /⚠ CI/, alarm.stdout)
   const alarmAgain = read()
   assert.match(alarmAgain.stdout, /⚠ CI/, 'a red CI must not go silent on a second prompt')
-  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, state }))
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: key(), state }))
   const override = read({ GIT_DIR: path.join(project, 'missing-git') })
   assert.match(override.stdout, /COULD NOT LOOK/, 'Git environment overrides must bypass the filesystem hint')
   const unsafeTrace = path.join(project, 'must-not-be-created.jsonl')
@@ -557,15 +569,20 @@ test('the cached branch CLI reads a fresh answer without starting Git', t => {
   const worktreeGit = spawnSync('git', ['-C', worktree, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 10_000 })
   assert.equal(worktreeGit.status, 0, worktreeGit.stderr)
   writeFileSync(path.join(worktreeGit.stdout.trim(), 'qh-branch-state.json'), JSON.stringify({
-    at: Date.now() - 1000, state: { ...state, branch: 'linked-test' },
+    at: Date.now() - 1000, key: snapshotKey(worktreeGit.stdout.trim()), state: { ...state, branch: 'linked-test' },
   }))
   assert.match(read({}, worktree).stdout, /linked-test @ abc1234/, 'a worktree reads its own cache without Git')
 
   writeFileSync(cache, JSON.stringify({ at: Date.now() - 121_000, state }))
   const stale = read()
   assert.equal(stale.status, 0, stale.stderr)
-  assert.match(stale.stdout, /COULD NOT LOOK/)
-  assert.doesNotMatch(stale.stdout, /every job concluded success/, 'stale green cannot hide a failed refresh')
+  // ADR-065 T2: a stale snapshot is served ONCE, marked with its age and that a
+  // refresh is running; the refresh behind it cannot see git (PATH is empty) and
+  // writes COULD NOT LOOK, which the next prompt shows. A failed refresh is never
+  // hidden past the one prompt that started it.
+  assert.match(stale.stdout, /\(read \d+s ago; refreshing\)/, stale.stdout)
+  assert.ok(waitForSnapshot(cache, snapshot => snapshot.state?.looked === false), 'the refresh wrote what it saw')
+  assert.match(read().stdout, /COULD NOT LOOK/, 'and the next prompt says so')
 })
 
 test('a refresh that still renders the same brief line is not reprinted', t => {
@@ -654,6 +671,9 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
   writeFileSync(cache, JSON.stringify({ ...stored, at: Date.now() - 121_000 }))
   const again = run()
   assert.equal(again.stdout, '', again.stdout)
+  // The due brief above started a refresher behind it (ADR-065 T2); let it finish,
+  // or it overwrites the snapshot this step plants.
+  assert.ok(waitForNoRefresher(path.join(project, '.git')), 'the refresher behind the last prompt finished')
   writeFileSync(cache, JSON.stringify({ at: Date.now() - 121_000, state: stored.state }))
   const control = run()
   assert.match(control.stdout, /every job concluded success/, 'without said, a refresh still prints')
@@ -700,4 +720,253 @@ test('a reader that decides to stay silent is not drowned out by its own childre
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+// ── ADR-065 T1: a snapshot is keyed by branch, HEAD and upstream ──────────────
+
+// A repository with one commit, a tracking branch and an upstream ref.
+function keyedRepository(t, prefix) {
+  const project = mkdtempSync(path.join(os.tmpdir(), prefix))
+  t.after(() => rmSync(project, { recursive: true, force: true }))
+  const git = (...args) => {
+    const run = spawnSync('git', ['-C', project, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args],
+      { encoding: 'utf8', timeout: 10_000 })
+    assert.equal(run.status, 0, run.stderr)
+    return run.stdout.trim()
+  }
+  git('init', '-q', '-b', 'main')
+  git('commit', '--allow-empty', '-qm', 'one')
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+  git('config', 'branch.main.remote', 'origin')
+  git('config', 'branch.main.merge', 'refs/heads/main')
+  return { project, git, gitDir: path.join(project, '.git') }
+}
+
+test('a snapshot whose branch, HEAD or upstream moved is not served as fresh', t => {
+  const { project, git, gitDir } = keyedRepository(t, 'qh-snapshot-key-')
+  const state = { looked: true, branch: 'main', head: 'abc1234', dirty: 0, ahead: 0, behind: 0,
+    ci: { looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] },
+    tag: null, shippedSinceTag: null, releaseBlocked: null }
+  let gathered = 0
+  const served = snapshot => {
+    const before = gathered
+    cached(120, { read: () => snapshot, write: () => {}, now: () => 1_001_000, key: snapshotKey(gitDir),
+      gather: () => { gathered += 1; return state } })
+    return gathered === before
+  }
+  const take = () => ({ at: 1_000_000, key: snapshotKey(gitDir), state })
+  // CLEAN: nothing moved, so the snapshot is served without a gather.
+  assert.equal(served(take()), true, 'an unmoved snapshot is served')
+  const beforeCommit = take()
+  git('commit', '--allow-empty', '-qm', 'two')
+  assert.equal(served(beforeCommit), false, 'a commit moved HEAD')
+  const beforePush = take()
+  git('update-ref', 'refs/remotes/origin/main', 'HEAD')
+  assert.equal(served(beforePush), false, 'a push moved the upstream')
+  const beforeSwitch = take()
+  git('checkout', '-q', '-b', 'other')
+  assert.equal(served(beforeSwitch), false, 'a branch switch at the same sha')
+  assert.equal(served({ at: 1_000_000, state }), false, 'a snapshot with no key')
+  assert.equal(served({ ...take(), partial: true }), false, 'a checkpoint is never fresh')
+
+  // main()'s own early hit, through the CLI with no Git on PATH: a keyed snapshot
+  // is served without Git, and after a commit the same file is not.
+  const script = fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  const read = () => spawnSync(process.execPath, [script, '--brief', '--cached', '120'], {
+    cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000,
+  })
+  const before = snapshotKey(gitDir)
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: before, state }))
+  assert.match(read().stdout, /main @ abc1234/, 'an unmoved snapshot is served without Git')
+  git('commit', '--allow-empty', '-qm', 'three')
+  // Rewritten with no `said`, so a served snapshot would PRINT: an unchanged brief is
+  // suppressed, and that suppression hid a mutant that served it anyway.
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: before, state }))
+  // Not fresh means not served AS CURRENT: the brief shows it once, marked, while a
+  // refresh runs behind it (ADR-065 T2). A mutant serving it as fresh prints no mark.
+  assert.match(read().stdout, /every job concluded success\. \(read \d+s ago; refreshing\)/, 'a commit makes the same file not fresh')
+
+  // And what the prompt path WRITES carries the key it read, or nothing it writes
+  // could ever be served again.
+  // The FULL report: a due brief is served, not collected (T2), so only the
+  // foreground path shows what a collection writes.
+  assert.ok(waitForNoRefresher(gitDir), 'the refresher behind the last prompt finished')
+  const written = spawnSync(process.execPath, [script, '--cached', '120'], {
+    cwd: project, env: process.env, encoding: 'utf8', timeout: 20_000,
+  })
+  assert.equal(written.status, 0, written.stderr)
+  assert.equal(JSON.parse(readFileSync(cache, 'utf8')).key, snapshotKey(gitDir))
+})
+
+test('the key is read from files for a branch, a packed ref, a worktree and a detached checkout', t => {
+  const { project, git, gitDir } = keyedRepository(t, 'qh-snapshot-refs-')
+  const has = (key, sha) => typeof key === 'string' && key.includes(sha)
+  const head = () => git('rev-parse', 'HEAD')
+  assert.ok(has(snapshotKey(gitDir), head()), 'a loose branch ref')
+  assert.ok(has(snapshotKey(gitDir), git('rev-parse', 'refs/remotes/origin/main')), 'the upstream')
+  git('pack-refs', '--all')
+  assert.ok(has(snapshotKey(gitDir), head()), 'a packed branch ref')
+  // Loose and packed at once, with different values: the loose one is current.
+  git('commit', '--allow-empty', '-qm', 'after packing')
+  assert.ok(has(snapshotKey(gitDir), head()), 'a loose ref overrides the packed one')
+  const worktree = path.join(project, 'linked')
+  git('worktree', 'add', '-q', '-b', 'linked', worktree)
+  const linkedDir = spawnSync('git', ['-C', worktree, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 10_000 }).stdout.trim()
+  assert.ok(has(snapshotKey(linkedDir), git('rev-parse', 'linked')), 'a worktree resolves through its commondir')
+  git('checkout', '-q', '--detach')
+  assert.ok(has(snapshotKey(gitDir), head()), 'a detached HEAD')
+  // DIRTY: a HEAD this reader cannot read gives no key, so nothing is served on it.
+  const odd = mkdtempSync(path.join(os.tmpdir(), 'qh-snapshot-odd-'))
+  t.after(() => rmSync(odd, { recursive: true, force: true }))
+  writeFileSync(path.join(odd, 'HEAD'), 'not a head\n')
+  assert.equal(snapshotKey(odd), null)
+})
+
+// ── ADR-065 T2: a due brief is served, and refreshed behind the prompt ─────────
+
+const branchScript = fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))
+const greenState = { looked: true, branch: 'main', head: 'abc1234', dirty: 0, ahead: 0, behind: 0,
+  ci: { looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] },
+  tag: null, shippedSinceTag: null, releaseBlocked: null }
+
+// Wait for the detached refresher: its only visible effect is the snapshot it writes.
+const pause = ms => Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, ms)
+
+// Wait until no refresher holds this git directory's lock.
+function waitForNoRefresher(gitDir, ms = 20_000) {
+  const until = Date.now() + ms
+  while (Date.now() < until) {
+    try { readFileSync(path.join(gitDir, 'qh-branch-state.lock')) } catch { return true }
+    pause(100)
+  }
+  return false
+}
+
+function waitForSnapshot(cache, done, ms = 15_000) {
+  const until = Date.now() + ms
+  while (Date.now() < until) {
+    try { if (done(JSON.parse(readFileSync(cache, 'utf8')))) return true } catch { /* not yet written */ }
+    pause(100)
+  }
+  return false
+}
+
+test('a due brief is served and one refresher starts behind the prompt', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-behind-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  // PATH is empty, so a foreground collection could only print COULD NOT LOOK: the
+  // stale green below can only come from the snapshot.
+  const brief = () => spawnSync(process.execPath, [branchScript, '--brief', '--cached', '120'],
+    { cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000 })
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 200_000, key: snapshotKey(gitDir), state: greenState, said: 'an older line' }))
+  const served = brief()
+  assert.equal(served.status, 0, served.stderr)
+  assert.match(served.stdout, /every job concluded success\. \(read \d+s ago; refreshing\)/, served.stdout)
+  // The refresher ran behind it: with no git on PATH, what it writes is COULD NOT LOOK.
+  assert.ok(waitForSnapshot(cache, snapshot => snapshot.state?.looked === false), 'a refresher wrote the snapshot')
+  // CLEAN twin: a fresh snapshot is served as it is, and starts nothing.
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: snapshotKey(gitDir), state: greenState }))
+  const fresh = brief()
+  assert.doesNotMatch(fresh.stdout, /refreshing/, fresh.stdout)
+  assert.throws(() => readFileSync(path.join(gitDir, 'qh-branch-state.lock')), /ENOENT/, 'no refresher was started')
+  // Issue #12's guarantee, which moved here from `cached` (ADR-065 T1): a run the host
+  // killed left only its partial checkpoint, and the next brief SERVES it, marked,
+  // rather than paying for the whole collection on the prompt again.
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 5000, key: snapshotKey(gitDir), partial: true,
+    state: { ...greenState, ci: { looked: false, note: 'this answer was stored before the CI half was gathered' } } }))
+  const afterKill = brief()
+  assert.match(afterKill.stdout, /stored before the CI half was gathered/, afterKill.stdout)
+  assert.match(afterKill.stdout, /refreshing/, afterKill.stdout)
+})
+
+test('the full report and a brief with no snapshot are collected in the foreground', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-foreground-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  const run = args => spawnSync(process.execPath, [branchScript, ...args],
+    { cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000 })
+  // SessionStart's full report: a stale snapshot is NOT served, however old.
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 86_400_000, key: snapshotKey(gitDir), state: greenState }))
+  const full = run(['--cached', '120'])
+  assert.match(full.stdout, /COULD NOT LOOK/, full.stdout)
+  assert.doesNotMatch(full.stdout, /refreshing|every job concluded success/, full.stdout)
+  // A brief with no snapshot at all.
+  rmSync(cache)
+  const bare = run(['--brief', '--cached', '120'])
+  assert.match(bare.stdout, /COULD NOT LOOK/, bare.stdout)
+  assert.doesNotMatch(bare.stdout, /refreshing/, bare.stdout)
+})
+
+test('one refresher at a time, and a stale lock is reclaimed once', t => {
+  const gitDir = mkdtempSync(path.join(os.tmpdir(), 'qh-lock-'))
+  t.after(() => rmSync(gitDir, { recursive: true, force: true }))
+  const lock = path.join(gitDir, 'qh-branch-state.lock')
+  let started = 0
+  const spawnRefresher = () => { started += 1 }
+  assert.equal(refreshBehind({ gitDir, spawnRefresher }), true)
+  assert.equal(started, 1, 'the first due prompt starts one')
+  assert.equal(refreshBehind({ gitDir, spawnRefresher }), true, 'a running refresher is reported as running')
+  assert.equal(started, 1, 'and no second one is started while the lock is young')
+  // A lock older than the budget belongs to a refresher that died: two prompts
+  // that both see it stale start exactly one between them.
+  const old = new Date(Date.now() - 60_000)
+  utimesSync(lock, old, old)
+  refreshBehind({ gitDir, spawnRefresher })
+  refreshBehind({ gitDir, spawnRefresher })
+  assert.equal(started, 2, 'a stale lock is reclaimed once')
+})
+
+test('the refresher writes the snapshot and the host is not kept waiting', t => {
+  // A real spawn, on every CI platform: the refresher's gh sleeps 8 s, and the
+  // prompt that started it must return — and close its pipes — well before that.
+  // A hang guard, so generous: a prompt at load 30 takes about a second to start.
+  const { project, gitDir } = keyedRepository(t, 'qh-detach-')
+  const bin = mkdtempSync(path.join(os.tmpdir(), 'qh-detach-bin-'))
+  t.after(() => rmSync(bin, { recursive: true, force: true }))
+  const remote = spawnSync('git', ['-C', project, 'remote', 'add', 'origin', 'git@github.com:example/qh-detach.git'],
+    { encoding: 'utf8', timeout: 10_000 })
+  assert.equal(remote.status, 0, remote.stderr)
+  const gitWhere = spawnSync(process.platform === 'win32' ? 'where.exe' : '/bin/sh',
+    process.platform === 'win32' ? ['git.exe'] : ['-c', 'command -v git'], { encoding: 'utf8', timeout: 5_000 })
+  const gitBin = (gitWhere.stdout ?? '').split(/\r?\n/).map(line => line.trim()).find(Boolean)
+  assert.ok(gitBin, gitWhere.stderr)
+  const slow = [
+    'Atomics.wait(new Int32Array(new SharedArrayBuffer(4)), 0, 0, 8000)',
+    "process.stdout.write(JSON.stringify([{ headSha: 'aaaaaaaa', status: 'completed', conclusion: 'success', databaseId: 1 }]))",
+  ]
+  const extraEnv = {}
+  if (process.platform === 'win32') {
+    // As the TTL test above: a copied node answers to gh.exe, and a preload plays gh.
+    const preload = path.join(bin, 'gh-preload.cjs')
+    writeFileSync(preload, ["const path = require('node:path')",
+      "if (!/^gh(\\.exe)?$/i.test(path.basename(process.argv[0]))) return", ...slow, 'process.exit(0)', ''].join('\n'))
+    copyFileSync(process.execPath, path.join(bin, 'gh.exe'))
+    extraEnv.NODE_OPTIONS = [`--require=${preload.split(path.sep).join('/')}`, process.env.NODE_OPTIONS].filter(Boolean).join(' ')
+  } else {
+    const ghJs = path.join(bin, 'gh.mjs')
+    writeFileSync(ghJs, [...slow, ''].join('\n'))
+    writeFileSync(path.join(bin, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${ghJs}" "$@"\n`)
+    chmodSync(path.join(bin, 'gh'), 0o755)
+    writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nexec "${gitBin}" "$@"\n`)
+    chmodSync(path.join(bin, 'git'), 0o755)
+  }
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  const stale = Date.now() - 200_000
+  writeFileSync(cache, JSON.stringify({ at: stale, key: snapshotKey(gitDir), state: greenState, said: 'an older line' }))
+  const started = Date.now()
+  const prompt = spawnSync(process.execPath, [branchScript, '--brief', '--cached', '120'], {
+    cwd: project,
+    env: { ...process.env, ...extraEnv, PATH: process.platform === 'win32'
+      ? `${bin}${path.delimiter}${path.dirname(gitBin)}${path.delimiter}${path.join(process.env.SystemRoot || process.env.SYSTEMROOT, 'System32')}`
+      : bin },
+    encoding: 'utf8', timeout: 20_000,
+  })
+  const elapsed = Date.now() - started
+  assert.equal(prompt.status, 0, prompt.stderr)
+  assert.match(prompt.stdout, /refreshing/, prompt.stdout)
+  assert.ok(elapsed < 6_000, `the prompt returned and closed its pipes in ${elapsed} ms, before the 8 s gh`)
+  // And the refresher, still running when the prompt returned, writes a new snapshot
+  // keyed to HEAD once gh answers.
+  assert.ok(waitForSnapshot(cache, snapshot => snapshot.at > stale && snapshot.partial !== true && snapshot.key === snapshotKey(gitDir), 30_000),
+    'the refresher wrote a whole, keyed snapshot')
 })

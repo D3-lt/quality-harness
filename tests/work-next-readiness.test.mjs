@@ -329,6 +329,9 @@ test('a spec Status is read only where it is a Status, and only as a known value
     // and an unindented paragraph ends a list item and the fence it opened.
     'overindent.md': '# S\n\n**Status:** Draft\n\n   ```\n    ```\n**Status:** Ready-for-ADR\n   ```\n',
     'listended.md': '# S\n\n- ```\n  example\n\n**Status:** Ready-for-ADR\n',
+    // A Windows chaos round (2.111.0-rc): CRLF left a `\r` on each line, so a blank line
+    // was not blank and the same spec read differently in LF and CRLF.
+    'crlf.md': 'Example:\r\n\r\n    **Status:** Ready-for-ADR\r\n\r\n**Status:** Draft\r\n',
     'listclosed.md': '# S\n\n1. ```\n   x\n   ```\n\n**Status:** Ready-for-ADR\n',
     'tail.md': '# S\n\n**Status:** Ready-for-ADR">\n',
   }
@@ -405,4 +408,25 @@ test('a task git lists but the disk does not hold is unproven, not counted', () 
   assert.equal(present.tasks, 1)
   assert.deepEqual(present.readinessUnproven, [])
   assert.ok(present.unbacked.some(file => file.endsWith('T1-a.md')), 'the twin still reports the unbacked done claim')
+})
+
+// A chaos round (2.111.0-rc, CF1): under /m, `\s` crossed newlines, and the done-claim
+// regex backtracked over a run of blank lines from every line start, so 10,000 blank
+// lines in one task ran work-next past the probe's budget. The bound is generous: the
+// fix answers in milliseconds, the defect in minutes.
+test('a run of blank lines in a task does not stall the done-claim reader', () => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-blank-lines-')); temps.push(temp)
+  const tasks = path.join(temp, 'docs', 'adr', 'ADR-001-x', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  writeFileSync(path.join(temp, 'docs', 'adr', 'ADR-001-x.md'), '# ADR-001: x\n\n**Status:** Accepted\n')
+  writeFileSync(path.join(tasks, 'T1-x.md'), '# Task ADR-001-T1: x\n\n**Status:** Todo\n' + '\n'.repeat(4_000) + '## Acceptance\n')
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
+    GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
+  for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
+    const r = spawnSync('git', args, { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+  }
+  const started = Date.now()
+  observe(temp)
+  assert.ok(Date.now() - started < 10_000, `work-next took ${Date.now() - started} ms over 4,000 blank lines`)
 })

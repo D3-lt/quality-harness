@@ -594,3 +594,28 @@ test('a path in the ready line cannot break out of its code span or hide a chara
     assert.ok(lineFor('T1.md').includes('Prove it with `adr-verify docs/adr/ADR-001-v/tasks/T1.md`'), 'a plain path keeps one backtick')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+// A Windows chaos round (2.111.0-rc, P3): the ready line offered a task as ready
+// whatever its owner record's Status was, though adr-next's answer carries it. An owner
+// that could not be read, or is not Accepted, is named first; an Accepted one is not.
+test('the ready line says first when the owning record is unreadable or not Accepted', () => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-owner-')))
+  try {
+    mkdirSync(join(root, 'tasks'), { recursive: true })
+    writeFileSync(join(root, 'tasks', 'T1.md'), '# x\n')
+    const answer = extra => () => ({ status: 0, stderr: '',
+      stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: join(root, 'tasks', 'T1.md') }], ...extra }) })
+    const line = extra => readyTaskLines(root, true, ['tasks/T1.md'], answer(extra)).lines.join('\n')
+    assert.match(line({ status: 'Accepted', undecided: false }), /tasks`?: T1 is ready/)
+    assert.match(line({ status: 'Proposed', undecided: true }), /its record's Status is «Proposed», not Accepted, so this is a plan, not a work order — T1 is ready/)
+    assert.match(line({ status: null, undecided: null, owner_unreadable: true }), /its record was found but could not be read as one, so whether it is Accepted is UNKNOWN .* T1 is ready/)
+    // No owner found at all is not an unreadable one: the line stays as it was.
+    assert.match(line({ status: null, undecided: null, owner_unreadable: false }), /tasks`?: T1 is ready/)
+    // Codex review of 2.111.0-rc2: the unmarked-archive branch says it too.
+    mkdirSync(join(root, 'docs', 'adr-archive', 'ADR-001-x', 'tasks'), { recursive: true })
+    writeFileSync(join(root, 'docs', 'adr-archive', 'ADR-001-x', 'tasks', 'T1-x.md'), '# x\n')
+    const archived = readyTaskLines(root, true, ['docs/adr-archive/ADR-001-x/tasks/T1-x.md'],
+      answer({ status: 'Proposed', undecided: true })).lines.join('\n')
+    assert.match(archived, /if it is not, its record's Status is «Proposed», not Accepted/, archived)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

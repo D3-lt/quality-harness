@@ -15689,3 +15689,73 @@ One different-lineage round (§12) over §295.7, .19 and .23.2, §297 and §298,
 **Mutants.** 8 new, plus 9 repointed where the code moved. One was GREEN on the way ("trajectory-metrics needs both sides"): no clean twin held a lone `<<<<<<<`. Both twins now do.
 
 **Codex also reported** no behaviour difference in §295.23.1's table at 58,465 positions, nothing in §297's dispatcher probes, and no test in the diff that cannot fail. All 1,251 `from` strings matched exactly once.
+
+## 300. CLOSED 2026-09-26 — The 2.111.0-rc chaos round: what re-cut the release (outside runs at cb6c1dc)
+
+Four sessions ran the Runner and Chaos steps at cb6c1dc:
+- desktop-3laqmbq-declarative-pie (Windows, TS monorepo);
+- desktop-3laqmbq-idempotent-hammock (Windows, Go CLI corpus);
+- quality-blueprints (macOS, TS generator);
+- playtrix (macOS, PHP/React).
+
+A fifth report, from the wcag-web chaos session (Windows), was taken at 026658a (2.110.0-rc). It was replayed here at cb6c1dc. Its hostile-text finding (AV) and its dangling-Depends-on finding (CF3) no longer reproduce.
+
+**The §295-§299 targets held everywhere they were aimed:**
+- merge conflicts (a fence opened inside a hunk, a foreign conflicted task, diff3);
+- spec Status in code-like Markdown;
+- a missing or git-listed-but-absent task;
+- `bash -n`, `-o noexec` and `--help` in the publish hook.
+
+hammock timed its Go corpus at **149 s → 1.47 s** with the same answer, on Windows.
+
+**Fixed in the re-cut, each reproduced here first:**
+- **P1 (declarative-pie), fail-open.** Claude Code's PowerShell tool was never gated: the PreToolUse matcher named only Bash, and every shell check read `tool_name === 'Bash'`. `SHELL_TOOLS` now covers it, and `hooks.json` routes it, for the publish refusal and the reviewer guard alike.
+- **P2 (declarative-pie), fail-open.** Windows spellings that reach git were not read as a publish. The peer measured each reaching git on a Windows 11 host: `git.exe push`, a quoted `"/c/Program Files/Git/cmd/git.exe" push`, `C:/…/git.exe`, `cmd /c` / `cmd.exe /c "…"` / `cmd //c`, and `wsl git push`. Look-alikes (`cmd /c echo git push`, `gitk.exe`) stay null.
+- **playtrix F1, fail-open.** `eval "git push"` was not refused: `eval` runs its string as `bash -c` does. It is now an executor. Aliases, variables and split quotes stay the pinned §269 limit.
+- **P3 (declarative-pie).** A task under an owner record that could not be found or read was offered as ready with no word, by adr-next's single-record path and by SessionStart. Both now say so first, and SessionStart also names a Proposed owner.
+- **CF1 (wcag-web).** 10,000 blank lines ran work-next past the probe's budget: a `\s` crossing newlines under `/m`. Horizontal whitespace only now.
+- **CF4 (wcag-web, playtrix F8).** A task depending on itself was offered as READY, and adr-lint passed it. Now it is blocked with "(the task itself)" in adr-next and FAILed by adr-lint.
+- **F1 (hammock, playtrix F4).** A task or record inside an HTML comment block or a `<pre>` block still routed a doc through the commit dispatcher (§297's siblings). `unfenced` blanks both now.
+- **F2 (hammock).** A UTF-16 task file was offered as READY with NULs in its goal. Now adr-next stops it as could-not-read, and adr-lint says first that it is not UTF-8 text.
+- **declarative-pie, CRLF.** A CRLF spec read differently from the LF one. `maskedMarkdown` now splits on CRLF.
+
+**Withdrawn by its runner:** blueprints L5 ("a CRLF-saved task loses done"). The conversion one-liner opened the file for writing before reading it, so it measured an EMPTY file. A real CRLF conversion stays done and PASSes, there and here. What it did measure is fixed in the re-cut: an empty (or blank) tracked task file was offered as READY with no title. It is now stopped as could-not-read, beside the NUL-bytes case.
+
+**Design question, not changed:** a task `**Status:** blocked` is read as buildable (blueprints F4). `blocked` is in `BUILDABLE_STATUSES` on purpose: an outside wait has its own `Blocked-on` header. Whether a bare `blocked` should stop the task needs a decision.
+
+**Left for 2.112.0, as leads with their replays in the peers' reports:**
+- A stuck corpus (a deleted, cyclic or unrecognised dependency) reads as "Nothing … is waiting" (blueprints F1).
+- work-next's `next` names `adr-verify` for a conflicted task (blueprints F2).
+- `readsAsRecord` counts a fenced record in a how-to doc as governing (blueprints F3, a §297 sibling in lifecycle.mjs).
+- An Implemented record contradicts itself across work-next and adr-state (blueprints F5).
+- A FIFO task or record hangs the readers (§295.1, confirmed by blueprints F6 and playtrix).
+- A duplicate task file silently takes over the real task's id and path (playtrix F2, blueprints L6).
+- Spec Status inside `<script>`, `<textarea>`, `$$` math, a tilde fence two lists deep, and after an em space (blueprints L1-L2, playtrix F3).
+- A conflict inside the tasks README's table is not seen (playtrix F5).
+- A directory named like a task crashes adr-lint (playtrix F6, with §295.4).
+- `adr-next --json` on a file path prints text (playtrix F7).
+- adr-lint echoes hostile Depends-on text into the dispatcher's additionalContext (playtrix F9, V class).
+- Hand-forged and impossible-date rows (§295.8, hammock F3, blueprints L3).
+- Duplicate conflicting Status headers (wcag CF5).
+- A >260-character path skipped by work-next on Windows (wcag CF6).
+- Probe wording "raise the budget" for a hang (wcag CF1).
+- A missing foreign dependency reads like an unevaluable one (declarative-pie).
+- `git push --dry-run` refused, `git submodule foreach git push` only warned, and `gh` publishers outside the vocabulary (hammock leads).
+- adr-lint's banner prints the absolute plugin path (declarative-pie, wcag).
+- A stale "(advisory until 2026-09-13)" in `record.py` (wcag).
+
+**Codex round on the re-cut (rc2).** Four findings, each reproduced here first:
+- `</pre >` is a valid closer that did not end the dispatcher's `<pre>` block, so a real title after it was hidden. Fixed.
+- An owner record holding NUL bytes plus an ASCII `Status: Accepted` line read as Accepted. Fixed: NUL bytes mean unreadable.
+- The unmarked-archive ready line dropped the owner caveat. Fixed.
+- `eval "…" "-h"` is refused although eval joins its arguments into a help call. Pinned in `KNOWN_FALSE_REFUSALS`, the same limit as quoted data.
+
+Also recorded:
+- It found nothing in the self-dependency, empty/NUL task, blank-line or CRLF changes.
+- All 1,281 `from` strings matched once.
+- It could not run PowerShell, CMD or WSL natively, and said so. Those rows rest on the Windows runner's measurement.
+
+**Mutants.**
+- 25 new across the re-cut, all RED.
+- Repointed where lines moved; RED where run.
+- "a signed-off human-observed task is finished" came back UNPROVEN locally. The whole `lifecycle.test.mjs` hung at baseline under load 20+, before any mutation was applied, so that entry's verdict rests on the dispatched CI campaign.

@@ -2,7 +2,7 @@
 // when the log was read whole. A torn log still only warns.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
@@ -517,4 +517,25 @@ test('R2 over several commits says at least one could not be established', () =>
     assert.match(text, /not known to be checked/)
   }
   assert.doesNotMatch(lifecycle.uncheckedCommitsReason(testTmp, commits.slice(0, 1), { couldNotLook: true }), /at least one/)
+})
+
+// A Windows chaos round (2.111.0-rc, P1): Claude Code on Windows ships a PowerShell
+// tool, and every shell check read `tool_name === 'Bash'`, so a publish through it was
+// neither refused on an unchecked tree nor denied to a read-only role.
+test('a publish through the PowerShell tool is refused, and denied to a read-only role', () => {
+  const dir = repository('pwsh-')
+  writeFileSync(path.join(dir, 'check.sh'), 'exit 0\n')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  const session = 'pwsh-' + process.pid
+  hook(dir, { hook_event_name: 'SessionStart', source: 'startup', session_id: session })
+  writeFileSync(path.join(dir, 'a.md'), 'changed\n')
+  const through = (tool, extra = {}) => decision(hook(dir, {
+    hook_event_name: 'PreToolUse', tool_name: tool, session_id: session, tool_input: { command: 'git push' }, ...extra,
+  }))
+  assert.equal(through('PowerShell'), 'deny', 'the PowerShell tool is a shell like Bash')
+  assert.equal(through('Bash'), 'deny', 'the twin through Bash')
+  assert.notEqual(through('NotAShell'), 'deny', 'a tool that runs no command is not read as one')
+  assert.equal(through('PowerShell', { agent_type: 'qh-correctness-reviewer', agent_id: 'r1' }), 'deny', 'a read-only role is denied it too')
+  const matcher = JSON.parse(readFileSync(path.join(repoRoot, 'plugin', 'hooks', 'hooks.json'), 'utf8')).hooks.PreToolUse[0].matcher
+  assert.ok(matcher.split('|').includes('PowerShell'), `the hook is called for the PowerShell tool: ${matcher}`)
 })

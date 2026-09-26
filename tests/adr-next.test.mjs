@@ -1360,6 +1360,45 @@ test('a dependency on a missing task blocks, and a task git lists but the disk l
   assert.deepEqual((absent.blocked ?? []).find(t => t.id === 'T5')?.blocked_by, ['T4'], `its dependent waits on it: ${JSON.stringify(absent)}`)
 })
 
+// Chaos rounds (2.111.0-rc): a task depending on itself was dropped as a self-edge and
+// printed READY (CF4); and the single-record path offered tasks under an owner record
+// it could not read with no word, where the corpus path warns (P3).
+// A Windows chaos round (2.111.0-rc): a task saved as UTF-16 was read as text, its goal
+// full of NULs, and offered as READY. It is stopped as could-not-read; the same task in
+// UTF-8 is its twin.
+test('a task file holding NUL bytes is stopped as unreadable, not offered as ready', () => {
+  const { tasksDir } = corpus([{ id: 'T1' }])
+  const file = join(tasksDir, 'T1-t.md')
+  const utf8 = readFileSync(file, 'utf8')
+  writeFileSync(file, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(utf8, 'utf16le')]))
+  const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.match((parsed.stopped ?? []).find(t => t.id === 'T1')?.stopped_by ?? '', /T1-t\.md holds NUL bytes/, JSON.stringify(parsed))
+  assert.ok(!(parsed.ready ?? []).some(t => t.id === 'T1'), JSON.stringify(parsed))
+  // A chaos round (2.111.0-rc): an EMPTY tracked task file was READY with no title.
+  writeFileSync(file, '')
+  const empty = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.match((empty.stopped ?? []).find(t => t.id === 'T1')?.stopped_by ?? '', /T1-t\.md is empty/, JSON.stringify(empty))
+  writeFileSync(file, utf8)
+  assert.ok((JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout).ready ?? []).some(t => t.id === 'T1'), 'the UTF-8 twin is ready')
+})
+
+test('a task that depends on itself waits, and an unreadable owner is said', () => {
+  const { dir, tasksDir } = corpus([{ id: 'T1', dependsOn: 'T1' }, { id: 'T2' }])
+  const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.deepEqual((parsed.blocked ?? []).find(t => t.id === 'T1')?.blocked_by, ['T1 (the task itself)'], JSON.stringify(parsed))
+  // An owner that is found but cannot be read as a record is said; an Accepted one is not.
+  const owned = twoRecords('none')
+  const record = join(owned.dir, 'ADR-007-source.md')
+  writeFileSync(record, Buffer.from([0x50, 0x4b, 0x03, 0x04, 0, 0, 0xff, 0xfe]))
+  assert.match(next([owned.tasksDir], owned.tasksDir).stderr, /the record owning these tasks was found but could not be read as one/)
+  writeFileSync(record, '# ADR-007: Probe\n\n**Status:** Accepted\n')
+  assert.doesNotMatch(next([owned.tasksDir], owned.tasksDir).stderr, /could not be read as one/, 'an Accepted owner is not an unknown')
+  // Codex review of 2.111.0-rc2: an ASCII Status line inside a NUL-bearing file is not one.
+  writeFileSync(record, '# ADR-007: Probe\n\n**Status:** Accepted\n\u0000')
+  assert.match(next([owned.tasksDir], owned.tasksDir).stderr, /was found but could not be read as one/, 'a NUL-bearing owner is unreadable')
+  assert.doesNotMatch(next([tasksDir], tasksDir).stderr, /could not be read as one/, 'no owner found is not an unreadable one')
+})
+
 // BACKLOG §270: the single-record --json answer dropped the record's status that
 // corpus mode already carried, so a machine caller got a Superseded record's tasks
 // as plain `ready`. It still answers (CLAUDE.md §3); it now says what it answered.

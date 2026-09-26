@@ -3305,7 +3305,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (/^\\s*Acceptance is human-observed:/im.test(text)\n      && /^- \\d{4}-\\d{2}-\\d{2} · human-observed · \\S/m.test(text)) return false",
+      "from": "    if (/^[ \\t]*Acceptance is human-observed:/im.test(text)\n      && /^- \\d{4}-\\d{2}-\\d{2} · human-observed · \\S/m.test(text)) return false",
       "to": "    if (false) return false"
     },
     {
@@ -5306,7 +5306,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (readOnlyRole(input.agent_type) && (input.tool_name === 'Bash' || MUTATION_TOOLS.has(input.tool_name))) {",
+      "from": "    if (readOnlyRole(input.agent_type) && (SHELL_TOOLS.has(input.tool_name) || MUTATION_TOOLS.has(input.tool_name))) {",
       "to": "    if (false) {"
     },
     {
@@ -8229,8 +8229,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "                          \"status\": status, \"undecided\": undecided},",
-      "to": "                          },",
+      "from": "                          \"status\": status, \"undecided\": undecided, \"owner_unreadable\": owner_unreadable},",
+      "to": "                          \"owner_unreadable\": owner_unreadable},",
       "only": "single-record --json answer carries"
     },
     {
@@ -10381,7 +10381,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~\\\\/-]*[\\\\/])?git`",
+      "from": "const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~:\\\\/-]*[\\\\/])?git(?:\\.exe)?`",
       "to": "const PUBLISH_EXE_BARE = 'git'"
     },
     {
@@ -10538,8 +10538,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "a dependency on a missing task blocks",
-      "from": "else f\"{pointer} (no such task in this record)\" if state == \"missing\" else pointer",
-      "to": "else pointer"
+      "from": "else f\"{pointer} (no such task in this record)\" if state == \"missing\"\n",
+      "to": ""
     },
     {
       "label": "§295.23.2: an indented code block is masked",
@@ -10793,6 +10793,256 @@
       ],
       "from": "    if conflicted:\n        fail(",
       "to": "    if False:\n        fail("
+    },
+    {
+      "label": "2.111.0-rc2 (Codex): a spaced </pre > closes a <pre> block",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "if (pre) { if (tolower(line) ~ /<\\/pre[ \\t]*>/) pre = 0",
+      "to": "if (pre) { if (tolower(line) ~ /<\\/pre>/) pre = 0"
+    },
+    {
+      "label": "2.111.0-rc2 (Codex): a NUL-bearing owner record is unreadable",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "depends on itself",
+      "from": "        if \"\\x00\" in text:\n            # NUL bytes: an ASCII Status line",
+      "to": "        if False:\n            # NUL bytes: an ASCII Status line"
+    },
+    {
+      "label": "2.111.0-rc2 (Codex): the unmarked-archive ready line names the owner",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "only": "owning record is unreadable or not Accepted",
+      "from": "if it is not, ${ownerCaveat(report)}${next.id} is ready",
+      "to": "if it is not, ${next.id} is ready"
+    },
+    {
+      "label": "2.111.0-rc playtrix F1: eval runs its string",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "eval runs its string",
+      "from": "[ \\t]+|eval[ \\t]+[\"']?`",
+      "to": "[ \\t]+`"
+    },
+    {
+      "label": "2.111.0-rc: an empty task file is stopped as unreadable",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "NUL bytes is stopped",
+      "from": "                      else \"is empty\" if not text.strip() else None)",
+      "to": "                      else None)"
+    },
+    {
+      "label": "2.111.0-rc P3: a found-but-unreadable owner is told apart from none",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "depends on itself",
+      "from": "    owner_unreadable = owner_found and status is None",
+      "to": "    owner_unreadable = status is None"
+    },
+    {
+      "label": "2.111.0-rc P1: the PowerShell tool is a shell",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "only": "PowerShell tool",
+      "from": "const SHELL_TOOLS = new Set(['Bash', 'PowerShell'])",
+      "to": "const SHELL_TOOLS = new Set(['Bash'])"
+    },
+    {
+      "label": "2.111.0-rc P1: the hook is called for the PowerShell tool",
+      "file": "plugin/hooks/hooks.json",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "only": "PowerShell tool",
+      "from": "\"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit\"",
+      "to": "\"matcher\": \"Bash|Edit|Write|MultiEdit|NotebookEdit\""
+    },
+    {
+      "label": "2.111.0-rc P2: git.exe is git",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "Windows spellings of a publish",
+      "from": "git(?:\\.exe)?`\nconst PUBLISH_EXE = ",
+      "to": "git`\nconst PUBLISH_EXE = "
+    },
+    {
+      "label": "2.111.0-rc P2: a quoted path may hold spaces",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "Windows spellings of a publish",
+      "from": "(?:\"(?:[^\"\\n]*[\\\\/])?git(?:\\.exe)?\"|",
+      "to": "(?:\"${PUBLISH_EXE_BARE}\"|"
+    },
+    {
+      "label": "2.111.0-rc P2: cmd /c runs its command",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "Windows spellings of a publish",
+      "from": "  + String.raw`|cmd(?:\\.exe)?(?:[ \\t]+\\/\\/?(?:[qQdDaAuUsS]|[eEfFvV]:\\w+))*[ \\t]+\\/\\/?[cCkK][ \\t]+[\"']?`\n",
+      "to": ""
+    },
+    {
+      "label": "2.111.0-rc P2: wsl runs its command",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "Windows spellings of a publish",
+      "from": "|wsl(?:\\.exe)?(?:[ \\t]+(?:-d|-u|--distribution|--user)[ \\t]+[^\\s\"']+)*(?:[ \\t]+(?:-e|--exec|--))?[ \\t]+",
+      "to": ""
+    },
+    {
+      "label": "2.111.0-rc P2: a drive path reaches git",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "Windows spellings of a publish",
+      "from": "(?:[A-Za-z0-9_.~:\\\\/-]*[\\\\/])?git",
+      "to": "(?:[A-Za-z0-9_.~\\\\/-]*[\\\\/])?git"
+    },
+    {
+      "label": "2.111.0-rc P3: a Proposed owner is named on the ready line",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "only": "owning record is unreadable or not Accepted",
+      "from": "  if (report.undecided === true) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "2.111.0-rc P3: an unreadable owner is named on the ready line",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "only": "owning record is unreadable or not Accepted",
+      "from": "  if (report.owner_unreadable === true) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "2.111.0-rc P3: adr-next says an unreadable owner in the single-record path",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "depends on itself",
+      "from": "    if owner_unreadable and ready:",
+      "to": "    if False:"
+    },
+    {
+      "label": "2.111.0-rc CF4: a task that depends on itself waits",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "depends on itself",
+      "from": "                if d == tid:\n",
+      "to": "                if False:\n"
+    },
+    {
+      "label": "2.111.0-rc CF4: adr-lint refuses a self-dependency",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "refuses a task that depends on itself",
+      "from": "        if id_matches(d, path.stem):",
+      "to": "        if False:"
+    },
+    {
+      "label": "2.111.0-rc CF1: the done-claim reader reads horizontal whitespace only",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "run of blank lines",
+      "from": "/^[ \\t]*[-*]?[ \\t]*\\*{0,2}(?:Status|State)",
+      "to": "/^\\s*[-*]?\\s*\\*{0,2}(?:Status|State)"
+    },
+    {
+      "label": "2.111.0-rc: spec masking splits CRLF lines",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "  const lines = text.split(/\\r?\\n/).map(line => {",
+      "to": "  const lines = text.split('\\n').map(line => {"
+    },
+    {
+      "label": "2.111.0-rc F1: an HTML comment block is an example",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "        if (line ~ /^[ \\t]*<!--/) { if (!index(line, \"-->\")) comment = 1; print \"\"; next }\n",
+      "to": ""
+    },
+    {
+      "label": "2.111.0-rc F1: a <pre> block is an example",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "        if (tolower(line) ~ /^[ \\t]*<pre([ \\t>]|$)/) { if (tolower(line) !~ /<\\/pre[ \\t]*>/) pre = 1; print \"\"; next }\n",
+      "to": ""
+    },
+    {
+      "label": "2.111.0-rc F1: a comment ends at its closer",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "        if (comment) { if (index(line, \"-->\")) comment = 0; print \"\"; next }",
+      "to": "        if (comment) { print \"\"; next }"
+    },
+    {
+      "label": "2.111.0-rc F2: a task file holding NUL bytes is stopped as unreadable",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "holding NUL bytes",
+      "from": "        unreadable = (\"holds NUL bytes (saved as UTF-16, or binary?)\" if \"\\x00\" in text",
+      "to": "        unreadable = (None if \"\\x00\" in text"
+    },
+    {
+      "label": "2.111.0-rc F2: adr-lint says a task holding NUL bytes is not text",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "NUL bytes is not UTF-8 text",
+      "from": "    if \"\\x00\" in text:\n        # Said first and plainly",
+      "to": "    if False:\n        # Said first and plainly"
     },
     {
       "label": "§298 (Codex): a quoted option value is one token",

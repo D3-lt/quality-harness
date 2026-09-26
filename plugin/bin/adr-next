@@ -590,6 +590,16 @@ def load(tasks_dir):
         if path.name.lower() == "readme.md":
             continue
         text = read_named(path)
+        unreadable = ("holds NUL bytes (saved as UTF-16, or binary?)" if "\x00" in text
+                      else "is empty" if not text.strip() else None)
+        if unreadable:
+            # NUL bytes (UTF-16, binary) or nothing at all: it was read anyway, and
+            # offered as READY with NULs or nothing for a goal (chaos rounds, 2.111.0-rc).
+            m = TID_RE.search(path.name.upper())
+            if m and m.group(0) not in infos:
+                infos[m.group(0)] = unreadable_task(m.group(0), path, (
+                    f"could not read it: {path.name} {unreadable}, so its state is UNPROVEN"))
+            continue
         m = re.match(r"^#\s+(?:Task\s+)?\S*?(T\d+)\b", text) or TID_RE.search(path.name)
         if not m:
             continue
@@ -661,16 +671,19 @@ def load(tasks_dir):
         tid = m.group(0) if m else None
         if tid is None or tid in infos:
             continue
-        infos[tid] = {
-            "id": tid, "path": str(tasks_dir / name), "goal": tid,
-            "depends_on": "", "consumes": "", "produces": "",
-            "acceptance": None, "human_observed": False, "done": False, "unproven": None,
-            "stopped_by": (f"could not read it: git lists {name} here but the disk does not hold "
-                           f"it (a sparse or partial checkout?), so its state is UNPROVEN"),
-            "blocked_on": None,
-        }
+        infos[tid] = unreadable_task(tid, tasks_dir / name, (
+            f"could not read it: git lists {name} here but the disk does not hold "
+            f"it (a sparse or partial checkout?), so its state is UNPROVEN"))
     return infos
 
+
+
+def unreadable_task(tid, path, why):
+    """An entry for a task this reader could not read: stopped, with the reason, so
+    what depends on it is blocked and no all-clear is printed over it."""
+    return {"id": tid, "path": str(path), "goal": tid, "depends_on": "", "consumes": "",
+            "produces": "", "acceptance": None, "human_observed": False, "done": False,
+            "unproven": None, "stopped_by": why, "blocked_on": None}
 
 QUALIFIED_DEP = re.compile(r"^ADR[-\s]?0*(?P<number>\d{1,4})[-/](?P<task>T\d+)$", re.I)
 
@@ -754,7 +767,11 @@ def blockers(infos, corpus_dir=None):
                 else:
                     rest.append(part)
             for d in TID_RE.findall(" ".join(rest).upper()):
-                if d in infos and d != tid:
+                if d == tid:
+                    # A task that waits on itself never becomes ready, and the edge was
+                    # dropped as a self-edge, so it printed READY (a chaos round, CF4).
+                    foreign[tid].append((d, "self"))
+                elif d in infos:
                     out[tid].add(d)
                 elif d not in infos:
                     # A local id naming no task in this record was DROPPED, and an
@@ -880,8 +897,8 @@ def record_undecided(status):
     return None if status is None else bool(not re.match(r"accepted\b", status, re.I))
 
 
-def owning_record_status(tasks_dir, record_dir=None):
-    """The Status of the record these tasks belong to, or None if it cannot be found.
+def owning_record(tasks_dir, record_dir=None):
+    """(found, Status): whether a record owning these tasks was found, and its Status or None.
 
     `work-next` joins every task to its record and refuses to call an undecided
     record's tasks ready (docs/BACKLOG.md §48). This tool never looked, so the
@@ -914,14 +931,17 @@ def owning_record_status(tasks_dir, record_dir=None):
         record_dir = (record_dir.absolute() if record_dir is not None
                       else tasks_dir.resolve().parent)
     except OSError:
-        return None
+        return False, None
     if record_dir == record_dir.parent:      # filesystem root: no record can own it
-        return None
+        return False, None
     # Bounded: the sibling scan exists to find `ADR-002-long-slug.md` beside
     # `ADR-002/`, not to read an arbitrary directory of markdown. A corpus
     # directory holds tens of records; anything past a couple of hundred is not
     # a corpus and this question is not worth asking there.
     siblings = sorted(record_dir.parent.glob("*.md"))[:200]
+    # Found but unreadable (binary, empty, no Status line) is told apart from not
+    # found: only the first is an owner this reader could not read (2.111.0-rc, P3).
+    seen = False
     for candidate in (record_dir.with_suffix(".md"), *siblings):
         try:
             if not candidate.is_file():
@@ -934,10 +954,21 @@ def owning_record_status(tasks_dir, record_dir=None):
             if not (mine and theirs and int(mine.group(1)) == int(theirs.group(1))):
                 continue
         text = read_named(candidate)
+        if "\x00" in text:
+            # NUL bytes: an ASCII Status line inside a binary or UTF-16 file is not a
+            # record's Status (Codex review of 2.111.0-rc2).
+            seen = True
+            continue
         found = re.search(r"^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$", text, re.M | re.I)
         if found:
-            return found.group(1).strip().strip("*").strip()
-    return None
+            return True, found.group(1).strip().strip("*").strip()
+        seen = True
+    return seen, None
+
+
+def owning_record_status(tasks_dir, record_dir=None):
+    """The owning record's Status, or None if it cannot be found or holds none."""
+    return owning_record(tasks_dir, record_dir)[1]
 
 
 def classify(infos, corpus_dir):
@@ -974,7 +1005,8 @@ def classify(infos, corpus_dir):
         # evaluate blocks too — saying which, because "blocked" and "I could not
         # tell" send a reader to different places.
         open_deps += [f"{pointer} (cannot evaluate)" if state == "unknown"
-                      else f"{pointer} (no such task in this record)" if state == "missing" else pointer
+                      else f"{pointer} (no such task in this record)" if state == "missing"
+                      else f"{pointer} (the task itself)" if state == "self" else pointer
                       for pointer, state in foreign[tid]]
         if open_deps:
             blocked.append({**inf, "blocked_by": open_deps})
@@ -1246,7 +1278,8 @@ def main():
     # that is not Accepted is a plan or history, never a work order (CLAUDE.md
     # §10) — but this gate instructs and never blocks, so the tasks are still
     # reported and the reader decides.
-    status = owning_record_status(tasks_dir)
+    owner_found, status = owning_record(tasks_dir)
+    owner_unreadable = owner_found and status is None
     if status is not None and not re.match(r"accepted\b", status, re.I):
         print(f"adr-next: the record owning these tasks is **{status}**, not Accepted — "
               f"a record is a work order only once it is Accepted, so what follows is a "
@@ -1257,6 +1290,13 @@ def main():
     # foreign edge reads "unknown" — which withholds `ready`, the safe direction.
     corpus_dir = tasks_dir.parent.parent if tasks_dir.parent.parent.is_dir() else None
     ready, done, blocked, stopped = classify(infos, corpus_dir)
+    if owner_unreadable and ready:
+        # The corpus path says this and the single-record one did not: tasks under an
+        # owner record that is binary, empty or has no Status line were offered as
+        # ready with no word (a Windows chaos round, 2.111.0-rc, P3).
+        print("adr-next: the record owning these tasks was found but could not be read as one "
+              "(binary, empty, or no Status line), so whether it is Accepted is UNKNOWN — its "
+              "ready task(s) below may not be a work order.", file=sys.stderr)
 
     if "--json" in flags:
         # The record's status travels with the answer, as it does in corpus mode
@@ -1267,7 +1307,7 @@ def main():
         undecided = record_undecided(status)
         print(json.dumps({"tasks_dir": str(tasks_dir), "ready": ready,
                           "done": done, "blocked": blocked, "stopped": stopped,
-                          "status": status, "undecided": undecided},
+                          "status": status, "undecided": undecided, "owner_unreadable": owner_unreadable},
                          indent=2))
         return 0 if ready else 3
 

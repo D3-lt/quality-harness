@@ -175,8 +175,38 @@ const NOT_PUBLISHES = [
 // The precise arm's known limit, pinned as a decision (§269): a `;` or a newline inside
 // quoted data or a heredoc body reads as a command position, so these are refused
 // although they publish nothing. Rare, named in the refusal's own text, and cheaper
+// A Windows chaos round (2.111.0-rc, P2): spellings that reached git on a Windows 11
+// host (`git.exe --version`, `cmd //c git --version`, `wsl -e true`) and were not read
+// as a publish. Beside them, look-alikes that run no git.
+const WINDOWS_PUBLISHES = [
+  'git.exe push',
+  '"/c/Program Files/Git/cmd/git.exe" push',
+  'C:/Git/cmd/git.exe push',
+  'cmd /c git push',
+  'cmd.exe /c "git push"',
+  'cmd //c git push',
+  'pwsh -c "git.exe push"',
+  'wsl git push',
+  'wsl -d Ubuntu -e git push',
+]
+const WINDOWS_NOT_PUBLISHES = ['cmd /c echo git push', 'wsl ls', 'gitk.exe push']
+// A chaos round (2.111.0-rc, playtrix F1): `eval` runs its string.
+test('eval runs its string, so a publish in it is invoked', () => {
+  for (const command of ['eval "git push origin main"', "eval 'git push'", 'eval git push']) {
+    assert.match(publishCommandIn(command) ?? '', /^git push/, command)
+  }
+  assert.equal(publishCommandIn('echo eval git push'), null, 'the word as data is not an eval')
+})
+test('Windows spellings of a publish are recognised, and look-alikes are not', () => {
+  for (const command of WINDOWS_PUBLISHES) assert.match(publishCommandIn(command) ?? '', /git(?:\.exe)? push$/, command)
+  for (const command of WINDOWS_NOT_PUBLISHES) assert.equal(publishCommandIn(command), null, command)
+})
+
 // than a shell parser; the docs say so rather than "never refused".
 const KNOWN_FALSE_REFUSALS = [
+  // Codex review of 2.111.0-rc2: eval joins its arguments, so a quoted string followed by
+  // more words is one command this classifier does not rebuild. The same limit as above.
+  'eval "git push" "-h"',
   'git log --grep "x; git push"',
   'echo "example; git push"',
   'node -e "console.log(\'a; git push\')"',

@@ -1339,6 +1339,19 @@ export function commandInCode(command) {
   return `${codeSpan(command)}${note}`
 }
 
+// What a ready line says first about the record that owns the task. adr-next's answer
+// carries the owner's Status, and this line offered the task as ready whatever it was:
+// under an owner that is binary or empty, or not Accepted (a Windows chaos round,
+// 2.111.0-rc, P3). A record is a work order only once it is Accepted (CLAUDE.md §10).
+function ownerCaveat(report) {
+  if (report.undecided === true) {
+    return `its record's Status is ${quotedCorpusText(report.status)}, not Accepted, so this is a plan, not a work order — `
+  }
+  if (report.owner_unreadable === true) {
+    return 'its record was found but could not be read as one, so whether it is Accepted is UNKNOWN and this may not be a work order — '
+  }
+  return ''
+}
 export function readyTaskLines(root, insideRepository, listing, spawn = spawnGate) {
   // Without a repository there is no "this project". Git-fail (listing null
   // while inside a repo) is UNPROVEN, not an empty ready list.
@@ -1400,9 +1413,9 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
       const archive = unmarked.find(dir => relative === dir || relative.startsWith(`${dir}/`))
       lines.push(archive
         ? `  ${readyPath}: read as live only because \`${archive}\` has no Lifecycle marker — if it is an archive, `
-          + `adopt it first (\`adr-retire-check --adopt <active> ${archive}\`); if it is not, ${next.id} is ready — `
+          + `adopt it first (\`adr-retire-check --adopt <active> ${archive}\`); if it is not, ${ownerCaveat(report)}${next.id} is ready — `
           + `the task file calls it ${quotedCorpusText(next.goal)}.`
-        : `  ${readyPath}: ${next.id} is ready — the task file calls it ${quotedCorpusText(next.goal)}`
+        : `  ${readyPath}: ${ownerCaveat(report)}${next.id} is ready — the task file calls it ${quotedCorpusText(next.goal)}`
         + (next.acceptance ? `, and its Acceptance fence reads ${quotedCorpusText(next.acceptance)}` : '')
         + `. Prove it with ${commandInCode(`adr-verify ${posixListed(path.relative(root, next.path) || next.path)}`)}, which runs that fence `
         + 'as written: read the fence in the task file first.')
@@ -3093,17 +3106,25 @@ const PUBLISH_SHELL_GAP = String.raw`(?:[ \t]|\\\r?\n)+`
 const PUBLISH_SHELL_OPT = String.raw`${PUBLISH_SHELL_GAP}[+-]{1,2}[A-Za-z][\w-]*(?:=(?:"[^"]*"|'[^']*'|[^\s"']*))?(?:${PUBLISH_SHELL_GAP}(?![-+])(?:"[^"]*"|'[^']*'|[^\s"';|&]+))?`
 const PUBLISH_SHELL_C = String.raw`(?<![^\s;|&(){}"'\x60])["']?(?<shell>(?:[\w.~\\/:-]*[\\/])?(?:bash|dash|zsh|ksh|tcsh|csh|sh|pwsh|powershell)(?:\.exe)?["']?(?:${PUBLISH_SHELL_OPT})*${PUBLISH_SHELL_GAP}-[A-Za-z]*c)[ \t]+["']`
 const PUBLISH_START = String.raw`(?:^|[\n;|&({]|\$\(|${PUBLISH_SHELL_C}|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["'])`
-const PUBLISH_WRAPPER = String.raw`(?:(?:then|do|else|elif|exec|nohup|nice|doas)[ \t]+`
+// `eval` runs its string as `bash -c` does, so a publish in it is invoked, for the
+// publish refusal and the reviewer guard alike (a chaos round, 2.111.0-rc, playtrix F1).
+const PUBLISH_WRAPPER = String.raw`(?:(?:then|do|else|elif|exec|nohup|nice|doas)[ \t]+|eval[ \t]+["']?`
   + String.raw`|![ \t]+`
   + String.raw`|(?:command|time)(?:[ \t]+-p)?[ \t]+`
   + String.raw`|xargs(?:[ \t]+(?:-[0rtpxo]+|-[nLPsdIEJR][ \t]*[^\s"']+))*[ \t]+`
   + String.raw`|timeout(?:[ \t]+(?:-[ks][ \t]+\S+|-[^\s"']+))*[ \t]+[0-9][^\s"']*[ \t]+`
   + String.raw`|env(?:[ \t]+(?:-[iv0]+|--ignore-environment|-[uC][ \t]+[^\s"']+))*(?:[ \t]+-S[ \t]+["']|[ \t]+)`
-  + String.raw`|sudo(?:[ \t]+(?:-[ugCDprtTU][ \t]+\S+|--[a-z-]+(?:=\S+)?|-[A-Za-z]+))*[ \t]+)*`
+  + String.raw`|sudo(?:[ \t]+(?:-[ugCDprtTU][ \t]+\S+|--[a-z-]+(?:=\S+)?|-[A-Za-z]+))*[ \t]+`
+  // Windows runners, measured reaching git on a Windows 11 host (2.111.0-rc chaos):
+  // `cmd /c` (`//c` from Git Bash) with its quote, and `wsl`.
+  + String.raw`|cmd(?:\.exe)?(?:[ \t]+\/\/?(?:[qQdDaAuUsS]|[eEfFvV]:\w+))*[ \t]+\/\/?[cCkK][ \t]+["']?`
+  + String.raw`|wsl(?:\.exe)?(?:[ \t]+(?:-d|-u|--distribution|--user)[ \t]+[^\s"']+)*(?:[ \t]+(?:-e|--exec|--))?[ \t]+)*`
 const PUBLISH_POSITION = `${PUBLISH_START}[ \\t]*${PUBLISH_WRAPPER}` + String.raw`(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"']*)[ \t]+)*`
 // The executable, by name or by path (`/usr/bin/git` was missed once), quoted or not.
-const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~\\/-]*[\\/])?git`
-const PUBLISH_EXE = String.raw`(?:"${PUBLISH_EXE_BARE}"|'${PUBLISH_EXE_BARE}'|${PUBLISH_EXE_BARE})`
+// `git.exe` and a drive path (`C:/…`) too, and a quoted path may hold spaces
+// (`"/c/Program Files/Git/cmd/git.exe" push`), as a Windows chaos round measured.
+const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~:\\/-]*[\\/])?git(?:\.exe)?`
+const PUBLISH_EXE = String.raw`(?:"(?:[^"\n]*[\\/])?git(?:\.exe)?"|'(?:[^'\n]*[\\/])?git(?:\.exe)?'|${PUBLISH_EXE_BARE})`
 // Options, each with an optional value that is not itself the verb.
 const PUBLISH_OPTS = String.raw`(?:${PUBLISH_SEP}(?:-[^\s"',]*(?:${PUBLISH_SEP}(?!${PUBLISH_VERB})(?:"[^"]*"|'[^']*'|[^\s"',-][^\s"',]*))?|"[^"]*"|'[^']*'))*`
 const PUBLISH_COMMAND = new RegExp(`${PUBLISH_POSITION}(?<invoked>${PUBLISH_EXE}${PUBLISH_OPTS}${PUBLISH_SEP}${PUBLISH_VERB})${PUBLISH_NOT_HELP}`, 'gm')
@@ -3174,12 +3195,17 @@ export function mentionsCommitOrPush(command) {
   return typeof command === 'string' && PUBLISH_MENTION.test(command)
 }
 
+// The shell tools a session runs commands through. Claude Code on Windows ships a
+// PowerShell tool beside Bash, and every check here read `tool_name === 'Bash'`, so a
+// `git push` through it was never refused and never denied to a read-only role (a
+// Windows chaos round, 2.111.0-rc, P1). `hooks.json` routes it here too.
+const SHELL_TOOLS = new Set(['Bash', 'PowerShell'])
 export function readOnlyVerdict(input) {
   const tool = input?.tool_name
   if (READ_ONLY_EDITING_TOOLS.has(tool)) {
     return `This role is read-only: ${tool} is not available to it. Report the change you would make; do not make it.`
   }
-  if (tool !== 'Bash') return null
+  if (!SHELL_TOOLS.has(tool)) return null
   const command = input?.tool_input?.command
   if (!containsCommitOrPush(command)) return null
   return 'This role is read-only: a command naming commit or push is not available to it. Name the commit you would make in the review. Any other change you make is reported when you finish.'
@@ -3406,7 +3432,7 @@ export function recordHookEvent(input) {
   // it (Codex review of f67cede). A read-only role's PreToolUse never reaches
   // this function: the reviewer guard decides it alone (handleHook).
   if (hook === 'PreToolUse') {
-    if (input.tool_name !== 'Bash') return null
+    if (!SHELL_TOOLS.has(input.tool_name)) return null
     const command = input.tool_input?.command
     if (containsCommitOrPush(command)) name = 'publish.requested'
     else if (mentionsCommitOrPush(command)) name = 'publish.mentioned'
@@ -4427,7 +4453,7 @@ export async function handleHook(input) {
     // inert on a real box: a qh-correctness-reviewer ran `sed -i` on a tracked
     // file and no hook was called. `agent_type` is what the payload carries
     // inside a subagent, so the role is read from it; the verdict is the guard's.
-    if (readOnlyRole(input.agent_type) && (input.tool_name === 'Bash' || MUTATION_TOOLS.has(input.tool_name))) {
+    if (readOnlyRole(input.agent_type) && (SHELL_TOOLS.has(input.tool_name) || MUTATION_TOOLS.has(input.tool_name))) {
       const reason = readOnlyVerdict(input)
       if (reason) {
         emitJson({
@@ -4462,7 +4488,7 @@ export async function handleHook(input) {
     // in CLAUDE.md, where a human wrote it. Told plainly on 2026-08-26 after the
     // guard fired on a command whose FIRST act was `git switch -c task/…`, the
     // very escape it was demanding.
-    if (input.tool_name !== 'Bash') return
+    if (!SHELL_TOOLS.has(input.tool_name)) return
     if (!mentionsCommitOrPush(input.tool_input?.command)) return
     // `recorded` is the publish request, or the prepared-but-unlogged mention
     // (recordHookEvent). The artifact gate is a publish-time check with a

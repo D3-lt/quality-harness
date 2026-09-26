@@ -189,6 +189,14 @@ const READERS = {
   handleHook: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
   completionRules: { executed: 'Stop (completionRules)' },
   publishUnchecked: { executed: 'PreToolUse naming commit (publishUnchecked)' },
+  // ADR-066 T1: rule P's decision, extracted so git's hook shares it. PreToolUse
+  // still reaches it through publishUnchecked, so that boundary's tears run it.
+  publishVerdict: { executed: 'PreToolUse naming commit (publishUnchecked)' },
+  // NOT executed: no fixture tears the log under a git hook. What holds is that a
+  // torn log reaches publishVerdict, whose logIncomplete arm warns and never denies,
+  // so the hook exits 0 — the could-not-look ADR-061 already takes, never a pass
+  // recorded as evidence.
+  runPublishHook: { unexecuted: 'ADR-066 T1 — needs a fixture that tears the session log under a git hook' },
   reviewChangedState: { executed: 'SubagentStop of a read-only role (reviewChangedState)' },
   // Both run inside every hook, so every row of the table runs them; the `head`
   // tear is the one that loses the baseline `recordHookEvent` would re-find.
@@ -235,6 +243,7 @@ test('every reader of the session log is driven above, or says why a lost line c
     'event-log.mjs': 'defines it',
     'lifecycle.mjs': 'by function, above',
     'statusline.mjs': { driven: 'statusline reading -> render' },
+    'publish-hook.mjs': 'by function, above',
   }
   const LOG_TAKERS = {
     observedFacts: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },

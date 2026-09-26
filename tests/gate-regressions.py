@@ -1508,6 +1508,9 @@ def main():
         ("go test -run TestSelected ./pkg && python3 -m unittest tools.test_a.TestSuite.test_two", ("test_one", "tools/test_a.py")),
         ("go test -run TestSelected ./pkg && go test ./pkg", ("TestOther", "pkg/sub/other_test.go")),
         ("go test -run TestSelected ./pkg && go test", ("TestOther", "pkg/other_test.go")),
+        # A Go runner does not run a Python row in the directory it tests: the Go
+        # branch masked this for Go rows only (a catalogue GREEN at cdd3bda).
+        ("pytest -k test_a && go test ./tools", ("test_b", "tools/test_b.py")),
     ]:
         errors = []
         lint.check_named_tests_are_run(named(fence, [row]), "| T1 | probe | done |", errors)

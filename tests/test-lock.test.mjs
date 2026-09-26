@@ -2886,6 +2886,75 @@ print(json.dumps({"digest": digest, "token": token, "body": body}))
   }
 })
 
+test('an options object before the callback is not the body the lock covers', () => {
+  // BACKLOG §305: in `test(name, { skip }, fn)` the options object's `{` was the
+  // first at depth 0, so the lock hashed `{ skip }` and never the test — measured
+  // 2026-09-26, deleting every assertion from such a locked test left the lock
+  // satisfied.
+  const dir = tmpRepo()
+  const rel = 'tests/options-subject.test.mjs'
+  const name = 'reads its options'
+  const source = (options, check) => "import test from 'node:test'\n"
+    + "import assert from 'node:assert/strict'\n"
+    + `test('${name}', ${options}, () => {\n`
+    + `  ${check}\n`
+    + '})\n'
+  const tests = [[name, rel]]
+  const lockedRow = () => {
+    const text = taskMarkdown([`| \`${name}\` | \`${rel}\` | lock | F-1 |`])
+    return `- 2026-09-26 · no-git · exit 2 · \`node --test ${rel}\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${recordOp({ op: 'suffix', root: dir, text }).suffix}`
+  }
+  const verdict = row => findings(dir, [row], tests).blocks.join('\n')
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('{ skip: false }', 'assert.equal(1, 1)'))
+    const row = lockedRow()
+    assert.equal(verdict(row), '', 'an untouched test holds its lock')
+    // DIRTY: the options are untouched and the assertion is gone — the lock sees it.
+    writeFileSync(join(dir, rel), source('{ skip: false }', ''))
+    assert.match(verdict(row), /hash moved — done is refused/)
+    // An options object holding an arrow and braces is skipped whole: its `=>` is
+    // not the callback's.
+    writeFileSync(join(dir, rel), source('{ timeout: (() => { return 5 })() }', 'assert.equal(1, 1)'))
+    const arrowRow = lockedRow()
+    writeFileSync(join(dir, rel), source('{ timeout: (() => { return 5 })() }', 'assert.equal(1, 2)'))
+    assert.match(verdict(arrowRow), /hash moved — done is refused/)
+    // A lock recorded over the options object is UNPROVEN — never a clean pass, and
+    // never read as the §212 prefix, which also saw the options as the body.
+    writeFileSync(join(dir, rel), source('{ skip: false }', 'assert.equal(1, 1)'))
+    const run = python(`
+import json, sys
+import record
+req = json.load(sys.stdin)
+body = record.extract_test_body(req["source"], req["name"], options_as_body=True)
+digest, token = record.encode_lock({"check": None, "unproven": set(),
+    "bodies": {(req["rel"], req["name"]): record.body_digest(body)}})
+print(json.dumps({"digest": digest, "token": token, "body": body}))
+`, JSON.stringify({ source: readFileSync(join(dir, rel), 'utf8'), name, rel }))
+    assert.equal(run.status, 0, run.stderr)
+    const legacy = JSON.parse(run.stdout)
+    assert.equal(legacy.body, '{ skip: false }', 'the old extraction read the options as the body')
+    const legacyRow = `- 2026-09-13 · no-git · exit 2 · \`node --test ${rel}\` · acceptance-sha256:${'0'.repeat(64)} · ms:12 · test-lock-sha256:${legacy.digest} · test-lock-b64:${legacy.token}`
+    const got = verdict(legacyRow)
+    assert.match(got, /locked over its options object/)
+    assert.match(got, /--relock --replace-hashes/)
+    assert.doesNotMatch(got, /before regex literals|hash moved/)
+    // An options object the call closes on leaves no callback: UNPROVEN, never the
+    // top-level code after the call read as this test's body.
+    writeFileSync(join(dir, rel), "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + `test('${name}', { todo: true })\n`
+      + "if (process.env.QH_NEVER_SET) {\n  assert.equal(1, 1)\n}\n")
+    assert.match(verdict(lockedRow()), /could not be hashed/)
+    // Options AFTER a named callback are no body either: the callback is elsewhere.
+    writeFileSync(join(dir, rel), "import test from 'node:test'\n"
+      + `test('${name}', check, { timeout: 1 })\n`)
+    assert.match(verdict(lockedRow()), /could not be hashed/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 // Codex review of the §212 fix: the `+` of a postfix `n++` was read as an operator
 // that opens a regex, so `n++ / 2; if (true) { /x/.test('x') }` blanked from the
 // division through the next regex, `{` included, and the lock ended before the

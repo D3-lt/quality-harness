@@ -15919,3 +15919,36 @@ v3.0.0 was released at 4487256 (release-evidence SUCCESS, 55/55 jobs, outside ru
 1. branch-state picks `gh run list --branch <b> --limit 1`. At cdd3bda the push run and the dispatched run were created in the same second (17:56:53Z); the list returned the CANCELLED push run, so the brief said "CI cdd3bda: CANCELLED" while the campaign had concluded `failure`. The same tie with a green push run and a red campaign would have read green. Pre-existing (not 3.0). Likely fix: select by the branch head sha, prefer workflow_dispatch over push for one sha, and say which run it read. The tie itself came from my wait loop printing `null` for an empty list (jq `.[0]` on []), which let the dispatch fire before the push run existed; §13.3's ordering was lost that time (ids still ordered push < dispatch).
 
 2. go-cli-adr-corpus ADR-055 T2 (peer, 2026-09-26): their tasks/README marks T2 `blocked` on purpose until the test lock can accept a moved body whose change is recorded as a killed mutant against the new assertion (filed to wing_quality-harness inbox 2026-09-13). 3.0.0 still offers only `--relock --replace-hashes` (advised "weaker than first-red"). work-next lists T2 as ready → adr-execute because task files win over the derived README. Questions: should a task file's `**Status:** blocked` stop adr-next (is `blocked` a recognised status?), and should the lock grow a mutant-backed relock?
+
+3. **ADR-066 in a linked worktree.** A commit made in `git worktree add` of the session's repository finds no session log under that worktree's git dir, so `publish-hook.mjs` exits 0 without judging it (measured 2026-09-26). The text refusal still applies; git's own refusal does not. Question: should the hook read the log from the common git dir?
+
+4. **A session is armed only from the next user prompt after SessionStart wrote the exports.** Three commits in the session that built 3.0.0 (17:56Z, 18:52Z, 19:49Z) left no `publish.hook-ran` after `publish.offered` at 16:45Z; the first user prompt after that compaction (≈19:52Z) is when the Bash environment gained `GIT_CONFIG_*`, and every commit since records the hook. It also turned a test red: `tests/publish-hook.test.mjs` spawned git with the session's exports, whose `enabled=true` outranked the repo-local disable it asserted; the file now starts every git from no `GIT_CONFIG_*`. Named in ADR-066's Follow-ups.
+
+## 305. CLOSED 2026-09-26 (3.0.1) — The test lock hashed a node:test options object instead of the test
+
+**Found by reading an advisory.** Filling ADR-066's Follow-ups, `adr-lint` advised that five of ADR-066's done tests "call nothing and assert nothing". All five are declared `test(name, { skip: needsConfigHooks }, async () => {…})`. `record.bdd_callback_body` took the first `{` at paren depth 0 after `name,` as the body, which is the OPTIONS object.
+
+**Two readers, one function, two consequences:**
+- **The test lock failed OPEN.** `extract_test_body` hashed `{ skip: needsConfigHooks }`, so an edit to the test itself never moved its lock. Measured in a scratch clone: deleting all three assertions from a locked ADR-066 T2 test left `adr-lint`'s output byte-identical, exit 0.
+- **The can-fail check was false advice.** It reported correct tests as unable to go red. There were seven such advisories on this repository's own records (ADR-002, ADR-045, ADR-066), unread across releases — the §17 failure, in the corpus that writes the rule.
+
+**The class, enumerated:** `grep -rn -e bdd_callback_body -e extract_test_body -e _iter_bdd_calls -e 'test_body(' plugin/` shows two readers: adr-lint's `test_body`, with four call sites, and the lock's `extract_test_body`. Both funnel through `bdd_callback_body`, so one fix covers both. This repository holds 25 tests in the options-object form.
+
+**Fixed (3.0.1):**
+- An object directly after `name,` and followed by `,` is skipped as an argument, and the scan resumes after it. Its own `=>` and braces are never read as the callback.
+- An object the call closes on (`test(name, { todo: true })`) leaves no callback: UNPROVEN, never the code after the call.
+- Trailing options (`it(name, fn, 5000)`, `test(name, fn, { timeout })`) and a destructured parameter are read as before.
+- A lock recorded over the options object gets §212's answer, not a clean pass: it is UNPROVEN and done is refused until `adr-verify --relock --replace-hashes` locks the body. That branch is checked before §212's, which also read the options as the body. ADR-066 T1 and T2 were relocked after review. ADR-002 and ADR-045 carried no such lock and simply lost their false advisories.
+
+**Adopters:** a done task whose Tests table names an options-object test locked before 3.0.1 now reads UNPROVEN until relocked. It is the honest verdict — the lock never covered the test — and the message names the way out.
+
+**Codex review of the fix (one round, eight findings, each probed against the code).** Two were fixed by one rule that replaced the first cut's special case: at paren depth 0, a `{` whose previous non-space character is `,` is an object ARGUMENT, and one after `:` is a TypeScript return type. Each is skipped whole. This fixes:
+- NBSP and form-feed before the options, which the first cut's `" \t\r\n"` set missed;
+- `test(name, fn, { timeout })`, whose trailing options were hashed as the body and are now UNPROVEN;
+- `(): { v: T } => …`, whose return type was read as the body.
+
+Named, not fixed:
+- A callback body textually IDENTICAL to its options object (`test('x', {skip}, () => {skip})`) makes an options-era lock indistinguishable from a current one. A matching edit can then read clean (#1), and a genuine move can be labelled "locked over its options object" (#8). This needs a body equal to its own options text; the digest cannot tell them apart.
+- Nested template literals inside options (`` `a${`}`}z` ``) defeat the masker, which is pre-existing in callbacks too (#2).
+- An unclosed call is invalid JS (#4).
+- An expression callback's trailing arguments are hashed with it (`() => x, 5000`), so changing the timeout moves the lock. This is inherited and fails closed (#6).

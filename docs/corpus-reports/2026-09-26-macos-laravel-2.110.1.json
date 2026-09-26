@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-26",
+  "at": "858f00038b037dc98a24d232c2deef1ed9be22b9",
+  "plugin": "2.110.1",
+  "kind": "probe",
+  "probeSha256": "07e3396c26cd84cf481188ba59a679e5059ea531466f2c7bd6c2d8cb74faa094",
+  "readers": "b377f6249b05c4db9bab73ccd539199db1af13da5511426376a4bc502c38785d",
+  "platform": "Darwin 27.0.0",
+  "node": "26.8.2",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 17,
+    "tasks": 24,
+    "taskDirectories": 7
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "macos-laravel",
+  "found": "2.110.1 replay, runner only: clean. No --diff (no earlier report kept). The checkout's PreToolUse hook fed `grep -c` for the publish words exited 0 with no deny (BACKLOG §296)."
+}

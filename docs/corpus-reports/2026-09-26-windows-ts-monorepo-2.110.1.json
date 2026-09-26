@@ -1,0 +1,21 @@
+{
+  "date": "2026-09-26",
+  "at": "858f00038b037dc98a24d232c2deef1ed9be22b9",
+  "plugin": "2.110.1",
+  "kind": "probe",
+  "probeSha256": "07e3396c26cd84cf481188ba59a679e5059ea531466f2c7bd6c2d8cb74faa094",
+  "readers": "b377f6249b05c4db9bab73ccd539199db1af13da5511426376a4bc502c38785d",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 0,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "ts-monorepo-no-adr",
+  "found": "2.110.1 replay, runner only: clean; --diff against the 355e91a report changed only the readers hash. The checkout's hook on a scratch clone: `grep -c` for the publish words was advised, not denied; `pwsh -c` naming the push was denied. pwsh 7.6.6 and powershell 5.1 both ran a `-c` string as `-Command` (BACKLOG §296)."
+}

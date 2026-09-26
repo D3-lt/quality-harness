@@ -497,7 +497,7 @@ test('collect checkpoints the git half BEFORE it spawns gh, and the next prompt 
 
 test('the cached branch CLI reads a fresh answer without starting Git', t => {
   const project = mkdtempSync(path.join(os.tmpdir(), 'qh-branch-cache-'))
-  t.after(() => rmSync(project, { recursive: true, force: true }))
+  t.after(() => removeRepository(project))
   const init = spawnSync('git', ['init', '-q', project], { encoding: 'utf8', timeout: 10_000 })
   assert.equal(init.status, 0, init.stderr)
   // ADR-065 T1: a snapshot is served only when keyed to the HEAD it was taken at,
@@ -591,7 +591,7 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
   const project = mkdtempSync(path.join(os.tmpdir(), 'qh-brief-ttl-'))
   const bin = mkdtempSync(path.join(os.tmpdir(), 'qh-brief-ttl-bin-'))
   t.after(() => {
-    rmSync(project, { recursive: true, force: true })
+    removeRepository(project)
     rmSync(bin, { recursive: true, force: true })
   })
   const init = spawnSync('git', ['init', '-q', project], { encoding: 'utf8', timeout: 10_000 })
@@ -725,9 +725,17 @@ test('a reader that decides to stay silent is not drowned out by its own childre
 // ── ADR-065 T1: a snapshot is keyed by branch, HEAD and upstream ──────────────
 
 // A repository with one commit, a tracking branch and an upstream ref.
+// A due brief starts a detached refresher whose cwd is the repository, and Windows
+// will not delete a directory that is some process's cwd — a Windows outside run of
+// 3.0.0 (2026-09-26) failed cleanup with EPERM. Wait for the refresher, then retry.
+function removeRepository(dir) {
+  waitForNoRefresher(path.join(dir, '.git'))
+  rmSync(dir, { recursive: true, force: true, maxRetries: 20, retryDelay: 250 })
+}
+
 function keyedRepository(t, prefix) {
   const project = mkdtempSync(path.join(os.tmpdir(), prefix))
-  t.after(() => rmSync(project, { recursive: true, force: true }))
+  t.after(() => removeRepository(project))
   const git = (...args) => {
     const run = spawnSync('git', ['-C', project, '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', ...args],
       { encoding: 'utf8', timeout: 10_000 })

@@ -26,6 +26,15 @@ const GIT_IDENTITY = {
 }
 const quoted = file => `"${file.replace(/\\/g, '/')}"`
 // The config a session's Bash inherits once the hook is offered (T2 writes these).
+// git below 2.54 ignores `hook.<name>.*` entirely, so a test that needs the hook to
+// RUN cannot be built there, and is skipped saying so (CLAUDE.md §7) — measured on
+// Git for Windows 2.49 by an outside run of 3.0.0, 2026-09-26.
+const probeRepository = mkdtempSync(path.join(testTmp, 'probe-'))
+spawnSync('git', ['init', '-q', probeRepository], { encoding: 'utf8', timeout: 10_000 })
+const hookProbe = spawnSync('git', ['-c', 'hook.qhprobe.command=true', '-c', 'hook.qhprobe.event=pre-commit',
+  'hook', 'list', 'pre-commit'], { cwd: probeRepository, encoding: 'utf8', timeout: 10_000 })
+const needsConfigHooks = /\bqhprobe\b/.test(hookProbe.stdout ?? '')
+  ? false : 'this git does not run config-based hooks (git 2.54 or later does), so the hook cannot run here'
 const OFFERED = {
   GIT_CONFIG_COUNT: '4',
   GIT_CONFIG_KEY_0: 'hook.qh-publish-commit.command',
@@ -86,7 +95,7 @@ function events(dir, session) {
   return readFileSync(path.join(sessions, file), 'utf8').trim().split('\n').map(line => JSON.parse(line).event)
 }
 
-test('an unchecked commit is refused by git in the repository it runs in', () => {
+test('an unchecked commit is refused by git in the repository it runs in', { skip: needsConfigHooks }, () => {
   const dir = repository('refused-')
   const session = `hook-refused-${process.pid}`
   startSession(dir, session)
@@ -106,7 +115,7 @@ test('an unchecked commit is refused by git in the repository it runs in', () =>
   assert.ok(events(dir, session).includes('publish.hook-ran'), 'the hook recorded that it ran')
 })
 
-test("a checked commit, a person's commit and a merge pass the hook", () => {
+test("a checked commit, a person's commit and a merge pass the hook", { skip: needsConfigHooks }, () => {
   const dir = repository('passed-')
   const session = `hook-passed-${process.pid}`
   startSession(dir, session)
@@ -139,7 +148,7 @@ test("a checked commit, a person's commit and a merge pass the hook", () => {
   assert.equal(merged.status, 0, `a merge is not a commit this refuses: ${merged.stderr}`)
 })
 
-test('a cherry-pick in progress is concluded without the hook refusing it', () => {
+test('a cherry-pick in progress is concluded without the hook refusing it', { skip: needsConfigHooks }, () => {
   // A conflicted pick leaves CHERRY_PICK_HEAD, and concluding it runs
   // prepare-commit-msg with the same source `git commit -m` uses; only git's own
   // sequencer state keeps the refusal to a plain commit (ADR-066 Decision 2).
@@ -175,7 +184,7 @@ function startSessionWithEnvFile(dir, session, envFile) {
   assert.equal(run.status, 0, run.stderr)
 }
 
-test('sessionstart offers the hook only where git runs config hooks', async () => {
+test('sessionstart offers the hook only where git runs config hooks', { skip: needsConfigHooks }, async () => {
   const { offerPublishHook } = await import('../plugin/scripts/lifecycle.mjs')
   // Through SessionStart itself, so what SELECTS the offer is what is tested.
   const dir = repository('offer-')
@@ -198,7 +207,7 @@ test('sessionstart offers the hook only where git runs config hooks', async () =
   assert.ok(!seen.includes('publish.offered'))
 })
 
-test('an existing GIT_CONFIG_COUNT keeps its entries', async () => {
+test('an existing GIT_CONFIG_COUNT keeps its entries', { skip: needsConfigHooks }, async () => {
   const { offerPublishHook } = await import('../plugin/scripts/lifecycle.mjs')
   const dir = repository('count-')
   const session = `count-${process.pid}`
@@ -217,7 +226,7 @@ test('an existing GIT_CONFIG_COUNT keeps its entries', async () => {
   assert.deepEqual(run.stdout.trim().split('\n'), ['kept', '7', 'prepare-commit-msg'])
 })
 
-test('the sourced env file makes git run the hook over a repo-local disable', async () => {
+test('the sourced env file makes git run the hook over a repo-local disable', { skip: needsConfigHooks }, async () => {
   const { offerPublishHook } = await import('../plugin/scripts/lifecycle.mjs')
   const dir = repository('override-')
   const session = `override-${process.pid}`

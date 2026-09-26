@@ -1463,6 +1463,43 @@ def main():
         "go test -run '^TestSelected$' ./tools/mutants && python3 -m unittest -v tools/mutants/test_run.py",
         [("TestOther", "tools/mutants/other_test.go")]), "| T1 | probe | done |", errors)
     assert errors and "TestOther" in errors[0], errors
+    # Codex review of 3.0.0: the file rule matched a DIRECTORY substring, so a unittest
+    # call naming tools/test_a.py credited tools/test_b.py; a pytest `::` selector and
+    # an `echo` of a runner were credited too. Each is blocked again.
+    for fence, row in [
+        ("go test -run TestSelected ./pkg && python3 -m unittest tools/test_a.py", ("test_b", "tools/test_b.py")),
+        ("go test -run TestSelected ./pkg && pytest tools/test_a.py::test_one", ("test_two", "tools/test_a.py")),
+        ("go test -run TestSelected ./pkg && echo python3 -m unittest tools/test_a.py", ("test_a", "tools/test_a.py")),
+        # A directory named by a string prefix does not hold the file (catalogue GREEN).
+        ("go test -run TestSelected ./pkg && pytest tools/test", ("test_b", "tools/test_b.py")),
+        # A discovering Python runner does not run a Go row (catalogue GREEN).
+        ("go test -run TestSelected ./pkg && python3 -m pytest", ("TestOther", "pkg/other_test.go")),
+    ]:
+        errors = []
+        lint.check_named_tests_are_run(named(fence, [row]), "| T1 | probe | done |", errors)
+        assert errors and row[0] in errors[0], (fence, errors)
+    # CLEAN twins: a directory the runner is given, and plain discovery, run the row.
+    for fence, row in [
+        ("go test -run TestSelected ./pkg && pytest tools", ("test_b", "tools/test_b.py")),
+        ("go test -run TestSelected ./pkg && python3 -m unittest", ("test_b", "tools/test_b.py")),
+        # The test a pytest `::` selector names IS run (it was a false block).
+        ("go test -run TestSelected ./pkg && pytest tools/test_a.py::test_one", ("test_one", "tools/test_a.py")),
+    ]:
+        errors = []
+        lint.check_named_tests_are_run(named(fence, [row]), "| T1 | probe | done |", errors)
+        assert errors == [], (fence, errors)
+
+    # Codex review of 3.0.0: cargo's `--test <binary>` selects ONE integration binary.
+    # It is no name filter, and it is not "everything" either: a row in another binary
+    # is not run by it.
+    errors = []
+    lint.check_named_tests_are_run(named("cargo test --test smoke", [("rejects_bad_token", "tests/security.rs")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors and "rejects_bad_token" in errors[0], errors
+    errors = []
+    lint.check_named_tests_are_run(named("cargo test --test smoke", [("boots", "tests/smoke.rs")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors == [], errors
 
     # Reported from outside, 2026-09-26 (zeus): cargo's `--test <binary>` selects an
     # integration-test BINARY, not test names, and it made every row outside that

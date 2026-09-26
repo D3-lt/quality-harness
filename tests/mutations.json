@@ -10,6 +10,96 @@
   ],
   "mutations": [
     {
+      "label": "publish armed: quotes and escapes are removed before the checks",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "quoted, escaped or substituted",
+      "from": "  const text = raw.replace(/[\"'\\\\]/g, '')",
+      "to": "  const text = raw"
+    },
+    {
+      "label": "publish armed: a $ or a backtick keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "quoted, escaped or substituted",
+      "from": "  if (/[$`]/.test(raw)) return false",
+      "to": "  if (false) return false"
+    },
+    {
+      "label": "publish-hook: the stored command single-quotes its paths",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "shell characters survive",
+      "from": "  const run = event => `${single(node)} ${single(script)} ${event}`",
+      "to": "  const run = event => `\"${String(node).replace(/\\\\/g, '/')}\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
+    },
+    {
+      "label": "branch-state: a reclaimer puts back a lock it did not judge stale",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "both see a stale lock",
+      "from": "    if (moved !== judged) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "branch-state: a quoted git config value is read as git reads it",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "quoted git config value",
+      "from": "remote = configValue(setting[2])",
+      "to": "remote = setting[2].trim()"
+    },
+    {
+      "label": "adr-lint: a pytest :: selector runs only what it names",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "            if selector:",
+      "to": "            if False:"
+    },
+    {
+      "label": "adr-lint: a runner must start its segment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "    (re.compile(r\"^\\s*(?:\\w+=\\S*\\s+)*(?:pytest|py\\.test|python3?\\s+-m\\s+(?:pytest|unittest))\\b\"), (\".py\",)),",
+      "to": "    (re.compile(r\"(?:pytest|py\\.test|python3?\\s+-m\\s+(?:pytest|unittest))\\b\"), (\".py\",)),"
+    },
+    {
+      "label": "adr-lint: cargo --test selects one integration binary",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "        if not binaries or any(path.endswith(f\"tests/{b}.rs\") or f\"tests/{b}/\" in path for b in binaries):",
+      "to": "        if True:"
+    },
+    {
+      "label": "adr-lint: a cargo --test asks whether its rows run",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "        if not acc or not (narrowing.search(acc) or re.search(r\"\\bcargo\\b.*--test[= ]\", acc)):",
+      "to": "        if not acc or not narrowing.search(acc):"
+    },
+    {
       "label": "branch-state: a due brief is served from the snapshot, not collected on the prompt",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [
@@ -136,8 +226,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "            if not selected_by_filter(acc, name, rel) and not unfiltered_runner_runs(acc, rel, narrowing):",
-      "to": "            if not selected_by_filter(acc, name, rel):"
+      "from": "            if not selected_by_filter(acc, name, rel) and not unfiltered_runner_runs(acc, rel, narrowing, name) \\\n                    and not cargo_runs(acc, rel):",
+      "to": "            if not selected_by_filter(acc, name, rel) \\\n                    and not cargo_runs(acc, rel):"
     },
     {
       "label": "adr-lint: an unfiltered runner runs only its own language's rows",
@@ -146,8 +236,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "        if not any(pattern.search(segment) and suffix in suffixes for pattern, suffixes in _UNFILTERED_RUNNERS):",
-      "to": "        if not any(pattern.search(segment) for pattern, suffixes in _UNFILTERED_RUNNERS):"
+      "from": "                       if suffix in suffixes for m in [pattern.search(segment)] if m), None)",
+      "to": "                       for m in [pattern.search(segment)] if m), None)"
     },
     {
       "label": "adr-lint: an unfiltered runner selects only a file it names",
@@ -156,8 +246,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "        if name in segment or \"...\" in segment or (parent not in (\"\", \".\") and parent in segment):",
-      "to": "        if True:"
+      "from": "            if path == base or path.startswith(base + \"/\") or path == module:",
+      "to": "            if base in path:"
     },
     {
       "label": "arch-lint: a Go package pattern is not a missing path",
@@ -166,8 +256,8 @@
         "tests/gate-rules.test.mjs"
       ],
       "only": "Go package pattern",
-      "from": "            if tok.startswith(\"-\") or \"/\" not in tok or \"*\" in tok or tok.startswith(\"$\") or \"...\" in tok:",
-      "to": "            if tok.startswith(\"-\") or \"/\" not in tok or \"*\" in tok or tok.startswith(\"$\"):"
+      "from": "or tok.startswith(\"$\") or tok.endswith(\"...\"):",
+      "to": "or tok.startswith(\"$\"):"
     },
     {
       "label": "adr-lint: a task's id is the first task-id token in its name",
@@ -11778,7 +11868,7 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "test, so no test outcome was observed \u2014 only structure and test existence \"",
+      "from": "test, so no test outcome was observed — only structure and test existence \"",
       "to": "test, so this PASS covers structure and test existence \"",
       "only": "implemented mode ran no test"
     },

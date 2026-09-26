@@ -3711,7 +3711,11 @@ const PUBLISH_HOOK_SCRIPT = fileURLToPath(new URL('./publish-hook.mjs', import.m
 export function publishHookExports(node = process.execPath, script = PUBLISH_HOOK_SCRIPT) {
   const quote = value => `'${String(value).replace(/'/g, `'\\''`)}'`
   // Forward slashes: git runs the command through sh, including Git for Windows.
-  const run = event => `"${String(node).replace(/\\/g, '/')}" "${String(script).replace(/\\/g, '/')}" ${event}`
+  // Single quotes inside the stored command: git runs it through sh, and double
+  // quotes left a `$` or a backtick in the installation path to be expanded (Codex
+  // review of 3.0.0). Forward slashes, because Git for Windows runs it through sh too.
+  const single = value => `'${String(value).replace(/\\/g, '/').replace(/'/g, `'\\''`)}'`
+  const run = event => `${single(node)} ${single(script)} ${event}`
   const entries = [
     ['hook.qh-publish-commit.command', run('prepare-commit-msg')],
     ['hook.qh-publish-commit.event', 'prepare-commit-msg'],
@@ -3766,7 +3770,13 @@ export function offerPublishHook({ cwd, session, env = process.env, run = spawnS
  * session's environment, and is not git at the start of its segment.
  */
 export function leavesHookInPlace(command) {
-  const text = String(command ?? '')
+  const raw = String(command ?? '')
+  // A `$` or a backtick can build any argument at run time, so nothing about what git
+  // receives is provable: the refusal stays. And the shell removes quotes and escapes
+  // before git sees an argument — `--no""-verify` IS `--no-verify` — so the checks
+  // below judge the text with them removed (Codex review of 3.0.0, P1).
+  if (/[$`]/.test(raw)) return false
+  const text = raw.replace(/["'\\]/g, '')
   const publishing = text.split(/&&|\|\||[;&|\n()`]/)
     .filter(segment => /\bgit\b/.test(segment) && /\b(?:commit|push)\b/.test(segment))
   if (publishing.length === 0) return false

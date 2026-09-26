@@ -15857,3 +15857,28 @@ Eight inbox drawers from peer projects (tool-multipathreadwrite, memory-runtime,
 - A mutation campaign cannot find a check that fires too often: every mutant weakens it.
 - None of the outside corpora of the 2.111.0 rounds had a slug containing another task id.
 - So the class — a check reused on the strength of its docstring — is named here. The fix is a test on the shape reported, through the gate itself.
+
+## 303. 3.0.0 before the tag: a Codex round and three outside runs (2026-09-26)
+
+**Outside runs at 2c0f7b2.**
+- **tool-multipathreadwrite, on the corpus that caught §302's regression.** ADR-075 PASSes; all 82 records PASS; `couldNotRun` 0, `disagreements` 0. Its `at` was null because it ran from a `git archive`.
+  - A lock-moved task routed to adr-execute is intended.
+  - Its spec with `**Status:** Implemented` reads UNPROVEN, which is honest under the documented set. OPEN lead: should `Implemented` be a recognised terminal spec status?
+- **Windows (git 2.49).** The probe was clean, and its attestation is filed. It also caught two real test defects, fixed in efad638:
+  - the publish-hook tests assumed git ≥ 2.54, and now skip with that reason;
+  - the detached refresher's cwd held the temp repository, so cleanup hit EPERM. Cleanup now waits for it and retries.
+- **quality-blueprints:** could not run; its classifier refused the cloned code, and the decision is with its user. Could-not-run, not a finding.
+
+**The Codex round (high effort, v2.111.0..2c0f7b2) found seven real defects.** The release was HELD for #1, a fail-open. Each was confirmed against source and fixed with a test that fails without the fix, and a RED catalogue mutant.
+1. **P1, a fail-open.** `git push --no""-verify` and `--no\-verify` read as a plain invocation in an armed session: advice, while bash handed git a real `--no-verify`. Quotes and escapes are now stripped before the checks, and a `$` or a backtick keeps the refusal.
+2. **Paths in the stored hook command were re-expanded by `sh`.** A `$` in the installation path vanished. The paths are single-quoted now.
+3. **Two prompts that both judged a lock stale could start two refreshers.** The second renamed the first one's fresh lock. The lock now holds a unique token, and a reclaimer puts back a lock whose token is not the one it judged stale.
+4. **A quoted git config value (`remote = "origin"`) broke push invalidation.** Values are now read as git reads them: quotes, escapes, comments.
+5. **The unfiltered-runner rule matched a DIRECTORY SUBSTRING**, and it credited a pytest `::` selector and an `echo` of a runner. A runner must now start its segment, and its path arguments must reach the row exactly: the file, a directory holding it, a dotted module, or Go's `...`.
+   - The catalogue then found the first `::` check dead: an argument carrying `::` never equals a path.
+   - Worse, the check never credited the one test a `file::test` selector does run, which was a false block.
+   - A selector now credits exactly the row it names.
+6. **Removing `--test` had also removed cargo's binary scoping.** `--test X` now selects only `tests/X.rs`. A cargo command without it cannot be shown not to run a Rust row, so it does not block (§16).
+7. **arch-lint's `...` exemption covered any token containing `...`.** Only a token ENDING in it is Go's pattern.
+
+**How #1 got past T3's own review and catalogue.** The escape table listed the spellings measured that day, and every one of them was a plain token. Shell quoting is transformation, not text. §16's rule — reproduce shell semantics against a shell — applied here, and was not applied to the new predicate. The fix judges what git receives, not what was typed.

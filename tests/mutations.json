@@ -10408,8 +10408,36 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|-[A-Za-z]*c[ \\t]+[\"']|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`",
-      "to": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|[\"']|-[A-Za-z]*c[ \\t]+[\"']|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`"
+      "from": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|${PUBLISH_SHELL_C}|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`",
+      "to": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|[\"']|${PUBLISH_SHELL_C}|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`"
+    },
+    {
+      "label": "§296: a shell -c string is a command position only when a shell is named before the flag",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs",
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "const PUBLISH_SHELL_C = String.raw`(?<![^\\s;|&(){}\"'\\x60])[\"']?(?:[\\w.~\\\\/:-]*[\\\\/])?(?:bash|dash|zsh|ksh|tcsh|csh|sh|pwsh|powershell)(?:\\.exe)?[\"']?(?:${PUBLISH_SHELL_OPT})*${PUBLISH_SHELL_GAP}-[A-Za-z]*c[ \\t]+[\"']`",
+      "to": "const PUBLISH_SHELL_C = String.raw`-[A-Za-z]*c[ \\t]+[\"']`"
+    },
+    {
+      "label": "§296: a name that only ends in sh is not a shell before -c",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const PUBLISH_SHELL_C = String.raw`(?<![^\\s;|&(){}\"'\\x60])",
+      "to": "const PUBLISH_SHELL_C = String.raw`(?:)"
+    },
+    {
+      "label": "§296: a shell may take options with values, a quoted name and a line continuation before -c",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const PUBLISH_SHELL_OPT = String.raw`${PUBLISH_SHELL_GAP}[+-]{1,2}[A-Za-z][\\w-]*(?:=(?:\"[^\"]*\"|'[^']*'|[^\\s\"']*))?(?:${PUBLISH_SHELL_GAP}(?![-+])(?:\"[^\"]*\"|'[^']*'|[^\\s\"';|&]+))?`",
+      "to": "const PUBLISH_SHELL_OPT = String.raw`${PUBLISH_SHELL_GAP}--?[A-Za-z][\\w-]*`"
     },
     {
       "label": "ADR-061: a mention imports the check source before its warning reads the ledger (§269 round 4)",

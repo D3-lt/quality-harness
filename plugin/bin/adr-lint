@@ -478,9 +478,17 @@ def resolve_qualified_dep(pointer, root, corpus_dir, tracked):
     return False
 
 
+_STEM_TASK_ID = re.compile(r"(?<![A-Za-z0-9])T\d+(?![A-Za-z0-9])", re.I)
+
+
 def id_matches(tid, stem):
-    """Anchored task-ID match: 'T1' matches 'T1-db-index' but never 'T10-foo'."""
-    return re.search(rf"(?<!\w){re.escape(tid)}(?!\w)", stem, re.I) is not None
+    """A task file's id is the FIRST task-id token in its name: 'T1' matches
+    'T1-db-index' and 'ADR-003-T1-x', never 'T10-foo' — and never
+    'T2-what-t1-made-true', whose id is T2. Matching the token ANYWHERE read that
+    file as T1's and refused its `Depends-on: T1` as a self-dependency (reported
+    from outside, 2026-09-26); adr-next already took the first token."""
+    found = _STEM_TASK_ID.search(stem)
+    return found is not None and found.group(0).upper() == tid.upper()
 
 
 def git_root(d):
@@ -2494,7 +2502,10 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
             # the predicate's body is killed by the direct assertions whether or
             # not anything calls it.
             timed = VLOG_TIMED_RE.match(row)
-            if timed and timed.group("ms") and implausibly_fast(int(timed.group("ms")),
+            # A lock snapshot runs no fence by design and records ms:0; it claims no run,
+            # so the floor has nothing to judge (reported from outside, 2026-09-26).
+            if timed and timed.group("ms") and not vlog_row_is_lock_snapshot(row) \
+                    and implausibly_fast(int(timed.group("ms")),
                                                                 inf.get("acc_all", "")):
                 errors.advise(
                     f"{inf['path'].name}: {tid} records exit {timed.group('exit')} in "
@@ -5308,7 +5319,7 @@ def selected_by_filter(acc, name, rel=None):
     # \Q…\E is valid in Go's regexp and invalid in Python's; translate rather
     # than fall through to "selected", which would pass every row.
     acc = re.sub(r"\\Q(.*?)\\E", lambda m: re.escape(m.group(1)), acc)
-    for m in re.finditer(r"(-run|--filter|-k|--test|--name)[= ]+([\"\'])(.+?)\2", acc):
+    for m in re.finditer(r"(-run|--filter|-k|--name)[= ]+([\"\'])(.+?)\2", acc):
         pat = unwrap(m.group(3))
         try:
             if any(re.search(pat, c) for c in candidates):
@@ -5319,7 +5330,7 @@ def selected_by_filter(acc, name, rel=None):
         if m.group(1) == "-k" and any(tok and any(tok in c for c in candidates)
                                       for tok in re.split(r"\s+(?:and|or|not)\s+|[()]", pat)):
             return True
-    for m in re.finditer(r"(-run|--filter|-k|--test|--name)[= ]+([^\s\'\"]+)", acc):
+    for m in re.finditer(r"(-run|--filter|-k|--name)[= ]+([^\s\'\"]+)", acc):
         try:
             if any(re.search(unwrap(m.group(2)), c) for c in candidates):
                 return True
@@ -5346,6 +5357,40 @@ def without_workspace_filters(acc):
         previous, acc = acc, PNPM_WORKSPACE_FILTER.sub(r"\1", acc)
     return acc
 
+# A test runner a fence segment starts, and the files it runs. Only for the question
+# "does an UNFILTERED runner beside a filtered one run this row" — a two-runner fence
+# had one runner's filter applied to the other's tests, blocking a row the unfiltered
+# call does run (reported from outside, 2026-09-26). A runner not listed adds nothing.
+# cargo is NOT listed: its `-E` and positional names are filters this gate does not
+# parse, so "no -run/--filter/-k" is not "unfiltered" there (a catalogue GREEN, 2026-09-26).
+_UNFILTERED_RUNNERS = (
+    (re.compile(r"\bgo\s+test\b"), (".go",)),
+    (re.compile(r"\b(?:pytest|py\.test|python3?\s+-m\s+(?:pytest|unittest))\b"), (".py",)),
+    (re.compile(r"\b(?:phpunit|artisan\s+test)\b"), (".php",)),
+)
+
+
+def unfiltered_runner_runs(acc, rel, narrowing):
+    """Whether some unfiltered command of the fence runs the file `rel`.
+
+    Runner and language must agree, and the command must NAME the row's file, its
+    directory, or Go's every-package `...`: `python3 -m unittest tools/x.py` runs one
+    file, not every Python row in the table."""
+    path = str(rel or "").replace("\\", "/")
+    suffix = PurePosixPath(path).suffix.lower()
+    if not suffix:
+        return False
+    name = PurePosixPath(path).name
+    parent = str(PurePosixPath(path).parent)
+    for segment in re.split(r"&&|\|\||;|\||\n", acc):
+        if narrowing.search(segment):
+            continue
+        if not any(pattern.search(segment) and suffix in suffixes for pattern, suffixes in _UNFILTERED_RUNNERS):
+            continue
+        if name in segment or "..." in segment or (parent not in ("", ".") and parent in segment):
+            return True
+    return False
+
 def check_named_tests_are_run(infos, readme_text, errors):
     """A test the Tests table names must be SELECTED by the Acceptance command.
 
@@ -5364,7 +5409,10 @@ def check_named_tests_are_run(infos, readme_text, errors):
     # was in this list and not in the parser, so every pytest fence reported every
     # named test as unrun — a false alarm on a runner this repo does not even use,
     # which is exactly how a shared gate gets disabled in someone else's project.
-    narrowing = re.compile(r"(-run|--filter|-k|--test|--name)\b")
+    # `--test` is not here: cargo's selects a test BINARY and node's is a mode flag,
+    # and read as a name filter it blocked every row outside the binary's name
+    # (reported from outside, 2026-09-26). No runner measured takes it as a name.
+    narrowing = re.compile(r"(-run|--filter|-k|--name)\b")
     for tid in done_task_ids(readme_text):
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
@@ -5375,7 +5423,7 @@ def check_named_tests_are_run(infos, readme_text, errors):
         for name, rel in inf.get("tests", []):
             if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
                 continue
-            if not selected_by_filter(acc, name, rel):
+            if not selected_by_filter(acc, name, rel) and not unfiltered_runner_runs(acc, rel, narrowing):
                 errors.append(f"{tests_row_ref(inf, name, rel)}: {tid} names `{name}` in its Tests table, but "
                               f"the Acceptance command's filter does not select it — the row "
                               f"promises a test the gate never runs")

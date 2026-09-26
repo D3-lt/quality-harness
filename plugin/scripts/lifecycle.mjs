@@ -3075,7 +3075,24 @@ const PUBLISH_SEP = String.raw`(?:[ \t]|\\\n|["',])+`
 // substitution is a mention at most; tests/publish-command.test.mjs pins that,
 // and pins the one limit kept: a `;` or a newline inside quoted data or a
 // heredoc body is a command position to this classifier.
-const PUBLISH_START = String.raw`(?:^|[\n;|&({]|\$\(|-[A-Za-z]*c[ \t]+["']|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["'])`
+//
+// A shell's `-c` string is a command position only when a SHELL is named before
+// the flag. The arm was `-[A-Za-z]*c "` alone, which read `grep -c "git push"` as
+// `bash -c "git push"` and refused a grep (BACKLOG §296). Each name below was run
+// with `-c` on 2026-09-26: bash, dash, zsh, ksh, tcsh, csh and sh execute the
+// string. pwsh and powershell take `-c` for `-Command` by their documentation and
+// were not run here. `su -c`, `runuser -c`, `flock -c`, `script -c` and `fish -c`
+// are not named, so they are warned about rather than refused: a miss degrades to
+// advice, as above. The shell may be quoted or given by path, may take options with
+// their values first (`+e`, `-O extglob`, `--rcfile x`, `-o "pipefail"`,
+// `-ExecutionPolicy Bypass`) and may continue onto the next line; a value never starts
+// with `-` or `+`, so the option loop cannot swallow the `-c` itself (Codex review of
+// the first cut, which let each of those through as a mention). The look-behind admits
+// only a shell token boundary, so `refresh -c` and `foo@sh -c` are not `sh -c`.
+const PUBLISH_SHELL_GAP = String.raw`(?:[ \t]|\\\r?\n)+`
+const PUBLISH_SHELL_OPT = String.raw`${PUBLISH_SHELL_GAP}[+-]{1,2}[A-Za-z][\w-]*(?:=(?:"[^"]*"|'[^']*'|[^\s"']*))?(?:${PUBLISH_SHELL_GAP}(?![-+])(?:"[^"]*"|'[^']*'|[^\s"';|&]+))?`
+const PUBLISH_SHELL_C = String.raw`(?<![^\s;|&(){}"'\x60])["']?(?:[\w.~\\/:-]*[\\/])?(?:bash|dash|zsh|ksh|tcsh|csh|sh|pwsh|powershell)(?:\.exe)?["']?(?:${PUBLISH_SHELL_OPT})*${PUBLISH_SHELL_GAP}-[A-Za-z]*c[ \t]+["']`
+const PUBLISH_START = String.raw`(?:^|[\n;|&({]|\$\(|${PUBLISH_SHELL_C}|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["'])`
 const PUBLISH_WRAPPER = String.raw`(?:(?:then|do|else|elif|exec|nohup|nice|doas)[ \t]+`
   + String.raw`|![ \t]+`
   + String.raw`|(?:command|time)(?:[ \t]+-p)?[ \t]+`

@@ -91,6 +91,18 @@ test('a constant success is not a check and an unchecked publish is refused', ()
   })
   assert.equal(decision(denied), 'deny', denied.stdout)
   assert.match(denied.stderr, /unchecked/)
+  // §296: through the hook, on the same unchecked tree — a grep counting the words
+  // is not refused, and a shell running them still is.
+  const counted = hook(dir, {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+    tool_input: { command: 'grep -c "git push" docs/' },
+  })
+  assert.notEqual(decision(counted), 'deny', counted.stdout)
+  const shelled = hook(dir, {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session,
+    tool_input: { command: 'sh -c "git push"' },
+  })
+  assert.equal(decision(shelled), 'deny', shelled.stdout)
 
   const passed = spawnSync('python3', [qhCheck], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
   assert.equal(passed.status, 0, passed.stderr)

@@ -978,3 +978,40 @@ test('the refresher writes the snapshot and the host is not kept waiting', t => 
   assert.ok(waitForSnapshot(cache, snapshot => snapshot.at > stale && snapshot.partial !== true && snapshot.key === snapshotKey(gitDir), 30_000),
     'the refresher wrote a whole, keyed snapshot')
 })
+
+test('two prompts that both see a stale lock start one refresher between them', t => {
+  // Codex review of 3.0.0: B decided the lock was stale, A reclaimed it first, and B
+  // then renamed A's FRESH lock aside and started a second refresher. A reclaimer
+  // now renames back a lock whose token is not the one it judged stale.
+  const gitDir = mkdtempSync(path.join(os.tmpdir(), 'qh-race-'))
+  t.after(() => rmSync(gitDir, { recursive: true, force: true }))
+  const lock = path.join(gitDir, 'qh-branch-state.lock')
+  let started = 0
+  const spawnRefresher = () => { started += 1 }
+  writeFileSync(lock, 'a refresher that died')
+  const old = new Date(Date.now() - 60_000)
+  utimesSync(lock, old, old)
+  // B sees the stale lock; before B moves it, A reclaims it and starts one.
+  refreshBehind({ gitDir, spawnRefresher, beforeReclaim: () => refreshBehind({ gitDir, spawnRefresher }) })
+  assert.equal(started, 1, 'one refresher between two racing prompts')
+  assert.ok(readFileSync(lock, 'utf8').length > 0, "A's lock is still in place")
+})
+
+test('the upstream is read from a quoted git config value', t => {
+  // Codex review of 3.0.0: `remote = "up"` is valid git config, and the key read the
+  // quotes as part of the name, so a push to the tracking branch left the snapshot
+  // looking current. The remote is named `up` so the origin fallback cannot pass it.
+  const { git, gitDir } = keyedRepository(t, 'qh-quoted-config-')
+  git('update-ref', 'refs/remotes/up/main', 'HEAD')
+  git('config', 'branch.main.remote', 'up')
+  const config = path.join(gitDir, 'config')
+  writeFileSync(config, readFileSync(config, 'utf8').replace(/remote = up$/m, 'remote = "up" ; a comment'))
+  assert.equal(git('config', '--get', 'branch.main.remote'), 'up', 'git reads the quoted value as up')
+  const before = snapshotKey(gitDir)
+  git('commit', '--allow-empty', '-qm', 'pushed')
+  git('update-ref', 'refs/remotes/up/main', 'HEAD')
+  git('reset', '-q', '--soft', 'HEAD~1')
+  // HEAD is back where it was; only the upstream moved.
+  assert.notEqual(snapshotKey(gitDir), before, 'a push to the quoted upstream moves the key')
+  assert.ok(!snapshotKey(gitDir).includes('unfetched'), snapshotKey(gitDir))
+})

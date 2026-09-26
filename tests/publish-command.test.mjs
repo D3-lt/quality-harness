@@ -392,3 +392,18 @@ test('an armed session refuses a wrapped git and a reassigned hook variable', ()
     'CLAUDE_CODE_SESSION_ID=; git commit -m x',
   ]) assert.equal(armed.decide(command), 'deny', command)
 })
+
+test('an armed session refuses a quoted, escaped or substituted hook bypass', () => {
+  // Codex review of 3.0.0 (P1): the shell removes quotes and backslashes before git
+  // sees its arguments, so `--no""-verify` reaches git as `--no-verify` — and the
+  // armed branch had read it as a plain push and advised. Quotes and escapes are
+  // stripped before the checks; a `$` or a backtick fails closed.
+  const armed = armedSession('quoted-')
+  for (const command of [
+    'git push --no""-verify',
+    'git push --no\\-verify',
+    "git push --no-veri'fy'",
+    'git push "$FLAG"',
+    'git push `echo --no-verify`',
+  ]) assert.equal(armed.decide(command), 'deny', command)
+})

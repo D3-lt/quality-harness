@@ -335,21 +335,25 @@ export function render(state, { brief = false } = {}) {
   lines.push('  This READS. It blocks nothing and judges nothing about your work.')
   return lines.join('\n')
 }
-/**
- * A cached answer, so the per-message hook does not spawn `gh` on every prompt.
- *
- * The cache lives inside `.git/`, which is never tracked and never shipped, and
- * it carries the time it was taken — a stale answer that SAYS it is stale is
- * usable, one that pretends to be fresh is the thing this whole section is
- * about.
- *
- * ⚠ WHAT IS ON DISK IS NOT EVIDENCE UNTIL IT IS CHECKED. A cache file is an
- * input like any other: a FUTURE timestamp would keep a forged answer fresh for
- * ever, and a malformed `state` threw out of `render` and took the hook's exit
- * code with it — a reader that cannot block a session, blocking a session. Both
- * are now simply refreshed. A cache is a speed-up and is never allowed to be the
- * reason a session is told something wrong.
- */
+// A git config value as git reads it: quotes removed, escapes resolved, and a `;` or
+// `#` outside quotes starting a comment. `remote = "origin"` is valid config and was
+// read as the name `"origin"`, so a push left the snapshot looking current (Codex
+// review of 3.0.0).
+function configValue(raw) {
+  let out = ''
+  let quoted = false
+  for (let i = 0; i < raw.length; i += 1) {
+    const c = raw[i]
+    if (c === '\\' && i + 1 < raw.length) {
+      const next = raw[++i]
+      out += next === 'n' ? '\n' : next === 't' ? '\t' : next
+    } else if (c === '"') quoted = !quoted
+    else if (!quoted && (c === ';' || c === '#')) break
+    else out += c
+  }
+  return out.trim()
+}
+
 /**
  * What a snapshot's answer depends on, read from files without spawning Git
  * (ADR-065 T1): the raw HEAD, the sha it resolves to, and the upstream's sha.
@@ -403,8 +407,8 @@ export function snapshotKey(gitDir) {
         if (header) { section = header[1] === name; continue }
         if (line.startsWith('[')) { section = false; continue }
         const setting = section && line.match(/^(\w+)\s*=\s*(.*)$/)
-        if (setting && setting[1].toLowerCase() === 'remote') remote = setting[2].trim()
-        if (setting && setting[1].toLowerCase() === 'merge') merge = setting[2].trim()
+        if (setting && setting[1].toLowerCase() === 'remote') remote = configValue(setting[2])
+        if (setting && setting[1].toLowerCase() === 'merge') merge = configValue(setting[2])
       }
       if (remote && merge?.startsWith('refs/heads/')) {
         tracking = remote === '.' ? merge : `refs/remotes/${remote}/${merge.slice('refs/heads/'.length)}`
@@ -422,6 +426,21 @@ export function freshSnapshot(previous, now, maxAgeSeconds, key) {
     && previous.partial !== true && key != null && previous.key === key
 }
 
+/**
+ * A cached answer, so the per-message hook does not spawn `gh` on every prompt.
+ *
+ * The cache lives inside `.git/`, which is never tracked and never shipped, and
+ * it carries the time it was taken — a stale answer that SAYS it is stale is
+ * usable, one that pretends to be fresh is the thing this whole section is
+ * about.
+ *
+ * ⚠ WHAT IS ON DISK IS NOT EVIDENCE UNTIL IT IS CHECKED. A cache file is an
+ * input like any other: a FUTURE timestamp would keep a forged answer fresh for
+ * ever, and a malformed `state` threw out of `render` and took the hook's exit
+ * code with it — a reader that cannot block a session, blocking a session. Both
+ * are now simply refreshed. A cache is a speed-up and is never allowed to be the
+ * reason a session is told something wrong.
+ */
 export function usableCache(previous, now) {
   if (!previous || typeof previous !== 'object') return false
   if (!Number.isFinite(previous.at) || previous.at > now) return false
@@ -500,15 +519,28 @@ function startRefresher() {
  * prompts that both see it stale only one rename succeeds and only one starts.
  */
 export function refreshBehind({ gitDir, spawnRefresher = startRefresher, now = Date.now,
-  staleAfterMs = BUDGET_MS + 5_000 }) {
+  staleAfterMs = BUDGET_MS + 5_000, beforeReclaim = () => {} }) {
   const lock = join(gitDir, LOCK)
-  const claim = () => { try { writeFileSync(lock, String(process.pid), { flag: 'wx' }); return true } catch { return false } }
+  // A token no other prompt writes, so a reclaimer can tell the lock it judged stale
+  // from one another prompt put there in the meantime.
+  const token = `${process.pid}.${now()}.${Math.random().toString(36).slice(2)}`
+  const claim = () => { try { writeFileSync(lock, token, { flag: 'wx' }); return true } catch { return false } }
   if (!claim()) {
-    let age
-    try { age = now() - statSync(lock).mtimeMs } catch { age = null }
+    let age = null
+    let judged = null
+    try { age = now() - statSync(lock).mtimeMs; judged = readFileSync(lock, 'utf8') } catch { age = null }
     if (age !== null && age <= staleAfterMs) return true
-    const aside = `${lock}.${process.pid}.${now()}`
+    beforeReclaim()
+    const aside = `${lock}.${token}`
     try { renameSync(lock, aside) } catch { return age !== null }
+    let moved = null
+    try { moved = readFileSync(aside, 'utf8') } catch { moved = null }
+    if (moved !== judged) {
+      // Not the lock judged stale: another prompt reclaimed it first and its refresher
+      // is running. Put it back and start nothing (Codex review of 3.0.0).
+      try { renameSync(aside, lock) } catch { /* its refresher releases a path that is gone; nothing else */ }
+      return true
+    }
     try { unlinkSync(aside) } catch { /* the stale lock is out of the way either way */ }
     if (!claim()) return true
   }

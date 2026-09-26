@@ -86,9 +86,17 @@ look only warns. `"publish": "warn"` in `.quality-harness.json` makes the refusa
 other value is ignored and said to be. A command that merely mentions either word — a grep, a
 heredoc, a file name — is warned about, never refused, and gets none of the publish-time artifact
 checks: only a proven invocation is refused (CLAUDE.md §16). One known limit: a `;` or a newline
-inside quoted data or a heredoc body reads as a command position, so `echo "x; git push"` is
-refused, and the refusal names what it saw. A publish launched from a script file, or through a
-variable or a command substitution, is a mention at most; that is ADR-061's open follow-up.
+inside quoted data or a heredoc body reads as a command position, so an `echo` of quoted text that
+names a push after a `;` is refused, and the refusal names what it saw.
+
+**Where git runs config-based hooks (2.54 or later), git itself refuses it (ADR-066).** At
+SessionStart the plugin offers git a session-scoped hook through Claude Code's `CLAUDE_ENV_FILE`,
+on `prepare-commit-msg` and `pre-push`; nothing is written into any repository. Once that hook
+has run, an unchecked commit or push is refused at the event, in the repository it lands in,
+whatever launched it — a script file and a commit with `--no-verify` included — and a plain
+invocation, or a mention in quoted data, is only advice before it runs. A form that could switch
+the hook off (`-c hook.*`, `GIT_CONFIG*`, `env`, `sudo`, `--no-verify` on a push) keeps the
+refusal above, and so do PowerShell sessions and older gits.
 The only other refusal is the reviewer guard (ADR-060): a role spawned read-only, such
 as `qh-scope-reviewer`, may not edit, commit or push. It has no opt-out, because it
 fences a role the workflow made read-only, not your own work.

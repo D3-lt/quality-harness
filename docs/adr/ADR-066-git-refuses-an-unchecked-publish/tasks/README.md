@@ -17,5 +17,5 @@ Implementation tasks for ADR-066: Git itself refuses an unchecked publish, and t
 | Task | File | Status |
 |------|------|--------|
 | T1 | [T1-one-verdict-and-a-git-hook-that-applies-it.md](T1-one-verdict-and-a-git-hook-that-applies-it.md) | done |
-| T2 | [T2-sessionstart-offers-the-hook-through-the-env-file.md](T2-sessionstart-offers-the-hook-through-the-env-file.md) | pending |
-| T3 | [T3-rule-p-leaves-a-plain-invocation-to-git.md](T3-rule-p-leaves-a-plain-invocation-to-git.md) | pending |
+| T2 | [T2-sessionstart-offers-the-hook-through-the-env-file.md](T2-sessionstart-offers-the-hook-through-the-env-file.md) | done |
+| T3 | [T3-rule-p-leaves-a-plain-invocation-to-git.md](T3-rule-p-leaves-a-plain-invocation-to-git.md) | done |

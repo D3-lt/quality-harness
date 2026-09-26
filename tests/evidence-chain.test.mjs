@@ -3112,6 +3112,32 @@ test('a run that prints a fence line is quoted so the excerpt cannot toggle the 
     `advice on an ADR, with the tilde opener named: ${advised.stdout}`)
 })
 
+// BACKLOG §295 item 7: the gates that write and judge evidence refuse a task holding
+// both sides of a merge. adr-verify writes nothing into it; adr-lint blocks the task
+// and advises the ADR, as it does an unclosed fence.
+test('unresolved merge-conflict markers are refused by adr-verify, blocked in a task and advised in an ADR', () => {
+  const copy = corpus()
+  const clean = lint(copy)
+  assert.doesNotMatch(clean.stdout, /merge-conflict/, `a clean task carries no conflict finding: ${clean.stdout}`)
+  const before = readTask(copy)
+  const conflicted = `${before}\n<<<<<<< HEAD\n- one side\n=======\n- the other side\n>>>>>>> feature\n`
+  writeTask(copy, conflicted)
+  const at = conflicted.split('\n').indexOf('<<<<<<< HEAD') + 1
+  const refused = verify(copy, ['--human', 'x'])
+  expectExit(refused, 2, 'a conflicted task is an authoring problem')
+  assert.match(`${refused.stdout}${refused.stderr}`, new RegExp(`unresolved merge-conflict markers at lines ${at}, `), `${refused.stdout}${refused.stderr}`)
+  assert.equal(readTask(copy), conflicted, 'and writes nothing')
+  const blocked = lint(copy)
+  expectExit(blocked, 1, 'adr-lint blocks a conflicted task')
+  assert.match(blocked.stdout, new RegExp(`^ {2}T1-fixture\\.md: unresolved merge-conflict markers at lines ${at}, `, 'm'), `blocking, not advice: ${blocked.stdout}`)
+  const adr = corpus()
+  const adrPath = join(adr, 'ADR-001-selftest.md')
+  writeFileSync(adrPath, `${readFileSync(adrPath, 'utf8')}\n<<<<<<< HEAD\nx\n=======\ny\n>>>>>>> feature\n`)
+  const advised = lint(adr)
+  expectExit(advised, 0, 'an ADR with conflict markers does not block')
+  assert.match(advised.stdout, /^ {2}advice: ADR-001-selftest\.md: unresolved merge-conflict markers at lines \d+/m, advised.stdout)
+})
+
 // ADR-045 T6. `declared_steps` read Ordered Steps with the same fence-blind regex,
 // so an `[S<n>]` written after a fenced `## ` line was undeclared to `--steps` and a
 // run naming it was refused. Now through the shared `sections_of`.

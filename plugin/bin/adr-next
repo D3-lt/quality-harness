@@ -86,7 +86,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402
-from record import vlog_row_is_lock_snapshot  # noqa: E402
+from record import vlog_row_is_lock_snapshot, conflict_markers  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -322,6 +322,15 @@ def task_status(text):
     return m.group(1).strip().strip("`*").lower()
 
 
+def conflict_stop(lines):
+    """Why a task with unresolved merge-conflict markers is not offered, or None."""
+    if not lines:
+        return None
+    return (f"it holds unresolved merge-conflict markers (lines {', '.join(map(str, lines))}), "
+            f"so it is both sides of a merge at once and neither is read as evidence; "
+            f"resolve the merge first")
+
+
 def status_stop(text):
     """Why this task's own Status says not to build it, or None when it does not.
 
@@ -380,6 +389,28 @@ def git_root(d):
     except Exception:
         pass
     return None
+
+def listed_absent(tasks_dir):
+    """Task files git lists in this directory that the disk does not hold.
+
+    BACKLOG §295 item 19: this reader asked the disk and never git, so a task a
+    sparse or partial checkout left out was simply not there. Its dependents went
+    READY and "All N task(s) carry exit-0 evidence" was printed over a record
+    with a task nobody read. [] when git cannot answer: that is no evidence either
+    way, and the disk listing is what this reader had before.
+    """
+    try:
+        r = subprocess.run(["git", "-C", str(tasks_dir), "ls-files", "-z", "--", "."],
+                           capture_output=True, timeout=10)
+    except Exception:
+        return []
+    if r.returncode != 0:
+        return []
+    names = (os.fsdecode(raw) for raw in r.stdout.split(b"\0") if raw)
+    return sorted(name for name in names
+                  if "/" not in name and name.lower().endswith(".md")
+                  and name.lower() != "readme.md" and not (tasks_dir / name).exists())
+
 
 
 def is_done(text, digest, human, fence=None, first=None, root=None):
@@ -568,7 +599,10 @@ def load(tasks_dir):
         tid = (m.group(1) if m.lastindex else m.group(0)).upper()
         fence, first, digest = acceptance(text)
         human = first == "human-observed"
-        done = is_done(text, digest, human, fence, first, root)
+        # BACKLOG §295 item 7: a file holding both sides of a merge is not evidence
+        # of either, however its log reads. It is stopped, with the lines named.
+        conflicted = conflict_markers(text)
+        done = not conflicted and is_done(text, digest, human, fence, first, root)
         infos[tid] = {
             "id": tid,
             "path": str(path),
@@ -606,7 +640,7 @@ def load(tasks_dir):
             # refused the row on a fenced task, so the write was always allowed and
             # only the read was gated: the worst half to gate, because the author
             # sees their stop recorded and the router ignores it.
-            "stopped_by": human_stop(text) or status_stop(text),
+            "stopped_by": conflict_stop(conflicted) or human_stop(text) or status_stop(text),
             # ADR-014 T2, and the SECOND route to "a human said do not start yet".
             # The 2026-09-02 report above was closed by handling a sign-off that
             # says STOP; `Blocked-on` — a task waiting on an event OUTSIDE this
@@ -617,6 +651,23 @@ def load(tasks_dir):
             # a third corpus, reproduced hermetically the same day: the instance
             # was fixed and the CLASS was not (CLAUDE.md §5).
             "blocked_on": header_val(text, "Blocked-on") or None,
+        }
+    # A task git lists and the disk lacks is an entry this reader could not read.
+    # It is stopped with that reason rather than skipped, so what depends on it is
+    # blocked and no all-clear is printed over it (BACKLOG §295 item 19).
+    for name in listed_absent(tasks_dir):
+        # Upper-cased as `foreign_state` does: `t1.md` names T1 (Codex review of §295.19).
+        m = TID_RE.search(name.upper())
+        tid = m.group(0) if m else None
+        if tid is None or tid in infos:
+            continue
+        infos[tid] = {
+            "id": tid, "path": str(tasks_dir / name), "goal": tid,
+            "depends_on": "", "consumes": "", "produces": "",
+            "acceptance": None, "human_observed": False, "done": False, "unproven": None,
+            "stopped_by": (f"could not read it: git lists {name} here but the disk does not hold "
+                           f"it (a sparse or partial checkout?), so its state is UNPROVEN"),
+            "blocked_on": None,
         }
     return infos
 
@@ -652,6 +703,10 @@ def foreign_state(pointer, corpus_dir):
                 continue
             if TID_RE.search(f.stem.upper()) and TID_RE.search(f.stem.upper()).group(0) == want:
                 text = read_named(f)
+                # A conflicted foreign task is both sides of a merge, so its state
+                # cannot be read and the edge is unknown (Codex review of §295.7).
+                if conflict_markers(text):
+                    return "unknown"
                 # The SAME reader `load` uses, so a foreign task is judged done
                 # by exactly the evidence a local one needs — a matching fence
                 # digest, or an affirmative human sign-off. A second definition
@@ -701,6 +756,11 @@ def blockers(infos, corpus_dir=None):
             for d in TID_RE.findall(" ".join(rest).upper()):
                 if d in infos and d != tid:
                     out[tid].add(d)
+                elif d not in infos:
+                    # A local id naming no task in this record was DROPPED, and an
+                    # unseen edge reads as no edge: the dependent printed READY over a
+                    # task somebody deleted (BACKLOG §295 item 19).
+                    foreign[tid].append((d, "missing"))
         cons = inf["consumes"]
         if cons and not cons.lower().startswith("none"):
             # Qualified ids come out of Consumes for the same reason they come
@@ -722,6 +782,8 @@ def blockers(infos, corpus_dir=None):
                 for d in ids:
                     if d in infos and d != tid:
                         out[tid].add(d)
+                    elif d not in infos:
+                        foreign[tid].append((d, "missing"))
             # Each input decides for itself, the same rule as adr-lint's DAG: one that
             # names its producer is not also fed by a sibling sharing its token
             # (BACKLOG §279 item 2), and one that names no task still finds its
@@ -911,7 +973,8 @@ def classify(infos, corpus_dir):
         # A foreign dependency that is not done blocks, and one this could not
         # evaluate blocks too — saying which, because "blocked" and "I could not
         # tell" send a reader to different places.
-        open_deps += [f"{pointer} (cannot evaluate)" if state == "unknown" else pointer
+        open_deps += [f"{pointer} (cannot evaluate)" if state == "unknown"
+                      else f"{pointer} (no such task in this record)" if state == "missing" else pointer
                       for pointer, state in foreign[tid]]
         if open_deps:
             blocked.append({**inf, "blocked_by": open_deps})
@@ -1229,11 +1292,9 @@ def main():
         # about where to go; "every remaining task is blocked" is false the moment
         # a human stop is in the mix, and that wording had a test on it.
         if stopped and blocked:
-            print("Nothing is ready: some tasks are blocked and some were stopped "
-                  "by a sign-off.", file=sys.stderr)
+            print("Nothing is ready: some tasks are blocked and some are stopped.", file=sys.stderr)
         elif stopped:
-            print("Nothing is ready: every remaining task was stopped by a sign-off.",
-                  file=sys.stderr)
+            print("Nothing is ready: every remaining task is stopped.", file=sys.stderr)
         else:
             print("Nothing is ready: every remaining task is blocked.", file=sys.stderr)
         for inf in stopped:

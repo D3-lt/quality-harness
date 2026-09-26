@@ -3091,7 +3091,7 @@ const PUBLISH_SEP = String.raw`(?:[ \t]|\\\n|["',])+`
 // only a shell token boundary, so `refresh -c` and `foo@sh -c` are not `sh -c`.
 const PUBLISH_SHELL_GAP = String.raw`(?:[ \t]|\\\r?\n)+`
 const PUBLISH_SHELL_OPT = String.raw`${PUBLISH_SHELL_GAP}[+-]{1,2}[A-Za-z][\w-]*(?:=(?:"[^"]*"|'[^']*'|[^\s"']*))?(?:${PUBLISH_SHELL_GAP}(?![-+])(?:"[^"]*"|'[^']*'|[^\s"';|&]+))?`
-const PUBLISH_SHELL_C = String.raw`(?<![^\s;|&(){}"'\x60])["']?(?:[\w.~\\/:-]*[\\/])?(?:bash|dash|zsh|ksh|tcsh|csh|sh|pwsh|powershell)(?:\.exe)?["']?(?:${PUBLISH_SHELL_OPT})*${PUBLISH_SHELL_GAP}-[A-Za-z]*c[ \t]+["']`
+const PUBLISH_SHELL_C = String.raw`(?<![^\s;|&(){}"'\x60])["']?(?<shell>(?:[\w.~\\/:-]*[\\/])?(?:bash|dash|zsh|ksh|tcsh|csh|sh|pwsh|powershell)(?:\.exe)?["']?(?:${PUBLISH_SHELL_OPT})*${PUBLISH_SHELL_GAP}-[A-Za-z]*c)[ \t]+["']`
 const PUBLISH_START = String.raw`(?:^|[\n;|&({]|\$\(|${PUBLISH_SHELL_C}|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["'])`
 const PUBLISH_WRAPPER = String.raw`(?:(?:then|do|else|elif|exec|nohup|nice|doas)[ \t]+`
   + String.raw`|![ \t]+`
@@ -3106,12 +3106,62 @@ const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~\\/-]*[\\/])?git`
 const PUBLISH_EXE = String.raw`(?:"${PUBLISH_EXE_BARE}"|'${PUBLISH_EXE_BARE}'|${PUBLISH_EXE_BARE})`
 // Options, each with an optional value that is not itself the verb.
 const PUBLISH_OPTS = String.raw`(?:${PUBLISH_SEP}(?:-[^\s"',]*(?:${PUBLISH_SEP}(?!${PUBLISH_VERB})(?:"[^"]*"|'[^']*'|[^\s"',-][^\s"',]*))?|"[^"]*"|'[^']*'))*`
-const PUBLISH_COMMAND = new RegExp(`${PUBLISH_POSITION}(${PUBLISH_EXE}${PUBLISH_OPTS}${PUBLISH_SEP}${PUBLISH_VERB})${PUBLISH_NOT_HELP}`, 'm')
+const PUBLISH_COMMAND = new RegExp(`${PUBLISH_POSITION}(?<invoked>${PUBLISH_EXE}${PUBLISH_OPTS}${PUBLISH_SEP}${PUBLISH_VERB})${PUBLISH_NOT_HELP}`, 'gm')
+// Whether a shell given these options before `-c` runs the string at all (BACKLOG §298).
+// Measured 2026-09-26 on bash, sh, zsh, dash, ksh, csh and tcsh: `-n`, alone or in a
+// cluster (`-xn`, `-nc`), and `-o noexec` parse without executing; a later `+n` or
+// `+o noexec` turns execution back on; `--help` and `--version` print and exit. So a
+// match through such a shell is not an invocation, and the search goes on past it: a
+// real `git push` later in the same command is still refused. PowerShell is not read
+// here: its options are words (`-NonInteractive`), and none of them was measured.
+function shellRuns(shell) {
+  // Quote-aware: `--rcfile "x -n y"` is one value, not a `-n` (Codex review of §298).
+  const tokens = shell.replace(/\\\r?\n/g, ' ').match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? ['']
+  const name = tokens[0].replace(/["']/g, '').split(/[\\/]/).pop().replace(/\.exe$/i, '').toLowerCase()
+  if (name === 'pwsh' || name === 'powershell') return true
+  let runs = true
+  for (let i = 1; i < tokens.length; i++) {
+    const token = tokens[i]
+    if (token === '--help' || token === '--version') return false
+    if ((token === '-o' || token === '+o') && tokens[i + 1]?.replace(/["']/g, '') === 'noexec') {
+      runs = token === '+o'
+      i++
+    } else if (/^-[A-Za-z]+$/.test(token) && token.includes('n')) runs = false
+    else if (/^\+[A-Za-z]+$/.test(token) && token.includes('n')) runs = true
+  }
+  return runs
+}
+// Where the `-c` string after `from` ends: past its closing quote, or the end of the
+// command when it never closes. A double-quoted string honours backslash escapes.
+function quotedStringEnd(command, from) {
+  let at = from
+  while (command[at] === ' ' || command[at] === '\t') at++
+  const quote = command[at]
+  for (let i = at + 1; i < command.length; i++) {
+    if (quote === '"' && command[i] === '\\') { i++; continue }
+    if (command[i] === quote) return i + 1
+  }
+  return command.length
+}
 /** The `git commit …` or `git push …` this command invokes, in one spelling, or null. */
 export function publishCommandIn(command) {
   if (typeof command !== 'string') return null
-  const m = PUBLISH_COMMAND.exec(command)
-  return m ? m[1].replace(/\\\n/g, ' ').replace(/[\s"',]+/g, ' ').trim() : null
+  // The `-c` strings of shells that do not run them. Nothing inside one is invoked,
+  // wherever in it the search would start: `bash -n -c "echo x; git push"` begins
+  // with no shell match at all and was refused at its `;` (Codex review of §298's
+  // first cut, which only skipped strings it had matched a shell before).
+  const silenced = []
+  for (const shell of command.matchAll(new RegExp(PUBLISH_SHELL_C, 'gd'))) {
+    const opened = shell.indices.groups.shell[1]
+    if (!shellRuns(shell.groups.shell)) silenced.push([opened, quotedStringEnd(command, opened)])
+  }
+  for (const m of command.matchAll(PUBLISH_COMMAND)) {
+    if (silenced.some(([from, to]) => m.index >= from && m.index < to)) continue
+    if (m.groups.shell === undefined || shellRuns(m.groups.shell)) {
+      return m.groups.invoked.replace(/\\\n/g, ' ').replace(/[\s"',]+/g, ' ').trim()
+    }
+  }
+  return null
 }
 /** A proven invocation — the only thing that may be refused. */
 export function containsCommitOrPush(command) {

@@ -82,6 +82,38 @@ function section(text, heading) {
   return (end < 0 ? rest : rest.slice(0, end)).join('\n')
 }
 
+/**
+ * Whether the text holds an unresolved merge-conflict hunk: both sides of a merge at
+ * once, so no row in it is evidence of either (BACKLOG §295 item 7). `record.py`'s
+ * `conflict_markers` rule: a `<<<<<<<` line and the next `>>>>>>>` after it, counted
+ * unless both ends sit inside a code fence. A lone `=======` is a setext underline,
+ * and a hunk shown whole in a fence is an example. Same fence grammar as that walk.
+ */
+export function holdsConflict(text) {
+  let fence = null
+  const markers = []
+  for (const line of text.split(/\r\n|\r|\n/)) {
+    const conflict = line.match(/^(<{7}|>{7})(?:[ \t].*)?$/)
+    if (conflict) markers.push({ kind: conflict[1][0], fenced: fence !== null })
+    const marker = line.match(/^[ \t]*(`{3,}|~{3,})(.*)$/)
+    if (fence) {
+      if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && /^[ \t]*$/.test(marker[2])) fence = null
+      continue
+    }
+    if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) {
+      fence = marker[1]
+      continue
+    }
+  }
+  // A fence opened inside a hunk hid the markers after it (Codex review), so a hunk
+  // counts unless both of its ends are fenced.
+  return markers.some((open, index) => {
+    if (open.kind !== '<') return false
+    const close = markers.slice(index + 1).find(other => other.kind === '>')
+    return close !== undefined && !(open.fenced && close.fenced)
+  })
+}
+
 export function readTask(file, read = readFileSync) {
   let text
   try {
@@ -89,6 +121,9 @@ export function readTask(file, read = readFileSync) {
   } catch {
     return { file, unreadable: true }
   }
+  // A conflicted task is both sides of a merge: its rows are counted in neither half,
+  // like a file that could not be read at all, rather than as red and green at once.
+  if (holdsConflict(text)) return { file, unreadable: true, conflicted: true }
   const log = section(text, 'Verification Log').split('\n').filter(line => ENTRY.test(line))
   const mlog = section(text, 'Mutation Log').split('\n').filter(line => ENTRY.test(line))
   // ⚠ `log` is every ENTRY-SHAPED line; `exits` is only those whose exit code

@@ -96,6 +96,17 @@ const PUBLISHES = [
   'bash -o "pipefail" -c "git push"',
   'bash \\\n-c "git push"',
   "pwsh -ExecutionPolicy Bypass -c 'git push'",
+  // §298: a shell that parses without executing does not hide a real invocation after it,
+  // and execution turned back on, or a PowerShell word option, is still a publish.
+  'bash -n -c "git push"; git push',
+  'bash -n +n -c "git push"',
+  "bash -o noexec +o noexec -c 'git push'",
+  "pwsh -NonInteractive -c 'git push'",
+  // Codex review of §298's first cut: a quoted option value is one token, and a real
+  // push after a silenced string is still a publish.
+  'bash --rcfile "x -n y" -c "git push"',
+  'bash -n -c "echo" ; git push',
+  'sh -n -c "" && sh -c "git push"',
 ]
 
 // Commands that mention the words, or even the invocation as DATA, and publish
@@ -147,6 +158,18 @@ const NOT_PUBLISHES = [
   "head -c 'git push'",
   'refresh -c "git push"',
   "printf '%s\\n' foo@sh -c 'git push'",
+  // §298: measured on bash, sh, zsh, dash, ksh, csh and tcsh — none of these runs the string.
+  'bash -n -c "git push"',
+  "zsh -n -c 'git push'",
+  "bash -xn -c 'git push'",
+  "sh -nc 'git push'",
+  'bash -o noexec -c "git push"',
+  'bash --help -c "git push"',
+  "sh --version -c 'git push'",
+  // ...and nothing inside a silenced string is invoked, wherever the search starts in it.
+  'bash -n -c "git push; git push"',
+  'bash -n -c "echo \\"x\\"; git push"',
+  "bash -c \"bash -n -c 'x; git push'\"",
 ]
 
 // The precise arm's known limit, pinned as a decision (§269): a `;` or a newline inside
@@ -158,12 +181,10 @@ const KNOWN_FALSE_REFUSALS = [
   'echo "example; git push"',
   'node -e "console.log(\'a; git push\')"',
   "cat <<'EOF'\ngit push\nEOF",
-  // §296, Codex: a shell and its -c inside quoted data, and a shell option that does not
-  // execute (`-n`, `--help`). The same limit as above, pre-existing, and cheaper than a parser.
+  // §296, Codex: a shell and its -c inside quoted data. The same limit as above, kept by the
+  // owner's decision for 2.111.0 rather than paid for with a quote-aware parser.
   'echo \'bash -c "git push"\'',
   'grep -F \'sh -c "git push"\' docs/example.md',
-  'bash -n -c "git push"',
-  'bash --help -c "git push"',
 ]
 
 // Mentions: refused by no arm, WARNED about by the advisory one. These are the

@@ -182,7 +182,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON  # noqa: E402,E501
+from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON, conflict_markers  # noqa: E402,E501
 from record import record_id, title_line  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock  # noqa: E402
 
@@ -2718,6 +2718,12 @@ def main():
         fail(f"{task.name}: the code fence opened at line {unclosed[0]} ({unclosed[1].strip()}) is "
              f"never closed, so every heading after it reads as text to this gate and to every "
              f"other. Close the fence and re-run; nothing was run or written.")
+    # BACKLOG §295 item 7. A row written into one side of an unresolved merge is
+    # evidence for a file that does not exist yet. Refused like the fence above.
+    conflicted = conflict_markers(text)
+    if conflicted:
+        fail(f"{task.name}: unresolved merge-conflict markers at lines {', '.join(map(str, conflicted))}. "
+             f"Resolve the merge and re-run; nothing was run or written.")
 
     if human_mutant is not None:
         # The modes that RUN something are mutually exclusive with the one that

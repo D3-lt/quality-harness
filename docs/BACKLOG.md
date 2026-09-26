@@ -15540,6 +15540,8 @@ To the corpus-chaos skill:
     - Each time, `bash scripts/selftest.sh` died right after the plugin validations, before `node --test` printed anything. `checks.jsonl` recorded `"exit":null,"signal":"SIGKILL"`.
     - A direct `bash scripts/selftest.sh`, and an immediate re-run through `qh-check`, passed each time.
     - At the third kill, memory was 48% free, `log show` had no jetsam entry, and load was about 11 on 10 cores. `qh-check`'s own timeout is 3600 s, and a 45 s dummy check passed through it. The killer is unattributed.
+    - A fourth kill on 2026-09-26, the first run after the 2.110.1 version bump, had the same shape: killed right after the three plugin validations, and `checks.jsonl` recorded `"exit":null,"signal":"SIGKILL"`. Memory was 49% free and load about 15. An immediate re-run through `qh-check` passed, at load 20, so that pass cannot be attributed either (§18).
+    - A fifth kill, the same day, was the first run after the 2.110.1 attestation and one BACKLOG line were added; the re-run passed, with `QUALITY_HARNESS_TAP` set, at load 27. Kills four and five were each the first gate run after a tree change, which looked like a lead, and it did NOT hold: the next first-run-after-a-change, at load 28, passed. So the cause is still unattributed. The two group kills in the plugin (`run-shell-hook.mjs` terminateProcessTree, `qh-check.mjs`) both spawn their child `detached`, so neither is an obvious suspect.
     - Separately, whatever the cause: the summary line says "— failed" for a check a signal ended. A killed check did not look, so ADR-005's vocabulary is could-not-look, not a verdict. `qh-check`'s exit-1-on-signal is documented; the word is not.
 
 ## 296. CLOSED 2026-09-26 — The publish refusal read any `-c "` as a shell, so `grep -c "git push"` was refused
@@ -15560,6 +15562,7 @@ To the corpus-chaos skill:
 **§16 measurements, run on this machine on 2026-09-26.**
 - `<shell> -c 'echo ran'` and `-ec` executed the string for bash, sh, zsh, dash, ksh, csh and tcsh. So did `bash -o pipefail -c` and `bash -lc`.
 - `pwsh` and `powershell` are NOT installed here. They are named on their documented `-c` = `-Command` behaviour, beside the existing `-Command` arm. Unmeasured.
+  - Measured afterwards on Windows by desktop-3laqmbq-declarative-pie at 858f000: pwsh 7.6.6 and Windows PowerShell 5.1 both ran a `-c` string as `-Command`, and the checkout's hook denied `pwsh -c` naming the push on an unchecked scratch clone.
 - The measured trade: `su -c`, `runuser -c`, `flock -c`, `script -c` and `fish -c` are no longer refused. The advisory arm warns about them (`mentionsCommitOrPush`), which is the design this classifier already states: a miss degrades to advice, never to silence.
 
 **Review.** Codex reviewed the first cut and found six forms it had turned from refusals into mentions, all real:

@@ -10,6 +10,116 @@
   ],
   "mutations": [
     {
+      "label": "publish armed: only a session whose git hook ran is armed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "an armed session leaves a plain invocation",
+      "from": "entry => entry.event === 'publish.hook-ran')) {",
+      "to": "entry => entry.event === 'publish.offered')) {"
+    },
+    {
+      "label": "publish armed: a PowerShell call keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "PowerShell, an offered-only session",
+      "from": "  if (verdict.deny && input.tool_name === 'Bash' && leavesHookInPlace(",
+      "to": "  if (verdict.deny && leavesHookInPlace("
+    },
+    {
+      "label": "publish armed: a -c that switches the hook off keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "still refuses every form",
+      "from": "  if (/(?:^|\\s)-c\\s*['\"]?(?:hook\\.|core\\.hookspath)/i.test(text) || /--config-env/.test(text)) return false",
+      "to": "  if (/--config-env/.test(text)) return false"
+    },
+    {
+      "label": "publish armed: a bundled -n keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "still refuses every form",
+      "from": "  return !publishing.some(segment => /(?:^|\\s)-[A-Za-z]*n[A-Za-z]*(?=\\s|$)/.test(segment))",
+      "to": "  return true"
+    },
+    {
+      "label": "publish armed: a wrapped git keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "wrapped git and a reassigned hook variable",
+      "from": "  if (!publishing.every(segment => /^\\s*git\\s/.test(segment))) return false",
+      "to": "  if (false) return false"
+    },
+    {
+      "label": "publish armed: the environment editors keep the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "wrapped git and a reassigned hook variable",
+      "from": "  if (/\\b(?:GIT_CONFIG|GIT_DIR|GIT_EXEC_PATH|CLAUDE_CODE_SESSION_ID|CLAUDE_ENV_FILE)/.test(text)) return false",
+      "to": "  if (false) return false"
+    },
+    {
+      "label": "publish-hook: only a git that runs config hooks is offered them",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "sessionstart offers the hook",
+      "from": "  if (probe.error || probe.status !== 0 || !/\\bqhprobe\\b/.test(probe.stdout ?? '')) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "publish-hook: the offer is indexed after GIT_CONFIG_* already in force",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an existing GIT_CONFIG_COUNT",
+      "from": "    '__qh_n=${GIT_CONFIG_COUNT:-0}',",
+      "to": "    '__qh_n=0',"
+    },
+    {
+      "label": "publish-hook: a repository's own disable does not switch the offered hook off",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "over a repo-local disable",
+      "from": "    ['hook.qh-publish-commit.enabled', 'true'],",
+      "to": "    ['hook.qh-publish-commit.unused', 'true'],"
+    },
+    {
+      "label": "publish-hook: the hook is offered once per env file",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an existing GIT_CONFIG_COUNT",
+      "from": "  if (existing.includes('hook.qh-publish-')) return null",
+      "to": "  if (false) return null"
+    },
+    {
+      "label": "publish-hook: SessionStart offers the hook",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "sessionstart offers the hook",
+      "from": "    try { offerPublishHook({ cwd: input.cwd, session: input.session_id }) } catch (failure) {",
+      "to": "    try { null } catch (failure) {"
+    },
+    {
       "label": "publish-hook: an unchecked commit is refused by git in the repository it runs in",
       "file": "plugin/scripts/publish-hook.mjs",
       "tests": [

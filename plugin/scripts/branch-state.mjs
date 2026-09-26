@@ -401,10 +401,21 @@ export function snapshotKey(gitDir) {
       let section = false
       let remote = null
       let merge = null
-      for (const raw of (read(join(common, 'config')) ?? '').split(/\r?\n/)) {
+      const config = read(join(common, 'config')) ?? ''
+      // What this reader does not model could name the upstream — an include, a value
+      // continued onto the next line, an escaped or old-style subsection — so the key
+      // is unprovable there, and a null key is refreshed rather than trusted. Section
+      // names are case-insensitive; the branch name is not (Codex review of 3.0.0,
+      // round 2: `[Branch "main"]` read as no section, and a push left the key alone).
+      if (/^\s*\[\s*include(?:if)?\b/im.test(config) || /(?:^|[^\\])(?:\\\\)*\\\r?$/m.test(config)) return null
+      for (const raw of config.split(/\r?\n/)) {
         const line = raw.trim()
-        const header = line.match(/^\[\s*branch\s+"(.*)"\s*\]$/)
-        if (header) { section = header[1] === name; continue }
+        if (/^\[\s*branch\b/i.test(line)) {
+          const header = line.match(/^\[\s*branch\s+"([^"\\]*)"\s*\]\s*(?:[;#].*)?$/i)
+          if (!header) return null
+          section = header[1] === name
+          continue
+        }
         if (line.startsWith('[')) { section = false; continue }
         const setting = section && line.match(/^(\w+)\s*=\s*(.*)$/)
         if (setting && setting[1].toLowerCase() === 'remote') remote = configValue(setting[2])

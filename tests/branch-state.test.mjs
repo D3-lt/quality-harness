@@ -1015,3 +1015,46 @@ test('the upstream is read from a quoted git config value', t => {
   assert.notEqual(snapshotKey(gitDir), before, 'a push to the quoted upstream moves the key')
   assert.ok(!snapshotKey(gitDir).includes('unfetched'), snapshotKey(gitDir))
 })
+
+test('a config the key cannot read is unprovable, and a section name is any case', t => {
+  // Codex review of 3.0.0, round 2: `[Branch "main"]` is the same section to git and
+  // was no section to the key, so a push to its upstream left the snapshot current.
+  const { git, gitDir } = keyedRepository(t, 'qh-config-shapes-')
+  git('update-ref', 'refs/remotes/up/main', 'HEAD')
+  git('config', 'branch.main.remote', 'up')
+  const config = path.join(gitDir, 'config')
+  const plain = readFileSync(config, 'utf8')
+  writeFileSync(config, plain.replace('[branch "main"]', '[Branch "main"] # a comment'))
+  assert.equal(git('config', '--get', 'branch.main.remote'), 'up', 'git reads the section in any case')
+  const before = snapshotKey(gitDir)
+  git('commit', '--allow-empty', '-qm', 'pushed')
+  git('update-ref', 'refs/remotes/up/main', 'HEAD')
+  git('reset', '-q', '--soft', 'HEAD~1')
+  assert.notEqual(snapshotKey(gitDir), before, 'a push to the upstream moves the key')
+  // What the key does not model is null — never equal — rather than read wrong.
+  for (const shape of ['[include]\n\tpath = elsewhere\n', '[core]\n\tpager = le\\\nss\n', '[branch "a\\"b"]\n\tremote = up\n']) {
+    writeFileSync(config, `${plain}${shape}`)
+    assert.equal(snapshotKey(gitDir), null, shape)
+  }
+  // CLEAN twin: the plain config still yields a key.
+  writeFileSync(config, plain)
+  assert.notEqual(snapshotKey(gitDir), null)
+})
+
+test('a collection on the prompt path is written under the key it read', t => {
+  // A catalogue GREEN at fd3922b: `key: null` on the prompt path survived, because
+  // the locked test above reads a cache the refresher behind the previous prompt
+  // had already written and keyed. Here nothing is cached, so only the foreground
+  // collection can write it.
+  const { project, gitDir } = keyedRepository(t, 'qh-prompt-key-')
+  const script = fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  rmSync(cache, { force: true })
+  const written = spawnSync(process.execPath, [script, '--cached', '120'], {
+    cwd: project, env: process.env, encoding: 'utf8', timeout: 20_000,
+  })
+  assert.equal(written.status, 0, written.stderr)
+  const key = JSON.parse(readFileSync(cache, 'utf8')).key
+  assert.notEqual(key, null, 'a keyed collection')
+  assert.equal(key, snapshotKey(gitDir))
+})

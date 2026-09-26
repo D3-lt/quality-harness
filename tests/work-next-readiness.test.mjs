@@ -413,13 +413,15 @@ test('a task git lists but the disk does not hold is unproven, not counted', () 
 // A chaos round (2.111.0-rc, CF1): under /m, `\s` crossed newlines, and the done-claim
 // regex backtracked over a run of blank lines from every line start, so 10,000 blank
 // lines in one task ran work-next past the probe's budget. The bound is generous: the
-// fix answers in milliseconds, the defect in minutes.
+// fix answers in milliseconds, the defect in minutes. The defect is CUBIC — measured
+// 2026-09-26 on this regex alone: 10.0s at 4,000 lines, 77s at 8,000 — and 4,000 sat on
+// the bound, so a fast CI runner let the mutant through. 6,000 clears it by a margin.
 test('a run of blank lines in a task does not stall the done-claim reader', () => {
   const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-blank-lines-')); temps.push(temp)
   const tasks = path.join(temp, 'docs', 'adr', 'ADR-001-x', 'tasks')
   mkdirSync(tasks, { recursive: true })
   writeFileSync(path.join(temp, 'docs', 'adr', 'ADR-001-x.md'), '# ADR-001: x\n\n**Status:** Accepted\n')
-  writeFileSync(path.join(tasks, 'T1-x.md'), '# Task ADR-001-T1: x\n\n**Status:** Todo\n' + '\n'.repeat(4_000) + '## Acceptance\n')
+  writeFileSync(path.join(tasks, 'T1-x.md'), '# Task ADR-001-T1: x\n\n**Status:** Todo\n' + '\n'.repeat(6_000) + '## Acceptance\n')
   const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
     GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
   for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
@@ -428,5 +430,5 @@ test('a run of blank lines in a task does not stall the done-claim reader', () =
   }
   const started = Date.now()
   observe(temp)
-  assert.ok(Date.now() - started < 10_000, `work-next took ${Date.now() - started} ms over 4,000 blank lines`)
+  assert.ok(Date.now() - started < 10_000, `work-next took ${Date.now() - started} ms over 6,000 blank lines`)
 })

@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-26",
+  "at": "cdd3bda817384b43e6c37afbb0819da8fb30a3e6",
+  "plugin": "3.0.0",
+  "kind": "probe",
+  "probeSha256": "07e3396c26cd84cf481188ba59a679e5059ea531466f2c7bd6c2d8cb74faa094",
+  "readers": "967c0258d88bbd6bd6873783ae7f7130b95b927220bda9bf31cab6dab550dab2",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": { "records": 0, "tasks": 0, "taskDirectories": 0 },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "windows-ts-generator-monorepo",
+  "found": ""
+}

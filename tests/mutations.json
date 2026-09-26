@@ -10,6 +10,45 @@
   ],
   "mutations": [
     {
+      "label": "publish-hook: an unchecked commit is refused by git in the repository it runs in",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an unchecked commit is refused by git",
+      "from": "  if (!verdict?.deny) return { code: 0 }",
+      "to": "  if (true) return { code: 0 }"
+    },
+    {
+      "label": "publish-hook: the verdict is taken in the repository git runs the hook in",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an unchecked commit is refused by git",
+      "from": "  const verdict = publishVerdict({ cwd, session,",
+      "to": "  const verdict = publishVerdict({ cwd: path.dirname(cwd), session,"
+    },
+    {
+      "label": "publish-hook: a qh-check that ran just before the commit is seen",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "a checked commit, a person",
+      "from": "  importCheckRecords(cwd, session)\n  const now = observation",
+      "to": "  const now = observation"
+    },
+    {
+      "label": "publish-hook: a merge, cherry-pick or rebase in progress passes the hook",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }",
+      "to": "  if (false) return { code: 0 }"
+    },
+    {
       "label": "session-profile: a command-less record joins its command by toolUseID",
       "file": "scripts/session-profile.mjs",
       "tests": [

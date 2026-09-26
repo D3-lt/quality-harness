@@ -15821,3 +15821,10 @@ Non-goals: binary or hex encoding, lossy compression on evidence, a semantic ans
 - What this means for the order:
   - Stage 2 can save at most this plugin's 1.9-2.6% of injected bytes, so it must justify itself on clarity or on another session's numbers.
   - `branch-state`'s cache misses are the plugin's largest measured cost, and they are the first target for Stage 6.
+
+**v3.0 (owner, 2026-09-26: "ship it as 3.0").** It is two records, Accepted after one cold review whose findings were all folded in.
+- **ADR-066** replaces Stage 3's lexer. Git refuses an unchecked publish through a session-scoped config hook on `prepare-commit-msg` and `pre-push`. It needs git 2.54 or later; a session counts as armed only once the hook has run.
+- **ADR-065** is Stage 6's first target: the branch-state brief is served from a keyed snapshot and refreshed behind the prompt.
+- Stage 2 (qh1) is deferred on its numbers.
+
+**Load-sensitive test, found 2026-09-26.** `tests/observed-events.test.mjs` "a check that finishes in a later turn clears the finding then" failed once in the full gate at load 27. It took 14.6 s and Stop emitted R4 where R1 was expected. Run alone at the same load, it passed in 3.6 s. It is not caused by the Stage 1 change, which touches only `scripts/`. Open: find which deadline R4 depends on, and whether R4 there is a real could-not-look or a test budget.

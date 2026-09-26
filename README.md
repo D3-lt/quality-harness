@@ -315,15 +315,18 @@ difference".
 ### What the corpus itself records
 
 `node scripts/corpus-metrics.mjs` — descriptive, no control arm, so it says what
-happened here rather than what the lifecycle caused. **Snapshot taken 2026-09-03**;
-the command prints today's:
+happened here rather than what the lifecycle caused. **Snapshot taken 2026-09-26** at
+`5af46f0`, just after v2.110.0; the command prints today's:
 
-- **25 decision records, 53 task files, 447 catalogued mutations**
-- **95 verification entries**, every one written by the tool
-- **5 of 94 recorded mutants SURVIVED** — tests that did not notice their own
-  subject being broken, found at authoring time in a suite that was green
-- **446/446 mutations noticed** in the full CI campaign at the released commit
-- **8 of 95 entries are red runs** across 53 tasks. That is a compliance figure
+- **58 decision records, 145 task files, 1204 catalogued mutations**
+- **526 verification entries**, every one written by the tool
+- **18 of 359 recorded mutants SURVIVED**: tests that did not notice their own
+  subject being broken, found at authoring time in a suite that was green. The
+  tool itself warns that its two ways of counting verdicts disagree (359 and
+  362), so read that figure as ±3 until the count is fixed.
+- **1204/1204 mutations noticed** in the full CI campaign at the released commit
+  (v2.110.0, run 36181631975, summed from its 48 shards)
+- **59 of 526 entries are red runs** across 145 tasks. That is a compliance figure
   about this repository and it is not flattering: either the TDD red run is being
   taken and not recorded, or it is being skipped. The evidence chain cannot tell
   those apart, and says so.
@@ -396,7 +399,7 @@ clear, the rest of this page reads normally.
 - `execution` — bounded implementation with fresh evidence.
 - `review` — evidence-backed code review with risk routing.
 - `mutation-audit` — break a mechanism on purpose and measure whether anything notices.
-- `corpus-chaos` — run every reader over a corpus you do not own, on a platform we cannot, and report what it printed.
+- `corpus-chaos` — run every reader over a corpus you do not own, on a platform we cannot, and report what it printed; then break a scratch copy of it on purpose, by a replayable seed (`perturbations.md`, `abominations.md`).
 - `postmortem` — structured learning from material failures.
 - `codex-review` — fresh-context GPT-6 Astra verdict review.
 - `codex-advise` — fresh-context GPT-6 Astra technical advice.

@@ -150,6 +150,12 @@ report from your corpus is directly comparable with what the suite already cover
 over a corpus it does not own and for the one that asked: what to run, what to read beyond the
 summary, what to check before pasting, and why a permission refusal on the runner's side is an
 answer rather than an obstacle.
+
+Its Chaos section goes further: on a scratch copy of the corpus, never the repository itself,
+it applies hostile names, encodings, binary, time, corrupted ledgers, aborts and locks drawn
+from a printed seed, then builds whole hostile corpora. It reports each finding with the command
+that replays it. Four such rounds, on macOS and Windows, re-cut v2.110.0 three times before its tag.
+
 ## Bare gate names outside a session
 
 Inside a Claude Code session, `bin/` is on `PATH`. In your own terminal it is not. Two routes:

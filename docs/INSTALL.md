@@ -6,7 +6,8 @@ routes for machines that are not a Claude Code terminal. Updating is a separate 
 [UPDATE.md](UPDATE.md) — because the things that go wrong on update are different things.
 
 Every command below was run on 2026-09-04 against plugin 2.64.0 and Claude Code 2.1.260 unless a
-line says otherwise. Where a statement comes from Claude Code's documentation rather than from a
+line says otherwise; the section on reporting what the readers say describes 2.110 and later.
+Where a statement comes from Claude Code's documentation rather than from a
 run here, it says so.
 
 ## What you need
@@ -90,7 +91,9 @@ carried went stale (the hook-event count was three short within a month).
   word — a grep, a heredoc, a file name — is warned about, never refused, and gets none of the
   publish-time artifact checks (since 2.106.0; before that it was refused, and BACKLOG §269 says what
   that taught). One known limit: a `;` or a newline inside quoted data or a heredoc body reads as a
-  command position, so `echo "x; git push"` is refused — and the refusal names what it saw.
+  command position, and so does a shell with its `-c` written as data (`echo 'bash -c "git push"'`),
+  so `echo "x; git push"` is refused — and the refusal names what it saw. Before 2.110.1 any flag
+  ending in `c` followed by a quote read as a shell, so `grep -c "git push"` was refused too.
   `"publish": "warn"` in `.quality-harness.json` turns it back into a warning. A second
   refusal fences a role you spawned read-only (ADR-060). Nothing else blocks.
 - **Status line (user-wired).** The plugin cannot set Claude's `statusLine`. Keep that command (and any `refreshInterval`). Feed the same `$input` to the script and append its stdout — one line, or empty:
@@ -138,13 +141,18 @@ One command runs every reader this plugin ships over your repository — `work-n
 — and prints what each said, side by side, with the disagreements between them computed:
 
 ```bash
-node "$(qh-root)/scripts/corpus-probe.mjs" --json            # add --sweep to re-run every recorded claim (its own --sweep-budget, default 30 min)
+node "$(qh-root)/scripts/corpus-probe.mjs" --json            # --sweep EXECUTES every task's Acceptance fence as written: read them first (its own --sweep-budget, default 30 min)
 ```
 
 Every path in the output is relative to your repository or a placeholder, so the JSON can be pasted
 into an issue as it is; `probe.sha256` says which probe produced it. This is the same command the
 repository's own CI runs over consumer-shaped corpora (`tests/corpus-matrix.test.mjs`), so a
 report from your corpus is directly comparable with what the suite already covers.
+
+Two more modes read saved reports and run nothing: `--diff <before.json> <after.json>` prints what
+changed between two reports of one corpus, and `--attest <label> <report.json>` prints the
+counts-only attestation (taken from `corpus-report` and marked `countsFrom` when `work-next` did not
+answer).
 
 `/quality-harness:corpus-chaos` is the protocol around that command — for the session that runs it
 over a corpus it does not own and for the one that asked: what to run, what to read beyond the
@@ -155,6 +163,8 @@ Its Chaos section goes further: on a scratch copy of the corpus, never the repos
 it applies hostile names, encodings, binary, time, corrupted ledgers, aborts and locks drawn
 from a printed seed, then builds whole hostile corpora. It reports each finding with the command
 that replays it. Four such rounds, on macOS and Windows, re-cut v2.110.0 three times before its tag.
+On Windows, clone the corpus with `git clone -c core.longpaths=true`, or a long path fails at the
+clone rather than in a reader.
 
 ## Bare gate names outside a session
 

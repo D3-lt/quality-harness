@@ -15516,6 +15516,7 @@ To the corpus-chaos skill:
 22. **From quality-blueprints' round 2** (chaos at 145c794, re-checked at 2daedc4).
     - Sign-offs that are still read as done: "approved — revoked 2026-09-26", "shipped, then rolled back", "❌ approved", "is it done? no", "passed? not really". Words with no affirmative at all, such as "unapproved", "disapproved", "approval withheld" and "approval pending", are None, which counts as done.
       - ⚠ The code and its comments disagree. `is_done`'s inline comment says "a note this cannot classify leaves the task not done". The code is `if human_outcome(note) != "stop": return True`, and `human_outcome`'s docstring argues for that behaviour. One of the two is wrong, and a human decides which.
+        - ✅ Decided by the owner on 2026-09-26: the code is right. An unclassifiable note counts as done. The two stale comments in `adr-next` (the block above `AFFIRMATIVE`, and `is_done`'s inline comment) were rewritten to say so for 2.110.1. The sign-offs listed above are still open.
     - A tracked spec that is a symlink to a file OUTSIDE the repository is read, and its Status drives "Next: adr-write".
     - At scale (4,002 tasks), the probe reports adr-lint "did not start: ENOBUFS" when adr-lint started and overflowed spawnSync's buffer. adr-next --all took 93 s, work-next 61 s, and SessionStart 10 s per start.
     - The spec Status reader still reads a 4-space indented code block, and a table cell. A tab after the colon reads as Ready while an em space does not. A blockquote is the template's own form, so it is correct.
@@ -15529,6 +15530,7 @@ To the corpus-chaos skill:
        - a `<pre>` or multi-line `<code>` block;
        - an HTML attribute value (`Ready-for-ADR"></div>` passes the allowlist).
        Through work-next that routes to adr-write from an example. quality-blueprints reported the indented case too (item 22). ⚠ `maskedMarkdown`'s comment says "no Status is read from an example", which overclaims. Correct it with the fix, or before it.
+       - ✅ The comment half is done for 2.110.1: `maskedMarkdown`'s comment now names the three unmasked shapes and stops claiming more. The reader itself is unchanged, and the item stays open.
     3. Windows reserved names (`CON.md`, `nul.md`, `aux`, and names ending in a dot or a space) are counted as tasks by work-next and read by no reader.
     4. A Verification Log row dated 2099-01-01, 1970-01-01 or 2026-02-30 passes adr-lint; a malformed timestamp is refused. Only a calendar check is missing (with item 8).
     5. A record whose Status holds invalid UTF-8 drops out of the probe with no entry; work-next counts it as "1 further record(s)" without naming it. `Accepted (partially)` counts as Accepted.
@@ -15539,3 +15541,69 @@ To the corpus-chaos skill:
     - A direct `bash scripts/selftest.sh`, and an immediate re-run through `qh-check`, passed each time.
     - At the third kill, memory was 48% free, `log show` had no jetsam entry, and load was about 11 on 10 cores. `qh-check`'s own timeout is 3600 s, and a 45 s dummy check passed through it. The killer is unattributed.
     - Separately, whatever the cause: the summary line says "— failed" for a check a signal ended. A killed check did not look, so ADR-005's vocabulary is could-not-look, not a verdict. `qh-check`'s exit-1-on-signal is documented; the word is not.
+
+## 296. CLOSED 2026-09-26 — The publish refusal read any `-c "` as a shell, so `grep -c "git push"` was refused
+
+**Found** during the 2.110.1 doc sweep. A session's own `grep -c "git push" /dev/null` was refused by the installed 2.109.0 hook. The checkout's hook was then fed PreToolUse payloads directly:
+- `grep -c "git push" /dev/null` → deny
+- `grep -rc "git push" docs/` → deny
+- `grep -n "git push" /dev/null` → no deny
+
+**Cause.** `PUBLISH_START`'s executor arm was `-[A-Za-z]*c[ \t]+["']`, which is any flag ending in `c` followed by a quote. It never asked whether a shell stood before the flag. The refusal is ADR-061's, so this is a false refusal of correct work (CLAUDE.md §16), and it shipped in every release since the arm was written.
+
+**Fix.** `PUBLISH_SHELL_C` in `plugin/scripts/lifecycle.mjs` requires a named shell before the flag:
+- the shell may be quoted or given by path, or carry `.exe`;
+- it may take options with their values first (`PUBLISH_SHELL_OPT`: `+e`, `-O extglob`, `--rcfile x`, `-o "pipefail"`, `-ExecutionPolicy Bypass`);
+- it may continue onto the next line (`PUBLISH_SHELL_GAP`);
+- a look-behind admits only a shell token boundary, so `refresh -c` and `foo@sh -c` are not `sh -c`.
+
+**§16 measurements, run on this machine on 2026-09-26.**
+- `<shell> -c 'echo ran'` and `-ec` executed the string for bash, sh, zsh, dash, ksh, csh and tcsh. So did `bash -o pipefail -c` and `bash -lc`.
+- `pwsh` and `powershell` are NOT installed here. They are named on their documented `-c` = `-Command` behaviour, beside the existing `-Command` arm. Unmeasured.
+- The measured trade: `su -c`, `runuser -c`, `flock -c`, `script -c` and `fish -c` are no longer refused. The advisory arm warns about them (`mentionsCommitOrPush`), which is the design this classifier already states: a miss degrades to advice, never to silence.
+
+**Review.** Codex reviewed the first cut and found six forms it had turned from refusals into mentions, all real:
+- `"bash" -c`
+- `"/bin/sh" -c`
+- `bash +e -c`
+- `bash -O extglob -c`
+- `bash --rcfile /dev/null -c`
+- `bash -o "pipefail" -c`
+- a line continuation before `-c`
+
+The second cut refuses each of them again, and each is now a test row. Codex also found pre-existing false refusals that this change does not fix, pinned in `KNOWN_FALSE_REFUSALS` as the same limit §269 kept:
+- a shell and its `-c` inside quoted data (`echo 'bash -c "git push"'`, `grep -F 'sh -c "git push"'`);
+- a shell option that does not execute (`bash -n -c`, `bash --help -c`).
+
+A pathological input costs under 2 ms: 40 kB of repeated options, continuations and quotes (scratch probe, not committed).
+
+**Tests.**
+- `tests/publish-command.test.mjs`:
+  - each shell by name, path, quote, option and continuation is a publish;
+  - `grep -c`, `grep -rc`, `wc -c`, `head -c`, `refresh -c` and `foo@sh -c` are not;
+  - `grep -c` is still a MENTION, so it is warned about.
+- `tests/fail-open.test.mjs`: through the hook on an unchecked tree, `grep -c` is not denied and `sh -c "git push"` is.
+- Mutants, all RED:
+  - the bare arm restored;
+  - the look-behind dropped;
+  - the option group narrowed.
+  The ADR-061 quoted-data mutant was repointed at the new `PUBLISH_START` and is RED.
+
+**Class audit (CLAUDE.md §5).**
+- `grep -rn -- '-\[A-Za-z\]\*c\|-Command\[\|-\[A-Za-z\]\*e\[' plugin/scripts plugin/bin plugin/lib plugin/hooks` found only this arm.
+- Every other `-c` recogniser in the plugin names its shell: `lifecycle.mjs:597` `(?:sh|bash)\s+-c`, `adr-lint:1829` `(?:sh|bash)\s+-c\s+'`, and `record.py` `_RUNNABLE_INFO`.
+- Siblings left: none found.
+
+**Docs.** INSTALL.md and ONBOARDING.md now say that a `grep -c` for the words is warned about, and they name the quoted-data limit.
+
+## 297. OPEN — The commit dispatcher reads a task title inside a code block as a task file (2026-09-26, 2.110.1 doc sweep)
+
+**Observed.** During the 2.110.1 commits, which touched `docs/TUTORIALS.md`, the installed 2.109.0 hook added this to the context:
+
+    facts-first gate FAILED (ADR ownership) for …/docs/TUTORIALS.md: expected exactly one owning ADR, found 0.
+
+**Cause.** `TUTORIALS.md:47` is `# Task ADR-001-T1: Parse a plain seconds string`, inside the tutorial's example of a task file. `plugin/scripts/facts-gate-dispatch.sh`'s task arm (`bom_free "$f" | grep -qE '^# (Task )?ADR-…-T[0-9]+'`) greps the whole file and masks no fence, so the tutorial is routed as a task and told its owner is missing. The record-title arm above it has the same shape.
+
+**Direction.** A false advisory, never a refusal. The commit went through. This is the same class as §295 item 23.2, where a reader takes content from an example as the document's own, but here it sits in the commit path. The finding has been possible since the tutorial was written; it fires only when that file changes.
+
+**Fix to weigh.** Read the title from the file's first heading outside a code fence, or only from line 1, which is where `adr_ref` already reads it. Add a regression: a Markdown doc whose only task-shaped title sits inside a fence is not routed to the task arm. Its dirty twin is a real task file, which still is.

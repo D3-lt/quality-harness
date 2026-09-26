@@ -66,3 +66,5 @@ whose catalog says what each one's decision effect is now.
 | [ADR-062](ADR-062-a-review-is-a-host-result.md) | A review is a host result | Accepted |
 | [ADR-063](ADR-063-a-record-is-its-number-or-its-stem.md) | A record is its number, or its stem | Accepted |
 | [ADR-064](ADR-064-corpus-chaos-is-the-release-loop.md) | Corpus chaos is the release loop | Accepted |
+| [ADR-065](ADR-065-branch-state-serves-its-snapshot.md) | The per-prompt branch-state brief serves its snapshot and refreshes behind the prompt | Accepted |
+| [ADR-066](ADR-066-git-refuses-an-unchecked-publish.md) | Git itself refuses an unchecked publish, and a plain invocation is left to it | Accepted |

@@ -3692,22 +3692,33 @@ function inferredCheckCaveat(cwd) {
 // when the tree or the index is unchecked and differs from the session's start.
 // It says the command is about to run while this repository is unchecked; it
 // does not claim the command publishes this repository, which it may not.
-function publishUnchecked(input, requested) {
-  if ((requested?.event !== 'publish.requested' && requested?.event !== 'publish.mentioned') || requested.observation?.ok !== true) return
+/**
+ * Rule P's decision, for both of its callers (ADR-066 T1): PreToolUse, which sees
+ * a command's text, and `publish-hook.mjs`, which git runs at the event itself.
+ * `invoked` is the invocation the caller PROVED — the matched text, or the git
+ * event — and null for a mention, which is never refused. Returns null when there
+ * is nothing to say, else `{ deny, key, detail, text }`.
+ */
+export function publishVerdict({ cwd, session, observation, invoked }) {
+  if (observation?.ok !== true) return null
   // ONE root lookup for this decision: the check and the opt-out are read from
   // the same answer, so they cannot disagree about which project this is.
-  const place = nearestExistingDirectory(path.resolve(input.cwd))
+  const place = nearestExistingDirectory(path.resolve(cwd))
   const found = place ? gitRepositoryLookup(place) : { ok: false, root: null, reason: 'the working directory does not exist' }
-  const origin = checkCommandOrigin(input.cwd, found)
-  if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven') return
-  const now = requested.observation
-  const log = readEvents(input.cwd, input.session_id)
+  const origin = checkCommandOrigin(cwd, found)
+  if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven') return null
+  // A `qh-check` that ran just before this, in the same script as the commit, is
+  // on record only once imported. PreToolUse had already imported; a git hook had
+  // not, and refused the tree that check had just passed (ADR-066 review, P2).
+  importCheckRecords(cwd, session)
+  const now = observation
+  const log = readEvents(cwd, session)
   const baseline = log.find(entry => entry.event === 'session.started')?.observation
   const treeStanding = checkStanding(log, now.tree)
   const indexStanding = checkStanding(log, now.index)
   const treeUnchecked = treeStanding !== 'passed' && (baseline?.ok !== true || now.tree !== baseline.tree)
   const indexUnchecked = indexStanding !== 'passed' && (baseline?.ok !== true || now.index !== baseline.index)
-  if (!treeUnchecked && !indexUnchecked) return
+  if (!treeUnchecked && !indexUnchecked) return null
   // ⚠ THE TREE'S STANDING DECIDES THE REFUSAL, and only the tree's. An index whose
   // check could not look is a finding about the index; folding it in here let it
   // rescue a working tree that FAILED (Codex review round 2, 2026-09-22).
@@ -3716,22 +3727,18 @@ function publishUnchecked(input, requested) {
   const indexUnknown = indexStanding === 'unresolved' || indexStanding === 'could-not-look'
   const revision = checkRevision(log, now.tree)
   const key = `${now.tree}:${now.index}:${revision}`
-  // A denial has to happen on every attempt. Saying it once and then allowing
-  // the same command is the warning's dedupe applied to a refusal.
   // ⚠ ONLY THE TREE CAN REFUSE. A check runs on the working tree, and the index is
   // compared against those trees, so a staged change beside an untracked file
   // equals no checked tree and was denied after every pass (found live by a peer,
   // 2026-09-22). The index still warns: its exact bytes were never checked.
   // A project may opt out with `"publish": "warn"` (ADR-061 revision 3); the
   // warning below is then all it gets, on every attempt the dedupe allows.
-  const setting = publishSetting(input.cwd, found)
+  const setting = publishSetting(cwd, found)
   // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
   // evidence than advice). A command that merely mentions the words is warned.
-  const invoked = publishCommandIn(input.tool_input?.command)
   const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null
-  if (!deny && log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
-  queueAction({
-    rule: 'P', key, detail: { tree: now.tree, revision }, deny,
+  return {
+    deny, key, detail: { tree: now.tree, revision },
     // On a torn log this still warns — it must — but says UNKNOWN, not "no check
     // has": a check may have succeeded and its record be what was lost (ADR-005).
     // An order that cannot be established is the same kind of could-not-look.
@@ -3757,8 +3764,23 @@ function publishUnchecked(input, requested) {
       + (invoked !== null
         ? `about to run names commit or push (\`${invoked}\`). Run \`qh-check\` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes.`
         : 'about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.')
-      + `${inferredCheckCaveat(input.cwd)}${publishSettingNote(setting)}`,
+      + `${inferredCheckCaveat(cwd)}${publishSettingNote(setting)}`,
+  }
+}
+
+function publishUnchecked(input, requested) {
+  if (requested?.event !== 'publish.requested' && requested?.event !== 'publish.mentioned') return
+  const verdict = publishVerdict({
+    cwd: input.cwd, session: input.session_id, observation: requested.observation,
+    // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
+    // evidence than advice). A command that merely mentions the words is warned.
+    invoked: publishCommandIn(input.tool_input?.command),
   })
+  if (!verdict) return
+  // A denial has to happen on every attempt. Saying it once and then allowing
+  // the same command is the warning's dedupe applied to a refusal.
+  if (!verdict.deny && readEvents(input.cwd, input.session_id).some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === verdict.key)) return
+  queueAction({ rule: 'P', key: verdict.key, detail: verdict.detail, deny: verdict.deny, text: verdict.text })
 }
 // R3 `review-changed-state` (ADR-060): a read-only role's run is bracketed by its
 // SubagentStart and SubagentStop observations, paired by agent id. A change in

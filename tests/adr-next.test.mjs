@@ -414,6 +414,24 @@ test('a malformed foreign pointer is unevaluated, not ignored', () => {
   // vanish into a ready verdict.
   assert.doesNotMatch(out, /^READY\s+T1/m, `a pointer nobody can read was ignored:\n${out}`)
 })
+test('a malformed foreign pointer never binds to a same-numbered local task', () => {
+  // The test above stopped proving this guard once a self-dependency began to block
+  // on its own (CI 2.111.0 campaign: its mutant went GREEN). The harm the guard
+  // exists for is a WRONG edge: TID_RE finds `T1` inside `ADR-not-a-number-T1`,
+  // and when local T1 is done the dependent prints READY on a pointer nobody read.
+  const pointer = next([corpus([
+    { id: 'T1', evidence: true },
+    { id: 'T2', dependsOn: 'ADR-not-a-number-T1' },
+  ]).tasksDir, '--all'], root).stdout
+  assert.doesNotMatch(pointer, /^READY\s+T2/m, `a malformed pointer bound to local T1:\n${pointer}`)
+  assert.match(pointer, /ADR-not-a-number-T1/, `and the pointer is named:\n${pointer}`)
+  // DIRTY, in the same test: the same edge written as a local id is ready.
+  const local = next([corpus([
+    { id: 'T1', evidence: true },
+    { id: 'T2', dependsOn: 'T1' },
+  ]).tasksDir, '--all'], root).stdout
+  assert.match(local, /^READY\s+T2/m, `a real local edge on a done task is ready:\n${local}`)
+})
 test('a task waiting on an OUTSIDE event is not offered as ready', () => {
   // ADR-014 T2 defines `**Blocked-on:** <event>` for a task nobody here can
   // hasten, `adr-lint` reads it, and the shipped task template documents it — and

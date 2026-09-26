@@ -995,6 +995,13 @@ test('a record, task, architecture or postmortem shown inside a code block is an
   unclaimed('guide.md', fenced(record), 'a record in a fence')
   unclaimed('arch-guide.md', fenced(architecture), 'an architecture document in a fence')
   unclaimed('pm-guide.md', `${frontMatter}\`\`\`markdown\n${postmortem}\`\`\`\n`, 'postmortem sections in a fence')
+  // A Windows chaos round on 2.111.0-rc: an HTML comment block and a `<pre>` block are
+  // examples too; a real title after a closed comment is still the document's own.
+  unclaimed('comment.md', `# A guide\n\n<!--\n${task}-->\n`, 'a task title in an HTML comment block')
+  unclaimed('pre.md', `# A guide\n\n<PRE class="x">\n${task}</pre>\n`, 'a task title in a <pre> block')
+  assert.match(said('after-comment.md', `<!--\na note\n-->\n\n${task}`), /ADR ownership/, 'a comment block ends at its closer')
+  // Codex review of 2.111.0-rc2: `</pre >` is a valid closer, and did not end the block.
+  assert.match(said('pre-spaced.md', `<pre>\nexample\n</pre >\n\n${task}`), /ADR ownership/, 'a spaced </pre > closes the block')
 
   assert.match(said('bare-task.md', `# Guide\n\n${task}`), /ADR ownership/, 'the same task outside a fence is still a task')
   assert.match(said('bare-record.md', record), /adr-lint/, 'the same record outside a fence is still a record')

@@ -1513,6 +1513,11 @@ def check_task_path_length(path, root, errors):
 
 def check_task(path, all_stems, errors, root, tracked):
     text = path.read_text(errors="replace", encoding="utf-8")
+    if "\x00" in text:
+        # Said first and plainly: the section findings below are about a file nobody
+        # can read (a Windows chaos round, 2.111.0-rc: a UTF-16 task).
+        errors.append(f"{path.name}: holds NUL bytes, so it is not UTF-8 text (saved as UTF-16, or binary?) "
+                      f"and no gate can read it. Save it as UTF-8.")
     secs = sections_of(text)
     test_rows = task_tests_rows(secs)
     check_step_proof_map(path, text, secs, errors)
@@ -1738,7 +1743,10 @@ def check_task(path, all_stems, errors, root, tracked):
     # would bind to a same-numbered sibling — see split_dependencies.
     qualified, local = split_dependencies(dep)
     for d in local:
-        if not any(id_matches(d, s) for s in all_stems):
+        if id_matches(d, path.stem):
+            # A self-dependency passed here and adr-next offered the task as ready (CF4).
+            errors.append(f"{path.name}: Depends-on '{d}' names this task itself, so it could never become ready")
+        elif not any(id_matches(d, s) for s in all_stems):
             errors.append(f"{path.name}: Depends-on '{d}' matches no sibling task file")
     for d in qualified:
         resolved = resolve_qualified_dep(d, root, path.parent.parent.parent, tracked)

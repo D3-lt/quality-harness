@@ -2,9 +2,10 @@
 
 Two walkthroughs. Both are short, both use a throwaway repository, and **every
 line of output below was produced by running the commands** — nothing here is
-illustrative.
+illustrative. Long digests are shortened with `…`.
 
-Copy the setup and you should see the same thing, modulo dates and commit hashes.
+Copy the setup and you should see the same thing, modulo dates, commit hashes, and
+whether a hash carries the dirty-tree `*`.
 
 ---
 
@@ -133,12 +134,12 @@ commit it with the work it evidences.
 
 | field | meaning |
 |---|---|
-| `2026-09-03` | when |
-| `1d9381f*` | the commit — and `*` means the tree was **dirty**, so this evidence does not point at a commit that contained exactly what ran |
+| `2026-09-04` | when |
+| `a0d5ddc*` | the commit — and `*` means the tree was **dirty**, so this evidence does not point at a commit that contained exactly what ran |
 | `exit 0` | what the command actually returned |
 | `` `python3 -m unittest …` `` | the command, as run |
 | `acceptance-sha256:…` | a digest of the whole fence. **Change the command and every earlier entry stops matching**, because it no longer proves what it claimed |
-| `ms:75` | how long it took — a number the file cannot produce, so a typed entry has to invent one |
+| `ms:181` | how long it took — a number the file cannot produce, so a typed entry has to invent one |
 
 Nothing here was written by a model. If it says `exit 0`, a process exited 0.
 
@@ -222,7 +223,7 @@ you committing**.
 
 - **[ONBOARDING.md](ONBOARDING.md)** — the first week, what to expect, and what to
   skip while you are getting used to it.
-- `work-next` — run it in your repository any time to be told which stage is
-  waiting and why. It reads, judges nothing, and exits 0 whatever it finds.
+- `node "$(qh-root)/scripts/work-next.mjs"` — run it in your repository any time to be told
+  which stage is waiting and why. It reads, judges nothing, and exits 0 whatever it finds.
 - The [README](../README.md) has the measured numbers, including what this costs
   and the cases where it bought nothing.

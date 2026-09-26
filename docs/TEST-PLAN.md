@@ -1,6 +1,7 @@
 # Test plan — closing the gap between what the harness enforces and what it proves
 
-**Status:** proposed, 2026-08-25. Written against `48211bd`.
+**Status:** proposed, 2026-08-25. Written against `48211bd`. A historical plan: its numbers are from
+that day; today's come from `bash scripts/selftest.sh` and `node scripts/corpus-metrics.mjs`.
 Companion to `docs/BACKLOG.md` item 14 (what the adversarial review found) — that item
 records defects; this one records *unproven behaviour*.
 

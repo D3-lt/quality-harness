@@ -54,7 +54,6 @@ Next: verify or execute the current work
 `Next: /spec-write` line that the code never printed for an empty repository — the router does not
 propose a stage nobody asked for.)
 
-```text
 
 It reads, decides nothing, and exits 0 whatever it finds. Run it whenever you have
 lost the thread.
@@ -94,7 +93,7 @@ file is now modified; commit it with the work it evidences.
 
 Commit those entries with the change they evidence. They are the record.
 
-### It never blocks you
+### It advises, with one refusal you can turn off
 
 Every gate advises: it tells you what is wrong and leaves you holding the wheel.
 `adr-lint` will name a missing section and let you carry on; the mutation check
@@ -112,11 +111,14 @@ leaves you worse off than no tool. If something here ever blocks you without
 saying what to do next, that is a bug worth reporting.
 
 **One exception, said plainly (ADR-061, since 2.102.0):** once your project has a check — declared
-as `check` in `.quality-harness.json` or inferred from a manifest — a Bash command whose text names
-`commit` or `push` is refused while no `qh-check` has passed on the current tree. Run `qh-check`
-(it runs your check and records the result) and the commit goes through. The refusal also fires on
-a heredoc that merely contains the word; `"publish": "warn"` turns it back into a warning. Every
-could-not-look — a torn log, a check that timed out — warns and never refuses.
+as `check` in `.quality-harness.json` or inferred from a manifest — a Bash command that runs
+`git commit` or `git push`, directly or through `bash -c`, `pwsh -Command` or an argv list, is
+refused while no `qh-check` has passed on the current tree. Run `qh-check` (it runs your check and
+records the result) and the commit goes through. A command that only mentions the words, such as a
+`grep -c` for them, is warned about and not refused. One known limit: a heredoc line or quoted text
+that reads like the command itself (`echo "x; git push"`) is refused too, and the refusal names what
+it saw. `"publish": "warn"` turns the refusal back into a warning. Every could-not-look — a torn
+log, a check that timed out — warns and never refuses.
 
 ### It says "I could not look"
 
@@ -172,9 +174,10 @@ type — `go test ./...`, `pytest -k`, `npm test`. That also means it will not g
 **Does it read my existing ADRs?**
 Only if they are its shape. A record is one the gates recognise when its file name starts with
 `ADR-`, its title is `# ADR-N`, or it carries the QH sections (`Existing Primitives Audit`,
-`Decision`, `Alternatives Considered`, `Consequences`). A MADR or Nygard record is reported as
-`not-recognised` and left alone — that is ADR-038's decision, not an accident — so bring a new
-decision to `/quality-harness:adr-write` rather than expecting the old corpus to be judged.
+`Decision`, `Alternatives Considered`, `Consequences`). `adr-lint` reports a MADR or Nygard record
+as `not-recognised` and judges nothing in it — that is ADR-038's decision, not an accident — but
+`work-next` and `adr-state` still read its Status and may propose retiring a superseded one. Bring
+a new decision to `/quality-harness:adr-write` rather than expecting the old corpus to be judged.
 
 **Will it slow my agent down?**
 It takes more turns — measured at 2.33× on the README's ablation. But turns are
@@ -187,7 +190,7 @@ Yes. Every gate in `bin/` is a plain `python3` or `node` program with a meaningf
 exit code. They run from a Makefile or a CI job with no model involved.
 
 **What if I disagree with a gate?**
-Say so in the record and carry on — nothing blocks. If a gate is wrong often
+Say so in the record and carry on — nothing blocks except the unchecked-publish refusal above. If a gate is wrong often
 enough to be noise, that is a defect in the gate, and this project treats "a check
 people learn to ignore" as worse than no check.
 

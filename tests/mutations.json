@@ -10,6 +10,106 @@
   ],
   "mutations": [
     {
+      "label": "branch-state: a due brief is served from the snapshot, not collected on the prompt",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a due brief is served",
+      "from": "  if (brief && hint && usableCache(previous, now)) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "branch-state: the full report is collected in the foreground",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "collected in the foreground",
+      "from": "  if (brief && hint && usableCache(previous, now)) {",
+      "to": "  if (hint && usableCache(previous, now)) {"
+    },
+    {
+      "label": "branch-state: one refresher at a time",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "one refresher at a time",
+      "from": "    if (age !== null && age <= staleAfterMs) return true",
+      "to": "    if (false) return true"
+    },
+    {
+      "label": "branch-state: the refresher does not hold the host's pipes",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "host is not kept waiting",
+      "from": "    cwd: process.cwd(), detached: true, stdio: 'ignore', windowsHide: true,",
+      "to": "    cwd: process.cwd(), detached: true, stdio: 'inherit', windowsHide: true,"
+    },
+    {
+      "label": "branch-state: a refresher that cannot run git still writes what it saw",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a due brief is served",
+      "from": "    const home = findGitDir(process.cwd())",
+      "to": "    const home = gitDir(run)"
+    },
+    {
+      "label": "branch-state: main's early hit is keyed to the current HEAD",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "branch, HEAD or upstream moved",
+      "from": "  if (freshSnapshot(previous, now, maxAgeSeconds, hint ? snapshotKey(hint) : null)) {",
+      "to": "  if (freshSnapshot(previous, now, maxAgeSeconds, previous?.key)) {"
+    },
+    {
+      "label": "branch-state: cached serves only a snapshot keyed to now",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "branch, HEAD or upstream moved",
+      "from": "  if (freshSnapshot(previous, at, maxAgeSeconds, key)) {",
+      "to": "  if (freshSnapshot(previous, at, maxAgeSeconds, previous?.key)) {"
+    },
+    {
+      "label": "branch-state: a checkpoint is never served as current",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "branch, HEAD or upstream moved",
+      "from": "    && previous.partial !== true && key != null && previous.key === key",
+      "to": "    && key != null && previous.key === key"
+    },
+    {
+      "label": "branch-state: the prompt path keys what it writes",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "branch, HEAD or upstream moved",
+      "from": "    key: home ? snapshotKey(home) : null,",
+      "to": "    key: null,"
+    },
+    {
+      "label": "branch-state: a loose ref outranks its packed copy",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "read from files for a branch",
+      "from": "    for (const dir of [gitDir, common]) {\n      const loose = read(join(dir, ...name.split('/')))?.trim()\n      if (loose && SHA.test(loose)) return loose\n    }\n    for (const line of (read(join(common, 'packed-refs')) ?? '').split(/\\r?\\n/)) {\n      const [sha, packed] = line.trim().split(' ')\n      if (packed === name && SHA.test(sha ?? '')) return sha\n    }",
+      "to": "    for (const line of (read(join(common, 'packed-refs')) ?? '').split(/\\r?\\n/)) {\n      const [sha, packed] = line.trim().split(' ')\n      if (packed === name && SHA.test(sha ?? '')) return sha\n    }\n    for (const dir of [gitDir, common]) {\n      const loose = read(join(dir, ...name.split('/')))?.trim()\n      if (loose && SHA.test(loose)) return loose\n    }"
+    },
+    {
       "label": "adr-lint: a relock row is not judged as a fast fence run",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -5459,7 +5559,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  const state = gather(partial => write({ at, state: partial }))",
+      "from": "  const state = gather(partial => write({ at, key, partial: true, state: partial }))",
       "to": "  const state = gather(() => {})"
     },
     {

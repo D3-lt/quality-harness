@@ -129,4 +129,4 @@ Revert the commit. The old reader ignores the snapshot's new fields, and the loc
 
 ## Follow-ups
 
-- [ ] After release, re-run `session-profile --attribute` on a real session and compare `branch-state`'s `durationMs` with the 1,609 ms baseline (T2's sign-off).
+- [x] After release, re-run `session-profile --attribute` on a real session and compare `branch-state`'s `durationMs` with the 1,609 ms baseline (T2's sign-off). Measured 2026-09-26 on the session that built 3.0.0, whose plugin marketplace is this checkout, so it ran T2's code live from 57070e8 on: the UserPromptSubmit `branch-state` hook averaged 121 ms (median 118, max 248) over 23 prompts after T2, against 1,578 ms (median 1,210, max 7,462) over the 70 before it in the same session. `session-profile` has no time filter; the split was taken from the same `durationMs` fields at T2's commit time (15:58:48Z). Only one of the 23 came after the v3.0.0 tag.

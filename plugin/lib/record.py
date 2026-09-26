@@ -1975,12 +1975,14 @@ def _iter_swift_tests(text):
         yield name, after_paren
 
 def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
-                      shell=False, swift=False, before_regex_masking=False):
+                      shell=False, swift=False, before_regex_masking=False, options_as_body=False):
     """Best-effort body of `name`, or None.
 
     `before_regex_masking` reproduces the JavaScript extraction as it was before
-    regex literals were masked (BACKLOG §212), so a lock recorded then can be
-    told apart from a test that changed since. It decides nothing else.
+    regex literals were masked (BACKLOG §212), and `options_as_body` as it was
+    before an options object was told apart from the callback (BACKLOG §305), so a
+    lock recorded then can be told apart from a test that changed since. Neither
+    decides anything else.
     """
     if python:
         try:
@@ -2049,11 +2051,12 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
     for found, after in _iter_bdd_calls(text, php=php):
         if found != name:
             continue
-        return bdd_callback_body(text, after, php=php, js=not before_regex_masking)
+        return bdd_callback_body(text, after, php=php, js=not before_regex_masking,
+                                 options=not (before_regex_masking or options_as_body))
     return None
 
 
-def bdd_callback_body(text, after, php=False, js=True):
+def bdd_callback_body(text, after, php=False, js=True, options=True):
     """Body of the callback that follows a BDD test's `name,` at `after`, or None.
 
     Bounded to that call. An unbounded find("{") lands in the NEXT test's block
@@ -2065,6 +2068,16 @@ def bdd_callback_body(text, after, php=False, js=True):
     body; `=> expr` is an expression body running to the call's `)`. A `)` at
     depth 0 before either means the call closed with no body (`test('x',
     helper)`). Both are the ORIGINAL slice (ADR-050).
+
+    An options object directly after the name — node:test and vitest take
+    `test(name, { skip }, fn)` — is an ARGUMENT, not the body. Its `{` was the
+    first at depth 0, so the lock hashed the options and never the test, and the
+    can-fail check read no assertion in tests that have them: measured 2026-09-26,
+    deleting every assertion from such a locked test left adr-lint's output
+    byte-identical (BACKLOG §305). So an object at depth 0 after a `,` is an
+    ARGUMENT — options before the callback, or after a named one (`fn, { timeout }`)
+    — and after a `:` a TypeScript return type; each is skipped whole, and a call
+    that closes with no callback left is UNPROVEN (Codex review of 3.0.1).
 
     A regex literal is masked for JavaScript, so a `)` or a quote inside one no
     longer ends the call or opens a string (BACKLOG §212). A `/` left in the
@@ -2084,6 +2097,15 @@ def bdd_callback_body(text, after, php=False, js=True):
                 return None
             depth -= 1
         elif depth == 0 and c == "{":
+            back = i - 1
+            while back >= 0 and masked[back].isspace():
+                back -= 1
+            if options and back >= 0 and masked[back] in ",:":
+                end = _matching_js_brace(masked, i)
+                if end is None:
+                    return None
+                i = end + 1
+                continue
             brace = i
         elif depth == 0 and masked.startswith("=>", i):
             i += 2
@@ -2113,11 +2135,13 @@ def bdd_callback_body(text, after, php=False, js=True):
 
 
 
-def _digest_before_regex_masking(root, rel, name):
-    """The digest a JavaScript test body had before §212's regex masking, or None.
+def _legacy_digest(root, rel, name, **legacy):
+    """The digest a JavaScript test body had under an earlier extraction, or None.
 
-    None when the file cannot be read, is not a JavaScript-family test file, or
-    the old extraction found no body — each means "cannot say", never "moved".
+    `legacy` names which one (`extract_test_body`'s `before_regex_masking` or
+    `options_as_body`). None when the file cannot be read, is not a
+    JavaScript-family test file, or that extraction found no body — each means
+    "cannot say", never "moved".
     """
     path = None if root is None else Path(root, *rel.split("/"))
     if path is None or path.suffix.lower() not in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"):
@@ -2125,7 +2149,7 @@ def _digest_before_regex_masking(root, rel, name):
     source = _read_file(path)
     if source is None:
         return None
-    body = extract_test_body(source, name, before_regex_masking=True)
+    body = extract_test_body(source, name, **legacy)
     return None if body is None else body_digest(body)
 
 
@@ -2454,7 +2478,20 @@ def lock_findings(vlog, *, root, tests, label=""):
             # unchanged and the rest of the body was never locked — which is not
             # "hash moved" (that reads as tampering) and not "unchanged" either
             # (an edit after the prefix is invisible to such a lock). UNPROVEN.
-            if _digest_before_regex_masking(root, rel, name) == digest:
+            # Checked FIRST: the §212 extraction also read an options object as the
+            # body, so for such a test both reproduce the digest, and only this one
+            # names why. A test with no options object cannot match here — its
+            # options-as-body digest IS the current one, which already differs.
+            if _legacy_digest(root, rel, name, options_as_body=True) == digest:
+                # The same class as §212 and the same answer: the lock hashed the
+                # options object before the callback, so it never covered the test
+                # and an edit to the test was invisible to it (BACKLOG §305).
+                blocks.append(
+                    f"{prefix}locked test `{rel}`::{name} was locked over its options "
+                    "object (`test(name, {…}, fn)`), never its body (BACKLOG §305): an edit "
+                    "to the test was invisible to that lock — UNPROVEN, done is refused "
+                    "until `adr-verify --relock --replace-hashes` locks the body")
+            elif _legacy_digest(root, rel, name, before_regex_masking=True) == digest:
                 blocks.append(
                     f"{prefix}locked test `{rel}`::{name} was locked before regex literals "
                     "were masked, over a span that stopped inside one (BACKLOG §212): that "

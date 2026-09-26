@@ -3114,7 +3114,29 @@ test('a run that prints a fence line is quoted so the excerpt cannot toggle the 
 
 // BACKLOG §295 item 7: the gates that write and judge evidence refuse a task holding
 // both sides of a merge. adr-verify writes nothing into it; adr-lint blocks the task
+// A chaos round (2.111.0-rc, CF4): a task depending on itself passed adr-lint and was
+// offered as ready. It is refused here, as a missing sibling is.
+test('adr-lint refuses a task that depends on itself', () => {
+  const copy = corpus()
+  writeTask(copy, readTask(copy).replace(/^\*\*Depends-on:\*\*.*$/m, '**Depends-on:** T1'))
+  const blocked = lint(copy)
+  expectExit(blocked, 1, 'a self-dependency blocks')
+  assert.match(blocked.stdout, /T1-fixture\.md: Depends-on 'T1' names this task itself/, blocked.stdout)
+})
+
 // and advises the ADR, as it does an unclosed fence.
+// A Windows chaos round (2.111.0-rc): a UTF-16 task drew section findings about a file
+// nobody could read. The reason comes first and plainly.
+test('adr-lint says a task holding NUL bytes is not UTF-8 text', () => {
+  const copy = corpus()
+  const clean = lint(copy)
+  assert.doesNotMatch(clean.stdout, /NUL bytes/, clean.stdout)
+  writeTask(copy, Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from(readTask(copy), 'utf16le')]))
+  const blocked = lint(copy)
+  expectExit(blocked, 1, 'an unreadable task blocks')
+  assert.match(blocked.stdout, /T1-fixture\.md: holds NUL bytes, so it is not UTF-8 text/, blocked.stdout)
+})
+
 test('unresolved merge-conflict markers are refused by adr-verify, blocked in a task and advised in an ADR', () => {
   const copy = corpus()
   const clean = lint(copy)

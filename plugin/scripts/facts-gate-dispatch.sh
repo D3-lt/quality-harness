@@ -116,7 +116,9 @@ bom_free() {
 # grammar is `record.py`'s: an opener of three or more backticks or tildes after
 # any indent (a backtick opener whose info string holds a backtick is not one),
 # closed by the same character at least as long with only blanks after it. An
-# unclosed fence runs to the end, as it does there.
+# unclosed fence runs to the end, as it does there. An HTML comment block and a
+# `<pre>` block are blanked too: a task title inside either still routed the doc as a
+# task (a Windows chaos round on 2.111.0-rc, §297's siblings).
 unfenced() {
   bom_free "$1" | awk '
     {
@@ -128,6 +130,10 @@ unfenced() {
         rest = substr(line, RSTART + RLENGTH)
       }
       if (fence == "") {
+        if (comment) { if (index(line, "-->")) comment = 0; print ""; next }
+        if (pre) { if (tolower(line) ~ /<\/pre[ \t]*>/) pre = 0; print ""; next }
+        if (line ~ /^[ \t]*<!--/) { if (!index(line, "-->")) comment = 1; print ""; next }
+        if (tolower(line) ~ /^[ \t]*<pre([ \t>]|$)/) { if (tolower(line) !~ /<\/pre[ \t]*>/) pre = 1; print ""; next }
         if (lead != "" && !(substr(lead, 1, 1) == "`" && index(rest, "`"))) { fence = lead; print ""; next }
         print line
         next

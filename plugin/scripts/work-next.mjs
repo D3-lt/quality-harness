@@ -237,7 +237,9 @@ export function maskedMarkdown(text) {
   let fence = null
   let afterBlank = true
   let indented = false
-  const lines = text.split('\n').map(line => {
+  // CRLF split too: a `\r` left on a line made a blank line not blank, so the same spec
+  // read differently in LF and CRLF (a Windows chaos round, 2.111.0-rc).
+  const lines = text.split(/\r?\n/).map(line => {
     const blank = /^[ \t]*$/.test(line)
     if (fence) {
       // A list item ends at a non-blank line indented less than its content, and a
@@ -380,7 +382,10 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // `**Status:** done` puts the colon INSIDE the bold markers, which is how
     // every template in this corpus writes it — a pattern expecting the colon
     // after them matched nothing at all.
-    const claimed = /^\s*[-*]?\s*\*{0,2}(?:Status|State):?\*{0,2}:?\s*done\b/im.test(text)
+    // Horizontal whitespace only: under /m, `\s` crosses newlines, and the two `\s*` around
+    // the optional bullet backtracked over a run of blank lines from every line start,
+    // so 10,000 blank lines ran past the probe's budget (a chaos round, CF1).
+    const claimed = /^[ \t]*[-*]?[ \t]*\*{0,2}(?:Status|State):?\*{0,2}:?[ \t]*done\b/im.test(text)
       || /\bmarked\s+done\b/i.test(text) || claimedInReadme(file)
     if (!claimed) return false
     if (readiness.listed.has(path.resolve(file))) return !readiness.done.has(path.resolve(file))
@@ -433,7 +438,7 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // satisfies it. This is not a way to hand-declare done: an ordinary fenced task
     // is unaffected, because the acceptance must say so in the words the writer
     // uses (`adr-verify --human` exists for exactly these).
-    if (/^\s*Acceptance is human-observed:/im.test(text)
+    if (/^[ \t]*Acceptance is human-observed:/im.test(text)
       && /^- \d{4}-\d{2}-\d{2} · human-observed · \S/m.test(text)) return false
     return true
   }

@@ -1073,6 +1073,35 @@ test('arch-lint rejects a gate that cannot fail and a symbol that is not there',
   assert.equal(deferred.status, 0, deferred.stdout)
 })
 
+test('arch-lint reads a Go package pattern as a pattern, not a missing path', () => {
+  // Reported from outside twice, 2026-09-26 (memory-runtime): a Gate command of
+  // `go test -race ./...` was refused as "path './...' does not exist in the repo".
+  // `./...` is Go's every-package pattern, never a file, so the remedy the finding
+  // offered — defer the project's real check — would have been wrong.
+  const dir = scratch('arch-go')
+  const doc = join(dir, 'architecture.md')
+  const lint = gate => {
+    writeFileSync(doc, ['# Architecture: probe', '',
+      '**Status:** Living — updated with every structural change.',
+      '**Repo:** probe', '**Tier:** library',
+      `**Gate command:** \`${gate}\``,
+      '**Last full audit:** 2026-09-26 via /quality-harness:arch-write', '',
+      '## Module Map', '', '| Module | Layer | One reason to change | Owner |',
+      '|--------|-------|----------------------|-------|', '| `cmd` | app | the probe | ADR-001 |', '',
+      '## Dependency Contracts', '', 'None.', '',
+      '## Concept Ownership (DRY)', '', 'None.', '', '## Composition Root', '', 'None.', '',
+      '## Test Doubles', '', 'None.', '', '## Trust & Data Boundaries', '', 'None.', '',
+      '## Superseded', '', 'None.', ''].join('\n'))
+    return run('arch-lint', [doc], dir)
+  }
+  for (const gate of ['go test -race ./...', 'go test ./cmd/...']) {
+    assert.doesNotMatch(lint(gate).stdout, /does not exist in the repo/, gate)
+  }
+  // DIRTY twin: a real file path that is missing still blocks.
+  const missing = lint('grep -q foo src/missing.py')
+  assert.match(missing.stdout, /path 'src\/missing\.py' does not exist in the repo/, missing.stdout)
+})
+
 // --- an unrecognized flag is a typo, not an instruction ---------------------
 
 test('every gate refuses a flag it does not know', () => {

@@ -10,6 +10,76 @@
   ],
   "mutations": [
     {
+      "label": "adr-lint: a relock row is not judged as a fast fence run",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "            if timed and timed.group(\"ms\") and not vlog_row_is_lock_snapshot(row) \\",
+      "to": "            if timed and timed.group(\"ms\") \\"
+    },
+    {
+      "label": "adr-lint: cargo's --test is not a test-name filter",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "    narrowing = re.compile(r\"(-run|--filter|-k|--name)\\b\")",
+      "to": "    narrowing = re.compile(r\"(-run|--filter|-k|--test|--name)\\b\")"
+    },
+    {
+      "label": "adr-lint: an unfiltered runner beside a filtered one runs its own rows",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "            if not selected_by_filter(acc, name, rel) and not unfiltered_runner_runs(acc, rel, narrowing):",
+      "to": "            if not selected_by_filter(acc, name, rel):"
+    },
+    {
+      "label": "adr-lint: an unfiltered runner runs only its own language's rows",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "        if not any(pattern.search(segment) and suffix in suffixes for pattern, suffixes in _UNFILTERED_RUNNERS):",
+      "to": "        if not any(pattern.search(segment) for pattern, suffixes in _UNFILTERED_RUNNERS):"
+    },
+    {
+      "label": "adr-lint: an unfiltered runner selects only a file it names",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "        if name in segment or \"...\" in segment or (parent not in (\"\", \".\") and parent in segment):",
+      "to": "        if True:"
+    },
+    {
+      "label": "arch-lint: a Go package pattern is not a missing path",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "Go package pattern",
+      "from": "            if tok.startswith(\"-\") or \"/\" not in tok or \"*\" in tok or tok.startswith(\"$\") or \"...\" in tok:",
+      "to": "            if tok.startswith(\"-\") or \"/\" not in tok or \"*\" in tok or tok.startswith(\"$\"):"
+    },
+    {
+      "label": "adr-lint: a task's id is the first task-id token in its name",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "a task whose name mentions another task does not depend on itself",
+      "from": "    return found is not None and found.group(0).upper() == tid.upper()",
+      "to": "    return re.search(rf\"(?<!\\w){re.escape(tid)}(?!\\w)\", stem, re.I) is not None"
+    },
+    {
       "label": "publish armed: only a session whose git hook ran is armed",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -4018,7 +4088,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if timed and timed.group(\"ms\") and implausibly_fast(int(timed.group(\"ms\")),\n                                                                inf.get(\"acc_all\", \"\")):",
+      "from": "            if timed and timed.group(\"ms\") and not vlog_row_is_lock_snapshot(row) \\\n                    and implausibly_fast(int(timed.group(\"ms\")),\n                                                                inf.get(\"acc_all\", \"\")):",
       "to": "            if False:"
     },
     {

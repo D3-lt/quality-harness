@@ -3124,6 +3124,29 @@ test('adr-lint refuses a task that depends on itself', () => {
   assert.match(blocked.stdout, /T1-fixture\.md: Depends-on 'T1' names this task itself/, blocked.stdout)
 })
 
+test('a task whose name mentions another task does not depend on itself', () => {
+  // Reported from outside (tool-multipathreadwrite ADR-075, inbox 2026-09-26): adr-lint
+  // 2.111.0 refused `T2-the-surfaces-say-what-t1-made-true.md` with `Depends-on: T1` as a
+  // self-dependency, because it matched the `t1` in the slug as the file's own id. A task's
+  // id is the FIRST task-id token in its name, as adr-next already reads it.
+  const copy = corpus()
+  const name = 'T2-the-surfaces-say-what-t1-made-true.md'
+  const t2 = readTask(copy)
+    .replace(/^# Task ADR-001-T1-fixture:/m, '# Task ADR-001-T2: the surfaces say what T1 made true —')
+    .replace(/^\*\*Depends-on:\*\*.*$/m, '**Depends-on:** T1')
+  writeFileSync(join(copy, 'tasks', name), t2)
+  const index = join(copy, 'tasks', 'README.md')
+  writeFileSync(index, readFileSync(index, 'utf8') + `| 2 | [T2-the-surfaces-say-what-t1-made-true](${name}) | S | T1 | pending |\n`)
+  const linted = lint(copy)
+  assert.doesNotMatch(linted.stdout, /names this task itself/, linted.stdout)
+  assert.doesNotMatch(linted.stdout, /matches no sibling task file/, linted.stdout)
+  // DIRTY twin: the same file depending on its own id is refused.
+  writeFileSync(join(copy, 'tasks', name), t2.replace('**Depends-on:** T1', '**Depends-on:** T2'))
+  const blocked = lint(copy)
+  expectExit(blocked, 1, 'a real self-dependency still blocks')
+  assert.match(blocked.stdout, /T2-the-surfaces-say-what-t1-made-true\.md: Depends-on 'T2' names this task itself/, blocked.stdout)
+})
+
 // and advises the ADR, as it does an unclosed fence.
 // A Windows chaos round (2.111.0-rc): a UTF-16 task drew section findings about a file
 // nobody could read. The reason comes first and plainly.

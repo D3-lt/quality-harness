@@ -740,6 +740,7 @@ def main():
     test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt)
 
     test_the_floor_runs_on_a_done_row(lint)
+    test_a_relock_row_is_not_a_fast_run(lint)
     test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint)
     test_a_committed_evidence_row_that_has_gone_missing_is_reported(bin_dir, lint)
     test_a_fence_declaration_is_read_or_reported(bin_dir, lint, repo_root)
@@ -1432,6 +1433,48 @@ def main():
     lint.check_named_tests_are_run(named("pytest -k test_alpha", [("test_beta", "t.py")]),
                                    "| T1 | probe | pending |", errors)
     assert errors == [], errors
+    # Reported from outside, 2026-09-26 (memory-runtime): a TWO-RUNNER fence. The Go
+    # `-run` filter was read as filtering the Python unittest run beside it, so a row
+    # the unfiltered unittest call runs was blocked as "does not select it".
+    two_runner = ("go test -race -v -run '^(TestCampaignA|TestCampaignB)$' ./memoryruntime && "
+                  "python3 -m unittest -v tools/mutants/test_run.py")
+    errors = []
+    lint.check_named_tests_are_run(named(two_runner, [
+        ("TestCampaignA", "memoryruntime/campaign_test.go"),
+        ("test_killed_means_new_failing_name", "tools/mutants/test_run.py"),
+    ]), "| T1 | probe | done |", errors)
+    assert errors == [], errors
+    # DIRTY twin: a Go row the Go filter excludes is still blocked; the unittest call
+    # beside it does not run Go tests.
+    errors = []
+    lint.check_named_tests_are_run(named(two_runner, [("TestCampaignC", "memoryruntime/campaign_test.go")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors and "TestCampaignC" in errors[0], errors
+    # DIRTY twin of the other half: the unfiltered unittest call runs ONE file, so a
+    # Python row in a file it never names is still blocked.
+    errors = []
+    lint.check_named_tests_are_run(named(two_runner, [("test_elsewhere", "tools/other/test_other.py")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors and "test_elsewhere" in errors[0], errors
+    # And runner and language must agree: a Go row in the directory the unittest call
+    # names is not run by it (a catalogue GREEN found this twin missing, 2026-09-26).
+    errors = []
+    lint.check_named_tests_are_run(named(
+        "go test -run '^TestSelected$' ./tools/mutants && python3 -m unittest -v tools/mutants/test_run.py",
+        [("TestOther", "tools/mutants/other_test.go")]), "| T1 | probe | done |", errors)
+    assert errors and "TestOther" in errors[0], errors
+
+    # Reported from outside, 2026-09-26 (zeus): cargo's `--test <binary>` selects an
+    # integration-test BINARY, not test names, and it made every row outside that
+    # binary's name "not selected".
+    errors = []
+    lint.check_named_tests_are_run(named(
+        "cargo nextest run -p zeus-tool-catalog -E 'test(multi_edit_line_range_)' && "
+        "cargo nextest run -p zeus-agent-runner --test error_injection_paths -E 'test(line_range_edit_is_laddered)'",
+        [("multi_edit_line_range_splits", "crates/tool-catalog/src/multi_edit.rs")]),
+        "| T1 | probe | done |", errors)
+    assert errors == [], errors
+
 
     # --- severity: what blocks, and what only advises ---------------------
 
@@ -3596,6 +3639,37 @@ def test_the_floor_runs_on_a_done_row(lint):
     assert not [e for e in fast if "implausib" in str(e).lower()], \
         "the floor advises; it must never enter the blocking channel"
 
+
+# Reported from outside (memory-runtime, inbox 2026-09-26): every row `adr-verify
+# --relock --replace-hashes` writes carries `ms:0`, because a relock runs no fence by
+# design, and the floor then advised "too short to have run this task's Acceptance
+# fence" on each — about seventeen in one record, which trains a reader to skip the
+# one advice class that catches a hand-typed row. A lock snapshot is not a fence run;
+# the floor judges only rows that claim one.
+def test_a_relock_row_is_not_a_fast_run(lint):
+    """The floor skips a lock snapshot and still judges an ordinary row."""
+    acceptance = "docker run --rm golang:1 go vet ./..."
+    digest = lint.acceptance_digest(lint.normalize_acceptance(acceptance))
+    after = lint.DURATION_REQUIRED_FROM
+    lock = f" · test-lock-sha256:{'a' * 64} · test-lock-b64:Y2hlY2s · test-lock-kind:replace"
+
+    def said(row):
+        found = lint.Findings()
+        lint.check_verification({"T1": {
+            "human": False, "vlog": [row],
+            "mlog": [f"- {after} · abc1234 · mutant killed · exit 1 · `x.py` · why · "
+                     f"acceptance-sha256:{digest}"],
+            "has_mlog": True, "acc_all": acceptance, "acc_first": acceptance,
+            "path": Path("tasks/T1-probe.md"),
+        }}, "| T1 | probe | done |", found, committed=lambda path: None)
+        return "\n".join(str(e) for e in found) + "\n".join(found.advice)
+
+    relock = said(f"- {after} · abc1234 · exit 0 · `adr-verify --relock --replace-hashes` · "
+                  f"acceptance-sha256:{digest} · ms:0{lock}")
+    assert "too short to have run" not in relock, f"a relock row is not a fence run: {relock}"
+    # DIRTY twin: the same zero duration on a row that claims the fence ran is still said.
+    ran = said(f"- {after} · abc1234 · exit 0 · `{acceptance}` · acceptance-sha256:{digest} · ms:0")
+    assert "too short to have run" in ran, f"a 0ms fence run must still be reported: {ran}"
 
 # Reported 2026-09-01 while auditing the class GitHub issue #6 named: the floor
 # T1 shipped is CALLED now, but on a narrower set of rows than T1's own

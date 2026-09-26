@@ -15828,3 +15828,32 @@ Non-goals: binary or hex encoding, lossy compression on evidence, a semantic ans
 - Stage 2 (qh1) is deferred on its numbers.
 
 **Load-sensitive test, found 2026-09-26.** `tests/observed-events.test.mjs` "a check that finishes in a later turn clears the finding then" failed once in the full gate at load 27. It took 14.6 s and Stop emitted R4 where R1 was expected. Run alone at the same load, it passed in 3.6 s. It is not caused by the Stage 1 change, which touches only `scripts/`. Open: find which deadline R4 depends on, and whether R4 there is a real could-not-look or a test budget.
+
+## 302. The 2026-09-26 inbox: one regression of mine, four false blocks and advisories fixed for 3.0, two left open
+
+Eight inbox drawers from peer projects (tool-multipathreadwrite, memory-runtime, zeus), each with a repro. Each was confirmed against source before acting.
+
+**Fixed for 3.0** (each with a regression test beside a dirty twin, and a RED catalogue mutant):
+
+1. **A false self-dependency FAIL — a 2.111.0 regression of mine.**
+   - The report: `T2-the-surfaces-say-what-t1-made-true.md` with `Depends-on: T1` was refused as depending on itself.
+   - The cause: adr-lint's `id_matches` matched a task id ANYWHERE in the file name, although its docstring promised an anchored match. The §295 self-dependency check reused it without reading the regex.
+   - The same loose match also mapped the README order of T1 onto T2's row (`order(T1)=2`).
+   - Now a task's id is the first task-id token in its name, as adr-next already read it.
+2. **Advice on relock rows.** `--relock` rows (ms:0) were advised as "too short to have run the fence". A lock snapshot runs no fence; the floor now skips it.
+3. **cargo's `--test <binary>` read as a test-name filter**, which blocked `done` on every row outside that binary. It was removed from the filter flags. It had been there since the first commit, with no measured runner behind it.
+4. **A two-runner fence.**
+   - One runner's filter was applied to the other runner's tests, which also blocked `done`.
+   - Now a test runner of the row's language with no filter, whose command names the row's file, its directory or Go's `...`, runs that row.
+   - cargo is deliberately not in that list: its `-E` and positional names are filters this gate does not parse. A catalogue GREEN found the first cut treating them as unfiltered.
+5. **arch-lint read Go's `./...` as a missing path** (reported twice), which blocked a project's real gate. A token containing `...` is a package pattern.
+
+**Left open:**
+- A nested `[build failed]` grades a real kill inconclusive. This is §253, now with a second corpus and a repro (memory-runtime `keep/t8-compile-probe.out`). It is not a false block: the grade is weaker than it should be, and the reporter worked around it.
+- `Class::method` spelling for Python unittest rows in a Tests table (from the two-runner report). It was reported beside #4 and is not blocking there.
+
+**How #1 got past every check.**
+- The new check was tested only on the one-task fixture, where it must FIRE. Nothing tested that it stays silent on a real name that merely mentions another task. The dirty half of CLAUDE.md §4 was there; the clean half needed an adversarial realistic input.
+- A mutation campaign cannot find a check that fires too often: every mutant weakens it.
+- None of the outside corpora of the 2.111.0 rounds had a slug containing another task id.
+- So the class — a check reused on the strength of its docstring — is named here. The fix is a test on the shape reported, through the gate itself.

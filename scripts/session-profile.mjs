@@ -72,13 +72,38 @@ export function share(part, whole) {
 // a check never reports an observation it did not make, and "everything is
 // attributed" must not be what an unlabelled record looks like.
 
+/** The script a hook command runs: what tells two hooks on ONE event apart.
+ *
+ * `hookName` is the event (`UserPromptSubmit`), and one event runs every hook
+ * registered for it — measured 2026-09-26, this repository's branch-state reader
+ * and another project's recall hook both landed as `hook:UserPromptSubmit`, one
+ * row, 150 KB, with no way to say whose. A dispatcher's first bare argument is
+ * kept (`run-hook.cmd session-start`), because the dispatcher alone names nothing.
+ * Null when there is no command, so a caller says so rather than guessing. */
+export function hookScript(command) {
+  if (typeof command !== 'string' || !command.trim()) return null
+  const words = command.match(/"[^"]*"|'[^']*'|\S+/g).map(w => w.replace(/^["']|["']$/g, ''))
+  const at = words.findIndex(w => /\.(?:mjs|cjs|js|sh|cmd|py|ps1)$/i.test(w))
+  if (at === -1) return words.find(w => !/^\w+=/.test(w)) ?? words[0]
+  const script = words[at].split(/[\\/]/).pop()
+  return /\.cmd$/i.test(script) && /^[a-z][\w-]*$/.test(words[at + 1] ?? '')
+    ? `${script} ${words[at + 1]}` : script
+}
+
 /** What one attachment record is, and how many bytes of context it cost.
  *
  * ⚠ BYTES, NOT TOKENS. The transcript records no per-attachment token count, so
  * a token figure here would be a number nobody measured (CLAUDE.md §4). Bytes
  * are what the file actually holds; divide by ~4 yourself if you want a feel,
- * and say that you did. */
-export function classify(row) {
+ * and say that you did. `ms` is the harness's own `durationMs`, null where the
+ * record carries none.
+ *
+ * `commandsOf` answers which commands ran for one hook event and tool call. An
+ * additional-context or system-message record carries no command, but it does
+ * carry the `toolUseID` of the `hook_success` record it came from — measured
+ * 2026-09-26: 58 of 68 command-less PreToolUse:Bash records joined to exactly one
+ * command, lifecycle.mjs, which the unjoined reading had called silent. */
+export function classify(row, commandsOf = () => new Set()) {
   if (row?.type !== 'attachment') return null
   const a = row.attachment
   if (!a || typeof a !== 'object') return null
@@ -88,24 +113,53 @@ export function classify(row) {
       : JSON.stringify(a)
   // A hook that names itself is attributed by the harness, for free. One that
   // does not is named as such — never guessed at, and never silently pooled.
+  // The same holds one level down: a record with no command is credited only
+  // when its tool call ran exactly ONE command for that event; with two, which
+  // one wrote it is not recorded, and it stays labelled as such.
+  const joined = [...commandsOf(a.hookName, a.toolUseID)]
+  const script = hookScript(a.command) ?? (joined.length === 1 ? joined[0] : null)
   const source = a.hookName
-    ? `hook:${a.hookName}`
+    ? `hook:${a.hookName} · ${script ?? '(command not recorded)'}`
     : a.type === 'hook_additional_context' || a.type === 'hook_success'
       ? `${a.type} (UNATTRIBUTED — hook did not name itself)`
       : a.type ?? 'unknown'
-  return { source, bytes: Buffer.byteLength(text, 'utf8') }
+  const ms = Number(a.durationMs)
+  return { source, text, bytes: Buffer.byteLength(text, 'utf8'),
+           ms: Number.isFinite(ms) ? ms : null }
 }
 
-/** Sum the context every injected attachment cost, grouped by who wrote it. */
+/** Sum the context every injected attachment cost, grouped by who wrote it.
+ *
+ * `unchangedBytes` is what a source re-sent byte-identical to its own previous
+ * record: the part a delta-only emitter would not have sent at all, and the only
+ * number that says how much an unchanged-suppression is worth before building it. */
 export function attribute(rows) {
-  const by = new Map()
+  const ran = new Map()
   for (const row of rows) {
-    const hit = classify(row)
+    const a = row?.type === 'attachment' ? row.attachment : null
+    const script = hookScript(a?.command)
+    if (!script || !a.hookName || !a.toolUseID) continue
+    const key = `${a.hookName}\u0000${a.toolUseID}`
+    ran.set(key, (ran.get(key) ?? new Set()).add(script))
+  }
+  const commandsOf = (hookName, toolUseID) => ran.get(`${hookName}\u0000${toolUseID}`) ?? new Set()
+  const by = new Map()
+  const last = new Map()
+  for (const row of rows) {
+    const hit = classify(row, commandsOf)
     if (!hit) continue
-    const seen = by.get(hit.source) ?? { records: 0, bytes: 0, max: 0 }
+    const seen = by.get(hit.source) ?? { records: 0, bytes: 0, max: 0, unchangedBytes: 0,
+                                          timed: 0, ms: 0, maxMs: 0 }
     seen.records += 1
     seen.bytes += hit.bytes
     if (hit.bytes > seen.max) seen.max = hit.bytes
+    if (last.get(hit.source) === hit.text) seen.unchangedBytes += hit.bytes
+    last.set(hit.source, hit.text)
+    if (hit.ms !== null) {
+      seen.timed += 1
+      seen.ms += hit.ms
+      if (hit.ms > seen.maxMs) seen.maxMs = hit.ms
+    }
     by.set(hit.source, seen)
   }
   return by
@@ -124,9 +178,13 @@ async function reportAttribution(file) {
   console.log('')
   console.log('WHO PUT BYTES INTO THIS CONTEXT')
   for (const [source, seen] of [...by].sort((a, b) => b[1].bytes - a[1].bytes)) {
-    console.log(`  ${source.padEnd(44)} ${n(seen.bytes).padStart(9)} B  ${String(seen.records).padStart(4)}×  ${share(seen.bytes, total)}`)
+    console.log(`  ${source.padEnd(60)} ${n(seen.bytes).padStart(9)} B  ${String(seen.records).padStart(4)}×  ${share(seen.bytes, total)}`
+      + (seen.unchangedBytes ? `  unchanged ${n(seen.unchangedBytes)} B` : ''))
   }
-  console.log(`  ${'TOTAL'.padEnd(44)} ${n(total).padStart(9)} B`)
+  console.log(`  ${'TOTAL'.padEnd(60)} ${n(total).padStart(9)} B`)
+  console.log('')
+  console.log('  "unchanged" is what a source re-sent byte-identical to its own previous')
+  console.log('  record — what a delta-only emitter would not have sent.')
   console.log('')
   // A one-shot injection and a per-turn one are the same row in the table above
   // and completely different problems. The first is paid once and then read from
@@ -137,11 +195,22 @@ async function reportAttribution(file) {
     console.log('WHAT REPEATS — the accumulating half')
     for (const [source, seen] of repeats.sort((a, b) => b[1].bytes - a[1].bytes)) {
       const avg = Math.round(seen.bytes / seen.records)
-      console.log(`  ${source.padEnd(38)} ${String(seen.records).padStart(3)}×  avg ${n(avg).padStart(6)} B  max ${n(seen.max).padStart(6)} B  = ${n(seen.bytes).padStart(8)} B`)
+      console.log(`  ${source.padEnd(60)} ${String(seen.records).padStart(4)}×  avg ${n(avg).padStart(6)} B  max ${n(seen.max).padStart(6)} B  = ${n(seen.bytes).padStart(8)} B`)
     }
     console.log('')
     console.log('  Shorten by AVERAGE × COUNT, not by total: a 30KB one-shot costs less')
     console.log('  over a long session than a 250-byte line delivered on every prompt.')
+  }
+  // Latency is the other half of a hook's cost, and the harness records it per
+  // run. Hooks on one event may run concurrently, so these are per-hook sums,
+  // never a session's wall time.
+  const timed = [...by].filter(([, s]) => s.timed > 0)
+  if (timed.length) {
+    console.log('')
+    console.log('WHAT THE HOOKS COST IN TIME (the harness\'s durationMs, per hook, summed)')
+    for (const [source, seen] of timed.sort((a, b) => b[1].ms - a[1].ms)) {
+      console.log(`  ${source.padEnd(60)} ${String(seen.timed).padStart(4)} run(s)  avg ${n(Math.round(seen.ms / seen.timed)).padStart(6)} ms  max ${n(seen.maxMs).padStart(6)} ms  = ${n(seen.ms).padStart(8)} ms`)
+    }
   }
   console.log('')
   console.log('  BYTES, never tokens: the transcript records no per-attachment token')
@@ -169,7 +238,8 @@ async function main() {
     console.log('the path is not hardcoded here because it names a person and this')
     console.log('repository publishes its own corpus.')
     console.log('')
-    console.log('  --attribute   who put bytes into the context, grouped by writer')
+    console.log('  --attribute   who put bytes and hook time into the context: per writer,')
+    console.log('                per hook command, with what each re-sent unchanged')
     process.exitCode = 2
     return
   }

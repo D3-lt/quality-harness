@@ -10,6 +10,66 @@
   ],
   "mutations": [
     {
+      "label": "session-profile: a command-less record joins its command by toolUseID",
+      "file": "scripts/session-profile.mjs",
+      "tests": [
+        "tests/session-profile.test.mjs"
+      ],
+      "only": "credited only when its tool call ran exactly one command",
+      "from": "(joined.length === 1 ? joined[0] : null)",
+      "to": "null"
+    },
+    {
+      "label": "session-profile: a join is credited only when exactly one command ran",
+      "file": "scripts/session-profile.mjs",
+      "tests": [
+        "tests/session-profile.test.mjs"
+      ],
+      "only": "credited only when its tool call ran exactly one command",
+      "from": "(joined.length === 1 ? joined[0] : null)",
+      "to": "(joined[0] ?? null)"
+    },
+    {
+      "label": "session-profile: two hooks on one event are two rows",
+      "file": "scripts/session-profile.mjs",
+      "tests": [
+        "tests/session-profile.test.mjs"
+      ],
+      "only": "two hooks on one event are two rows",
+      "from": "? `hook:${a.hookName} · ${script ?? '(command not recorded)'}`",
+      "to": "? `hook:${a.hookName}`"
+    },
+    {
+      "label": "session-profile: a dispatcher is named with its hook argument",
+      "file": "scripts/session-profile.mjs",
+      "tests": [
+        "tests/session-profile.test.mjs"
+      ],
+      "only": "named by the script it runs",
+      "from": "return /\\.cmd$/i.test(script) && ",
+      "to": "return false && "
+    },
+    {
+      "label": "session-profile: unchanged means identical to the source's previous record",
+      "file": "scripts/session-profile.mjs",
+      "tests": [
+        "tests/session-profile.test.mjs"
+      ],
+      "only": "unchanged counts only",
+      "from": "if (last.get(hit.source) === hit.text) seen.unchangedBytes += hit.bytes",
+      "to": "if (last.has(hit.source)) seen.unchangedBytes += hit.bytes"
+    },
+    {
+      "label": "session-profile: a record without durationMs is not timed",
+      "file": "scripts/session-profile.mjs",
+      "tests": [
+        "tests/session-profile.test.mjs"
+      ],
+      "only": "a record without one is not timed",
+      "from": "ms: Number.isFinite(ms) ? ms : null }",
+      "to": "ms }"
+    },
+    {
       "label": "next: a negator reaches an affirmative across two auxiliaries (2.110.0-rc round 2)",
       "file": "plugin/bin/adr-next",
       "tests": [

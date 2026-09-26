@@ -8788,8 +8788,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            if _digest_before_regex_masking(root, rel, name) == digest:",
-      "to": "            if False:",
+      "from": "            elif _legacy_digest(root, rel, name, before_regex_masking=True) == digest:",
+      "to": "            elif False:",
       "only": "taken before regex masking is told apart"
     },
     {
@@ -12739,6 +12739,46 @@
       "only": "reads words, quoted code and heredocs",
       "from": "      else body.feeder = null\n",
       "to": ""
+    },
+    {
+      "label": "lock: an object argument at depth 0 is skipped, not hashed as the body (§305)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "only": "options object before the callback",
+      "from": "            if options and back >= 0 and masked[back] in \",:\":",
+      "to": "            if False:"
+    },
+    {
+      "label": "lock: a lock taken over the options object is UNPROVEN, not a clean pass (§305)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "only": "options object before the callback",
+      "from": "            if _legacy_digest(root, rel, name, options_as_body=True) == digest:",
+      "to": "            if False:"
+    },
+    {
+      "label": "can-fail: a TypeScript return type is not the callback body (§305)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "only": "options object before the callback is not the body the can-fail",
+      "from": "            if options and back >= 0 and masked[back] in \",:\":",
+      "to": "            if options and back >= 0 and masked[back] in \",\":"
+    },
+    {
+      "label": "can-fail: any JS whitespace before an options object is whitespace (§305)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "only": "options object before the callback is not the body the can-fail",
+      "from": "            while back >= 0 and masked[back].isspace():",
+      "to": "            while back >= 0 and masked[back] in \" \\t\\r\\n\":"
     }
   ]
 }

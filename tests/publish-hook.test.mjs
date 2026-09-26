@@ -20,6 +20,14 @@ after(() => {
   try { rmSync(testTmp, { recursive: true, force: true }) } catch { /* the assertions already ran */ }
 })
 
+// A suite run from an ARMED session inherits that session's hook through
+// GIT_CONFIG_* (`enabled=true` among it), which outranks every repository-local
+// setting these tests build — so a repo-local disable read as enabled, and only
+// in a session whose Bash had sourced the exports (measured 2026-09-26). Every git
+// this file spawns starts from none.
+for (const key of Object.keys(process.env)) {
+  if (/^GIT_CONFIG_(?:COUNT|KEY_\d+|VALUE_\d+|PARAMETERS)$/.test(key)) delete process.env[key]
+}
 const GIT_IDENTITY = {
   GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid',
   GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid',

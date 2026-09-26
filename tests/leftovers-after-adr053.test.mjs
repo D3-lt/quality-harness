@@ -185,6 +185,31 @@ test('a PHP #expect comment is not a fail word', () => {
   assert.match(verdict.block.join('\n'), /calls nothing and asserts nothing/)
 })
 
+test('an options object before the callback is not the body the can-fail check reads', () => {
+  // BACKLOG §305: `test(name, { skip }, fn)` read `{ skip }` as the body, so a test
+  // that asserts was reported as calling nothing — seven such advisories stood
+  // unread on this repository's own records.
+  const said = verdict => [...verdict.block, ...verdict.advice].join('\n')
+  const asserts = "test('o', { skip: false }, async () => {\n  assert.equal(1, 1)\n})\n"
+  assert.doesNotMatch(said(canFail(asserts, 'o', 'options.test.mjs')), /calls nothing and asserts nothing/)
+  // DIRTY twin: the same options before an empty callback is still reported.
+  const empty = "test('o', { skip: false }, async () => {\n})\n"
+  assert.match(said(canFail(empty, 'o', 'options.test.mjs')), /calls nothing and asserts nothing/)
+  // Options AFTER the callback — jest's timeout, vitest's trailing object — never
+  // came first, and are read as before.
+  for (const trailing of [
+    "it('o', () => {\n  expect(1).toBe(1)\n}, 5000)\n",
+    "test('o', () => {\n  expect(1).toBe(1)\n}, { timeout: 5 })\n",
+    "test('o', async ({ page }) => {\n  expect(page).toBeTruthy()\n})\n",
+  ]) assert.doesNotMatch(said(canFail(trailing, 'o', 'options.test.mjs')), /calls nothing and asserts nothing/, trailing)
+  // JavaScript whitespace is wider than the scan's first cut, and a TypeScript
+  // return type's `{` is no body either (Codex review of 3.0.1).
+  for (const asserts of [
+    "test('o', { skip: false }, async () => {\n  assert.equal(1, 1)\n})\n",
+    "test('o', { skip: false }, (): { v: boolean } => ({ v: expect(1).toBe(1) }))\n",
+  ]) assert.doesNotMatch(said(canFail(asserts, 'o', 'options.test.mjs')), /calls nothing and asserts nothing/, asserts)
+})
+
 test('escaped same-quote BDD names are discovered and extracted', () => {
   const py = `
 import json, sys

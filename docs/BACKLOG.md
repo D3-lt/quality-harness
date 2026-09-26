@@ -15776,3 +15776,11 @@ Residuals, for 2.112.0:
 - adr-lint prints its "not UTF-8 text" line after an unrelated finding, and still lists its consequences as independent defects.
 - adr-lint never says an empty task file is empty.
 - playtrix's "slower adr-lint" --diff lines were taken at load 12-24. Interleaved CPU time here is unchanged: 0.57-0.68 s for 2.110.1 and rc2 alike on ADR-064.
+
+**The release campaign at 4385b49 (run 36239145817) found one survivor.** It was GREEN in shard 46/48: "next: a malformed cross-record pointer is not routed on" (`elif False:` in `blockers`).
+- The class: one fix made another fix's test vacuous. 2.111.0's self-dependency arm blocks `ADR-not-a-number-T1` in T1 on its own, so the malformed-pointer test no longer reached the guard it names.
+- The guard still matters when the trailing id names a different, done local task. There it prevents a wrong edge that reads READY.
+- New test: "a malformed foreign pointer never binds to a same-numbered local task", with a local-edge dirty twin. The mutant is RED against it locally.
+- The guard's comment claimed the self-edge printed READY. That was stale since the self-dependency fix and is corrected.
+- The other 47 mutation shards were green. The class is the same as §18's refactor rule: a fix that moves an observable turns the old site's test vacuous.
+

@@ -73,6 +73,23 @@ test('a task that could not be read is in neither half', () => {
   assert.equal(readTask(path.join(dir, 'nope.md')).unreadable, true)
 })
 
+// BACKLOG §295 item 7: a Verification Log holding both sides of a merge was counted
+// as a red AND a green entry. It is read as no evidence either way; the markers inside
+// a fence are an example, and a lone `=======` is a setext underline.
+test('a task holding unresolved merge-conflict markers is in neither half', () => {
+  const conflicted = task({ log: ['<<<<<<< HEAD', green, '=======', red, '>>>>>>> feature'] })
+  const totals = measure(taskFiles(corpus({ 'T1-conflicted': conflicted })))
+  assert.equal(totals.unreadable, 1, JSON.stringify(totals))
+  assert.equal(totals.evidenced, 0, JSON.stringify(totals))
+  // Codex review: a fence opened INSIDE a hunk hid the markers after it.
+  const hidden = `${task({ log: [green] })}<<<<<<< HEAD\n\`\`\`sh\na\n=======\nb\n>>>>>>> feature\n\`\`\`\n`
+  assert.equal(measure(taskFiles(corpus({ 'T1-hidden': hidden }))).unreadable, 1, 'a fence inside a hunk hides no marker')
+  const example = `${task({ log: [green] })}\n\`\`\`text\n<<<<<<< HEAD\n=======\n>>>>>>> feature\n\`\`\`\n\nTitle\n=======\n\n>>>>>>> one side alone is not a conflict\n\n<<<<<<< nor is the other side alone\n`
+  const clean = measure(taskFiles(corpus({ 'T1-example': example })))
+  assert.equal(clean.unreadable, 0, JSON.stringify(clean))
+  assert.equal(clean.evidenced, 1, JSON.stringify(clean))
+})
+
 test('a corpus with nothing evidenced reports no rate rather than a clean one', () => {
   const totals = measure(taskFiles(corpus({ 'T1-empty': task() })))
   assert.equal(totals.rate, null)

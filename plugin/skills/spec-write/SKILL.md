@@ -125,10 +125,10 @@ Non-Goals/Risks by reference (deltas only); tasks carry `Covers:` fact/scenario 
 
 Keep exactly one plain-text `**Status:**` line, reading `Grilling`, `Draft`, `Ready-for-ADR` or
 `Superseded`, optionally followed by a note (`Draft — see below`). `work-next` skips a Status inside
-a fenced code block, an HTML comment or inline code, and never reads a value across a line break.
-Two different values, any other word, or a binary file make the spec's Status UNPROVEN, and
-`work-next` says so. An indented code block, a fence inside a numbered list and `<pre>` are still
-read, so never show an example Status in one.
+a fenced code block (a list item's too), an indented code block, an HTML comment, inline code, a
+`<pre>` or `<code>` element and any HTML tag, and never reads a value across a line break. Two
+different values, any other word, or a binary file make the spec's Status UNPROVEN, and
+`work-next` says so.
 
 ## grill-only mode
 

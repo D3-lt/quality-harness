@@ -1306,6 +1306,16 @@ test('the mutation runner refuses to run over an editor, or beside another runne
     rmSync(lock, { force: true })
   }
 
+  // An empty lock names no process. `kill(0, 0)` would probe this test's own group and
+  // succeed, so an empty file read as a live run (BACKLOG §295 item 24).
+  writeFileSync(lock, '')
+  try {
+    const empty = call([])
+    assert.doesNotMatch(empty.stderr, /another run is in flight/, empty.stdout + empty.stderr)
+  } finally {
+    rmSync(lock, { force: true })
+  }
+
   // The other guard: a file this run rewrites that has uncommitted changes. The
   // runner restores from a journal, so an edit made while it runs is silently
   // rolled back — which is how two patches were lost on 2026-08-26.
@@ -1893,10 +1903,12 @@ test('a document ABOUT postmortems is not routed to postmortem-verify', () => {
     // The function is read OUT of the file rather than sourced: the dispatcher runs to
     // completion when sourced, so sourcing it would execute the whole hook. Same
     // reason the vocabulary guard parses a tuple instead of importing the gate.
-    const fn = readFileSync(join(root, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')
-      .match(/^is_postmortem\(\)\s*\{[\s\S]*?^\}/m)
-    assert.ok(fn, 'is_postmortem must be findable, or this check cannot look')
-    const ran = spawnSync('bash', ['-c', `${fn[0]}\nis_postmortem "${file}" && echo ROUTED || echo skipped`],
+    // `is_postmortem` reads the file through `unfenced` and `bom_free` (BACKLOG §297),
+    // so those come out of the file with it.
+    const script = readFileSync(join(root, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')
+    const fns = ['bom_free', 'unfenced', 'is_postmortem'].map(name => script.match(new RegExp(`^${name}\\(\\)\\s*\\{[\\s\\S]*?^\\}`, 'm')))
+    assert.ok(fns.every(Boolean), 'is_postmortem and its helpers must be findable, or this check cannot look')
+    const ran = spawnSync('bash', ['-c', `${fns.map(fn => fn[0]).join('\n')}\nis_postmortem "${file}" && echo ROUTED || echo skipped`],
       { encoding: 'utf8', timeout: 60_000 })
     assert.equal(ran.status, 0, ran.stderr)
     return ran.stdout.trim()

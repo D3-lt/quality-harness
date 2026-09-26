@@ -118,7 +118,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
-from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode  # noqa: E402
+from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers  # noqa: E402
 
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
@@ -1046,6 +1046,7 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
     # last-wins, and the author is told so (ADR-045 T5).
     check_repeated_headings(Path(adr_path), text, errors)
     check_unterminated_fence(Path(adr_path), text, errors, blocking=False)
+    check_conflict_markers(Path(adr_path), text, errors, blocking=False)
     alts = [ln for ln in secs.get("Alternatives Considered", []) if ln.strip().startswith("-")]
     if not alts:
         errors.append(f"{adr_path.name}: Alternatives Considered has no entries")
@@ -1455,6 +1456,21 @@ def check_unterminated_fence(path, text, errors, blocking):
             f"Close it with a matching fence line.")
 
 
+def check_conflict_markers(path, text, errors, blocking):
+    """Unresolved merge-conflict markers are reported, never resolved for the author.
+
+    BACKLOG §295 item 7: a task's Verification Log holding both sides of a merge
+    PASSed, because the exit-0 row on one side was read and the exit-1 row on the
+    other was not. In a TASK that blocks, at the severity of an unclosed fence; in
+    an ADR it is advice.
+    """
+    lines = conflict_markers(text)
+    if lines:
+        say = errors.append if blocking else errors.advise
+        say(f"{path.name}: unresolved merge-conflict markers at lines {', '.join(map(str, lines))}, "
+            f"so the file is both sides of a merge at once and no gate can read either as "
+            f"the record. Resolve the merge.")
+
 # BACKLOG §231, §262. Windows MAX_PATH is 260 and a default Git for Windows does
 # not set core.longpaths, so every character a task path grows is one the
 # checkout root loses: at 157 the longest path here left 103 for the root, and a
@@ -1506,6 +1522,7 @@ def check_task(path, all_stems, errors, root, tracked):
             errors.advise(f"{path.name}: missing section ## {s}")
     check_repeated_headings(path, text, errors, blocking=("Acceptance",))
     check_unterminated_fence(path, text, errors, blocking=True)
+    check_conflict_markers(path, text, errors, blocking=True)
     for h in TASK_HEADERS:
         if header_val(text, h) is None:
             errors.advise(f"{path.name}: missing **{h}:** header")

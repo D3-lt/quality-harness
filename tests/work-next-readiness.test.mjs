@@ -309,6 +309,28 @@ test('a spec Status is read only where it is a Status, and only as a known value
     // blank line, so a stray backtick or an unclosed `<!--` does not hide this Status.
     'stray.md': '# S\n\nUse a ` to quote.\n\n**Status:** Ready-for-ADR\n\nSee `x`.\n',
     'midcomment.md': '# S\n\nText <!-- not closed\n\n**Status:** Ready-for-ADR\n',
+    // BACKLOG §295 item 23.2 (Windows, chaos round 2): shapes CommonMark renders as
+    // code or markup. Each holds Draft plus a Ready inside the shape, so a reader that
+    // saw the Ready would call it UNPROVEN (two values) — and a masked one reads Draft.
+    'indented.md': '# S\n\n**Status:** Draft\n\n    **Status:** Ready-for-ADR\n',
+    'tabbed.md': '# S\n\n**Status:** Draft\n\n\t**Status:** Ready-for-ADR\n',
+    'indentedblock.md': '# S\n\n**Status:** Draft\n\n    x\n    **Status:** Ready-for-ADR\n',
+    'listfence.md': '# S\n\n**Status:** Draft\n\n1. ```\n   **Status:** Ready-for-ADR\n   ```\n',
+    'bulletfence.md': '# S\n\n**Status:** Draft\n\n- ~~~\n  **Status:** Ready-for-ADR\n  ~~~\n',
+    'pre.md': '# S\n\n**Status:** Draft\n\n<pre>\n**Status:** Ready-for-ADR\n</pre>\n',
+    'code.md': '# S\n\n**Status:** Draft\n\n<code>\n**Status:** Ready-for-ADR\n</code>\n',
+    'attribute.md': '# S\n\n**Status:** Draft\n\n<div title="**Status:** Ready-for-ADR"></div>\n',
+    'deepclose.md': '# S\n\n**Status:** Draft\n\n```\n        ```\n**Status:** Ready-for-ADR\n```\n',
+    // Twins that must still read: an indented line continuing a paragraph is text, a
+    // list fence that closed leaves the Status after it, and a bare attribute tail is
+    // not a value.
+    'lazy.md': '# S\n\nSome text\n    **Status:** Ready-for-ADR\n',
+    // Codex review of the first cut: a top-level closer sits at most three spaces in,
+    // and an unindented paragraph ends a list item and the fence it opened.
+    'overindent.md': '# S\n\n**Status:** Draft\n\n   ```\n    ```\n**Status:** Ready-for-ADR\n   ```\n',
+    'listended.md': '# S\n\n- ```\n  example\n\n**Status:** Ready-for-ADR\n',
+    'listclosed.md': '# S\n\n1. ```\n   x\n   ```\n\n**Status:** Ready-for-ADR\n',
+    'tail.md': '# S\n\n**Status:** Ready-for-ADR">\n',
   }
   mkdirSync(path.join(temp, 'docs', 'specs'), { recursive: true })
   for (const [name, text] of Object.entries(specs)) writeFileSync(path.join(temp, 'docs', 'specs', name), text)
@@ -323,8 +345,9 @@ test('a spec Status is read only where it is a Status, and only as a known value
   const state = observe(temp)
   const names = list => list.map(file => path.basename(file)).sort()
   assert.deepEqual(names(state.unprovenSpecs),
-    ['banana.md', 'binary.md', 'comment.md', 'crossing.md', 'fenced.md', 'newline.md', 'pending.md', 'two.md'])
-  assert.deepEqual(names(state.uncoveredReadySpecs), ['good.md', 'midcomment.md', 'stray.md'], 'the real template form still reads as Ready')
+    ['banana.md', 'binary.md', 'comment.md', 'crossing.md', 'fenced.md', 'newline.md', 'pending.md', 'tail.md', 'two.md'])
+  assert.deepEqual(names(state.uncoveredReadySpecs), ['good.md', 'lazy.md', 'listclosed.md', 'listended.md', 'midcomment.md', 'stray.md'],
+    'the real template form still reads as Ready')
 })
 
 // A chaos round, 2026-09-25: `git ls-files` without `-z` C-quotes a name holding a

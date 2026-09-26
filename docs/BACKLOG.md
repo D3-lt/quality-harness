@@ -15477,6 +15477,13 @@ Inputs skipped silently:
 
 Verdicts over forged or contested evidence:
 7. A Verification Log holding unresolved merge-conflict markers PASSes, and the task stays done (idempotent-hammock F6). A **fail-open**, found after the owner's hold was scoped to L1, L4 and L7.
+   - ✅ Fixed for 2.111.0. `record.py` `conflict_markers` finds git's markers outside a code fence, and only when both a `<<<<<<<` and a `>>>>>>>` line are present, since a lone `=======` is a setext underline. The consumers:
+     - `adr-next` stops the task with the lines named, and its dependents are not offered;
+     - `adr-lint` blocks a task and advises an ADR, like an unclosed fence;
+     - `adr-verify` refuses to run or write (exit 2);
+     - `trajectory-metrics` / `corpus-report` count the task in neither half instead of as red and green at once.
+   - Tests: `adr-next.test.mjs`, `evidence-chain.test.mjs`, `trajectory-metrics.test.mjs`, with a fenced and a setext twin each. 11 mutants, all RED.
+   - Class audit: `git grep -n "Verification Log" -- plugin/scripts/*.mjs` named `trajectory-metrics.mjs:92` as the only other JS row counter. `work-next` follows `adr-next` wherever `adr-next` answered.
 8. Hand-forged log rows are accepted without a word: a duplicate, a 41-char sha, a sha of no commit, rows out of order (idempotent-hammock F3/D2).
 9. A forged `check.passed` event with no `at`, command or record id, appended to the session log, lets an unchecked-tree commit through (quality-blueprints lead 4). Anything able to append the log can also forge a well-formed pass, so the fix is to tie a pass to the `checks.jsonl` record it claims. That is a design question for its own record, not a field check.
 
@@ -15498,13 +15505,17 @@ To the corpus-chaos skill:
 18. The catalogue should say to build bytes with the file tool or `node -e` rather than a shell literal: a classifier refused backticks and `${}` (pirkiniukampelis).
 19. **From round 2, at 145c794.**
     - A task deleted while another `depends_on` it leaves the dependents ready, and nothing names the missing task (pirkiniukampelis F1). A verdict over input that is not there.
+      - ✅ Fixed for 2.111.0. A `Depends-on` or `Consumes` naming a local id with no task in the record is an edge, rendered `T1 (no such task in this record)`; it used to be dropped. Measured against HEAD over this corpus, the fixture corpora and two outside corpora (236 tasks): 0 answers changed.
     - adr-next never sees a task git lists but the disk does not hold. It asks the disk, not git, so the work-next half of L4 is fixed and this half is not (pirkiniukampelis F2).
+      - ✅ Fixed for 2.111.0. `adr-next` asks `git ls-files` for the tasks directory. A task git lists that the disk lacks is an entry stopped with the reason "git lists … but the disk does not hold it … UNPROVEN". So its dependents are blocked and no all-clear is printed over it (this closes item 20's Q3 too). A file on disk whose title names another id is not absent.
     - On Windows, a DIRECTORY named like a task raises PermissionError, and adr-next reports the whole tasks directory as could-not-run with "Permission denied" as the reason (declarative-pie N5).
     - A task holding conflict markers with `Done` above and `Todo` below counts as a done claim, because the first value wins (declarative-pie).
+      - ✅ Covered by item 7's fix: a conflicted task is stopped, whatever its Status says.
     - By design, recorded: adr-next's `--json` carries the goal and stop reason as data, JSON-escaped, and does not quote or strip them (pirkiniukampelis F3). A consumer that prints them is where quoting belongs; SessionStart does, and the human output does.
 20. **From playtrix's round 2, at 145c794** (macOS, PHP/React). ADR-086 T3 left `unbacked`, and the V payloads held in SessionStart and in adr-next's text.
     - Q1: look-alike brackets (`＜ ＞ ﹥ 〈 〉`), HTML entities and Markdown (a triple backtick, a `javascript:` link, an image) pass inside the «…» quotes. Worth hardening in depth; the quoting itself held.
     - Q3: adr-next says "All 5 task(s) carry exit-0 evidence" over a task git lists but the disk lacks. An all-clear over a missing input; the same class as item 19's second point. work-next and adr-lint both name it.
+      - ✅ Fixed with item 19's second point.
     - Q4: a damaged `checks.jsonl` makes the Stop hook blame "this session's event log" and discard the tree, index and HEAD, although the session log holds good observations. The `check.source-unreadable` key says line 10 of a one-line file. This extends item 13.
     - Q5: a probe report copied in as a task file is offered as READY, with no heading and no runnable Acceptance, while adr-lint rejects it. The same report copied in as a record is counted only as "further records".
     - Q6: a record named with a Cyrillic `А` escapes the filename/title id comparison that fullwidth digits trigger, and is counted as governing. A task renamed `T６.md` (fullwidth 6) is counted as a task and matched to nothing.
@@ -15520,16 +15531,29 @@ To the corpus-chaos skill:
     - A tracked spec that is a symlink to a file OUTSIDE the repository is read, and its Status drives "Next: adr-write".
     - At scale (4,002 tasks), the probe reports adr-lint "did not start: ENOBUFS" when adr-lint started and overflowed spawnSync's buffer. adr-next --all took 93 s, work-next 61 s, and SessionStart 10 s per start.
     - The spec Status reader still reads a 4-space indented code block, and a table cell. A tab after the colon reads as Ready while an em space does not. A blockquote is the template's own form, so it is correct.
+      - ✅ The indented code block is masked for 2.111.0 (item 23.2). A table cell is kept on purpose: it renders as text, not code, so a Status there is what the page shows. The whitespace point (a tab reads, an em space does not) is left open.
     - A backslash in a POSIX file name is dropped; that is CLAUDE.md §7 by design, and it goes unsaid.
     - Recorded again: `adr-next --json` carries the goal and fence as data (item 19).
 23. **From idempotent-hammock's round 2** (Windows; chaos at 145c794, attested at 2daedc4, over a Go CLI corpus the project does not own and over this repository). Items 1 and 2 are known open in 2.110.0, by the owner's choice to ship 355e91a.
     1. **§289.4's profile, measured at last.** On the Go corpus, `python3 -m cProfile … adr-next docs/adr/ADR-052-…/tasks --json` took 149 s. 147 s of that was tottime in `record.py _js_like_in_code`, over 25,612 calls from `_iter_go_func_tests`, through `snapshot_lock` and `lock_findings`. `load` runs twice, and `snapshot_lock` runs 10 times for 4 task files. work-next and adr-next on that directory hit the probe's 120 s budget. This is the next performance fix, and it has a named hot spot.
+       - ✅ Fixed for 2.111.0, from a read-only investigation (a subagent of this session, reconciled against source here). The cause was a full-prefix rescan on every call, O(F²·L) per file, twice per done task. `_js_like_code_positions` now scans once per text and is memoised like `_mask_lock_noncode`; `_js_like_in_code` reads that table.
+         - Equivalence against HEAD a9fd743: identical at 788,635 positions over 20,061 texts (random plus 60 in-repo code files). With the `*/` write removed, the same check reports a MISMATCH.
+         - Speed, 100-test synthetic Go corpus: 38.82 s → 0.20 s, with byte-identical JSON, both at load ~5.
+         - Test: `gates.test.mjs` checks every position of a mixed text against the prefix scan's answers (HEAD's, printed alongside), and one scan per text. 2 mutants RED.
+         - Not measured: Windows.
+         - Left in on purpose: the per-name generator re-walk, now O(1) per step, about 0.5 s at 225 tests.
     2. **The spec Status reader still reads a Status from code CommonMark renders as code:**
        - an indented code block (4 spaces or a tab);
        - a numbered-list fence (`1. ```…`);
        - a `<pre>` or multi-line `<code>` block;
        - an HTML attribute value (`Ready-for-ADR"></div>` passes the allowlist).
        Through work-next that routes to adr-write from an example. quality-blueprints reported the indented case too (item 22). ⚠ `maskedMarkdown`'s comment says "no Status is read from an example", which overclaims. Correct it with the fix, or before it.
+       - ✅ Fixed for 2.111.0. `maskedMarkdown` now also masks:
+         - an indented code block after a blank line; a lazy paragraph continuation stays text;
+         - a fence opened after a list marker, whose closer may not sit deeper than its opener plus three;
+         - `<pre>` and `<code>` elements, and every HTML tag, so an attribute value is never read.
+
+         `SPEC_STATUS` also refuses a value followed by a quote or angle bracket. 8 mutants, all RED, plus the three repointed ones. `spec-write` and the corpus-chaos B8 row were corrected, because they said these shapes were still read.
        - ✅ The comment half is done for 2.110.1: `maskedMarkdown`'s comment now names the three unmasked shapes and stops claiming more. The reader itself is unchanged, and the item stays open.
     3. Windows reserved names (`CON.md`, `nul.md`, `aux`, and names ending in a dot or a space) are counted as tasks by work-next and read by no reader.
     4. A Verification Log row dated 2099-01-01, 1970-01-01 or 2026-02-30 passes adr-lint; a malformed timestamp is refused. Only a calendar check is missing (with item 8).
@@ -15543,6 +15567,17 @@ To the corpus-chaos skill:
     - A fourth kill on 2026-09-26, the first run after the 2.110.1 version bump, had the same shape: killed right after the three plugin validations, and `checks.jsonl` recorded `"exit":null,"signal":"SIGKILL"`. Memory was 49% free and load about 15. An immediate re-run through `qh-check` passed, at load 20, so that pass cannot be attributed either (§18).
     - A fifth kill, the same day, was the first run after the 2.110.1 attestation and one BACKLOG line were added; the re-run passed, with `QUALITY_HARNESS_TAP` set, at load 27. Kills four and five were each the first gate run after a tree change, which looked like a lead, and it did NOT hold: the next first-run-after-a-change, at load 28, passed. So the cause is still unattributed. The two group kills in the plugin (`run-shell-hook.mjs` terminateProcessTree, `qh-check.mjs`) both spawn their child `detached`, so neither is an obvious suspect.
     - Separately, whatever the cause: the summary line says "— failed" for a check a signal ended. A killed check did not look, so ADR-005's vocabulary is could-not-look, not a verdict. `qh-check`'s exit-1-on-signal is documented; the word is not.
+    - ✅ **Cause found, fixed for 2.111.0** (read-only investigation, reconciled against source here). It was `tests/lifecycle.test.mjs`'s tree-kill test, and not the machine:
+      - Its 100 ms timeout raced node's start under load, so the child printed nothing.
+      - `Number('')` is 0, the assertion accepted it (`Number.isInteger(0)`), and `process.kill(0, 0)` always succeeds.
+      - So `process.kill(0, 'SIGKILL')` signalled the test's OWN process group. Under `qh-check` that is the whole detached selftest group, and `qh-check`, outside it, recorded the SIGKILL.
+      - `checks.jsonl` holds nine such rows (2026-09-22 to 09-26, three sessions).
+      - Reproduced with node's start slowed by 400 ms: rc -9, nothing printed.
+
+      The fix: a 1.5 s timeout, a pid that must be positive, and a kill guarded on it. Re-run with the same slowdown: passes. At a 2 s slowdown: the test fails, naming the missing pid, and the shell survives.
+
+      Sibling (§5, the same empty-pid class): `scripts/mutate.mjs` read an empty `.mutate-lock` as a live run, via `kill(0, 0)`. Fixed; `gate-rules.test.mjs` asserts an empty lock is not refused. `node -e` shows the old logic returned alive.
+    - ✅ The "— failed" half, fixed for 2.111.0. A signalled check records `verdict: "interrupted"` and says "interrupted by SIGTERM before it finished, so there is no verdict". `checkEventName` already read the signal as `check.timeout`. `observed-events.test.mjs` reads the summary through an async spawn, because `spawnSync` stops reading at its own timeout kill. 2 mutants RED.
 
 ## 296. CLOSED 2026-09-26 — The publish refusal read any `-c "` as a shell, so `grep -c "git push"` was refused
 
@@ -15599,7 +15634,7 @@ A pathological input costs under 2 ms: 40 kB of repeated options, continuations 
 
 **Docs.** INSTALL.md and ONBOARDING.md now say that a `grep -c` for the words is warned about, and they name the quoted-data limit.
 
-## 297. OPEN — The commit dispatcher reads a task title inside a code block as a task file (2026-09-26, 2.110.1 doc sweep)
+## 297. CLOSED 2026-09-26 — The commit dispatcher reads a task title inside a code block as a task file (2026-09-26, 2.110.1 doc sweep)
 
 **Observed.** During the 2.110.1 commits, which touched `docs/TUTORIALS.md`, the installed 2.109.0 hook added this to the context:
 
@@ -15610,3 +15645,47 @@ A pathological input costs under 2 ms: 40 kB of repeated options, continuations 
 **Direction.** A false advisory, never a refusal. The commit went through. This is the same class as §295 item 23.2, where a reader takes content from an example as the document's own, but here it sits in the commit path. The finding has been possible since the tutorial was written; it fires only when that file changes.
 
 **Fix to weigh.** Read the title from the file's first heading outside a code fence, or only from line 1, which is where `adr_ref` already reads it. Add a regression: a Markdown doc whose only task-shaped title sits inside a fence is not routed to the task arm. Its dirty twin is a real task file, which still is.
+
+**Fixed for 2.111.0.** `facts-gate-dispatch.sh` gained `unfenced`, an awk walk of `record.py`'s fence grammar that also strips a CR, so a CRLF closer closes. The title arms, `is_adr`, `is_postmortem` and `is_architecture` all read through it, so the whole class is covered, not only the title (§5).
+
+**Test.** `gates.test.mjs` covers a task, a record, an architecture document and a postmortem inside a fence. Each is "unclaimed": the dispatcher's own `not-recognised:` line, and no gate's name. Each has a bare twin that still routes. Also covered:
+- nested shorter, other-character and info-string fences, which do not close;
+- an info-string backtick, which opens no fence;
+- a CRLF closer.
+
+**Two GREEN mutants on the way were findings about the test:**
+- the other-character case used a shorter inner fence, so the length rule was doing the work;
+- asserting "no arch-lint in the output" could not see a misroute, because a passing `arch-lint` prints nothing and a misrouted `adr-lint` says "not-recognised" too.
+
+10 mutants, all RED, plus the repointed §190 one.
+
+## 298. CLOSED 2026-09-26 — The publish refusal refused a shell told not to run the string (`bash -n -c`, `--help`)
+
+**Found** by Codex reviewing §296. Pinned then as a known limit; the owner scoped it into 2.111.0.
+
+**Measured 2026-09-26** on bash, sh, zsh, dash, ksh, csh and tcsh:
+- `-n`, alone or in a cluster (`-xn`, `-nc`), and `-o noexec` parse without executing;
+- a later `+n` or `+o noexec` turns execution back on;
+- `--help` and `--version` print and exit.
+
+**Fix.** `PUBLISH_SHELL_C` captures the shell and its options (`shell` group), and `shellRuns` decides from them. `publishCommandIn` walks every match (`matchAll`), so a non-running shell does not hide a real `git push` later in the same command. The invocation group is now named (`invoked`); the first cut read `m[1]`, which the new group had renumbered, and the tests caught it. PowerShell is exempt: its options are words (`-NonInteractive`), and none was measured.
+
+**Tests and mutants.** Rows both ways in `publish-command.test.mjs`. `KNOWN_FALSE_REFUSALS` keeps only the quoted-data rows, the owner's decision for 2.111.0. 6 mutants, all RED, and the §296 ones stay RED.
+
+## 299. CLOSED 2026-09-26 — The Codex round on the 2.111.0 batch: seven findings, three of them in this batch's own fixes
+
+One different-lineage round (§12) over §295.7, .19 and .23.2, §297 and §298, before the chaos round. Every finding was reproduced on its exact input before it was fixed, and each became a test row.
+
+1. **P1, a fail-open in §298's first cut.** `bash --rcfile "x -n y" -c "git push"` was no longer refused, because a whitespace split read the quoted value's `-n` as an option. Option tokens are now quote-aware.
+2. **P2, §298 incomplete.** `bash -n -c "git push; git push"` was still refused: the search resumed inside the silenced string.
+   - My own extra case failed the first fix: `bash -n -c "echo \"x\"; git push"` has no shell match at its start, and was refused at its `;`.
+   - The model now: the `-c` strings of shells that do not run them are computed first, and no match starting inside one counts. Escapes are honoured.
+3. **P2, §295.7.** A fence opened INSIDE a hunk hid the markers after it, in Python and in JS. A conflict is now a hunk: a `<<<<<<<` and the next `>>>>>>>`, counted unless both ends are fenced. The first rule tried ("both kinds, one outside") was refuted by this batch's own clean twin (a whole example plus a lone `>>>>>>>`), before commit.
+4. **P2, §295.7.** `foreign_state` read another record's task past `load`'s conflict guard. A conflicted foreign task is now `unknown`, so its dependent waits.
+5. **P2, a fail-open in §295.23.2's first cut.** The closer indent limit was the opener's indent + 3 for every fence, so a top-level fence's four-space line closed it and exposed an example Status. The limit now applies only to a list item's content indent; a top-level closer sits at most three spaces in.
+6. **P2, a false UNPROVEN in §295.23.2's first cut.** An unindented paragraph ends a list item and its fence; the first cut masked to the end of the file and hid a real Status.
+7. **P2, §295.19.** An absent `t1.md` (lowercase) named no task. The id is now read from the upper-cased name, as `foreign_state` does.
+
+**Mutants.** 8 new, plus 9 repointed where the code moved. One was GREEN on the way ("trajectory-metrics needs both sides"): no clean twin held a lone `<<<<<<<`. Both twins now do.
+
+**Codex also reported** no behaviour difference in §295.23.1's table at 58,465 positions, nothing in §297's dispatcher probes, and no test in the diff that cannot fail. All 1,251 `from` strings matched exactly once.

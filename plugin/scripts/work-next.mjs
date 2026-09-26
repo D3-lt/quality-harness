@@ -206,8 +206,9 @@ function specFiles(directory, listing) {
 // The template's four values. Anything else is not a status this reader knows, and
 // "not recognised" is never "known to be fine" (CLAUDE.md §16).
 // A known value, then nothing that extends the word: "Draft — see the note below" is
-// Draft, "Ready-for-ADR-pending" is not Ready (Codex review of f905d8a).
-const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)(?![\w-])/i
+// Draft, "Ready-for-ADR-pending" is not Ready (Codex review of f905d8a), and neither
+// is `Ready-for-ADR">`, the tail of an attribute value (BACKLOG §295 item 23.2).
+const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)(?![\w"'<>=-])/i
 
 // A spec's Status, or null when it cannot be read as one (UNPROVEN). Measured on
 // 117 real specs across local corpora before it changed (no answer moved), and it
@@ -217,41 +218,70 @@ const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)(?![\w-])/i
 // - `**Status:**` then a newline took the NEXT line as its value;
 // - two different values: the first silently won;
 // - `**Status:** banana` counted as a known, proven status.
-// Markdown code and comments as spaces, every newline kept, so no Status is read from
-// a fenced example, a comment or a code span, and no value runs onto the next line.
-// NOT masked yet (BACKLOG §295 item 23.2): an indented code block, a fence inside a
-// numbered list, and `<pre>`; a Status in one of those is still read.
-// A fence is CommonMark's: three or
-// more backticks or tildes, indented at most three spaces, closed only by the same
-// character at least as long, and an unclosed one runs to the end. The first cut used
-// one regex for fences and dropped comments whole: four-backtick, indented and unclosed
-// fences were read, and a comment spanning lines let a value cross them (Codex review
-// of f905d8a).
+// Markdown code, comments and HTML as spaces, every newline kept, so no Status is read
+// from an example and no value runs onto the next line. Masked:
+// - a fence: three or more backticks or tildes, indented at most three spaces or
+//   opened after a list marker (`1. ```…`), closed only by the same character at least
+//   as long, indented no deeper than its opener plus three; an unclosed one runs to
+//   the end. The first cut used one regex for fences and dropped comments whole:
+//   four-backtick, indented and unclosed fences were read, and a comment spanning lines
+//   let a value cross them (Codex review of f905d8a);
+// - an indented code block: four spaces or a tab after a blank line, running while
+//   lines stay indented or blank. It cannot interrupt a paragraph, so an indented line
+//   that continues one is text;
+// - an HTML comment, a code span, a `<pre>` or `<code>` element, and every HTML tag,
+//   so a Status in an attribute value is never read.
+// The list fence, the indented block, `<pre>` and the attribute were read until
+// BACKLOG §295 item 23.2 (a Windows chaos round, 2.110.0-rc).
 export function maskedMarkdown(text) {
   let fence = null
+  let afterBlank = true
+  let indented = false
   const lines = text.split('\n').map(line => {
+    const blank = /^[ \t]*$/.test(line)
     if (fence) {
-      const close = line.match(/^ {0,3}(`{3,}|~{3,})[ \t]*$/)
-      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null
+      // A list item ends at a non-blank line indented less than its content, and a
+      // fence it opened ends with it (Codex review of §295.23.2's first cut).
+      const lead = line.match(/^[ \t]*/)[0].length
+      if (fence.list > 0 && !blank && lead < fence.list) fence = null
+      else {
+        const close = line.match(/^([ \t]*)(`{3,}|~{3,})[ \t]*$/)
+        if (close && close[1].length <= fence.list + 3 && close[2][0] === fence.marker[0]
+          && close[2].length >= fence.marker.length) fence = null
+        afterBlank = false
+        return ''
+      }
+    }
+    const open = line.match(/^( {0,3}((?:[-*+]|\d{1,9}[.)])[ \t]+)?)(`{3,}|~{3,})(.*)$/)
+    if (open && !(open[3][0] === '`' && open[4].includes('`'))) {
+      // `list` is the content indent of the list item that opened the fence, and 0 for
+      // a top-level one: a closer may sit at most three spaces past it, so a top-level
+      // fence's four-space line is content, not a closer (Codex review).
+      fence = { marker: open[3], list: open[2] ? open[1].length : 0 }
+      afterBlank = false
       return ''
     }
-    const open = line.match(/^ {0,3}(`{3,}|~{3,})(.*)$/)
-    if (open && !(open[1][0] === '`' && open[2].includes('`'))) {
-      fence = open[1]
+    if (!blank && /^(?: {4}|\t)/.test(line) && (afterBlank || indented)) {
+      indented = true
+      afterBlank = false
       return ''
     }
+    if (!blank) indented = false
+    afterBlank = blank
     return line
   })
-  const blank = match => match.replace(/[^\n]/g, ' ')
+  const masked = match => match.replace(/[^\n]/g, ' ')
   // Neither an inline comment nor a code span crosses a blank line, and a comment
   // opened mid-paragraph with no `-->` is literal text; only one opened at the start
   // of a line runs on, to the end if unclosed. Both were masked across paragraphs,
   // hiding a real Status (a Windows chaos round, 2.110.0-rc round 2).
   const inParagraph = '(?:(?!\\n[ \\t]*\\n)[\\s\\S])*?'
   return lines.join('\n')
-    .replace(/^ {0,3}<!--[\s\S]*?(?:-->|(?![\s\S]))/gm, blank)
-    .replace(new RegExp(`<!--${inParagraph}-->`, 'g'), blank)
-    .replace(new RegExp(`(?<!\`)(\`+)(?!\`)${inParagraph}(?<!\`)\\1(?!\`)`, 'g'), blank)
+    .replace(/^ {0,3}<!--[\s\S]*?(?:-->|(?![\s\S]))/gm, masked)
+    .replace(new RegExp(`<!--${inParagraph}-->`, 'g'), masked)
+    .replace(new RegExp(`(?<!\`)(\`+)(?!\`)${inParagraph}(?<!\`)\\1(?!\`)`, 'g'), masked)
+    .replace(/<(pre|code)\b[^>]*>[\s\S]*?(?:<\/\1\s*>|(?![\s\S]))/gi, masked)
+    .replace(/<\/?[A-Za-z][^<>]*>/g, masked)
 }
 
 export function specStatus(text) {

@@ -35,7 +35,7 @@ one-liners work on macOS, Linux and Windows; the shell forms are POSIX).
 | B5 | Binary where text is expected | a PNG or a zip renamed to `.md`; NUL bytes inside a `**Status:**` line |
 | B6 | Size | 0 bytes; one 5 MB line; a record just over and just under 512 KiB |
 | B7 | Whitespace that is not a space | NBSP (U+00A0), tabs, em space (U+2003) in `**Status:**`, in table pipes, before a heading `#`; write them as `\u00a0` and `\u2003` in a `node -e` string |
-| B8 | Header near-misses | `**status:**`, `**Status**:`, `Status：` (fullwidth colon, U+FF1A), `**Status:** Accepted <!-- no -->`, the header inside a code fence, twice with different values. Known and open for a spec's Status in 2.110: inside an indented code block, a fence inside a numbered list, or `<pre>` it is still read; report only what differs from that |
+| B8 | Header near-misses | `**status:**`, `**Status**:`, `Status：` (fullwidth colon, U+FF1A), `**Status:** Accepted <!-- no -->`, the header inside a code fence, twice with different values.; for a spec's Status, also an indented code block, a fence after a list marker, `<pre>`, and an HTML attribute value |
 | B9 | Markdown that parses unlike it looks | a `|` inside backticks in a table cell, a table with a missing or extra column, a heading inside an HTML comment, a fenced block never closed |
 | B10 | Escapes and quotes | `\'`, `\"`, `` \` ``, emoji, `${}` in a test title; a sign-off quoting program output that says "failed". Build them with `node -e` escapes (`\x60`, `\x24`) or your file tool, not shell literals |
 

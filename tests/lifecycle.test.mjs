@@ -339,14 +339,21 @@ test('shell-hook timeout stays below its host deadline and kills the process tre
     'process.stdout.write(String(descendant.pid))',
     'setTimeout(() => {}, 5000)',
   ].join('; ')
+  // ⚠ 1.5 s, NOT 100 ms, AND A PID THAT MUST BE POSITIVE (BACKLOG §295 item 24).
+  // At 100 ms a slowly starting child had printed nothing, `Number('')` is 0, and
+  // `process.kill(0, 'SIGKILL')` below signals THIS PROCESS GROUP: under qh-check that
+  // is the whole selftest run, SIGKILLed about 30 s in, nine times across three
+  // sessions, "unattributed" until the empty pid was traced. A child that has not
+  // started by the deadline now fails here, by name, and kills nothing.
   const run = await runWithTimeout(process.execPath, [
     '-e',
     childScript,
-  ], { timeoutMs: 100 })
+  ], { timeoutMs: 1_500 })
   assert.equal(run.timedOut, true)
-  assert.ok(Date.now() - started < 3_000)
+  assert.ok(Date.now() - started < 5_000)
   const descendantPid = Number(run.stdout)
-  assert.equal(Number.isInteger(descendantPid), true)
+  assert.ok(Number.isInteger(descendantPid) && descendantPid > 0,
+    `the child printed no descendant pid before the timeout (stdout ${JSON.stringify(run.stdout)}), so the tree kill was not exercised`)
   // Signal delivery and reaping are asynchronous, and `kill(pid, 0)` still
   // succeeds for a killed-but-unreaped process, so a single probe races the
   // kernel — it failed under load the moment an unrelated CPU-heavy test landed
@@ -362,7 +369,7 @@ test('shell-hook timeout stays below its host deadline and kills the process tre
       descendantAlive = false
     }
   }
-  if (descendantAlive) {
+  if (descendantAlive && descendantPid > 0) {
     try { process.kill(descendantPid, 'SIGKILL') } catch {}
   }
   assert.equal(descendantAlive, false, `descendant process ${descendantPid} survived timeout`)

@@ -87,7 +87,7 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)(?![\\w-])/i",
+      "from": "const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)(?![\\w\"'<>=-])/i",
       "to": "const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)/i"
     },
     {
@@ -96,8 +96,8 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "      if (close && close[1][0] === fence[0] && close[1].length >= fence.length) fence = null",
-      "to": "      if (close) fence = null"
+      "from": "        if (close && close[1].length <= fence.list + 3 && close[2][0] === fence.marker[0]\n          && close[2].length >= fence.marker.length) fence = null",
+      "to": "        if (close) fence = null"
     },
     {
       "label": "arch-lint: tracked_paths reads git's listing as bytes, so a CR in a name survives (Codex review of f905d8a)",
@@ -132,7 +132,7 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "    if (open && !(open[1][0] === '`' && open[2].includes('`'))) {",
+      "from": "    if (open && !(open[3][0] === '`' && open[4].includes('`'))) {",
       "to": "    if (false) {"
     },
     {
@@ -5912,8 +5912,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "a sign-off that says stop is honoured whatever the Acceptance is",
-      "from": "            \"stopped_by\": human_stop(text) or status_stop(text),",
-      "to": "            \"stopped_by\": (human_stop(text) if human else None) or status_stop(text),"
+      "from": "human_stop(text) or status_stop(text),",
+      "to": "(human_stop(text) if human else None) or status_stop(text),"
     },
     {
       "label": "lint: the status advisory says WHEN Blocked-on is legal, so it does not walk a reader into a refusal",
@@ -6110,8 +6110,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "withdrawn in its own Status",
-      "from": "            \"stopped_by\": human_stop(text) or status_stop(text),",
-      "to": "            \"stopped_by\": human_stop(text),"
+      "from": "human_stop(text) or status_stop(text),",
+      "to": "human_stop(text),"
     },
     {
       "label": "adr-next: an unrecognised Status is not actionable, so unknown does not mean ready",
@@ -6686,7 +6686,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    && { [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\" \\\n    || { bom_free \"$f\" | grep -qE '^# ADR-[0-9]' \\\n         && ! bom_free \"$f\" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; }; }; then\n",
+      "from": "    && { [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\" \\\n    || { grep -qE '^# ADR-[0-9]' <<< \"$structure\" \\\n         && ! grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' <<< \"$structure\"; }; }; then\n",
       "to": "    && { [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\"; }; then\n"
     },
     {
@@ -10418,8 +10418,513 @@
         "tests/publish-command.test.mjs",
         "tests/fail-open.test.mjs"
       ],
-      "from": "const PUBLISH_SHELL_C = String.raw`(?<![^\\s;|&(){}\"'\\x60])[\"']?(?:[\\w.~\\\\/:-]*[\\\\/])?(?:bash|dash|zsh|ksh|tcsh|csh|sh|pwsh|powershell)(?:\\.exe)?[\"']?(?:${PUBLISH_SHELL_OPT})*${PUBLISH_SHELL_GAP}-[A-Za-z]*c[ \\t]+[\"']`",
+      "from": "const PUBLISH_SHELL_C = String.raw`(?<![^\\s;|&(){}\"'\\x60])[\"']?(?<shell>(?:[\\w.~\\\\/:-]*[\\\\/])?(?:bash|dash|zsh|ksh|tcsh|csh|sh|pwsh|powershell)(?:\\.exe)?[\"']?(?:${PUBLISH_SHELL_OPT})*${PUBLISH_SHELL_GAP}-[A-Za-z]*c)[ \\t]+[\"']`",
       "to": "const PUBLISH_SHELL_C = String.raw`-[A-Za-z]*c[ \\t]+[\"']`"
+    },
+    {
+      "label": "§295.23.1: the position inside */ is code, as the prefix scan said",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "_js_like_in_code answers from one scan per text",
+      "from": "                out[index + 1] = 1\n",
+      "to": ""
+    },
+    {
+      "label": "§295.23.1: one scan answers every position of a text",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "_js_like_in_code answers from one scan per text",
+      "from": "@lru_cache(maxsize=32)\ndef _js_like_code_positions(text):",
+      "to": "@lru_cache(maxsize=0)\ndef _js_like_code_positions(text):"
+    },
+    {
+      "label": "§295.24: a check a signal ended records no verdict",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "only": "a check a signal ended records no verdict",
+      "from": "    : signal\n      ? 'interrupted'\n",
+      "to": "    : false\n      ? 'interrupted'\n"
+    },
+    {
+      "label": "§295.24: the summary of a signalled check says there is no verdict",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "only": "a check a signal ended records no verdict",
+      "from": "    const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : verdict",
+      "to": "    const said = verdict"
+    },
+    {
+      "label": "§295.7: trajectory-metrics reads a conflicted task as neither half",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "only": "merge-conflict markers is in neither half",
+      "from": "    return close !== undefined && !(open.fenced && close.fenced)",
+      "to": "    return false"
+    },
+    {
+      "label": "§295.7: trajectory-metrics needs both sides of a conflict",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "only": "merge-conflict markers is in neither half",
+      "from": "    const close = markers.slice(index + 1).find(other => other.kind === '>')",
+      "to": "    const close = open"
+    },
+    {
+      "label": "§295.7: trajectory-metrics skips markers inside a fence",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "only": "merge-conflict markers is in neither half",
+      "from": "    if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "§295.19: a task git lists and the disk lacks is read as stopped",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "    for name in listed_absent(tasks_dir):",
+      "to": "    for name in []:"
+    },
+    {
+      "label": "§295.19: a file on disk is not absent, whatever its title says",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "\n                  and name.lower() != \"readme.md\" and not (tasks_dir / name).exists())",
+      "to": "\n                  and name.lower() != \"readme.md\")"
+    },
+    {
+      "label": "§295.19: a Depends-on naming no task in the record blocks",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "                elif d not in infos:\n                    # A local id naming no task",
+      "to": "                elif False:\n                    # A local id naming no task"
+    },
+    {
+      "label": "§295.19: a Consumes naming no task in the record blocks",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "                    elif d not in infos:\n                        foreign[tid].append((d, \"missing\"))",
+      "to": "                    elif False:\n                        foreign[tid].append((d, \"missing\"))"
+    },
+    {
+      "label": "§295.19: a missing dependency is named as missing",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "else f\"{pointer} (no such task in this record)\" if state == \"missing\" else pointer",
+      "to": "else pointer"
+    },
+    {
+      "label": "§295.23.2: an indented code block is masked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "    if (!blank && /^(?: {4}|\\t)/.test(line) && (afterBlank || indented)) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "§295.23.2: an indented line continuing a paragraph is text",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "    if (!blank && /^(?: {4}|\\t)/.test(line) && (afterBlank || indented)) {",
+      "to": "    if (!blank && /^(?: {4}|\\t)/.test(line)) {"
+    },
+    {
+      "label": "§295.23.2: an indented block runs while its lines stay indented",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "    if (!blank && /^(?: {4}|\\t)/.test(line) && (afterBlank || indented)) {",
+      "to": "    if (!blank && /^(?: {4}|\\t)/.test(line) && afterBlank) {"
+    },
+    {
+      "label": "§295.23.2: a fence opened after a list marker is masked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "((?:[-*+]|\\d{1,9}[.)])[ \\t]+)?",
+      "to": "()"
+    },
+    {
+      "label": "§295.23.2: a closer indented past its opener does not close the fence",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "close[1].length <= fence.list + 3 && ",
+      "to": ""
+    },
+    {
+      "label": "§295.23.2: a <pre> or <code> element is masked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "    .replace(/<(pre|code)\\b[^>]*>[\\s\\S]*?(?:<\\/\\1\\s*>|(?![\\s\\S]))/gi, masked)\n",
+      "to": ""
+    },
+    {
+      "label": "§295.23.2: an HTML tag, attributes included, is masked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "\n    .replace(/<\\/?[A-Za-z][^<>]*>/g, masked)",
+      "to": ""
+    },
+    {
+      "label": "§295.23.2: an attribute-value tail is not a Status",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "(?![\\w\"'<>=-])/i",
+      "to": "(?![\\w-])/i"
+    },
+    {
+      "label": "§297: a fence opener starts an example",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "        if (lead != \"\" && !(substr(lead, 1, 1) == \"`\" && index(rest, \"`\"))) { fence = lead; print \"\"; next }",
+      "to": "        if (0) { fence = lead; print \"\"; next }"
+    },
+    {
+      "label": "§297: a backtick in the info string means no fence",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "        if (lead != \"\" && !(substr(lead, 1, 1) == \"`\" && index(rest, \"`\"))) { fence = lead; print \"\"; next }",
+      "to": "        if (lead != \"\") { fence = lead; print \"\"; next }"
+    },
+    {
+      "label": "§297: a CRLF closer closes the fence",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "      sub(/\\r$/, \"\", line)\n",
+      "to": ""
+    },
+    {
+      "label": "§297: a shorter fence does not close the outer one",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "length(lead) >= length(fence)",
+      "to": "1"
+    },
+    {
+      "label": "§297: a fence of the other character does not close it",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "substr(lead, 1, 1) == substr(fence, 1, 1) && ",
+      "to": ""
+    },
+    {
+      "label": "§297: a fence line with an info string does not close it",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": " && rest ~ /^[ \\t]*$/) fence = \"\"",
+      "to": ") fence = \"\""
+    },
+    {
+      "label": "§297: titles are read from the unfenced text",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "structure=$(unfenced \"$f\" 2>/dev/null)",
+      "to": "structure=$(bom_free \"$f\" 2>/dev/null)"
+    },
+    {
+      "label": "§297: record sections are read from the unfenced text",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "  text=$(unfenced \"$1\")\n  grep -q '^## Existing Primitives Audit'",
+      "to": "  text=$(bom_free \"$1\")\n  grep -q '^## Existing Primitives Audit'"
+    },
+    {
+      "label": "§297: postmortem sections are read from the unfenced text",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "  text=$(unfenced \"$1\")\n  grep -q '^## Symptom'",
+      "to": "  text=$(bom_free \"$1\")\n  grep -q '^## Symptom'"
+    },
+    {
+      "label": "§297: architecture markers are read from the unfenced text",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "shown inside a code block is an example",
+      "from": "  text=$(unfenced \"$1\")\n  if grep -q '^# Architecture:'",
+      "to": "  text=$(bom_free \"$1\")\n  if grep -q '^# Architecture:'"
+    },
+    {
+      "label": "§295.7: conflict markers are found",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs",
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            return [n for n, _kind, _fenced in found]\n    return []",
+      "to": "            return []\n    return []"
+    },
+    {
+      "label": "§295.7: a lone ======= is a setext underline, not a conflict",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if kind != \"<\":\n            continue",
+      "to": "        if kind not in \"<=>\":\n            continue"
+    },
+    {
+      "label": "§295.7: markers inside a code fence are an example",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if closing is not None and not (fenced and closing[2]):",
+      "to": "        if closing is not None:"
+    },
+    {
+      "label": "§295.7: adr-next does not count a conflicted task done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        done = not conflicted and is_done(",
+      "to": "        done = is_done("
+    },
+    {
+      "label": "§295.7: adr-next stops a conflicted task with the lines named",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            \"stopped_by\": conflict_stop(conflicted) or human_stop(text)",
+      "to": "            \"stopped_by\": human_stop(text)"
+    },
+    {
+      "label": "§295.7: adr-lint blocks a conflicted task",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_conflict_markers(path, text, errors, blocking=True)",
+      "to": "    check_conflict_markers(path, text, errors, blocking=False)"
+    },
+    {
+      "label": "§295.7: adr-lint advises a conflicted ADR",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_conflict_markers(Path(adr_path), text, errors, blocking=False)\n",
+      "to": ""
+    },
+    {
+      "label": "§295.7: adr-verify writes nothing into a conflicted task",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if conflicted:\n        fail(",
+      "to": "    if False:\n        fail("
+    },
+    {
+      "label": "§298 (Codex): a quoted option value is one token",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": ".match(/(?:[^\\s\"']+|\"[^\"]*\"|'[^']*')+/g) ?? ['']",
+      "to": ".split(/[ \\t]+/)"
+    },
+    {
+      "label": "§298 (Codex): nothing inside a silenced -c string is invoked",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (silenced.some(([from, to]) => m.index >= from && m.index < to)) continue\n",
+      "to": ""
+    },
+    {
+      "label": "§298 (Codex): an escaped quote does not end a silenced string",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (quote === '\"' && command[i] === '\\\\') { i++; continue }\n",
+      "to": ""
+    },
+    {
+      "label": "§295.7 (Codex): a fence opened inside a hunk hides no marker",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs",
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "merge-conflict",
+      "from": "        if closing is not None and not (fenced and closing[2]):",
+      "to": "        if closing is not None and not fenced and not closing[2]:"
+    },
+    {
+      "label": "§295.7 (Codex): trajectory-metrics counts a hunk a fence opened inside",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "only": "merge-conflict markers is in neither half",
+      "from": "    return close !== undefined && !(open.fenced && close.fenced)",
+      "to": "    return close !== undefined && !open.fenced && !close.fenced"
+    },
+    {
+      "label": "§295.7 (Codex): a conflicted task in another record cannot be evaluated",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a conflicted task in another record",
+      "from": "                if conflict_markers(text):\n                    return \"unknown\"",
+      "to": "                if False:\n                    return \"unknown\""
+    },
+    {
+      "label": "§295.19 (Codex): a lowercase absent task file still names its task",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "        m = TID_RE.search(name.upper())",
+      "to": "        m = TID_RE.search(name)"
+    },
+    {
+      "label": "§295.23.2 (Codex): a list item's fence ends with the list item",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "      if (fence.list > 0 && !blank && lead < fence.list) fence = null",
+      "to": "      if (false) fence = null"
+    },
+    {
+      "label": "§298: a shell that parses without executing is not an invocation",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "function shellRuns(shell) {\n",
+      "to": "function shellRuns(shell) {\n  return true\n"
+    },
+    {
+      "label": "§298: +n after -n turns execution back on",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    else if (/^\\+[A-Za-z]+$/.test(token) && token.includes('n')) runs = true",
+      "to": "    else if (false) runs = true"
+    },
+    {
+      "label": "§298: -o noexec parses without executing, +o noexec undoes it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      runs = token === '+o'",
+      "to": "      runs = true"
+    },
+    {
+      "label": "§298: --help and --version print and exit",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (token === '--help' || token === '--version') return false\n",
+      "to": ""
+    },
+    {
+      "label": "§298: PowerShell's word options are not POSIX -n clusters",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (name === 'pwsh' || name === 'powershell') return true\n",
+      "to": ""
+    },
+    {
+      "label": "§298: the search goes on past a shell that does not run the string",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  for (const m of command.matchAll(PUBLISH_COMMAND)) {",
+      "to": "  for (const m of [...command.matchAll(PUBLISH_COMMAND)].slice(0, 1)) {"
     },
     {
       "label": "§296: a name that only ends in sh is not a shell before -c",

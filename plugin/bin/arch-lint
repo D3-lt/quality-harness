@@ -135,7 +135,11 @@ def vacuous_gate_errors(label, cell, roots):
             tok = tok.strip("'\";,").split("::")[0]
             # `...` is Go's package pattern (`./...`, `./cmd/...`), never a file: read as
             # a path it refused a project's real gate (reported from outside, 2026-09-26).
-            if tok.startswith("-") or "/" not in tok or "*" in tok or tok.startswith("$") or tok.endswith("..."):
+            # Only a pattern whose base exists: `! grep -q x ./missing...` is a missing
+            # path that `!` turns into a pass (Codex review of 3.0.0, round 2), and Go
+            # itself refuses a missing base (`lstat ./cmd/: no such file`, measured).
+            dots = tok.endswith("...") and any((r / (tok[:-3].rstrip("/") or ".")).exists() for r in roots)
+            if tok.startswith("-") or "/" not in tok or "*" in tok or tok.startswith("$") or dots:
                 continue
             if not any((r / tok).exists() for r in roots):
                 errs.append(f"{label}: path '{tok}' does not exist in the repo — a gate on a "

@@ -17,7 +17,7 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
-import { appendEvent, containsCommitOrPush, mentionsCommitOrPush, publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
+import { appendEvent, containsCommitOrPush, leavesHookInPlace, mentionsCommitOrPush, publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
 
 // Invocations a session could publish with. Each must be refused on an
 // unchecked tree and denied to a read-only role.
@@ -406,4 +406,106 @@ test('an armed session refuses a quoted, escaped or substituted hook bypass', ()
     'git push "$FLAG"',
     'git push `echo --no-verify`',
   ]) assert.equal(armed.decide(command), 'deny', command)
+})
+
+test('an armed session refuses what the shell expands before git sees it', () => {
+  // Codex review of 3.0.0, round 2 (P1): a line continuation and a brace expansion
+  // reach git as `--no-verify` or `-c hook.…`, and each read as a plain invocation.
+  // What bash hands git is measured first, so the rows are not typed from memory
+  // (CLAUDE.md §16).
+  const expands = [
+    ['git push --no-\\\nverify', '--no-verify'],
+    ['git push --no-{verify,verify}', '--no-verify'],
+    ['git {-c,hook.qh-publish-push.enabled=false} push', 'hook.qh-publish-push.enabled=false'],
+  ]
+  for (const [command, argument] of expands) {
+    const printed = spawnSync('bash', ['-c', command.replace(/^git/, "printf '%s\\n'")], { encoding: 'utf8', timeout: 10_000 })
+    assert.equal(printed.status, 0, `bash ran: ${command}`)
+    assert.ok(printed.stdout.split('\n').includes(argument), `bash hands git ${argument}: ${command}`)
+  }
+  const armed = armedSession('expanded-')
+  for (const [command] of expands.slice(0, 2)) assert.equal(armed.decide(command), 'deny', command)
+  // The third is never matched as a publish at all — the text classifier does not
+  // expand braces either (BACKLOG §303, the lexer of §301 Stage 3) — so only the
+  // armed branch's own answer can be shown here.
+  assert.equal(leavesHookInPlace(expands[2][0]), false)
+  // CLEAN twin: the same characters inside quotes are not expanded, and stay git's.
+  assert.notEqual(armed.decide('git commit -m "fix {x} [y] ~z *"'), 'deny')
+  assert.notEqual(armed.decide("git commit -m 'a {b,c} d?'"), 'deny')
+})
+
+test('an armed session refuses a redirection or an attached value that hides a bypass', () => {
+  // Codex review of 3.0.0, round 3: a redirection needs no space around it, and a
+  // short option takes its value attached — each row below hands git `-n` or a
+  // hook-disabling `-c`, measured under bash, and each read as a plain invocation.
+  const hides = [
+    ['git commit -n</dev/null', '-n'],
+    ['git commit -n>&1', '-n'],
+    ['git -c</dev/null core.hooksPath=/dev/null commit', 'core.hooksPath=/dev/null'],
+    ['git commit -nm123', '-nm123'],
+    ["git commit -nm'fix: bug'", '-nmfix: bug'],
+  ]
+  for (const [command, argument] of hides) {
+    const printed = spawnSync('bash', ['-c', command.replace(/^git/, "printf '%s\\n'")], { encoding: 'utf8', timeout: 10_000 })
+    assert.equal(printed.status, 0, `bash ran: ${command}`)
+    assert.ok(printed.stdout.split('\n').includes(argument), `bash hands git ${argument}: ${command}`)
+    assert.equal(leavesHookInPlace(command), false, command)
+  }
+  assert.equal(leavesHookInPlace("git -c 'alias.ci=commit' ci -m x && git commit -m y"), false, 'an inline alias')
+  // CLEAN twins: a redirection and an attached message that hide nothing stay git's.
+  const armed = armedSession('redirected-')
+  for (const command of ['git commit -m x 2>&1', 'git commit -am x >/dev/null', 'git commit -m "a > b"']) {
+    assert.notEqual(armed.decide(command), 'deny', command)
+  }
+})
+
+test('the armed check is a grammar of plain forms, not a list of dangerous ones', () => {
+  // After three Codex rounds each found a new door, the check was turned around: a
+  // form not KNOWN to be plain keeps the refusal. Each row reaches git with its hook
+  // off, or runs something other than this session's git, and none was on any list.
+  for (const command of [
+    'git --work-tree=/tmp commit -m x', 'git --git-dir=/tmp/g commit -m x', 'git --exec-path=/tmp commit -m x',
+    'PATH=/tmp/bin; git commit -m x', 'source ./x; git commit -m x', '. ./x; git commit -m x',
+    'alias git=true; git commit -m x', 'git config core.hookspath x && git commit -m y',
+    'git config hook.qh-publish-commit.enabled false && git commit -m y', 'git commit -m x --no-verify',
+    'echo "x; git commit --no-verify" | bash', 'git commit</dev/null -n; git push',
+    // Each row below also carries a plain publish, so only the rule it names stands
+    // between it and `true` (the catalogue found six rules masked without that).
+    'cp /tmp/c .git/config && git commit -m y',
+    "bash -c 'git commit --no-verify' && git push",
+    'git config include.path /tmp/x && git commit -m y',
+    'echo "x; git commit --no-verify" | bash; git push',
+    'git com\\\nmit --no-verify; git push',
+    'git commi? --no-verify; git push',
+  ]) assert.equal(leavesHookInPlace(command), false, command)
+  // CLEAN twins: the ordinary forms stay git's, including a quoted value holding the
+  // words that a list would have matched.
+  for (const command of [
+    'git commit -am "fix -n and --no-verify in the docs"', 'git push -u origin HEAD', 'git commit --amend --no-edit',
+    'git add -A && git commit -m x && git push', 'git -C repo --no-pager commit -F msg.txt',
+    "git commit -am'wip: 1'", 'git commit -m "- a list item"', 'git commit -mfix',
+  ]) assert.equal(leavesHookInPlace(command), true, command)
+})
+
+test('the armed grammar reads words, quoted code and heredocs as the shell does', () => {
+  // Codex review of 3.0.0, round 4, each row measured under bash and zsh: a quoted
+  // option hidden as code, a carriage return read as a separator, an environment
+  // variable assigned by `printf -v`, a wrapper around quoted code, and a heredoc
+  // piped on to a program this cannot see into.
+  for (const command of [
+    "git commit '-nm;message'",
+    'git commit -m\r -n -m x',
+    'printf -v GIT_CONFIG_COUNT %s 0; git commit -m x',
+    // An exported variable reassigned changes what git inherits, named or not.
+    'LD_PRELOAD=/tmp/x.so; git commit -m x',
+    // Node's children inherit the environment only until the code empties it.
+    'node -e "process.env = {}; require(\'child_process\').execSync(\'git commit -m x; true\')"',
+    'bash -c "git commit -m x;"',
+    "cat <<'EOF' | docker run -i img sh\ngit commit -m x\nEOF",
+    'node -e "require(\'child_process\').execSync(\'git commit -m x;\', {env: {}})"',
+  ]) assert.equal(leavesHookInPlace(command), false, JSON.stringify(command))
+  // CLEAN twins: a data command's quoted text and heredoc, and a message holding code.
+  for (const command of [
+    'git commit -m "fix; then push"', "cat <<'EOF'\ngit push\nEOF", 'echo "one; git push"',
+  ]) assert.equal(leavesHookInPlace(command), true, JSON.stringify(command))
 })

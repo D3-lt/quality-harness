@@ -10,14 +10,14 @@
   ],
   "mutations": [
     {
-      "label": "publish armed: quotes and escapes are removed before the checks",
+      "label": "publish armed: a quoted value is one word",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "only": "quoted, escaped or substituted",
-      "from": "  const text = raw.replace(/[\"'\\\\]/g, '')",
-      "to": "  const text = raw"
+      "only": "grammar of plain forms",
+      "from": "    if (c === \"'\" || c === '\"') {",
+      "to": "    if (false) {"
     },
     {
       "label": "publish armed: a $ or a backtick keeps the refusal",
@@ -185,7 +185,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "only": "branch, HEAD or upstream moved",
+      "only": "a collection on the prompt path is written under the key it read",
       "from": "    key: home ? snapshotKey(home) : null,",
       "to": "    key: null,"
     },
@@ -246,7 +246,7 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "            if path == base or path.startswith(base + \"/\") or path == module:",
+      "from": "            if path == base or path.startswith(base + \"/\"):",
       "to": "            if base in path:"
     },
     {
@@ -256,7 +256,7 @@
         "tests/gate-rules.test.mjs"
       ],
       "only": "Go package pattern",
-      "from": "or tok.startswith(\"$\") or tok.endswith(\"...\"):",
+      "from": "or tok.startswith(\"$\") or dots:",
       "to": "or tok.startswith(\"$\"):"
     },
     {
@@ -290,24 +290,24 @@
       "to": "  if (verdict.deny && leavesHookInPlace("
     },
     {
-      "label": "publish armed: a -c that switches the hook off keeps the refusal",
+      "label": "publish armed: only a user.* -c is left to git",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/publish-command.test.mjs"
       ],
       "only": "still refuses every form",
-      "from": "  if (/(?:^|\\s)-c\\s*['\"]?(?:hook\\.|core\\.hookspath)/i.test(text) || /--config-env/.test(text)) return false",
-      "to": "  if (/--config-env/.test(text)) return false"
+      "from": "    else if (words[at] === '-c' && /^user\\.\\w+=/.test(words[at + 1] ?? '')) at += 2",
+      "to": "    else if (words[at] === '-c') at += 2"
     },
     {
-      "label": "publish armed: a bundled -n keeps the refusal",
+      "label": "publish armed: n is no plain short option",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/publish-command.test.mjs"
       ],
       "only": "still refuses every form",
-      "from": "  return !publishing.some(segment => /(?:^|\\s)-[A-Za-z]*n[A-Za-z]*(?=\\s|$)/.test(segment))",
-      "to": "  return true"
+      "from": "short: 'aqvs', takes: 'mF' },",
+      "to": "short: 'aqvsn', takes: 'mF' },"
     },
     {
       "label": "publish armed: a wrapped git keeps the refusal",
@@ -315,9 +315,9 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "only": "wrapped git and a reassigned hook variable",
-      "from": "  if (!publishing.every(segment => /^\\s*git\\s/.test(segment))) return false",
-      "to": "  if (false) return false"
+      "only": "grammar of plain forms",
+      "from": "    return words.some(w => /\\bgit\\b/.test(w)) && words.some(w => /\\b(?:commit|push)\\b/.test(w)) ? -1 : 0",
+      "to": "    return 0"
     },
     {
       "label": "publish armed: the environment editors keep the refusal",
@@ -325,9 +325,9 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "only": "wrapped git and a reassigned hook variable",
-      "from": "  if (/\\b(?:GIT_CONFIG|GIT_DIR|GIT_EXEC_PATH|CLAUDE_CODE_SESSION_ID|CLAUDE_ENV_FILE)/.test(text)) return false",
-      "to": "  if (false) return false"
+      "only": "grammar of plain forms",
+      "from": "  if (/^[A-Za-z_]\\w*=/.test(first) || HOOK_UNSAFE_FIRST.has(first)) return -1",
+      "to": "  if (/^[A-Za-z_]\\w*=/.test(first)) return -1"
     },
     {
       "label": "publish-hook: only a git that runs config hooks is offered them",
@@ -401,13 +401,13 @@
     },
     {
       "label": "publish-hook: a qh-check that ran just before the commit is seen",
-      "file": "plugin/scripts/lifecycle.mjs",
+      "file": "plugin/scripts/publish-hook.mjs",
       "tests": [
         "tests/publish-hook.test.mjs"
       ],
       "only": "a checked commit, a person",
-      "from": "  importCheckRecords(cwd, session)\n  const now = observation",
-      "to": "  const now = observation"
+      "from": "  importCheckRecords(cwd, session)\n  const verdict = publishVerdict(",
+      "to": "  const verdict = publishVerdict("
     },
     {
       "label": "publish-hook: a merge, cherry-pick or rebase in progress passes the hook",
@@ -12469,6 +12469,276 @@
       "from": "    if (at >= 0) {",
       "to": "    if (false) {",
       "only": "short mutant"
+    },
+    {
+      "label": "ADR-066 T3: a backslash-newline is joined as the shell joins it (round 2)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "grammar of plain forms",
+      "from": "  const raw = String(command ?? '').replace(/\\\\\\r?\\n/g, '')",
+      "to": "  const raw = String(command ?? '')"
+    },
+    {
+      "label": "ADR-066 T3: an unquoted expansion keeps the refusal (round 2)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "grammar of plain forms",
+      "from": "  if (/[^\\w \\t\\n./:=@,%+\\-;&|()<>\\\\]/.test(unquoted)) return false",
+      "to": "  if (false) return false"
+    },
+    {
+      "label": "adr-lint: a class selector can run the row, a test selector only its own",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "    return last == str(name or \"\").replace(\"::\", \".\").split(\".\")[-1] or not last.startswith(\"test\")",
+      "to": "    return last == str(name or \"\").replace(\"::\", \".\").split(\".\")[-1]"
+    },
+    {
+      "label": "adr-lint: a selector naming another test does not run the row",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "    return last == str(name or \"\").replace(\"::\", \".\").split(\".\")[-1] or not last.startswith(\"test\")",
+      "to": "    return True"
+    },
+    {
+      "label": "adr-lint: go test of a directory does not descend into subpackages",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "                elif path == norm(target) or str(PurePosixPath(path).parent) == (norm(target) or \".\"):",
+      "to": "                elif path.startswith(norm(target) + \"/\"):"
+    },
+    {
+      "label": "adr-lint: a bare go test runs the working directory's package only",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "                if \"/\" not in path or re.search(r\"(?:^|&&|\\|\\||;|\\n)\\s*cd\\s\", acc):",
+      "to": "                if True:"
+    },
+    {
+      "label": "adr-lint: after a cd a bare go test is not shown not to run a row",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "                if \"/\" not in path or re.search(r\"(?:^|&&|\\|\\||;|\\n)\\s*cd\\s\", acc):",
+      "to": "                if \"/\" not in path:"
+    },
+    {
+      "label": "adr-lint: a quoted cargo --test binary is the same binary",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "        binaries = re.findall(r\"--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
+      "to": "        binaries = re.findall(r\"--test[= ]+([^\\s'\\\"]+)\", segment)"
+    },
+    {
+      "label": "arch-lint: a ... pattern is exempt only where its base exists",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "Go package pattern",
+      "from": "            dots = tok.endswith(\"...\") and any((r / (tok[:-3].rstrip(\"/\") or \".\")).exists() for r in roots)",
+      "to": "            dots = tok.endswith(\"...\")"
+    },
+    {
+      "label": "branch-state: a config shape the key does not model makes it null",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a config the key cannot read",
+      "from": "      if (/^\\s*\\[\\s*include(?:if)?\\b/im.test(config) || /(?:^|[^\\\\])(?:\\\\\\\\)*\\\\\\r?$/m.test(config)) return null",
+      "to": "      if (false) return null"
+    },
+    {
+      "label": "branch-state: a branch header the key cannot parse makes it null",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a config the key cannot read",
+      "from": "          if (!header) return null",
+      "to": "          if (!header) continue"
+    },
+    {
+      "label": "branch-state: a git section name is read in any case",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a config the key cannot read",
+      "from": "          const header = line.match(/^\\[\\s*branch\\s+\"([^\"\\\\]*)\"\\s*\\]\\s*(?:[;#].*)?$/i)",
+      "to": "          const header = line.match(/^\\[\\s*branch\\s+\"([^\"\\\\]*)\"\\s*\\]\\s*(?:[;#].*)?$/)"
+    },
+    {
+      "label": "ADR-066 T3: a verb with anything glued to it keeps the refusal (round 3)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "grammar of plain forms",
+      "from": "  if (verb !== 'commit' && verb !== 'push') return words.some(w => /\\b(?:commit|push)\\b/.test(w)) ? -1 : 0",
+      "to": "  if (verb !== 'commit' && verb !== 'push') return 0"
+    },
+    {
+      "label": "publish armed: an assignment segment keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "reads words, quoted code and heredocs",
+      "from": "  if (/^[A-Za-z_]\\w*=/.test(first) || HOOK_UNSAFE_FIRST.has(first)) return -1",
+      "to": "  if (HOOK_UNSAFE_FIRST.has(first)) return -1"
+    },
+    {
+      "label": "ADR-066 T3: a value-taking letter ends its cluster (round 3)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "grammar of plain forms",
+      "from": "      if (safe.takes.includes(arg[at])) { if (at === arg.length - 1) i += 1; break }",
+      "to": "      if (safe.takes.includes(arg[at])) { if (at === arg.length - 1) i += 1; continue }"
+    },
+    {
+      "label": "publish armed: an unlisted git option before the verb keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "grammar of plain forms",
+      "from": "    else return -1\n  }\n  const verb = words[at]",
+      "to": "    else at += 1\n  }\n  const verb = words[at]"
+    },
+    {
+      "label": "publish armed: git config before a commit keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "grammar of plain forms",
+      "from": "  if (verb === 'config') return -1\n",
+      "to": ""
+    },
+    {
+      "label": "publish armed: quoted code is judged by the same grammar",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "grammar of plain forms",
+      "from": "    if (!counted(plainPublishes(inner, depth + 1, allowed(words)), words)) return -1",
+      "to": "    if (!counted(0, words)) return -1"
+    },
+    {
+      "label": "publish armed: an unlisted long option keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "still refuses every form",
+      "from": "    if (!/^-[A-Za-z]/.test(arg)) return false",
+      "to": "    if (!/^-[A-Za-z]/.test(arg)) continue"
+    },
+    {
+      "label": "publish armed: a write into .git keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "grammar of plain forms",
+      "from": "  if (/\\.git\\/|hookspath/i.test(raw)) return false",
+      "to": "  if (/hookspath/i.test(raw)) return false"
+    },
+    {
+      "label": "publish armed: a quoted span holding an operator is data to judge, not a word",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "leaves a plain invocation to git",
+      "from": "      if (/[;&|()\\n]/.test(inner)) { nested.push({ inner, segment: segments.length - 1 }); inner = '\\0' }",
+      "to": "      if (false) { nested.push({ inner, segment: segments.length - 1 }); inner = '\\0' }"
+    },
+    {
+      "label": "ADR-066 T3: quoted code under an unknown command keeps the refusal (round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "reads words, quoted code and heredocs",
+      "from": "    if (count < 0 || (count > 0 && !allowed(words))) return false",
+      "to": "    if (count < 0) return false"
+    },
+    {
+      "label": "ADR-066 T3: a bare literal in data code counts under its command (round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "leaves a plain invocation to git",
+      "from": "  const allowed = words => HOOK_DATA_COMMANDS.has(words?.[0]) || (words?.[0] === '\\0' && inherited)",
+      "to": "  const allowed = words => HOOK_DATA_COMMANDS.has(words?.[0])"
+    },
+    {
+      "label": "ADR-066 T3: a git argument hiding quoted code keeps the refusal (round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "reads words, quoted code and heredocs",
+      "from": "      if (arg.includes('\\0')) return false\n",
+      "to": ""
+    },
+    {
+      "label": "ADR-066 T3: a GIT_ name anywhere keeps the refusal (round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "reads words, quoted code and heredocs",
+      "from": "  if (/\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/.test(raw)) return false",
+      "to": "  if (/\\b(?:CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/.test(raw)) return false"
+    },
+    {
+      "label": "ADR-066 T3: env named anywhere keeps the refusal (round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "reads words, quoted code and heredocs",
+      "from": "  if (/\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/.test(raw)) return false",
+      "to": "  if (/\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME)\\b/.test(raw)) return false"
+    },
+    {
+      "label": "ADR-066 T3: a heredoc line that goes on counts its body for nothing (round 4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "reads words, quoted code and heredocs",
+      "from": "      else body.feeder = null\n",
+      "to": ""
     }
   ]
 }

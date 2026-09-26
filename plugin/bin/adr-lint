@@ -5373,6 +5373,16 @@ _UNFILTERED_RUNNERS = (
 _SEGMENTS = re.compile(r"&&|\|\||;|\||\n")
 
 
+def _selector_runs(parts, name):
+    """Whether a selector's trailing components — pytest `Class::test`, unittest
+    `Class.test` — can run the row `name`. A test function other than `name` rules
+    the row out; a class cannot, because which class a row belongs to is not in the
+    Tests table, and a block needs that (CLAUDE.md §16). A class selector was read as
+    a test name and blocked the rows it runs (Codex review of 3.0.0, round 2)."""
+    last = parts[-1].split("[")[0]
+    return last == str(name or "").replace("::", ".").split(".")[-1] or not last.startswith("test")
+
+
 def unfiltered_runner_runs(acc, rel, narrowing, name=None):
     """Whether some unfiltered command of the fence runs the file `rel`.
 
@@ -5380,13 +5390,15 @@ def unfiltered_runner_runs(acc, rel, narrowing, name=None):
     row: none at all (the runner discovers its whole suite), the row's own file, a
     directory holding it, a dotted unittest module naming it, or Go's `...`. A
     DIRECTORY SUBSTRING is not enough — `unittest tools/test_a.py` does not run
-    `tools/test_b.py` — and a pytest `::` selector runs only what it names (Codex
-    review of 3.0.0)."""
+    `tools/test_b.py` — and a selector runs only what it names (Codex review of
+    3.0.0). Go is not recursive: `go test ./pkg` and a bare `go test` run one
+    package's own files, and only `/...` descends (round 2)."""
     path = str(rel or "").replace("\\", "/")
     path = path[2:] if path.startswith("./") else path
     suffix = PurePosixPath(path).suffix.lower()
     if not suffix:
         return False
+    norm = lambda target: target[2:] if target.startswith("./") else target
     for segment in _SEGMENTS.split(acc):
         if narrowing.search(segment):
             continue
@@ -5395,23 +5407,40 @@ def unfiltered_runner_runs(acc, rel, narrowing, name=None):
         if runner is None:
             continue
         args = [a.strip("'\"") for a in segment[runner.end():].split() if not a.startswith("-")]
+        if suffix == ".go":
+            # A bare `go test` is the working directory's package. After a `cd` that
+            # directory is not known, so the row cannot be shown not to run.
+            if not args:
+                if "/" not in path or re.search(r"(?:^|&&|\|\||;|\n)\s*cd\s", acc):
+                    return True
+                continue
+            for arg in args:
+                target = arg.rstrip("/")
+                if target in ("...", "./..."):
+                    return True
+                if target.endswith("/..."):
+                    if path.startswith(norm(target[:-4]) + "/"):
+                        return True
+                elif path == norm(target) or str(PurePosixPath(path).parent) == (norm(target) or "."):
+                    return True
+            continue
         if not args:
             return True
         for arg in args:
-            # A pytest `file::test` selector runs exactly the test it names — the row
-            # is run when both halves match it, and no other row in that file is.
+            # A pytest `file::test` selector runs what it names: the row is run when the
+            # file matches and the selector can reach it, and no other row is.
             target, _, selector = arg.partition("::")
-            target = target.rstrip("/")
-            if target in ("...", "./..."):
-                return True
-            base = target[:-4] if target.endswith("/...") else target
-            base = base[2:] if base.startswith("./") else base
+            base = norm(target.rstrip("/"))
             if selector:
-                if path == base and name is not None and selector.split("::")[-1].split("[")[0] == name:
+                if path == base and name is not None and _selector_runs(selector.split("::"), name):
                     return True
                 continue
-            module = base.replace(".", "/") + ".py" if suffix == ".py" and "/" not in base else None
-            if path == base or path.startswith(base + "/") or path == module:
+            if path == base or path.startswith(base + "/"):
+                return True
+            # A dotted unittest name: the module, or a class or test inside it.
+            stem = path[:-3].replace("/", ".") if suffix == ".py" and "/" not in base else None
+            if stem and (base == stem or (base.startswith(stem + ".") and name is not None
+                                          and _selector_runs(base[len(stem) + 1:].split("."), name))):
                 return True
 
 
@@ -5428,7 +5457,7 @@ def cargo_runs(acc, rel):
     for segment in _SEGMENTS.split(acc):
         if not re.search(r"^\s*(?:\w+=\S*\s+)*cargo\s+(?:test|nextest\s+run)\b", segment):
             continue
-        binaries = re.findall(r"--test[= ]+([^\s'\"]+)", segment)
+        binaries = re.findall(r"--test[= ]+['\"]?([^\s'\"]+)", segment)
         if not binaries or any(path.endswith(f"tests/{b}.rs") or f"tests/{b}/" in path for b in binaries):
             return True
     return False

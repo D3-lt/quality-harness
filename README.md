@@ -12,7 +12,8 @@ instead of a summary.
 It is for people who already let an agent write real code and have started
 wondering how much of "done" they can trust. It brings no opinions about your
 language or test runner. It does have one about what a decision record looks
-like: a MADR or Nygard file is reported as not recognised and left alone (ADR-038).
+like: `adr-lint` reports a MADR or Nygard file as not recognised and judges nothing in it
+(ADR-038), though `work-next` and `adr-state` still read its Status.
 
 ## Start here
 
@@ -107,7 +108,8 @@ trust, so:
   what would make you stop.
 - **It brings no opinions about your language or test command.** It adapts to your
   repository, which also means it does not guess for you. The one shape it does
-  hold an opinion on is its own record format (ADR-038); other ADR styles are left alone.
+  hold an opinion on is its own record format (ADR-038): `adr-lint` judges no other ADR
+  style, though the routers still read its Status.
 
 ## Is it for you?
 
@@ -429,12 +431,14 @@ plugin is enabled:
 **Name the working-tree path when you are developing the plugin itself.** A bare
 gate name on `PATH` resolves to an installed release, which is not your edit.
 
-Three corpus readers ship as scripts rather than gates, because they judge nothing
+Corpus readers ship as scripts rather than gates, because they judge nothing
 and exit 0 whatever they find:
 
 - `work-next.mjs` — which lifecycle stage is waiting, and the files that put it there.
 - `adr-state.mjs` — what governs what, contested areas, dangling supersessions.
 - `adr-context.mjs` — which records govern these files, including the ones that were killed.
+- `corpus-report.mjs` — a corpus's evidence numbers in a form you can paste; it never runs a fence.
+- `corpus-probe.mjs` — every reader over one corpus, side by side, with their disagreements computed.
 
 Canonical templates live in `templates/`. Skills locate them through
 `${CLAUDE_PLUGIN_ROOT}`; no user home path or project name is embedded.
@@ -508,7 +512,7 @@ keeps correctness gates outside model discretion.
 ## Repository layout
 
 The plugin is `plugin/`, and it is the only thing published: `.claude-plugin/marketplace.json`
-declares `"source": "./plugin"`, so an install carries 663 K rather than the repository's 1,619 K
+declares `"source": "./plugin"`, so an install carries only `plugin/`
 and none of the work that produces it. `tests/`, `docs/` and the three gates this repository runs on
 itself — `scripts/selftest.sh`, `scripts/coverage.sh`, `scripts/mutate.mjs` — stay above that
 boundary and are checked on every push without shipping. A file committed under `plugin/` that is

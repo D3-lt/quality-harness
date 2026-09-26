@@ -15,5 +15,5 @@ Implementation tasks for ADR-065: The branch-state reader serves its snapshot an
 
 | Task | File | Status |
 |------|------|--------|
-| T1 | [T1-a-snapshot-is-keyed-by-branch-head-and-upstream.md](T1-a-snapshot-is-keyed-by-branch-head-and-upstream.md) | pending |
-| T2 | [T2-a-due-brief-is-served-and-refreshed-behind-the-prompt.md](T2-a-due-brief-is-served-and-refreshed-behind-the-prompt.md) | pending |
+| T1 | [T1-a-snapshot-is-keyed-by-branch-head-and-upstream.md](T1-a-snapshot-is-keyed-by-branch-head-and-upstream.md) | done |
+| T2 | [T2-a-due-brief-is-served-and-refreshed-behind-the-prompt.md](T2-a-due-brief-is-served-and-refreshed-behind-the-prompt.md) | done |

@@ -18,10 +18,11 @@
 //
 // `run` is the seam (CLAUDE.md §7): every process this takes comes through it,
 // so the whole reader is exercised on any host without a network or a remote.
-import { execFileSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
-import { join } from 'node:path'
+import { execFileSync, spawn } from 'node:child_process'
+import { readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { join, resolve } from 'node:path'
 import process from 'node:process'
+import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
 import { findGitDir } from './git-directory.mjs'
 import { startPerformanceTrace } from './performance-trace.mjs'
@@ -349,6 +350,78 @@ export function render(state, { brief = false } = {}) {
  * are now simply refreshed. A cache is a speed-up and is never allowed to be the
  * reason a session is told something wrong.
  */
+/**
+ * What a snapshot's answer depends on, read from files without spawning Git
+ * (ADR-065 T1): the raw HEAD, the sha it resolves to, and the upstream's sha.
+ *
+ * A clock alone served a commit, a push or a branch switch made inside the window
+ * as the previous state's answer. CI here is the newest run for the BRANCH, so a
+ * switch at the same sha changes it too — hence the raw HEAD, not only the sha.
+ * Null when any part cannot be read: a key that cannot be proved is never equal,
+ * so the snapshot is refreshed rather than trusted. An upstream that is configured
+ * but not fetched is recorded as such, not as a failure to read.
+ */
+export function snapshotKey(gitDir) {
+  if (!gitDir) return null
+  const read = file => { try { return readFileSync(file, 'utf8') } catch { return null } }
+  const SHA = /^[0-9a-f]{40,64}$/
+  const common = (() => {
+    const pointer = read(join(gitDir, 'commondir'))?.trim()
+    return pointer ? resolve(gitDir, pointer) : gitDir
+  })()
+  const ref = name => {
+    for (const dir of [gitDir, common]) {
+      const loose = read(join(dir, ...name.split('/')))?.trim()
+      if (loose && SHA.test(loose)) return loose
+    }
+    for (const line of (read(join(common, 'packed-refs')) ?? '').split(/\r?\n/)) {
+      const [sha, packed] = line.trim().split(' ')
+      if (packed === name && SHA.test(sha ?? '')) return sha
+    }
+    return null
+  }
+  const head = read(join(gitDir, 'HEAD'))?.trim()
+  if (!head) return null
+  let sha = null
+  let upstream = '-'
+  if (SHA.test(head)) {
+    sha = head
+  } else {
+    const branch = head.match(/^ref: (refs\/\S+)$/)?.[1]
+    if (!branch) return null
+    sha = ref(branch)
+    if (branch.startsWith('refs/heads/')) {
+      const name = branch.slice('refs/heads/'.length)
+      // The ref `collect` measures ahead/behind against when nothing is configured.
+      let tracking = `refs/remotes/origin/${name}`
+      let section = false
+      let remote = null
+      let merge = null
+      for (const raw of (read(join(common, 'config')) ?? '').split(/\r?\n/)) {
+        const line = raw.trim()
+        const header = line.match(/^\[\s*branch\s+"(.*)"\s*\]$/)
+        if (header) { section = header[1] === name; continue }
+        if (line.startsWith('[')) { section = false; continue }
+        const setting = section && line.match(/^(\w+)\s*=\s*(.*)$/)
+        if (setting && setting[1].toLowerCase() === 'remote') remote = setting[2].trim()
+        if (setting && setting[1].toLowerCase() === 'merge') merge = setting[2].trim()
+      }
+      if (remote && merge?.startsWith('refs/heads/')) {
+        tracking = remote === '.' ? merge : `refs/remotes/${remote}/${merge.slice('refs/heads/'.length)}`
+      }
+      upstream = ref(tracking) ?? 'unfetched'
+    }
+  }
+  if (!sha) return null
+  return JSON.stringify([head, sha, upstream])
+}
+
+/** A snapshot this prompt may serve as current: usable, young, whole, and keyed to now. */
+export function freshSnapshot(previous, now, maxAgeSeconds, key) {
+  return usableCache(previous, now) && (now - previous.at) / 1000 < maxAgeSeconds
+    && previous.partial !== true && key != null && previous.key === key
+}
+
 export function usableCache(previous, now) {
   if (!previous || typeof previous !== 'object') return false
   if (!Number.isFinite(previous.at) || previous.at > now) return false
@@ -359,10 +432,10 @@ export function usableCache(previous, now) {
   return Boolean(state.looked === false || (state.ci && typeof state.ci === 'object'))
 }
 
-export function cached(maxAgeSeconds, { read, write, now = Date.now, gather = collect }) {
+export function cached(maxAgeSeconds, { read, write, now = Date.now, gather = collect, key = null }) {
   const at = now()
   const previous = read()
-  if (usableCache(previous, at) && (at - previous.at) / 1000 < maxAgeSeconds) {
+  if (freshSnapshot(previous, at, maxAgeSeconds, key)) {
     // Floored at 1: a sub-second age rounded to 0 hid the suffix entirely, so an
     // answer that came from cache was indistinguishable from one just taken.
     return { state: previous.state, ageSeconds: Math.max(1, Math.round((at - previous.at) / 1000)), fromCache: true }
@@ -377,8 +450,10 @@ export function cached(maxAgeSeconds, { read, write, now = Date.now, gather = co
   // The checkpoint is a strictly worse answer than the final one and says so in
   // its own notes, so a session that reads it is not misled — it is a floor, not a
   // result.
-  const state = gather(partial => write({ at, state: partial }))
-  write({ at, state })
+  // `key` was read before `gather` started: read after, a commit landing mid-collection
+  // would label the old state as the new HEAD's (ADR-065 review).
+  const state = gather(partial => write({ at, key, partial: true, state: partial }))
+  write({ at, key, state })
   return { state, ageSeconds: 0, fromCache: false }
 }
 
@@ -396,10 +471,60 @@ function stampBriefSaid(store, said) {
   } catch { /* a cache that cannot be written is not a failure */ }
 }
 
-function emitCachedBranchState(state, { brief, age, previous, store }) {
+// ── ADR-065 T2: a due brief is served, and refreshed behind the prompt ─────────
+//
+// Measured 2026-09-26 (BACKLOG §301): a cache hit costs 0.10 s, a miss 1.28 s, and
+// each `gh` call 1.1-2.3 s — paid on the prompt by every brief more than 120 s after
+// the last. Serving the snapshot and refreshing it in ONE detached process moves
+// that cost off the prompt; the brief says the answer's age and that a refresh is
+// running, so an old answer is never presented as a new one.
+const LOCK = 'qh-branch-state.lock'
+const SCRIPT = fileURLToPath(import.meta.url)
+
+function startRefresher() {
+  // `stdio: 'ignore'` is what keeps the hook host from waiting on the child: an
+  // inherited pipe stays open until the refresher exits (ADR-065 review).
+  const child = spawn(process.execPath, [SCRIPT, '--refresh'], {
+    cwd: process.cwd(), detached: true, stdio: 'ignore', windowsHide: true,
+    // Its collection already runs under BUDGET_MS; this is the backstop (BACKLOG §130).
+    timeout: BUDGET_MS + 5_000,
+  })
+  child.unref()
+}
+
+/**
+ * Start one refresher for this git directory, and say whether one is running.
+ *
+ * One at a time, by an exclusive lock. A lock older than the collection budget
+ * belongs to a refresher that died; it is reclaimed by RENAMING it aside, so of two
+ * prompts that both see it stale only one rename succeeds and only one starts.
+ */
+export function refreshBehind({ gitDir, spawnRefresher = startRefresher, now = Date.now,
+  staleAfterMs = BUDGET_MS + 5_000 }) {
+  const lock = join(gitDir, LOCK)
+  const claim = () => { try { writeFileSync(lock, String(process.pid), { flag: 'wx' }); return true } catch { return false } }
+  if (!claim()) {
+    let age
+    try { age = now() - statSync(lock).mtimeMs } catch { age = null }
+    if (age !== null && age <= staleAfterMs) return true
+    const aside = `${lock}.${process.pid}.${now()}`
+    try { renameSync(lock, aside) } catch { return age !== null }
+    try { unlinkSync(aside) } catch { /* the stale lock is out of the way either way */ }
+    if (!claim()) return true
+  }
+  try {
+    spawnRefresher()
+    return true
+  } catch {
+    try { unlinkSync(lock) } catch { /* nothing started, so nothing holds it */ }
+    return false
+  }
+}
+
+function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false }) {
   const text = render(state, { brief })
   if (brief && !ciAlarm(state) && previous && previous.said === text) return false
-  const suffix = age ? ` (read ${age}s ago)` : ''
+  const suffix = age ? ` (read ${age}s ago${refreshing ? '; refreshing' : ''})` : ''
   process.stdout.write(`${text}${suffix}\n`)
   if (brief) stampBriefSaid(store, text)
   return true
@@ -411,6 +536,38 @@ function main(argv = process.argv.slice(2)) {
   // Cache discovery shares the collection's deadline too. It previously had a
   // separate 15s Git timeout before the reader even began its 8s budget.
   const run = budgeted(BUDGET_MS)
+  const read = store => {
+    if (!store) return null
+    try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null }
+  }
+  const writer = store => payload => {
+    if (!store) return
+    try {
+      const current = read(store)
+      // Keep `said` across a TTL refresh. Dropping it made every 120s reprint
+      // an unchanged green brief (CLAUDE.md §17).
+      writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))
+    } catch { /* a cache that cannot be written is not a failure */ }
+  }
+  if (argv.includes('--refresh')) {
+    // ADR-065 T2: the detached refresher. It collects under the same budget, writes
+    // the snapshot, prints nothing, and releases the lock the prompt took for it.
+    // Found the way the prompt found it, from files: the refresher must still write
+    // what it saw when git itself cannot run, or a failed refresh leaves the stale
+    // answer standing with nothing to replace it.
+    const home = findGitDir(process.cwd())
+    try {
+      if (home) {
+        const store = join(home, 'qh-branch-state.json')
+        cached(0, { read: () => read(store), write: writer(store), gather: checkpoint => collect(run, checkpoint),
+          key: snapshotKey(home) })
+      }
+    } finally {
+      if (home) { try { unlinkSync(join(home, LOCK)) } catch { /* already released */ } }
+    }
+    finish('refreshed-behind', { status: 0 })
+    return 0
+  }
   if (at < 0) {
     const state = collect(run)
     process.stdout.write(`${render(state, { brief })}\n`)
@@ -418,10 +575,6 @@ function main(argv = process.argv.slice(2)) {
     return 0
   }
   const maxAgeSeconds = Number(argv[at + 1]) || 120
-  const read = store => {
-    if (!store) return null
-    try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null }
-  }
   // Ordinary cache hits need no Git process. Explicit Git discovery overrides
   // must still be interpreted by Git, and only Git chooses a cache WRITE path.
   const overridden = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR',
@@ -429,27 +582,30 @@ function main(argv = process.argv.slice(2)) {
   const hint = overridden ? null : findGitDir(process.cwd())
   const previous = read(hint && join(hint, 'qh-branch-state.json'))
   const now = Date.now()
-  if (usableCache(previous, now) && (now - previous.at) / 1000 < maxAgeSeconds) {
+  if (freshSnapshot(previous, now, maxAgeSeconds, hint ? snapshotKey(hint) : null)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const store = hint ? join(hint, 'qh-branch-state.json') : null
     emitCachedBranchState(previous.state, { brief, age, previous, store })
     finish('cache-hit', { status: 0 })
     return 0
   }
+  // A due BRIEF is served from its snapshot and refreshed behind the prompt. The
+  // full report (SessionStart) and a missing snapshot are still collected here, so
+  // a session's one full answer is never an old one (ADR-065 review, P1).
+  if (brief && hint && usableCache(previous, now)) {
+    const age = Math.max(1, Math.round((now - previous.at) / 1000))
+    const refreshing = refreshBehind({ gitDir: hint })
+    emitCachedBranchState(previous.state, { brief, age, previous, store: join(hint, 'qh-branch-state.json'), refreshing })
+    finish('served-behind', { status: 0 })
+    return 0
+  }
   const home = gitDir(run)
   const store = home ? join(home, 'qh-branch-state.json') : null
   const { state, fromCache, ageSeconds } = cached(maxAgeSeconds, {
     read: () => read(store),
-    write: payload => {
-      if (!store) return
-      try {
-        const current = read(store)
-        // Keep `said` across a TTL refresh. Dropping it made every 120s reprint
-        // an unchanged green brief (CLAUDE.md §17).
-        writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))
-      } catch { /* a cache that cannot be written is not a failure */ }
-    },
+    write: writer(store),
     gather: checkpoint => collect(run, checkpoint),
+    key: home ? snapshotKey(home) : null,
   })
   emitCachedBranchState(state, {
     brief, age: fromCache ? ageSeconds : 0, previous: read(store) ?? previous, store,

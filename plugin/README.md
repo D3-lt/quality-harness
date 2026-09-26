@@ -27,8 +27,10 @@ wrong by the next release, which is the failure the harness exists to catch.
 ## The status line
 
 The gates' reading of the current session, where you already look and with no prompt
-text spent on it: `QH ✓ checked`, `QH ✗ 3 unverified`, `QH · nothing edited`, or
-`QH ? transcript 61MB` when the transcript is past the size it will read per render.
+text spent on it: `QH ✓ checked`, `QH ✗ 3 unverified`, `QH · nothing edited` or
+`QH ? could not look`, each followed by how long ago it was observed, or
+`QH ? last observed 41m ago` when that observation is too old to speak for the tree.
+A `CI ✓`, `CI ✗`, `CI …` or `CI ?` tail says what CI reports for the branch.
 The plugin cannot set your `statusLine`.
 Keep that command (and any `refreshInterval`). Feed the same `$input` to this
 script and append its stdout — one line, or empty:
@@ -36,9 +38,10 @@ script and append its stdout — one line, or empty:
     qh=$(node "$(qh-root)/scripts/statusline.mjs" <<< "$input" 2>/dev/null)
     [ -n "$qh" ] && printf '%s\n' "$qh"
 
-It reads the JSON Claude Code pipes to the command, analyses the transcript only when
-it changed, spawns nothing, and never writes an error — a status line is the one
-surface you cannot dismiss.
+It reads the JSON Claude Code pipes to the command and this session's event log, reads
+the log again only when it changed, starts at most one `git rev-parse` (cached, so most
+renders start nothing), and never writes an error — a status line is the one surface you
+cannot dismiss.
 
 ## The stages, and what runs them
 

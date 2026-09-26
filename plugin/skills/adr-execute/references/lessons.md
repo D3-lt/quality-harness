@@ -157,6 +157,12 @@ all.
 
 A negative word anywhere in `--human` text wins (`withdraw`, `not `, `fail`, `stop`, …). A task whose prescribed sign-off is `withdrawn in <sha>` — the criterion's success branch, not a stop — routed `stopped` while its README said `done`. State an affirmative verb (`observed`, `signed-off`) and name a retired arm as `retired`, not `withdrawn`. Do not edit the first log line: append a second.
 
+⚠ Corrected 2026-09-26, for v2.110.0: "`not `" was never matched as a word (the trailing space met a no-letter lookahead), and "anywhere" is no longer true.
+- A negative word in the note's own words (`withdrawn`, `failed`, `blocked`, `stopped`, `refused`, `rejected`, `aborted`, `cannot`) is still a stop, so `retired` is still the word to use.
+- A negator directly before an affirmative (`not approved`, `has not yet been approved`) is now a stop too.
+- A negated negative (`not blocked`) and a hyphenated counter with its count (`refused-unverifiable 0`) are not verdicts.
+- Quoted program output after a marker (`-> exit 1 'refusing …'`) does not stop a note that affirms outside it.
+
 ### 2026-09-16 — a regex literal in a JS test body locks that test `unproven`
 
 ADR-057 T4's first red recorded `unproven` for a test whose name the hasher extracted fine: the body held `/…|`review`/g` and `/agentType:\s*['"]…['"]/g`. The masker skips strings and comments but not regex literals, so a quote, backtick or `)` inside one derails the span and `extract_test_body` returns None. Before the first `adr-verify`, run `record.extract_test_body(text, name)` from the plugin's `lib/` and require a non-None body; keep patterns at module scope or build them with `new RegExp('…')` from strings. An uncommitted `unproven` row is discarded with `git checkout -- <task.md>` and re-taken (BACKLOG §212).

@@ -86,7 +86,9 @@ Interview the user about every unresolved aspect:
   non-goals · contracts touched · risks · success criteria.
 - **The grill ends mechanically:** run `spec-verify --draft <spec>` and paste the output. User says
   "enough" → unanswered items become Open Questions rows, each naming the @draft fact it blocks;
-  status stays below Ready-for-ADR (the script enforces this, not a promise).
+  status stays below Ready-for-ADR. `spec-verify --spec` exits non-zero while Open Questions holds
+  a row, and it does not read Status, so nothing stops a hand-edited Status: move it only after
+  that run exits 0.
 - Grill Log records `# | Question | Fact | Decision(one line)` — the fact row carries the substance;
   the log is only an audit trail. spec-verify rejects log rows citing no Fact ID.
 
@@ -120,6 +122,13 @@ Ready-for-ADR only on exit 0. Paste the run into the conversation.
 Save to `docs/specs/YYYY-MM-DD-<topic>.md` (project convention overrides). Stop for user review. On
 acceptance → `/quality-harness:adr-write`: the ADR carries a `Spec:` header pointing here and inherits Contracts/
 Non-Goals/Risks by reference (deltas only); tasks carry `Covers:` fact/scenario IDs.
+
+Keep exactly one plain-text `**Status:**` line, reading `Grilling`, `Draft`, `Ready-for-ADR` or
+`Superseded`, optionally followed by a note (`Draft — see below`). `work-next` skips a Status inside
+a fenced code block, an HTML comment or inline code, and never reads a value across a line break.
+Two different values, any other word, or a binary file make the spec's Status UNPROVEN, and
+`work-next` says so. An indented code block, a fence inside a numbered list and `<pre>` are still
+read, so never show an example Status in one.
 
 ## grill-only mode
 
@@ -166,7 +175,7 @@ Append-only, dated.
 ## Output
 
 - Path of the spec file + the pasted `spec-verify` run (mode + exit code).
-- Status (Grilling / Draft / Ready-for-ADR), Facts count by tag, UC count, scenario count
+- Status (Grilling / Draft / Ready-for-ADR / Superseded), Facts count by tag, UC count, scenario count
   (happy/failure split), Open Questions count.
 - `Ready for /quality-harness:adr-write` only after `spec-verify --spec` exits 0 AND the user marks the spec
   Ready-for-ADR.

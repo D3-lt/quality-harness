@@ -46,12 +46,15 @@ subject is never named in its own text at all. `tests/evals.test.mjs` computes t
 report from the declarations and fails on a case that declares nothing, which is
 the state where the count goes back to being a guess (ADR-032).
 
-`skill-unattributed` is a first-class answer, not a backlog. Four of the eight
-cases are A/B arms measuring an INSTRUCTION rather than a skill, and one tests a
-plugin-wide doctrine; forcing a subject onto them would be the fabricated
-observation ADR-005 forbids.
+`skill-unattributed` is a first-class answer, not a backlog. Four of the five
+unattributed cases are A/B arms measuring an INSTRUCTION rather than a skill, and
+the fifth tests a plugin-wide doctrine; forcing a subject onto them would be the
+fabricated observation ADR-005 forbids.
 
 The report ADVISES and never blocks. A threshold on "skills with a case" is met by
 writing one thin case per skill, and the gate would then report that as coverage.
-Measured 2026-09-04: **3 skills exercised, 11 with no case, 5 unattributed** — and
-`work`, the router the lifecycle enters through, is among the uncovered.
+Measured 2026-09-04: **3 skills exercised, 11 with no case, 5 unattributed**, with
+`work`, the router the lifecycle enters through, among the uncovered. Measured
+2026-09-26 over 14 cases: **6 exercised, `work` among them, 9 with no case, 5
+unattributed**. `tests/evals.test.mjs` computes it from the declarations; these
+lines are snapshots.

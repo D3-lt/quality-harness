@@ -62,7 +62,7 @@ never with cmd.exe. A Windows machine with no bash gets "could not start" and ex
 - When the ADR's `Spec:` header names a file: run `spec-verify --spec <spec>` and paste the run
   (every covered fact should have a committed, collectable test). A fact with no test is a fact
   nothing will prove; say which, rather than discovering it at acceptance.
-- Work is represented as either ≤3 inline tasks or a sibling `tasks/` directory with task files and `README.md`.
+- Work is represented as a sibling `tasks/` directory with task files and `README.md`, at every size: inline tasks cannot hold tool-written evidence (`adr-write` §Task Layout by Size).
 - Wave table in `tasks/README.md` is required only for >5 tasks; 4–5 tasks use flat sequential order.
 
 **Ask what already governs the code you are about to touch.** Run `node
@@ -121,12 +121,14 @@ one on-disk write the no-artifacts rule does not cover.
 1. Run `adr-next <ADR.md> --all` for the authoritative state. It computes readiness from the task
    files themselves — `Depends-on` plus the `Consumes`/`Produces` contract edges, the same edges
    `adr-lint` builds its DAG from — and counts a task done only when its Verification Log holds an
-   exit-0 entry whose `acceptance-sha256` matches its current Acceptance fence. `tasks/README.md` is
+   exit-0 entry whose `acceptance-sha256` matches its current Acceptance fence, or, for a
+   human-observed Acceptance, a sign-off whose note is not read as a stop (step 4). `tasks/README.md` is
    a derived index: read it for the wave grouping, but where it disagrees with `adr-next`, the task
    files win and the README must be regenerated.
 2. Create a Todo list where each task is an item. Prefix items with their wave (e.g., `[Wave 1] T1: <Goal>`).
-   Take the next item from `adr-next <ADR.md>`, which also prints that task's Acceptance command and
-   the exact `adr-verify` invocation that records it.
+   Take the next item from `adr-next <ADR.md>`. It shows the task's goal as «…» and the first line of
+   its Acceptance fence for display only (sanitised and shortened: read the fence in the task file),
+   plus the exact `adr-verify` invocation that runs the fence as written and records it.
 
 ## Execution Pipeline
 
@@ -240,11 +242,22 @@ you then read the result. Both spellings have put a red tree on `main` in this r
    invocation can have observed it. A fence run is its command AND the bytes it ran against.
 
    Iterate until it exits 0. For human-observed acceptance, record
-   appends the log entry itself). Iterate until it exits 0. For human-observed acceptance, record
-   the sign-off with `adr-verify <task.md> --human "<who observed what>"`. If the task `Covers:`
+   the sign-off with `adr-verify <task.md> --human "<who observed what>"`. Word the note as a
+   verdict (`observed`, `approved`, `signed off`), because `adr-next` reads it:
+   - A negator directly before an affirmative (`not approved`, `has not yet been approved`) is a
+     STOP. So is a negative word in the note's own words (`withdrawn`, `failed`, `blocked`,
+     `rejected`).
+   - A negated negative (`not blocked`) and a counter with its count (`refused-unverifiable 0`) are
+     not verdicts.
+   - `NOT done: <follow-ups>` is a list of what is left, not a stop, but only after the note has
+     affirmed what was observed.
+   - A note with neither an affirmative nor a negative word still counts as done.
+
+   If the task `Covers:`
    spec facts, flip those facts' tags `@spec` → `@implemented` in the spec file. Only then may the
-   README status flip to `done` — `adr-lint` rejects `done` without a matching exit-0 entry, and
-   (for acceptance recorded from 2026-08-22) without a `mutant killed` entry in the Mutation Log.
+   README status flip to `done` — `adr-lint` rejects `done` without a matching exit-0 entry (for a
+   human-observed Acceptance, a `· human-observed ·` sign-off), and (for acceptance recorded from
+   2026-08-22) without a `mutant killed` entry in the Mutation Log.
 5. **Review & Sign-off**: Run `git diff` to review your own changes. Ensure no regressions or out-of-scope changes.
 6. **Commit**: Once validated and reviewed, commit the change with message format `{adr-id}: {task-id} — {task-goal}`. Mark the Todo complete.
 

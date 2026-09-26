@@ -74,6 +74,28 @@ const PUBLISHES = [
   'timeout 5 git push',
   'timeout -k 3 5 git push',
   'if x; then exec git push; fi',
+  // §296: every shell executed with `-c` on 2026-09-26, by path, after options and a wrapper.
+  "zsh -c 'git commit -m x'",
+  '/bin/sh -c "git push"',
+  "dash -c 'git push'",
+  "ksh -c 'git push'",
+  "tcsh -c 'git push'",
+  "csh -c 'git push'",
+  "pwsh -c 'git push'",
+  'pwsh -NoProfile -c "git push"',
+  'sudo -u ci bash -c "git push"',
+  "docker exec app sh -c 'git push'",
+  // Codex review of the first §296 cut: each was a refusal before it and a mention after it.
+  '"bash" -c "git push"',
+  '"/bin/sh" -c "git push"',
+  'sh.exe -c "git push"',
+  'bash +e -c "git push"',
+  'bash -O extglob -c "git push"',
+  'bash --rcfile /dev/null -c "git push"',
+  'bash --noprofile --norc -c "git push"',
+  'bash -o "pipefail" -c "git push"',
+  'bash \\\n-c "git push"',
+  "pwsh -ExecutionPolicy Bypass -c 'git push'",
 ]
 
 // Commands that mention the words, or even the invocation as DATA, and publish
@@ -118,6 +140,13 @@ const NOT_PUBLISHES = [
   'xargs -I git push',
   '!git push',
   'git\npush',
+  // §296: a `-c` that belongs to no shell. Each was refused while the arm was `-[A-Za-z]*c "`.
+  'grep -c "git push" docs/',
+  "grep -rc 'git commit' .",
+  'wc -c "git push"',
+  "head -c 'git push'",
+  'refresh -c "git push"',
+  "printf '%s\\n' foo@sh -c 'git push'",
 ]
 
 // The precise arm's known limit, pinned as a decision (§269): a `;` or a newline inside
@@ -129,6 +158,12 @@ const KNOWN_FALSE_REFUSALS = [
   'echo "example; git push"',
   'node -e "console.log(\'a; git push\')"',
   "cat <<'EOF'\ngit push\nEOF",
+  // §296, Codex: a shell and its -c inside quoted data, and a shell option that does not
+  // execute (`-n`, `--help`). The same limit as above, pre-existing, and cheaper than a parser.
+  'echo \'bash -c "git push"\'',
+  'grep -F \'sh -c "git push"\' docs/example.md',
+  'bash -n -c "git push"',
+  'bash --help -c "git push"',
 ]
 
 // Mentions: refused by no arm, WARNED about by the advisory one. These are the
@@ -141,6 +176,7 @@ const MENTIONS = [
   "echo 'run git push later'",
   '$(which git) push',
   'GIT=git; $GIT push',
+  'grep -c "git push" docs/',
 ]
 const NOT_MENTIONS = ['qh-check', 'git status', 'grep -n pre-commit a.md', "node -e 'records.push(1)'", 'git commit-tree HEAD^{tree}', 'ls',
   'grep -n containsCommitOrPush plugin/scripts/lifecycle.mjs', 'cat commit-c2.txt']

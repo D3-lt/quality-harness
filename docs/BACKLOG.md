@@ -15799,3 +15799,25 @@ Accepted (§10), and each states its success as a number against Stage 1's basel
 7. Research-grade: cascades, Datalog gates, mutant schemata, a job lease, predictive mutation testing, a Merkle release root.
 
 Non-goals: binary or hex encoding, lossy compression on evidence, a semantic answer cache, and any runtime npm dependency in `plugin/`.
+
+**Stage 1 — done 2026-09-26, without an ADR.** It is repository tooling that changes no shipped behaviour, so it ran as a bounded change. That departs from the line above; the owner can still ask for a record.
+- `session-profile --attribute` now splits hook rows by the command's script, not only the event. It counts bytes a source re-sent byte-identical to its own previous record ("unchanged"), and it sums the harness's `durationMs` per hook.
+- A command-less record (additional context, system message) is joined to its `hook_success` by `toolUseID`. The join is made only when that tool call ran exactly one command for the event; otherwise the record stays "(command not recorded)".
+- `tests/session-profile.test.mjs` is new; the attribution code had no test before. Six catalogue mutants were added, all RED.
+- The `mutate.mjs` half was dropped. `--stale` already counts stale entries, the cache records per-mutant `elapsedMs`, and CI records job wall time.
+- "Cache-prefix hygiene" was not built: a transcript does not say where the cached prefix ended, so no reader can measure it. That is could-not-look.
+
+**The baseline, one session (this one, 2026-09-26, 21 MB transcript).** No control arm.
+- Injected bytes: Claude Code's own attachments are the bulk; all hooks together are 10.3%.
+- This plugin, 1.9% measured:
+  - `branch-state.mjs` sent 25.2 KB over 57 prompts, 2.7 KB of it unchanged.
+  - `lifecycle.mjs` PreToolUse:Bash sent 15.4 KB over 87 records.
+  - The ceiling is 2.6%, if the 0.7% of hook bytes still carrying no command were all this plugin's. That 0.7% includes another plugin's SessionStart context.
+  - A first reading, before the join, said lifecycle added 0 B. That was an artefact of which record holds the text.
+- Hook latency is the larger cost.
+  - `branch-state.mjs` averaged 1,609 ms per prompt (max 7,462 ms) despite `--cached 120`. Measured apart at load 23: a cache hit is 0.10 s (Node's start); a miss is 1.28 s, of which git is about 0.4 s and each `gh` call 1.1-2.3 s. So the average is prompts more than 120 s apart missing the cache.
+  - `lifecycle.mjs` PreToolUse:Bash averaged 416 ms.
+- Another project's recall hook sent 132.6 KB over 117 prompts, 43.6 KB unchanged, averaging 2,052 ms. That was handed to that project, not changed here.
+- What this means for the order:
+  - Stage 2 can save at most this plugin's 1.9-2.6% of injected bytes, so it must justify itself on clarity or on another session's numbers.
+  - `branch-state`'s cache misses are the plugin's largest measured cost, and they are the first target for Stage 6.

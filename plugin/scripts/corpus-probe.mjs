@@ -24,7 +24,8 @@
 // `--attest` reads one saved report and prints the counts-only attestation
 // docs/corpus-reports/README.md defines (ADR-064 T3), so no count is transcribed.
 //
-// `--diff` reads two saved reports of ONE corpus and prints only what changed. It
+// `--diff` reads two saved reports of ONE corpus and prints what changed in the fields
+// it compares, and names a reader or a field it could not compare. It
 // runs nothing, so a runner probes once and compares against its own last report
 // (ADR-064 T2).
 //

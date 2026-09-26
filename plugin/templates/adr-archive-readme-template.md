@@ -11,6 +11,10 @@ Decision authority is recorded below because an archived `Accepted` ADR may stil
 The active corpus `README.md` links every governing ADR, including governing records here. Open
 work lives in the active corpus `BACKLOG.md` under `## Follow-ups`, never only in this archive.
 
+Name this file `README.md`, exactly. Under any other spelling (`readme.md`, `Readme.md`) the
+readers cannot decide whether this tree is a frozen archive, and they report readiness for its
+task directories as UNPROVEN instead of leaving them alone.
+
 ## Retired Records
 
 | ADR | Title | Decision effect | Retired | Reason | Obligations | SHA-256 |

@@ -256,10 +256,10 @@ replacement, and the tests that should notice:
 
 ```json
 { "label": "router: a done claim with no exit-0 entry routes to adr-verify",
-  "file": "scripts/work-next.mjs",
-  "from": "verdict === 'passed'",
-  "to":   "true",
-  "tests": ["tests/router.test.mjs"] }
+  "file": "plugin/scripts/work-next.mjs",
+  "tests": ["tests/lifecycle.test.mjs"],
+  "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} · .*· exit 0\\b/m.test(text)\n  })",
+  "to":   "    return false\n  })" }
 ```
 
 `from` must match **exactly once** in the file, or the entry no longer describes the

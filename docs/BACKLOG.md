@@ -15984,6 +15984,17 @@ Named, not fixed:
 
 **The gate found a fail-open in the lexer, and a name collision.** `((1 << 2))` then `git commit` on the next line: the lexer read the arithmetic shift as a heredoc and swallowed the commit into its body, so `publishCommandIn` returned null. `tests/lifecycle.test.mjs` "the publish warning reads commit or push through wrappers and quoting" caught it. An arithmetic command at command position is now skipped whole; the row is in the bash/zsh differential fixtures, and a catalogue mutant is RED. ADR-060's "the command classifiers are gone" flagged the lexer's inner `heredocBodies`, a retired symbol name; it is `readHeredocs`.
 
+**Codex review of 341c49c (gpt-6-astra, xhigh): REQUEST CHANGES, seven findings, all confirmed and fixed before the tag.** Six were regressions toward fail-open: forms the deleted regex refused, now returned null by the walk, each executed by the reviewer under bash and zsh with a recording git.
+- A `$(…)` inside `${…}`, `$((…))` or an arithmetic command `((…))`: the lexer skipped the whole expression. `substitutionsIn` now collects the substitutions an expression runs without reading its text as commands.
+- A process substitution split the argv: `git push</dev/null 2> >( /bin/cat ) --no-verify` lost its `--no-verify`, and the armed grammar read it as plain. It is one dynamic, code-flagged word now, never plain.
+- A continued heredoc delimiter (`<<\` then `EOF`) kept its backslash-newline, and the body swallowed a later push.
+- Script text through `| cat |` into a shell; `printf '%s' …` and `echo -n …` piped into a shell (the last two pre-existing). `stdinScripts` follows `cat` and `tee` upstream, strips `echo`'s options, and reads `printf`'s arguments one by one.
+- `bash --rcfile "-n" -c "git push"`: the rcfile name was read as `-n`. Options now consume their values before any `-n` check.
+- `<$(git push)`: a command of redirections alone was dropped with its substitution.
+- The seventh, a new false refusal: `echo "bash" "-c" "git push"` was read as a shell. `echo` and `printf` run none of their arguments.
+
+Also fixed, pre-existing and named by the same review: `bash -cx "…"` (a `-c` inside a cluster) and ANSI-C spellings (`$'git' push`, `git $'\x70ush'`), now decoded. Two mutants of these fixes came back GREEN first, each a finding about the tests: a process substitution hiding `git config hook.… false` (the code flag's only protection) and an ANSI-C simple escape now have rows. Catalogue: 56 ADR-067 mutants, all RED.
+
 **Open:**
 - ADR-067 T3.
 - The catalogue's 27 walk mutants run once load allows (the armed tests misfire under contention); the 22 regex mutants they replace are gone.

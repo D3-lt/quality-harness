@@ -124,6 +124,22 @@ const PUBLISHES = [
   "cat <<'X' | bash\ngit push\nX",
   "bash <<'EOF'\ngit push\nEOF",
   'bash <<<"git push"',
+  // Codex review of 341c49c, each run under bash and zsh with a stand-in git: a
+  // substitution inside a parameter or arithmetic expression, a continued heredoc
+  // delimiter, a pipeline through `cat`, `printf` and `echo -n` into a shell, a shell
+  // option's value that reads like `-n`, a redirection-only command, a `-c` inside a
+  // cluster, and ANSI-C spellings of the executable and the verb.
+  'echo ${QH_MISSING:-$(git push --no-verify)}',
+  ': $(( $(git push --no-verify) + 1 ))',
+  '(( $(git push --no-verify) + 1 ))',
+  'false && : <<\\\nEOF\nunused\nEOF\ngit push --no-verify',
+  "echo 'echo ok; git push --no-verify' | /bin/cat | /bin/bash",
+  "printf '%s' 'git push' | /bin/bash",
+  "echo -n 'git push' | /bin/bash",
+  '/bin/bash --rcfile "-n" -c "git push --no-verify"',
+  '<$(git push --no-verify)',
+  'bash -cx "git push"',
+  "$'git' push",
 ]
 
 // Commands that mention the words, or even the invocation as DATA, and publish
@@ -194,6 +210,9 @@ const NOT_PUBLISHES = [
   "cat <<'EOF'\ngit push\nEOF",
   'echo \'bash -c "git push"\'',
   'grep -F \'sh -c "git push"\' docs/example.md',
+  // Codex review of 341c49c: `echo` runs none of its arguments, a shell's name among them included.
+  'echo "bash" "-c" "git push"',
+  'echo bash -c "git push"',
 ]
 
 // A Windows chaos round (2.111.0-rc, P2): spellings that reached git on a Windows 11
@@ -356,6 +375,10 @@ const DISABLES_THE_HOOK = [
   'git push --no-verif',
   'git commit -anm m',
   'sudo git push',
+  // Codex review of 341c49c: a process substitution between the verb and its options.
+  'git push</dev/null 2> >( /bin/cat ) --no-verify',
+  // ...and a command hidden inside one, which the armed grammar can only see as code.
+  'git push >(git config hook.qh-publish-push.enabled false)',
 ]
 
 test('an armed session leaves a plain invocation to git', () => {
@@ -620,6 +643,18 @@ const ADDED_BY_ADR_067 = {
   "cat <<'X' | bash\ngit push\nX": 'git push',
   "bash <<'EOF'\ngit push\nEOF": 'git push',
   'bash <<<"git push"': 'git push',
+  'echo ${QH_MISSING:-$(git push --no-verify)}': 'git push',
+  ': $(( $(git push --no-verify) + 1 ))': 'git push',
+  '(( $(git push --no-verify) + 1 ))': 'git push',
+  'false && : <<\\\nEOF\nunused\nEOF\ngit push --no-verify': 'git push',
+  "echo 'echo ok; git push --no-verify' | /bin/cat | /bin/bash": 'git push',
+  "printf '%s' 'git push' | /bin/bash": 'git push',
+  "echo -n 'git push' | /bin/bash": 'git push',
+  '/bin/bash --rcfile "-n" -c "git push --no-verify"': 'git push',
+  '<$(git push --no-verify)': 'git push',
+  'bash -cx "git push"': 'git push',
+  "$'git' push": 'git push',
+  "git $'\\x70ush'": 'git push',
 }
 const FORMER_FALSE_REFUSALS = [
   ['eval "git push" "-h"', 'eval "git push"'],

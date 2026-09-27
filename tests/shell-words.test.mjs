@@ -81,6 +81,10 @@ const LEXING = [
   'echo "git push"',
   "echo 'git push; git commit'",
   'echo git\\ push',
+  'false && : <<\\\nEOF\nunused\nEOF\ngit push',
+  "$'git' push",
+  "git $'\\x70ush' -q",
+  "git commit -m $'a\\tb'",
 ]
 
 test("the lexer's argv is the argv the shell hands git", { skip: SHELLS.length ? false : 'no POSIX shell to diff against' }, () => {

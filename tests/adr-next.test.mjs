@@ -1511,3 +1511,31 @@ test('two task files declaring one id are stopped as UNPROVEN, and both are name
   assert.equal(stopped.length, 1, result.stdout)
   assert.match(JSON.stringify(stopped[0]), /T2-b\.md and T2-t\.md both declare it/)
 })
+
+// A Windows chaos round of 916b515 (lexical-mango, abomination X1): a zero-width space
+// passed into the quoted title, and a BOM kept the heading's `# ` inside it.
+test('a quoted title carries no zero-width character, and a BOM does not keep the heading mark', () => {
+  const { tasksDir } = corpus([])
+  writeFileSync(join(tasksDir, 'T1-t.md'), '\u{feff}' + task({ id: 'T1', goal: 'cursed\u{200b} task' }))
+  const shownText = next([tasksDir], root).stdout
+  assert.match(shownText, /«Task T1: cursed task»/, JSON.stringify(shownText))
+  assert.doesNotMatch(shownText, /[\u{200b}-\u{200d}\u{2060}-\u{2065}\u{feff}]/u, JSON.stringify(shownText))
+})
+
+// A Windows chaos round of 916b515 (tender-reef G2 a): `--json` over a file that owns
+// no tasks directory printed prose, where a caller parses JSON.
+test('--json over a path with no tasks directory answers in JSON', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-notasks-'))
+  temps.push(dir)
+  writeFileSync(join(dir, 'bin.dat'), 'x')
+  const json = next([join(dir, 'bin.dat'), '--json'], root)
+  assert.equal(json.status, 3, json.stderr)
+  const report = JSON.parse(json.stdout)
+  assert.equal(report.tasks_dir, null)
+  assert.deepEqual([report.ready, report.done, report.blocked, report.stopped], [[], [], [], []])
+  assert.match(report.note, /owns no tasks directory/)
+  // The human answer is unchanged: prose, exit 0.
+  const said = next([join(dir, 'bin.dat')], root)
+  assert.equal(said.status, 0)
+  assert.match(said.stdout, /owns no tasks directory/)
+})

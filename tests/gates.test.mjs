@@ -1863,6 +1863,22 @@ test("a task file's own done claim needs evidence, whatever the README says", ()
   }
 })
 
+// A Windows chaos round of 916b515 (scalable-badger C-5): a task file another record
+// owns, locked, made adr-lint crash with a traceback while linting a record that never
+// named it, and the probe read the exit as a verdict with no reason. A directory named
+// like a task is unreadable on every platform, so it stands in for the lock here.
+test('a task file adr-lint cannot read is could-not-run, never a traceback', () => {
+  const aged = agedCorpus('qh-unreadable-task-', '{"strictFrom":"ADR-0012"}\n')
+  const adrDir = join(aged.repo, 'docs', 'adr')
+  cpSync(join(fixture, 'ADR-001-selftest.md'), join(adrDir, 'ADR-002-other.md'))
+  mkdirSync(join(adrDir, 'ADR-002-other', 'tasks', 'T1-dir.md'), { recursive: true })
+  const result = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  const said = `${result.stdout}${result.stderr}`
+  expectExit(result, 2, 'a file that could not be read is could-not-run')
+  assert.doesNotMatch(said, /Traceback/, said)
+  assert.match(said, /could not run: \S*T1-dir\.md/, said)
+})
+
 test('an unreadable or unusable strictFrom changes nothing, and says so', () => {
   const aged = agedCorpus('qh-strict-broken-', '{ this is not json\n')
   const broken = run('adr-lint', [aged.adr, aged.tasks], aged.repo)

@@ -115,6 +115,12 @@ for (const [name, dir] of corpora) {
     if (expected.undecided !== undefined) {
       assert.deepEqual(report.undecided.map(entry => entry.file), expected.undecided, `${name}: undecided records:\n${JSON.stringify(report.undecided, null, 2)}`)
     }
+    // corpus-report's count of task files it could not read, which said 0 beside
+    // adr-next naming one (a Windows chaos round of 916b515, G2 b).
+    if (expected.corpusReportUnreadable !== undefined) {
+      assert.equal(report.corpusReport.reduce((sum, entry) => sum + (entry.totals?.unreadable ?? 0), 0), expected.corpusReportUnreadable,
+        `${name}: corpus-report unreadable tasks:\n${JSON.stringify(report.corpusReport, null, 2)}`)
+    }
     assert.deepEqual(report.adrNext.map(entry => ({ tasksDir: entry.tasksDir, ready: entry.ready?.map(task => task.id) ?? null })), expected.adrNext.map(({ unreadable, ...entry }) => entry), `${name}: adr-next:\n${JSON.stringify(report.adrNext, null, 2)}`)
     // The task files adr-next could not read, where an expectation names them (a Windows
     // chaos round of 626934a, F-2: a directory holding one read "fully evidenced").

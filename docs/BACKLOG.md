@@ -15995,6 +15995,10 @@ Named, not fixed:
 
 Also fixed, pre-existing and named by the same review: `bash -cx "…"` (a `-c` inside a cluster) and ANSI-C spellings (`$'git' push`, `git $'\x70ush'`), now decoded. Two mutants of these fixes came back GREEN first, each a finding about the tests: a process substitution hiding `git config hook.… false` (the code flag's only protection) and an ANSI-C simple escape now have rows. Catalogue: 56 ADR-067 mutants, all RED.
 
+**The campaign at 9b49efa failed on two GREENs, and they were mine: §18's "a refactor that moves an observable turns the tests on the old site vacuous".** T3 moved splitting to the lexer; ADR-066's round-2 and round-3 grammar mutants (the backslash-newline join feeding the text checks; a verb that mentions commit or push) stayed in the catalogue, and their only rows were forms the lexer now resolves before either mechanism is reached. I had run the ADR-067 mutants, not every mutant on the file I refactored. Each mechanism still guards a real form, now a `DISABLES_THE_HOOK` row: `cp x .g\`+newline+`it/config; git commit` (the `.git/` text check sees it only after the join) and `git rebase --exec git\ commit\ -n HEAD && git push` (an escaped-space command is plain text, not code). The first rebase row used `HEAD~1`, and the `~` alone made the grammar refuse it with the mutant applied too: a row that is refused for another reason kills nothing. Run over the families this batch touched (`ADR-066`, `publish armed`, `publish-hook`, `ADR-067`): all RED.
+
+**ADR-068, Accepted by the owner 2026-09-27 and done:** git's hook judges a linked worktree whose repository holds the session's log (it passed every worktree commit: measured, main checkout exit 1, worktree exit 0); SessionStart after a compaction or resume says git's refusal takes effect from the next prompt while no hook run follows the offer. §304 items 3 and 4 are closed by it. It ships in 3.1.0 with ADR-067, since 3.1.0 was never tagged.
+
 **Open:**
 - ADR-067 T3.
 - The catalogue's 27 walk mutants run once load allows (the armed tests misfire under contention); the 22 regex mutants they replace are gone.

@@ -12252,7 +12252,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "only": "grammar of plain forms",
+      "only": "an armed session still refuses every form that can disable the hook",
       "from": "  const raw = String(command ?? '').replace(/\\\\\\r?\\n/g, '')",
       "to": "  const raw = String(command ?? '')"
     },
@@ -12477,6 +12477,46 @@
       "to": "      const verdict = running ?? failing[0] ?? answering[0]"
     },
     {
+      "label": "ADR-068 T1: a linked worktree of the session's repository is judged",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an unchecked commit in a linked worktree",
+      "from": "  if (readEvents(cwd, session).length === 0 && !sessionOwnsRepository(cwd, session)) return { code: 0 }",
+      "to": "  if (readEvents(cwd, session).length === 0) return { code: 0 }"
+    },
+    {
+      "label": "ADR-068 T1: a scratch repository with no log anywhere still passes",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "a checked linked worktree commits",
+      "from": "  if (readEvents(cwd, session).length === 0 && !sessionOwnsRepository(cwd, session)) return { code: 0 }",
+      "to": "  if (false) return { code: 0 }"
+    },
+    {
+      "label": "ADR-068 T2: the arming line is only for a compaction or a resume",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "only": "the armed line is silent",
+      "from": "    if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))) {",
+      "to": "    if (awaitingArming(readEvents(input.cwd, input.session_id))) {"
+    },
+    {
+      "label": "ADR-068 T2: the arming line stops once the hook has run",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "only": "the armed line is silent",
+      "from": "  return offered >= 0 && !events.slice(offered + 1).some(entry => entry.event === 'publish.hook-ran')",
+      "to": "  return offered >= 0"
+    },
+    {
       "label": "shell-words: an arithmetic command is not a heredoc (ADR-067, found by the gate)",
       "file": "plugin/scripts/shell-words.mjs",
       "tests": [
@@ -12552,7 +12592,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "only": "grammar of plain forms",
+      "only": "an armed session still refuses every form that can disable the hook",
       "from": "  if (verb !== 'commit' && verb !== 'push') return words.some(w => /\\b(?:commit|push)\\b/.test(w)) ? -1 : 0",
       "to": "  if (verb !== 'commit' && verb !== 'push') return 0"
     },

@@ -39,6 +39,20 @@ export function sequencerInProgress(cwd) {
   return SEQUENCER.some(name => existsSync(path.join(gitDir, name)))
 }
 
+// Whether the repository `cwd` belongs to — its common git directory, which a linked
+// worktree shares with the main checkout — holds this session's log. The answer is
+// resolved against `cwd`, since some gits print the common directory relative to it.
+function sessionOwnsRepository(cwd, session) {
+  const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', timeout: 10_000 })
+  if (common.error || common.status !== 0) return false
+  const repository = path.dirname(path.resolve(cwd, common.stdout.trim()))
+  // A log that cannot be read whole is owned: judging costs a warning, while passing
+  // unjudged would be the flattering answer (tests/evidence-flip.test.mjs READERS).
+  const events = readEvents(repository, session)
+  return events.length > 0 || events.complete === false
+}
+
+
 /** Decide one git hook event. Returns `{ code, message? }`; only `code: 1` refuses. */
 export function runPublishHook({ event, cwd = process.cwd(), env = process.env }) {
   const invoked = INVOKED[event]
@@ -48,8 +62,10 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
   if (typeof session !== 'string' || !session) return { code: 0 }
   // A repository with no log for this session is not this session's project —
   // the text classifier could not tell, and judged the session's repository
-  // instead (a scratch-repository commit refused, 2026-09-26).
-  if (readEvents(cwd, session).length === 0) return { code: 0 }
+  // instead (a scratch-repository commit refused, 2026-09-26). A linked worktree
+  // keeps its own state, so it holds no log either; it is the session's project
+  // when the repository it belongs to holds one (ADR-068: it passed every commit).
+  if (readEvents(cwd, session).length === 0 && !sessionOwnsRepository(cwd, session)) return { code: 0 }
   // What makes a session ARMED (ADR-066 Decision 3): the hook itself, not the offer.
   appendEvent(cwd, session, { event: 'publish.hook-ran', hook: event })
   if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }

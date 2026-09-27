@@ -56,7 +56,9 @@ test('adr-state shows a hostile record title quoted, with nothing that drives a 
 
 test('work-next shows a hostile spec path with nothing that drives a terminal', () => {
   const dir = repository({
-    [`docs/specs/a${ESC}]0;title${BEL}b${RLO}dm.md`]: '# S\n\n**Status:** Ready-for-ADR\n',
+    // Windows forbids control characters in a file name (the fixture failed ENOENT in
+    // CI there), so its hostile name carries a bidi override and a zero-width space.
+    [process.platform === 'win32' ? `docs/specs/a${RLO}b${ZWSP}dm.md` : `docs/specs/a${ESC}]0;title${BEL}b${RLO}dm.md`]: '# S\n\n**Status:** Ready-for-ADR\n',
   })
   try {
     const out = human('work-next.mjs', dir)

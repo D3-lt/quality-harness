@@ -16176,4 +16176,11 @@ Leads, unconfirmed here:
 - A task named through a self-symlink: the probe already reports it as a disagreement.
 - adr-lint's `check_test_lock` and its other README-only loops still read only the README's done claim.
 - adr-next's Permission-denied line prints the path as it was given, absolute when the caller passed one.
+
+**CI at 8badec4 (run 36349664889) went red, on five jobs, all of them this batch's own doing.**
+- **windows:** the hostile-spec-path fixture wrote a name holding ESC and BEL, which Windows refuses (ENOENT). The platform is a parameter now: on Windows the name carries a bidi override and a zero-width space, which NTFS allows, and the same assertion runs.
+- **Four GREEN mutants in four shards,** each an old guard this batch made unobservable (§18's hazard, met here):
+  - The two adr-lint entries for `read_named` ("named path plus strictFrom reads through read_named", "named-path OSError is could-not-run at check_adr") are equivalent mutants now. The top-level OSError handler (C-5) answers a second open exactly as `read_named` does: exit 2, could-not-run, the path named. The property they protected holds structurally and is still asserted, so both entries are deleted.
+  - "SessionStart does not count an unreadable task's directory as evidenced" mutated a guard G2's `continue` made unreachable. The guard and its `unreadTasks.length` arithmetic are removed as dead code, and so is the entry. The G2 mutant protects the behaviour, and the "stopped task" entry names the simplified line and is RED.
+  - "the year of an ISO date is not a record number" went GREEN because C1's rule, a folder named for another record, now also keeps a dated record from borrowing a record's folder. A new test uses a dated folder that no record names, where only the ISO guard decides, and the entry runs only that test. RED.
 The readers changed with this batch (lifecycle.mjs, corpus-probe.mjs, work-next.mjs, adr-next, adr-lint), so the four attestations at 916b515 do not cover a tag cut after it; another outside run is needed at the final sha (§18).

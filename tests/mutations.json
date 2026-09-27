@@ -13705,6 +13705,126 @@
       "from": "  appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })",
       "to": "  appendEvent(cwd, session, { event: 'publish.hook-ran', hook: event })",
       "only": "git's hook in a linked worktree records that it ran in the session's own log"
+    },
+    {
+      "label": "ADR-069 T1: the edited text is accepted on the nearest line however often it occurs",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (onLine !== 1)",
+      "to": "if (onLine < 0)",
+      "only": "repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest"
+    },
+    {
+      "label": "ADR-069 T1: condition 4 counts whole lines, so a more-indented copy of the nearest line is not seen",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "const inFile = text.split(line).length - 1",
+      "to": "const inFile = text.split('\\n').filter(candidate => candidate === line).length",
+      "only": "repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest"
+    },
+    {
+      "label": "ADR-069 T1: condition 5 is dropped: a sibling the change never added is proposed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (!added.has(line.trim()))",
+      "to": "if (false)",
+      "only": "repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest"
+    },
+    {
+      "label": "ADR-069 T1: a multi-line entry is not refused at condition 1",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (entry.from.includes('\\n')) return",
+      "to": "if (false) return",
+      "only": "repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest"
+    },
+    {
+      "label": "ADR-069 T1: campaignPaths puts the journal under this repository whatever the root",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": ": path.join(dir, '.mutate-inflight.json')",
+      "to": ": path.join(repoRoot, '.mutate-inflight.json')",
+      "only": "campaignPaths keeps every campaign file inside the root it is given"
+    },
+    {
+      "label": "ADR-069 T1: --repoint is no longer an accepted option",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "'--changed', '--repoint', '--since', '--root'])",
+      "to": "'--changed', '--since', '--root'])",
+      "only": "mutate --repoint reads a scratch repository"
+    },
+    {
+      "label": "ADR-069 T1: --repoint exits 0 while an entry is stale",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    return stale ? 1 : 0",
+      "to": "    return 0",
+      "only": "mutate --repoint reads a scratch repository"
+    },
+    {
+      "label": "ADR-069 T2: the write also rewrites the entries it refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "      if (answer.verdict === 'repointed') {",
+      "to": "      if (answer.verdict !== 'current') {",
+      "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "ADR-069 T2: the write goes ahead over uncommitted sources without --force",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (uncommitted.length && !argv.includes('--force')) {",
+      "to": "    if (false) {",
+      "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "ADR-069 T2: the rewritten entries are not measured",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    ? catalogue.mutations.filter(m => repointed.labels.has(m.label))",
+      "to": "    ? []",
+      "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "ADR-069 T2: a GREEN rewritten entry exits 0",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    return results.every(result => result.verdict === 'RED') && !repointed.stillStale ? 0 : 1",
+      "to": "    return !repointed.stillStale ? 0 : 1",
+      "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "ADR-069 T2: an entry still stale after the write exits 0",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "result.verdict === 'RED') && !repointed.stillStale ? 0 : 1",
+      "to": "result.verdict === 'RED') ? 0 : 1",
+      "only": "mutate --repoint --write rewrites only what it proposed"
     }
   ]
 }

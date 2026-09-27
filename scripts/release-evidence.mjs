@@ -27,7 +27,7 @@ import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
-import { READER_PATHS } from '../plugin/scripts/reader-paths.mjs'
+import { READER_DIRECTORIES } from '../plugin/scripts/reader-paths.mjs'
 
 /**
  * Judge a run's release-worthiness from the `gh run view --json` object.
@@ -286,9 +286,9 @@ export function readAttestations(dir, { readdir = readdirSync, read = readFileSy
   return out
 }
 
-// What a "reader" is for the release question, defined in the plugin so the shipped
-// probe fingerprints the same list (ADR-064 T1). Re-exported for this file's callers.
-export { READER_PATHS }
+// What a "reader" is for the release question: the plugin's own list (ADR-064 T1),
+// as repository paths.
+export const READER_PATHS = READER_DIRECTORIES.map(directory => `plugin/${directory}`)
 
 /**
  * The outside-run question for `sha`, asked of git. The anchor is the newest tag

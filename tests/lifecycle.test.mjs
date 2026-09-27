@@ -6,7 +6,7 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'n
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
-import { hookSaid, stripPauseLines } from './hook-env.mjs'
+import { hookSaid, SLOW_HOOK_NOTE, stripPauseLines } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   artifactGateTimeoutMs,
@@ -18,7 +18,6 @@ import {
   sessionStateNote,
   hasDecisionCorpus,
   spawnGate,
-  probedPythonVersion,
   resolvePython,
   adrCorpus,
   shadowInstallNotice,
@@ -37,7 +36,6 @@ import {
   completionClaim,
   saidMarkerDirectory,
   sweepStaleMarkers,
-  SLOW_HOOK_NOTE,
 } from '../plugin/scripts/lifecycle.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { NEVER_MIRRORED, SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
@@ -1188,27 +1186,15 @@ test('a Windows python3 that is not Python is refused, not believed', async () =
     'the probe must skip the decoy and keep looking')
   assert.equal(resolvePython('linux', [decoy], spawnSync), null, 'POSIX execs the shebang itself')
 
-  // BACKLOG §93. The probe asked for the MAJOR version and discarded the rest, so
-  // a box carrying 3.14 and 3.10 — four years and one semantic change apart, both
-  // reachable through `py --list` — answered `3` either way and nothing recorded
-  // which one ran. §90 is the case where that mattered: the same guard returned
-  // different answers on each.
+  // Any real 3.x is accepted, whatever its minor.
   const answering = version => () => ({ status: 0, stdout: `${version}\n`, stderr: '' })
   for (const version of ['3.14', '3.10', '3.9']) {
     assert.deepEqual(resolvePython('win32', [['py', '-3']], answering(version)), ['py', '-3'],
       `any real 3.x must still be accepted, including ${version}`)
-    assert.equal(probedPythonVersion(), version,
-      `the interpreter that answered must be recorded, not just its major: ${version}`)
   }
 
-  // ⚠ CLEARED on a failed resolve. Without that a caller recording "which Python
-  // answered" reads the PREVIOUS run's version and records one that did not run —
-  // stale evidence, which is worse than none and is the class §93 is about.
-  assert.deepEqual(resolvePython('win32', [['py', '-3']], answering('3.14')), ['py', '-3'])
   assert.equal(resolvePython('win32', [['py', '-3']], answering('2.7')), null,
     'a Python 2 must not be accepted')
-  assert.equal(probedPythonVersion(), null,
-    'a failed resolve must not leave the previous version readable')
 
   // And the reported symptom, through spawnGate: the gate runs and answers.
   const repo = await mkdtemp(path.join(testTmp, 'quality-python-alias-repo-'))
@@ -2429,7 +2415,7 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
   // gate surface for two days after ADR-008 moved the tree, because seven
   // records' `Governs:` lines named paths that no longer existed. Nothing said
   // the declarations had stopped matching; the tool simply had less to say.
-  const { adrCorpus, __pathMatchesDeclarationForTest } = await import('../plugin/scripts/lifecycle.mjs')
+  const { adrCorpus } = await import('../plugin/scripts/lifecycle.mjs')
   const dir = await mkdtemp(path.join(testTmp, 'adr-governs-'))
   await mkdir(path.join(dir, 'docs', 'adr'), { recursive: true })
   const record = (n, governs) =>
@@ -2537,7 +2523,7 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
     ['tests/mutations.json', 'tests/mutations?json', true],
     ['tests/mutations.json', '', false],
   ]) {
-    assert.equal(__pathMatchesDeclarationForTest(candidate, declaration), want,
+    assert.equal(pathMatchesDeclaration(candidate, declaration), want,
       `the shared glob grammar disagrees on ${candidate} vs ${declaration}`)
   }
 })
@@ -2839,7 +2825,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
   // disagreed on three of these seven, which is the drift ADR-009 exists to
   // prevent appearing inside ADR-009. A rule with two implementations is only
   // shared if something compares them.
-  const { __declaredEnforcementForTest } = await import('../plugin/scripts/lifecycle.mjs')
+  const { declaredEnforcement } = await import('../plugin/scripts/lifecycle.mjs')
   for (const [value, want] of [
     ['`a`, `b`', ['a', 'b']],
     ['a, b', ['a', 'b']],
@@ -2850,7 +2836,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
     ['`one`, two', ['one', 'two']],
     ['`a label, with a comma`', ['a label, with a comma']],
   ]) {
-    assert.deepEqual(__declaredEnforcementForTest(`**Enforced-by:** ${value}\n`), want,
+    assert.deepEqual(declaredEnforcement(`**Enforced-by:** ${value}\n`), want,
       `the shared grammar disagrees on ${value}`)
   }
 

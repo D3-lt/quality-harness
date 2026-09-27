@@ -5,7 +5,9 @@
 //
 // hookSaid removes that one sentence and leaves everything else. The notice
 // itself is tested in tests/lifecycle.test.mjs, which sets the threshold to 0.
-import { SLOW_HOOK_NOTE } from '../plugin/scripts/lifecycle.mjs'
+// The whole pause sentence. flushOutput builds it with slowHookNote, so a wording
+// change that stops matching this fails the slow-hook test in lifecycle.test.mjs.
+export const SLOW_HOOK_NOTE = /^quality-harness: the \S+ hook took \d+\.\ds — the pause has this name$/
 
 export function stripPauseLines(text) {
   return String(text ?? '')

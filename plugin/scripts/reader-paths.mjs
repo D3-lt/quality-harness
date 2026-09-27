@@ -5,10 +5,8 @@
 //
 // It lives in the plugin because the shipped probe fingerprints these directories
 // (ADR-064 T1), and `scripts/` at the repository root never ships. release-evidence
-// imports the same list, so the two cannot drift apart.
+// derives its repository paths from this same list, so the two cannot drift apart;
+// the `plugin/` prefix lives there, the only place it is read (orphan-sweep, 2026-09-27).
 
 /** The reader directories, relative to the plugin root. */
 export const READER_DIRECTORIES = ['scripts', 'bin', 'lib', 'hooks']
-
-/** The same directories, relative to this repository's root. */
-export const READER_PATHS = READER_DIRECTORIES.map(directory => `plugin/${directory}`)

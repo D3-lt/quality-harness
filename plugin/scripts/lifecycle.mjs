@@ -9,6 +9,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
+import { shellWords } from './shell-words.mjs'
 
 // The standalone install's scope and PATH arithmetic live in one module, shared
 // with sync-standalone.mjs. Two copies of that list drifted apart once already.
@@ -907,12 +908,6 @@ export function slowHookThresholdMs(env = process.env) {
   return Number.isSafeInteger(configured) && configured >= 0 ? configured : SLOW_HOOK_MS
 }
 
-// The whole sentence. A silence check removes this line and nothing that shares
-// the channel with it. flushOutput builds the note with slowHookNote, so a
-// wording change that stops matching this pattern fails the slow-hook test on
-// a fast machine.
-export const SLOW_HOOK_NOTE = /^quality-harness: the \S+ hook took \d+\.\ds — the pause has this name$/
-
 export function slowHookNote(eventName, elapsedMs) {
   return `quality-harness: the ${eventName ?? 'hook'} hook took ${(elapsedMs / 1000).toFixed(1)}s — the pause has this name`
 }
@@ -1236,32 +1231,17 @@ const WINDOWS_PYTHONS = [['py', '-3'], ['python'], ['python3']]
  * branch on boxes where `python3` happens to be genuine.
  */
 export function resolvePython(platform = process.platform, candidates = WINDOWS_PYTHONS, run = spawnSync) {
-  // CLEARED FIRST. Without this a failed resolve left the PREVIOUS run's version
-  // readable, so a caller recording "which Python answered" would record one that
-  // did not — stale evidence, which is worse than none and is the exact class §93
-  // is about.
-  lastPythonVersion = null
   if (platform !== 'win32') return null
   for (const [command, ...prefix] of candidates) {
     const probe = run(command, [...prefix, '-c', PYTHON_PROBE], { encoding: 'utf8', timeout: 10_000 })
     const answered = (probe.stdout ?? '').trim()
-    // Still keyed on the MAJOR — any 3.x is a real Python 3 — but the full answer
-    // is kept so a run can say which one it was.
+    // Keyed on the MAJOR: any 3.x is a real Python 3.
     if (probe.status === 0 && /^3(\.\d+)?$/.test(answered)) {
-      lastPythonVersion = answered
       return [command, ...prefix]
     }
   }
   return null
 }
-
-// What the last successful probe answered, e.g. `3.14`, or null if nothing has
-// been probed or nothing answered. Read by whatever wants to RECORD which
-// interpreter ran, which is the half §93 is actually about: the gates ship as
-// `#!/usr/bin/env python3`, so the environment picks, and until now nothing
-// pinned, probed or recorded the choice.
-let lastPythonVersion = null
-export const probedPythonVersion = () => lastPythonVersion
 
 // Resolved once per process: readyTaskLines calls spawnGate per task directory,
 // and re-probing three interpreters for each would cost more than the gates.
@@ -1732,9 +1712,6 @@ function globToRegExp(pattern) {
 
 // A declared path matches the file itself, anything under it when it names a
 // directory, and whatever its globs cover.
-export const __pathMatchesDeclarationForTest = (candidate, declaration) =>
-  pathMatchesDeclaration(candidate, declaration)
-
 export function pathMatchesDeclaration(candidate, declaration) {
   const file = candidate.replace(/\\/g, '/').replace(/^\.\//, '')
   const declared = declaration.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
@@ -1750,9 +1727,7 @@ export function pathMatchesDeclaration(candidate, declaration) {
 // nothing reads as coverage while covering nothing, which is the vacuous pass
 // this project's own arch-write skill warns about.
 /** The checks a record says enforce it, or [] for absent or `None — <reason>`. */
-export const __declaredEnforcementForTest = text => declaredEnforcement(text)
-
-function declaredEnforcement(text) {
+export function declaredEnforcement(text) {
   const header = text.match(/^[ \t]*\*{0,2}Enforced-by:?\*{0,2}[ \t]*:?[ \t]*(.*)$/im)
   if (!header) return []
   const inline = header[1].trim()
@@ -3048,11 +3023,11 @@ function decisionContextFor(input) {
 const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 // The one reading of a command's text that stays (ADR-060, ADR-061): whether it
-// INVOKES `git commit` or `git push` — `git`, any options with their values
-// (`-C dir`, `-c k=v`, `--no-pager`, a quoted value), then the verb — with the
-// separators an argv list or a shell quote puts between them, so `pwsh -Command
-// 'git push'`, `bash -c "git commit -m x"` and `subprocess.run(["git","push"])`
-// are caught. Nothing else is parsed.
+// INVOKES `git commit` or `git push`. Since ADR-067 it reads the command as the
+// shell splits it (`shell-words.mjs`, proved against bash and zsh) and walks the
+// argv of every simple command, rather than matching the text: a quoted string, a
+// heredoc body and a comment are data, and `git {-c,x=y} push` is the invocation
+// the shell runs. Nothing else is parsed.
 //
 // ⚠ UNTIL 2026-09-23 THIS MATCHED THE WORDS `commit` AND `push` ANYWHERE, and one
 // day measured what that costs (BACKLOG §269): a grep for a symbol, a heredoc that
@@ -3061,128 +3036,215 @@ const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'Notebook
 // and run `sh file.sh`. The same file then carried a real publish through
 // unobserved. A gate that refuses correct work is one people route around, and the
 // route is the one the work it should stop takes too (CLAUDE.md §16).
-const PUBLISH_VERB = String.raw`(?:commit|push)(?![A-Za-z0-9_-])`
-// `git commit --help` opens a manual page: excluded only when the help flag is
-// the NEXT token. Scanning further let `git push && echo --help` and
-// `git commit -m "fix --help output"` through (Codex, bbade17) — fail-open.
-const PUBLISH_NOT_HELP = String.raw`(?![ \t]+(?:--help|-h)(?![A-Za-z0-9_-]))`
-// Between argv tokens: whitespace, a line continuation, or the quote and comma of
-// an argv list (`["git","push"]`).
-const PUBLISH_SEP = String.raw`(?:[ \t]|\\\n|["',])+`
-// WHERE A COMMAND BEGINS — a `git` is executed from the start of a line or shell
-// segment (`;`, `&&`, `|`, `(`, `{`, `$(`) or from the quoted string of an executor
-// (`bash -c`/`-lc`, `pwsh -Command`, `subprocess.run([`, `execSync(`), and from
-// nowhere else. A control keyword (`then`, `do`, `else`), a `!`, or a wrapper that
-// runs its argument (`exec`, `env`, `sudo`, `time`, `nice`, `doas`, `timeout N`,
-// `xargs`) counts only when IT stands at such a position: `echo "then git push"`
-// is data, and the first shape of this matched the keyword wherever it appeared
-// (Codex, f67cede). Env assignments may precede the executable, which may be
-// quoted or given by path.
 //
-// ⚠ THIS IS A CLASSIFIER OVER SHELL TEXT AND IT IS NOT EXACT (CLAUDE.md §16).
-// Four review rounds on 2026-09-23 each found forms it missed and data it
-// refused. So it is the PRECISE arm only: what it matches is refused (ADR-061),
-// and what it misses but `mentionsCommitOrPush` sees is WARNED about — a miss
-// degrades to advice, never to silence, and a false hit costs a line, not a
-// refusal (BACKLOG §269). A `git` reached through a variable or a command
-// substitution is a mention at most; tests/publish-command.test.mjs pins that,
-// and pins the one limit kept: a `;` or a newline inside quoted data or a
-// heredoc body is a command position to this classifier.
-//
-// A shell's `-c` string is a command position only when a SHELL is named before
-// the flag. The arm was `-[A-Za-z]*c "` alone, which read `grep -c "git push"` as
-// `bash -c "git push"` and refused a grep (BACKLOG §296). Each name below was run
-// with `-c` on 2026-09-26: bash, dash, zsh, ksh, tcsh, csh and sh execute the
-// string. pwsh and powershell take `-c` for `-Command` by their documentation and
-// were not run here. `su -c`, `runuser -c`, `flock -c`, `script -c` and `fish -c`
-// are not named, so they are warned about rather than refused: a miss degrades to
-// advice, as above. The shell may be quoted or given by path, may take options with
-// their values first (`+e`, `-O extglob`, `--rcfile x`, `-o "pipefail"`,
-// `-ExecutionPolicy Bypass`) and may continue onto the next line; a value never starts
-// with `-` or `+`, so the option loop cannot swallow the `-c` itself (Codex review of
-// the first cut, which let each of those through as a mention). The look-behind admits
-// only a shell token boundary, so `refresh -c` and `foo@sh -c` are not `sh -c`.
-const PUBLISH_SHELL_GAP = String.raw`(?:[ \t]|\\\r?\n)+`
-const PUBLISH_SHELL_OPT = String.raw`${PUBLISH_SHELL_GAP}[+-]{1,2}[A-Za-z][\w-]*(?:=(?:"[^"]*"|'[^']*'|[^\s"']*))?(?:${PUBLISH_SHELL_GAP}(?![-+])(?:"[^"]*"|'[^']*'|[^\s"';|&]+))?`
-const PUBLISH_SHELL_C = String.raw`(?<![^\s;|&(){}"'\x60])["']?(?<shell>(?:[\w.~\\/:-]*[\\/])?(?:bash|dash|zsh|ksh|tcsh|csh|sh|pwsh|powershell)(?:\.exe)?["']?(?:${PUBLISH_SHELL_OPT})*${PUBLISH_SHELL_GAP}-[A-Za-z]*c)[ \t]+["']`
-const PUBLISH_START = String.raw`(?:^|[\n;|&({]|\$\(|${PUBLISH_SHELL_C}|-Command[ \t]+["']|subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[?\s*["']|exec(?:Sync|File|FileSync)?\(\s*["'])`
-// `eval` runs its string as `bash -c` does, so a publish in it is invoked, for the
-// publish refusal and the reviewer guard alike (a chaos round, 2.111.0-rc, php-react-app F1).
-const PUBLISH_WRAPPER = String.raw`(?:(?:then|do|else|elif|exec|nohup|nice|doas)[ \t]+|eval[ \t]+["']?`
-  + String.raw`|![ \t]+`
-  + String.raw`|(?:command|time)(?:[ \t]+-p)?[ \t]+`
-  + String.raw`|xargs(?:[ \t]+(?:-[0rtpxo]+|-[nLPsdIEJR][ \t]*[^\s"']+))*[ \t]+`
-  + String.raw`|timeout(?:[ \t]+(?:-[ks][ \t]+\S+|-[^\s"']+))*[ \t]+[0-9][^\s"']*[ \t]+`
-  + String.raw`|env(?:[ \t]+(?:-[iv0]+|--ignore-environment|-[uC][ \t]+[^\s"']+))*(?:[ \t]+-S[ \t]+["']|[ \t]+)`
-  + String.raw`|sudo(?:[ \t]+(?:-[ugCDprtTU][ \t]+\S+|--[a-z-]+(?:=\S+)?|-[A-Za-z]+))*[ \t]+`
-  // Windows runners, measured reaching git on a Windows 11 host (2.111.0-rc chaos):
-  // `cmd /c` (`//c` from Git Bash) with its quote, and `wsl`.
-  + String.raw`|cmd(?:\.exe)?(?:[ \t]+\/\/?(?:[qQdDaAuUsS]|[eEfFvV]:\w+))*[ \t]+\/\/?[cCkK][ \t]+["']?`
-  + String.raw`|wsl(?:\.exe)?(?:[ \t]+(?:-d|-u|--distribution|--user)[ \t]+[^\s"']+)*(?:[ \t]+(?:-e|--exec|--))?[ \t]+)*`
-const PUBLISH_POSITION = `${PUBLISH_START}[ \\t]*${PUBLISH_WRAPPER}` + String.raw`(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|[^\s"']*)[ \t]+)*`
-// The executable, by name or by path (`/usr/bin/git` was missed once), quoted or not.
-// `git.exe` and a drive path (`C:/…`) too, and a quoted path may hold spaces
-// (`"/c/Program Files/Git/cmd/git.exe" push`), as a Windows chaos round measured.
-const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~:\\/-]*[\\/])?git(?:\.exe)?`
-const PUBLISH_EXE = String.raw`(?:"(?:[^"\n]*[\\/])?git(?:\.exe)?"|'(?:[^'\n]*[\\/])?git(?:\.exe)?'|${PUBLISH_EXE_BARE})`
-// Options, each with an optional value that is not itself the verb.
-const PUBLISH_OPTS = String.raw`(?:${PUBLISH_SEP}(?:-[^\s"',]*(?:${PUBLISH_SEP}(?!${PUBLISH_VERB})(?:"[^"]*"|'[^']*'|[^\s"',-][^\s"',]*))?|"[^"]*"|'[^']*'))*`
-const PUBLISH_COMMAND = new RegExp(`${PUBLISH_POSITION}(?<invoked>${PUBLISH_EXE}${PUBLISH_OPTS}${PUBLISH_SEP}${PUBLISH_VERB})${PUBLISH_NOT_HELP}`, 'gm')
-// Whether a shell given these options before `-c` runs the string at all (BACKLOG §298).
-// Measured 2026-09-26 on bash, sh, zsh, dash, ksh, csh and tcsh: `-n`, alone or in a
-// cluster (`-xn`, `-nc`), and `-o noexec` parse without executing; a later `+n` or
-// `+o noexec` turns execution back on; `--help` and `--version` print and exit. So a
-// match through such a shell is not an invocation, and the search goes on past it: a
-// real `git push` later in the same command is still refused. PowerShell is not read
-// here: its options are words (`-NonInteractive`), and none of them was measured.
-function shellRuns(shell) {
-  // Quote-aware: `--rcfile "x -n y"` is one value, not a `-n` (Codex review of §298).
-  const tokens = shell.replace(/\\\r?\n/g, ' ').match(/(?:[^\s"']+|"[^"]*"|'[^']*')+/g) ?? ['']
-  const name = tokens[0].replace(/["']/g, '').split(/[\\/]/).pop().replace(/\.exe$/i, '').toLowerCase()
-  if (name === 'pwsh' || name === 'powershell') return true
+// ⚠ THIS IS STILL A READING OF TEXT (CLAUDE.md §16). What it proves is refused;
+// what it misses but `mentionsCommitOrPush` sees is WARNED about. A `git` reached
+// through a variable or a command substitution is a mention at most, and a script
+// file is git's hook's to see (ADR-066).
+
+// Shells whose `-c` string runs, each executed with `-c` on 2026-09-26 (§296).
+// pwsh and powershell take `-c` / `-Command` by their documentation. `su -c`,
+// `runuser -c`, `flock -c`, `script -c` and `fish -c` are not named, so they are
+// warned about rather than refused.
+const SHELL_NAMES = new Set(['bash', 'dash', 'zsh', 'ksh', 'tcsh', 'csh', 'sh', 'pwsh', 'powershell'])
+const POWERSHELL = new Set(['pwsh', 'powershell'])
+// Control keywords before a command, and the interpreters whose call spellings of a
+// subprocess run git (`subprocess.run(["git","push"])`, `execSync('git push')`).
+const KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until'])
+const INTERPRETERS = /^(?:python[\d.]*|node|nodejs|deno|bun)$/
+const SUBPROCESS_LIST = /subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[\s*((?:(["'])[^"']*\2\s*,?\s*)+)/g
+const SUBPROCESS_STRING = /(?:subprocess\.(?:run|call|check_call|check_output|Popen)|\bexec(?:Sync|File|FileSync)?)\(\s*(["'])(.*?)\1/g
+// Deep enough for `bash -c "sudo sh -c 'eval …'"`, bounded so a crafted command
+// cannot make a hook recurse without end.
+const WALK_DEPTH = 5
+
+// A program's name as the shell looks it up: the last path component, without `.exe`.
+const programName = word => String(word).split(/[\\/]/).pop().replace(/\.exe$/i, '')
+const isFlag = word => typeof word === 'string' && word.startsWith('-')
+
+// Where a command's program starts, past control keywords and the wrappers that run
+// their arguments (`exec`, `env`, `sudo`, `time`, `nice`, `doas`, `timeout N`,
+// `xargs`), each with the options that take a value. `{ text }` when the wrapper
+// runs a STRING instead (`env -S "git push"`).
+function programIndex(argv) {
+  let k = 0
+  while (k < argv.length) {
+    const word = argv[k]
+    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas') k += 1
+    else if (word === 'command' || word === 'time') k += argv[k + 1] === '-p' ? 2 : 1
+    else if (word === 'nice') k += argv[k + 1] === '-n' ? 3 : /^-n?\d+$/.test(argv[k + 1] ?? '') ? 2 : 1
+    else if (word === 'sudo') {
+      k += 1
+      while (isFlag(argv[k])) k += /^-[ugCDprtTU]$/.test(argv[k]) ? 2 : 1
+    } else if (word === 'timeout') {
+      k += 1
+      while (isFlag(argv[k])) k += /^-[ks]$/.test(argv[k]) ? 2 : 1
+      k += 1 // the duration
+    } else if (word === 'xargs') {
+      k += 1
+      while (isFlag(argv[k])) k += /^-[nLPsdIEJR]$/.test(argv[k]) ? 2 : 1
+    } else if (word === 'env') {
+      k += 1
+      while (k < argv.length) {
+        if (argv[k] === '-S' || argv[k] === '--split-string') return { text: argv[k + 1] ?? '' }
+        if (/^-[uC]$/.test(argv[k])) k += 2
+        else if (isFlag(argv[k]) || /^[A-Za-z_]\w*=/.test(argv[k])) k += 1
+        else break
+      }
+    } else if (k > 0 && /^[A-Za-z_]\w*=/.test(word)) k += 1
+    else break
+  }
+  return k
+}
+
+// `git <options> commit|push` from `argv[at]`, or null. An option may take the next
+// word as its value unless that word is the verb; `--help` or `-h` straight after the
+// verb opens a manual page. A help flag anywhere later does not (Codex, bbade17).
+function gitInvocation(argv, at, dynamic) {
+  let k = at + 1
+  while (k < argv.length && argv[k].startsWith('-')) {
+    const value = argv[k + 1]
+    k += value !== undefined && !argv[k].includes('=') && !value.startsWith('-') && value !== 'commit' && value !== 'push' ? 2 : 1
+  }
+  if ((argv[k] !== 'commit' && argv[k] !== 'push') || dynamic.includes(k)) return null
+  if (argv[k + 1] === '--help' || argv[k + 1] === '-h') return null
+  return argv.slice(at, k + 1).join(' ')
+}
+
+// Whether a shell given these words (its name first) runs a string or its stdin at
+// all (BACKLOG §298). Measured 2026-09-26 on bash, sh, zsh, dash, ksh, csh and tcsh:
+// `-n`, alone or in a cluster (`-xn`, `-nc`), and `-o noexec` parse without
+// executing; a later `+n` or `+o noexec` turns execution back on; `--help` and
+// `--version` print and exit. PowerShell's options are words and none was measured.
+function shellRuns(words) {
+  if (POWERSHELL.has(programName(words[0]).toLowerCase())) return true
   let runs = true
-  for (let i = 1; i < tokens.length; i++) {
-    const token = tokens[i]
-    if (token === '--help' || token === '--version') return false
-    if ((token === '-o' || token === '+o') && tokens[i + 1]?.replace(/["']/g, '') === 'noexec') {
-      runs = token === '+o'
+  for (let i = 1; i < words.length; i++) {
+    const word = words[i]
+    if (word === '--help' || word === '--version') return false
+    if ((word === '-o' || word === '+o') && words[i + 1] === 'noexec') {
+      runs = word === '+o'
       i++
-    } else if (/^-[A-Za-z]+$/.test(token) && token.includes('n')) runs = false
-    else if (/^\+[A-Za-z]+$/.test(token) && token.includes('n')) runs = true
+    } else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false
+    else if (/^\+[A-Za-z]+$/.test(word) && word.includes('n')) runs = true
   }
   return runs
 }
-// Where the `-c` string after `from` ends: past its closing quote, or the end of the
-// command when it never closes. A double-quoted string honours backslash escapes.
-function quotedStringEnd(command, from) {
-  let at = from
-  while (command[at] === ' ' || command[at] === '\t') at++
-  const quote = command[at]
-  for (let i = at + 1; i < command.length; i++) {
-    if (quote === '"' && command[i] === '\\') { i++; continue }
-    if (command[i] === quote) return i + 1
+
+// A shell named at `argv[at]`: the index of its `-c` / `-Command` flag, the index where
+// its options end when it reads a script from stdin (`{ stdin }`), or null when it
+// runs a script file. Options may take a value (`-o pipefail`, `--rcfile x`,
+// `-ExecutionPolicy Bypass`); a value never starts with `-` or `+`.
+function shellString(argv, at) {
+  const power = POWERSHELL.has(programName(argv[at]).toLowerCase())
+  let k = at + 1
+  while (k < argv.length) {
+    const word = argv[k]
+    if (/^-[A-Za-z]*c$/.test(word) || (power && /^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word))) return { flag: k }
+    if (word === '-' || word === '-s') { k += 1; continue }
+    if (!/^[+-]{1,2}[A-Za-z][\w-]*(?:=.*)?$/.test(word)) return null
+    const value = argv[k + 1]
+    k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && /^(?:[+-]o|-O|\+O|--rcfile|--init-file|-[A-Z]\w+)$/.test(word) ? 2 : 1
   }
-  return command.length
+  return { stdin: k }
 }
-/** The `git commit …` or `git push …` this command invokes, in one spelling, or null. */
-export function publishCommandIn(command) {
-  if (typeof command !== 'string') return null
-  // The `-c` strings of shells that do not run them. Nothing inside one is invoked,
-  // wherever in it the search would start: `bash -n -c "echo x; git push"` begins
-  // with no shell match at all and was refused at its `;` (Codex review of §298's
-  // first cut, which only skipped strings it had matched a shell before).
-  const silenced = []
-  for (const shell of command.matchAll(new RegExp(PUBLISH_SHELL_C, 'gd'))) {
-    const opened = shell.indices.groups.shell[1]
-    if (!shellRuns(shell.groups.shell)) silenced.push([opened, quotedStringEnd(command, opened)])
+
+// The text a shell would run from its stdin: an upstream `echo`/`printf`'s words, or
+// a heredoc body, a here-string or an upstream command's heredoc.
+function stdinScripts(commands, n) {
+  const scripts = commands[n].heredocs.map(doc => doc.body)
+  for (const upstream of commands.filter(c => c.pipeTo === n)) {
+    scripts.push(...upstream.heredocs.map(doc => doc.body))
+    const start = programIndex(upstream.argv)
+    const name = typeof start === 'number' ? programName(upstream.argv[start] ?? '') : ''
+    // `printf` and zsh's `echo` turn `\n` into a line; reading both that way can only
+    // find a publish that is there.
+    if (name === 'echo' || name === 'printf') scripts.push(upstream.argv.slice(start + 1).join(' ').replace(/\\n/g, '\n'))
   }
-  for (const m of command.matchAll(PUBLISH_COMMAND)) {
-    if (silenced.some(([from, to]) => m.index >= from && m.index < to)) continue
-    if (m.groups.shell === undefined || shellRuns(m.groups.shell)) {
-      return m.groups.invoked.replace(/\\\n/g, ' ').replace(/[\s"',]+/g, ' ').trim()
+  return scripts
+}
+
+function publishInText(text, depth) {
+  if (depth > WALK_DEPTH) return null
+  const { commands } = shellWords(text)
+  for (let n = 0; n < commands.length; n++) {
+    const found = publishInCommand(commands, n, depth)
+    if (found) return found
+  }
+  return null
+}
+
+function publishInCommand(commands, n, depth) {
+  const { argv, dynamic, substitutions } = commands[n]
+  const inner = texts => {
+    for (const text of texts) {
+      const found = publishInText(text, depth + 1)
+      if (found) return found
+    }
+    return null
+  }
+  // A command substitution runs as its own command; an arithmetic `$((…))` does not.
+  const substituted = inner(substitutions.filter(text => !text.startsWith('(')))
+  if (substituted) return substituted
+  const start = programIndex(argv)
+  if (typeof start === 'object') return inner([start.text])
+  if (start >= argv.length || dynamic.includes(start)) return null
+  const name = programName(argv[start])
+  if (name === 'git') {
+    const invoked = gitInvocation(argv, start, dynamic)
+    if (invoked) return invoked
+  }
+  // `eval` joins its arguments and runs them (a chaos round, 2.111.0-rc, php-react-app F1).
+  if (name === 'eval') return inner([argv.slice(start + 1).join(' ')])
+  // Windows runners, measured reaching git on a Windows 11 host (2.111.0-rc chaos):
+  // `cmd /c` (`//c` from Git Bash) and `wsl`, with their options.
+  if (/^cmd$/i.test(name)) {
+    let k = start + 1
+    while (/^\/\/?(?:[qQdDaAuUsS]|[eEfFvV]:\w+)$/.test(argv[k] ?? '')) k += 1
+    if (/^\/\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ')])
+  }
+  if (/^wsl$/i.test(name)) {
+    let k = start + 1
+    while (/^(?:-d|-u|--distribution|--user)$/.test(argv[k] ?? '')) k += 2
+    if (/^(?:-e|--exec|--)$/.test(argv[k] ?? '')) k += 1
+    if (k < argv.length) return inner([argv.slice(k).join(' ')])
+  }
+  // A shell named anywhere in the argv runs its `-c` string (`docker exec app sh -c`,
+  // `sudo -u ci bash -c`) unless its options silence it; one at the program position
+  // with no string runs its stdin.
+  for (let k = start; k < argv.length; k++) {
+    if (dynamic.includes(k) || !SHELL_NAMES.has(programName(argv[k]).toLowerCase())) continue
+    const shell = shellString(argv, k)
+    if (shell === null) continue
+    if (shell.flag !== undefined) {
+      if (shellRuns(argv.slice(k, shell.flag + 1)) && shell.flag + 1 < argv.length) {
+        const found = inner([argv[shell.flag + 1]])
+        if (found) return found
+      }
+      k = shell.flag + 1
+    } else if (k === start && shellRuns(argv.slice(k, shell.stdin))) {
+      const found = inner(stdinScripts(commands, n))
+      if (found) return found
+    }
+  }
+  if (INTERPRETERS.test(name)) {
+    for (const word of argv.slice(start + 1)) {
+      for (const call of word.matchAll(SUBPROCESS_LIST)) {
+        const list = [...call[1].matchAll(/(["'])([^"']*)\1/g)].map(item => item[2])
+        const invoked = programName(list[0] ?? '') === 'git' ? gitInvocation(list, 0, []) : null
+        if (invoked) return invoked
+      }
+      const found = inner([...word.matchAll(SUBPROCESS_STRING)].map(call => call[2]))
+      if (found) return found
     }
   }
   return null
+}
+
+/** The `git commit …` or `git push …` this command invokes, in one spelling, or null. */
+export function publishCommandIn(command) {
+  if (typeof command !== 'string') return null
+  return publishInText(command, 0)
 }
 /** A proven invocation — the only thing that may be refused. */
 export function containsCommitOrPush(command) {
@@ -3776,47 +3838,6 @@ const HOOK_SAFE_OPTIONS = {
 // 4: `bash -c "git commit -m x;"`; a heredoc fed to a container runs without it).
 const HOOK_DATA_COMMANDS = new Set(['echo', 'printf', 'cat', 'git', 'node'])
 
-// A command split as the shell splits it: segments of words, quotes grouping and
-// removed, backslashes escaping. Only a space or a tab separates words, as the
-// shell's IFS does; a newline ends a segment. A quoted span holding an operator is
-// code an interpreter may run, so it is returned with its segment's index for the
-// same judgement and stands in its word as a NUL. A segment a newline began says so
-// (`line`), because that is where a heredoc's body starts. Null when a quote never
-// closes.
-function hookSegments(text) {
-  const segments = [[]]
-  const nested = []
-  let word = null
-  const end = () => { if (word !== null) segments.at(-1).push(word); word = null }
-  for (let i = 0; i < text.length; i += 1) {
-    const c = text[i]
-    if (c === "'" || c === '"') {
-      let close = i + 1
-      while (close < text.length && text[close] !== c) close += c === '"' && text[close] === '\\' ? 2 : 1
-      if (close >= text.length) return null
-      let inner = text.slice(i + 1, close)
-      if (c === '"') inner = inner.replace(/\\(["\\])/g, '$1')
-      if (/[;&|()\n]/.test(inner)) { nested.push({ inner, segment: segments.length - 1 }); inner = '\0' }
-      word = (word ?? '') + inner
-      i = close
-    } else if (c === '\\') {
-      word = (word ?? '') + (text[i + 1] ?? '')
-      i += 1
-    } else if (/[;&|()\n]/.test(c)) {
-      end()
-      const next = []
-      next.line = c === '\n'
-      segments.push(next)
-    } else if (c === ' ' || c === '\t') {
-      end()
-    } else {
-      word = (word ?? '') + c
-    }
-  }
-  end()
-  return { segments, nested }
-}
-
 // Whether a `git commit` / `git push` segment's arguments are all known to leave
 // hooks alone; anything unlisted is not. A word hiding quoted code (a NUL) is not
 // known — `git commit '-nm;x'` hands git `-n` (round 4).
@@ -3863,44 +3884,41 @@ function segmentVerdict(words) {
   return plainGitArguments(verb, words.slice(at + 1)) ? 1 : -1
 }
 
-// Judge every segment of `text`, and the quoted code and heredoc bodies inside it.
-// Returns the number of plain publishes, or -1 when something could turn the hook
-// off. A publish in quoted code or a heredoc body counts only under a data command;
-// a bare quoted literal inside such code — `console.log('a; git push')`, where the
-// literal opens its own segment after `(` — counts under the command that encloses it.
+// Judge every command of `text`, as `shellWords` splits it (ADR-067 T3), and the
+// quoted code and heredoc bodies inside it. Returns the number of plain publishes,
+// or -1 when something could turn the hook off. A word whose quoted span held an
+// operator is code an interpreter may run: it stands in its command as a NUL, as the
+// split before ADR-067 left it, and is judged on its own. A publish in quoted code
+// or a heredoc body counts only under a data command; a bare quoted literal inside
+// such code — `console.log('a; git push')`, where the literal opens its own command
+// after `(` — counts under the command that encloses it. A heredoc whose command
+// pipes its output on — `cat <<EOF | docker … sh` — may carry the body anywhere, so
+// it counts for none.
 function plainPublishes(text, depth, inherited = false) {
-  const parsed = depth > 4 ? null : hookSegments(text)
-  if (!parsed) return -1
+  if (depth > 4) return -1
+  const { commands, complete } = shellWords(text)
+  if (!complete) return -1
   let found = 0
-  const allowed = words => HOOK_DATA_COMMANDS.has(words?.[0]) || (words?.[0] === '\0' && inherited)
-  const counted = (count, words) => {
-    if (count < 0 || (count > 0 && !allowed(words))) return false
+  const wordsOf = command => [...command.assignments, ...command.argv.map((word, k) => (command.code[k] ? '\0' : word))]
+  const allowed = command => command !== null
+    && (HOOK_DATA_COMMANDS.has(command.argv[0]) || (command.code[0] === true && command.assignments.length === 0 && inherited))
+  const counted = (count, command) => {
+    if (count < 0 || (count > 0 && !allowed(command))) return false
     found += count
     return true
   }
-  for (const { inner, segment } of parsed.nested) {
-    const words = parsed.segments[segment]
-    if (!counted(plainPublishes(inner, depth + 1, allowed(words)), words)) return -1
-  }
-  let body = null
-  for (const words of parsed.segments) {
+  for (const command of commands) {
+    for (let k = 0; k < command.argv.length; k++) {
+      if (command.code[k] && !counted(plainPublishes(command.argv[k], depth + 1, allowed(command)), command)) return -1
+    }
+    for (const doc of command.heredocs) {
+      if (!counted(plainPublishes(doc.body, depth + 1), command.pipeTo === null ? command : null)) return -1
+    }
+    const words = wordsOf(command)
     if (words.length === 0) continue
-    // A heredoc's body starts on the next LINE; anything after it on its own line —
-    // `cat <<EOF | docker … sh` — may carry the body anywhere, so it counts for none.
-    if (body && !body.started) {
-      if (words.line) body.started = true
-      else body.feeder = null
-    }
-    if (body?.started) {
-      if (words.length === 1 && words[0] === body.delimiter) body = null
-      else if (!counted(segmentVerdict(words), body.feeder)) return -1
-      continue
-    }
     const verdict = segmentVerdict(words)
     if (verdict < 0) return -1
     found += verdict
-    const at = words.findIndex(w => /^<<-?(?!<)/.test(w))
-    if (at >= 0) body = { delimiter: words[at].replace(/^<<-?/, '') || words[at + 1], feeder: words, started: false }
   }
   return found
 }

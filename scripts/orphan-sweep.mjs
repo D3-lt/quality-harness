@@ -41,12 +41,19 @@
 import { execFileSync } from 'node:child_process'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
-const PY_DEF = /^def\s+([a-z_][a-z0-9_]*)\s*\(/gm
-const JS_DEF = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)/gm
+// ⚠ A BINDING IS A DEFINITION TOO, and the first cut counted only `def` and
+// `function`. Measured 2026-09-27: it reported 0 of 726 at 826ec94 while that tree
+// shipped four `const` bindings only tests read (an exported test oracle, two
+// `__…ForTest` aliases, a recorded interpreter version) and a module-level regex in
+// `plugin/lib/record.py` kept only as a mutant's restore target. `SHIPPED` matched no
+// `.py` at all, so `plugin/lib/` was never read. Top-level only: a nested binding is
+// its enclosing function's business.
+const PY_DEF = /^(?:def\s+([a-z_][a-z0-9_]*)\s*\(|class\s+([A-Za-z_]\w*)|([A-Za-z_]\w*)\s*=(?!=))/gm
+const JS_DEF = /^(?:export\s+)?(?:(?:async\s+)?function\*?\s+([A-Za-z_]\w*)|(?:const|let|var)\s+([A-Za-z_]\w*)\s*=)/gm
 // What a user downloads: `.claude-plugin/marketplace.json` declares `"source":
 // "./plugin"`, so this is the reachability universe (CLAUDE.md §1).
 export const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')
-  && (/\.(mjs|js|sh|json|md|cmd)$/.test(f) || /^plugin\/bin\/[a-z-]+$/.test(f))
+  && (/\.(mjs|js|py|sh|json|md|cmd)$/.test(f) || /^plugin\/bin\/[a-z-]+$/.test(f))
 
 /**
  * Definitions in `files` whose bare identifier appears nowhere else in `files`.
@@ -69,8 +76,11 @@ export function orphanDefinitions(files) {
     const isJs = path.endsWith('.mjs') || path.endsWith('.js')
     if (!isPy && !isJs) continue
     for (const m of source.matchAll(isPy ? PY_DEF : JS_DEF)) {
+      const name = m[1] ?? m[2] ?? m[3]
+      // A dunder is the interpreter's (`__all__`, `__version__`), not a definition.
+      if (/^__\w+__$/.test(name)) continue
       defined += 1
-      if ((uses.get(m[1]) ?? 0) <= 1) found.push({ path, name: m[1] })
+      if ((uses.get(name) ?? 0) <= 1) found.push({ path, name })
     }
   }
   return { orphans: found, defined }

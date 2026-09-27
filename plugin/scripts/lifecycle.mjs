@@ -590,22 +590,73 @@ function publishSettingNote(setting) {
 // A declaration that cannot fail does not certify. Measured 2026-09-22: `true`,
 // `:`, `exit 0`, `sh -c true` and `bash -c 'exit 0'` each exit 0. One layer of
 // `sh -c` or `bash -c` around those is the same command. `sh check.sh` is not.
-const CONSTANT_SUCCESS = /^(?:true|:|exit 0)$/
+// ⚠ IT WAS A REGEX OVER THE TEXT, and a chaos round of 626934a passed five constant
+// checks through it — `test 1`, `/usr/bin/true`, `echo ok`, `true || false` and
+// `true # comment` — each recorded as a passing check that then unlocks a commit.
+// Read as the shell splits it (ADR-067), the list's exit status is evaluated the way
+// the shell would, from the commands whose status the text alone fixes (`true`, `:`,
+// `echo`, `exit N`, `test` with one literal operand, a shell's `-c` string): a check
+// whose status is fixed is constant (`npm test || true`, `npm test; echo done`).
+const KNOWN_STATUS = { true: 'zero', ':': 'zero', echo: 'zero', printf: 'zero', false: 'nonzero' }
 
 export function constantSuccessCheck(command) {
-  if (typeof command !== 'string') return false
-  let text = command.trim()
-  const wrapped = /^(?:sh|bash)\s+-c\s+([\s\S]+)$/.exec(text)
-  if (wrapped) {
-    text = wrapped[1].trim()
-    if ((text.startsWith("'") && text.endsWith("'")) || (text.startsWith('"') && text.endsWith('"'))) {
-      text = text.slice(1, -1).trim()
-    }
-  }
-  return CONSTANT_SUCCESS.test(text)
+  if (typeof command !== 'string' || !command.trim()) return false
+  return listStatus(command, 0) === 'zero'
 }
 
+// The exit status of a whole list, evaluated as the shell does — `&&` and `||`
+// short-circuit, `;`, a newline and a pipe take the next command's status, and a
+// command sent to the background is 0 — as 'zero', 'nonzero' or 'either' when a
+// command that may run has a status the text cannot fix. `npm test || true` is 'zero'
+// whatever the tests do. A constant here REFUSES the declaration, so anything this
+// does not model is 'either': a builtin that changes how the rest runs (`set -e`,
+// `trap`, `source`), a subshell, a redirection that can fail on its own (Codex review
+// of the 626934a batch: `set -e; test -f F; echo done`, `(exit 0); test -f F` and
+// `true < F` were each read as constant and depend on the tree).
+const LIST_CONTROL = new Set(['set', 'shopt', 'trap', 'exec', 'source', '.', 'eval', 'return', 'alias', 'unalias', 'builtin', 'enable'])
 
+function listStatus(text, depth) {
+  const { commands, complete } = shellWords(text)
+  if (!complete || commands.length === 0 || depth > 3) return 'either'
+  if (commands.some(c => c.redirects > 0 || c.ended === '(' || c.ended === ')' || LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'
+  const merge = (a, b) => (a === b ? a : 'either')
+  let status = 'zero'
+  for (let i = 0; i < commands.length; i++) {
+    const joiner = i === 0 ? ';' : commands[i - 1].ended
+    const own = commands[i].ended === '&' ? { status: 'zero' } : commandStatus(commands[i], depth)
+    // `exit` before the end stops the list on the paths that reach it; the others go
+    // on, so only a path every run takes is known. As the LAST command it is simply
+    // the list's status, combined like any other (`test -f F || exit 0` is 0).
+    if (own.exits && i < commands.length - 1) {
+      if (joiner === '&&' ? status === 'zero' : joiner === '||' ? status === 'nonzero' : true) return own.status
+      return 'either'
+    }
+    if (joiner === '&&') status = status === 'zero' ? own.status : status === 'nonzero' ? 'nonzero' : merge(own.status, 'nonzero')
+    else if (joiner === '||') status = status === 'nonzero' ? own.status : status === 'zero' ? 'zero' : merge(own.status, 'zero')
+    else status = own.status
+  }
+  return status
+}
+
+function commandStatus(c, depth) {
+  // A word that is exactly `[` is the test builtin, not a glob.
+  if (c.substitutions.length || c.argv.length === 0 || (c.dynamic.includes(0) && c.argv[0] !== '[')) return { status: 'either' }
+  const [program, ...args] = c.argv
+  const name = programName(program)
+  if (name === 'exit') {
+    if (args.length === 0 || !/^\d+$/.test(args[0])) return { status: 'either', exits: true }
+    return { status: Number(args[0]) === 0 ? 'zero' : 'nonzero', exits: true }
+  }
+  if (name in KNOWN_STATUS) return { status: KNOWN_STATUS[name] }
+  if ((name === 'test' || name === '[') && !c.dynamic.some(k => k > 0)) {
+    const operands = name === '[' && args.at(-1) === ']' ? args.slice(0, -1) : args
+    if (operands.length === 1 && !operands[0].startsWith('-')) return { status: operands[0] === '' ? 'nonzero' : 'zero' }
+    return { status: 'either' }
+  }
+  // Only a bare `-c`: `sh -ec`, `bash -o pipefail -c` change how the string runs.
+  if (SHELL_NAMES.has(name.toLowerCase()) && args[0] === '-c' && args[1] !== undefined) return { status: listStatus(args[1], depth + 1) }
+  return { status: 'either' }
+}
 
 function packageManagerCommand(directory) {
   let manifest
@@ -1388,6 +1439,15 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
       lines.push(`  ${relative}: UNPROVEN — adr-next exited ${run.status} but its answer was not JSON. Ready tasks there are not known.`)
       continue
     }
+    // A task adr-next could not read (NUL bytes, empty, or listed by git and absent
+    // from the disk) is `stopped` and marked `unreadable`. Only `ready`, `blocked` and
+    // `done` were read here, so such a directory was counted "fully evidenced" or
+    // dropped without a word (a Windows chaos round of 626934a, F-2 and F-3).
+    const unreadTasks = (report.stopped ?? []).filter(task => task.unreadable)
+    if (unreadTasks.length) {
+      lines.push(`  ${relative}: UNPROVEN — adr-next could not read ${unreadTasks.length} task file(s) there, `
+        + `${quotedCorpusText(unreadTasks[0].stopped_by ?? '')}. Ready tasks there are not known.`)
+    }
     if (report.ready?.length) {
       const next = report.ready[0]
       const archive = unmarked.find(dir => relative === dir || relative.startsWith(`${dir}/`))
@@ -1401,7 +1461,9 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
         + 'as written: read the fence in the task file first.')
     } else if (report.blocked?.length) {
       lines.push(`  ${relative}: nothing ready; ${report.blocked.length} task(s) blocked.`)
-    } else if (report.done?.length) {
+    } else if ((report.stopped?.length ?? 0) > unreadTasks.length) {
+      lines.push(`  ${relative}: nothing ready; ${report.stopped.length - unreadTasks.length} task(s) stopped.`)
+    } else if (report.done?.length && !unreadTasks.length) {
       evidenced += 1
     }
   }
@@ -3058,8 +3120,9 @@ const SUBPROCESS_STRING = /(?:subprocess\.(?:run|call|check_call|check_output|Po
 // cannot make a hook recurse without end.
 const WALK_DEPTH = 5
 
-// A program's name as the shell looks it up: the last path component, without `.exe`.
-const programName = word => String(word).split(/[\\/]/).pop().replace(/\.exe$/i, '')
+// A program's name as the shell looks it up: the last path component, without `.exe`,
+// and without cmd's echo-off `@` (`@git push`).
+const programName = word => String(word).split(/[\\/]/).pop().replace(/\.exe$/i, '').replace(/^@/, '')
 const isFlag = word => typeof word === 'string' && word.startsWith('-')
 
 // Where a command's program starts, past control keywords and the wrappers that run
@@ -3070,7 +3133,9 @@ function programIndex(argv) {
   let k = 0
   while (k < argv.length) {
     const word = argv[k]
-    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas') k += 1
+    // cmd's `call` runs its arguments (a Windows chaos round of 626934a: `cmd //c call
+    // git push` pushed). No POSIX shell has a `call`, so reading it everywhere costs nothing.
+    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1
     else if (word === 'command' || word === 'time') k += argv[k + 1] === '-p' ? 2 : 1
     else if (word === 'nice') k += argv[k + 1] === '-n' ? 3 : /^-n?\d+$/.test(argv[k + 1] ?? '') ? 2 : 1
     else if (word === 'sudo') {
@@ -3097,18 +3162,122 @@ function programIndex(argv) {
   return k
 }
 
-// `git <options> commit|push` from `argv[at]`, or null. An option may take the next
-// word as its value unless that word is the verb; `--help` or `-h` straight after the
-// verb opens a manual page. A help flag anywhere later does not (Codex, bbade17).
-function gitInvocation(argv, at, dynamic) {
+// git's global options that take the NEXT word as their value when written without
+// `=`. Measured 2026-09-27 on git 2.55.0 (`git <option> <value> rev-parse` answers);
+// `--list-cmds` and `--super-prefix` refused a separate value there, and every other
+// global is a flag. It was "any option takes the next word unless that word is the
+// verb", which read `git --no-pager stash push` as a push and hid `git --no-pager
+// submodule foreach 'git push'`.
+const GIT_VALUED = new Set(['-C', '-c', '--git-dir', '--work-tree', '--namespace', '--config-env', '--attr-source'])
+// Globals that print and exit before any verb runs (measured the same day: each left
+// the commit count unchanged, and GIT_TRACE showed `git version` or `git help`).
+const GIT_EXITS = new Set(['--exec-path', '--html-path', '--man-path', '--info-path', '--version', '-v', '--help', '-h'])
+
+// The index of git's subcommand after `argv[at]` and git's own options, or
+// `argv.length` when an option ends git before it reaches one.
+function gitVerbIndex(argv, at) {
   let k = at + 1
   while (k < argv.length && argv[k].startsWith('-')) {
-    const value = argv[k + 1]
-    k += value !== undefined && !argv[k].includes('=') && !value.startsWith('-') && value !== 'commit' && value !== 'push' ? 2 : 1
+    if (GIT_EXITS.has(argv[k])) return argv.length
+    k += GIT_VALUED.has(argv[k]) ? 2 : 1
   }
+  return k
+}
+
+// `git <options> commit|push` from `argv[at]`, or null. `--help` or `-h` straight after
+// the verb opens a manual page. A help flag anywhere later does not (Codex, bbade17).
+
+// Options of commit and push that take the NEXT word as their value, from `git commit
+// -h` and `git push -h` on git 2.55.0 (2026-09-27): after one, `--dry-run` is a
+// message or a push option, not a flag (Codex review of the 626934a batch: `git commit
+// -m --dry-run` commits with that message). A short cluster ends in the valued letter.
+const VERB_VALUED = {
+  commit: /^(?:-[A-Za-z]*[mFCctU]|--(?:no-)?(?:file|author|date|message|reedit-message|reuse-message|squash|fixup|trailer|template|cleanup|unified|inter-hunk-context|pathspec-from-file))$/,
+  push: /^(?:-o|--(?:no-)?(?:repo|receive-pack|exec|push-option|recurse-submodules))$/,
+}
+
+// Whether a commit or push is a dry run: `--dry-run` (or push's `-n`) standing as a
+// flag, before `--`, and not turned off again by `--no-dry-run` after it.
+function dryRun(verb, rest) {
+  let dry = false
+  for (let k = 0; k < rest.length; k++) {
+    const word = rest[k]
+    if (word === '--') break
+    if (VERB_VALUED[verb].test(word)) k += 1
+    else if (word === '--dry-run' || (verb === 'push' && word === '-n')) dry = true
+    else if (word === '--no-dry-run') dry = false
+  }
+  return dry
+}
+
+function gitInvocation(argv, at, dynamic) {
+  const k = gitVerbIndex(argv, at)
   if ((argv[k] !== 'commit' && argv[k] !== 'push') || dynamic.includes(k)) return null
   if (argv[k + 1] === '--help' || argv[k + 1] === '-h') return null
+  // A dry run publishes nothing (a chaos round of 626934a, R6). `commit -n` is
+  // `--no-verify`, not a dry run, and stays a publish.
+  if (dryRun(argv[k], argv.slice(k + 1))) return null
   return argv.slice(at, k + 1).join(' ')
+}
+
+// The shell commands a git subcommand runs itself: `submodule foreach <cmd>`,
+// `rebase --exec <cmd>` / `-x <cmd>`, `bisect run <cmd>` (a chaos round of 626934a,
+// R17: `git submodule foreach 'git push'` pushes in every submodule).
+function gitRunsCommands(argv, at) {
+  const k = gitVerbIndex(argv, at)
+  const rest = argv.slice(k + 1)
+  if (argv[k] === 'submodule') {
+    const each = rest.indexOf('foreach')
+    if (each < 0) return []
+    let c = each + 1
+    while (c < rest.length && /^(?:--recursive|-q|--quiet)$/.test(rest[c])) c++
+    return c < rest.length ? [rest.slice(c).join(' ')] : []
+  }
+  if (argv[k] === 'rebase') {
+    const run = []
+    rest.forEach((word, i) => {
+      if ((word === '--exec' || word === '-x') && i + 1 < rest.length) run.push(rest[i + 1])
+      else if (word.startsWith('--exec=')) run.push(word.slice('--exec='.length))
+    })
+    return run
+  }
+  if (argv[k] === 'bisect' && rest[0] === 'run') return rest.length > 1 ? [rest.slice(1).join(' ')] : []
+  return []
+}
+
+// `xargs` builds git's argv from its stdin: `echo push | xargs git`, and with `-I R`
+// each input line replaces R (`xargs -I{} git {} <<< push`). Where that stdin is
+// literal text, the argv is known (a chaos round of 626934a, H6 and H17). Read only
+// where it is modelled: a here-string, a heredoc or an `echo` upstream, and the
+// options below. An end-of-file marker (`-E`), a NUL or other delimiter, an argument
+// file, or a `printf` upstream built an invocation the shell never ran (Codex review
+// of the 626934a batch), so those are left to the advisory arm.
+const XARGS_MODELLED = /^(?:-I.*|-i|--replace(?:=.*)?|-r|--no-run-if-empty|-t|--verbose)$/
+function xargsInvocations(commands, n, start) {
+  const { argv, heredocs } = commands[n]
+  const x = argv.findIndex((word, k) => k < start && programName(word) === 'xargs')
+  if (x < 0) return []
+  let replace = null
+  for (let k = x + 1; k < start; k++) {
+    if (!XARGS_MODELLED.test(argv[k])) {
+      if (argv[k - 1] === '-I' || argv[k - 1] === '--replace') continue
+      return []
+    }
+    if (argv[k] === '-I' || argv[k] === '--replace') replace = argv[k + 1] ?? null
+    else if (argv[k].startsWith('--replace=')) replace = argv[k].slice('--replace='.length)
+    else if (argv[k].startsWith('-I') && argv[k].length > 2) replace = argv[k].slice(2)
+    else if (argv[k] === '-i') replace = '{}'
+  }
+  const texts = heredocs.map(doc => doc.body)
+  for (const upstream of commands.filter(c => c.pipeTo === n)) {
+    const from = programIndex(upstream.argv)
+    if (typeof from !== 'number' || upstream.dynamic.includes(from) || programName(upstream.argv[from] ?? '') !== 'echo') return []
+    texts.push(...literalOutput(upstream.argv, from))
+  }
+  const input = texts.join('\n')
+  const tail = argv.slice(start)
+  if (replace) return input.split('\n').filter(line => line.trim()).map(line => tail.map(word => word.split(replace).join(line.trim())))
+  return [[...tail, ...input.split(/\s+/).filter(Boolean)]]
 }
 
 const NON_EXECUTORS = new Set(['echo', 'printf'])
@@ -3139,12 +3308,19 @@ function shellRuns(words) {
 // A shell named at `argv[at]`: the index of its `-c` / `-Command` flag, the index where
 // its options end when it reads a script from stdin (`{ stdin }`), or null when it
 // runs a script file. A POSIX `-c` may sit anywhere in a cluster (`-lc`, `-cx`); the
-// string is still the next word.
+// string is still the next word. PowerShell's `-EncodedCommand` (`-e`, `-ec`, and its
+// prefixes) carries the script as base64 UTF-16LE (`{ flag, encoded: true }`); a
+// Windows chaos round of 626934a measured it pushing while nothing here saw it.
+// `-name` spelled as a prefix of a PowerShell parameter, as PowerShell accepts it.
+const abbreviates = (word, full, shortest = 1) =>
+  /^-[A-Za-z]+$/.test(word) && word.length - 1 >= shortest && full.startsWith(word.slice(1).toLowerCase())
+const POWERSHELL_ENCODED = word => word.toLowerCase() === '-ec' || abbreviates(word, 'encodedcommand')
 function shellString(argv, at) {
   const power = POWERSHELL.has(programName(argv[at]).toLowerCase())
   let k = at + 1
   while (k < argv.length) {
     const word = argv[k]
+    if (power && POWERSHELL_ENCODED(word)) return { flag: k, encoded: true }
     if (power ? /^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word) : /^-[A-Za-z]*c[A-Za-z]*$/.test(word)) return { flag: k }
     if (word === '-' || word === '-s') { k += 1; continue }
     if (!/^[+-]{1,2}[A-Za-z][\w-]*(?:=.*)?$/.test(word)) return null
@@ -3152,6 +3328,39 @@ function shellString(argv, at) {
     k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && (SHELL_VALUED.test(word) || (power && POWERSHELL_VALUED.test(word))) ? 2 : 1
   }
   return { stdin: k }
+}
+
+// The script an `-EncodedCommand` value carries. A value that is not base64 of
+// UTF-16LE decodes to text that names no publish, so a wrong guess costs nothing.
+const decodedPowerShell = value => Buffer.from(String(value), 'base64').toString('utf16le')
+
+// The command line `start` (cmd), `Start-Process` or `saps` (PowerShell) launches, as
+// words: cmd's `/x` options (`/d` takes a path) and a quoted title are skipped;
+// PowerShell's `-FilePath` and `-ArgumentList` are read by name or position, and a list
+// value (`push,origin`) is split. Unmeasured beyond `Start-Process git -ArgumentList
+// push` (a Windows chaos round of 626934a); a wrong reading yields words that name no
+// publish unless git and its verb are there.
+const START_SWITCHES = /^-(?:wait|nonewwindow|passthru|usenewenvironment|loaduserprofile|lup|whatif|confirm)$/i
+function startedCommand(command, start) {
+  const { argv, quoted } = command
+  let file = null
+  let list = null
+  const bare = []
+  for (let k = start + 1; k < argv.length; k++) {
+    const word = argv[k]
+    if (/^\/d$/i.test(word)) k += 1
+    else if (/^\/\w+$/.test(word)) continue
+    else if (abbreviates(word, 'filepath') || /^-(?:ps)?path$/i.test(word)) file = argv[++k]
+    else if (abbreviates(word, 'argumentlist') || /^-args$/i.test(word)) list = argv[++k]
+    else if (START_SWITCHES.test(word)) continue
+    else if (/^-[A-Za-z]/.test(word) && file !== null) k += 1
+    else if (file === null && bare.length === 0 && (quoted[k] || word === '') && argv[k + 1] !== undefined && !/^-/.test(argv[k + 1])) continue
+    else bare.push(word)
+  }
+  if (file === null) file = bare.shift() ?? null
+  if (list === null && bare.length) list = bare.join(' ')
+  if (file === null) return null
+  return [file, ...(list ?? '').split(/[\s,]+/).filter(Boolean)].join(' ')
 }
 
 // What a program writes to stdout when that is decidable from its words: `echo`
@@ -3218,15 +3427,30 @@ function publishInCommand(commands, n, depth) {
   if (name === 'git') {
     const invoked = gitInvocation(argv, start, dynamic)
     if (invoked) return invoked
+    const ran = inner(gitRunsCommands(argv, start))
+    if (ran) return ran
+    for (const built of xargsInvocations(commands, n, start)) {
+      const fromStdin = gitInvocation(built, 0, [])
+      if (fromStdin) return fromStdin
+    }
   }
-  // `eval` joins its arguments and runs them (a chaos round, 2.111.0-rc, playtrix F1).
+  // `eval` joins its arguments and runs them (a chaos round, 2.111.0-rc, playtrix F1);
+  // so does PowerShell's `Invoke-Expression` / `iex` (a Windows chaos round of 626934a:
+  // `powershell -c "iex 'git push'"` pushed). No POSIX shell has either PowerShell name.
   if (name === 'eval') return inner([argv.slice(start + 1).join(' ')])
+  if (/^(?:iex|invoke-expression)$/i.test(name)) return inner([argv.slice(start + 1).filter(word => !/^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word)).join(' ')])
+  if (/^(?:start|saps|start-process)$/i.test(name)) {
+    const started = startedCommand(commands[n], start)
+    if (started) return inner([started])
+  }
   // Windows runners, measured reaching git on a Windows 11 host (2.111.0-rc chaos):
-  // `cmd /c` (`//c` from Git Bash) and `wsl`, with their options.
+  // `cmd /c` (`//c` from Git Bash) and `wsl`, with their options. cmd's caret escapes
+  // the next character (`g^it push` runs git: a Windows chaos round of 626934a); every
+  // caret is read as one, which can only reveal a publish that is spelled there.
   if (/^cmd$/i.test(name)) {
     let k = start + 1
     while (/^\/\/?(?:[qQdDaAuUsS]|[eEfFvV]:\w+)$/.test(argv[k] ?? '')) k += 1
-    if (/^\/\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ')])
+    if (/^\/\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ').replace(/\^(.)/gs, '$1')])
   }
   if (/^wsl$/i.test(name)) {
     let k = start + 1
@@ -3244,7 +3468,8 @@ function publishInCommand(commands, n, depth) {
     if (shell === null) continue
     if (shell.flag !== undefined) {
       if (shellRuns(argv.slice(k, shell.flag + 1)) && shell.flag + 1 < argv.length) {
-        const found = inner([argv[shell.flag + 1]])
+        const script = argv[shell.flag + 1]
+        const found = inner([shell.encoded ? decodedPowerShell(script) : script])
         if (found) return found
       }
       k = shell.flag + 1
@@ -3278,9 +3503,13 @@ export function containsCommitOrPush(command) {
 }
 // The ADVISORY arm: the words as words (not `pre-commit`, not `records.push`).
 // Everything the precise arm misses and this sees is warned about, never refused.
+// PowerShell's backtick escape and an `-EncodedCommand` payload hid the word from it
+// (`git comm`it`, a Windows chaos round of 626934a), so it reads both spellings too.
 const PUBLISH_MENTION = /(?<![A-Za-z0-9_.-])(?:commit|push)(?![A-Za-z0-9_-])/
 export function mentionsCommitOrPush(command) {
-  return typeof command === 'string' && PUBLISH_MENTION.test(command)
+  if (typeof command !== 'string') return false
+  const decoded = [...command.matchAll(/[A-Za-z0-9+/]{8,}={0,2}/g)].map(match => decodedPowerShell(match[0]))
+  return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(text => PUBLISH_MENTION.test(text))
 }
 
 // The shell tools a session runs commands through. Claude Code on Windows ships a
@@ -4865,6 +5094,14 @@ async function main() {
     input = JSON.parse((await readStdin()).replace(/^\uFEFF/, ''))
   } catch {
     process.stderr.write('[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.\n')
+    return
+  }
+  // Valid JSON that is not the object the host sends: `null` and a `cwd` that is not a
+  // string crashed with a stack trace at exit 0, and `[1,2]` said nothing (a chaos
+  // round of 626934a, playtrix F7). Named the way unparsable input is.
+  if (input === null || typeof input !== 'object' || Array.isArray(input)
+    || (input.cwd !== undefined && typeof input.cwd !== 'string')) {
+    process.stderr.write('[quality-harness] the hook payload was not an object with a string cwd; nothing was read and nothing is said.\n')
     return
   }
   try {

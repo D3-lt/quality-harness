@@ -539,3 +539,23 @@ test('a publish through the PowerShell tool is refused, and denied to a read-onl
   const matcher = JSON.parse(readFileSync(path.join(repoRoot, 'plugin', 'hooks', 'hooks.json'), 'utf8')).hooks.PreToolUse[0].matcher
   assert.ok(matcher.split('|').includes('PowerShell'), `the hook is called for the PowerShell tool: ${matcher}`)
 })
+// A chaos round of 626934a (a macOS vitest SPA session): the check was a regex over the
+// text, and `test 1`, `/usr/bin/true`, `echo ok`, `true || false` and `true # comment`
+// each passed as a real check, which then unlocks a commit. Beside the locked test
+// above, because its body is pinned by ADR-066 T1.
+test('a check whose exit status the text fixes is refused, whatever it is spelled', () => {
+  const constant = ['test 1', '/usr/bin/true', 'echo ok', 'true || false', 'true # just check', '[ 1 ]',
+    'npm test || true', 'npm test; echo done', 'bash -c "npm test || :"', 'test -f x || exit 0', 'npm test &']
+  // Codex review of this batch: each of these exits 0 with the file present and 1 without
+  // it, under bash and zsh, and each was read as constant, which refuses a real check.
+  const real = ['npm test && true', 'false', 'true && false', 'test -f x', 'test "$X"', 'exit 1', 'npm test | tee log',
+    'set -e; test -f x; echo done', 'set -o pipefail; test -f x | true', '(exit 0); test -f x', 'true < x', 'sh -ec "test -f x; echo done"']
+  for (const command of constant) assert.equal(lifecycle.constantSuccessCheck(command), true, command)
+  for (const command of real) assert.equal(lifecycle.constantSuccessCheck(command), false, command)
+  // Through the declaration the publish gate reads, not only the predicate.
+  const dir = repository('constant-spelled-')
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'npm test || true' }))
+  assert.deepEqual(lifecycle.checkCommandOrigin(dir), { command: null, origin: 'refused' })
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'npm test && true' }))
+  assert.equal(lifecycle.checkCommandOrigin(dir).command, 'npm test && true')
+})

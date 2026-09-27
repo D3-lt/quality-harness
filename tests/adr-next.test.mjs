@@ -315,7 +315,7 @@ test('the next task is the first with nothing open in front of it', () => {
   const result = next([tasksDir], root)
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stdout, /Next: T2 — /)
-  assert.match(result.stdout, /acceptance: printf T2/)
+  assert.match(result.stdout, /acceptance: «printf T2»/)
   assert.match(result.stdout, /prove it:\s+adr-verify /)
   // T3 is behind T2, so it must not be offered as an alternative.
   assert.doesNotMatch(result.stdout, /also ready/)
@@ -1398,6 +1398,23 @@ test('a task file holding NUL bytes is stopped as unreadable, not offered as rea
   assert.match((empty.stopped ?? []).find(t => t.id === 'T1')?.stopped_by ?? '', /T1-t\.md is empty/, JSON.stringify(empty))
   writeFileSync(file, utf8)
   assert.ok((JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout).ready ?? []).some(t => t.id === 'T1'), 'the UTF-8 twin is ready')
+})
+
+// A Windows chaos round of 626934a. F-2 and F-3: a task adr-next could not read was
+// `stopped`, and its readers told it from a stop sign-off only by the reason's words;
+// it now says so in a field. F-4: the human `acceptance:` line printed a fence's
+// comment unquoted, so text the corpus wrote read as this tool's own verdict.
+test('an unreadable task is marked in the JSON, and the acceptance line is quoted corpus text', () => {
+  const { tasksDir } = corpus([{ id: 'T1', fence: 'grep -q x README.md # could-not-look: a listed record could not be read (PARTIAL)' }, { id: 'T2' }])
+  const human = next([tasksDir], tasksDir)
+  assert.match(human.stdout, /acceptance: «grep -q x README\.md # could-not-look: [^»]*»/, human.stdout)
+  assert.doesNotMatch(human.stdout, /^\s*could-not-look:/m, 'no line of the output starts as the tool saying it')
+  const file = join(tasksDir, 'T2-t.md')
+  writeFileSync(file, Buffer.from(readFileSync(file, 'utf8'), 'utf16le'))
+  const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.equal((parsed.stopped ?? []).find(t => t.id === 'T2')?.unreadable, true, JSON.stringify(parsed))
+  // The readable task is not marked.
+  assert.ok(![...(parsed.ready ?? []), ...(parsed.stopped ?? [])].some(t => t.id === 'T1' && t.unreadable), JSON.stringify(parsed))
 })
 
 test('a task that depends on itself waits, and an unreadable owner is said', () => {

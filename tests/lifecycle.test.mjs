@@ -1226,7 +1226,7 @@ test('adr-next reads the task files, not the index that describes them', async (
   assert.equal(first.status, 0, first.stderr)
   assert.match(first.stdout, /Next: T1/)
   // The hint skips shell preamble: `set -e` is not what proves the task.
-  assert.match(first.stdout, /acceptance: adr-lint/)
+  assert.match(first.stdout, /acceptance: «adr-lint/)
   assert.match(first.stdout, /prove it:\s+adr-verify/)
 
   // A second task that depends on the first is blocked until T1 has evidence.
@@ -1735,6 +1735,22 @@ test('a hook payload with a BOM is read, and one that is not JSON is said, not s
   assert.equal(garbage.status, 0, 'a hook blocks nothing (CLAUDE.md §3)')
   assert.equal(garbage.stdout, '')
   assert.match(garbage.stderr, /hook payload on stdin was not JSON; nothing was read/, garbage.stderr)
+})
+
+// A chaos round of 626934a (playtrix F7): valid JSON of the wrong shape crashed the
+// hook with a stack trace (`null`, a `cwd` of 42) or said nothing (`[1,2]`).
+test('a JSON payload that is not the object the host sends is named, never a crash', () => {
+  const data = path.join(testTmp, 'payload-shape-data')
+  for (const raw of ['null', '[1,2]', JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd: 42, session_id: 'shape' })]) {
+    const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+      cwd: testTmp, input: raw, encoding: 'utf8', timeout: 60_000,
+      env: { ...process.env, CLAUDE_PLUGIN_DATA: data, TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp },
+    })
+    assert.equal(run.status, 0, `${raw}: a hook blocks nothing`)
+    assert.equal(run.stdout, '', raw)
+    assert.match(run.stderr, /hook payload was not an object with a string cwd; nothing was read/, `${raw}: ${run.stderr}`)
+    assert.doesNotMatch(run.stderr, /TypeError|\n\s+at /, `${raw}: no stack trace`)
+  }
 })
 
 test('git cannot list is UNPROVEN, not no ready tasks', async () => {

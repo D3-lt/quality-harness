@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-27",
+  "at": "626934ac7c4c5d551c79537070260c7da04621df",
+  "plugin": "3.1.0",
+  "kind": "probe",
+  "probeSha256": "07e3396c26cd84cf481188ba59a679e5059ea531466f2c7bd6c2d8cb74faa094",
+  "readers": "070578e14bb69080bca2e936543d3323e87fa029754e4bab55bb83eb664bf79a",
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.14.7",
+  "corpus": { "records": 2, "tasks": 9, "taskDirectories": 2 },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "klientams-front@509a10a3",
+  "found": ""
+}

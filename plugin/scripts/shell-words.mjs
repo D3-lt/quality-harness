@@ -34,7 +34,7 @@ export function shellWords(text) {
   let i = 0
 
   function fresh() {
-    return { argv: [], assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null }
+    return { argv: [], assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null, ended: '', redirects: 0 }
   }
   const startWord = () => { word ??= { chars: [], dynamic: false, quoted: false, code: false } }
   const push = (c, q) => { startWord(); word.chars.push({ c, q }) }
@@ -69,6 +69,7 @@ export function shellWords(text) {
       && command.substitutions.length === 0
     if (!empty) {
       if (pipeNext) commands.at(-1).pipeTo = commands.length
+      command.ended = operator
       commands.push(finish(command))
       pipeNext = operator === '|' || operator === '|&'
     } else if (!['|', '|&', '(', '\n'].includes(operator)) pipeNext = false
@@ -168,6 +169,9 @@ export function shellWords(text) {
     let op = src[i]
     while (i + 1 < src.length && '<>&|-'.includes(src[i + 1]) && op.length < 3) op += src[++i]
     i++
+    // Counted, not kept: a redirection can fail on its own (`true < missing`), which
+    // the constant-success check has to know (Codex review of the 626934a batch).
+    command.redirects += 1
     const heredoc = op.startsWith('<<') && !op.startsWith('<<<')
     while (BLANK.has(src[i])) i++
     const target = readTarget()

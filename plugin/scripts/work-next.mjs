@@ -78,6 +78,9 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
     let answer = null
     if (answered) { try { answer = JSON.parse(run.stdout) } catch { answer = null } }
     if (!answer || !Array.isArray(answer.ready)) { unproven.push(dir); continue }
+    // A task adr-next could not read is stopped and marked, and its directory's
+    // readiness is not known (a Windows chaos round of 626934a, F-2: a UTF-16 task).
+    if ((answer.stopped ?? []).some(task => task.unreadable)) unproven.push(dir)
     for (const bucket of ['ready', 'done', 'blocked', 'stopped']) {
       for (const task of answer[bucket] ?? []) {
         listed.add(path.resolve(root, task.path))

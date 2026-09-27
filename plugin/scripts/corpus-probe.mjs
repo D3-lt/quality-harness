@@ -276,6 +276,13 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     id: record.id ?? null, file: rel(record.file), status: record.status ?? null, kind: record.kind ?? null,
     frozen: Boolean(record.frozen),
   }))
+  // Files that look like records and carry no status the readers act on, or could
+  // not be opened. They were counted nowhere here: a record whose `**Status:**` had a
+  // fullwidth colon, or that was saved as UTF-16, made `records` 0 with `look` ok and
+  // was never linted (a Windows chaos round of 626934a, F-1 and F-2).
+  const undecided = (corpus.unreadable ?? []).map(entry => ({
+    file: rel(entry.file), status: entry.status == null ? null : scrub(entry.status), reason: entry.reason ?? null,
+  }))
   const corpusDirs = [...new Set(corpus.map(record => path.dirname(record.file)))]
   const taskDirs = [...new Set(corpus.flatMap(record => (record.taskFiles ?? []).map(file => path.dirname(file))))]
 
@@ -285,9 +292,14 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // A frozen record is still linted, and its entry says so: a verdict on an archive
   // read beside the live records as if it were one (BACKLOG §279 item 4).
   const frozen = record => (record.frozen ? { frozen: true } : {})
-  const adrLint = corpus.map(record => {
+  // adr-lint writes its advice-survival note into the repository's git directory
+  // (ADR-037 T1), and this probe promises to write nothing under root (a Windows
+  // chaos round of 626934a, F-5a): the note goes to a scratch state directory.
+  const lintState = mkdtempSync(path.join(os.tmpdir(), 'qh-corpus-probe-lint-'))
+  const adrLint = [...corpus, ...(corpus.unreadable ?? [])].map(record => {
     const tasksDir = (record.taskFiles ?? []).length ? path.dirname(record.taskFiles[0]) : null
-    const run = timed('adr-lint', rel(record.file), () => gate('adr-lint', tasksDir ? [record.file, tasksDir] : [record.file]))
+    const run = timed('adr-lint', rel(record.file), () => spawnGate(path.join(bin, 'adr-lint'), tasksDir ? [record.file, tasksDir] : [record.file],
+      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, env: { ...process.env, QUALITY_HARNESS_STATE_DIR: lintState } }))
     if (run.error) {
       note(`adr-lint ${rel(record.file)}`, failedToRun(run.error, timeoutMs))
       return { file: rel(record.file), exit: null, verdict: null, ...frozen(record) }
@@ -300,8 +312,10 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     const finding = verdict === 'FAIL'
       ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}\S/.test(line) && !/^ {2}advice:/.test(line))
       : undefined
-    return { file: rel(record.file), exit: run.status, verdict, ...(finding ? { reason: scrub(finding.trim()) } : {}), ...frozen(record) }
+    return { file: rel(record.file), exit: run.status, verdict, ...(finding ? { reason: scrub(finding.trim()) } : {}), ...frozen(record),
+      ...(corpus.includes(record) ? {} : { undecided: true }) }
   })
+  try { rmSync(lintState, { recursive: true, force: true }) } catch { /* scratch outlives us */ }
 
   const workNext = reader('work-next', () => timed('work-next', null, () => node('work-next.mjs', ['--json'])), note)
   const adrState = reader('adr-state', () => timed('adr-state', null, () => node('adr-state.mjs', ['--json'])), note)
@@ -320,6 +334,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       tasksDir: rel(dir),
       ready: answer?.ready?.map(task => ({ id: task.id, path: rel(path.resolve(resolved, task.path)), unproven: task.unproven ? scrub(task.unproven) : null })) ?? null,
       undecided: answer?.undecided ?? null,
+      // Tasks adr-next could not read, named: a directory holding one is not evidenced.
+      unreadable: answer ? (answer.stopped ?? []).filter(task => task.unreadable).map(task => rel(path.resolve(resolved, task.path))) : null,
     }
   })
 
@@ -389,6 +405,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     look,
     corpora: corpusDirs.map(rel),
     records,
+    undecided,
     workNext: workNext && {
       look: workNext.look, records: workNext.records, accepted: workNext.accepted, tasks: workNext.tasks,
       ready: workNextReadyList, unbacked: workNextPaths('unbackedDoneClaims'),

@@ -38,3 +38,20 @@ test('a record with neither a number nor a dated stem is named by its file, not 
   assert.match(run.stdout, /ADR-007/, 'the numbered record keeps its number')
   assert.match(run.stdout, /2026-09-01-dated/, 'the dated record keeps its stem')
 })
+
+// A Windows chaos round of 626934a (F-1). One fullwidth colon in `**Status:**` made the
+// JSON say `look: ok, read: 0` with nothing else, while the human output said
+// could-not-look. Both now say what the corpus reader said, and both name the file.
+test('a record whose status cannot be read is named in the JSON and in the text alike', () => {
+  const root = path.join(scratch, 'fullwidth')
+  mkdirSync(path.join(root, 'docs', 'adr'), { recursive: true })
+  writeFileSync(path.join(root, 'docs', 'adr', 'ADR-001-fullwidth.md'), RECORD('ADR-001: Fullwidth').replace('**Status:**', '**Status：**'))
+  const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, encoding: 'utf8', timeout: 15_000 })
+  assert.equal(init.status ?? 0, 0, init.stderr)
+  const json = JSON.parse(spawnSync(process.execPath, [adrState, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000 }).stdout)
+  assert.deepEqual(json.unread.map(entry => entry.file), ['docs/adr/ADR-001-fullwidth.md'], JSON.stringify(json))
+  assert.equal(json.look, 'ok')
+  const text = spawnSync(process.execPath, [adrState], { cwd: root, encoding: 'utf8', timeout: 60_000 }).stdout
+  assert.match(text, /ADR-001-fullwidth\.md/, text)
+  assert.doesNotMatch(text, /could-not-look|No decision records found/, text)
+})

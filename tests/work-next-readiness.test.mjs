@@ -13,6 +13,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { main, observe, readinessFrom } from '../plugin/scripts/work-next.mjs'
+import { readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(testDir, '..')
@@ -431,4 +432,35 @@ test('a run of blank lines in a task does not stall the done-claim reader', () =
   const started = Date.now()
   observe(temp)
   assert.ok(Date.now() - started < 10_000, `work-next took ${Date.now() - started} ms over 6,000 blank lines`)
+})
+
+// A Windows chaos round of 626934a (F-2, F-3). adr-next stops a task it could not read
+// and marks it `unreadable`; SessionStart read only `ready`, `blocked` and `done`, so a
+// directory holding one read "fully evidenced", and work-next caught only the absent
+// file, with a disk check of its own. Both readers of adr-next's answer take the mark.
+test('a task adr-next could not read leaves its directory UNPROVEN in both readers', () => {
+  const root = mkdtempSync(path.join(os.tmpdir(), 'qh-unreadable-task-'))
+  temps.push(root)
+  const dir = path.join(root, 'docs', 'adr', 'ADR-001-a', 'tasks')
+  mkdirSync(dir, { recursive: true })
+  for (const name of ['T1-a.md', 'T2-b.md']) writeFileSync(path.join(dir, name), `# Task ${name.slice(0, 2)}: x\n`)
+  const listing = ['docs/adr/ADR-001-a/tasks/T1-a.md', 'docs/adr/ADR-001-a/tasks/T2-b.md']
+  const reply = stopped => () => ({ status: 3, error: null, signal: null, stderr: '', stdout: JSON.stringify({
+    ready: [], blocked: [], done: [{ id: 'T1', path: path.join(dir, 'T1-a.md') }], stopped,
+  }) })
+  const unreadable = [{ id: 'T2', path: path.join(dir, 'T2-b.md'), unreadable: true,
+    stopped_by: 'could not read it: T2-b.md holds NUL bytes (saved as UTF-16, or binary?), so its state is UNPROVEN' }]
+  const signedStop = [{ id: 'T2', path: path.join(dir, 'T2-b.md'), stopped_by: 'sign-off says STOP' }]
+
+  const lines = stopped => readyTaskLines(root, true, listing, reply(stopped)).lines.join('\n')
+  assert.match(lines(unreadable), /ADR-001-a\/tasks: UNPROVEN — adr-next could not read 1 task file\(s\) there/)
+  assert.doesNotMatch(lines(unreadable), /fully evidenced/)
+  // DIRTY twins: a task stopped by its own sign-off is said as stopped, and a directory
+  // with nothing stopped is the evidenced one.
+  assert.match(lines(signedStop), /ADR-001-a\/tasks: nothing ready; 1 task\(s\) stopped\./)
+  assert.match(lines([]), /1 task directory read is fully evidenced/)
+
+  const corpus = [{ kind: 'governing', frozen: false, taskFiles: [path.join(dir, 'T1-a.md'), path.join(dir, 'T2-b.md')] }]
+  assert.deepEqual(readinessFrom(corpus, root, reply(unreadable)).unproven, [dir])
+  assert.deepEqual(readinessFrom(corpus, root, reply(signedStop)).unproven, [])
 })

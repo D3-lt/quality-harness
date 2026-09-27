@@ -75,6 +75,7 @@ export function main(argv) {
   const SHOWN = 12
   const dangling = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))
 
+  const unreadable = corpus.unreadable ?? []
   if (json) {
     const look = corpus.look ?? ((corpus.unreadable ?? []).length ? 'PARTIAL' : 'ok')
   process.stdout.write(`${JSON.stringify({
@@ -82,6 +83,10 @@ export function main(argv) {
     read: corpus.length,
     governing: governing.length,
     touchedPaths: touched.size,
+    // Named, as the human output names them: a record with a status this reader does
+    // not act on, or that it could not open, made `read` 0 with `look` ok and said
+    // nothing else (a Windows chaos round of 626934a, F-1: `**Status：**`).
+    unread: unreadable.map(entry => ({ file: relative(entry), status: entry.status ?? null, reason: entry.reason ?? null })),
     areas: [...areas].map(([declared, records]) => ({
       path: declared,
       governedBy: records.map(record => ({ id: label(record), file: relative(record), title: record.title })),
@@ -97,17 +102,20 @@ export function main(argv) {
   return 0
   }
 
-  if (!corpus.length) {
-    if (corpus.look === 'PARTIAL' || (corpus.unreadable ?? []).length) {
-      process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
-        + 'This is not "no decision records found".\n')
-      return 0
-    }
+  // With no record read, a file that was never opened makes this PARTIAL; one that
+  // was opened and carries no status this reader acts on is listed below, as it is
+  // beside records that were read. The JSON says the same (look from the corpus).
+  if (!corpus.length && corpus.look === 'PARTIAL') {
+    process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
+      + 'This is not "no decision records found".\n')
+    return 0
+  }
+  if (!corpus.length && !unreadable.length) {
     process.stdout.write('No decision records found under this repository.\n')
     return 0
   }
 
-  const unreadable = corpus.unreadable ?? []
+
   process.stdout.write(`${corpus.length} record(s) read; ${governing.length} governing; `
   + `${touched.size} path(s) touched by their tasks.\n`)
 

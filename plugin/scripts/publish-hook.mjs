@@ -45,7 +45,10 @@ export function sequencerInProgress(cwd) {
 function sessionOwnsRepository(cwd, session) {
   const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', timeout: 10_000 })
   if (common.error || common.status !== 0) return false
-  const repository = path.dirname(path.resolve(cwd, common.stdout.trim()))
+  // The common directory itself, not its parent: a bare repository IS its common
+  // directory, and a submodule's lives under the superproject's `.git/modules/`,
+  // whose parent is the superproject (a chaos round of 626934a, W10 and W11).
+  const repository = path.resolve(cwd, common.stdout.trim())
   // A log that cannot be read whole is owned: judging costs a warning, while passing
   // unjudged would be the flattering answer (tests/evidence-flip.test.mjs READERS).
   const events = readEvents(repository, session)

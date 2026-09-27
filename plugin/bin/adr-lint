@@ -1032,6 +1032,11 @@ def read_named(path):
 
 def check_adr(adr_path, errors, root=_ROOT_UNSET):
     text = read_named(adr_path)
+    if "\x00" in text:
+        # A record saved as UTF-16 or binary: every section finding below would be about
+        # a file nobody can read (a Windows chaos round of 626934a, F-2).
+        errors.append(f"{adr_path.name}: holds NUL bytes, so it is not UTF-8 text (saved as UTF-16, or binary?) "
+                      f"and no gate can read it. Save it as UTF-8.")
     name_n, title_n = adr_numbers(Path(adr_path), text)
     if name_n is not None and title_n is not None and name_n != title_n:
         errors.append(
@@ -5646,6 +5651,8 @@ def advice_survival_path(start):
     same place `branch-state.mjs` keeps its cache. Nowhere to put it means the
     caller says UNKNOWN rather than reporting a first sighting (ADR-005) — a
     corpus linted outside a checkout has not proved every finding is new.
+    `QUALITY_HARNESS_STATE_DIR` moves it, as it moves the hooks' state: the corpus
+    probe lints someone else's repository and promises to write nothing there.
 
     ⚠ ASK GIT, DO NOT ASSEMBLE `<root>/.git`. In a WORKTREE and in a SUBMODULE
     `.git` is a FILE pointing elsewhere, so an `is_dir()` test answers "nowhere to
@@ -5662,7 +5669,22 @@ def advice_survival_path(start):
     if r.returncode != 0 or not r.stdout.strip():
         return None
     # `--git-path` answers relative to the directory git was pointed at.
-    return Path(start) / r.stdout.strip()
+    own = Path(start) / r.stdout.strip()
+    # A ROOT, as the hooks read it: each repository keeps its own place under it, or
+    # one repository's findings advance another's counts (Codex review of the 626934a
+    # batch; event-log.mjs keys its override the same way).
+    state = os.environ.get("QUALITY_HARNESS_STATE_DIR")
+    if state:
+        key = hashlib.sha256(str(own.parent.resolve()).encode("utf-8")).hexdigest()[:16]
+        # The override is a root; its per-repository directory is made here, since
+        # the note's writer does not make directories (an unwritable place is UNKNOWN).
+        keyed = Path(state).resolve() / key
+        try:
+            keyed.mkdir(parents=True, exist_ok=True)
+        except Exception:
+            return None
+        return keyed / ADVICE_SURVIVAL_NAME
+    return own
 
 
 def _valid_survival_note(data):
@@ -5674,6 +5696,11 @@ def _valid_survival_note(data):
     not allowed to change what the gate it measures reports (CLAUDE.md §3).
     """
     if not isinstance(data, dict):
+        return False
+    # A key this code never writes is another version's note, not an empty one: it
+    # was read as empty and REWRITTEN, its data lost and every count reported as a
+    # first sighting (a Windows chaos round of 626934a, F-5c: `{"version": 99}`).
+    if set(data) - {"records"}:
         return False
     records = data.get("records", {})
     if not isinstance(records, dict):
@@ -6239,11 +6266,15 @@ def main():
         record_key = adr.resolve().relative_to(root.resolve()).as_posix() if root else adr.name
     except Exception:
         record_key = adr.name
-    survival = record_advice_survival(advice_survival_path(adr.parent), record_key, list(errors.advice))
+    note = advice_survival_path(adr.parent)
+    survival = record_advice_survival(note, record_key, list(errors.advice))
     if want_survival:
         if survival is None:
-            print("  survival: UNKNOWN — the note could not be read, written, or found "
-                  "(no git metadata directory here). Nothing has been shown to be seen before "
+            # Two causes, said apart: the reason printed was "no git metadata directory
+            # here" over a note that was there and unparsable (F-5b, 626934a).
+            where = ("no git metadata directory here" if note is None
+                     else f"the note at {note.name} could not be read as this version's, or not stored")
+            print(f"  survival: UNKNOWN — {where}. Nothing has been shown to be seen before "
                   "or not, which is NOT \"every finding is new\" (ADR-005).")
         else:
             for message, runs in sorted(survival, key=lambda pair: -pair[1]):

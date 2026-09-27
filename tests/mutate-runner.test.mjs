@@ -1,12 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawnSync } from 'node:child_process'
-import { dirname, join, resolve } from 'node:path'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { dirname, join, resolve, sep } from 'node:path'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
-import { addedLineNumbers, addedLines, baselineOf, cacheKey, changedDiffArgs, childEnv, classify, killedBy, leafTestsRun, renderLine, reusable, setKeyOf, shardByCost, staleEntries, summarise, testArgs, testSets, touchedBy } from '../scripts/mutate.mjs'
+import { addedLineNumbers, addedLines, baselineOf, cacheKey, campaignPaths, changedDiffArgs, childEnv, classify, killedBy, leafTestsRun, renderLine, repointEntry, reusable, setKeyOf, shardByCost, staleEntries, summarise, testArgs, testSets, touchedBy } from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -686,5 +686,157 @@ test('--changed reads its diff in one shape whatever the user configured', () =>
     for (const [key, value] of [['diff.noprefix', 'true'], ['diff.mnemonicPrefix', 'true'], ['color.diff', 'always']]) git('config', key, value)
     const diff = spawnSync('git', changedDiffArgs(repo, 'HEAD'), { encoding: 'utf8', timeout: 30_000 })
     assert.deepEqual([...addedLines(diff.stdout).keys()], ['x.mjs'], diff.stdout)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+// ADR-069 T1. The fixture is the 3.1.0 batch's own history: every entry rewritten by
+// hand while it matched nothing, a window of its source at that commit, and the lines
+// that commit added there. Six were mechanical and six were rewrites.
+const HERE = dirname(fileURLToPath(import.meta.url))
+const REPLAY = JSON.parse(readFileSync(join(HERE, 'fixtures', 'mutate-repoint', 'replay.json'), 'utf8')).rows
+const MECHANICAL = 6
+
+test('repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest', () => {
+  let reproduced = 0
+  for (const row of REPLAY) {
+    const answer = repointEntry({ label: row.label, file: 'x', from: row.from, to: row.to }, row.source, new Set(row.added))
+    if (answer.verdict === 'repointed') {
+      assert.deepEqual({ from: answer.from, to: answer.to }, row.hand, row.label)
+      reproduced += 1
+    } else assert.equal(answer.verdict, 'refused', row.label)
+  }
+  assert.equal(reproduced, MECHANICAL)
+  assert.equal(REPLAY.length - reproduced, 6)
+
+  // One clean case and a dirty twin for each of the record's conditions.
+  const oldLine = "  if (word === 'a' || word === 'b') return 1"
+  const newLine = "  if (word === 'a' || word === 'b' || word === 'c') return 1"
+  const entry = { label: 'e', file: 'x', from: oldLine, to: "  if (word === 'b') return 1" }
+  const source = `const before = 1\n${newLine}\nconst after = 2\n`
+  const added = new Set([newLine.trim()])
+  assert.deepEqual(repointEntry(entry, source, added),
+    { verdict: 'repointed', from: newLine, to: "  if (word === 'b' || word === 'c') return 1" })
+  const why = (...args) => repointEntry(...args).why ?? ''
+  // 5: a sibling the change never touched, and a diff that could not be read.
+  assert.ok(why(entry, source, new Set()).startsWith('5:'), why(entry, source, new Set()))
+  assert.ok(why(entry, source, null).startsWith('5:'))
+  // 4: the nearest line again, more indented, so it is not unique as a substring.
+  assert.ok(why(entry, `${source}  ${newLine}\n`, added).startsWith('4:'))
+  // 3: an edit that only inserts has no text to find on the new line.
+  const insertOnly = { label: 'i', file: 'x', from: '  foo(alpha, beta)', to: '  foo(alpha, beta) && gate()' }
+  assert.ok(why(insertOnly, 'const x = 1\n  foo(alpha, beta, gamma)\n', new Set(['foo(alpha, beta, gamma)'])).startsWith('3:'))
+  // 2: nothing left resembles the entry.
+  assert.ok(why({ label: 'n', file: 'x', from: '  zzz_unrelated_token_qq()', to: '  noop()' }, source, added).startsWith('2:'))
+  // 1: a multi-line entry.
+  assert.ok(why({ label: 'm', file: 'x', from: `${oldLine}\n  return 0`, to: '  return 0' }, source, added).startsWith('1:'))
+  // An entry that matches twice is ambiguous, and one that matches once is current.
+  assert.ok(why({ label: 't', file: 'x', from: 'const', to: 'let' }, source, added).startsWith('ambiguous'))
+  assert.equal(repointEntry({ label: 'c', file: 'x', from: 'const before = 1', to: 'const before = 2' }, source, added).verdict, 'current')
+})
+
+test('campaignPaths keeps every campaign file inside the root it is given', () => {
+  const scratch = join(tmpdir(), 'qh-campaign-root')
+  const paths = campaignPaths(scratch, {})
+  assert.deepEqual(Object.keys(paths).sort(), ['cache', 'catalogue', 'journal', 'lock'])
+  for (const file of Object.values(paths)) assert.ok(file.startsWith(scratch + sep), file)
+  // With no root given, they are where a campaign has always kept them.
+  const here = resolve(HERE, '..')
+  assert.deepEqual(campaignPaths(here, {}), {
+    catalogue: join(here, 'tests', 'mutations.json'), lock: join(here, '.mutate-lock'),
+    journal: join(here, '.mutate-inflight.json'), cache: join(here, '.mutation-cache.json'),
+  })
+  // The suite's own lock override moves the journal with it.
+  const moved = campaignPaths(scratch, { QUALITY_HARNESS_MUTATE_LOCK: join(scratch, 'other.lock') })
+  assert.equal(moved.journal, `${moved.lock}.inflight.json`)
+})
+
+test('mutate --repoint reads a scratch repository, writes nothing, and exits 1 while an entry is stale', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-repoint-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const before = "export function f(word) {\n  if (word === 'a' || word === 'b') return 1\n  return 0\n}\nexport const g = () => 'kept'\n"
+    const catalogue = `${JSON.stringify({ mutations: [
+      { label: 'mechanical', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: "  if (word === 'a' || word === 'b') return 1", to: "  if (word === 'b') return 1" },
+      { label: 'rewrite', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: '  return 0', to: '  return 9' },
+      { label: 'current', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: "export const g = () => 'kept'", to: "export const g = () => 'lost'" },
+    ] }, null, 2)}\n`
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), before)
+    writeFileSync(join(repo, 'tests', 'mutations.json'), catalogue)
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base')
+    const repoint = () => spawnSync(process.execPath, [runner, '--root', repo, '--repoint'], { cwd: repo, encoding: 'utf8', timeout: 60_000 })
+    const clean = repoint()
+    assert.equal(clean.status, 0, `${clean.stdout}\n${clean.stderr}`)
+    // The refactor, left uncommitted: the line gains a case, and the return is rewritten.
+    const after = before.replace("word === 'b') return 1", "word === 'b' || word === 'c') return 1").replace('  return 0', '  return word.length')
+    writeFileSync(join(repo, 'a.mjs'), after)
+    const stale = repoint()
+    assert.equal(stale.status, 1, `${stale.stdout}\n${stale.stderr}`)
+    assert.ok(stale.stdout.includes('REPOINT  mechanical'), stale.stdout)
+    assert.ok(stale.stdout.includes("+   if (word === 'a' || word === 'b' || word === 'c') return 1"), stale.stdout)
+    assert.ok(stale.stdout.includes("to   if (word === 'b' || word === 'c') return 1"), stale.stdout)
+    assert.ok(stale.stdout.includes('REFUSED  rewrite'), stale.stdout)
+    assert.ok(!stale.stdout.includes('current'), 'a current entry is not mentioned')
+    assert.equal(readFileSync(join(repo, 'tests', 'mutations.json'), 'utf8'), catalogue, 'the catalogue is untouched')
+    assert.equal(readFileSync(join(repo, 'a.mjs'), 'utf8'), after, 'the source is untouched')
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+// ADR-069 T2. The whole write path in a scratch repository whose refactor is left
+// uncommitted, as it is after a real one: consent first, then only the proposals
+// rewritten, then each measured, and exit 0 only when all are RED and nothing is stale.
+test('mutate --repoint --write rewrites only what it proposed, measures it, and names what stayed refused', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-repoint-write-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const env = { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '' }
+    const write = (...extra) => spawnSync(process.execPath, [runner, '--root', repo, '--repoint', '--write', ...extra], { cwd: repo, encoding: 'utf8', timeout: 180_000, env })
+    const oldLine = "  if (word === 'a' || word === 'b') return 1"
+    const newLine = "  if (word === 'a' || word === 'b' || word === 'c') return 1"
+    const mechanical = { label: 'mechanical', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: oldLine, to: "  if (word === 'b') return 1" }
+    const rewrite = { label: 'rewrite', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: '  return 0', to: '  return 9' }
+    const untouched = { label: 'untouched', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: "export const g = () => 'kept'", to: "export const g = () => 'lost'" }
+    const serialize = mutations => `${JSON.stringify({ mutations }, null, 2)}\n`
+    const catalogueFile = join(repo, 'tests', 'mutations.json')
+    const strongTest = "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { f, g } from '../a.mjs'\n"
+      + "test('f and g', () => { assert.equal(f('a'), 1); assert.equal(f('zz'), 12); assert.equal(g(), 'kept') })\n"
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), `export function f(word) {\n${oldLine}\n  return 0\n}\nexport const g = () => 'kept'\n`)
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), strongTest.replace("assert.equal(f('zz'), 12); ", ''))
+    writeFileSync(catalogueFile, serialize([mechanical, rewrite, untouched]))
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base')
+    // The refactor, uncommitted: the line gains a case, and the return is rewritten.
+    writeFileSync(join(repo, 'a.mjs'), `export function f(word) {\n${newLine}\n  return word.length + 10\n}\nexport const g = () => 'kept'\n`)
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), strongTest)
+
+    // No consent: nothing is written.
+    const refused = write()
+    assert.equal(refused.status, 2, `${refused.stdout}\n${refused.stderr}`)
+    assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([mechanical, rewrite, untouched]))
+
+    // Consent: only the proposal is rewritten and it is measured; the refused entry keeps
+    // the exit at 1, and every other byte of the catalogue is as it was.
+    const repointedMechanical = { ...mechanical, from: newLine, to: "  if (word === 'b' || word === 'c') return 1" }
+    const forced = write('--force')
+    assert.equal(forced.status, 1, `${forced.stdout}\n${forced.stderr}`)
+    assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([repointedMechanical, rewrite, untouched]))
+    assert.ok(forced.stdout.includes('REFUSED  rewrite'), forced.stdout)
+    assert.ok(forced.stdout.includes('1/1 mutations were noticed.'), forced.stdout)
+    assert.ok(forced.stdout.includes('still stale'), forced.stdout)
+
+    // With nothing left refused, the same write exits 0.
+    writeFileSync(catalogueFile, serialize([mechanical, untouched]))
+    const clean = write('--force')
+    assert.equal(clean.status, 0, `${clean.stdout}\n${clean.stderr}`)
+    assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([repointedMechanical, untouched]))
+
+    // A test that cannot notice the repointed mutant: GREEN, named, and exit 1.
+    writeFileSync(catalogueFile, serialize([mechanical, untouched]))
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { f } from '../a.mjs'\ntest('f exists', () => { assert.equal(typeof f, 'function') })\n")
+    const weak = write('--force')
+    assert.equal(weak.status, 1, `${weak.stdout}\n${weak.stderr}`)
+    assert.ok(weak.stdout.includes('GREEN'), weak.stdout)
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })

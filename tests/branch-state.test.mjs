@@ -1065,9 +1065,11 @@ test('a collection on the prompt path is written under the key it read', t => {
 // campaign that had failed. These are the rows gh returned there, in both orders.
 const listing = rows => ['gh run list', ok(JSON.stringify(rows))]
 const jobsOf = (id, jobs) => [`gh run view ${id}`, ok(JSON.stringify({ jobs }))]
+const SELFTEST = { workflowName: 'selftest', workflowDatabaseId: 342330118 }
 const TIE_SHA = 'cdd3bda817384b43e6c37afbb0819da8fb30a3e6'
-const pushRun = { headSha: TIE_SHA, status: 'completed', conclusion: 'cancelled', databaseId: 36260813368, workflowName: 'selftest' }
-const campaign = conclusion => ({ headSha: TIE_SHA, status: 'completed', conclusion, databaseId: 36260813407, workflowName: 'selftest' })
+const pushRun = { ...SELFTEST, headSha: TIE_SHA, event: 'push', status: 'completed', conclusion: 'cancelled', databaseId: 36260813368 }
+const campaign = conclusion =>
+  ({ ...SELFTEST, headSha: TIE_SHA, event: 'workflow_dispatch', status: 'completed', conclusion, databaseId: 36260813407 })
 
 test('a same-second tie reads the run that survived, whatever order gh lists it in', () => {
   for (const order of [rows => rows, rows => [...rows].reverse()]) {
@@ -1082,52 +1084,78 @@ test('a same-second tie reads the run that survived, whatever order gh lists it 
     assert.match(green, /cdd3bda: every job concluded success\. \(run 36260813407\)/, green)
     assert.doesNotMatch(green, /CANCELLED|⚠/, green)
   }
+  // Alone, a cancelled run is still an alarm: nothing else judged that commit.
+  const alone = render(collect(runner([...GIT_CLEAN, listing([pushRun])])), { brief: true })
+  assert.match(alone, /⚠ CI cdd3bda: CANCELLED/, alone)
 })
 
-test('every workflow at the newest commit answers, and a green one does not hide a red one', () => {
-  const at = (workflowName, databaseId, conclusion, status = 'completed') =>
-    ({ headSha: 'feed1234', status, conclusion, databaseId, workflowName })
-  // This repository's weekly `evals` schedule runs at main's HEAD, after the push.
+test('a green dispatch does not hide a red push at the same commit', () => {
+  // selftest.yml keys its concurrency group on the event, so neither run cancels
+  // the other and both verdicts stand (Codex review of 3.0.2).
+  const at = (event, databaseId, conclusion) =>
+    ({ ...SELFTEST, headSha: 'feed1234', event, status: 'completed', conclusion, databaseId })
   const red = render(collect(runner([...GIT_CLEAN,
-    listing([at('evals', 20, 'success'), at('selftest', 10, 'failure')]),
+    listing([at('workflow_dispatch', 20, 'success'), at('push', 10, 'failure')]),
     jobsOf(10, [{ name: 'coverage floor', conclusion: 'failure' }]),
   ])), { brief: true })
   assert.match(red, /⚠ CI feed123: FAILURE — coverage floor: failure/, red)
 
   const green = render(collect(runner([...GIT_CLEAN,
-    listing([at('evals', 20, 'success'), at('selftest', 10, 'success')]),
+    listing([at('workflow_dispatch', 20, 'success'), at('push', 10, 'success')]),
+  ])))
+  assert.match(green, /feed123: every job concluded success\. \(run 20, 10\)/, green)
+})
+
+test('every workflow at the newest commit answers, and a green one does not hide a red one', () => {
+  const at = (workflowName, workflowDatabaseId, databaseId, conclusion, status = 'completed') =>
+    ({ headSha: 'feed1234', event: 'push', status, conclusion, databaseId, workflowName, workflowDatabaseId })
+  // This repository's weekly `evals` schedule runs at main's HEAD, after the push.
+  const red = render(collect(runner([...GIT_CLEAN,
+    listing([at('evals', 7, 20, 'success'), at('selftest', 8, 10, 'failure')]),
+    jobsOf(10, [{ name: 'coverage floor', conclusion: 'failure' }]),
+  ])), { brief: true })
+  assert.match(red, /⚠ CI feed123: FAILURE — coverage floor: failure/, red)
+
+  const green = render(collect(runner([...GIT_CLEAN,
+    listing([at('evals', 7, 20, 'success'), at('selftest', 8, 10, 'success')]),
   ])))
   assert.match(green, /feed123: every job concluded success\. \(run 20, 10\)/, green)
 
+  // A ruleset workflow lists no name: two of them are still two workflows.
+  const nameless = render(collect(runner([...GIT_CLEAN,
+    listing([at('', 7, 20, 'success'), at('', 8, 10, 'failure')]),
+  ])), { brief: true })
+  assert.match(nameless, /⚠ CI feed123: FAILURE/, nameless)
+
   // Two red workflows: a bare job name no longer says which workflow to open.
   const both = render(collect(runner([...GIT_CLEAN,
-    listing([at('evals', 20, 'failure'), at('selftest', 10, 'failure')]),
+    listing([at('evals', 7, 20, 'failure'), at('selftest', 8, 10, 'failure')]),
     jobsOf(20, [{ name: 'grade', conclusion: 'failure' }]),
     jobsOf(10, [{ name: 'coverage floor', conclusion: 'failure' }]),
   ])), { brief: true })
-  assert.match(both, /FAILURE — evals \/ grade: failure, selftest \/ coverage floor: failure/, both)
+  assert.match(both, /FAILURE — evals \(push\) \/ grade: failure, selftest \(push\) \/ coverage floor: failure/, both)
 
   // The worst answer wins: a red workflow is not "still running" because another is.
   const busy = render(collect(runner([...GIT_CLEAN,
-    listing([at('evals', 20, null, 'in_progress'), at('selftest', 10, 'failure')]),
+    listing([at('evals', 7, 20, null, 'in_progress'), at('selftest', 8, 10, 'failure')]),
     jobsOf(10, [{ name: 'coverage floor', conclusion: 'failure' }]),
   ])), { brief: true })
   assert.match(busy, /FAILURE/, busy)
   const running = render(collect(runner([...GIT_CLEAN,
-    listing([at('evals', 20, null, 'in_progress'), at('selftest', 10, 'success')]),
+    listing([at('evals', 7, 20, null, 'in_progress'), at('selftest', 8, 10, 'success')]),
   ])), { brief: true })
   assert.match(running, /feed123: still running/, running)
 })
 
-test('a run at an older commit does not colour the newest one', () => {
+test('a run at an older commit does not colour the newest one, and HEAD answers when it ran', () => {
   const run = (headSha, databaseId, conclusion, workflowName = 'selftest') =>
-    ({ headSha, status: 'completed', conclusion, databaseId, workflowName })
+    ({ headSha, event: 'push', status: 'completed', conclusion, databaseId, workflowName })
   const green = render(collect(runner([...GIT_CLEAN,
     listing([run('01d00000', 20, 'failure'), run('0e100000', 30, 'success')]),
   ])), { brief: true })
   assert.match(green, /CI 0e10000: every job concluded success/, green)
   assert.doesNotMatch(green, /⚠/, green)
-  // Nor does another workflow's red at that older commit: only the newest sha answers.
+  // Nor does another workflow's red at that older commit: only one commit answers.
   const other = render(collect(runner([...GIT_CLEAN,
     listing([run('01d00000', 20, 'failure', 'evals'), run('0e100000', 30, 'success')]),
   ])), { brief: true })
@@ -1137,6 +1165,48 @@ test('a run at an older commit does not colour the newest one', () => {
     listing([run('01d00000', 20, 'success'), run('0e100000', 30, 'failure')]),
   ])), { brief: true })
   assert.match(red, /⚠ CI 0e10000: FAILURE/, red)
+
+  // HEAD (0a18d04 in GIT_CLEAN) ran: its verdict answers, not a newer commit's.
+  const head = render(collect(runner([...GIT_CLEAN,
+    listing([run('0a18d04ff', 10, 'failure'), run('0e100000', 30, 'success')]),
+  ])), { brief: true })
+  assert.match(head, /⚠ CI 0a18d04: FAILURE/, head)
+})
+
+test('a re-run is as new as its latest start, and the id orders what the clock cannot', () => {
+  const run = (databaseId, conclusion, startedAt) =>
+    ({ ...SELFTEST, headSha: 'feed1234', event: 'push', status: 'completed', conclusion, databaseId, startedAt })
+  // Run 10 was re-run after run 20 finished, and its second attempt failed.
+  const red = render(collect(runner([...GIT_CLEAN,
+    listing([run(20, 'success', '2026-09-27T08:00:00Z'), run(10, 'failure', '2026-09-27T09:00:00Z')]),
+  ])), { brief: true })
+  assert.match(red, /⚠ CI feed123: FAILURE/, red)
+  const green = render(collect(runner([...GIT_CLEAN,
+    listing([run(20, 'success', '2026-09-27T09:00:00Z'), run(10, 'failure', '2026-09-27T08:00:00Z')]),
+  ])), { brief: true })
+  assert.match(green, /feed123: every job concluded success/, green)
+  const unstarted = render(collect(runner([...GIT_CLEAN,
+    listing([run(10, 'failure'), run(20, 'success')]),
+  ])), { brief: true })
+  assert.match(unstarted, /feed123: every job concluded success/, unstarted)
+})
+
+test('a listing that may have cut off a workflow is COULD NOT LOOK, never green', () => {
+  const evals = Array.from({ length: 20 }, (_, i) =>
+    ({ headSha: 'feed1234', event: 'schedule', status: 'completed', conclusion: 'success', databaseId: 100 + i,
+      workflowName: 'evals', startedAt: `2026-09-27T08:${String(i).padStart(2, '0')}:00Z` }))
+  const cut = render(collect(runner([...GIT_CLEAN, listing(evals)])), { brief: true })
+  assert.match(cut, /⚠ CI COULD NOT LOOK — the newest 20 runs are all at feed123/, cut)
+
+  // One run at an older commit proves the window reached past this one.
+  const whole = render(collect(runner([...GIT_CLEAN,
+    listing([...evals.slice(1), { ...evals[0], headSha: '01d00000', databaseId: 1 }])])), { brief: true })
+  assert.match(whole, /feed123: every job concluded success/, whole)
+
+  // A red run is red however many were not read.
+  const red = render(collect(runner([...GIT_CLEAN,
+    listing([...evals.slice(0, 19), { ...evals[19], conclusion: 'failure' }])])), { brief: true })
+  assert.match(red, /⚠ CI feed123: FAILURE/, red)
 })
 
 test('runs nothing can order are COULD NOT LOOK, and a snapshot from before names no run', () => {

@@ -270,6 +270,22 @@ test('a date-named record never borrows another record\'s tasks', () => {
   assert.match(owns.stdout, /Next: T1 — /, owns.stdout)
 })
 
+// The same guard where nothing else stands behind it. Since a folder named for ANOTHER
+// record is that record's (a chaos round of 916b515, C1), the test above holds without
+// the date guard; its mutant went GREEN in CI. Here the dated folder has no record file,
+// so only reading the ISO year as a date keeps the router from borrowing its tasks.
+test('a date-named record never borrows a dated folder that no record names', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-dated-bare-'))
+  temps.push(dir)
+  const orphan = join(dir, '2026-06-01-db-doctor', 'tasks')
+  mkdirSync(orphan, { recursive: true })
+  writeFileSync(join(orphan, 'T1-t.md'), task({ id: 'T1', goal: 'db-doctor peers' }))
+  writeFileSync(join(dir, '2026-07-12-router.md'), '# 2026-07-12: router\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+  const router = next([join(dir, '2026-07-12-router.md')], root)
+  assert.match(router.stdout, /owns no tasks directory/, router.stdout)
+  assert.doesNotMatch(router.stdout, /db-doctor/, router.stdout)
+})
+
 test('an undecided record is named as undecided, and its tasks are still answered', () => {
   // docs/BACKLOG.md §64. `work-next` joins task to record and refuses to call an
   // unaccepted record's tasks ready (§48); this tool never looked, so one corpus

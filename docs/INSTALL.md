@@ -90,10 +90,11 @@ carried went stale (the hook-event count was three short within a month).
   run `qh-check`, and the refusal names the invocation it saw. A command that merely mentions either
   word — a grep, a heredoc, a file name — is warned about, never refused, and gets none of the
   publish-time artifact checks (since 2.106.0; before that it was refused, and BACKLOG §269 says what
-  that taught). One known limit: a `;` or a newline inside quoted data or a heredoc body reads as a
-  command position, and so does a shell with its `-c` written as data (`echo 'bash -c "git push"'`),
-  so `echo "x; git push"` is refused — and the refusal names what it saw. Before 2.110.1 any flag
-  ending in `c` followed by a quote read as a shell, so `grep -c "git push"` was refused too.
+  that taught). Since 3.1.0 (ADR-067) the command is read as the shell splits it, so quoted text, a
+  heredoc body, a comment and a shell's `-c` written as data (`echo 'bash -c "git push"'`) are data
+  and not refused, while a brace-built `git {-c,x=y} push` and text piped into a shell are read as
+  the invocations the shell runs. Before 3.1.0 `echo "x; git push"` was refused, and before 2.110.1
+  `grep -c "git push"` was too.
   `"publish": "warn"` in `.quality-harness.json` turns it back into a warning. A second
   refusal fences a role you spawned read-only (ADR-060). Nothing else blocks.
 - **Status line (user-wired).** The plugin cannot set Claude's `statusLine`. Keep that command (and any `refreshInterval`). Feed the same `$input` to the script and append its stdout — one line, or empty:

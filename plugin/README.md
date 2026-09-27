@@ -85,9 +85,9 @@ refusal names the invocation it saw. A torn log, an unordered check, or a check 
 look only warns. `"publish": "warn"` in `.quality-harness.json` makes the refusal a warning; any
 other value is ignored and said to be. A command that merely mentions either word — a grep, a
 heredoc, a file name — is warned about, never refused, and gets none of the publish-time artifact
-checks: only a proven invocation is refused (CLAUDE.md §16). One known limit: a `;` or a newline
-inside quoted data or a heredoc body reads as a command position, so an `echo` of quoted text that
-names a push after a `;` is refused, and the refusal names what it saw.
+checks: only a proven invocation is refused (CLAUDE.md §16). The command is read as the shell
+splits it (ADR-067): quoted text, a heredoc body and a comment are data, while `git {-c,x=y} push`
+and text piped into a shell are the invocations the shell runs.
 
 **Where git runs config-based hooks (2.54 or later), git itself refuses it (ADR-066).** At
 SessionStart the plugin offers git a session-scoped hook through Claude Code's `CLAUDE_ENV_FILE`,

@@ -10,16 +10,6 @@
   ],
   "mutations": [
     {
-      "label": "publish armed: a quoted value is one word",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "grammar of plain forms",
-      "from": "    if (c === \"'\" || c === '\"') {",
-      "to": "    if (false) {"
-    },
-    {
       "label": "publish armed: a $ or a backtick keeps the refusal",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -4368,8 +4358,8 @@
       "tests": [
         "tests/orphan-sweep.test.mjs"
       ],
-      "from": "      if ((uses.get(m[1]) ?? 0) <= 1) found.push({ path, name: m[1] })",
-      "to": "      if ((uses.get(m[1]) ?? 0) <= 0) found.push({ path, name: m[1] })"
+      "from": "      if ((uses.get(name) ?? 0) <= 1) found.push({ path, name })",
+      "to": "      if ((uses.get(name) ?? 0) <= 0) found.push({ path, name })"
     },
     {
       "label": "arch: a comment marker inside a string literal is not a comment (issue #7)",
@@ -4469,15 +4459,6 @@
       ],
       "from": "                helper = symbol_body(text, callee)\n                if helper and FAIL_CALLS.search(helper):",
       "to": "                helper = None\n                if helper and FAIL_CALLS.search(helper):"
-    },
-    {
-      "label": "windows: a failed probe does not leave the previous version readable",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  lastPythonVersion = null\n  if (platform !== 'win32') return null",
-      "to": "  if (platform !== 'win32') return null"
     },
     {
       "label": "lint: a pending task's Produces is not yet expected to exist",
@@ -8239,7 +8220,7 @@
         "tests/leftovers-after-adr053.test.mjs"
       ],
       "from": "    for name, _after in _iter_bdd_calls(text, php=php):",
-      "to": "    for name, _after in ((m.group(1) or m.group(2) or m.group(3), m.end()) for m in _BDD_NAME.finditer(text)):  # [^'\\n]+",
+      "to": "    for name, _after in ((m.group(1) or m.group(2) or m.group(3), m.end()) for m in re.compile(r\"\"\"(?:\\b(?:it|test)\\s*\\()\\s*(?:'([^'\\n]+)'|\"([^\"\\n]+)\"|`([^`\\n]+)`)\\s*,\"\"\").finditer(text)):  # [^'\\n]+",
       "only": "escaped same-quote BDD names are discovered"
     },
     {
@@ -10836,24 +10817,6 @@
       "to": "    try { return true } catch { return null }"
     },
     {
-      "label": "ADR-061: git commit --help is a manual page, not a publish",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "const PUBLISH_NOT_HELP = String.raw`(?![ \\t]+(?:--help|-h)(?![A-Za-z0-9_-]))`",
-      "to": "const PUBLISH_NOT_HELP = ''"
-    },
-    {
-      "label": "ADR-061: git invoked by path (/usr/bin/git push) is a publish",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "const PUBLISH_EXE_BARE = String.raw`(?:[A-Za-z0-9_.~:\\\\/-]*[\\\\/])?git(?:\\.exe)?`",
-      "to": "const PUBLISH_EXE_BARE = 'git'"
-    },
-    {
       "label": "release-evidence: an attestation git could not check is coverage unknown, never absent",
       "file": "scripts/release-evidence.mjs",
       "tests": [
@@ -10870,25 +10833,6 @@
       ],
       "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
       "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn"
-    },
-    {
-      "label": "ADR-061: a keyword or wrapper is a command position only at a command position, not inside quoted data (§269 round 4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|${PUBLISH_SHELL_C}|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`",
-      "to": "const PUBLISH_START = String.raw`(?:^|[\\n;|&({]|\\$\\(|[\"']|${PUBLISH_SHELL_C}|-Command[ \\t]+[\"']|subprocess\\.(?:run|call|check_call|check_output|Popen)\\(\\s*\\[?\\s*[\"']|exec(?:Sync|File|FileSync)?\\(\\s*[\"'])`"
-    },
-    {
-      "label": "§296: a shell -c string is a command position only when a shell is named before the flag",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs",
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "const PUBLISH_SHELL_C = String.raw`(?<![^\\s;|&(){}\"'\\x60])[\"']?(?<shell>(?:[\\w.~\\\\/:-]*[\\\\/])?(?:bash|dash|zsh|ksh|tcsh|csh|sh|pwsh|powershell)(?:\\.exe)?[\"']?(?:${PUBLISH_SHELL_OPT})*${PUBLISH_SHELL_GAP}-[A-Za-z]*c)[ \\t]+[\"']`",
-      "to": "const PUBLISH_SHELL_C = String.raw`-[A-Za-z]*c[ \\t]+[\"']`"
     },
     {
       "label": "§295.23.1: the position inside */ is code, as the prefix scan said",
@@ -11294,16 +11238,6 @@
       "to": "if it is not, ${next.id} is ready"
     },
     {
-      "label": "2.111.0-rc php-react-app F1: eval runs its string",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "eval runs its string",
-      "from": "[ \\t]+|eval[ \\t]+[\"']?`",
-      "to": "[ \\t]+`"
-    },
-    {
       "label": "2.111.0-rc: an empty task file is stopped as unreadable",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -11342,56 +11276,6 @@
       "only": "PowerShell tool",
       "from": "\"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit\"",
       "to": "\"matcher\": \"Bash|Edit|Write|MultiEdit|NotebookEdit\""
-    },
-    {
-      "label": "2.111.0-rc P2: git.exe is git",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "Windows spellings of a publish",
-      "from": "git(?:\\.exe)?`\nconst PUBLISH_EXE = ",
-      "to": "git`\nconst PUBLISH_EXE = "
-    },
-    {
-      "label": "2.111.0-rc P2: a quoted path may hold spaces",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "Windows spellings of a publish",
-      "from": "(?:\"(?:[^\"\\n]*[\\\\/])?git(?:\\.exe)?\"|",
-      "to": "(?:\"${PUBLISH_EXE_BARE}\"|"
-    },
-    {
-      "label": "2.111.0-rc P2: cmd /c runs its command",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "Windows spellings of a publish",
-      "from": "  + String.raw`|cmd(?:\\.exe)?(?:[ \\t]+\\/\\/?(?:[qQdDaAuUsS]|[eEfFvV]:\\w+))*[ \\t]+\\/\\/?[cCkK][ \\t]+[\"']?`\n",
-      "to": ""
-    },
-    {
-      "label": "2.111.0-rc P2: wsl runs its command",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "Windows spellings of a publish",
-      "from": "|wsl(?:\\.exe)?(?:[ \\t]+(?:-d|-u|--distribution|--user)[ \\t]+[^\\s\"']+)*(?:[ \\t]+(?:-e|--exec|--))?[ \\t]+",
-      "to": ""
-    },
-    {
-      "label": "2.111.0-rc P2: a drive path reaches git",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "Windows spellings of a publish",
-      "from": "(?:[A-Za-z0-9_.~:\\\\/-]*[\\\\/])?git",
-      "to": "(?:[A-Za-z0-9_.~\\\\/-]*[\\\\/])?git"
     },
     {
       "label": "2.111.0-rc P3: a Proposed owner is named on the ready line",
@@ -11514,33 +11398,6 @@
       "to": "    if False:\n        # Said first and plainly"
     },
     {
-      "label": "§298 (Codex): a quoted option value is one token",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": ".match(/(?:[^\\s\"']+|\"[^\"]*\"|'[^']*')+/g) ?? ['']",
-      "to": ".split(/[ \\t]+/)"
-    },
-    {
-      "label": "§298 (Codex): nothing inside a silenced -c string is invoked",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "    if (silenced.some(([from, to]) => m.index >= from && m.index < to)) continue\n",
-      "to": ""
-    },
-    {
-      "label": "§298 (Codex): an escaped quote does not end a silenced string",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "    if (quote === '\"' && command[i] === '\\\\') { i++; continue }\n",
-      "to": ""
-    },
-    {
       "label": "§295.7 (Codex): a fence opened inside a hunk hides no marker",
       "file": "plugin/lib/record.py",
       "tests": [
@@ -11592,78 +11449,6 @@
       "to": "      if (false) fence = null"
     },
     {
-      "label": "§298: a shell that parses without executing is not an invocation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "function shellRuns(shell) {\n",
-      "to": "function shellRuns(shell) {\n  return true\n"
-    },
-    {
-      "label": "§298: +n after -n turns execution back on",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "    else if (/^\\+[A-Za-z]+$/.test(token) && token.includes('n')) runs = true",
-      "to": "    else if (false) runs = true"
-    },
-    {
-      "label": "§298: -o noexec parses without executing, +o noexec undoes it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "      runs = token === '+o'",
-      "to": "      runs = true"
-    },
-    {
-      "label": "§298: --help and --version print and exit",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "    if (token === '--help' || token === '--version') return false\n",
-      "to": ""
-    },
-    {
-      "label": "§298: PowerShell's word options are not POSIX -n clusters",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "  if (name === 'pwsh' || name === 'powershell') return true\n",
-      "to": ""
-    },
-    {
-      "label": "§298: the search goes on past a shell that does not run the string",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "  for (const m of command.matchAll(PUBLISH_COMMAND)) {",
-      "to": "  for (const m of [...command.matchAll(PUBLISH_COMMAND)].slice(0, 1)) {"
-    },
-    {
-      "label": "§296: a name that only ends in sh is not a shell before -c",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "const PUBLISH_SHELL_C = String.raw`(?<![^\\s;|&(){}\"'\\x60])",
-      "to": "const PUBLISH_SHELL_C = String.raw`(?:)"
-    },
-    {
-      "label": "§296: a shell may take options with values, a quoted name and a line continuation before -c",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "const PUBLISH_SHELL_OPT = String.raw`${PUBLISH_SHELL_GAP}[+-]{1,2}[A-Za-z][\\w-]*(?:=(?:\"[^\"]*\"|'[^']*'|[^\\s\"']*))?(?:${PUBLISH_SHELL_GAP}(?![-+])(?:\"[^\"]*\"|'[^']*'|[^\\s\"';|&]+))?`",
-      "to": "const PUBLISH_SHELL_OPT = String.raw`${PUBLISH_SHELL_GAP}--?[A-Za-z][\\w-]*`"
-    },
-    {
       "label": "ADR-061: a mention imports the check source before its warning reads the ledger (§269 round 4)",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -11680,15 +11465,6 @@
       ],
       "from": "    if (recorded?.event === 'publish.requested') artifactRule(input, recorded)",
       "to": "    artifactRule(input, recorded)"
-    },
-    {
-      "label": "ADR-061: an env option's ARGUMENT is not the executable (env -u git push publishes nothing) (§269 round 5)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "  + String.raw`|env(?:[ \\t]+(?:-[iv0]+|--ignore-environment|-[uC][ \\t]+[^\\s\"']+))*(?:[ \\t]+-S[ \\t]+[\"']|[ \\t]+)`",
-      "to": "  + String.raw`|env(?:[ \\t]+-[^\\s\"'S][^\\s\"']*)*(?:[ \\t]+-S[ \\t]+[\"']|[ \\t]+)`"
     },
     {
       "label": "ADR-060/061: a read-only role's PreToolUse is the guard's alone — never observed, recorded or warned about (§269 round 6)",
@@ -12332,7 +12108,7 @@
     },
     {
       "label": "readers: release-evidence diffs the reader directories as repository paths",
-      "file": "plugin/scripts/reader-paths.mjs",
+      "file": "scripts/release-evidence.mjs",
       "tests": [
         "tests/release-evidence.test.mjs"
       ],
@@ -12701,6 +12477,76 @@
       "to": "      const verdict = running ?? failing[0] ?? answering[0]"
     },
     {
+      "label": "shell-words: an arithmetic command is not a heredoc (ADR-067, found by the gate)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "the lexer's argv is the argv the shell hands git",
+      "from": "    if (c === '(' && src[i + 1] === '(' && word === null && command.argv.length === 0 && command.assignments.length === 0) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "shell-words: a double-quoted backslash escapes (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "the lexer's argv is the argv the shell hands git",
+      "from": "        if (src[k] === '\\\\' && k + 1 < src.length && '$`\"\\\\\\n'.includes(src[k + 1])) {",
+      "to": "        if (false) {"
+    },
+    {
+      "label": "shell-words: a heredoc body is data, not commands (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "the lexer's argv is the argv the shell hands git",
+      "from": "      if (c === '\\n' && pending.length) { i++; readHeredocs(); i-- }",
+      "to": "      if (false) { readHeredocs() }"
+    },
+    {
+      "label": "shell-words: brace expansion keeps every alternative (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "the lexer's argv is the argv the shell hands git",
+      "from": "    for (let n = 0; n + 1 < cuts.length; n++) {",
+      "to": "    for (let n = 0; n + 1 < Math.min(cuts.length, 2); n++) {"
+    },
+    {
+      "label": "shell-words: an incomplete lex says so (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "an incomplete lex says so and keeps what it read",
+      "from": "  return { commands, complete }",
+      "to": "  return { commands, complete: true }"
+    },
+    {
+      "label": "shell-words: a quoted operator marks the word as code (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "quoted text, heredoc bodies and comments are data",
+      "from": "  const spanned = span => { if (CODE.test(span)) word.code = true }",
+      "to": "  const spanned = span => {}"
+    },
+    {
+      "label": "shell-words: a pipe says which command it feeds (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "quoted text, heredoc bodies and comments are data",
+      "from": "      if (pipeNext) commands.at(-1).pipeTo = commands.length",
+      "to": "      if (false) commands.at(-1).pipeTo = commands.length"
+    },
+    {
       "label": "ADR-066 T3: a verb with anything glued to it keeps the refusal (round 3)",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -12751,16 +12597,6 @@
       "to": ""
     },
     {
-      "label": "publish armed: quoted code is judged by the same grammar",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "grammar of plain forms",
-      "from": "    if (!counted(plainPublishes(inner, depth + 1, allowed(words)), words)) return -1",
-      "to": "    if (!counted(0, words)) return -1"
-    },
-    {
       "label": "publish armed: an unlisted long option keeps the refusal",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -12779,36 +12615,6 @@
       "only": "grammar of plain forms",
       "from": "  if (/\\.git\\/|hookspath/i.test(raw)) return false",
       "to": "  if (/hookspath/i.test(raw)) return false"
-    },
-    {
-      "label": "publish armed: a quoted span holding an operator is data to judge, not a word",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "leaves a plain invocation to git",
-      "from": "      if (/[;&|()\\n]/.test(inner)) { nested.push({ inner, segment: segments.length - 1 }); inner = '\\0' }",
-      "to": "      if (false) { nested.push({ inner, segment: segments.length - 1 }); inner = '\\0' }"
-    },
-    {
-      "label": "ADR-066 T3: quoted code under an unknown command keeps the refusal (round 4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "reads words, quoted code and heredocs",
-      "from": "    if (count < 0 || (count > 0 && !allowed(words))) return false",
-      "to": "    if (count < 0) return false"
-    },
-    {
-      "label": "ADR-066 T3: a bare literal in data code counts under its command (round 4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "leaves a plain invocation to git",
-      "from": "  const allowed = words => HOOK_DATA_COMMANDS.has(words?.[0]) || (words?.[0] === '\\0' && inherited)",
-      "to": "  const allowed = words => HOOK_DATA_COMMANDS.has(words?.[0])"
     },
     {
       "label": "ADR-066 T3: a git argument hiding quoted code keeps the refusal (round 4)",
@@ -12839,16 +12645,6 @@
       "only": "reads words, quoted code and heredocs",
       "from": "  if (/\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/.test(raw)) return false",
       "to": "  if (/\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME)\\b/.test(raw)) return false"
-    },
-    {
-      "label": "ADR-066 T3: a heredoc line that goes on counts its body for nothing (round 4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "reads words, quoted code and heredocs",
-      "from": "      else body.feeder = null\n",
-      "to": ""
     },
     {
       "label": "lock: an object argument at depth 0 is skipped, not hashed as the body (§305)",
@@ -12889,6 +12685,356 @@
       "only": "options object before the callback is not the body the can-fail",
       "from": "            while back >= 0 and masked[back].isspace():",
       "to": "            while back >= 0 and masked[back] in \" \\t\\r\\n\":"
+    },
+    {
+      "label": "ADR-067 T2: a help flag straight after the verb opens a manual page",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (argv[k + 1] === '--help' || argv[k + 1] === '-h') return null",
+      "to": "  if (false) return null",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 T2: git by path is git (/usr/bin/git, C:/Git/cmd/git.exe)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const programName = word => String(word).split(/[\\\\/]/).pop().replace(/\\.exe$/i, '')",
+      "to": "const programName = word => String(word).replace(/\\.exe$/i, '')",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: git.exe is git",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const programName = word => String(word).split(/[\\\\/]/).pop().replace(/\\.exe$/i, '')",
+      "to": "const programName = word => String(word).split(/[\\\\/]/).pop()",
+      "only": "Windows spellings of a publish are recognised"
+    },
+    {
+      "label": "ADR-067 T2: a control keyword before a command is skipped",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas') k += 1",
+      "to": "    if (word === 'exec' || word === 'nohup' || word === 'doas') k += 1",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: a -c string runs only when a shell is named before the flag",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (dynamic.includes(k) || !SHELL_NAMES.has(programName(argv[k]).toLowerCase())) continue",
+      "to": "    if (dynamic.includes(k)) continue",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 T2: a name that only ends in sh is not a shell",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (dynamic.includes(k) || !SHELL_NAMES.has(programName(argv[k]).toLowerCase())) continue",
+      "to": "    if (dynamic.includes(k) || !/sh$/.test(programName(argv[k]))) continue",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 T2: eval runs its joined arguments",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (name === 'eval') return inner([argv.slice(start + 1).join(' ')])",
+      "to": "  if (false) return inner([argv.slice(start + 1).join(' ')])",
+      "only": "eval runs its string"
+    },
+    {
+      "label": "ADR-067 T2: cmd /c runs its command",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (/^\\/\\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ')])",
+      "to": "    if (false) return inner([argv.slice(k + 1).join(' ')])",
+      "only": "Windows spellings of a publish are recognised"
+    },
+    {
+      "label": "ADR-067 T2: wsl runs its command",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (k < argv.length) return inner([argv.slice(k).join(' ')])",
+      "to": "    if (false) return inner([argv.slice(k).join(' ')])",
+      "only": "Windows spellings of a publish are recognised"
+    },
+    {
+      "label": "ADR-067 T2: nothing inside a silenced -c string is invoked",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (shellRuns(argv.slice(k, shell.flag + 1)) && shell.flag + 1 < argv.length) {",
+      "to": "      if (shell.flag + 1 < argv.length) {",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 T2: a shell that parses without executing is not an invocation",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    } else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false",
+      "to": "    } else if (false) runs = false",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 T2: +n after -n turns execution back on",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    else if (/^\\+[A-Za-z]+$/.test(word) && word.includes('n')) runs = true",
+      "to": "    else if (false) runs = true",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: -o noexec parses without executing, +o noexec undoes it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      runs = word === '+o'",
+      "to": "      runs = true",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 T2: --help and --version print and exit",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (word === '--help' || word === '--version') return false",
+      "to": "    if (false) return false",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 T2: PowerShell's word options are not POSIX -n clusters",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (POWERSHELL.has(programName(words[0]).toLowerCase())) return true",
+      "to": "  if (false) return true",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: every command in a line is read, past a shell that runs nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  for (let n = 0; n < commands.length; n++) {",
+      "to": "  for (let n = 0; n < Math.min(commands.length, 1); n++) {",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: a shell option may take a value before -c",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && /^(?:[+-]o|-O|\\+O|--rcfile|--init-file|-[A-Z]\\w+)$/.test(word) ? 2 : 1",
+      "to": "    k += 1",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: an env option's argument is not the program",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "        if (/^-[uC]$/.test(argv[k])) k += 2",
+      "to": "        if (/^-[uC]$/.test(argv[k])) k += 1",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 T2: env -S runs its string",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "        if (argv[k] === '-S' || argv[k] === '--split-string') return { text: argv[k + 1] ?? '' }",
+      "to": "        if (false) return { text: argv[k + 1] ?? '' }",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: sudo's valued options are not the program",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      while (isFlag(argv[k])) k += /^-[ugCDprtTU]$/.test(argv[k]) ? 2 : 1",
+      "to": "      while (isFlag(argv[k])) k += 1",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: timeout's duration is not the program",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      k += 1 // the duration",
+      "to": "      k += 0 // the duration",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: xargs's valued options are not the program",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      while (isFlag(argv[k])) k += /^-[nLPsdIEJR]$/.test(argv[k]) ? 2 : 1",
+      "to": "      while (isFlag(argv[k])) k += 1",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 T2: a command substitution runs as its own command",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const substituted = inner(substitutions.filter(text => !text.startsWith('(')))",
+      "to": "  const substituted = null",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: a heredoc or here-string fed to a shell is its script",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const scripts = commands[n].heredocs.map(doc => doc.body)",
+      "to": "  const scripts = []",
+      "only": "a publish is found by argv"
+    },
+    {
+      "label": "ADR-067 T2: text an echo pipes into a shell is its script",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (name === 'echo' || name === 'printf') scripts.push(upstream.argv.slice(start + 1).join(' ').replace(/\\\\n/g, '\\n'))",
+      "to": "    if (false) scripts.push(upstream.argv.slice(start + 1).join(' ').replace(/\\\\n/g, '\\n'))",
+      "only": "text piped into a shell"
+    },
+    {
+      "label": "ADR-067 T2: an interpreter's subprocess argv list runs git",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "        const invoked = programName(list[0] ?? '') === 'git' ? gitInvocation(list, 0, []) : null",
+      "to": "        const invoked = null",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 T2: the shell's own brace expansion reaches git's options",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    for (let n = 0; n + 1 < cuts.length; n++) {",
+      "to": "    for (let n = 0; n + 1 < Math.min(cuts.length, 2); n++) {",
+      "only": "a brace-built publish is refused"
+    },
+    {
+      "label": "ADR-067 T3: a word holding quoted code is not a plain argument",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const wordsOf = command => [...command.assignments, ...command.argv.map((word, k) => (command.code[k] ? '\\0' : word))]",
+      "to": "  const wordsOf = command => [...command.assignments, ...command.argv]",
+      "only": "the armed grammar reads words, quoted code and heredocs as the shell does"
+    },
+    {
+      "label": "ADR-067 T3: quoted code is judged by the same grammar",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (command.code[k] && !counted(plainPublishes(command.argv[k], depth + 1, allowed(command)), command)) return -1",
+      "to": "      if (false) return -1",
+      "only": "the armed grammar reads words, quoted code and heredocs as the shell does"
+    },
+    {
+      "label": "ADR-067 T3: quoted code under an unknown command keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (count < 0 || (count > 0 && !allowed(command))) return false",
+      "to": "    if (count < 0) return false",
+      "only": "the armed grammar reads words, quoted code and heredocs as the shell does"
+    },
+    {
+      "label": "ADR-067 T3: a bare literal in data code counts under its command",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    && (HOOK_DATA_COMMANDS.has(command.argv[0]) || (command.code[0] === true && command.assignments.length === 0 && inherited))",
+      "to": "    && HOOK_DATA_COMMANDS.has(command.argv[0])",
+      "only": "an armed session leaves a plain invocation to git"
+    },
+    {
+      "label": "ADR-067 T3: a heredoc whose command pipes on counts its body for nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (!counted(plainPublishes(doc.body, depth + 1), command.pipeTo === null ? command : null)) return -1",
+      "to": "      if (!counted(plainPublishes(doc.body, depth + 1), command)) return -1",
+      "only": "the armed grammar reads words, quoted code and heredocs as the shell does"
+    },
+    {
+      "label": "ADR-067 T3: a quoted span holding an operator is code to judge",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const spanned = span => { if (CODE.test(span)) word.code = true }",
+      "to": "  const spanned = span => {}",
+      "only": "the armed grammar reads words, quoted code and heredocs as the shell does"
+    },
+    {
+      "label": "ADR-067 T3: the armed grammar reads shellWords, not a private split",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const { commands, complete } = shellWords(text)\n  if (!complete) return -1",
+      "to": "  const { commands, complete } = { commands: text.split(/[;\\n]/).map(s => ({ argv: s.trim().split(/\\s+/).filter(Boolean), assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null })), complete: true }\n  if (!complete) return -1",
+      "only": "one lexer reads shell text for rule P"
+    },
+    {
+      "label": "ADR-067 T3: the publish walk reads shellWords, not a private split",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const { commands } = shellWords(text)\n  for (let n = 0;",
+      "to": "  const { commands } = { commands: text.split(/[;\\n]/).map(s => ({ argv: s.trim().split(/\\s+/).filter(Boolean), assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null })), complete: true }\n  for (let n = 0;",
+      "only": "every publish form is recognised"
     }
   ]
 }

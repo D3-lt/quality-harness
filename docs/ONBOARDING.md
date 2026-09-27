@@ -115,9 +115,9 @@ as `check` in `.quality-harness.json` or inferred from a manifest — a Bash com
 `git commit` or `git push`, directly or through `bash -c`, `pwsh -Command` or an argv list, is
 refused while no `qh-check` has passed on the current tree. Run `qh-check` (it runs your check and
 records the result) and the commit goes through. A command that only mentions the words, such as a
-`grep -c` for them, is warned about and not refused. One known limit: a heredoc line or quoted text
-that reads like the command itself (`echo "x; git push"`) is refused too, and the refusal names what
-it saw. `"publish": "warn"` turns the refusal back into a warning. Every could-not-look — a torn
+`grep -c` for them, or quoted text and a heredoc that name them (`echo "x; git push"`), is warned
+about and not refused: since 3.1.0 the command is read as the shell splits it (ADR-067).
+`"publish": "warn"` turns the refusal back into a warning. Every could-not-look — a torn
 log, a check that timed out — warns and never refuses.
 
 ### It says "I could not look"

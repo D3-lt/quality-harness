@@ -11,7 +11,7 @@
 // or inside the quoted string of a known executor — and nothing that is data.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
@@ -113,6 +113,17 @@ const PUBLISHES = [
   'bash --rcfile "x -n y" -c "git push"',
   'bash -n -c "echo" ; git push',
   'sh -n -c "" && sh -c "git push"',
+  // ADR-067: the shell expands braces before git sees them; bash and zsh run a backtick
+  // inside double quotes (measured 2026-09-27 with a stand-in git: this row sat in
+  // NOT_PUBLISHES, a publish the regex missed); and text piped into a shell is its script.
+  'git {-c,x=y} push',
+  'git {commit,-m,x}',
+  'node -e "/names commit or push \\\\(`git commit`\\\\)/"',
+  'echo "x; git commit --no-verify" | bash',
+  "printf 'git push\\n' | sh",
+  "cat <<'X' | bash\ngit push\nX",
+  "bash <<'EOF'\ngit push\nEOF",
+  'bash <<<"git push"',
 ]
 
 // Commands that mention the words, or even the invocation as DATA, and publish
@@ -138,7 +149,6 @@ const NOT_PUBLISHES = [
   'git commit --help',
   'git help commit',
   'sh do-commit.sh',
-  'node -e "/names commit or push \\\\(`git commit`\\\\)/"',
   'python3 -c "print(\'git push\')"',
   // Codex review of f67cede: a keyword or wrapper INSIDE quoted data was a command position.
   'echo "then git push"',
@@ -176,11 +186,16 @@ const NOT_PUBLISHES = [
   'bash -n -c "git push; git push"',
   'bash -n -c "echo \\"x\\"; git push"',
   "bash -c \"bash -n -c 'x; git push'\"",
+  // ADR-067: the regex's known false refusals, data to a reader that splits as the shell does.
+  'eval "git push" "-h"',
+  'git log --grep "x; git push"',
+  'echo "example; git push"',
+  'node -e "console.log(\'a; git push\')"',
+  "cat <<'EOF'\ngit push\nEOF",
+  'echo \'bash -c "git push"\'',
+  'grep -F \'sh -c "git push"\' docs/example.md',
 ]
 
-// The precise arm's known limit, pinned as a decision (§269): a `;` or a newline inside
-// quoted data or a heredoc body reads as a command position, so these are refused
-// although they publish nothing. Rare, named in the refusal's own text, and cheaper
 // A Windows chaos round (2.111.0-rc, P2): spellings that reached git on a Windows 11
 // host (`git.exe --version`, `cmd //c git --version`, `wsl -e true`) and were not read
 // as a publish. Beside them, look-alikes that run no git.
@@ -208,20 +223,10 @@ test('Windows spellings of a publish are recognised, and look-alikes are not', (
   for (const command of WINDOWS_NOT_PUBLISHES) assert.equal(publishCommandIn(command), null, command)
 })
 
-// than a shell parser; the docs say so rather than "never refused".
-const KNOWN_FALSE_REFUSALS = [
-  // Codex review of 2.111.0-rc2: eval joins its arguments, so a quoted string followed by
-  // more words is one command this classifier does not rebuild. The same limit as above.
-  'eval "git push" "-h"',
-  'git log --grep "x; git push"',
-  'echo "example; git push"',
-  'node -e "console.log(\'a; git push\')"',
-  "cat <<'EOF'\ngit push\nEOF",
-  // §296, Codex: a shell and its -c inside quoted data. The same limit as above, kept by the
-  // owner's decision for 2.111.0 rather than paid for with a quote-aware parser.
-  'echo \'bash -c "git push"\'',
-  'grep -F \'sh -c "git push"\' docs/example.md',
-]
+// The known false refusals, pinned so a new one is a decision (§269). ADR-067 emptied
+// it: each row was data to a reader that splits the command as the shell does, and
+// moved to NOT_PUBLISHES. A limit found later goes here, with the evidence.
+const KNOWN_FALSE_REFUSALS = []
 
 // Mentions: refused by no arm, WARNED about by the advisory one. These are the
 // grep, the echo and the file name that taught the bypass (§269) — and the two
@@ -331,13 +336,13 @@ function armedSession(prefix, { armed = true, offered = false } = {}) {
   return { decide, check }
 }
 
-// Plain invocations and the quoted-data rows the classifier matches: with git's
-// hook in place, each is advice. The two quoted `bash -c` / `sh -c` rows of
-// KNOWN_FALSE_REFUSALS do not start with git, so they keep the refusal.
+// Plain invocations: with git's hook in place, each is advice. The quoted-data rows
+// that were here are no longer matched at all (ADR-067).
 const LEFT_TO_GIT = [
   'git commit -m x', 'git push', 'git push origin main', 'git commit --amend',
   'git -c user.name=Bot commit -m x', 'git --no-pager push origin main', 'git -C "/tmp/x y" commit -m x',
-  'git log --grep "x; git push"', 'echo "example; git push"', 'node -e "console.log(\'a; git push\')"', "cat <<'EOF'\ngit push\nEOF",
+  // A quoted literal inside data code counts under the command around it (ADR-066 round 4).
+  'node -e "console.log(\'a; git push\')"; git push',
 ]
 // Every form measured 2026-09-26 to leave the hook out, and the wrappers that may
 // run git without this session's environment.
@@ -508,4 +513,194 @@ test('the armed grammar reads words, quoted code and heredocs as the shell does'
   for (const command of [
     'git commit -m "fix; then push"', "cat <<'EOF'\ngit push\nEOF", 'echo "one; git push"',
   ]) assert.equal(leavesHookInPlace(command), true, JSON.stringify(command))
+})
+
+// ADR-067 T2. What the regex classifier returned at 826ec94 for every row that publishes;
+// the walk over the lexer must return the same invocation.
+const INVOKED_AT_826EC94 = {
+  "git commit -m x": "git commit",
+  "git push": "git push",
+  "git push origin main": "git push",
+  "git commit --amend": "git commit",
+  "git -c user.name=Bot commit -m x": "git -c user.name=Bot commit",
+  "git -c 'user.name=Bot User' commit -m x": "git -c user.name=Bot User commit",
+  "git --no-pager push origin main": "git --no-pager push",
+  "git -C \"/tmp/x y\" commit -m x": "git -C /tmp/x y commit",
+  "git --git-dir=.git push": "git --git-dir=.git push",
+  "git -C dir1 -C dir2 push": "git -C dir1 -C dir2 push",
+  "bash -c 'git commit -m x'": "git commit",
+  "bash -o pipefail -c \"git commit -m test\"": "git commit",
+  "pwsh -Command 'git push'": "git push",
+  "python3 -c 'import subprocess; subprocess.run([\"git\",\"push\"])'": "git push",
+  "python3 -c \"import subprocess; subprocess.run(['git', 'push'])\"": "git push",
+  "node -e \"require('child_process').execSync('git push')\"": "git push",
+  "env GIT_AUTHOR_NAME=Bot git commit -m test": "git commit",
+  "GIT_AUTHOR_NAME=\"Bot User\" git commit -m test": "git commit",
+  "env -S \"git commit -m test\"": "git commit",
+  "exec git commit -m test": "git commit",
+  "command git commit -m test": "git commit",
+  "command -p git push": "git push",
+  "time -p git commit -m test": "git commit",
+  "sudo git push": "git push",
+  "nohup git push": "git push",
+  "(git commit -m test)": "git commit",
+  "{ git commit -m test; }": "git commit",
+  "echo \"$(git push)\"": "git push",
+  "gh pr view 1 && git push origin main": "git push",
+  "true || git push": "git push",
+  "ls | git commit -F -": "git commit",
+  "echo $((1 << 2))\ngit commit -m test": "git commit",
+  "/usr/bin/git push": "/usr/bin/git push",
+  "/opt/homebrew/bin/git commit -m x": "/opt/homebrew/bin/git commit",
+  "git \\\n push": "git push",
+  "git\tpush": "git push",
+  "git push && echo --help": "git push",
+  "git commit -m \"fix --help output\"": "git commit",
+  "git push origin main # --help": "git push",
+  "\"git\" push": "git push",
+  "if true; then git push; fi": "git push",
+  "for b in x; do git push origin \"$b\"; done": "git push",
+  "bash -lc \"git push\"": "git push",
+  "sh -ec 'git commit -m x'": "git commit",
+  "! git push": "git push",
+  "sudo -n git push": "git push",
+  "sudo -u deploy git push": "git push",
+  "python3 -c \"import subprocess; subprocess.run( ['git', 'push'])\"": "git push",
+  "xargs -0 git push": "git push",
+  "env -i git push": "git push",
+  "nice git push": "git push",
+  "doas git push": "git push",
+  "timeout 5 git push": "git push",
+  "timeout -k 3 5 git push": "git push",
+  "if x; then exec git push; fi": "git push",
+  "zsh -c 'git commit -m x'": "git commit",
+  "/bin/sh -c \"git push\"": "git push",
+  "dash -c 'git push'": "git push",
+  "ksh -c 'git push'": "git push",
+  "tcsh -c 'git push'": "git push",
+  "csh -c 'git push'": "git push",
+  "pwsh -c 'git push'": "git push",
+  "pwsh -NoProfile -c \"git push\"": "git push",
+  "sudo -u ci bash -c \"git push\"": "git push",
+  "docker exec app sh -c 'git push'": "git push",
+  "\"bash\" -c \"git push\"": "git push",
+  "\"/bin/sh\" -c \"git push\"": "git push",
+  "sh.exe -c \"git push\"": "git push",
+  "bash +e -c \"git push\"": "git push",
+  "bash -O extglob -c \"git push\"": "git push",
+  "bash --rcfile /dev/null -c \"git push\"": "git push",
+  "bash --noprofile --norc -c \"git push\"": "git push",
+  "bash -o \"pipefail\" -c \"git push\"": "git push",
+  "bash \\\n-c \"git push\"": "git push",
+  "pwsh -ExecutionPolicy Bypass -c 'git push'": "git push",
+  "bash -n -c \"git push\"; git push": "git push",
+  "bash -n +n -c \"git push\"": "git push",
+  "bash -o noexec +o noexec -c 'git push'": "git push",
+  "pwsh -NonInteractive -c 'git push'": "git push",
+  "bash --rcfile \"x -n y\" -c \"git push\"": "git push",
+  "bash -n -c \"echo\" ; git push": "git push",
+  "sh -n -c \"\" && sh -c \"git push\"": "git push",
+  "git.exe push": "git.exe push",
+  "\"/c/Program Files/Git/cmd/git.exe\" push": "/c/Program Files/Git/cmd/git.exe push",
+  "C:/Git/cmd/git.exe push": "C:/Git/cmd/git.exe push",
+  "cmd /c git push": "git push",
+  "cmd.exe /c \"git push\"": "git push",
+  "cmd //c git push": "git push",
+  "pwsh -c \"git.exe push\"": "git.exe push",
+  "wsl git push": "git push",
+  "wsl -d Ubuntu -e git push": "git push"
+}
+// The rows ADR-067 added to PUBLISHES, with what each invokes.
+const ADDED_BY_ADR_067 = {
+  'git {-c,x=y} push': 'git -c x=y push',
+  'git {commit,-m,x}': 'git commit',
+  'node -e "/names commit or push \\\\(`git commit`\\\\)/"': 'git commit',
+  'echo "x; git commit --no-verify" | bash': 'git commit',
+  "printf 'git push\\n' | sh": 'git push',
+  "cat <<'X' | bash\ngit push\nX": 'git push',
+  "bash <<'EOF'\ngit push\nEOF": 'git push',
+  'bash <<<"git push"': 'git push',
+}
+const FORMER_FALSE_REFUSALS = [
+  ['eval "git push" "-h"', 'eval "git push"'],
+  ['git log --grep "x; git push"', 'git log --grep x; git push'],
+  ['echo "example; git push"', 'echo example; git push'],
+  ['node -e "console.log(\'a; git push\')"', 'node -e x; git push'],
+  ["cat <<'EOF'\ngit push\nEOF", 'cat\ngit push'],
+  ['echo \'bash -c "git push"\'', 'echo x; bash -c "git push"'],
+  ['grep -F \'sh -c "git push"\' docs/example.md', 'grep -F x; sh -c "git push"'],
+]
+// Every quoted literal in this file, for the cost bound.
+const LITERAL = /'((?:[^'\\\n]|\\.)*)'/g
+const COST_BOUND_US = 25
+
+test('a publish is found by argv, as the shell runs it', () => {
+  for (const [command, expected] of Object.entries({ ...INVOKED_AT_826EC94, ...ADDED_BY_ADR_067 })) {
+    assert.equal(publishCommandIn(command), expected, JSON.stringify(command))
+  }
+  for (const command of [...PUBLISHES, ...WINDOWS_PUBLISHES]) {
+    assert.ok(command in INVOKED_AT_826EC94 || command in ADDED_BY_ADR_067, `no expected invocation: ${command}`)
+  }
+})
+
+test('data that names a publish is not refused, and the known false refusals are gone', () => {
+  assert.deepEqual(KNOWN_FALSE_REFUSALS, [])
+  const armed = armedSession('data-armed-')
+  const unarmed = armedSession('data-unarmed-', { armed: false })
+  for (const [data, commands] of FORMER_FALSE_REFUSALS) {
+    assert.equal(publishCommandIn(data), null, data)
+    assert.notEqual(unarmed.decide(data), 'deny', data)
+    assert.notEqual(armed.decide(data), 'deny', data)
+    // DIRTY twin: the same words run as commands are a publish, refused unarmed.
+    assert.ok(publishCommandIn(commands) !== null, commands)
+    assert.equal(unarmed.decide(commands), 'deny', commands)
+  }
+})
+
+test('a brace-built publish is refused', () => {
+  assert.equal(publishCommandIn('git {-c,x=y} push'), 'git -c x=y push')
+  assert.equal(publishCommandIn('git {commit,-m,x}'), 'git commit')
+  assert.equal(publishCommandIn('echo {git,push}'), null)
+  assert.equal(publishCommandIn("git '{-c,x=y}' push"), null, 'a quoted brace is not expanded: git reads it as an option')
+  const unarmed = armedSession('brace-', { armed: false })
+  assert.equal(unarmed.decide('git {-c,hook.qh-publish-commit.enabled=false} commit -m x'), 'deny')
+})
+
+test('text piped into a shell is read as the shell reads it', () => {
+  const unarmed = armedSession('pipe-unarmed-', { armed: false })
+  const armed = armedSession('pipe-armed-')
+  for (const command of ['echo "x; git commit --no-verify" | bash', "printf 'git push\\n' | sh", "cat <<'X' | bash\ngit push\nX"]) {
+    assert.ok(publishCommandIn(command) !== null, command)
+    assert.equal(unarmed.decide(command), 'deny', command)
+  }
+  // --no-verify skips git's pre-push hook, so the armed session refuses it on its text.
+  assert.equal(armed.decide('echo "x; git commit --no-verify" | bash'), 'deny')
+  // CLEAN twin: the same text piped into a program that is not a shell.
+  assert.equal(publishCommandIn('echo "x; git push" | cat'), null)
+  assert.equal(publishCommandIn("cat <<'X' | cat\ngit push\nX"), null)
+})
+
+test('the classifier stays under its cost bound', t => {
+  const literals = [...readFileSync(fileURLToPath(import.meta.url), 'utf8').matchAll(LITERAL)].map(m => m[1])
+  const started = process.hrtime.bigint()
+  for (let pass = 0; pass < 20; pass++) for (const literal of literals) publishCommandIn(literal)
+  const mean = Number(process.hrtime.bigint() - started) / 1000 / (20 * literals.length)
+  t.diagnostic(`mean ${mean.toFixed(2)} µs per call over ${literals.length} literals`)
+  assert.ok(mean < COST_BOUND_US, `mean ${mean} µs`)
+})
+
+// ADR-067 T3: the armed grammar reads the same lexer the publish classifier does.
+const LIFECYCLE_SOURCE = new URL('../plugin/scripts/lifecycle.mjs', import.meta.url)
+const BRACE_BYPASS = 'git {-c,hook.qh-publish-commit.enabled=false} commit -m x'
+
+test('one lexer reads shell text for rule P', () => {
+  // A quoted operator inside a git argument hides a bypass: `-nm;x` hands git `-n`.
+  assert.equal(leavesHookInPlace("git commit '-nm;x'"), false)
+  // The shell expands the braces before git sees them; both readers must too.
+  assert.equal(publishCommandIn(BRACE_BYPASS), 'git -c hook.qh-publish-commit.enabled=false commit')
+  assert.equal(leavesHookInPlace(BRACE_BYPASS), false)
+  assert.equal(armedSession('one-lexer-').decide(BRACE_BYPASS), 'deny')
+  const source = readFileSync(fileURLToPath(LIFECYCLE_SOURCE), 'utf8')
+  assert.equal(source.includes('function hookSegments'), false, 'the armed grammar splits with shellWords, not with a copy of it')
+  assert.ok(source.includes("import { shellWords } from './shell-words.mjs'"))
 })

@@ -4,7 +4,7 @@
 // the reader the round measured, in a repository this test created (CLAUDE.md §9).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -48,5 +48,45 @@ test('a corpus past the record budget is PARTIAL, and the first file not examine
   } finally {
     rmSync(past, { recursive: true, force: true })
     rmSync(exact, { recursive: true, force: true })
+  }
+})
+
+// A Windows chaos round of 916b515 (scalable-badger C-5): a task file that could not be
+// opened was dropped from its record, so its directory was never asked about and the
+// record read as "governing nothing". A directory named like a task stands in for the
+// lock: it is unreadable on every platform.
+test('a task file nobody could read leaves its record\'s scope unknown, not empty', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-unread-task-'))
+  try {
+    const tasks = join(dir, 'docs', 'adr', 'ADR-002-a', 'tasks')
+    mkdirSync(join(tasks, 'T1-locked.md'), { recursive: true })
+    writeFileSync(join(dir, 'docs', 'adr', 'ADR-002-a.md'), '# ADR-002: a\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
+    const state = stateOf(dir)
+    assert.deepEqual(state.governingNothing, [], 'a scope nobody could read is not an empty one')
+    assert.deepEqual(state.governsUnproven.map(entry => entry.id), ['ADR-002'])
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// The same lead, as a lock is: a TRACKED file that cannot be opened. Readers that list
+// tasks through git never see an empty directory, so the stand-in above cannot reach
+// them. chmod cannot deny a read on Windows or to root, so those skip, saying so.
+const cannotDenyRead = process.platform === 'win32' ? 'chmod does not deny a read on Windows'
+  : process.getuid?.() === 0 ? 'root reads a file whatever its mode' : false
+test('a tracked task file nobody could read makes its directory UNPROVEN in work-next', { skip: cannotDenyRead }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-locked-task-'))
+  const locked = join(dir, 'docs', 'adr', 'ADR-002-a', 'tasks', 'T1-locked.md')
+  try {
+    mkdirSync(dirname(locked), { recursive: true })
+    writeFileSync(locked, '# Task ADR-002-T1: a\n\n## Acceptance\n\n```bash\ntrue\n```\n')
+    writeFileSync(join(dir, 'docs', 'adr', 'ADR-002-a.md'), '# ADR-002: a\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
+    chmodSync(locked, 0o000)
+    const workNext = spawnSync(process.execPath, [join(dirname(adrState), 'work-next.mjs'), '--json'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+    assert.deepEqual(JSON.parse(workNext.stdout).readinessUnproven, ['docs/adr/ADR-002-a/tasks'], workNext.stdout)
+    assert.deepEqual(stateOf(dir).governsUnproven.map(entry => entry.id), ['ADR-002'])
+  } finally {
+    try { chmodSync(locked, 0o644) } catch { /* already gone */ }
+    rmSync(dir, { recursive: true, force: true })
   }
 })

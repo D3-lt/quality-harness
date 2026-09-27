@@ -121,6 +121,10 @@ export function readTask(file, read = readFileSync) {
   } catch {
     return { file, unreadable: true }
   }
+  // NUL bytes (UTF-16, binary) or nothing at all: adr-next's own rule for a file it
+  // cannot read. This counted one as a task that claims nothing while adr-next named
+  // it unreadable (a Windows chaos round of 916b515, G2 b).
+  if (text.includes('\0') || !text.trim()) return { file, unreadable: true }
   // A conflicted task is both sides of a merge: its rows are counted in neither half,
   // like a file that could not be read at all, rather than as red and green at once.
   if (holdsConflict(text)) return { file, unreadable: true, conflicted: true }

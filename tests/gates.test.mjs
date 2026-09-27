@@ -61,7 +61,10 @@ function run(command, args, cwd = fixture, input = undefined, spawnEnv = env) {
     env: spawnEnv,
     input,
     encoding: 'utf8',
-    timeout: 60_000,
+    // A hang guard, not a performance assertion: gate-regressions.py took 12.7 s alone
+    // at load 11 and passed 60 s twice in full gates at load 18-30 (2026-09-27), killed
+    // with nothing on stderr. Sized to outlast contention, not a quiet machine.
+    timeout: 180_000,
   })
 }
 
@@ -1841,6 +1844,23 @@ test('strictFrom never reaches the evidence chain', () => {
   // The content finding beside it IS still demoted, which is what proves the
   // exclusion is selective rather than the feature being off.
   assert.match(result.stdout, /advice: .*Alternatives Considered has no entries/)
+})
+
+// A Windows chaos round of 916b515 (tender-reef E4): a task file whose own Status says done,
+// beside a README saying pending, passed with no evidence. The README was the only claim
+// read, though the task files win over it (CLAUDE.md §10).
+test("a task file's own done claim needs evidence, whatever the README says", () => {
+  const aged = agedCorpus('qh-own-done-', '{"strictFrom":"ADR-0012"}\n')
+  const taskFile = join(aged.tasks, readdirSync(aged.tasks).find(name => /^T\d/.test(name)))
+  const unlogged = readFileSync(taskFile, 'utf8').replace(/(## Verification Log\n)[\s\S]*?(?=\n## |$)/, '$1\n')
+  writeFileSync(taskFile, unlogged)
+  expectExit(run('adr-lint', [aged.adr, aged.tasks], aged.repo), 0, 'no claim, nothing to back')
+  for (const status of ['**Status:** done', '**Status:**\u{2003}done']) {
+    writeFileSync(taskFile, unlogged.replace('**Depends-on:** none', `${status}\n**Depends-on:** none`))
+    const claimed = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+    expectExit(claimed, 1, JSON.stringify(status))
+    assert.match(claimed.stdout, /T1-fixture\.md: T1 marked done but its Verification Log has no exit-0 entry/)
+  }
 })
 
 test('an unreadable or unusable strictFrom changes nothing, and says so', () => {

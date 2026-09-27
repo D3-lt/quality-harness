@@ -15831,6 +15831,8 @@ Non-goals: binary or hex encoding, lossy compression on evidence, a semantic ans
 
 **Stage 4, 2026-09-27: ADR-069 (Accepted) takes its first item, `--repoint`.** A replay of the 3.1.0 batch's hand repoints found six of fourteen mechanical, and the rule reproduces each; a cold review measured 83 of 1,138 sibling proposals without the record's added-line condition. Deferred from ADR-069 and still Stage 4's: an entry whose `from` spans lines (315 of 1,453 at a11f334, none in the replay), an entry whose edit only inserts (66), worktree-isolated campaigns (the tree was held unedited through every campaign of that batch), and test-impact selection beyond `--changed`.
 
+**Stage 5, 2026-09-27: ADR-070 (Accepted) takes `attest-import`.** `node scripts/attest-import.mjs --check <file>` over each of the 59 files in `docs/corpus-reports/` at 916b515, counting every reason but "a duplicate" (each is already filed): 40 agree with their commit on the probe digest, the readers fingerprint and the plugin version; 10 are refused because they carry no `readers` field (they predate ADR-064 T1's fingerprint), 9 of them also for a `plugin` annotated by hand; 9 are `kind: hand`, which it does not check. ADR-070's Context expected 41 and 9: the audit script behind it skipped the readers check when the field was absent, and so counted one of the ten as consistent. The importer refuses a run whose readers cannot be checked, which is the rule for anything filed from now on; the ten stay as history. Deferred from ADR-070 and still Stage 5's: a hand attestation, and an audit of every filed attestation in CI.
+
 ## 302. The 2026-09-26 inbox: one regression of mine, four false blocks and advisories fixed for 3.0, two left open
 
 Eight inbox drawers from peer projects (tool-multipathreadwrite, memory-runtime, zeus), each with a repro. Each was confirmed against source before acting.
@@ -16071,3 +16073,78 @@ Every finding has a row or a test and a catalogue mutant; all 47 of this batch's
 **What it cost.** `publish.hook-ran` is what marks a session armed (ADR-066 Decision 3), so a session that committed only from a worktree read as never armed: after a compaction SessionStart would say git's refusal had not run. The over-warning direction; the verdict itself was unaffected.
 
 **Fixed.** The event goes to the log the session keeps: the owning repository's, when the hook judges a worktree because that repository holds the session's log. A test asserts the session's log records it and the worktree's git dir holds no session log; its mutant (writing to `cwd` again) is RED, and the two ADR-068 T1 entries name the rewritten guard. A worktree log that 3.1.0 already wrote is left in place and no longer written to.
+
+## 309. PARTLY FIXED 2026-09-27 — Three Windows corpus-chaos runs of 916b515: a crash past rule P, a silent record budget, git in another case
+
+**How it was found.** Two desktop sessions on Windows 11 (Node 24.20.0, Python 3.14.7, Git for Windows 2.49.0) ran `/quality-harness:corpus-chaos` at 916b515: one over a JS SPA with no corpus (seed 1790532118, the drawn codes plus 8.3 short names, abominations V and X2), one over a TypeScript generator monorepo (seed 1790532165, the drawn codes plus NTFS case folding, abominations Y1 and Z4). Both attestations are filed through `scripts/attest-import.mjs` (ADR-070), its first use on a real message. Both probes are clean over their own corpora. Neither host could run focus 1 as asked: git 2.49 has no config-based hooks, and the only newer git was 2.53 under WSL.
+
+**Focus 1, through the hook by hand, confirms §308 from outside.** Fed `publish-hook.mjs prepare-commit-msg` in a linked worktree, and through a real `git commit` with a classic hooksPath: at 916b515 the event went to the main checkout's log and nothing appeared under `.git/worktrees`; the control at v3.1.0 created `.git/worktrees/wt-linked/quality-harness/sessions/probe-sess.jsonl`.
+
+**Fixed in this batch (fail-open).**
+- **F7: a 10 MB command crashed the hook before rule P was read.** `mentionsCommitOrPush`'s base64 scan, `[...command.matchAll(/[A-Za-z0-9+/]{8,}={0,2}/g)]`, overflowed V8's regex stack on one word past about 5.6 MB (`RangeError: Maximum call stack size exceeded`). The hook exited 1, and a PreToolUse exit 1 does not block, so the `git push` at the end went unrefused. Reproduced here on macOS (node 26.10.0). It splits on what a base64 word cannot hold now: the same runs, 29 ms on the 10 MB input. The regression drives the hook with that payload and asserts the refusal; its mutant (the old match) is RED.
+- **C-1: the corpus readers stopped at 200 records and said `look ok`.** `recordFilesFromListing` ended its loop on `RECORD_BUDGET` with a bare `break`: with 1,100 records adr-state said read 200, look ok, and with 10,000 the probe linted 200 and said nothing else. The first file past the budget is on `unreadable` now, with the reason `record budget: 200 records were read; this file and every later one in the listing were not examined`, and the look is PARTIAL. So adr-state's `unread`, work-next's `partialBecause` and the probe's `undecided` all name it. Tested through adr-state at 201 records, with a clean twin at exactly 200; both mutants are RED. (fixture-waived: a 201-record fixture corpus would carry 201 files for one field; tests/record-budget.test.mjs builds it at run time instead)
+- **git in another case, or through a `.cmd` shim.** `GIT push`, `Git commit -m x`, `Git.Exe push` and `git.cmd push` published under the stand-in and were read as no publish, while `git.EXE push` was caught (`programName` strips `.exe` case-insensitively and then compared `=== 'git'`). Measured here as well: `GIT --version` and Python's `subprocess.run(['GIT', '--version'])` both run git 2.55.0 on macOS. On macOS git's own hook arms and refuses; on Windows with git 2.49 there is no such hook, and rule P was the only refusal. `isGit` now matches git in any case and a `.cmd` shim, only for git, because a builtin (`exit`, `eval`, `set`) is looked up case-sensitively. On a case-sensitive host these names run nothing and are refused, the conservative direction. Both call sites have a RED mutant, and ADR-067's subprocess entry names the rewritten line (`--repoint` refused it, correctly: it is a rewrite).
+
+**Dead code the scan did not see.** While in `lifecycle.mjs`: an unreachable second `return` in `handleHook` and a doubled `/**`, both removed. `scripts/dead-code-scan.sh` runs orphan-sweep, vulture and knip; none of them reports an unreachable statement in JS. ESLint's `no-unreachable` does. That is a lead for the scan, not yet a step in it.
+
+**By design, recorded.**
+- Rule P's misses for a git reached through a variable, a substitution, a function, `source <(…)`, `trap`, `find -exec`, `xargs` fed by `printf`, perl `exec` or `eval` of a built string (tender-reef's 23 bash rows), and PowerShell's script blocks (`Invoke-Command`, `. { }`, `ForEach-Object`, `$b = {…}; & $b`, `try {}`: 9 rows in scalable-badger's run, 11 in tender-reef's). These are mentions, as §269 and §307 pinned. ⚠ On a host whose git is below 2.54 no hook arms, so there these are warned about and not refused. Whether that is acceptable is an owner question, not a fix.
+- `echo git push ^& git commit -m x` is refused though cmd.exe runs no publish for it: the hook reads what the Bash or PowerShell tool runs, and bash backgrounds at `&` and then commits.
+- The hostile goal (abomination V) is quoted into SessionStart inside «…» and attributed to the task file. ESC and BEL are stripped. The line tells the reader to read the fence before `adr-verify` runs it, and git's hook is the refusal for a fence that pushes.
+
+**Leads for the next batch, unconfirmed here.**
+- `python -c "import os; os.system('git push')"` published and is not read. `SUBPROCESS_STRING` names `subprocess.*` and `exec*`, not `os.system`.
+- Duplicate record ids: two ADR-002 files in one root (tender-reef C1), and ADR-001 under three roots (scalable-badger C6). No duplicate line, contested 0, and adr-lint judged one record against the other's tasks.
+- Windows 8.3 short names: `adr-next docs/adr/ADR-00~1.MD` sequenced another record's tasks. adr-lint accepts any record with any tasks dir and never checks the prefix.
+- A done claim that nothing checks:
+  - README `pending` beside a task file saying `done` with no log: adr-lint PASS.
+  - `**Status:**` followed by U+2003, an em space, then `done`: not read as done, and `unbacked` goes empty.
+- A tracked task NTFS folds onto another (`T1-CLASSIFY-A-QUOTE.md` beside `T1-classify-a-quote.md`) is lost silently, and two readers count 2 and 1 without saying they disagree.
+- An NBSP after `##` in `## Acceptance`: adr-lint says no fence, adr-next says the fence changed, and SessionStart says run `adr-verify`, which answers "no ## Acceptance section".
+- A locked or vanishing task file:
+  - adrLint's verdict is `exit 1` with an empty or null reason.
+  - `unbacked` lists a task nobody could read.
+  - adr-state states "governing nothing" over unread Affected Files.
+  - adr-next's Permission-denied line prints the absolute path, username included (§6's class, on a peer's disk).
+- G2:
+  - `adr-next <non-record> --json` prints prose.
+  - `corpusReport.totals.unreadable` is 0 while adrNext names the binary task.
+  - SessionStart says a task directory is UNPROVEN, and then says T1 there is ready.
+- Record ids under three digits are records only by content (`ADR_FILE` wants `\d{3,4}`), while adr-lint reads `\d{1,4}`. A short-id file without `## Context` or `## Decision` is named nowhere.
+
+
+**A third Windows run, over this repository's own corpus** (lexical-mango, seed 1790532186, main at 8902ada in a scratch clone): 64 records, 145 tasks, all 64 lints PASS, nothing unproven, and no path leaked. The attestation is filed. It ran focus 1 by hand and saw the same as above: both `publish.hook-ran` events were in the main log and nothing was under `.git/worktrees/wt/`. Its rule P rows add `g^it pu^sh` under cmd (neither arm sees it), cmd's `for %i in (push) do git %i` and `set G=git& call %G% push`, and pwsh's `iex ('git ' + 'push')`: mentions or less, the §307 class. Leads for the next batch:
+- **Two task files declaring one id: one is dropped from every bucket.** `T9-a.md` and `T9-b.md` both `# Task ADR-040-T9`: adr-next lists only T9-b, and adr-lint names neither as a duplicate.
+- **`--attest` over a could-not-look report prints zero counts with no look field.** An NTFS junction loop made `work-next --json` answer `look: UNPROVEN, records: 0`, and the attestation read `corpus: 0/0/0, couldNotRun 0` with nothing saying the look failed. ⚠ An attestation of a probe that could not look reads as a clean run to `release-evidence`. That is the attestation's own fail-open, and it touches ADR-070's import: a candidate for this batch.
+- **A status nobody lists governs as Accepted.** `Accepted (partially)`, `accepted` and `ACCEPTED` are governing, with no remark; `Implemented` is undecided and says so.
+- Wording:
+  - U+200B passes into adr-next's and SessionStart's quoted titles, while U+202E, U+202C and U+200F are stripped.
+  - A BOM and the heading's `# ` sit inside adr-next's «…» title.
+  - `(advisory until 2026-09-13)` is keyed on the ROW's date, so it is right, but it reads as a grace period that ended a fortnight ago. `(advisory: recorded before 2026-09-13)` says what it means.
+
+**Fixed in a second pass the same day** (the owner: "proceed addressing the gaps"). Each has a test through the reader's CLI and catalogue mutants; all 14 entries naming a line changed since 916b515 are RED.
+- **`os.system` and `os.popen`** now count as a subprocess call that hands its string to a shell. Measured here first: both ran git 2.55.0 from `python3 -c`.
+- **A done claim nothing checked.**
+  - adr-lint reads the task file's own `**Status:** done` as a claim, from the header above the first `## ` only, and asks it for the same evidence as a README claim. The finding names the file the claim is in.
+  - work-next reads any horizontal space after `**Status:**`.
+  - The class, enumerated with `git grep -nF '[ \t]' -- plugin/ | grep -iE 'status|state'`, has nine status parses. Seven capture `(.+)` and then strip, which is Unicode-aware in both languages; one reaches `\S` only by backtracking over a `*`. Only work-next's done-claim line missed.
+  - ⚠ Siblings left: `check_test_lock` and the other `done_task_ids` loops in adr-lint still read only the README's claim.
+- **Two task files declaring one id.** adr-next stops the id as UNPROVEN and names both files, rather than letting the second overwrite the first. Sibling left: adr-lint still names neither as a duplicate.
+- **An attestation over a probe that could not look.** `at` is null, with `atReason` "the probe could not look at the corpus (look UNPROVEN)", when the probe's or work-next's look is UNPROVEN. So `attest-import` refuses it (refusal 4), and `release-evidence` counts it for nothing. There is no schema change, and PARTIAL still attests.
+- The 2.111.0-rc CF1 entry named the rewritten work-next line. `--repoint` refused it, correctly: the mutant rewrites the class. It now names the new line and is RED.
+- ⚠ **A hazard in how this session writes, not in any tool here.** A backslash-u escape with four hex digits, typed into a command, reached the shell already decoded, even inside a quoted heredoc: `od -c` showed the U+2003 bytes. So two tests and this section briefly held invisible characters where an escape was meant. Brace escapes and "U+2003" are used instead. It was first blamed on `mrw` and filed to that project's inbox; that drawer is retracted, because mrw wrote exactly the bytes it was given.
+
+Still leads: duplicate record ids, 8.3 names, NTFS case folding, the NBSP heading, a locked task file, G2, short record ids, statuses nobody lists, and the wording items.
+
+**A fourth run, macOS, over the same TypeScript monorepo** (quality-blueprints-87, seed 1790535531, git 2.55.0, node 26.10.0, load 22–37 throughout). The probe was clean, and its attestation is filed under the shape label `macos-ts-generator-monorepo` (it was sent under the corpus's own name). Focus 1 held for plain, bare and nested worktrees. Two fail-closed-everywhere and fail-open findings, fixed with real-git tests and RED mutants:
+- **The hook command outlived its node.** The exports bake `process.execPath`, which Homebrew makes a versioned Cellar path. Once it was removed, git refused every commit and push in every repository the shell touched, because git refuses when a hook command cannot start. That happens before `publish-hook.mjs`'s own promise to exit 0 when it cannot look. The command now falls back to the `node` on PATH, so a moved node still refuses what it should. A missing script says on stderr that nothing was judged and refuses nothing. The `exec` stays last, because git appends its own arguments to the command. The existing single-quoting mutant now names the script in the `exec` clause.
+- **A torn log tail swallowed the next event.** `publish.hook-ran` was appended onto a torn last line, so no reader could see that git's hook ran (ADR-068). An append now starts on a fresh line when the tail has no newline. The torn line is still reported as torn, and the existing append mutant names the rewritten line.
+
+Leads, unconfirmed here:
+- `work-next` (human) prints a spec path raw, and `adr-state` a record title raw: an OSC title sequence, SGR colours, a bidi override and an unquoted `</system-reminder>`. adr-next and SessionStart quote and strip the same text.
+- A FIFO `.md` under `docs/specs` is counted nowhere and named nowhere.
+- A spec 40 directories deep is counted nowhere. It may be one level by design, but nothing says so.
+- A task reached through a self-symlink (`tasks/tasks -> ../tasks`) is named by that path in SessionStart and adr-next. The probe reports it as a disagreement.
+- Rule P misses a static argv in `node -e "…spawnSync('git',['push'])"` and `perl -e 'system("git","push")'`, while Python's list form is read. It also misses `git -c alias.p=push p` and `make -f /dev/stdin`. The rest of its 13 rows are the dynamic §307 class.
+- A sparse checkout makes the probe spawn adr-lint once per path git lists and the disk lacks: 164 of them, 48 s against 4 s.
+The readers changed with this batch (lifecycle.mjs, corpus-probe.mjs, work-next.mjs, adr-next, adr-lint), so the four attestations at 916b515 do not cover a tag cut after it; another outside run is needed at the final sha (§18).

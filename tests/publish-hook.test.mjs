@@ -359,3 +359,46 @@ test("git's hook in a linked worktree records that it ran in the session's own l
   try { made = readdirSync(path.join(worktreeGitDir, 'quality-harness', 'sessions')) } catch { made = [] }
   assert.deepEqual(made, [], 'no second session log in the worktree git dir')
 })
+
+// A corpus-chaos run of 916b515 (quality-blueprints, macOS, LEAD 1): the exports bake
+// node's versioned path, and once `brew upgrade node` removed it git refused every commit
+// and push in every repository, because git refuses when a hook command cannot start.
+test('a hook whose node moved still runs, and one whose script is gone refuses nothing', { skip: needsConfigHooks }, async () => {
+  const { publishHookExports } = await import('../plugin/scripts/lifecycle.mjs')
+  const script = path.join(testTmp, 'refuse.mjs')
+  writeFileSync(script, "process.stderr.write('ran ' + process.argv[2] + ' ' + process.argv.length); process.exit(1)\n")
+  const commitWith = (prefix, exports) => {
+    const envFile = path.join(testTmp, `env-${process.pid}-${prefix}`)
+    writeFileSync(envFile, exports)
+    const dir = repository(prefix)
+    writeFileSync(path.join(dir, 'a.md'), 'changed\n')
+    return spawnSync('sh', ['-c', `. ${quoted(envFile)} && git commit -qam x`], {
+      cwd: dir, encoding: 'utf8', timeout: 60_000, env: { ...process.env, ...GIT_IDENTITY },
+    })
+  }
+  // Node moved: the node on PATH runs the hook, git's arguments still reach it, and its refusal stands.
+  const moved = commitWith('moved-node-', publishHookExports(path.join(testTmp, 'gone', 'bin', 'node'), script))
+  assert.notEqual(moved.status, 0, moved.stderr)
+  assert.match(moved.stderr, /ran prepare-commit-msg [45]\b/, moved.stderr)
+  // Script gone: nothing could look, so nothing is refused, and it says so.
+  const gone = commitWith('gone-script-', publishHookExports(process.execPath, path.join(testTmp, 'gone', 'publish-hook.mjs')))
+  assert.equal(gone.status, 0, gone.stderr)
+  assert.match(gone.stderr, /could not start/)
+})
+
+// The same run, LEAD 2: a torn log tail swallowed the next append into itself, so the
+// session's own log could not show that git's hook ran (ADR-068).
+test("a torn log tail does not swallow the hook's own record", { skip: needsConfigHooks }, async () => {
+  const { readEvents } = await import('../plugin/scripts/event-log.mjs')
+  const dir = repository('torn-')
+  const session = `hook-torn-${process.pid}`
+  startSession(dir, session)
+  const sessions = path.join(git(dir, 'rev-parse', '--absolute-git-dir'), 'quality-harness', 'sessions')
+  const file = path.join(sessions, readdirSync(sessions).find(name => name.startsWith(session)))
+  writeFileSync(file, readFileSync(file, 'utf8').slice(0, -7))
+  writeFileSync(path.join(dir, 'a.md'), 'changed\n')
+  shell(dir, 'git commit -qam torn\n', session)
+  const read = readEvents(dir, session)
+  assert.equal(read.complete, false, 'the torn line is still reported as torn')
+  assert.ok(read.map(entry => entry.event).includes('publish.hook-ran'), JSON.stringify(read))
+})

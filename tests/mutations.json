@@ -26,8 +26,8 @@
         "tests/publish-hook.test.mjs"
       ],
       "only": "shell characters survive",
-      "from": "  const run = event => `${single(node)} ${single(script)} ${event}`",
-      "to": "  const run = event => `\"${String(node).replace(/\\\\/g, '/')}\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
+      "from": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" ${single(script)} ${event}`",
+      "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
       "label": "branch-state: a reclaimer puts back a lock it did not judge stale",
@@ -9557,7 +9557,7 @@
       "tests": [
         "tests/observed-events.test.mjs"
       ],
-      "from": "    appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\\n`, 'utf8')",
+      "from": "    appendFileSync(file, `${lead}${JSON.stringify({ at: new Date().toISOString(), ...entry })}\\n`, 'utf8')",
       "to": "    void file"
     },
     {
@@ -11334,7 +11334,7 @@
         "tests/work-next-readiness.test.mjs"
       ],
       "only": "run of blank lines",
-      "from": "/^[ \\t]*[-*]?[ \\t]*\\*{0,2}(?:Status|State)",
+      "from": "/^[^\\S\\r\\n]*[-*]?[^\\S\\r\\n]*\\*{0,2}(?:Status|State)",
       "to": "/^\\s*[-*]?\\s*\\*{0,2}(?:Status|State)"
     },
     {
@@ -12982,7 +12982,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "        const invoked = programName(list[0] ?? '') === 'git' ? gitInvocation(list, 0, []) : null",
+      "from": "        const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null",
       "to": "        const invoked = null",
       "only": "every publish form is recognised"
     },
@@ -13825,6 +13825,226 @@
       "from": "result.verdict === 'RED') && !repointed.stillStale ? 0 : 1",
       "to": "result.verdict === 'RED') ? 0 : 1",
       "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "ADR-070 T1: the readers fingerprint is not compared with the commit's",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (attestation.readers !== readers) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "an attestation is filed only when its digests are the ones its commit gives"
+    },
+    {
+      "label": "ADR-070 T1: the probe digest is not compared with the commit's",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (attestation.probeSha256 !== probeSha256) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "an attestation is filed only when its digests are the ones its commit gives"
+    },
+    {
+      "label": "ADR-070 T1: an annotated plugin version is filed",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (attestation.plugin !== pluginVersion) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "an attestation is filed only when its digests are the ones its commit gives"
+    },
+    {
+      "label": "ADR-070 T1: a key outside the schema, such as a report's, is filed",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (unknown.length || corpusUnknown.length) {",
+      "to": "  if (false) {",
+      "only": "a message that is not exactly one clean attestation is refused"
+    },
+    {
+      "label": "ADR-070 T1: the same run is filed twice",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (duplicate) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "an attestation is filed only when its digests are the ones its commit gives"
+    },
+    {
+      "label": "ADR-070 T1: an at the clone lacks is reported as a refusal",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "    return 3",
+      "to": "    return 1",
+      "only": "an at this clone lacks is could-not-look"
+    },
+    {
+      "label": "ADR-070 T1: --check writes the file",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (checkOnly) {",
+      "to": "  if (false) {",
+      "only": "a message that is not exactly one clean attestation is refused"
+    },
+    {
+      "label": "chaos 916b515 F7: the advisory arm splits, never matches, a huge word",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const decoded = command.split(/[^A-Za-z0-9+/]+/).filter(word => word.length >= 8).map(decodedPowerShell)",
+      "to": "  const decoded = [...command.matchAll(/[A-Za-z0-9+/]{8,}={0,2}/g)].map(match => decodedPowerShell(match[0]))",
+      "only": "an oversized command is still read"
+    },
+    {
+      "label": "chaos 916b515 C-1: the record budget marks where it stopped",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "      Object.defineProperty(files, 'unexamined', { value: listedAbsolute(root, rel), enumerable: false })",
+      "to": "      void (files, 'unexamined', { value: listedAbsolute(root, rel), enumerable: false })",
+      "only": "a corpus past the record budget"
+    },
+    {
+      "label": "chaos 916b515 C-1: a stopped look names the file it did not examine",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "    unreadable.push({ file: files.unexamined, status: null, taskFiles: [],",
+      "to": "    void ({ file: files.unexamined, status: null, taskFiles: [],",
+      "only": "a corpus past the record budget"
+    },
+    {
+      "label": "chaos 916b515: git is recognised in any case",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const isGit = name => /^git(?:\\.cmd)?$/i.test(name)",
+      "to": "const isGit = name => name === 'git'",
+      "only": "git is recognised in any case"
+    },
+    {
+      "label": "chaos 916b515: a subprocess list names git in any case",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "        const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null",
+      "to": "        const invoked = programName(list[0] ?? '') === 'git' ? gitInvocation(list, 0, []) : null",
+      "only": "git is recognised in any case"
+    },
+    {
+      "label": "chaos 916b515: os.system and os.popen run their string",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const SUBPROCESS_STRING = /(?:subprocess\\.(?:run|call|check_call|check_output|Popen)|\\bexec(?:Sync|File|FileSync)?|\\bos\\.(?:system|popen))\\(\\s*([\"'])(.*?)\\1/g",
+      "to": "const SUBPROCESS_STRING = /(?:subprocess\\.(?:run|call|check_call|check_output|Popen)|\\bexec(?:Sync|File|FileSync)?)\\(\\s*([\"'])(.*?)\\1/g",
+      "only": "handed to a shell by os.system"
+    },
+    {
+      "label": "chaos 916b515: a probe that could not look attests no commit",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const looked = report.look !== 'UNPROVEN' && report.workNext?.look !== 'UNPROVEN'",
+      "to": "  const looked = true",
+      "only": "could not look"
+    },
+    {
+      "label": "chaos 916b515: work-next's blind look withholds the commit too",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const looked = report.look !== 'UNPROVEN' && report.workNext?.look !== 'UNPROVEN'",
+      "to": "  const looked = report.look !== 'UNPROVEN'",
+      "only": "could not look"
+    },
+    {
+      "label": "chaos 916b515: two files with one id are stopped, not overwritten",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if tid in infos and infos[tid][\"path\"] != str(path):",
+      "to": "        if False:",
+      "only": "declaring one id"
+    },
+    {
+      "label": "chaos 916b515: a done claim is read after any horizontal space",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    const claimed = /^[^\\S\\r\\n]*[-*]?[^\\S\\r\\n]*\\*{0,2}(?:Status|State):?\\*{0,2}:?[^\\S\\r\\n]*done\\b/im.test(text)",
+      "to": "    const claimed = /^[ \\t]*[-*]?[ \\t]*\\*{0,2}(?:Status|State):?\\*{0,2}:?[ \\t]*done\\b/im.test(text)",
+      "only": "horizontal space"
+    },
+    {
+      "label": "chaos 916b515: a task file's own done claim needs evidence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for tid in readme_done + [t for t in own_done_claims(infos) if t not in readme_done]:",
+      "to": "    for tid in readme_done:",
+      "only": "own done claim"
+    },
+    {
+      "label": "chaos 916b515: the own done claim reads any horizontal space",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "OWN_DONE_RE = re.compile(r\"^[^\\S\\r\\n]*[-*]?[^\\S\\r\\n]*\\*{0,2}(?:Status|State):?\\*{0,2}:?[^\\S\\r\\n]*done\\b\", re.M | re.I)",
+      "to": "OWN_DONE_RE = re.compile(r\"^[ \\t]*[-*]?[ \\t]*\\*{0,2}(?:Status|State):?\\*{0,2}:?[ \\t]*done\\b\", re.M | re.I)",
+      "only": "own done claim"
+    },
+    {
+      "label": "chaos 916b515 LEAD 1: a moved node falls back to the node on PATH",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  const run = event => `n=${single(node)}; [ -x \"$n\" ] || n=$(command -v node) || n=; `",
+      "to": "  const run = event => `n=${single(node)}; `",
+      "only": "node moved still runs"
+    },
+    {
+      "label": "chaos 916b515 LEAD 1: a hook that cannot start refuses nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "    + `[ -n \"$n\" ] && [ -f ${single(script)} ] || { echo \"quality-harness: git's publish hook could not start `",
+      "to": "    + `true || { echo \"quality-harness: git's publish hook could not start `",
+      "only": "node moved still runs"
+    },
+    {
+      "label": "chaos 916b515 LEAD 2: an append after a torn tail starts a fresh line",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "        if (size > 0 && readSync(fd, last, 0, 1, size - 1) === 1 && last[0] !== 0x0a) lead = '\\n'",
+      "to": "        if (false) lead = '\\n'",
+      "only": "torn log tail does not swallow"
     }
   ]
 }

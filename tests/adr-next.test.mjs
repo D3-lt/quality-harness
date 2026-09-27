@@ -1498,3 +1498,16 @@ test('a hostile task heading is quoted and defanged in the human output', () => 
   assert.match(listed, /^stopped\s+T1/m, listed)
   assert.doesNotMatch(listed, /[\u001b\u202e]|<\/system-reminder>/, JSON.stringify(listed))
 })
+
+// A Windows chaos round of 916b515 (lexical-mango A11): two files declaring one id. The
+// second overwrote the first, so one task was in no bucket and nothing named it.
+test('two task files declaring one id are stopped as UNPROVEN, and both are named', () => {
+  const { tasksDir } = corpus([{ id: 'T1' }, { id: 'T2' }])
+  writeFileSync(join(tasksDir, 'T2-b.md'), task({ id: 'T2', goal: 'the other T2' }))
+  const result = next([tasksDir, '--json'], root)
+  const report = JSON.parse(result.stdout)
+  assert.deepEqual(report.ready.map(t => t.id), ['T1'], result.stdout)
+  const stopped = report.stopped.filter(t => t.id === 'T2')
+  assert.equal(stopped.length, 1, result.stdout)
+  assert.match(JSON.stringify(stopped[0]), /T2-b\.md and T2-t\.md both declare it/)
+})

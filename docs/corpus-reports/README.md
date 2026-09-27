@@ -42,3 +42,11 @@ How to get one: `/quality-harness:corpus-chaos`. The probe writes it from a save
 `node corpus-probe.mjs --attest <label> <report.json>`. Its `at` is `null`, with `atReason`, when the
 probe ran on an installed plugin (no git checkout) or on reader files that differ from their commit —
 release-evidence compares commits, so neither can place the run. `found` is left for you to fill.
+
+How to file one (ADR-070): save the peer's message, whatever surrounds the JSON, and run
+`node scripts/attest-import.mjs <message-file>` (or `-` for stdin). It files the one attestation in
+the message under `<date>-<runner>-<plugin>-<at, 7 characters>.json`, after checking that the probe
+digest, the readers fingerprint and the plugin version are the ones git gives at `at`, and refuses,
+writing nothing, when any key is outside the schema above, the kind is not `probe`, or the run is
+already filed. `--check` does all of it but the write; exit 3 means `at` is not in this clone yet.
+A `kind: hand` attestation, with no digest to check, is still written by hand.

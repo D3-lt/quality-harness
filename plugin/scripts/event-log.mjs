@@ -121,7 +121,19 @@ export function appendEvent(cwd, session, entry) {
   try {
     const file = sessionLogFile(cwd, session)
     mkdirSync(path.dirname(file), { recursive: true })
-    appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, 'utf8')
+    // A fresh line, whatever the tail: a torn last line (a crash mid-append) swallowed
+    // the next event into itself, so the log could not show git's hook had run (a
+    // corpus-chaos run of 916b515, LEAD 2). The torn line stays torn; this one is whole.
+    let lead = ''
+    try {
+      const fd = openSync(file, 'r')
+      try {
+        const { size } = fstatSync(fd)
+        const last = Buffer.alloc(1)
+        if (size > 0 && readSync(fd, last, 0, 1, size - 1) === 1 && last[0] !== 0x0a) lead = '\n'
+      } finally { closeSync(fd) }
+    } catch { /* no log yet */ }
+    appendFileSync(file, `${lead}${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, 'utf8')
     return true
   } catch {
     return false

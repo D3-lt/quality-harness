@@ -12792,8 +12792,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    } else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false",
-      "to": "    } else if (false) runs = false",
+      "from": "    else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false",
+      "to": "    else if (false) runs = false",
       "only": "nothing that only mentions a publish is refused"
     },
     {
@@ -12812,8 +12812,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "      runs = word === '+o'",
-      "to": "      runs = true",
+      "from": "      if (word.endsWith('o') && words[i + 1] === 'noexec') runs = word.startsWith('+')",
+      "to": "      i += 0",
       "only": "nothing that only mentions a publish is refused"
     },
     {
@@ -12822,8 +12822,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    if (word === '--help' || word === '--version') return false",
-      "to": "    if (false) return false",
+      "from": "    } else if (word === '--help' || word === '--version') return false",
+      "to": "    } else if (false) return false",
       "only": "nothing that only mentions a publish is refused"
     },
     {
@@ -12852,7 +12852,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && /^(?:[+-]o|-O|\\+O|--rcfile|--init-file|-[A-Z]\\w+)$/.test(word) ? 2 : 1",
+      "from": "    k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && (SHELL_VALUED.test(word) || (power && POWERSHELL_VALUED.test(word))) ? 2 : 1",
       "to": "    k += 1",
       "only": "every publish form is recognised"
     },
@@ -12912,7 +12912,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  const substituted = inner(substitutions.filter(text => !text.startsWith('(')))",
+      "from": "  const substituted = inner(substitutions)",
       "to": "  const substituted = null",
       "only": "every publish form is recognised"
     },
@@ -12932,8 +12932,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    if (name === 'echo' || name === 'printf') scripts.push(upstream.argv.slice(start + 1).join(' ').replace(/\\\\n/g, '\\n'))",
-      "to": "    if (false) scripts.push(upstream.argv.slice(start + 1).join(' ').replace(/\\\\n/g, '\\n'))",
+      "from": "    scripts.push(...literalOutput(upstream.argv, start))",
+      "to": "    scripts.push()",
       "only": "text piped into a shell"
     },
     {
@@ -13034,6 +13034,146 @@
       ],
       "from": "  const { commands } = shellWords(text)\n  for (let n = 0;",
       "to": "  const { commands } = { commands: text.split(/[;\\n]/).map(s => ({ argv: s.trim().split(/\\s+/).filter(Boolean), assignments: [], dynamic: [], quoted: [], code: [], heredocs: [], substitutions: [], pipeTo: null })), complete: true }\n  for (let n = 0;",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a shell option's value is not an option",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (SHELL_VALUED.test(word)) {",
+      "to": "    if (false) {",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a -c anywhere in a POSIX cluster takes the string",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (power ? /^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word) : /^-[A-Za-z]*c[A-Za-z]*$/.test(word)) return { flag: k }",
+      "to": "    if (power ? /^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word) : /^-[A-Za-z]*c$/.test(word)) return { flag: k }",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): cat and tee pass stdin through to the shell",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (PASS_THROUGH.has(programName(upstream.argv[start] ?? ''))) scripts.push(...stdinScripts(commands, m, seen))",
+      "to": "    if (false) scripts.push(...stdinScripts(commands, m, seen))",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): echo's options are not its output",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    while (k < words.length && /^-[neE]+$/.test(words[k])) k++",
+      "to": "    k += 0",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): printf's arguments are its output one by one",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (name === 'printf') return [...words, words.join(' ')]",
+      "to": "  if (name === 'printf') return [words.join(' ')]",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): echo and printf run none of their arguments",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  for (let k = start; k < argv.length && !NON_EXECUTORS.has(name); k++) {",
+      "to": "  for (let k = start; k < argv.length; k++) {",
+      "only": "nothing that only mentions a publish is refused"
+    },
+    {
+      "label": "ADR-067 (Codex round): a substitution inside ${…} runs",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      command.substitutions.push(...substitutionsIn(src.slice(k + 2, end)))",
+      "to": "      command.substitutions.push()",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a substitution inside $((…)) runs",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (src[k + 2] === '(') command.substitutions.push(...substitutionsIn(src.slice(k + 3, end - 1)))",
+      "to": "      if (src[k + 2] === '(') command.substitutions.push()",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a substitution inside ((…)) runs",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      command.substitutions.push(...substitutionsIn(src.slice(i + 2, end - 1)))",
+      "to": "      command.substitutions.push()",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a command of redirections alone keeps its substitutions",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      && command.substitutions.length === 0",
+      "to": "      && true",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a process substitution is code, never plain",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      word.code = true\n      for (const ch of src.slice(i, end + 1)) push(ch, false)",
+      "to": "      for (const ch of src.slice(i, end + 1)) push(ch, false)",
+      "only": "an armed session still refuses every form that can disable the hook"
+    },
+    {
+      "label": "ADR-067 (Codex round): a continued redirection target is one word",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "        if (src[i + 1] === '\\n') { i++; continue }\n        quotedAny = true",
+      "to": "        quotedAny = true",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): ANSI-C quoting is decoded",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "from": "      if (x in simple) { push(simple[x], true); e++; continue }",
+      "to": "      if (false) { push(simple[x], true); e++; continue }",
+      "only": "the lexer's argv is the argv the shell hands git"
+    },
+    {
+      "label": "ADR-067 (Codex round): an ANSI-C spelling of git is git",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      const end = ansiC(i + 2)",
+      "to": "      const end = (startWord(), word.dynamic = true, ansiC(i + 2))",
       "only": "every publish form is recognised"
     }
   ]

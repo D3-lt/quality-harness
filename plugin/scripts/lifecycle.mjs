@@ -3111,21 +3111,26 @@ function gitInvocation(argv, at, dynamic) {
   return argv.slice(at, k + 1).join(' ')
 }
 
+const NON_EXECUTORS = new Set(['echo', 'printf'])
 // Whether a shell given these words (its name first) runs a string or its stdin at
 // all (BACKLOG §298). Measured 2026-09-26 on bash, sh, zsh, dash, ksh, csh and tcsh:
 // `-n`, alone or in a cluster (`-xn`, `-nc`), and `-o noexec` parse without
 // executing; a later `+n` or `+o noexec` turns execution back on; `--help` and
 // `--version` print and exit. PowerShell's options are words and none was measured.
+// The options that take the next word as their value. A value is never read as an
+// option: `bash --rcfile "-n" -c "git push"` runs the push (Codex review of 341c49c).
+const SHELL_VALUED = /^(?:[+-]o|[+-]O|--rcfile|--init-file)$/
+const POWERSHELL_VALUED = /^-[A-Z]\w+$/
 function shellRuns(words) {
   if (POWERSHELL.has(programName(words[0]).toLowerCase())) return true
   let runs = true
   for (let i = 1; i < words.length; i++) {
     const word = words[i]
-    if (word === '--help' || word === '--version') return false
-    if ((word === '-o' || word === '+o') && words[i + 1] === 'noexec') {
-      runs = word === '+o'
+    if (SHELL_VALUED.test(word)) {
+      if (word.endsWith('o') && words[i + 1] === 'noexec') runs = word.startsWith('+')
       i++
-    } else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false
+    } else if (word === '--help' || word === '--version') return false
+    else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false
     else if (/^\+[A-Za-z]+$/.test(word) && word.includes('n')) runs = true
   }
   return runs
@@ -3133,35 +3138,55 @@ function shellRuns(words) {
 
 // A shell named at `argv[at]`: the index of its `-c` / `-Command` flag, the index where
 // its options end when it reads a script from stdin (`{ stdin }`), or null when it
-// runs a script file. Options may take a value (`-o pipefail`, `--rcfile x`,
-// `-ExecutionPolicy Bypass`); a value never starts with `-` or `+`.
+// runs a script file. A POSIX `-c` may sit anywhere in a cluster (`-lc`, `-cx`); the
+// string is still the next word.
 function shellString(argv, at) {
   const power = POWERSHELL.has(programName(argv[at]).toLowerCase())
   let k = at + 1
   while (k < argv.length) {
     const word = argv[k]
-    if (/^-[A-Za-z]*c$/.test(word) || (power && /^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word))) return { flag: k }
+    if (power ? /^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word) : /^-[A-Za-z]*c[A-Za-z]*$/.test(word)) return { flag: k }
     if (word === '-' || word === '-s') { k += 1; continue }
     if (!/^[+-]{1,2}[A-Za-z][\w-]*(?:=.*)?$/.test(word)) return null
     const value = argv[k + 1]
-    k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && /^(?:[+-]o|-O|\+O|--rcfile|--init-file|-[A-Z]\w+)$/.test(word) ? 2 : 1
+    k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && (SHELL_VALUED.test(word) || (power && POWERSHELL_VALUED.test(word))) ? 2 : 1
   }
   return { stdin: k }
 }
 
-// The text a shell would run from its stdin: an upstream `echo`/`printf`'s words, or
-// a heredoc body, a here-string or an upstream command's heredoc.
-function stdinScripts(commands, n) {
+// What a program writes to stdout when that is decidable from its words: `echo`
+// without its options, `printf`'s format and each argument. `cat` and `tee` pass
+// their stdin through, so the search goes on upstream of them.
+const PASS_THROUGH = new Set(['cat', 'tee'])
+function literalOutput(argv, start) {
+  const name = programName(argv[start] ?? '')
+  const words = argv.slice(start + 1)
+  if (name === 'echo') {
+    let k = 0
+    while (k < words.length && /^-[neE]+$/.test(words[k])) k++
+    return [words.slice(k).join(' ')]
+  }
+  if (name === 'printf') return [...words, words.join(' ')]
+  return []
+}
+
+// The text a shell would run from its stdin: its own heredoc or here-string, and
+// what the pipeline upstream of it writes, through any `cat` or `tee`. `printf` and
+// zsh's `echo` turn `\n` into a line; reading every text that way can only find a
+// publish that is there (Codex review of 341c49c: `echo … | cat | bash`).
+function stdinScripts(commands, n, seen = new Set()) {
   const scripts = commands[n].heredocs.map(doc => doc.body)
-  for (const upstream of commands.filter(c => c.pipeTo === n)) {
+  for (let m = 0; m < commands.length; m++) {
+    if (commands[m].pipeTo !== n || seen.has(m)) continue
+    seen.add(m)
+    const upstream = commands[m]
     scripts.push(...upstream.heredocs.map(doc => doc.body))
     const start = programIndex(upstream.argv)
-    const name = typeof start === 'number' ? programName(upstream.argv[start] ?? '') : ''
-    // `printf` and zsh's `echo` turn `\n` into a line; reading both that way can only
-    // find a publish that is there.
-    if (name === 'echo' || name === 'printf') scripts.push(upstream.argv.slice(start + 1).join(' ').replace(/\\n/g, '\n'))
+    if (typeof start !== 'number' || upstream.dynamic.includes(start)) continue
+    if (PASS_THROUGH.has(programName(upstream.argv[start] ?? ''))) scripts.push(...stdinScripts(commands, m, seen))
+    scripts.push(...literalOutput(upstream.argv, start))
   }
-  return scripts
+  return scripts.map(text => text.replace(/\\n/g, '\n'))
 }
 
 function publishInText(text, depth) {
@@ -3183,8 +3208,8 @@ function publishInCommand(commands, n, depth) {
     }
     return null
   }
-  // A command substitution runs as its own command; an arithmetic `$((…))` does not.
-  const substituted = inner(substitutions.filter(text => !text.startsWith('(')))
+  // A command substitution runs as its own command.
+  const substituted = inner(substitutions)
   if (substituted) return substituted
   const start = programIndex(argv)
   if (typeof start === 'object') return inner([start.text])
@@ -3211,8 +3236,9 @@ function publishInCommand(commands, n, depth) {
   }
   // A shell named anywhere in the argv runs its `-c` string (`docker exec app sh -c`,
   // `sudo -u ci bash -c`) unless its options silence it; one at the program position
-  // with no string runs its stdin.
-  for (let k = start; k < argv.length; k++) {
+  // with no string runs its stdin. `echo` and `printf` run none of their arguments:
+  // `echo "bash" "-c" "git push"` prints (Codex review of 341c49c).
+  for (let k = start; k < argv.length && !NON_EXECUTORS.has(name); k++) {
     if (dynamic.includes(k) || !SHELL_NAMES.has(programName(argv[k]).toLowerCase())) continue
     const shell = shellString(argv, k)
     if (shell === null) continue

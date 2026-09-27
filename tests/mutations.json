@@ -12591,6 +12591,46 @@
       "to": "          const header = line.match(/^\\[\\s*branch\\s+\"([^\"\\\\]*)\"\\s*\\]\\s*(?:[;#].*)?$/)"
     },
     {
+      "label": "branch-state: a same-second tie reads the run created last (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a same-second tie reads the run that survived",
+      "from": "    .sort((a, b) => b.databaseId - a.databaseId)",
+      "to": "    .sort((a, b) => a.databaseId - b.databaseId)"
+    },
+    {
+      "label": "branch-state: only the newest commit's runs answer (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a run at an older commit does not colour the newest one",
+      "from": "    if (r.headSha === ordered[0].headSha && !latest.has(r.workflowName ?? '')) latest.set(r.workflowName ?? '', r)",
+      "to": "    if (!latest.has(r.workflowName ?? '')) latest.set(r.workflowName ?? '', r)"
+    },
+    {
+      "label": "branch-state: every workflow at the head answers, not only the newest run (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "every workflow at the newest commit answers",
+      "from": "    if (r.headSha === ordered[0].headSha && !latest.has(r.workflowName ?? '')) latest.set(r.workflowName ?? '', r)",
+      "to": "    if (r.headSha === ordered[0].headSha && !latest.has('')) latest.set('', r)"
+    },
+    {
+      "label": "branch-state: a red workflow outranks one still running (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "every workflow at the newest commit answers",
+      "from": "      const verdict = failing[0] ?? running ?? answering[0]",
+      "to": "      const verdict = running ?? failing[0] ?? answering[0]"
+    },
+    {
       "label": "ADR-066 T3: a verb with anything glued to it keeps the refusal (round 3)",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [

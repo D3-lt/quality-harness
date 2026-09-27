@@ -71,3 +71,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-067](ADR-067-the-publish-classifier-reads-the-command-as-the-shell-splits-it.md) | The publish classifier reads a command as the shell splits it | Accepted |
 | [ADR-068](ADR-068-git-refuses-in-a-linked-worktree-and-says-when-it-is-armed.md) | Git refuses in a linked worktree too, and the session is told when it is armed | Accepted |
 | [ADR-069](ADR-069-a-stale-mutant-is-repointed-by-its-own-edit.md) | A stale mutant is repointed by its own edit | Accepted |
+| [ADR-070](ADR-070-a-peer-attestation-is-imported-and-checked-against-its-commit.md) | A peer's attestation is imported, and checked against its commit | Accepted |

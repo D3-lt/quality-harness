@@ -37,6 +37,7 @@ python3 plugin/bin/adr-lint <adr>   # a record's own gate
 node scripts/flag-claim-sweep.mjs     # advisory sweeps: a place to look, never a verdict
 node scripts/backlog-claim-sweep.mjs
 node scripts/orphan-sweep.mjs         # dead code: a definition in plugin/ nothing shipped reaches
+bash scripts/dead-code-scan.sh        # before a release: orphan-sweep, vulture (uvx) and knip (npx), with counts
 node scripts/backlog-record-sweep.mjs
 node scripts/chaos-fixture-sweep.mjs
 node --expose-internals scripts/untimed-spawns.mjs   # every JS child carries a timeout; UNKNOWN is a place to look
@@ -176,6 +177,11 @@ CI not finished means not green.
    must print `0 orphan(s)`. A definition in `plugin/` that nothing shipped reaches — dead, or read
    only by tests or repository tooling — is deleted or wired, never allow-listed. The selftest
    fails on it at HEAD too; the sweep is how you see which, before the commit that would.
+   **And a standard tool per language, run locally** (the owner, 2026-09-27): `bash
+   scripts/dead-code-scan.sh` runs orphan-sweep, `vulture` over the Python through `uvx`, and `knip`
+   over the JavaScript through `npx`, and prints each tool's version, command and count. A deliberate
+   Python name goes into `scripts/vulture-allowlist.py` with its reason; exit 3 means a scanner could
+   not run, which is UNPROVEN, never clean.
 2. Bump `version` in `plugin/.claude-plugin/plugin.json`; push.
 3. **Wait for the push's own run to EXIST, then ask for the full campaign at the sha you are about
    to tag**: `gh run list --commit <sha> --limit 1` until it answers, then `gh workflow run
@@ -274,8 +280,9 @@ already thought of; it cannot read the whole output over a shape it has never se
   not this one, on a platform we cannot run, over a corpus we do not own, through
   `plugin/scripts/corpus-probe.mjs --json` or the readers by hand — and ask for **everything it
   printed, verbatim**, not a verdict. Say in the first line that a reply is the deliverable and that
-  "could not run because X" is a useful answer. File the attestation (never the report — §6) in
-  `docs/corpus-reports/`; `release-evidence` reads it and refuses a sha without one.
+  "could not run because X" is a useful answer. File the attestation (never the report — §6) with
+  `node scripts/attest-import.mjs <message>`, which checks its digests against its commit (ADR-070);
+  `release-evidence` reads it and refuses a sha without one.
 - **The matrix is a floor, not the check.** `tests/corpus-matrix.test.mjs` asserts the fields a
   reviewer chose; a defect lives in the sentence nobody chose to assert. When a peer's paste shows
   one, the fix adds that field to `expected.json` as well as fixing the reader.

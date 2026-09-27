@@ -2445,17 +2445,30 @@ def implausibly_fast(ms, command):
     return any(ms < floor for pattern, floor in _FLOOR_MS if pattern.search(command or ""))
 
 
+# A task file's own `**Status:** done` is a claim too, and the task files win over the
+# README (CLAUDE.md §10): a task saying done beside an index saying pending passed with
+# no evidence (a Windows chaos round of 916b515, E4). Any horizontal space is read, and
+# only the header above the first `## `, so a status quoted in a section is not a claim.
+OWN_DONE_RE = re.compile(r"^[^\S\r\n]*[-*]?[^\S\r\n]*\*{0,2}(?:Status|State):?\*{0,2}:?[^\S\r\n]*done\b", re.M | re.I)
+
+
+def own_done_claims(infos):
+    """Task ids whose own header says `**Status:** done`."""
+    return [tid for tid, inf in sorted(infos.items())
+            if OWN_DONE_RE.search((inf.get("text") or "").split("\n## ", 1)[0])]
+
+
 def check_verification(infos, readme_text, errors, committed=committed_lines):
-    """README `done` status requires tool-written passing evidence in the task's log."""
-    if not readme_text:
-        return
-    for tid in done_task_ids(readme_text):
+    """A `done` claim, the README's or the task file's own, requires tool-written passing evidence in the task's log."""
+    readme_done = list(done_task_ids(readme_text)) if readme_text else []
+    for tid in readme_done + [t for t in own_done_claims(infos) if t not in readme_done]:
         inf = infos.get(tid)
         if inf is None:
             continue
+        where = "README.md" if tid in readme_done else inf["path"].name
         if inf["human"]:
             if not any("· human-observed ·" in b for b in inf["vlog"]):
-                errors.append(f"README.md: {tid} marked done but its Verification Log has no "
+                errors.append(f"{where}: {tid} marked done but its Verification Log has no "
                               f"'· human-observed ·' sign-off entry (adr-verify --human)")
             continue
         entries = [b for b in inf["vlog"] if VLOG_RE.match(b)]
@@ -2551,7 +2564,7 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                           f"work predated the record, say so in the task rather than leaving the "
                           f"log to imply a red-green cycle that did not happen")
         if not passing:
-            errors.append(f"README.md: {tid} marked done but its Verification Log has no "
+            errors.append(f"{where}: {tid} marked done but its Verification Log has no "
                           f"exit-0 entry — run adr-verify, don't hand-declare")
             continue
         if inf["acc_all"]:
@@ -2582,7 +2595,7 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                 # print the one that would have worked, and pasting it back produced
                 # [PASS] (GitHub issue #4). Saying how to recompute it is just as
                 # actionable and hands nothing over.
-                errors.append(f"README.md: {tid} marked done but no exit-0 entry carries the "
+                errors.append(f"{where}: {tid} marked done but no exit-0 entry carries the "
                               f"current Acceptance digest."
                               f"{legacy_note}{changed_note} re-run "
                               f"`adr-verify <task.md>` to record an entry against the fence as "
@@ -3346,7 +3359,6 @@ def unaccounted_segments(fence):
                for stage in pipeline_stages(alternative)):
             continue
         out.append(segment)
-    return out
     return out
 
 

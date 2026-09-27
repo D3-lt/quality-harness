@@ -398,6 +398,23 @@ test('corpus-probe --attest leaves at null over uncommitted readers', () => {
   assert.deepEqual(attestOf(unread).corpus, { records: null, tasks: null, taskDirectories: 2 }, 'a reader that did not answer is null, never 0')
 })
 
+// A Windows chaos round of 916b515 (lexical-mango, an NTFS junction loop): a probe whose
+// listing failed attested zero counts at a commit, which release-evidence read as a run.
+test('corpus-probe --attest leaves at null over a probe that could not look', () => {
+  for (const blind of [report => { report.look = 'UNPROVEN' }, report => { report.workNext.look = 'UNPROVEN' }]) {
+    const report = attestable()
+    blind(report)
+    const attested = attestOf(report)
+    assert.equal(attested.at, null)
+    assert.match(attested.atReason, /could not look at the corpus/)
+    assert.notEqual(outsideRun(['plugin/scripts/lifecycle.mjs'], [{ file: 'x.json', ...attested }], () => true).verdict, 'attested')
+  }
+  // Clean twin: a PARTIAL look still ran every reader over what it listed.
+  const partial = attestable()
+  partial.look = 'PARTIAL'
+  assert.equal(attestOf(partial).at, 'c'.repeat(40))
+})
+
 // Cold review of 833ea52. The fingerprint was taken once, after every reader ran, so a
 // run whose readers moved under it — a commit mid-run, a mutation campaign restoring
 // files — reported the commit it ENDED at, which release-evidence would accept. And a

@@ -5414,7 +5414,6 @@ def test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint):
     """BACKLOG §61 — a done task's Produces: naming something the tree lacks."""
     class Errors(list):
         def advise(self, message): self.append(message)
-        def append_(self, message): self.append(message)
 
     def task(produces):
         return {"T1": {"path": pathlib.Path("T1-a.md"),

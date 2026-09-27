@@ -464,3 +464,22 @@ test('a task adr-next could not read leaves its directory UNPROVEN in both reade
   assert.deepEqual(readinessFrom(corpus, root, reply(unreadable)).unproven, [dir])
   assert.deepEqual(readinessFrom(corpus, root, reply(signedStop)).unproven, [])
 })
+
+// A Windows chaos round of 916b515 (tender-reef X2, shrunk): `**Status:**` followed by an
+// em space was not read as a done claim, so an unbacked task left `unbacked` empty.
+test('a done claim is read whatever horizontal space follows its Status', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-wn-space-'))
+  temps.push(dir)
+  const tasks = path.join(dir, 'docs', 'adr', 'ADR-001-a', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  writeFileSync(path.join(dir, 'docs', 'adr', 'ADR-001-a.md'), '# ADR-001: a\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+  writeFileSync(path.join(tasks, 'README.md'), '| Task | Status |\n|---|---|\n| T1 | pending |\n')
+  assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
+  const unbacked = status => {
+    writeFileSync(path.join(tasks, 'T1-a.md'), `# Task ADR-001-T1: a\n\n${status}\n**Depends-on:** none\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n## Verification Log\n`)
+    const run = spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'work-next.mjs'), '--json'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+    return JSON.parse(run.stdout).unbackedDoneClaims
+  }
+  assert.deepEqual(unbacked('**Status:** pending'), [], 'no claim, nothing unbacked')
+  for (const space of [' ', '\u{2003}', '\u{a0}']) assert.equal(unbacked(`**Status:**${space}done`).length, 1, JSON.stringify(space))
+})

@@ -607,6 +607,15 @@ def load(tasks_dir):
         # plainly `T9.md` with no `# Task …T9` title crashed here with IndexError
         # — found the day work-next started asking this tool (2026-09-23).
         tid = (m.group(1) if m.lastindex else m.group(0)).upper()
+        # Two files, one id: the second overwrote the first, so one task was in no
+        # bucket and nothing named it (a Windows chaos round of 916b515). Neither is
+        # read as that task until one of them is given its own id.
+        if tid in infos and infos[tid]["path"] != str(path):
+            first = Path(infos[tid]["path"]).name
+            infos[tid] = unreadable_task(tid, path, (
+                f"could not tell which file is {tid}: {first} and {path.name} both declare it, "
+                f"so its state is UNPROVEN; give one of them its own id"))
+            continue
         fence, first, digest = acceptance(text)
         human = first == "human-observed"
         # BACKLOG §295 item 7: a file holding both sides of a merge is not evidence

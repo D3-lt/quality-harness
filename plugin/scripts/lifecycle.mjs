@@ -2004,7 +2004,6 @@ function recordFilesFromListing(root, tracked, reader) {
     try { return readsAsRecord(reader.text(absolute)) } catch { return true }
   }
   for (const rel of tracked) {
-    if (files.length >= RECORD_BUDGET) break
     const norm = posixListed(rel)
     if (!/\.md$/i.test(norm)) continue
     if (/(?:^|\/)tasks\//i.test(norm)) continue
@@ -2013,6 +2012,13 @@ function recordFilesFromListing(root, tracked, reader) {
     const dirNorm = slash < 0 ? '' : norm.slice(0, slash)
     // A fixture is not a record of this repository, whatever its name says.
     if (listedUnderUninterestingDirectory(dirNorm ? dirNorm.split('/') : [])) continue
+    // ⚠ The budget STOPS the look; it must not end it silently. A `break` here read
+    // the first 200 and said `look ok` over 10,000 (a Windows chaos round of 916b515,
+    // C-1). The first file left unexamined is named, and adrCorpus says PARTIAL.
+    if (files.length >= RECORD_BUDGET) {
+      Object.defineProperty(files, 'unexamined', { value: listedAbsolute(root, rel), enumerable: false })
+      break
+    }
     const absolute = listedAbsolute(root, rel)
     if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader) !== false) files.push(absolute)
     else if (frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)
@@ -2020,7 +2026,6 @@ function recordFilesFromListing(root, tracked, reader) {
   return files
 }
 
-/**
 /**
  * Repository-relative paths git knows about, or null when git cannot answer.
  *
@@ -2075,6 +2080,11 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   const reader = corpusReader()
   const listedFiles = new Set(tracked.map(rel => listedAbsolute(root, rel)))
   const files = recordFilesFromListing(root, tracked, reader)
+  if (files.unexamined) {
+    unreadable.push({ file: files.unexamined, status: null, taskFiles: [],
+      reason: `record budget: ${RECORD_BUDGET} records were read; this file and every later one in the listing were not examined` })
+    records.look = 'PARTIAL'
+  }
   const recordsPerDirectory = new Map()
   for (const file of files) {
     const directory = path.dirname(file)
@@ -3115,7 +3125,9 @@ const POWERSHELL = new Set(['pwsh', 'powershell'])
 const KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until'])
 const INTERPRETERS = /^(?:python[\d.]*|node|nodejs|deno|bun)$/
 const SUBPROCESS_LIST = /subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[\s*((?:(["'])[^"']*\2\s*,?\s*)+)/g
-const SUBPROCESS_STRING = /(?:subprocess\.(?:run|call|check_call|check_output|Popen)|\bexec(?:Sync|File|FileSync)?)\(\s*(["'])(.*?)\1/g
+// `os.system` and `os.popen` hand their string to a shell (a Windows chaos round of
+// 916b515: `python -c "import os; os.system('git push')"` pushed and was read as nothing).
+const SUBPROCESS_STRING = /(?:subprocess\.(?:run|call|check_call|check_output|Popen)|\bexec(?:Sync|File|FileSync)?|\bos\.(?:system|popen))\(\s*(["'])(.*?)\1/g
 // Deep enough for `bash -c "sudo sh -c 'eval …'"`, bounded so a crafted command
 // cannot make a hook recurse without end.
 const WALK_DEPTH = 5
@@ -3123,6 +3135,13 @@ const WALK_DEPTH = 5
 // A program's name as the shell looks it up: the last path component, without `.exe`,
 // and without cmd's echo-off `@` (`@git push`).
 const programName = word => String(word).split(/[\\/]/).pop().replace(/\.exe$/i, '').replace(/^@/, '')
+// git in any case, or through a `.cmd` shim. macOS and Windows look a program up
+// case-insensitively: `GIT --version` ran git 2.55.0 on macOS (2026-09-27), and
+// `GIT push`, `Git commit -m x`, `Git.Exe push` and `git.cmd push` published under a
+// stand-in on Windows 11 (a chaos round of 916b515), where git 2.49 has no hook to
+// arm. On a case-sensitive host they run nothing and are refused: the conservative way.
+// Only git: a builtin (`exit`, `eval`, `set`) is looked up case-sensitively.
+const isGit = name => /^git(?:\.cmd)?$/i.test(name)
 const isFlag = word => typeof word === 'string' && word.startsWith('-')
 
 // Where a command's program starts, past control keywords and the wrappers that run
@@ -3436,7 +3455,7 @@ function publishInCommand(commands, n, depth) {
   if (typeof start === 'object') return inner([start.text])
   if (start >= argv.length || dynamic.includes(start)) return null
   const name = programName(argv[start])
-  if (name === 'git') {
+  if (isGit(name)) {
     const invoked = gitInvocation(argv, start, dynamic)
     if (invoked) return invoked
     const ran = inner(gitRunsCommands(argv, start))
@@ -3494,7 +3513,7 @@ function publishInCommand(commands, n, depth) {
     for (const word of argv.slice(start + 1)) {
       for (const call of word.matchAll(SUBPROCESS_LIST)) {
         const list = [...call[1].matchAll(/(["'])([^"']*)\1/g)].map(item => item[2])
-        const invoked = programName(list[0] ?? '') === 'git' ? gitInvocation(list, 0, []) : null
+        const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null
         if (invoked) return invoked
       }
       const found = inner([...word.matchAll(SUBPROCESS_STRING)].map(call => call[2]))
@@ -3520,7 +3539,11 @@ export function containsCommitOrPush(command) {
 const PUBLISH_MENTION = /(?<![A-Za-z0-9_.-])(?:commit|push)(?![A-Za-z0-9_-])/
 export function mentionsCommitOrPush(command) {
   if (typeof command !== 'string') return false
-  const decoded = [...command.matchAll(/[A-Za-z0-9+/]{8,}={0,2}/g)].map(match => decodedPowerShell(match[0]))
+  // Split on what a base64 word cannot hold, rather than match the word: a greedy
+  // match over one multi-megabyte word overflowed V8's regex stack and crashed the
+  // hook before Rule P was read (a Windows chaos round of 916b515, F7). The words are
+  // the same runs, and a missing `=` pad decodes to the same bytes.
+  const decoded = command.split(/[^A-Za-z0-9+/]+/).filter(word => word.length >= 8).map(decodedPowerShell)
   return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(text => PUBLISH_MENTION.test(text))
 }
 
@@ -4044,7 +4067,15 @@ export function publishHookExports(node = process.execPath, script = PUBLISH_HOO
   // quotes left a `$` or a backtick in the installation path to be expanded (Codex
   // review of 3.0.0). Forward slashes, because Git for Windows runs it through sh too.
   const single = value => `'${String(value).replace(/\\/g, '/').replace(/'/g, `'\\''`)}'`
-  const run = event => `${single(node)} ${single(script)} ${event}`
+  // ⚠ git REFUSES the commit when a hook command cannot start, and these exports reach
+  // every repository the shell touches: a baked node that `brew upgrade` removed made
+  // git refuse every commit and push on the machine (a corpus-chaos run of 916b515,
+  // ts-generator LEAD 1). So the node on PATH stands in for a moved one, and a
+  // missing script is could-not-look, which refuses nothing (ADR-005) and says so.
+  // `exec` comes last: git appends its own arguments to the end of the command.
+  const run = event => `n=${single(node)}; [ -x "$n" ] || n=$(command -v node) || n=; `
+    + `[ -n "$n" ] && [ -f ${single(script)} ] || { echo "quality-harness: git's publish hook could not start `
+    + `(node or its script is gone), so this ${event} was not judged" >&2; exit 0; }; exec "$n" ${single(script)} ${event}`
   const entries = [
     ['hook.qh-publish-commit.command', run('prepare-commit-msg')],
     ['hook.qh-publish-commit.event', 'prepare-commit-msg'],
@@ -5070,7 +5101,6 @@ export async function handleHook(input) {
     // peer measured 12 KB of adr-lint findings on a grep before this (2026-09-23).
     publishUnchecked(input, recorded)
     if (recorded?.event === 'publish.requested') artifactRule(input, recorded)
-    return
     return
   }
 

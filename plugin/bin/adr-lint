@@ -6295,4 +6295,12 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    # A file this gate could not read (locked, a directory named like a task, gone
+    # mid-run) is could-not-run, exit 2, never a traceback read as a failure: a locked
+    # task another record owns crashed the lint of every record (a Windows chaos round
+    # of 916b515, C-5). No verdict is given, because none was reached.
+    try:
+        main()
+    except OSError as exc:
+        print(f"[adr-lint] could not run: {exc.filename or 'a file'} — {exc.strerror or exc}", file=sys.stderr)
+        sys.exit(2)

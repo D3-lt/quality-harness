@@ -486,3 +486,21 @@ test('an attestation falls back to corpus-report counts when work-next did not a
   unread.corpusReport = [{ root: 'docs/adr', totals: { tasks: 3 }, records: 2 }, { root: 'x', totals: null, records: null }]
   assert.deepEqual(attestOf(unread).corpus, { records: 2, tasks: 3, taskDirectories: 2, countsFrom: 'corpusReport' })
 })
+
+// A Windows chaos round of 916b515 (scalable-badger C-5): adr-lint over a locked task
+// gave `{"verdict":"exit 1","reason":""}`, a failure with nothing behind it. An exit-code
+// verdict now carries what the gate said. A directory named like a task stands in for
+// the lock on every platform.
+test('an adr-lint verdict that is only an exit code carries what the gate said', () => {
+  const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-probe-exit-')))
+  try {
+    mkdirSync(path.join(root, 'docs', 'adr', 'ADR-001-a', 'tasks', 'T1-locked.md'), { recursive: true })
+    writeFileSync(path.join(root, 'docs', 'adr', 'ADR-001-a.md'), '# ADR-001: a\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+    spawnSync('git', ['init', '-q'], { cwd: root, encoding: 'utf8', timeout: 30_000 })
+    const run = spawnSync(process.execPath, [probeScript, '--json'], { cwd: root, encoding: 'utf8', timeout: 300_000 })
+    assert.equal(run.status, 0, run.stderr)
+    const [lint] = JSON.parse(run.stdout).adrLint
+    assert.equal(lint.verdict, 'exit 2', JSON.stringify(lint))
+    assert.match(lint.reason ?? '', /could not run: \S*T1-locked\.md/, JSON.stringify(lint))
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

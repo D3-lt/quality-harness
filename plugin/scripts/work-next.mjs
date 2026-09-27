@@ -20,7 +20,7 @@ import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, frozenArchiveOf, listedUnderUninterestingDirectory, spawnGate, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, frozenArchiveOf, listedUnderUninterestingDirectory, spawnGate, terminalText, trackedPaths } from './lifecycle.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
@@ -625,30 +625,33 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
     return 0
   }
 
+  // Every human line goes through `say`: a spec path reached a terminal and a
+  // session's context raw (a corpus-chaos run of 916b515). The JSON keeps exact values.
+  const say = text => process.stdout.write(terminalText(text))
   if (state.look === 'UNPROVEN') {
-    process.stdout.write('could-not-look: git could not list the tree (UNPROVEN). '
+    say('could-not-look: git could not list the tree (UNPROVEN). '
       + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
     return 0
   }
   if (state.look === 'PARTIAL') {
-    process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
+    say('could-not-look: a listed record could not be read (PARTIAL). '
       + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
-    for (const entry of state.partialBecause.slice(0, 5)) process.stdout.write(`  ${relative(entry.file)}: ${entry.reason}\n`)
-    if (state.partialBecause.length > 5) process.stdout.write(`  (+${state.partialBecause.length - 5} more; --json for all)\n`)
+    for (const entry of state.partialBecause.slice(0, 5)) say(`  ${relative(entry.file)}: ${entry.reason}\n`)
+    if (state.partialBecause.length > 5) say(`  (+${state.partialBecause.length - 5} more; --json for all)\n`)
     // A PARTIAL look returns here, so the directories this reader withheld are named
     // HERE too, or the text says less than the JSON (Codex review of 17edd2d).
-    for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  readiness UNPROVEN: ${relative(dir)}\n`)
-    if (state.readinessUnproven.length > 5) process.stdout.write(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
+    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  readiness UNPROVEN: ${relative(dir)}\n`)
+    if (state.readinessUnproven.length > 5) say(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
     return 0
   }
 
-  process.stdout.write(`${state.records} record(s), ${state.accepted} accepted, `
+  say(`${state.records} record(s), ${state.accepted} accepted, `
     + `${state.tasks} task file(s), ${state.specs} spec(s).`
     + (state.undecided
       ? ` ${state.undecided} further record(s) carry a status this reader does not act on.\n`
       : '\n'))
   if (state.unprovenSpecs?.length) {
-    process.stdout.write(`\n${state.unprovenSpecs.length} spec file(s) have an UNPROVEN Status `
+    say(`\n${state.unprovenSpecs.length} spec file(s) have an UNPROVEN Status `
       + '(unreadable, binary, missing, unknown, or two different values). They are not counted as "not Ready-for-ADR".\n')
   }
   // Said whatever the next stage is, and BEFORE it: work that exists and is not
@@ -664,7 +667,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   // (docs/BACKLOG.md §55). `unreadable` cannot cover this either — a file must
   // be opened before it can be classed unopenable.
   if (state.tasks && !state.records) {
-    process.stdout.write(`\n${state.tasks} task file(s) and NOT ONE record: this reader found no `
+    say(`\n${state.tasks} task file(s) and NOT ONE record: this reader found no `
       + 'decision records at all, which over a corpus that plainly has task files is a discovery '
       + 'failure rather than an empty corpus. Records are found by filename (`0043-thing.md`, '
       + '`ADR-12-thing.md`) or, inside an `adr` directory, by carrying both a Status line and a '
@@ -672,70 +675,70 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       + 'find, which here is nothing.\n')
   }
   if (state.notYetDecided.length) {
-    process.stdout.write(`\n${state.notYetDecided.length} unfinished task file(s) belong to a record `
+    say(`\n${state.notYetDecided.length} unfinished task file(s) belong to a record `
       + 'this reader cannot execute — Proposed, Draft, or a status it does not recognise. They are '
       + 'not counted as ready, because a record is a work order only once it is Accepted:\n')
     for (const file of state.notYetDecided.slice(0, 5)) {
-      process.stdout.write(`  ${relative(file)}\n`)
+      say(`  ${relative(file)}\n`)
     }
     if (state.notYetDecided.length > 5) {
-      process.stdout.write(`  (+${state.notYetDecided.length - 5} more; --json for all)\n`)
+      say(`  (+${state.notYetDecided.length - 5} more; --json for all)\n`)
     }
   }
   if (state.readinessUnproven.length) {
     // Rendered, not only serialised: the JSON carried this while the text printed
     // an all-clear over the same directories (Codex review of bdeba73, P2).
-    process.stdout.write(`\n${state.readinessUnproven.length} task director${state.readinessUnproven.length === 1 ? 'y' : 'ies'} `
+    say(`\n${state.readinessUnproven.length} task director${state.readinessUnproven.length === 1 ? 'y' : 'ies'} `
       + 'could not be read by adr-next, sit under a README whose archive marker could not be decided, '
       + 'or hold a task git lists that is not on disk, '
       + 'so readiness there is UNPROVEN — not "nothing ready" (ADR-005):\n')
-    for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  ${relative(dir)}\n`)
-    if (state.readinessUnproven.length > 5) process.stdout.write(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
+    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  ${relative(dir)}\n`)
+    if (state.readinessUnproven.length > 5) say(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
   }
   if (state.readyButClaimedDone.length) {
     const n = state.readyButClaimedDone.length
     // One task in three lists read as a contradiction (BACKLOG §289 item 2): these
     // are a subset of the ready list AND of the unbacked claims, said here once.
-    process.stdout.write(`\n${n} task${n === 1 ? ' is' : 's are'} both READY and claimed done without evidence — \`adr-verify\` ${n === 1 ? 'it' : 'them'} first `
+    say(`\n${n} task${n === 1 ? ' is' : 's are'} both READY and claimed done without evidence — \`adr-verify\` ${n === 1 ? 'it' : 'them'} first `
       + `(${n === 1 ? 'it is' : 'they are'} also counted among the ready tasks and the unbacked done claims):\n`)
-    for (const file of state.readyButClaimedDone.slice(0, 5)) process.stdout.write(`  ${relative(file)}\n`)
-    if (n > 5) process.stdout.write(`  (+${n - 5} more; --json for all)\n`)
+    for (const file of state.readyButClaimedDone.slice(0, 5)) say(`  ${relative(file)}\n`)
+    if (n > 5) say(`  (+${n - 5} more; --json for all)\n`)
   }
   for (const archive of state.unmarkedArchives) {
-    process.stdout.write(`\n\`${archive}\` looks like an archive but has no Lifecycle marker, so it is read as live; `
+    say(`\n\`${archive}\` looks like an archive but has no Lifecycle marker, so it is read as live; `
       + '`adr-retire-check --adopt <active> <archive>` adopts it.\n')
   }
   if (!stage) {
     if (state.tasks && !state.usesVerificationLog) {
-      process.stdout.write(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `
+      say(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `
         + 'this corpus records evidence some other way, so the execution stages cannot see it. '
         + 'Everything below is still the flow; only the state reading is blind here.\n')
     } else if (!state.records && state.undecided) {
       // True of a Proposed-only corpus as well as of an unreadable Status: found, not acted on.
-      process.stdout.write(`\nA QH corpus is in use here: ${state.undecided} record(s) were found, and none carries a status `
+      say(`\nA QH corpus is in use here: ${state.undecided} record(s) were found, and none carries a status `
         + 'this reader acts on (unreadable, missing, or not yet Accepted), so this is not "no corpus" and not an all-clear. '
         + 'Read them with `adr-state` or `adr-lint <record>`.\n')
     } else {
-      process.stdout.write(state.readinessUnproven.length
+      say(state.readinessUnproven.length
         ? '\nNothing this reader could see is waiting; the directories above were not read, so this is not an all-clear.\n'
         : '\nNothing in the QH corpus is waiting.\n')
     }
-    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\n`)
+    for (const entry of STAGES) say(`  ${entry.entry.padEnd(36)} ${entry.when}\n`)
     return 0
   }
   if (stage.id === 'core') {
-    process.stdout.write('\nNo QH corpus is in use.\n')
+    say('\nNo QH corpus is in use.\n')
   }
-  process.stdout.write(`\nNext: ${stage.entry}\n  because ${stage.when}.\n  ${stage.why}\n`)
+  say(`\nNext: ${stage.entry}\n  because ${stage.when}.\n  ${stage.why}\n`)
   const evidence = stage.id === 'adr-verify' ? state.unbacked
     : stage.id === 'adr-execute' ? state.ready
       : stage.id === 'adr-retire' ? state.retirable.map(record => record.file)
         : stage.id === 'adr-write' ? state.uncoveredReadySpecs
           : []
-  for (const file of evidence.slice(0, 5)) process.stdout.write(`    ${relative(file)}\n`)
-  if (evidence.length > 5) process.stdout.write(`    (+${evidence.length - 5} more)\n`)
+  for (const file of evidence.slice(0, 5)) say(`    ${relative(file)}\n`)
+  if (evidence.length > 5) say(`    (+${evidence.length - 5} more)\n`)
   if (remedy(stage)) {
-    process.stdout.write(`\n  ${state.relock.length} of these carry a moved test lock, which bare \`adr-verify\` `
+    say(`\n  ${state.relock.length} of these carry a moved test lock, which bare \`adr-verify\` `
       + `would refuse again: ${remedy(stage)}.\n`)
   }
   return 0

@@ -309,9 +309,11 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     // A FAIL carries its first finding. A runner who saw only the verdict had to
     // find and run adr-lint by hand, and one could not, and reported the FAIL
     // without its cause (BACKLOG §279 item 9). Scrubbed like every emitted string.
+    // A verdict that is only an exit code carries what the gate said on stderr, or it
+    // reads as a failure with nothing behind it (a Windows chaos round of 916b515, C-5).
     const finding = verdict === 'FAIL'
       ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}\S/.test(line) && !/^ {2}advice:/.test(line))
-      : undefined
+      : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\n').find(line => line.trim()) : undefined
     return { file: rel(record.file), exit: run.status, verdict, ...(finding ? { reason: scrub(finding.trim()) } : {}), ...frozen(record),
       ...(corpus.includes(record) ? {} : { undecided: true }) }
   })

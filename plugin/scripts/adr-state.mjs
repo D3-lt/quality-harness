@@ -13,7 +13,7 @@
 // is NOT here on purpose: anything about lessons learned. That is a different
 // kind of memory with a different lifetime, and it lives outside this harness.
 import path from 'node:path'
-import { adrCorpus, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, quotedCorpusText, terminalText, trackedPaths } from './lifecycle.mjs'
 
 import { isMainModule } from './main-module.mjs'
 
@@ -71,7 +71,10 @@ export function main(argv) {
   }
 
   const contested = [...areas].filter(([, records]) => records.length > 1)
-  const orphans = governing.filter(record => record.governs.length === 0)
+  // A record whose task files could not all be opened has a scope nobody read, which
+  // is not an empty one (a Windows chaos round of 916b515, C-5).
+  const orphans = governing.filter(record => record.governs.length === 0 && !record.unreadTasks?.length)
+  const unknownScope = governing.filter(record => record.governs.length === 0 && record.unreadTasks?.length)
   const SHOWN = 12
   const dangling = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))
 
@@ -97,26 +100,30 @@ export function main(argv) {
       path: declared, records: records.map(label),
     })),
     governingNothing: orphans.map(record => ({ id: label(record), file: relative(record) })),
+    governsUnproven: unknownScope.map(record => ({ id: label(record), file: relative(record), unreadTasks: record.unreadTasks.map(file => relative({ file })) })),
     danglingSupersession: dangling.map(record => ({ id: label(record), status: record.status })),
   }, null, 2)}\n`)
   return 0
   }
 
+  // Every human line goes through `say`: a corpus name or title reached a terminal and
+  // a session's context raw (a corpus-chaos run of 916b515). The JSON keeps exact values.
+  const say = text => process.stdout.write(terminalText(text))
   // With no record read, a file that was never opened makes this PARTIAL; one that
   // was opened and carries no status this reader acts on is listed below, as it is
   // beside records that were read. The JSON says the same (look from the corpus).
   if (!corpus.length && corpus.look === 'PARTIAL') {
-    process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
+    say('could-not-look: a listed record could not be read (PARTIAL). '
       + 'This is not "no decision records found".\n')
     return 0
   }
   if (!corpus.length && !unreadable.length) {
-    process.stdout.write('No decision records found under this repository.\n')
+    say('No decision records found under this repository.\n')
     return 0
   }
 
 
-  process.stdout.write(`${corpus.length} record(s) read; ${governing.length} governing; `
+  say(`${corpus.length} record(s) read; ${governing.length} governing; `
   + `${touched.size} path(s) touched by their tasks.\n`)
 
   // Said immediately, and before anything else this tool has to say. A corpus
@@ -136,28 +143,28 @@ export function main(argv) {
 
   // Never read at all, so nothing here can say what they decide (PARTIAL).
   if (unopened.length) {
-    process.stdout.write(`\n${unopened.length} listed file(s) could NOT be opened, so this is PARTIAL — `
+    say(`\n${unopened.length} listed file(s) could NOT be opened, so this is PARTIAL — `
       + 'nothing below says what they decide:\n')
     for (const entry of unopened.slice(0, SHOWN)) {
-      process.stdout.write(`  ${relative(entry)}  [${entry.reason}]\n`)
+      say(`  ${relative(entry)}  [${entry.reason}]\n`)
     }
   }
   if (pending.length) {
-    process.stdout.write(`\n${pending.length} record(s) are Proposed or Draft and govern nothing yet, `
+    say(`\n${pending.length} record(s) are Proposed or Draft and govern nothing yet, `
       + 'which is correct — they are not counted above.\n')
   }
   if (strange.length || nameless.length) {
-    process.stdout.write(`\n${strange.length + nameless.length} file(s) were opened and could NOT be read `
+    say(`\n${strange.length + nameless.length} file(s) were opened and could NOT be read `
       + 'as a record, so they govern nothing and nothing else will tell you that:\n')
     for (const entry of [...strange, ...nameless].slice(0, SHOWN)) {
-      process.stdout.write(`  ${relative(entry)}  `
+      say(`  ${relative(entry)}  `
         + `${entry.status ? `[${entry.status.slice(0, 44)}]` : '[no **Status:** line]'}\n`)
     }
     if (strange.length + nameless.length > SHOWN) {
-      process.stdout.write(`  (+${strange.length + nameless.length - SHOWN} more)\n`)
+      say(`  (+${strange.length + nameless.length - SHOWN} more)\n`)
     }
     if (strange.length) {
-      process.stdout.write('A status this reader does not know is a decision it cannot apply. '
+      say('A status this reader does not know is a decision it cannot apply. '
         + 'Either\nspell it the way the corpus already spells its governing records, or say '
         + 'so here.\n')
     }
@@ -176,45 +183,52 @@ export function main(argv) {
     .filter(record => record.governs.length)
     .sort((a, b) => b.governs.length - a.governs.length)
     .slice(0, 3)
-  process.stdout.write('\nNo record declares a `Governs:` scope. That is normal and nothing is wrong:\n'
+  say('\nNo record declares a `Governs:` scope. That is normal and nothing is wrong:\n'
     + 'authority is inferred from the paths each record\'s tasks touched, and every\n'
     + 'reader below works from that.\n')
   if (widest.length) {
-    process.stdout.write('Declaring one changes what `adr-context` hands the next session to edit '
+    say('Declaring one changes what `adr-context` hands the next session to edit '
       + 'those\npaths. These touch the most, so a declaration there is worth the most:\n')
     for (const record of widest) {
-      process.stdout.write(`  ${label(record)}  ${record.governs.length} path(s)  ${record.title}\n`)
+      say(`  ${label(record)}  ${record.governs.length} path(s)  ${quotedCorpusText(record.title)}\n`)
     }
   }
-  process.stdout.write('Ask about one path with `adr-context <path>`.\n')
+  say('Ask about one path with `adr-context <path>`.\n')
   }
   if (areas.size) {
-  process.stdout.write('\nWhat governs what, as it stands now:\n')
+  say('\nWhat governs what, as it stands now:\n')
   for (const [declared, records] of [...areas].sort().slice(0, SHOWN)) {
     const holder = records[0]
-    process.stdout.write(`  ${declared.padEnd(32)} ${label(holder)}  ${holder.title}\n`)
+    say(`  ${declared.padEnd(32)} ${label(holder)}  ${quotedCorpusText(holder.title)}\n`)
     for (const old of replaced.get(holder.file) ?? []) {
-      process.stdout.write(`  ${' '.repeat(32)} replaced ${label(old)} — ${old.title}\n`)
+      say(`  ${' '.repeat(32)} replaced ${label(old)} — ${quotedCorpusText(old.title)}\n`)
     }
   }
   if (areas.size > SHOWN) {
-    process.stdout.write(`  (+${areas.size - SHOWN} more; --json for all)\n`)
+    say(`  (+${areas.size - SHOWN} more; --json for all)\n`)
   }
   }
   if (contested.length) {
-  process.stdout.write('\nContested — the corpus says two things about the same code:\n')
+  say('\nContested — the corpus says two things about the same code:\n')
   for (const [declared, records] of contested) {
-    process.stdout.write(`  ${declared}: ${records.map(label).join(' and ')}\n`)
+    say(`  ${declared}: ${records.map(label).join(' and ')}\n`)
   }
   }
   if (orphans.length) {
-  process.stdout.write('\nGoverning nothing this tool can locate — no `Governs:` header and no task\n'
+  say('\nGoverning nothing this tool can locate — no `Governs:` header and no task\n'
     + '`Affected Files`, so nothing points these decisions at the code:\n')
   for (const record of orphans.slice(0, SHOWN)) {
-    process.stdout.write(`  ${label(record)}  ${relative(record)}\n`)
+    say(`  ${label(record)}  ${relative(record)}\n`)
   }
   if (orphans.length > SHOWN) {
-    process.stdout.write(`  (+${orphans.length - SHOWN} more; --json for all)\n`)
+    say(`  (+${orphans.length - SHOWN} more; --json for all)\n`)
+  }
+  }
+  if (unknownScope.length) {
+  say('\nWhat these govern is UNPROVEN — a task file beside them could not be opened, so its\n'
+    + '`Affected Files` were never read:\n')
+  for (const record of unknownScope.slice(0, SHOWN)) {
+    say(`  ${label(record)}  ${record.unreadTasks.map(file => relative({ file })).join(', ')}\n`)
   }
   }
   // A declaration that matches nothing tracked, said by the tool that answers
@@ -229,20 +243,20 @@ export function main(argv) {
   const rotted = [...new Set(corpus.flatMap(record => record.unresolved))]
     .filter(entry => entry.startsWith('governs:'))
   if (rotted.length) {
-  process.stdout.write('\nDeclared but matching nothing git tracks — these decisions govern no\n'
+  say('\nDeclared but matching nothing git tracks — these decisions govern no\n'
     + 'file, and `adr-context` will answer "none governs" for the code they were\n'
     + 'written about:\n')
   for (const entry of rotted.slice(0, SHOWN)) {
-    process.stdout.write(`  ${entry.slice('governs:'.length)}\n`)
+    say(`  ${entry.slice('governs:'.length)}\n`)
   }
   if (rotted.length > SHOWN) {
-    process.stdout.write(`  (+${rotted.length - SHOWN} more; --json for all)\n`)
+    say(`  (+${rotted.length - SHOWN} more; --json for all)\n`)
   }
   }
   if (dangling.length) {
-  process.stdout.write('\nSuperseded by a record that is not in this corpus:\n')
+  say('\nSuperseded by a record that is not in this corpus:\n')
   for (const record of dangling) {
-    process.stdout.write(`  ${label(record)}  ${record.status}\n`)
+    say(`  ${label(record)}  ${record.status}\n`)
   }
   }
 

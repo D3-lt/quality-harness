@@ -1329,7 +1329,7 @@ export function spawnGate(tool, args, options = {}, platform = process.platform,
 // hide what is shown), collapsed to one line and bounded.
 export function quotedCorpusText(value, max = 160) {
   const clean = String(value ?? '')
-    .replace(/[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]/g, ' ')
+    .replace(/[\u{0}-\u{1f}\u{7f}-\u{9f}\u{200b}-\u{200f}\u{202a}-\u{202e}\u{2060}-\u{2069}\u{feff}]/gu, ' ')
     .replace(/\s+/g, ' ').trim()
   const cut = clean.length > max ? `${clean.slice(0, max - 1)}…` : clean
   // Angle brackets too: a quoted "</system-reminder>" is still a frame to its reader.
@@ -1345,6 +1345,14 @@ export function quotedCorpusText(value, max = 160) {
 export function visiblePath(value) {
   return String(value).replace(/[\u0000-\u001f\u007f-\u009f\u200b-\u200f\u202a-\u202e\u2060-\u2069\ufeff]/g,
     char => `\\u{${char.codePointAt(0).toString(16)}}`)
+}
+
+// Human output from a reader reaches a terminal and a session's context. A control,
+// a bidi override or an invisible character in a corpus name reached both raw: an OSC
+// title sequence, SGR colours, U+202E (a corpus-chaos run of 916b515). Each is shown
+// as a visible escape; the output's own newlines and tabs are kept.
+export function terminalText(value) {
+  return String(value).replace(/[\u{0}-\u{8}\u{b}-\u{1f}\u{7f}-\u{9f}\u{200b}-\u{200f}\u{202a}-\u{202e}\u{2060}-\u{2069}\u{feff}]/gu, visiblePath)
 }
 
 // A code span longer than any backtick run inside the text, so the text cannot close it.
@@ -1447,6 +1455,10 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     if (unreadTasks.length) {
       lines.push(`  ${relative}: UNPROVEN — adr-next could not read ${unreadTasks.length} task file(s) there, `
         + `${quotedCorpusText(unreadTasks[0].stopped_by ?? '')}. Ready tasks there are not known.`)
+      // And nothing there is offered: an unreadable task may produce what a ready one
+      // consumes, and "T1 is ready" under "not known" was both at once (a Windows chaos
+      // round of 916b515, G2).
+      continue
     }
     if (report.ready?.length) {
       const next = report.ready[0]
@@ -2169,6 +2181,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     // to keep in step with this one.
     const owned = []
     const texts = []
+    const unreadTasks = []
     for (const tasks of taskDirectoriesFor(file, number, reader)) {
       let taskEntries = []
       try {
@@ -2178,7 +2191,15 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       for (const name of taskEntries) {
         const taskPath = path.join(tasks.path, name)
         let taskText
-        try { taskText = reader.text(taskPath) } catch { continue }
+        try { taskText = reader.text(taskPath) } catch {
+          // Unread is not absent. A task file that could not be opened was dropped
+          // here, so its directory was never asked about and its record read as
+          // governing nothing (a Windows chaos round of 916b515, C-5). A directory
+          // named for this record attributes it without its text; its scope is unknown.
+          unreadTasks.push(taskPath)
+          if (tasks.owned) owned.push(taskPath)
+          continue
+        }
         // A directory NAMED for this record is attribution in itself.
         if (tasks.owned) {
           owned.push(taskPath)
@@ -2232,6 +2253,8 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // gets the files right and the RECORD wrong — §48, where the router named
       // a Proposed record's tasks as ready to execute.
       taskFiles: [...new Set(owned)],
+      // Task files beside it that could not be opened: what it governs is not known.
+      unreadTasks,
       declares: [...declares],
       // Two sources, one slot, told apart by the prefix. A `type: package`
       // matcher was never resolvable here; a `governs:` entry WAS resolvable and

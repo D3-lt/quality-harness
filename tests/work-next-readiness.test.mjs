@@ -7,7 +7,7 @@
 // CLI, unread directories rendered as "Nothing in the QH corpus is waiting".
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -482,4 +482,24 @@ test('a done claim is read whatever horizontal space follows its Status', () => 
   }
   assert.deepEqual(unbacked('**Status:** pending'), [], 'no claim, nothing unbacked')
   for (const space of [' ', '\u{2003}', '\u{a0}']) assert.equal(unbacked(`**Status:**${space}done`).length, 1, JSON.stringify(space))
+})
+
+// A Windows chaos round of 916b515 (tender-reef G2): SessionStart said a task directory
+// was UNPROVEN, because one task file could not be read, and then said T1 there was
+// ready. An unreadable task may produce what T1 consumes, so no task there is offered.
+test('a directory with an unreadable task offers none of its tasks as ready', () => {
+  const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-g2-')))
+  temps.push(root)
+  const dir = path.join(root, 'docs', 'adr', 'ADR-002-a', 'tasks')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(path.join(dir, 'T1-a.md'), '# x\n')
+  const listing = ['docs/adr/ADR-002-a/tasks/T1-a.md', 'docs/adr/ADR-002-a/tasks/T2-b.md']
+  const said = stopped => readyTaskLines(root, true, listing, () => ({ status: 0, stderr: '', stdout: JSON.stringify({
+    ready: [{ id: 'T1', goal: 'Task T1: a', path: path.join(dir, 'T1-a.md') }], blocked: [], done: [], stopped,
+  }) })).lines.join('\n')
+  const unread = said([{ id: 'T2', path: path.join(dir, 'T2-b.md'), unreadable: true, stopped_by: 'could not read it' }])
+  assert.match(unread, /UNPROVEN — adr-next could not read 1 task file/, unread)
+  assert.doesNotMatch(unread, /T1 is ready/, unread)
+  // Clean twin: with every task read, T1 is offered.
+  assert.match(said([]), /T1 is ready/)
 })

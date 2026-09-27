@@ -231,7 +231,9 @@ def program_output_removed(note):
 # its angle brackets neutralised (a quoted "</system-reminder>" is still a frame to a
 # reader), collapsed to one line and bounded. lifecycle.mjs quotedCorpusText is the
 # same rule for SessionStart.
-_UNSAFE = re.compile("[\u0000-\u001f\u007f-\u009f\u200e\u200f\u202a-\u202e\u2066-\u2069]")
+# Zero-width characters and the BOM too: a U+200B passed into a quoted title (a Windows
+# chaos round of 916b515). Written as \U escapes, the same set as lifecycle.mjs.
+_UNSAFE = re.compile("[\x00-\x1f\x7f-\x9f\U0000200b-\U0000200f\U0000202a-\U0000202e\U00002060-\U00002069\U0000feff]")
 
 
 def shown(value, limit=160):
@@ -625,7 +627,7 @@ def load(tasks_dir):
         infos[tid] = {
             "id": tid,
             "path": str(path),
-            "goal": (re.sub(r"^#\s+", "", text.split("\n", 1)[0]).strip() if text else tid),
+            "goal": (re.sub(r"^#\s+", "", text.lstrip("\U0000feff").split("\n", 1)[0]).strip() if text else tid),
             "depends_on": header_val(text, "Depends-on") or "",
             "consumes": header_val(text, "Consumes") or "",
             "produces": header_val(text, "Produces") or "",
@@ -1278,8 +1280,16 @@ def main():
         if not target.exists():
             print(f"adr-next: no such file or directory: {args[0]}", file=sys.stderr)
             return 1
-        print(f"adr-next: {args[0]} owns no tasks directory, so there is nothing to sequence. "
-              f"A record's tasks live in `tasks/` beside it, or in `<record>/tasks/`.")
+        said = (f"adr-next: {args[0]} owns no tasks directory, so there is nothing to sequence. "
+                f"A record's tasks live in `tasks/` beside it, or in `<record>/tasks/`.")
+        if "--json" in flags:
+            # A JSON caller parses stdout; this prose broke that (a Windows chaos round
+            # of 916b515, G2 a). Exit 3 is this mode's "nothing ready", a valid answer.
+            print(json.dumps({"tasks_dir": None, "ready": [], "done": [], "blocked": [], "stopped": [],
+                              "status": None, "undecided": None, "owner_unreadable": False, "note": said},
+                             indent=2))
+            return 3
+        print(said)
         return 0
 
     infos = load(tasks_dir)

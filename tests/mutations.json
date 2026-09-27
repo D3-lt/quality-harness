@@ -618,7 +618,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    .replace(/[\\u0000-\\u001f\\u007f-\\u009f\\u200e\\u200f\\u202a-\\u202e\\u2066-\\u2069]/g, ' ')\n",
+      "from": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, ' ')\n",
       "to": ""
     },
     {
@@ -699,7 +699,7 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "    for (const dir of state.readinessUnproven.slice(0, 5)) process.stdout.write(`  readiness UNPROVEN: ${relative(dir)}\\n`)",
+      "from": "    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  readiness UNPROVEN: ${relative(dir)}\\n`)",
       "to": ""
     },
     {
@@ -1633,7 +1633,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "const orphans = governing.filter(record => record.governs.length === 0)",
+      "from": "const orphans = governing.filter(record => record.governs.length === 0 && !record.unreadTasks?.length)",
       "to": "const orphans = []"
     },
     {
@@ -2156,8 +2156,8 @@
         "tests/lifecycle.test.mjs"
       ],
       "only": "importing the router does not end the process that imported it",
-      "from": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    return 0",
-      "to": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    process.exit(0)"
+      "from": "    for (const entry of STAGES) say(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    return 0",
+      "to": "    for (const entry of STAGES) say(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    process.exit(0)"
     },
     {
       "label": "fixture: the corpus is copied, not linked to",
@@ -14045,6 +14045,156 @@
       "from": "        if (size > 0 && readSync(fd, last, 0, 1, size - 1) === 1 && last[0] !== 0x0a) lead = '\\n'",
       "to": "        if (false) lead = '\\n'",
       "only": "torn log tail does not swallow"
+    },
+    {
+      "label": "chaos 916b515: adr-state speaks through terminalText",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "  const say = text => process.stdout.write(terminalText(text))",
+      "to": "  const say = text => process.stdout.write(text)",
+      "only": "adr-state shows a hostile"
+    },
+    {
+      "label": "chaos 916b515: work-next speaks through terminalText",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "  const say = text => process.stdout.write(terminalText(text))",
+      "to": "  const say = text => process.stdout.write(text)",
+      "only": "work-next shows a hostile"
+    },
+    {
+      "label": "chaos 916b515: adr-state quotes a record title",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "    say(`  ${declared.padEnd(32)} ${label(holder)}  ${quotedCorpusText(holder.title)}\\n`)",
+      "to": "    say(`  ${declared.padEnd(32)} ${label(holder)}  ${holder.title}\\n`)",
+      "only": "adr-state shows a hostile"
+    },
+    {
+      "label": "chaos 916b515: terminalText shows what drives a terminal as an escape",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "  return String(value).replace(/[\\u{0}-\\u{8}\\u{b}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, visiblePath)",
+      "to": "  return String(value)",
+      "only": "shows a hostile"
+    },
+    {
+      "label": "chaos 916b515: SessionStart quoting drops zero-width characters",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, ' ')",
+      "to": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200e}\\u{200f}\\u{202a}-\\u{202e}\\u{2066}-\\u{2069}]/gu, ' ')",
+      "only": "drops zero-width"
+    },
+    {
+      "label": "chaos 916b515: adr-next's quoting drops zero-width characters",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "_UNSAFE = re.compile(\"[\\x00-\\x1f\\x7f-\\x9f\\U0000200b-\\U0000200f\\U0000202a-\\U0000202e\\U00002060-\\U00002069\\U0000feff]\")",
+      "to": "_UNSAFE = re.compile(\"[\\x00-\\x1f\\x7f-\\x9f\\U0000200e\\U0000200f\\U0000202a-\\U0000202e\\U00002066-\\U00002069]\")",
+      "only": "zero-width character"
+    },
+    {
+      "label": "chaos 916b515: a BOM does not keep the heading mark in a title",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            \"goal\": (re.sub(r\"^#\\s+\", \"\", text.lstrip(\"\\U0000feff\").split(\"\\n\", 1)[0]).strip() if text else tid),",
+      "to": "            \"goal\": (re.sub(r\"^#\\s+\", \"\", text.split(\"\\n\", 1)[0]).strip() if text else tid),",
+      "only": "zero-width character"
+    },
+    {
+      "label": "chaos 916b515 G2: an UNPROVEN task directory offers no ready task",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "      // round of 916b515, G2).\n      continue",
+      "to": "      // round of 916b515, G2).",
+      "only": "unreadable task offers none"
+    },
+    {
+      "label": "chaos 916b515 G2: --json with no tasks directory answers JSON",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if \"--json\" in flags:\n            # A JSON caller parses stdout; this prose broke that (a Windows chaos round",
+      "to": "        if False:\n            # A JSON caller parses stdout; this prose broke that (a Windows chaos round",
+      "only": "no tasks directory answers in JSON"
+    },
+    {
+      "label": "chaos 916b515 G2: corpus-report counts a NUL-byte or empty task unreadable",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "  if (text.includes('\\0') || !text.trim()) return { file, unreadable: true }",
+      "to": "  if (false) return { file, unreadable: true }",
+      "only": "NUL bytes, or nothing"
+    },
+    {
+      "label": "chaos 916b515 C-5: adr-lint answers could-not-run for a file it cannot read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    except OSError as exc:\n        print(f\"[adr-lint] could not run: {exc.filename or 'a file'}",
+      "to": "    except ZeroDivisionError as exc:\n        print(f\"[adr-lint] could not run: {exc.filename or 'a file'}",
+      "only": "cannot read is could-not-run"
+    },
+    {
+      "label": "chaos 916b515 C-5: an exit-code verdict carries its reason",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "      : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\\n').find(line => line.trim()) : undefined",
+      "to": "      : undefined",
+      "only": "only an exit code carries"
+    },
+    {
+      "label": "chaos 916b515 C-5: an unread task file stays attributed to its record",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "          unreadTasks.push(taskPath)\n          if (tasks.owned) owned.push(taskPath)",
+      "to": "          unreadTasks.push(taskPath)",
+      "only": "tracked task file nobody could read"
+    },
+    {
+      "label": "chaos 916b515 C-5: an unread task file is recorded as unread",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "          unreadTasks.push(taskPath)\n          if (tasks.owned) owned.push(taskPath)",
+      "to": "          if (tasks.owned) owned.push(taskPath)",
+      "only": "scope unknown, not empty"
+    },
+    {
+      "label": "chaos 916b515 C-5: a scope nobody read is not governing nothing",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "  const orphans = governing.filter(record => record.governs.length === 0 && !record.unreadTasks?.length)",
+      "to": "  const orphans = governing.filter(record => record.governs.length === 0)",
+      "only": "scope unknown, not empty"
     }
   ]
 }

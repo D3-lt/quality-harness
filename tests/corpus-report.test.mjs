@@ -5,6 +5,9 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import { OUTSIDE, asArgument, collect, publicPath, recordCount, render, run } from '../plugin/scripts/corpus-report.mjs'
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -172,4 +175,22 @@ test('a historical floor on this repository\'s own figures — not a reproductio
   for (const file of t.outcomeOnlyFiles) {
     assert.doesNotMatch(file, /^([A-Za-z]:|[/\\])/, `an absolute path reached the report: ${file}`)
   }
+})
+
+// A Windows chaos round of 916b515 (tender-reef G2 b): a binary task was counted as a
+// task that claims nothing, while adr-next named it unreadable. NUL bytes and an empty
+// file are unreadable to both now.
+test('a task file holding NUL bytes, or nothing, is counted unreadable', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-report-nul-'))
+  try {
+    const tasks = join(dir, 'docs', 'adr', 'ADR-001-a', 'tasks')
+    mkdirSync(tasks, { recursive: true })
+    writeFileSync(join(tasks, 'T1-binary.md'), Buffer.from([0, 1, 2, 255, 0, 0]))
+    writeFileSync(join(tasks, 'T2-empty.md'), '')
+    writeFileSync(join(tasks, 'T3-plain.md'), '# Task T3: a\n\n## Verification Log\n')
+    const run = spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'corpus-report.mjs'), dir, '--json'], { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.status, 0, run.stderr)
+    const { totals } = JSON.parse(run.stdout)
+    assert.deepEqual({ tasks: totals.tasks, unreadable: totals.unreadable, unevidenced: totals.unevidenced }, { tasks: 3, unreadable: 2, unevidenced: 1 })
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })

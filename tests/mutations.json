@@ -12762,8 +12762,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
-      "to": "    if (word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
+      "from": "    else if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
+      "to": "    else if (word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
       "only": "every publish form is recognised"
     },
     {
@@ -13685,6 +13685,16 @@
       "from": "        return keyed / ADVICE_SURVIVAL_NAME",
       "to": "        return Path(state).resolve() / ADVICE_SURVIVAL_NAME",
       "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "chaos 626934a (Windows re-run of 9cc9a35): cmd's if runs its command",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (/^if$/i.test(word)) {",
+      "to": "    if (false) {",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
     }
   ]
 }

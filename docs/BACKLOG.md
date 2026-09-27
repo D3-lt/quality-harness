@@ -15829,6 +15829,8 @@ Non-goals: binary or hex encoding, lossy compression on evidence, a semantic ans
 
 **Load-sensitive test, found 2026-09-26.** `tests/observed-events.test.mjs` "a check that finishes in a later turn clears the finding then" failed once in the full gate at load 27. It took 14.6 s and Stop emitted R4 where R1 was expected. Run alone at the same load, it passed in 3.6 s. It is not caused by the Stage 1 change, which touches only `scripts/`. Open: find which deadline R4 depends on, and whether R4 there is a real could-not-look or a test budget.
 
+**Stage 4, 2026-09-27: ADR-069 (Accepted) takes its first item, `--repoint`.** A replay of the 3.1.0 batch's hand repoints found six of fourteen mechanical, and the rule reproduces each; a cold review measured 83 of 1,138 sibling proposals without the record's added-line condition. Deferred from ADR-069 and still Stage 4's: an entry whose `from` spans lines (315 of 1,453 at a11f334, none in the replay), an entry whose edit only inserts (66), worktree-isolated campaigns (the tree was held unedited through every campaign of that batch), and test-impact selection beyond `--changed`.
+
 ## 302. The 2026-09-26 inbox: one regression of mine, four false blocks and advisories fixed for 3.0, two left open
 
 Eight inbox drawers from peer projects (tool-multipathreadwrite, memory-runtime, zeus), each with a repro. Each was confirmed against source before acting.

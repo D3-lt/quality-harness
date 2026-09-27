@@ -3133,9 +3133,21 @@ function programIndex(argv) {
   let k = 0
   while (k < argv.length) {
     const word = argv[k]
+    // cmd's `if [/i] [not] <condition> <command>` runs its command: the condition is
+    // `errorlevel N`, `exist P`, `defined V`, `cmdextversion N`, `a==b`, or `a <op> b`
+    // (a Windows chaos round of 9cc9a35: `cmd /c if 1==1 git push` pushed under cmd,
+    // pwsh and PowerShell 5.1). A POSIX `if` is followed by a command, which matches
+    // none of these shapes and is left where it is.
+    if (/^if$/i.test(word)) {
+      k += 1
+      while (/^(?:\/i|not)$/i.test(argv[k] ?? '')) k += 1
+      if (/^(?:errorlevel|exist|defined|cmdextversion)$/i.test(argv[k] ?? '')) k += 2
+      else if ((argv[k] ?? '').includes('==') && !(argv[k] ?? '').startsWith('-')) k += 1
+      else if (/^(?:==|equ|neq|lss|leq|gtr|geq)$/i.test(argv[k + 1] ?? '')) k += 3
+    }
     // cmd's `call` runs its arguments (a Windows chaos round of 626934a: `cmd //c call
     // git push` pushed). No POSIX shell has a `call`, so reading it everywhere costs nothing.
-    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1
+    else if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1
     else if (word === 'command' || word === 'time') k += argv[k + 1] === '-p' ? 2 : 1
     else if (word === 'nice') k += argv[k + 1] === '-n' ? 3 : /^-n?\d+$/.test(argv[k + 1] ?? '') ? 2 : 1
     else if (word === 'sudo') {

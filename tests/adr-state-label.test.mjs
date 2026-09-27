@@ -49,7 +49,8 @@ test('a record whose status cannot be read is named in the JSON and in the text 
   const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, encoding: 'utf8', timeout: 15_000 })
   assert.equal(init.status ?? 0, 0, init.stderr)
   const json = JSON.parse(spawnSync(process.execPath, [adrState, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000 }).stdout)
-  assert.deepEqual(json.unread.map(entry => entry.file), ['docs/adr/ADR-001-fullwidth.md'], JSON.stringify(json))
+  // Native separators, as every adr-state path field prints them; the probe normalises (§279 item 5).
+  assert.deepEqual(json.unread.map(entry => entry.file.split(path.sep).join('/')), ['docs/adr/ADR-001-fullwidth.md'], JSON.stringify(json))
   assert.equal(json.look, 'ok')
   const text = spawnSync(process.execPath, [adrState], { cwd: root, encoding: 'utf8', timeout: 60_000 }).stdout
   assert.match(text, /ADR-001-fullwidth\.md/, text)

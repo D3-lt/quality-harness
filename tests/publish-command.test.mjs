@@ -778,6 +778,15 @@ const CHAOS_626934A_PUBLISHES = {
   'git push -o --dry-run origin main': 'git push',
   'git push --dry-run --no-dry-run': 'git push',
   'git commit -- --dry-run': 'git commit',
+  // The Windows re-run of 9cc9a35: cmd's `if <condition> <command>` pushed under cmd,
+  // pwsh and PowerShell 5.1. The first row was measured; the rest are its other shapes.
+  'cmd /c if 1==1 git push': 'git push',
+  'cmd //c if 1==1 git push': 'git push',
+  'cmd /c if exist x git push': 'git push',
+  'cmd /c IF /I NOT errorlevel 1 git push': 'git push',
+  'cmd /c if a EQU a git push': 'git push',
+  'cmd /c if a == a git push': 'git push',
+  'cmd /c if defined PATH git commit -m x': 'git commit',
 }
 const CHAOS_626934A_NOT_PUBLISHES = [
   'git commit --dry-run -m x', 'git push --dry-run', 'git push -n origin main',

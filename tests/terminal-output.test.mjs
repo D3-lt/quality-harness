@@ -62,7 +62,8 @@ test('work-next shows a hostile spec path with nothing that drives a terminal', 
   })
   try {
     const out = human('work-next.mjs', dir)
-    assert.match(out, /docs\/specs\/a/, out)
+    // work-next prints native separators; Windows CI caught a `/`-only match (§7).
+    assert.match(out, /docs[\\/]specs[\\/]a/, out)
     assert.doesNotMatch(out, DRIVES_A_TERMINAL, JSON.stringify(out))
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

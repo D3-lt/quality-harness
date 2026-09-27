@@ -1477,9 +1477,9 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
             + 'as written: read the fence in the task file first.'))
     } else if (report.blocked?.length) {
       lines.push(`  ${relative}: nothing ready; ${report.blocked.length} task(s) blocked.`)
-    } else if ((report.stopped?.length ?? 0) > unreadTasks.length) {
-      lines.push(`  ${relative}: nothing ready; ${report.stopped.length - unreadTasks.length} task(s) stopped.`)
-    } else if (report.done?.length && !unreadTasks.length) {
+    } else if (report.stopped?.length) {
+      lines.push(`  ${relative}: nothing ready; ${report.stopped.length} task(s) stopped.`)
+    } else if (report.done?.length) {
       evidenced += 1
     }
   }

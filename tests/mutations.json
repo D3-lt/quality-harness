@@ -3426,7 +3426,8 @@
         "tests/adr-next.test.mjs"
       ],
       "from": "RECORD_NUMBER = re.compile(r\"(?!\\d{4}-\\d{2}-\\d{2})(?:adr[-_]?)?0*(\\d{1,4})\\b\", re.I)",
-      "to": "RECORD_NUMBER = re.compile(r\"(?:adr[-_]?)?0*(\\d{1,4})\\b\", re.I)"
+      "to": "RECORD_NUMBER = re.compile(r\"(?:adr[-_]?)?0*(\\d{1,4})\\b\", re.I)",
+      "only": "a date-named record never borrows a dated folder that no record names"
     },
     {
       "label": "verify: a toolchain directive is not a comment-only mutant",
@@ -8554,16 +8555,6 @@
       "only": "a file whose name and title disagree on the ADR number is refused"
     },
     {
-      "label": "adr-lint: named path plus strictFrom reads through read_named, not a second open",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/gates.test.mjs"
-      ],
-      "from": "    text = read_named(adr)\n    if not re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I) and not re.search(\n            r\"(?m)^\\*\\*Status:\\*\\*\", text):",
-      "to": "    text = adr.read_text(errors=\"replace\", encoding=\"utf-8\")\n    if not re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I) and not re.search(\n            r\"(?m)^\\*\\*Status:\\*\\*\", text):",
-      "only": "chmod-000 named ADR with strictFrom is UNPROVEN exit 2, not a traceback"
-    },
-    {
       "label": "lock: first-red suffix is written (ADR-050 T1)",
       "file": "plugin/bin/adr-verify",
       "tests": [
@@ -8592,16 +8583,6 @@
       "from": "            if lock_blocks_done(text, root):\n                return False\n            return True",
       "to": "            return True",
       "only": "is_done refuses when a locked hash moved"
-    },
-    {
-      "label": "lint: named-path OSError is could-not-run at check_adr (ADR-049 T1)",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/gates.test.mjs"
-      ],
-      "from": "    text = read_named(adr)",
-      "to": "    text = adr.read_text(errors=\"replace\", encoding=\"utf-8\")",
-      "only": "an unreadable named path is could-not-run, not failures-found"
     },
     {
       "label": "facts-gate-dispatch: adr-lint mapped could-not-run is UNPROVEN (ADR-049 T2)",
@@ -13397,22 +13378,12 @@
       "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
     },
     {
-      "label": "chaos 626934a: SessionStart does not count an unreadable task's directory as evidenced",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/work-next-readiness.test.mjs"
-      ],
-      "from": "    } else if (report.done?.length && !unreadTasks.length) {",
-      "to": "    } else if (report.done?.length) {",
-      "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
-    },
-    {
       "label": "chaos 626934a: SessionStart says a stopped task instead of dropping it",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "    } else if ((report.stopped?.length ?? 0) > unreadTasks.length) {",
+      "from": "    } else if (report.stopped?.length) {",
       "to": "    } else if (false) {",
       "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
     },

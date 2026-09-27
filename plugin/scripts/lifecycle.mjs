@@ -3822,6 +3822,14 @@ export function publishHookExports(node = process.execPath, script = PUBLISH_HOO
 }
 
 /** Offer the hook for this session, and record what happened. */
+// The session was offered git's hook and no hook run has followed the latest offer.
+function awaitingArming(events) {
+  const offered = events.map(entry => entry.event).lastIndexOf('publish.offered')
+  return offered >= 0 && !events.slice(offered + 1).some(entry => entry.event === 'publish.hook-ran')
+}
+const ARMING_NOTE = "quality-harness: git's own refusal of an unchecked commit or push has not run yet in this "
+  + 'session: it takes effect from the next prompt, and until then the text refusal applies (ADR-068).'
+
 export function offerPublishHook({ cwd, session, env = process.env, run = spawnSync, exports = publishHookExports }) {
   const record = entry => appendEvent(cwd, session, entry)
   const file = env.CLAUDE_ENV_FILE
@@ -4661,6 +4669,12 @@ export async function handleHook(input) {
     const sections = []
     const orientation = sessionOrientation(input.cwd)
     if (orientation) sections.push(orientation)
+    // ADR-068 T2: after a compaction or resume, the Bash tool picks up the exports only
+    // from the next user prompt (measured 2026-09-26). While no hook run follows the
+    // latest offer, say which refusal is in force; it changes no verdict.
+    if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))) {
+      sections.push(ARMING_NOTE)
+    }
     if (input.source === 'compact') {
       // The compaction summary is the model's; this is the gates'. Hand back what
       // PreCompact measured, so the next context knows what is unverified and

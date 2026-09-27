@@ -92,7 +92,8 @@ and text piped into a shell are the invocations the shell runs.
 **Where git runs config-based hooks (2.54 or later), git itself refuses it (ADR-066).** At
 SessionStart the plugin offers git a session-scoped hook through Claude Code's `CLAUDE_ENV_FILE`,
 on `prepare-commit-msg` and `pre-push`; nothing is written into any repository. Once that hook
-has run, an unchecked commit or push is refused at the event, in the repository it lands in,
+has run, an unchecked commit or push is refused at the event, in the repository it lands in — a
+linked worktree of the session's repository included (ADR-068) —
 whatever launched it — a script file and a commit with `--no-verify` included — and a plain
 invocation, or a mention in quoted data, is only advice before it runs. A form that could switch
 the hook off (`-c hook.*`, `GIT_CONFIG*`, `env`, `sudo`, `--no-verify` on a push) keeps the

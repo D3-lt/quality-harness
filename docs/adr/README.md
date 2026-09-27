@@ -69,3 +69,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-065](ADR-065-branch-state-serves-its-snapshot.md) | The per-prompt branch-state brief serves its snapshot and refreshes behind the prompt | Accepted |
 | [ADR-066](ADR-066-git-refuses-an-unchecked-publish.md) | Git itself refuses an unchecked publish, and a plain invocation is left to it | Accepted |
 | [ADR-067](ADR-067-the-publish-classifier-reads-the-command-as-the-shell-splits-it.md) | The publish classifier reads a command as the shell splits it | Accepted |
+| [ADR-068](ADR-068-git-refuses-in-a-linked-worktree-and-says-when-it-is-armed.md) | Git refuses in a linked worktree too, and the session is told when it is armed | Accepted |

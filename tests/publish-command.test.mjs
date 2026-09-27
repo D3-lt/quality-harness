@@ -379,6 +379,10 @@ const DISABLES_THE_HOOK = [
   'git push</dev/null 2> >( /bin/cat ) --no-verify',
   // ...and a command hidden inside one, which the armed grammar can only see as code.
   'git push >(git config hook.qh-publish-push.enabled false)',
+  // Round 2 and round 3 of the 3.0.0 review, after ADR-067 T3 moved splitting to the lexer:
+  // a continued `.git/` write, and a rebase whose --exec runs a no-verify commit as plain text.
+  'cp x .g\\\nit/config; git commit -m x',
+  'git rebase --exec git\\ commit\\ -n HEAD && git push',
 ]
 
 test('an armed session leaves a plain invocation to git', () => {

@@ -63,7 +63,10 @@ export function shellWords(text) {
 
   function endCommand(operator) {
     endWord()
+    // A command of redirections alone still runs its substitutions: `<$(git push)`
+    // pushes before the open fails (Codex review of 341c49c).
     const empty = command.argv.length === 0 && command.assignments.length === 0 && command.heredocs.length === 0
+      && command.substitutions.length === 0
     if (!empty) {
       if (pipeNext) commands.at(-1).pipeTo = commands.length
       commands.push(finish(command))
@@ -117,36 +120,24 @@ export function shellWords(text) {
     if (next === '(') {
       const end = balanced(k + 1, '(', ')')
       if (end < 0) return -1
-      command.substitutions.push(src.slice(k + 2, end))
+      // `$((…))` is arithmetic: its text is no command, but a `$(…)` inside it runs.
+      if (src[k + 2] === '(') command.substitutions.push(...substitutionsIn(src.slice(k + 3, end - 1)))
+      else command.substitutions.push(src.slice(k + 2, end))
       return end + 1
     }
     if (next === '{') {
       const end = balanced(k + 1, '{', '}')
-      return end < 0 ? -1 : end + 1
+      if (end < 0) return -1
+      // `${x:-$(git push)}` runs the substitution when x is unset (Codex review of 341c49c).
+      command.substitutions.push(...substitutionsIn(src.slice(k + 2, end)))
+      return end + 1
     }
     let e = k + 1
     while (e < src.length && /[\w@*#?$!-]/.test(src[e])) { e++; if (!/\w/.test(src[e - 1])) break }
     return e
   }
 
-  // The index of the bracket closing the one at `k`, honouring quotes; -1 if none.
-  function balanced(k, open, close) {
-    let depth = 0
-    for (let e = k; e < src.length; e++) {
-      const c = src[e]
-      if (c === '\\') { e++; continue }
-      if (c === "'" || c === '"') {
-        const q = c
-        e++
-        while (e < src.length && src[e] !== q) { if (q === '"' && src[e] === '\\') e++; e++ }
-        if (e >= src.length) return -1
-        continue
-      }
-      if (c === open) depth++
-      else if (c === close && --depth === 0) return e
-    }
-    return -1
-  }
+  const balanced = (k, open, close) => closing(src, k, open, close)
 
   // After a newline: the bodies of the heredocs its line opened, in order.
   function readHeredocs() {
@@ -199,7 +190,13 @@ export function shellWords(text) {
       const c = src[i]
       if (BLANK.has(c) || OPERATOR.has(c) || REDIRECT.has(c)) break
       if (c === "'" || c === '"') { quotedAny = true; if (!quoted()) return null; continue }
-      if (c === '\\') { quotedAny = true; push(src[++i] ?? '', true); continue }
+      if (c === '\\') {
+        // A continued delimiter (`<<\` then `EOF`) is one word, as the shell joins it.
+        if (src[i + 1] === '\n') { i++; continue }
+        quotedAny = true
+        push(src[++i] ?? '', true)
+        continue
+      }
       if (c === '$' || c === '`') { const end = substitution(i); if (end < 0) return null; startWord(); word.dynamic = true; for (const ch of src.slice(i, end)) push(ch, false); i = end - 1; continue }
       push(c, false)
     }
@@ -207,6 +204,31 @@ export function shellWords(text) {
     const value = word ? word.chars.map(x => x.c).join('') : ''
     word = saved
     return { value, quoted: quotedAny }
+  }
+
+  // `$'…'` from its first character at `k`: bash's escapes decoded into the word.
+  // Returns the index of the closing quote, or -1 when it never closes.
+  function ansiC(k) {
+    startWord()
+    word.quoted = true
+    const simple = { a: '\x07', b: '\b', e: '\x1b', E: '\x1b', f: '\f', n: '\n', r: '\r', t: '\t', v: '\v', '\\': '\\', "'": "'", '"': '"', '?': '?' }
+    for (let e = k; e < src.length; e++) {
+      const c = src[e]
+      if (c === "'") return e
+      if (c !== '\\') { push(c, true); continue }
+      const x = src[e + 1]
+      if (x in simple) { push(simple[x], true); e++; continue }
+      const hex = x === 'x' ? /^[0-9a-fA-F]{1,2}/ : x === 'u' ? /^[0-9a-fA-F]{1,4}/ : x === 'U' ? /^[0-9a-fA-F]{1,8}/ : null
+      const digits = hex ? src.slice(e + 2).match(hex)?.[0] : src.slice(e + 1).match(/^[0-7]{1,3}/)?.[0]
+      if (digits) {
+        push(String.fromCodePoint(parseInt(digits, hex ? 16 : 8)), true)
+        e += digits.length + (hex ? 1 : 0)
+        continue
+      }
+      // An escape this does not know keeps its backslash, as bash does.
+      push('\\', true)
+    }
+    return -1
   }
 
   for (; i < src.length; i++) {
@@ -221,11 +243,11 @@ export function shellWords(text) {
       continue
     }
     if (c === '$' && src[i + 1] === "'") {
-      // ANSI-C quoting builds its value from escapes: dynamic, read like a single quote.
-      startWord()
-      word.dynamic = true
-      i++
-      if (!quoted()) { complete = false; word = null; command = fresh(); break }
+      // ANSI-C quoting: the value is fixed by the text, so it is decoded, not dynamic —
+      // `$'git' push` runs git (Codex review of 341c49c).
+      const end = ansiC(i + 2)
+      if (end < 0) { complete = false; word = null; command = fresh(); break }
+      i = end
       continue
     }
     if (c === '$' || c === '`') {
@@ -247,6 +269,22 @@ export function shellWords(text) {
     if (c === '(' && src[i + 1] === '(' && word === null && command.argv.length === 0 && command.assignments.length === 0) {
       const end = balanced(i, '(', ')')
       if (end < 0) { complete = false; command = fresh(); break }
+      // ...but a `$(…)` inside it runs (Codex review of 341c49c).
+      command.substitutions.push(...substitutionsIn(src.slice(i + 2, end - 1)))
+      i = end
+      continue
+    }
+    // Process substitution `<(…)` / `>(…)` runs its command and stands in the argv as a
+    // path. It is code, so the armed grammar never reads the command as plain: split
+    // wrongly, `git push 2> >(cat) --no-verify` lost the `--no-verify` it carries.
+    if ((c === '<' || c === '>') && src[i + 1] === '(') {
+      const end = balanced(i + 1, '(', ')')
+      if (end < 0) { complete = false; word = null; command = fresh(); break }
+      command.substitutions.push(src.slice(i + 2, end))
+      startWord()
+      word.dynamic = true
+      word.code = true
+      for (const ch of src.slice(i, end + 1)) push(ch, false)
       i = end
       continue
     }
@@ -270,6 +308,56 @@ export function shellWords(text) {
     if (pending.length) { complete = false; readHeredocs() }
   }
   return { commands, complete }
+}
+
+// The command substitutions an expression runs. Inside `${…}`, `$((…))` and `((…))`
+// the text around them is not a command — reading it as one took `<<` for a heredoc —
+// but a `$(…)` or a backtick in it runs.
+function substitutionsIn(text) {
+  const found = []
+  for (let k = 0; k < text.length; k++) {
+    const c = text[k]
+    if (c === '\\') { k++; continue }
+    if (c === "'") {
+      const end = text.indexOf("'", k + 1)
+      if (end < 0) break
+      k = end
+    } else if (c === '`') {
+      let end = k + 1
+      while (end < text.length && text[end] !== '`') end += text[end] === '\\' ? 2 : 1
+      if (end >= text.length) break
+      found.push(text.slice(k + 1, end))
+      k = end
+    } else if (c === '$' && (text[k + 1] === '(' || text[k + 1] === '{')) {
+      const open = text[k + 1]
+      const end = closing(text, k + 1, open, open === '(' ? ')' : '}')
+      if (end < 0) break
+      const inner = text.slice(k + 2, end)
+      if (open === '(' && !inner.startsWith('(')) found.push(inner)
+      else found.push(...substitutionsIn(open === '(' ? inner.slice(1, -1) : inner))
+      k = end
+    }
+  }
+  return found
+}
+
+// The index of the bracket closing the one at `k` in `text`, honouring quotes; -1 if none.
+function closing(text, k, open, close) {
+  let depth = 0
+  for (let e = k; e < text.length; e++) {
+    const c = text[e]
+    if (c === '\\') { e++; continue }
+    if (c === "'" || c === '"') {
+      const q = c
+      e++
+      while (e < text.length && text[e] !== q) { if (q === '"' && text[e] === '\\') e++; e++ }
+      if (e >= text.length) return -1
+      continue
+    }
+    if (c === open) depth++
+    else if (c === close && --depth === 0) return e
+  }
+  return -1
 }
 
 // `NAME=` with the name and the `=` unquoted.

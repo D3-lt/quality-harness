@@ -37,8 +37,27 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
-const catalogue = JSON.parse(readFileSync(path.join(root, 'tests', 'mutations.json'), 'utf8'))
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+// The repository a run reads and writes: this one, or `--root <dir>` (ADR-069). `main`
+// sets it, and the catalogue, lock and journal with it, before anything below reads them.
+let root = repoRoot
+
+/**
+ * The files a campaign over `root` reads and writes (ADR-069): its catalogue, its lock,
+ * its journal and its verdict cache, all under `root`, so a run over a scratch
+ * repository cannot restore a live campaign's file here. `QUALITY_HARNESS_MUTATE_LOCK`
+ * moves the lock, and the journal beside it, as the lock's own comment below says.
+ * Pure: `env` is the seam.
+ */
+export function campaignPaths(dir, env = process.env) {
+  const lock = env.QUALITY_HARNESS_MUTATE_LOCK || path.join(dir, '.mutate-lock')
+  return {
+    catalogue: path.join(dir, 'tests', 'mutations.json'),
+    lock,
+    journal: env.QUALITY_HARNESS_MUTATE_LOCK ? `${lock}.inflight.json` : path.join(dir, '.mutate-inflight.json'),
+    cache: path.join(dir, '.mutation-cache.json'),
+  }
+}
 
 const timeoutMs = 180_000
 
@@ -53,9 +72,7 @@ const timeoutMs = 180_000
 // is repaired at startup. A crash can lose the process; it cannot lose the file.
 // Beside the lock: a run that owns its own lock owns its own journal, or the
 // two campaigns repair each other's files.
-const journalPath = process.env.QUALITY_HARNESS_MUTATE_LOCK
-  ? `${process.env.QUALITY_HARNESS_MUTATE_LOCK}.inflight.json`
-  : path.join(root, '.mutate-inflight.json')
+let journalPath = campaignPaths(root).journal
 
 function recover() {
   if (!existsSync(journalPath)) return
@@ -86,7 +103,7 @@ function finish(file, original) {
 // colliding with a real campaign that may be running in the same checkout —
 // which is exactly the collision the lock exists to prevent, and it made the
 // dirty-tree guard untestable because the lock refused the inner run first.
-const lockPath = process.env.QUALITY_HARNESS_MUTATE_LOCK || path.join(root, '.mutate-lock')
+let lockPath = campaignPaths(root).lock
 
 function claimTheRun() {
   if (existsSync(lockPath)) {
@@ -566,6 +583,46 @@ export function staleEntries(mutations, read) {
   return stale
 }
 
+// An entry's EDIT: the text between the longest common prefix and suffix of its
+// `from` and `to`. `oldMid` is what the mutation removes, `newMid` what it puts there.
+function editOf(from, to) {
+  let prefix = 0
+  while (prefix < from.length && prefix < to.length && from[prefix] === to[prefix]) prefix += 1
+  let suffix = 0
+  while (suffix < from.length - prefix && suffix < to.length - prefix
+    && from[from.length - 1 - suffix] === to[to.length - 1 - suffix]) suffix += 1
+  return { oldMid: from.slice(prefix, from.length - suffix), newMid: to.slice(prefix, to.length - suffix) }
+}
+
+/**
+ * ADR-069. A stale entry, repointed by re-applying its own edit to the line
+ * `staleEntries` hints at, or refused naming the first of the record's conditions
+ * that fails. `added` is the set of lines (trimmed, as `addedLines` gives them) the
+ * change since `--since` added to the entry's file, or null when that diff could not
+ * be read. Measured on the 3.1.0 batch: the nearest line of every mechanical repoint
+ * was added by the change, and a cold review found 83 of 1,138 entries proposed onto
+ * an unchanged sibling without condition 5. Pure.
+ */
+export function repointEntry(entry, text, added) {
+  if (text == null) return { verdict: 'refused', why: 'the file could not be read' }
+  const count = text.split(entry.from).length - 1
+  if (count === 1) return { verdict: 'current' }
+  if (count > 1) return { verdict: 'refused', why: `ambiguous: \`from\` matches ${count} times` }
+  if (entry.from.includes('\n')) return { verdict: 'refused', why: '1: a multi-line entry is repointed by hand' }
+  const [stale] = staleEntries([entry], () => text)
+  if (!stale?.hint) return { verdict: 'refused', why: '2: no line shares half the words of `from`' }
+  const line = text.split('\n')[stale.hint.line - 1]
+  const { oldMid, newMid } = editOf(entry.from, entry.to)
+  if (!oldMid) return { verdict: 'refused', why: '3: the entry only inserts, so there is no edited text to find' }
+  const onLine = line.split(oldMid).length - 1
+  if (onLine !== 1) return { verdict: 'refused', why: `3: the edited text occurs ${onLine} times on the nearest line` }
+  const inFile = text.split(line).length - 1
+  if (inFile !== 1) return { verdict: 'refused', why: `4: the nearest line occurs ${inFile} times in the file` }
+  if (added === null) return { verdict: 'refused', why: '5: the diff since the ref could not be read' }
+  if (!added.has(line.trim())) return { verdict: 'refused', why: '5: the nearest line was not added by the change, so it is another mechanism' }
+  return { verdict: 'repointed', from: line, to: line.replace(oldMid, () => newMid) }
+}
+
 /**
  * The entries a change reaches: those whose `from` sits on a line the change ADDED
  * to that entry's file. A new mutant names new code, and a mutant whose code was
@@ -651,16 +708,35 @@ export function main(argv) {
   // `--filter 'sync:'` — the flag is `--case` — selected nothing, so the filter
   // stayed null and all 181 mutations ran for twenty minutes while the caller
   // waited on three. Every gate in this project names the offending option.
-  const KNOWN = new Set(['--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed'])
+  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--since', '--root'])
   const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
   if (unknown.length) {
     process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
-      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--force] [--no-cache] [--cache <path>]\n')
+      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--repoint [--since <ref>] [--write]] [--root <dir>] [--force] [--no-cache] [--cache <path>]\n')
+    return 2
+  }
+  // ADR-069: one root for the catalogue, the sources, the lock, the journal and the cache.
+  if (argv.includes('--root')) {
+    const dir = argv[argv.indexOf('--root') + 1]
+    if (!dir || dir.startsWith('--')) {
+      process.stderr.write('mutate: --root wants a directory\n')
+      return 2
+    }
+    root = path.resolve(dir)
+  }
+  const paths = campaignPaths(root)
+  lockPath = paths.lock
+  journalPath = paths.journal
+  let catalogue
+  try {
+    catalogue = JSON.parse(readFileSync(paths.catalogue, 'utf8'))
+  } catch (error) {
+    process.stderr.write(`mutate: could not read ${paths.catalogue}: ${error?.message ?? error}\n`)
     return 2
   }
   const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
-  // `--stale` and `--changed` are read-only questions about the catalogue, so
-  // they are answered before the campaign lock (BACKLOG §280, the tooling half).
+  // `--stale`, `--repoint` and `--changed` are read-only questions about the catalogue,
+  // so they are answered before the campaign lock (BACKLOG §280, the tooling half).
   if (argv.includes('--stale')) {
     const readSource = file => { try { return readFileSync(path.join(root, file), 'utf8') } catch { return null } }
     const stale = staleEntries(catalogue.mutations, readSource)
@@ -673,7 +749,81 @@ export function main(argv) {
       : 'every entry matches its source exactly once')
     return stale.length ? 1 : 0
   }
-  let selected = catalogue.mutations.filter(m => !filter || m.label.includes(filter))
+  // ADR-069: each stale entry, repointed by its own edit or refused with the condition
+  // that failed. Writes nothing; exits 1 while anything is stale, as `--stale` does.
+  // ADR-069 T2: `--write` rewrites the proposals and measures them. The lock comes
+  // FIRST, before any source is read: a live campaign's mutated source would be read
+  // as the refactor, and its proposal would be written over the real one.
+  let repointed = null
+  if (argv.includes('--repoint')) {
+    const since = argv.includes('--since') ? argv[argv.indexOf('--since') + 1] : 'HEAD'
+    if (!since || since.startsWith('--')) {
+      process.stderr.write('mutate: --since wants a git ref\n')
+      return 2
+    }
+    const writing = argv.includes('--write')
+    if (writing) {
+      process.on('exit', () => { releaseTheRun() })
+      if (!claimTheRun()) return 2
+      recover()
+    }
+    const texts = new Map()
+    const textOf = file => {
+      if (!texts.has(file)) texts.set(file, (() => { try { return readFileSync(path.join(root, file), 'utf8') } catch { return null } })())
+      return texts.get(file)
+    }
+    const diffs = new Map()
+    const addedIn = file => {
+      if (!diffs.has(file)) {
+        const run = spawnSync('git', [...changedDiffArgs(root, since), file], { encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024 * 1024 })
+        diffs.set(file, run.error || run.status !== 0 ? null : (addedLines(run.stdout).get(file) ?? new Set()))
+      }
+      return diffs.get(file)
+    }
+    let stale = 0
+    let proposed = 0
+    const proposals = []
+    for (const entry of catalogue.mutations) {
+      const text = textOf(entry.file)
+      if (text != null && text.split(entry.from).length - 1 === 1) continue
+      stale += 1
+      const answer = repointEntry(entry, text, text == null ? null : addedIn(entry.file))
+      if (answer.verdict === 'repointed') {
+        proposed += 1
+        proposals.push({ entry, answer })
+        console.log(`REPOINT  ${entry.label}\n  ${entry.file}\n  - ${entry.from}\n  + ${answer.from}\n  to ${answer.to}`)
+      } else console.log(`REFUSED  ${entry.label} — ${answer.why}`)
+    }
+    if (!stale) {
+      console.log('every entry matches its source exactly once')
+      return 0
+    }
+    if (!writing || !proposals.length) {
+      console.log(`${stale} stale: ${proposed} repointable, ${stale - proposed} refused. Nothing was written.`
+        + (proposed ? ` Run it again with --write to rewrite ${proposed === 1 ? 'the proposal' : `the ${proposed} proposals`} and measure ${proposed === 1 ? 'it' : 'them'}.` : ''))
+      return stale ? 1 : 0
+    }
+    // Checked BEFORE the write. After a refactor these sources are uncommitted by
+    // definition, and the measurement rewrites and restores them: an edit made while
+    // it runs is lost, which `--force` accepts, as it does for any campaign.
+    const uncommitted = dirtyTargets(proposals.map(({ entry }) => entry))
+    if (uncommitted.length && !argv.includes('--force')) {
+      process.stderr.write(`mutate: ${uncommitted.join(', ')} ${uncommitted.length === 1 ? 'has' : 'have'} uncommitted changes, `
+        + 'and measuring the rewritten entries rewrites and restores exactly those files. Nothing was written. '
+        + 'Pass --force if you accept that an edit made while it runs is rolled back.\n')
+      return 2
+    }
+    for (const { entry, answer } of proposals) {
+      entry.from = answer.from
+      entry.to = answer.to
+    }
+    writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\n`)
+    console.log(`${stale} stale: ${proposed} rewritten in ${path.relative(root, paths.catalogue)}, ${stale - proposed} refused. Measuring the rewritten ${proposed === 1 ? 'entry' : 'entries'}:`)
+    repointed = { labels: new Set(proposals.map(({ entry }) => entry.label)), stillStale: stale - proposed }
+  }
+  let selected = repointed
+    ? catalogue.mutations.filter(m => repointed.labels.has(m.label))
+    : catalogue.mutations.filter(m => !filter || m.label.includes(filter))
   // `--changed <ref>`: only the entries a change since <ref> could affect, so a fix
   // is checked by the mutants that name its files, not by labels picked by hand.
   if (argv.includes('--changed')) {
@@ -715,7 +865,7 @@ export function main(argv) {
     // shard is taken before anything else looks at an entry.
     const priorFile = argv.includes('--cache')
       ? argv[argv.indexOf('--cache') + 1]
-      : path.join(root, '.mutation-cache.json')
+      : paths.cache
     const prior = loadCache(priorFile)
     const readForCost = name => {
       try { return readFileSync(path.join(root, name), 'utf8') } catch { return null }
@@ -748,8 +898,9 @@ export function main(argv) {
   // and reported the mutation unnoticed. Found on 2026-08-26 by a test that
   // spawns this runner: the guard it was written for could never fail, because
   // this ran first and quietly repaired the thing under test.
-  if (!claimTheRun()) return 2
-  recover()
+  // `--repoint --write` claimed the lock and repaired before it read a source.
+  if (!repointed && !claimTheRun()) return 2
+  if (!repointed) recover()
   // AFTER the repair, not before. `--case` with no match used to exit here-ish
   // and leave a killed run's mutation applied — the same class of bug as
   // recover() running before claimTheRun(), which was fixed on 2026-08-26 as a
@@ -776,7 +927,7 @@ export function main(argv) {
   // no licence. Skipping those spawns is most of the saving on a quiet commit.
   const cacheFile = argv.includes('--cache')
     ? argv[argv.indexOf('--cache') + 1]
-    : path.join(root, '.mutation-cache.json')
+    : paths.cache
   const cache = argv.includes('--no-cache') ? {} : loadCache(cacheFile)
   const readForKey = name => {
     try { return readFileSync(path.join(root, name), 'utf8') } catch { return null }
@@ -898,6 +1049,15 @@ export function main(argv) {
     console.log(`${counts.unproven} could not be judged: their test-set did not pass at baseline, `
       + 'so neither verdict is evidence. The line above each says whether that suite FAILED or '
       + 'never finished — they need different things done to them.')
+  }
+  // ADR-069 T2: the write is trusted only when every rewritten entry is RED and nothing
+  // is left stale. A GREEN, STALE, UNPROVEN or HUNG rewritten entry stays written and
+  // named above: it is a finding about the repoint or the test.
+  if (repointed) {
+    if (repointed.stillStale) {
+      console.log(`${repointed.stillStale} entr${repointed.stillStale === 1 ? 'y is' : 'ies are'} still stale: refused above, for a person to repoint.`)
+    }
+    return results.every(result => result.verdict === 'RED') && !repointed.stillStale ? 0 : 1
   }
   if (counts.failing) {
     console.log(counts.staleOnly

@@ -1,0 +1,222 @@
+{
+  "note": "The 3.1.0 batch's hand repoints, taken once on 2026-09-27 from git log -p tests/mutations.json over 341c49c^..a11f334: every entry whose from was rewritten by hand while it matched nothing, a window of its source as that commit left it, and the lines that commit added in the window. History: never regenerated (ADR-069 T1).",
+  "rows": [
+    {
+      "commit": "a11f334",
+      "label": "ADR-068 T1: a linked worktree of the session's repository is judged",
+      "from": "  if (readEvents(cwd, session).length === 0 && !sessionOwnsRepository(cwd, session)) return { code: 0 }",
+      "to": "  if (readEvents(cwd, session).length === 0) return { code: 0 }",
+      "hand": {
+        "from": "  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
+        "to": "  if (readEvents(cwd, session).length === 0) return { code: 0 }"
+      },
+      "source": "  // A repository with no log for this session is not this session's project —\n  // the text classifier could not tell, and judged the session's repository\n  // instead (a scratch-repository commit refused, 2026-09-26). A linked worktree\n  // keeps its own state, so it holds no log either; it is the session's project\n  // when the repository it belongs to holds one (ADR-068: it passed every commit).\n  const owner = sessionOwnsRepository(cwd, session)\n  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }\n  // What makes a session ARMED (ADR-066 Decision 3): the hook itself, not the offer.\n  // Recorded in the log the session keeps. Written to `cwd`, a worktree commit made a\n  // second log in `.git/worktrees/<wt>/` holding only this line, and the session's own\n  // log never learned the hook had run (seen in both chaos rounds of 626934a).\n  appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })\n  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }",
+      "added": [
+        "const owner = sessionOwnsRepository(cwd, session)",
+        "if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
+        "// Recorded in the log the session keeps. Written to `cwd`, a worktree commit made a",
+        "// second log in `.git/worktrees/<wt>/` holding only this line, and the session's own",
+        "// log never learned the hook had run (seen in both chaos rounds of 626934a).",
+        "appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })"
+      ]
+    },
+    {
+      "commit": "a11f334",
+      "label": "ADR-068 T1: a scratch repository with no log anywhere still passes",
+      "from": "  if (readEvents(cwd, session).length === 0 && !sessionOwnsRepository(cwd, session)) return { code: 0 }",
+      "to": "  if (false) return { code: 0 }",
+      "hand": {
+        "from": "  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
+        "to": "  if (false) return { code: 0 }"
+      },
+      "source": "  // A repository with no log for this session is not this session's project —\n  // the text classifier could not tell, and judged the session's repository\n  // instead (a scratch-repository commit refused, 2026-09-26). A linked worktree\n  // keeps its own state, so it holds no log either; it is the session's project\n  // when the repository it belongs to holds one (ADR-068: it passed every commit).\n  const owner = sessionOwnsRepository(cwd, session)\n  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }\n  // What makes a session ARMED (ADR-066 Decision 3): the hook itself, not the offer.\n  // Recorded in the log the session keeps. Written to `cwd`, a worktree commit made a\n  // second log in `.git/worktrees/<wt>/` holding only this line, and the session's own\n  // log never learned the hook had run (seen in both chaos rounds of 626934a).\n  appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })\n  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }",
+      "added": [
+        "const owner = sessionOwnsRepository(cwd, session)",
+        "if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
+        "// Recorded in the log the session keeps. Written to `cwd`, a worktree commit made a",
+        "// second log in `.git/worktrees/<wt>/` holding only this line, and the session's own",
+        "// log never learned the hook had run (seen in both chaos rounds of 626934a).",
+        "appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })"
+      ]
+    },
+    {
+      "commit": "5b61a71",
+      "label": "ADR-067 T2: a control keyword before a command is skipped",
+      "from": "    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
+      "to": "    if (word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
+      "hand": {
+        "from": "    else if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
+        "to": "    else if (word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1"
+      },
+      "source": "      if (/^(?:errorlevel|exist|defined|cmdextversion)$/i.test(argv[k] ?? '')) k += 2\n      else if ((argv[k] ?? '').includes('==') && !(argv[k] ?? '').startsWith('-')) k += 1\n      else if (/^(?:==|equ|neq|lss|leq|gtr|geq)$/i.test(argv[k + 1] ?? '')) k += 3\n    }\n    // cmd's `call` runs its arguments (a Windows chaos round of 626934a: `cmd //c call\n    // git push` pushed). No POSIX shell has a `call`, so reading it everywhere costs nothing.\n    else if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1\n    else if (word === 'command' || word === 'time') k += argv[k + 1] === '-p' ? 2 : 1\n    else if (word === 'nice') k += argv[k + 1] === '-n' ? 3 : /^-n?\\d+$/.test(argv[k + 1] ?? '') ? 2 : 1\n    else if (word === 'sudo') {\n      k += 1\n      while (isFlag(argv[k])) k += /^-[ugCDprtTU]$/.test(argv[k]) ? 2 : 1\n    } else if (word === 'timeout') {",
+      "added": [
+        "k += 1",
+        "if (/^(?:errorlevel|exist|defined|cmdextversion)$/i.test(argv[k] ?? '')) k += 2",
+        "else if ((argv[k] ?? '').includes('==') && !(argv[k] ?? '').startsWith('-')) k += 1",
+        "else if (/^(?:==|equ|neq|lss|leq|gtr|geq)$/i.test(argv[k + 1] ?? '')) k += 3",
+        "}",
+        "else if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1"
+      ]
+    },
+    {
+      "commit": "9cc9a35",
+      "label": "ADR-067 T2: a control keyword before a command is skipped",
+      "from": "    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas') k += 1",
+      "to": "    if (word === 'exec' || word === 'nohup' || word === 'doas') k += 1",
+      "hand": {
+        "from": "    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
+        "to": "    if (word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1"
+      },
+      "source": "function programIndex(argv) {\n  let k = 0\n  while (k < argv.length) {\n    const word = argv[k]\n    // cmd's `call` runs its arguments (a Windows chaos round of 626934a: `cmd //c call\n    // git push` pushed). No POSIX shell has a `call`, so reading it everywhere costs nothing.\n    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1\n    else if (word === 'command' || word === 'time') k += argv[k + 1] === '-p' ? 2 : 1\n    else if (word === 'nice') k += argv[k + 1] === '-n' ? 3 : /^-n?\\d+$/.test(argv[k + 1] ?? '') ? 2 : 1\n    else if (word === 'sudo') {\n      k += 1\n      while (isFlag(argv[k])) k += /^-[ugCDprtTU]$/.test(argv[k]) ? 2 : 1\n    } else if (word === 'timeout') {",
+      "added": [
+        "// cmd's `call` runs its arguments (a Windows chaos round of 626934a: `cmd //c call",
+        "// git push` pushed). No POSIX shell has a `call`, so reading it everywhere costs nothing.",
+        "if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
+        "const word = argv[k]"
+      ]
+    },
+    {
+      "commit": "9cc9a35",
+      "label": "ADR-067 T2: cmd /c runs its command",
+      "from": "    if (/^\\/\\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ')])",
+      "to": "    if (false) return inner([argv.slice(k + 1).join(' ')])",
+      "hand": {
+        "from": "    if (/^\\/\\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ').replace(/\\^(.)/gs, '$1')])",
+        "to": "    if (false) return inner([argv.slice(k + 1).join(' ').replace(/\\^(.)/gs, '$1')])"
+      },
+      "source": "  // `cmd /c` (`//c` from Git Bash) and `wsl`, with their options. cmd's caret escapes\n  // the next character (`g^it push` runs git: a Windows chaos round of 626934a); every\n  // caret is read as one, which can only reveal a publish that is spelled there.\n  if (/^cmd$/i.test(name)) {\n    let k = start + 1\n    while (/^\\/\\/?(?:[qQdDaAuUsS]|[eEfFvV]:\\w+)$/.test(argv[k] ?? '')) k += 1\n    if (/^\\/\\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ').replace(/\\^(.)/gs, '$1')])\n  }\n  if (/^wsl$/i.test(name)) {\n    let k = start + 1\n    while (/^(?:-d|-u|--distribution|--user)$/.test(argv[k] ?? '')) k += 2\n    if (/^(?:-e|--exec|--)$/.test(argv[k] ?? '')) k += 1\n    if (k < argv.length) return inner([argv.slice(k).join(' ')])",
+      "added": [
+        "}",
+        "// `cmd /c` (`//c` from Git Bash) and `wsl`, with their options. cmd's caret escapes",
+        "// the next character (`g^it push` runs git: a Windows chaos round of 626934a); every",
+        "// caret is read as one, which can only reveal a publish that is spelled there.",
+        "if (/^\\/\\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ').replace(/\\^(.)/gs, '$1')])"
+      ]
+    },
+    {
+      "commit": "9b49efa",
+      "label": "ADR-067 T2: a shell that parses without executing is not an invocation",
+      "from": "    } else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false",
+      "to": "    } else if (false) runs = false",
+      "hand": {
+        "from": "    else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false",
+        "to": "    else if (false) runs = false"
+      },
+      "source": "  for (let i = 1; i < words.length; i++) {\n    const word = words[i]\n    if (SHELL_VALUED.test(word)) {\n      if (word.endsWith('o') && words[i + 1] === 'noexec') runs = word.startsWith('+')\n      i++\n    } else if (word === '--help' || word === '--version') return false\n    else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false\n    else if (/^\\+[A-Za-z]+$/.test(word) && word.includes('n')) runs = true\n  }\n  return runs\n}\n\n// A shell named at `argv[at]`: the index of its `-c` / `-Command` flag, the index where",
+      "added": [
+        "if (SHELL_VALUED.test(word)) {",
+        "if (word.endsWith('o') && words[i + 1] === 'noexec') runs = word.startsWith('+')",
+        "} else if (word === '--help' || word === '--version') return false",
+        "else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false",
+        "}"
+      ]
+    },
+    {
+      "commit": "9b49efa",
+      "label": "ADR-067 T2: -o noexec parses without executing, +o noexec undoes it",
+      "from": "      runs = word === '+o'",
+      "to": "      runs = true",
+      "hand": {
+        "from": "      if (word.endsWith('o') && words[i + 1] === 'noexec') runs = word.startsWith('+')",
+        "to": "      i += 0"
+      },
+      "source": "function shellRuns(words) {\n  if (POWERSHELL.has(programName(words[0]).toLowerCase())) return true\n  let runs = true\n  for (let i = 1; i < words.length; i++) {\n    const word = words[i]\n    if (SHELL_VALUED.test(word)) {\n      if (word.endsWith('o') && words[i + 1] === 'noexec') runs = word.startsWith('+')\n      i++\n    } else if (word === '--help' || word === '--version') return false\n    else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false\n    else if (/^\\+[A-Za-z]+$/.test(word) && word.includes('n')) runs = true\n  }\n  return runs",
+      "added": [
+        "if (SHELL_VALUED.test(word)) {",
+        "if (word.endsWith('o') && words[i + 1] === 'noexec') runs = word.startsWith('+')",
+        "} else if (word === '--help' || word === '--version') return false",
+        "else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false",
+        "}"
+      ]
+    },
+    {
+      "commit": "9b49efa",
+      "label": "ADR-067 T2: --help and --version print and exit",
+      "from": "    if (word === '--help' || word === '--version') return false",
+      "to": "    if (false) return false",
+      "hand": {
+        "from": "    } else if (word === '--help' || word === '--version') return false",
+        "to": "    } else if (false) return false"
+      },
+      "source": "  let runs = true\n  for (let i = 1; i < words.length; i++) {\n    const word = words[i]\n    if (SHELL_VALUED.test(word)) {\n      if (word.endsWith('o') && words[i + 1] === 'noexec') runs = word.startsWith('+')\n      i++\n    } else if (word === '--help' || word === '--version') return false\n    else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false\n    else if (/^\\+[A-Za-z]+$/.test(word) && word.includes('n')) runs = true\n  }\n  return runs\n}\n",
+      "added": [
+        "if (SHELL_VALUED.test(word)) {",
+        "if (word.endsWith('o') && words[i + 1] === 'noexec') runs = word.startsWith('+')",
+        "} else if (word === '--help' || word === '--version') return false",
+        "else if (/^-[A-Za-z]+$/.test(word) && word.includes('n')) runs = false",
+        "}"
+      ]
+    },
+    {
+      "commit": "9b49efa",
+      "label": "ADR-067 T2: a shell option may take a value before -c",
+      "from": "    k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && /^(?:[+-]o|-O|\\+O|--rcfile|--init-file|-[A-Z]\\w+)$/.test(word) ? 2 : 1",
+      "to": "    k += 1",
+      "hand": {
+        "from": "    k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && (SHELL_VALUED.test(word) || (power && POWERSHELL_VALUED.test(word))) ? 2 : 1",
+        "to": "    k += 1"
+      },
+      "source": "  while (k < argv.length) {\n    const word = argv[k]\n    if (power ? /^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word) : /^-[A-Za-z]*c[A-Za-z]*$/.test(word)) return { flag: k }\n    if (word === '-' || word === '-s') { k += 1; continue }\n    if (!/^[+-]{1,2}[A-Za-z][\\w-]*(?:=.*)?$/.test(word)) return null\n    const value = argv[k + 1]\n    k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && (SHELL_VALUED.test(word) || (power && POWERSHELL_VALUED.test(word))) ? 2 : 1\n  }\n  return { stdin: k }\n}\n\n// What a program writes to stdout when that is decidable from its words: `echo`\n// without its options, `printf`'s format and each argument. `cat` and `tee` pass",
+      "added": [
+        "if (power ? /^-c(?:o(?:m(?:m(?:a(?:n(?:d)?)?)?)?)?)?$/i.test(word) : /^-[A-Za-z]*c[A-Za-z]*$/.test(word)) return { flag: k }",
+        "k += value !== undefined && !word.includes('=') && !/^[+-]/.test(value) && (SHELL_VALUED.test(word) || (power && POWERSHELL_VALUED.test(word))) ? 2 : 1",
+        "// What a program writes to stdout when that is decidable from its words: `echo`",
+        "// without its options, `printf`'s format and each argument. `cat` and `tee` pass",
+        "}"
+      ]
+    },
+    {
+      "commit": "9b49efa",
+      "label": "ADR-067 T2: a command substitution runs as its own command",
+      "from": "  const substituted = inner(substitutions.filter(text => !text.startsWith('(')))",
+      "to": "  const substituted = null",
+      "hand": {
+        "from": "  const substituted = inner(substitutions)",
+        "to": "  const substituted = null"
+      },
+      "source": "      const found = publishInText(text, depth + 1)\n      if (found) return found\n    }\n    return null\n  }\n  // A command substitution runs as its own command.\n  const substituted = inner(substitutions)\n  if (substituted) return substituted\n  const start = programIndex(argv)\n  if (typeof start === 'object') return inner([start.text])\n  if (start >= argv.length || dynamic.includes(start)) return null\n  const name = programName(argv[start])\n  if (name === 'git') {",
+      "added": [
+        "}",
+        "// A command substitution runs as its own command.",
+        "const substituted = inner(substitutions)"
+      ]
+    },
+    {
+      "commit": "9b49efa",
+      "label": "ADR-067 T2: text an echo pipes into a shell is its script",
+      "from": "    if (name === 'echo' || name === 'printf') scripts.push(upstream.argv.slice(start + 1).join(' ').replace(/\\\\n/g, '\\n'))",
+      "to": "    if (false) scripts.push(upstream.argv.slice(start + 1).join(' ').replace(/\\\\n/g, '\\n'))",
+      "hand": {
+        "from": "    scripts.push(...literalOutput(upstream.argv, start))",
+        "to": "    scripts.push()"
+      },
+      "source": "    seen.add(m)\n    const upstream = commands[m]\n    scripts.push(...upstream.heredocs.map(doc => doc.body))\n    const start = programIndex(upstream.argv)\n    if (typeof start !== 'number' || upstream.dynamic.includes(start)) continue\n    if (PASS_THROUGH.has(programName(upstream.argv[start] ?? ''))) scripts.push(...stdinScripts(commands, m, seen))\n    scripts.push(...literalOutput(upstream.argv, start))\n  }\n  return scripts.map(text => text.replace(/\\\\n/g, '\\n'))\n}\n\nfunction publishInText(text, depth) {\n  if (depth > WALK_DEPTH) return null",
+      "added": [
+        "}",
+        "seen.add(m)",
+        "const upstream = commands[m]",
+        "if (typeof start !== 'number' || upstream.dynamic.includes(start)) continue",
+        "if (PASS_THROUGH.has(programName(upstream.argv[start] ?? ''))) scripts.push(...stdinScripts(commands, m, seen))",
+        "scripts.push(...literalOutput(upstream.argv, start))",
+        "return scripts.map(text => text.replace(/\\\\n/g, '\\n'))"
+      ]
+    },
+    {
+      "commit": "341c49c",
+      "label": "orphan: a definition is reached at two occurrences, not one",
+      "from": "      if ((uses.get(m[1]) ?? 0) <= 1) found.push({ path, name: m[1] })",
+      "to": "      if ((uses.get(m[1]) ?? 0) <= 0) found.push({ path, name: m[1] })",
+      "hand": {
+        "from": "      if ((uses.get(name) ?? 0) <= 1) found.push({ path, name })",
+        "to": "      if ((uses.get(name) ?? 0) <= 0) found.push({ path, name })"
+      },
+      "source": "    if (!isPy && !isJs) continue\n    for (const m of source.matchAll(isPy ? PY_DEF : JS_DEF)) {\n      const name = m[1] ?? m[2] ?? m[3]\n      // A dunder is the interpreter's (`__all__`, `__version__`), not a definition.\n      if (/^__\\w+__$/.test(name)) continue\n      defined += 1\n      if ((uses.get(name) ?? 0) <= 1) found.push({ path, name })\n    }\n  }\n  return { orphans: found, defined }\n}\n\n/** The shipped tree at `rev`, as {path: source}. Throws only when git cannot answer. */",
+      "added": [
+        "const name = m[1] ?? m[2] ?? m[3]",
+        "// A dunder is the interpreter's (`__all__`, `__version__`), not a definition.",
+        "if (/^__\\w+__$/.test(name)) continue",
+        "if ((uses.get(name) ?? 0) <= 1) found.push({ path, name })"
+      ]
+    }
+  ]
+}

@@ -341,3 +341,21 @@ test('a worktree of a bare repository is judged, and a submodule is its own repo
   writeFileSync(path.join(superproject, 'a.md'), 'unchecked in the superproject\n')
   assert.notEqual(shell(superproject, 'git commit -qam in-super\n', superSession).status, 0, 'the superproject refuses')
 })
+
+// The hook's own event goes to the log the session keeps. Written to `cwd`, a worktree
+// commit made a second log in `.git/worktrees/<wt>/` holding only `publish.hook-ran`,
+// and the session's log never learned the hook had run, so a session committing from
+// a worktree read as never armed (seen in both chaos rounds of 626934a).
+test("git's hook in a linked worktree records that it ran in the session's own log", { skip: needsConfigHooks }, () => {
+  const dir = repository('wt-armed-')
+  const session = `hook-worktree-armed-${process.pid}`
+  startSession(dir, session)
+  const worktree = worktreeOf(dir, 'wt-armed-tree-')
+  writeFileSync(path.join(worktree, 'a.md'), 'unchecked in the worktree\n')
+  assert.notEqual(shell(worktree, 'git commit -qam in-worktree\n', session).status, 0, 'the worktree commit is refused')
+  assert.ok(events(dir, session).includes('publish.hook-ran'), `the session's log records the hook: ${events(dir, session)}`)
+  const worktreeGitDir = git(worktree, 'rev-parse', '--absolute-git-dir')
+  let made = []
+  try { made = readdirSync(path.join(worktreeGitDir, 'quality-harness', 'sessions')) } catch { made = [] }
+  assert.deepEqual(made, [], 'no second session log in the worktree git dir')
+})

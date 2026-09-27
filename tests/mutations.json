@@ -12483,7 +12483,7 @@
         "tests/publish-hook.test.mjs"
       ],
       "only": "an unchecked commit in a linked worktree",
-      "from": "  if (readEvents(cwd, session).length === 0 && !sessionOwnsRepository(cwd, session)) return { code: 0 }",
+      "from": "  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
       "to": "  if (readEvents(cwd, session).length === 0) return { code: 0 }"
     },
     {
@@ -12493,7 +12493,7 @@
         "tests/publish-hook.test.mjs"
       ],
       "only": "a checked linked worktree commits",
-      "from": "  if (readEvents(cwd, session).length === 0 && !sessionOwnsRepository(cwd, session)) return { code: 0 }",
+      "from": "  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
       "to": "  if (false) return { code: 0 }"
     },
     {
@@ -13695,6 +13695,16 @@
       "from": "    if (/^if$/i.test(word)) {",
       "to": "    if (false) {",
       "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "git's hook in a worktree records that it ran in the session's own log",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })",
+      "to": "  appendEvent(cwd, session, { event: 'publish.hook-ran', hook: event })",
+      "only": "git's hook in a linked worktree records that it ran in the session's own log"
     }
   ]
 }

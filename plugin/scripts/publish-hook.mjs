@@ -39,12 +39,13 @@ export function sequencerInProgress(cwd) {
   return SEQUENCER.some(name => existsSync(path.join(gitDir, name)))
 }
 
-// Whether the repository `cwd` belongs to — its common git directory, which a linked
-// worktree shares with the main checkout — holds this session's log. The answer is
-// resolved against `cwd`, since some gits print the common directory relative to it.
+// The repository `cwd` belongs to — its common git directory, which a linked worktree
+// shares with the main checkout — when it holds this session's log, else null. The
+// answer is resolved against `cwd`, since some gits print the common directory
+// relative to it.
 function sessionOwnsRepository(cwd, session) {
   const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', timeout: 10_000 })
-  if (common.error || common.status !== 0) return false
+  if (common.error || common.status !== 0) return null
   // The common directory itself, not its parent: a bare repository IS its common
   // directory, and a submodule's lives under the superproject's `.git/modules/`,
   // whose parent is the superproject (a chaos round of 626934a, W10 and W11).
@@ -52,7 +53,7 @@ function sessionOwnsRepository(cwd, session) {
   // A log that cannot be read whole is owned: judging costs a warning, while passing
   // unjudged would be the flattering answer (tests/evidence-flip.test.mjs READERS).
   const events = readEvents(repository, session)
-  return events.length > 0 || events.complete === false
+  return events.length > 0 || events.complete === false ? repository : null
 }
 
 
@@ -68,9 +69,13 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
   // instead (a scratch-repository commit refused, 2026-09-26). A linked worktree
   // keeps its own state, so it holds no log either; it is the session's project
   // when the repository it belongs to holds one (ADR-068: it passed every commit).
-  if (readEvents(cwd, session).length === 0 && !sessionOwnsRepository(cwd, session)) return { code: 0 }
+  const owner = sessionOwnsRepository(cwd, session)
+  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }
   // What makes a session ARMED (ADR-066 Decision 3): the hook itself, not the offer.
-  appendEvent(cwd, session, { event: 'publish.hook-ran', hook: event })
+  // Recorded in the log the session keeps. Written to `cwd`, a worktree commit made a
+  // second log in `.git/worktrees/<wt>/` holding only this line, and the session's own
+  // log never learned the hook had run (seen in both chaos rounds of 626934a).
+  appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })
   if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }
   // A `qh-check` that ran just before this, in the same script as the commit, is on
   // record only once imported. PreToolUse imports at its own boundary; git's hook

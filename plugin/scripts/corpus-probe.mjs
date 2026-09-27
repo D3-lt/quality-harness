@@ -297,6 +297,11 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // chaos round of 626934a, F-5a): the note goes to a scratch state directory.
   const lintState = mkdtempSync(path.join(os.tmpdir(), 'qh-corpus-probe-lint-'))
   const adrLint = [...corpus, ...(corpus.unreadable ?? [])].map(record => {
+    // A file the corpus reader never opened (not on disk in a sparse checkout, over the
+    // size bound, past the record budget) has no verdict to take: spawning adr-lint for
+    // each of 164 such paths cost 48 s against 4 s (a corpus-chaos run of 916b515). It is
+    // named, with the reason nothing read it.
+    if (record.reason) return { file: rel(record.file), exit: null, verdict: 'unread', reason: scrub(record.reason), ...frozen(record), undecided: true }
     const tasksDir = (record.taskFiles ?? []).length ? path.dirname(record.taskFiles[0]) : null
     const run = timed('adr-lint', rel(record.file), () => spawnGate(path.join(bin, 'adr-lint'), tasksDir ? [record.file, tasksDir] : [record.file],
       { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, env: { ...process.env, QUALITY_HARNESS_STATE_DIR: lintState } }))

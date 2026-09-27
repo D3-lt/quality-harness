@@ -1776,6 +1776,21 @@ test('pre-cutover done without hashes is advised', () => {
   }
 })
 
+// A Windows chaos round of 916b515 (lexical-mango): "(advisory until 2026-09-13)" is keyed
+// on the ENTRY's date, and read as a grace period that ended a fortnight before.
+test('the pre-cutover advice says it is about the entry, not about today', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const row = `- 2026-08-22 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12`
+    const advice = findings(dir, [row]).advice.join('\n')
+    assert.match(advice, /advisory: an entry recorded before 2026-09-13/, advice)
+    assert.doesNotMatch(advice, /advisory until/, advice)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('post-cutover done without first-red hashes is refused', () => {
   const dir = tmpRepo()
   try {

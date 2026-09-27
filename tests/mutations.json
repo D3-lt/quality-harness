@@ -1678,8 +1678,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?)?\\d{3,4}[-._]/i",
-      "to": "const ADR_FILE = /^(?:adr[-_]?)?\\d{3,4}[-._]/i"
+      "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i",
+      "to": "const ADR_FILE = /^(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i"
     },
     {
       "label": "corpus: a status may carry a date after the word",
@@ -13242,7 +13242,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  if (dryRun(argv[k], argv.slice(k + 1))) return null",
+      "from": "  if (dryRun(verb, argv.slice(k + 1))) return null",
       "to": "  if (false) return null",
       "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
     },
@@ -14195,6 +14195,156 @@
       "from": "  const orphans = governing.filter(record => record.governs.length === 0 && !record.unreadTasks?.length)",
       "to": "  const orphans = governing.filter(record => record.governs.length === 0)",
       "only": "scope unknown, not empty"
+    },
+    {
+      "label": "chaos 916b515 C-4: a fence nobody read is not a fence that changed",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if fence is None and first != \"human-observed\" and \"· exit 0 ·\" in log:",
+      "to": "    if False:",
+      "only": "fence cannot be read says so"
+    },
+    {
+      "label": "chaos 916b515 C-4: a task with no fence is not sent to adr-verify",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "        + (next.acceptance === null && next.human_observed === false",
+      "to": "        + (false",
+      "only": "no runnable fence is not sent"
+    },
+    {
+      "label": "chaos 916b515 C1: a folder named for another record is not this one's",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "    if (!entry.isDirectory() || (entry.name !== stem && stems.has(entry.name))) continue",
+      "to": "    if (!entry.isDirectory()) continue",
+      "only": "two records with one id"
+    },
+    {
+      "label": "chaos 916b515 C1: adr-state names an id carried by two records",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "  const duplicateIds = [...byIdAll].filter(([, records]) => records.length > 1)",
+      "to": "  const duplicateIds = []",
+      "only": "two records with one id"
+    },
+    {
+      "label": "chaos 916b515 C1: adr-next gives no record another's tasks by number",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            if not sibling.is_dir() or (sibling.name != target.stem",
+      "to": "            if not sibling.is_dir() or (False",
+      "only": "shares its number"
+    },
+    {
+      "label": "chaos 916b515: node's child_process argv list is read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]) {",
+      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(PERL_LIST)]) {",
+      "only": "argv list in node or perl"
+    },
+    {
+      "label": "chaos 916b515: perl's system argv list is read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]) {",
+      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST)]) {",
+      "only": "argv list in node or perl"
+    },
+    {
+      "label": "chaos 916b515: perl is an interpreter the classifier reads",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const INTERPRETERS = /^(?:python[\\d.]*|node|nodejs|deno|bun|perl)$/",
+      "to": "const INTERPRETERS = /^(?:python[\\d.]*|node|nodejs|deno|bun)$/",
+      "only": "argv list in node or perl"
+    },
+    {
+      "label": "chaos 916b515: an alias set with -c is read as its verb",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const verb = alias !== undefined && !alias.startsWith('!') ? alias.trim().split(/\\s+/)[0] : argv[k]",
+      "to": "  const verb = argv[k]",
+      "only": "argv list in node or perl"
+    },
+    {
+      "label": "chaos 916b515: a ! alias set with -c runs its shell line",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.join(' ')}`.trim()]",
+      "to": "  void alias",
+      "only": "argv list in node or perl"
+    },
+    {
+      "label": "chaos 916b515: git's own commit and push win over an alias",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const BUILTIN_PUBLISH = new Set(['commit', 'push'])",
+      "to": "const BUILTIN_PUBLISH = new Set([])",
+      "only": "argv list in node or perl"
+    },
+    {
+      "label": "chaos 916b515 C-2: an ADR-prefixed record is found at any width",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i",
+      "to": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?)?\\d{3,4}[-._]/i",
+      "only": "ADR prefix is found at any width"
+    },
+    {
+      "label": "chaos 916b515 C-2: a bare short number is not a record",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i",
+      "to": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?)?\\d{1,4}[-._]/i",
+      "only": "ADR prefix is found at any width"
+    },
+    {
+      "label": "chaos 916b515: a record nobody opened is named unread, not linted",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (record.reason) return { file: rel(record.file), exit: null, verdict: 'unread', reason: scrub(record.reason), ...frozen(record), undecided: true }",
+      "to": "    if (false) return { file: rel(record.file), exit: null, verdict: 'unread', reason: scrub(record.reason), ...frozen(record), undecided: true }",
+      "only": "never opened is named unread"
+    },
+    {
+      "label": "chaos 916b515: the pre-cutover advice is about the entry",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            return [], [missing + f\" (advisory: {when})\"]",
+      "to": "            return [], [missing + f\" (advisory until {TEST_HASH_REQUIRED_FROM})\"]",
+      "only": "about the entry, not about today"
     }
   ]
 }

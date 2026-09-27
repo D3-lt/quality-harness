@@ -90,3 +90,41 @@ test('a tracked task file nobody could read makes its directory UNPROVEN in work
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// A Windows chaos round of 916b515 (tender-reef C1, scalable-badger C6): two records
+// named ADR-002. Ownership by number alone gave the second the first's tasks, so it was
+// linted against them, and nothing said the id was taken twice.
+test('two records with one id are named, and neither takes the other\'s tasks', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-dup-id-'))
+  try {
+    const record = title => `# ADR-002: ${title}\n\n**Status:** Accepted\n\n## Context\n\nc\n`
+    mkdirSync(join(dir, 'docs', 'adr', 'ADR-002-a', 'tasks'), { recursive: true })
+    writeFileSync(join(dir, 'docs', 'adr', 'ADR-002-a.md'), record('integer cents'))
+    writeFileSync(join(dir, 'docs', 'adr', 'ADR-002-b.md'), record('floats'))
+    writeFileSync(join(dir, 'docs', 'adr', 'ADR-002-a', 'tasks', 'T1-a.md'),
+      '# Task ADR-002-T1: a\n\n## Affected Files\n\n| File | Change |\n|---|---|\n| `src/price.ts` | add |\n')
+    writeFileSync(join(dir, 'src.txt'), '')
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
+    const state = stateOf(dir)
+    const posix = file => file.replaceAll('\\', '/')
+    assert.deepEqual(state.duplicateIds.map(entry => ({ id: entry.id, files: entry.files.map(posix) })),
+      [{ id: 'ADR-002', files: ['docs/adr/ADR-002-a.md', 'docs/adr/ADR-002-b.md'] }])
+    assert.deepEqual(state.governingNothing.map(entry => posix(entry.file)), ['docs/adr/ADR-002-b.md'], 'b owns no tasks')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// A Windows chaos round of 916b515 (scalable-badger C-2): `ADR-7-x.md` was not a record
+// to the corpus readers, which wanted three digits, while adr-lint read it as one, and it
+// was named nowhere. work-next's own text says `ADR-12-thing.md` is found by filename.
+test('a record named with the ADR prefix is found at any width, and a bare short number is not', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-short-id-'))
+  try {
+    mkdirSync(join(dir, 'docs', 'adr'), { recursive: true })
+    for (const name of ['ADR-7-a.md', 'ADR-12-b.md', 'adr_3-c.md', '1-intro.md']) {
+      writeFileSync(join(dir, 'docs', 'adr', name), `# ${name}\n\n**Status:** Accepted\n`)
+    }
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
+    const state = stateOf(dir)
+    assert.equal(state.read, 3, JSON.stringify(state))
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

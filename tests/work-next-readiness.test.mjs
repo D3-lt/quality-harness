@@ -503,3 +503,20 @@ test('a directory with an unreadable task offers none of its tasks as ready', ()
   // Clean twin: with every task read, T1 is offered.
   assert.match(said([]), /T1 is ready/)
 })
+
+// The same round (C-4): SessionStart told the reader to prove a task with adr-verify
+// when it had no fence adr-verify could run, and adr-verify then refused the file.
+test('a ready task with no runnable fence is not sent to adr-verify', () => {
+  const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-c4-')))
+  temps.push(root)
+  const dir = path.join(root, 'docs', 'adr', 'ADR-002-a', 'tasks')
+  mkdirSync(dir, { recursive: true })
+  writeFileSync(path.join(dir, 'T1-a.md'), '# x\n')
+  const said = acceptance => readyTaskLines(root, true, ['docs/adr/ADR-002-a/tasks/T1-a.md'], () => ({ status: 0, stderr: '', stdout: JSON.stringify({
+    ready: [{ id: 'T1', goal: 'Task T1: a', path: path.join(dir, 'T1-a.md'), acceptance, human_observed: false }], blocked: [], done: [], stopped: [],
+  }) })).lines.join('\n')
+  const none = said(null)
+  assert.match(none, /no runnable Acceptance fence/, none)
+  assert.doesNotMatch(none, /Prove it with/, none)
+  assert.match(said('true'), /Prove it with/)
+})

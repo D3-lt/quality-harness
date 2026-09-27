@@ -488,6 +488,13 @@ def unprovable_evidence(text, digest, fence, first, root=None):
     it says which of two very different states produced the same word.
     """
     log = "\n".join(sections_of(text).get("Verification Log", []))
+    # No fence was read at all, so no row can match one: saying the fence CHANGED sent a
+    # reader to diff two fences where there is none (a Windows chaos round of 916b515,
+    # C-4, a non-breaking space after `##`, which is not a heading).
+    if fence is None and first != "human-observed" and "· exit 0 ·" in log:
+        return ("this task carries exit-0 evidence but no runnable Acceptance fence was read — a "
+                "`## Acceptance` heading needs a plain space after `##`, and the section a ```bash "
+                "fence — so adr-verify has nothing to run until the task file says what to run")
     current = other = legacy = False
     for line in log.split("\n"):
         line = line.strip()
@@ -870,7 +877,11 @@ def resolve_tasks_dir(target):
     owns = RECORD_NUMBER.match(target.stem)
     if owns:
         for sibling in sorted(target.parent.iterdir()):
-            if not sibling.is_dir():
+            # A folder named exactly for ANOTHER record is that record's: by number
+            # alone a second ADR-002 took the first's tasks (a Windows chaos round of
+            # 916b515, C1). A number-only folder (`ADR-002/`) still binds by number.
+            if not sibling.is_dir() or (sibling.name != target.stem
+                                        and (target.parent / f"{sibling.name}.md").is_file()):
                 continue
             theirs = RECORD_NUMBER.match(sibling.name)
             if theirs and int(theirs.group(1)) == int(owns.group(1)) \

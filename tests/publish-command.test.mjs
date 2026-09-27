@@ -812,3 +812,45 @@ test('the chaos round of 626934a: what the shell ran is what the classifier read
   for (const command of ['git comm`it -m x', 'pwsh -e ZwBpAHQAIABwAHUAcwBoAA==']) assert.equal(mentionsCommitOrPush(command), true, command)
   assert.equal(mentionsCommitOrPush('echo QUJDREVGR0g='), false, 'a base64 word that names neither')
 })
+
+// A Windows chaos round of 916b515, F7: a 10 MB command made the advisory arm's
+// base64 scan overflow V8's regex stack, so the hook exited 1 before Rule P was read
+// and the `git push` at its end went unrefused. Driven through the hook itself.
+test('an oversized command is still read: the publish at its end is refused, not crashed past', () => {
+  const unarmed = armedSession('chaos-916b515-', { armed: false })
+  const command = `echo ${'a'.repeat(10 * 1024 * 1024)} && git push`
+  assert.equal(mentionsCommitOrPush(command), true)
+  assert.equal(unarmed.decide(command), 'deny')
+})
+
+// The same round: a program is looked up case-insensitively on Windows and on macOS
+// (`GIT --version` runs git there), and a `.cmd` shim runs as its name. The first four
+// published under the round's stand-in on Windows 11; the subprocess row ran git 2.55.0
+// on macOS through Python's `subprocess.run(['GIT', '--version'])` (2026-09-27).
+const CASE_FOLDED_PUBLISHES = {
+  'GIT push': 'GIT push', 'Git commit -m x': 'Git commit', 'Git.Exe push': 'Git.Exe push', 'git.cmd push': 'git.cmd push',
+  'python3 -c "import subprocess; subprocess.run([\'GIT\', \'push\'])"': 'GIT push',
+}
+test('git is recognised in any case and through a .cmd shim', () => {
+  const unarmed = armedSession('case-916b515-', { armed: false })
+  for (const [command, expected] of Object.entries(CASE_FOLDED_PUBLISHES)) {
+    assert.equal(publishCommandIn(command), expected, command)
+    assert.equal(unarmed.decide(command), 'deny', command)
+  }
+  for (const command of ['echo GIT push', 'gitk push', 'GIT status', 'git.bat.txt push']) assert.equal(publishCommandIn(command), null, command)
+})
+
+// The same round (tender-reef): `os.system` and `os.popen` hand their string to a shell.
+// Both ran git 2.55.0 from `python3 -c` on macOS before these rows were written.
+const OS_SHELL_PUBLISHES = {
+  'python3 -c "import os; os.system(\'git push\')"': 'git push',
+  'python3 -c "import os; os.popen(\'git commit -m x\')"': 'git commit',
+}
+test('a string handed to a shell by os.system or os.popen is read as that shell reads it', () => {
+  const unarmed = armedSession('os-shell-916b515-', { armed: false })
+  for (const [command, expected] of Object.entries(OS_SHELL_PUBLISHES)) {
+    assert.equal(publishCommandIn(command), expected, command)
+    assert.equal(unarmed.decide(command), 'deny', command)
+  }
+  assert.equal(publishCommandIn('python3 -c "import os; os.system(\'git status\')"'), null)
+})

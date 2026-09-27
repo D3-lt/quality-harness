@@ -388,7 +388,10 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // Horizontal whitespace only: under /m, `\s` crosses newlines, and the two `\s*` around
     // the optional bullet backtracked over a run of blank lines from every line start,
     // so 10,000 blank lines ran past the probe's budget (a chaos round, CF1).
-    const claimed = /^[ \t]*[-*]?[ \t]*\*{0,2}(?:Status|State):?\*{0,2}:?[ \t]*done\b/im.test(text)
+    // Any horizontal space, not only ` ` and a tab: `**Status:**` then U+2003 was not a
+    // claim, so a done task with no evidence left `unbacked` empty (a Windows chaos round
+    // of 916b515). `[^\S\r\n]` never crosses a line, which the backtracking note needs.
+    const claimed = /^[^\S\r\n]*[-*]?[^\S\r\n]*\*{0,2}(?:Status|State):?\*{0,2}:?[^\S\r\n]*done\b/im.test(text)
       || /\bmarked\s+done\b/i.test(text) || claimedInReadme(file)
     if (!claimed) return false
     if (readiness.listed.has(path.resolve(file))) return !readiness.done.has(path.resolve(file))

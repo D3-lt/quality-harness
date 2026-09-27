@@ -609,7 +609,6 @@ def syntax_ok(path):
         # Could not look, not a failure: a parser that hangs on a user's file
         # says nothing about the file (ADR-005).
         return True, f"{cmd[0]} did not finish within 30s — not checked"
-        return True, f"{cmd[0]} not installed — not checked"
     if r.returncode != 0:
         return False, (r.stdout + r.stderr).strip().splitlines()[:3]
     return True, f"{cmd[0]} accepts it"

@@ -176,3 +176,13 @@ re-running the fence cannot cure it: the lock was taken at the red. Name a liter
 Tests table BEFORE the red run: a small test asserting the generated cases are selected, while
 the fence keeps grepping the generated names it runs. Found executing ADR-064 T6; it cost a
 `--relock --replace-hashes`, which adr-lint rightly reports as weaker than first-red.
+
+### 2026-09-27 — a fence that counts only the new tests cannot see the file it shares
+
+ADR-069 T1's fence counted its three new tests in `tests/mutate-runner.test.mjs`, and every
+`adr-verify --mutant` passed while a plan's replace range had deleted the line declaring
+`selected`, which crashed every ordinary campaign. The file's other tests failed; the fence did
+not count them, by design. After a multi-line replace, run the WHOLE test file once, not the
+fence, before recording mutants. The same batch copied a line a catalogue mutant names into new
+code, making that entry match twice: name the new code differently, and let `mutate --stale`
+(which the selftest runs) prove it.

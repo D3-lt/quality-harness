@@ -567,14 +567,20 @@ function corpusCounts(report) {
 export function attestation(report, label) {
   const readers = report.probe?.readers ?? {}
   const committed = typeof readers.git === 'string' && readers.dirty === false && !readers.moved
+  // A probe that could not list the corpus ran its readers over nothing, and its zero
+  // counts read as a clean run (a Windows chaos round of 916b515, an NTFS junction loop).
+  // PARTIAL still ran every reader over what it listed, and is a run.
+  const looked = report.look !== 'UNPROVEN' && report.workNext?.look !== 'UNPROVEN'
+  const vouched = committed && looked
   const count = list => (Array.isArray(list) ? list.length : null)
   return {
     date: report.probe?.date ?? null,
-    at: committed ? readers.git : null,
-    ...(committed ? {} : { atReason: !readers.git ? 'the plugin is not a git checkout'
-      : readers.moved ? 'the readers changed while the probe ran'
-        : readers.dirty === true ? 'reader files modified at HEAD'
-          : 'whether the reader files match HEAD could not be checked' }),
+    at: vouched ? readers.git : null,
+    ...(vouched ? {} : { atReason: !looked ? 'the probe could not look at the corpus (look UNPROVEN), so its readers ran over nothing'
+      : !readers.git ? 'the plugin is not a git checkout'
+        : readers.moved ? 'the readers changed while the probe ran'
+          : readers.dirty === true ? 'reader files modified at HEAD'
+            : 'whether the reader files match HEAD could not be checked' }),
     plugin: report.probe?.version ?? null,
     kind: 'probe',
     probeSha256: report.probe?.sha256 ?? null,

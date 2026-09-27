@@ -4032,3 +4032,29 @@ test('work-next: README shapes adr-lint reads are claims, and a task adr-next ne
   assert.deepEqual(observe(root).unbacked.map(file => path.basename(file)), ['T3.MD'],
     'a task adr-next did not list is judged by its own evidence, not by its absence — in both directions')
 })
+
+// ADR-068 T2. After a compaction the Bash tool picks up the exports only from the next
+// user prompt (measured 2026-09-26), so git's refusal is not yet in force; the session
+// is told once, while that holds. CLAUDE_ENV_FILE is emptied so no real file is touched.
+const ARMING_LINE = /git's own refusal of an unchecked commit or push has not run yet/
+function sessionStartSaid(repo, session, source) {
+  const run = runLifecycleHook({ hook_event_name: 'SessionStart', source, cwd: repo, session_id: session },
+    { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, CLAUDE_ENV_FILE: '' } })
+  assert.equal(run.status, 0, run.stderr)
+  return JSON.parse(run.stdout || '{}').hookSpecificOutput?.additionalContext ?? ''
+}
+
+test("after a compaction the session is told git's refusal is not yet armed", async () => {
+  const { dir: repo, session } = await unheldRepository('quality-arming-')
+  appendEvent(repo, session, { event: 'publish.offered' })
+  assert.match(sessionStartSaid(repo, session, 'compact'), ARMING_LINE)
+  assert.match(sessionStartSaid(repo, session, 'resume'), ARMING_LINE)
+})
+
+test('the armed line is silent on startup and once the hook has run', async () => {
+  const { dir: repo, session } = await unheldRepository('quality-armed-')
+  appendEvent(repo, session, { event: 'publish.offered' })
+  assert.doesNotMatch(sessionStartSaid(repo, session, 'startup'), ARMING_LINE, 'startup: the next prompt is the first')
+  appendEvent(repo, session, { event: 'publish.hook-ran', hook: 'prepare-commit-msg' })
+  assert.doesNotMatch(sessionStartSaid(repo, session, 'compact'), ARMING_LINE, 'armed: nothing to say')
+})

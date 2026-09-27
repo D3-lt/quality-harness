@@ -197,6 +197,10 @@ const READERS = {
   // so the hook exits 0 — the could-not-look ADR-061 already takes, never a pass
   // recorded as evidence.
   runPublishHook: { unexecuted: 'ADR-066 T1 — needs a fixture that tears the session log under a git hook' },
+  // ADR-068 T1. NOT executed. A torn log in the main checkout counts as OWNED (the
+  // worktree is then judged, and a torn worktree log warns), so a lost line can only
+  // add a judgement, never remove one.
+  sessionOwnsRepository: { unexecuted: 'ADR-068 T1 — needs a fixture that tears the main checkout log under a worktree commit' },
   reviewChangedState: { executed: 'SubagentStop of a read-only role (reviewChangedState)' },
   // Both run inside every hook, so every row of the table runs them; the `head`
   // tear is the one that loses the baseline `recordHookEvent` would re-find.

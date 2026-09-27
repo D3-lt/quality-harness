@@ -273,3 +273,41 @@ test('an installation path with shell characters survives the exports', { skip: 
   assert.equal(run.status, 0, run.stderr)
   assert.equal(run.stdout, 'ran prepare-commit-msg')
 })
+
+// ADR-068 T1. A linked worktree keeps its own state directory, so it holds no session
+// log, and the hook passed every commit there (measured 2026-09-27). Each worktree is
+// placed outside the main checkout's directory, so nothing finds the log by walking up.
+function worktreeOf(dir, prefix) {
+  const worktree = path.join(mkdtempSync(path.join(testTmp, prefix)), 'wt')
+  git(dir, 'worktree', 'add', '-q', worktree)
+  return worktree
+}
+
+test("an unchecked commit in a linked worktree of the session's repository is refused", { skip: needsConfigHooks }, () => {
+  const dir = repository('wt-main-')
+  const session = `hook-worktree-${process.pid}`
+  startSession(dir, session)
+  const worktree = worktreeOf(dir, 'wt-refused-')
+  writeFileSync(path.join(worktree, 'a.md'), 'unchecked in the worktree\n')
+  const run = shell(worktree, 'git commit -qam in-worktree\n', session)
+  assert.notEqual(run.status, 0, `the worktree commit went through\n${run.stderr}`)
+  assert.match(run.stderr, /prepare-commit-msg hook/, run.stderr)
+  // The parity twin: the same unchecked commit in the main checkout.
+  writeFileSync(path.join(dir, 'a.md'), 'unchecked in main\n')
+  assert.notEqual(shell(dir, 'git commit -qam in-main\n', session).status, 0, 'the main checkout refuses too')
+})
+
+test('a checked linked worktree commits, and a scratch repository still passes', { skip: needsConfigHooks }, () => {
+  const dir = repository('wt-checked-')
+  const session = `hook-worktree-checked-${process.pid}`
+  startSession(dir, session)
+  const worktree = worktreeOf(dir, 'wt-passed-')
+  writeFileSync(path.join(worktree, 'a.md'), 'checked in the worktree\n')
+  const checked = shell(worktree, `python3 ${quoted(qhCheck)} >/dev/null && git commit -qam checked\n`, session)
+  assert.equal(checked.status, 0, `a qh-check in the worktree is seen: ${checked.stderr}`)
+  // A repository with no log for the session, in it or in its common directory.
+  const scratch = repository('wt-scratch-')
+  writeFileSync(path.join(scratch, 'a.md'), 'elsewhere\n')
+  const elsewhere = shell(scratch, 'git commit -qam elsewhere\n', session)
+  assert.equal(elsewhere.status, 0, `a scratch repository passes: ${elsewhere.stderr}`)
+})

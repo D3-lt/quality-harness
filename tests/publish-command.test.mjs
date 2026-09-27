@@ -854,3 +854,30 @@ test('a string handed to a shell by os.system or os.popen is read as that shell 
   }
   assert.equal(publishCommandIn('python3 -c "import os; os.system(\'git status\')"'), null)
 })
+
+// The same round (ts-generator, macOS): an argv list handed to node's
+// child_process or perl's system, and an alias defined on git's own command line.
+// Each ran git 2.55.0 here before these rows were written.
+const ARGV_AND_ALIAS_PUBLISHES = {
+  "node -e \"require('child_process').spawnSync('git', ['push'])\"": 'git push',
+  "node -e \"require('child_process').execFileSync('git', ['commit', '-m', 'x'])\"": 'git commit',
+  "perl -e 'system(\"git\", \"push\")'": 'git push',
+  'git -c alias.p=push p': 'git -c alias.p=push p',
+  // git's own commit and push run over an alias of the same name, so these still publish.
+  'git -c alias.commit=status commit -m x': 'git -c alias.commit=status commit',
+  "git -c 'alias.push=!true' push": 'git -c alias.push=!true push',
+  "git -c 'alias.x=!git push' x": 'git push',
+}
+const ARGV_AND_ALIAS_CONTROLS = [
+  "node -e \"require('child_process').spawnSync('git', ['status'])\"",
+  "perl -e 'system(\"git\", \"status\")'",
+  'git -c alias.p=status p', 'git -c alias.p=push status', "git -c 'alias.x=!git status' x",
+]
+test('an argv list in node or perl, and an alias set with -c, are read as the publish they run', () => {
+  const unarmed = armedSession('argv-alias-916b515-', { armed: false })
+  for (const [command, expected] of Object.entries(ARGV_AND_ALIAS_PUBLISHES)) {
+    assert.equal(publishCommandIn(command), expected, command)
+    assert.equal(unarmed.decide(command), 'deny', command)
+  }
+  for (const command of ARGV_AND_ALIAS_CONTROLS) assert.equal(publishCommandIn(command), null, command)
+})

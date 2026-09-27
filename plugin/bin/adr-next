@@ -680,10 +680,13 @@ def load(tasks_dir):
 
 def unreadable_task(tid, path, why):
     """An entry for a task this reader could not read: stopped, with the reason, so
-    what depends on it is blocked and no all-clear is printed over it."""
+    what depends on it is blocked and no all-clear is printed over it. `unreadable`
+    says so in a field, because SessionStart read only `ready`, `blocked` and `done`
+    and called a directory holding one "fully evidenced" (a Windows chaos round of
+    626934a, F-2 and F-3)."""
     return {"id": tid, "path": str(path), "goal": tid, "depends_on": "", "consumes": "",
             "produces": "", "acceptance": None, "human_observed": False, "done": False,
-            "unproven": None, "stopped_by": why, "blocked_on": None}
+            "unproven": None, "stopped_by": why, "blocked_on": None, "unreadable": True}
 
 QUALIFIED_DEP = re.compile(r"^ADR[-\s]?0*(?P<number>\d{1,4})[-/](?P<task>T\d+)$", re.I)
 
@@ -1353,7 +1356,9 @@ def main():
         print("  acceptance: human-observed — sign off with "
               f"`adr-verify {inf['path']} --human \"<who observed what>\"`")
     elif inf["acceptance"]:
-        print(f"  acceptance: {shown(inf['acceptance'])}")
+        # Quoted like the goal: a fence is corpus text, and unquoted a comment in it
+        # printed a fake `could-not-look:` line in this tool's voice (F-4, 626934a).
+        print(f"  acceptance: {quoted(inf['acceptance'])}")
         print(f"  prove it:   adr-verify {inf['path']}")
     if len(ready) > 1:
         print(f"  also ready: {', '.join(i['id'] for i in ready[1:])}")

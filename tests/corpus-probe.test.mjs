@@ -120,6 +120,31 @@ test('probe: a run leaves nothing in the probed repository, its git dir included
   }
 })
 
+// A Windows chaos round of 626934a. F-5a: adr-lint, run per record, wrote its
+// advice-survival note into the probed repository's git dir. F-1 and F-2: a record
+// whose status the readers could not read made `records` 0 with `look` ok and was
+// never linted, so the probe said nothing about the one file it could not use.
+test('probe: a corpus with records is linted without writing, and a record it cannot use is named', () => {
+  const repo = mkdtempSync(path.join(os.tmpdir(), 'qh-probe-undecided-'))
+  try {
+    const adr = path.join(repo, 'docs', 'adr')
+    mkdirSync(adr, { recursive: true })
+    writeFileSync(path.join(adr, 'ADR-001-readable.md'), '# ADR-001: Readable\n\n**Status:** Accepted\n\n## Decision\n\nx\n')
+    writeFileSync(path.join(adr, 'ADR-002-fullwidth.md'), '# ADR-002: Fullwidth\n\n**Status：** Accepted\n\n## Decision\n\ny\n')
+    for (const args of [['init', '-q'], ['add', '.']]) {
+      assert.equal(spawnSync('git', args, { cwd: repo, encoding: 'utf8', timeout: 10_000 }).status, 0)
+    }
+    const report = probe(repo)
+    assert.deepEqual(report.undecided.map(entry => entry.file), ['docs/adr/ADR-002-fullwidth.md'], JSON.stringify(report.undecided))
+    const linted = Object.fromEntries(report.adrLint.map(entry => [entry.file, entry.undecided ?? false]))
+    assert.deepEqual(linted, { 'docs/adr/ADR-001-readable.md': false, 'docs/adr/ADR-002-fullwidth.md': true })
+    assert.ok(!existsSync(path.join(repo, '.git', 'qh-advice-survival.json')),
+      'adr-lint run by the probe must not record into the probed repository')
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
 // Codex review of 2.108.0: an override that is the SAME directory for every
 // repository merged two worktrees' check records, so one read the other's pass as
 // its own. The override is a root; each repository keeps its own place under it.

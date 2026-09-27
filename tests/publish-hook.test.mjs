@@ -311,3 +311,33 @@ test('a checked linked worktree commits, and a scratch repository still passes',
   const elsewhere = shell(scratch, 'git commit -qam elsewhere\n', session)
   assert.equal(elsewhere.status, 0, `a scratch repository passes: ${elsewhere.stderr}`)
 })
+
+// A chaos round of 626934a (W10, W11). The hook took the PARENT of git's common
+// directory as the repository, which is right for `.git` and wrong for a bare
+// repository (the common directory IS the repository) and for a submodule (whose
+// common directory sits under the superproject's `.git/modules/`).
+test('a worktree of a bare repository is judged, and a submodule is its own repository', { skip: needsConfigHooks }, () => {
+  const source = repository('bare-src-')
+  const bare = path.join(mkdtempSync(path.join(testTmp, 'bare-')), 'b.git')
+  git(source, 'clone', '-q', '--bare', source, bare)
+  const session = `hook-bare-${process.pid}`
+  startSession(bare, session)
+  const worktree = worktreeOf(bare, 'bare-wt-')
+  writeFileSync(path.join(worktree, 'a.md'), 'unchecked in a worktree of a bare repository\n')
+  const refused = shell(worktree, 'git commit -qam in-bare-worktree\n', session)
+  assert.notEqual(refused.status, 0, `the bare repository's worktree commit went through\n${refused.stderr}`)
+  assert.match(refused.stderr, /prepare-commit-msg hook/, refused.stderr)
+
+  const superproject = repository('super-')
+  git(superproject, '-c', 'protocol.file.allow=always', 'submodule', 'add', '-q', repository('sub-src-'), 'sub')
+  git(superproject, 'commit', '-q', '-m', 'add sub')
+  const superSession = `hook-super-${process.pid}`
+  startSession(superproject, superSession)
+  const sub = path.join(superproject, 'sub')
+  writeFileSync(path.join(sub, 'a.md'), 'a change in the submodule\n')
+  const inSub = shell(sub, 'git commit -qam in-sub\n', superSession)
+  assert.equal(inSub.status, 0, `a submodule is not the session's repository: ${inSub.stderr}`)
+  // The parity twin: the superproject itself is still judged.
+  writeFileSync(path.join(superproject, 'a.md'), 'unchecked in the superproject\n')
+  assert.notEqual(shell(superproject, 'git commit -qam in-super\n', superSession).status, 0, 'the superproject refuses')
+})

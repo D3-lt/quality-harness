@@ -1,0 +1,69 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/adr"
+  ],
+  "records": [
+    [
+      "docs/adr/ADR-002-a-task-saved-as-utf-16.md",
+      "governing",
+      false
+    ]
+  ],
+  "undecided": [
+    "docs/adr/ADR-001-a-status-behind-a-fullwidth-colon.md"
+  ],
+  "workNext": {
+    "records": 1,
+    "accepted": 1,
+    "tasks": 1,
+    "ready": [],
+    "unbacked": [],
+    "retirable": [],
+    "readinessUnproven": [
+      "docs/adr/ADR-002-a-task-saved-as-utf-16/tasks"
+    ],
+    "next": null
+  },
+  "adrState": {
+    "read": 1,
+    "governing": 1
+  },
+  "adrNext": [
+    {
+      "tasksDir": "docs/adr/ADR-002-a-task-saved-as-utf-16/tasks",
+      "ready": [],
+      "unreadable": [
+        "docs/adr/ADR-002-a-task-saved-as-utf-16/tasks/T1-read-the-task.md"
+      ]
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "docs/adr/ADR-002-a-task-saved-as-utf-16.md",
+      "verdict": "FAIL",
+      "reasonMatches": "T1-read-the-task\\.md: holds NUL bytes"
+    },
+    {
+      "file": "docs/adr/ADR-001-a-status-behind-a-fullwidth-colon.md",
+      "verdict": "PASS"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "docs/adr",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [
+      "ADR-002-a-task-saved-as-utf-16/tasks: UNPROVEN — adr-next could not read 1 task file"
+    ]
+  },
+  "couldNotRun": []
+}

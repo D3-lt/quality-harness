@@ -671,7 +671,10 @@ const FORMER_FALSE_REFUSALS = [
 ]
 // Every quoted literal in this file, for the cost bound.
 const LITERAL = /'((?:[^'\\\n]|\\.)*)'/g
-const COST_BOUND_US = 25
+// Measured 2026-09-27: 4.6 µs per call uninstrumented on the owner's machine, 57 µs in
+// CI's coverage floor job. Coverage instrumentation is a tax this bound is not about,
+// and the twenty-fold mutant still lands above the wider bound (about 1,100 µs).
+const COST_BOUND_US = process.env.NODE_V8_COVERAGE ? 400 : 25
 
 test('a publish is found by argv, as the shell runs it', () => {
   for (const [command, expected] of Object.entries({ ...INVOKED_AT_826EC94, ...ADDED_BY_ADR_067 })) {
@@ -742,4 +745,61 @@ test('one lexer reads shell text for rule P', () => {
   const source = readFileSync(fileURLToPath(LIFECYCLE_SOURCE), 'utf8')
   assert.equal(source.includes('function hookSegments'), false, 'the armed grammar splits with shellWords, not with a copy of it')
   assert.ok(source.includes("import { shellWords } from './shell-words.mjs'"))
+})
+
+// A chaos round of 626934a. A macOS vitest SPA session ran each row under bash with a
+// stand-in git; a Windows 11 session ran its rows under Git Bash, pwsh 7.6.6 and
+// PowerShell 5.1 with a stand-in `git.cmd` and GIT_TRACE. Each ran a publish that was
+// read as none, or ran none and was read as one. Rows after the marked line were not
+// run by a shell: they are further spellings of the same mechanism.
+const CHAOS_626934A_PUBLISHES = {
+  'echo push | xargs git': 'git push',
+  'xargs -I{} git {} <<< push': 'git push',
+  "git submodule foreach 'git push'": 'git push',
+  "git rebase -x 'git push' main": 'git push',
+  'git bisect run git push': 'git push',
+  'cmd //c call git push': 'git push',
+  'cmd //c "g^it push"': 'git push',
+  'pwsh -NoProfile -EncodedCommand ZwBpAHQAIABwAHUAcwBoAA==': 'git push',
+  'powershell -NoProfile -c "iex \'git push\'"': 'git push',
+  'Start-Process git -ArgumentList push -Wait -NoNewWindow': 'git push',
+  // Not run by a shell.
+  "git submodule foreach --recursive 'git commit -am x'": 'git commit',
+  'git rebase --exec="git push" main': 'git push',
+  "git --no-pager submodule foreach 'git push'": 'git push',
+  'powershell -e ZwBpAHQAIABjAG8AbQBtAGkAdAAgAC0AbQAgAHgA': 'git commit',
+  "Start-Process -FilePath git -ArgumentList 'push','origin'": 'git push',
+  'start "" git push': 'git push',
+  'cmd /c start git push': 'git push',
+  // Codex review of this batch: `--dry-run` as an option's value, after `--`, or turned
+  // off again is no dry run. Each ran the publish under bash and zsh with a recording git.
+  'git commit -m --dry-run': 'git commit',
+  'git commit -am --dry-run': 'git commit',
+  'git push -o --dry-run origin main': 'git push',
+  'git push --dry-run --no-dry-run': 'git push',
+  'git commit -- --dry-run': 'git commit',
+}
+const CHAOS_626934A_NOT_PUBLISHES = [
+  'git commit --dry-run -m x', 'git push --dry-run', 'git push -n origin main',
+  'git --no-pager stash push -m wip', 'git -P stash push', 'git --version push', 'git --exec-path push',
+  "git submodule foreach 'echo push'", 'echo push | xargs echo',
+  'pwsh -e ZwBpAHQAIABzAHQAYQB0AHUAcwA=', 'cmd /c "echo g^it push"', 'start "" notepad push', 'iex "git status"',
+  // Codex review of this batch: xargs forms whose real run launched no git.
+  'echo push | xargs -E push git', "printf '' push | xargs git", 'echo push | xargs -0 git',
+]
+test('the chaos round of 626934a: what the shell ran is what the classifier reads', () => {
+  const unarmed = armedSession('chaos-626934a-', { armed: false })
+  for (const [command, expected] of Object.entries(CHAOS_626934A_PUBLISHES)) {
+    assert.equal(publishCommandIn(command), expected, command)
+    assert.equal(unarmed.decide(command), 'deny', command)
+  }
+  for (const command of CHAOS_626934A_NOT_PUBLISHES) {
+    assert.equal(publishCommandIn(command), null, command)
+    assert.notEqual(unarmed.decide(command), 'deny', command)
+  }
+  // `commit -n` is `--no-verify`, not a dry run.
+  assert.equal(publishCommandIn('git commit -n -m x'), 'git commit')
+  // The advisory arm reads what PowerShell hides: a backtick escape and an encoded script.
+  for (const command of ['git comm`it -m x', 'pwsh -e ZwBpAHQAIABwAHUAcwBoAA==']) assert.equal(mentionsCommitOrPush(command), true, command)
+  assert.equal(mentionsCommitOrPush('echo QUJDREVGR0g='), false, 'a base64 word that names neither')
 })

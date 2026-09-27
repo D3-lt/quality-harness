@@ -77,6 +77,14 @@ test('the matrix discovers the three ADR-064 corpora', () => {
   for (const name of ['rust-crate', 'php-multi-root', 'js-vitest-spa']) assert.ok(names.includes(name), `${name} is discovered: ${names}`)
 })
 
+// The UTF-16LE task in `undecided-records` is bytes, and a checkout that converted it
+// as text would hand the readers something else (CLAUDE.md §7: asserted, never read).
+test('the UTF-16 fixture task is not text to git', () => {
+  const attr = spawnSync('git', ['-C', repoRoot, 'check-attr', 'text', '--',
+    'tests/fixtures/corpora/undecided-records/docs/adr/ADR-002-a-task-saved-as-utf-16/tasks/T1-read-the-task.md'], { encoding: 'utf8', timeout: 60_000 })
+  assert.match(attr.stdout, /text: unset$/m, attr.stdout)
+})
+
 for (const [name, dir] of corpora) {
   test(`corpus ${name}: every reader answers as reviewed, through a symlink`, () => {
     const expected = expectations(dir)
@@ -101,7 +109,18 @@ for (const [name, dir] of corpora) {
       assert.deepEqual(report.workNext[key], value, `${name}: work-next ${key}:\n${JSON.stringify(report.workNext, null, 2)}`)
     }
     assert.deepEqual({ read: report.adrState.read, governing: report.adrState.governing }, expected.adrState, `${name}: adr-state`)
-    assert.deepEqual(report.adrNext.map(entry => ({ tasksDir: entry.tasksDir, ready: entry.ready?.map(task => task.id) ?? null })), expected.adrNext, `${name}: adr-next:\n${JSON.stringify(report.adrNext, null, 2)}`)
+    // A record whose status no reader could use is named, and only where an expectation
+    // names it, so every other corpus answers as before (a Windows chaos round of
+    // 626934a: a fullwidth colon made `records` 0 and was named nowhere).
+    if (expected.undecided !== undefined) {
+      assert.deepEqual(report.undecided.map(entry => entry.file), expected.undecided, `${name}: undecided records:\n${JSON.stringify(report.undecided, null, 2)}`)
+    }
+    assert.deepEqual(report.adrNext.map(entry => ({ tasksDir: entry.tasksDir, ready: entry.ready?.map(task => task.id) ?? null })), expected.adrNext.map(({ unreadable, ...entry }) => entry), `${name}: adr-next:\n${JSON.stringify(report.adrNext, null, 2)}`)
+    // The task files adr-next could not read, where an expectation names them (a Windows
+    // chaos round of 626934a, F-2: a directory holding one read "fully evidenced").
+    for (const { tasksDir, unreadable } of expected.adrNext.filter(entry => entry.unreadable !== undefined)) {
+      assert.deepEqual(report.adrNext.find(entry => entry.tasksDir === tasksDir)?.unreadable, unreadable, `${name}: adr-next could not read, in ${tasksDir}`)
+    }
     // The gate's own verdict per record — where ADR-038's `not-recognised` shows
     // beside readers that counted the same file. Declared in every expectation
     // and, until a review noticed, asserted by none (Codex, c1f546a).

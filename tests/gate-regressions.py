@@ -723,6 +723,7 @@ def main():
     test_a_permanent_advisory_names_its_entry(lint)
     test_advice_survival_uses_the_real_store_and_gits_own_path(lint)
     test_advice_survival_counts_only_what_came_back_unchanged(lint)
+    test_advice_survival_refuses_another_versions_note(lint)
 
     acceptance = "printf first\nprintf second"
     digest = verify.acceptance_digest(verify.normalize_acceptance(acceptance))
@@ -3548,6 +3549,54 @@ def test_advice_survival_uses_the_real_store_and_gits_own_path(lint):
         else:
             print(f"  skip: git worktree unavailable here ({made.stderr.strip()[:60]})")
 
+
+
+# A Windows chaos round of 626934a. F-5c: a note another version wrote was read as
+# empty and REWRITTEN, its data lost and every count a first sighting. F-5b: the
+# UNKNOWN line said "no git metadata directory here" over a note that was there.
+# F-5a: QUALITY_HARNESS_STATE_DIR moves the note, as it moves the hooks' state.
+# F-2: a record saved as UTF-16 got section findings about a file nobody can read.
+def test_advice_survival_refuses_another_versions_note(lint):
+    with tempfile.TemporaryDirectory() as tmp:
+        note = pathlib.Path(tmp) / lint.ADVICE_SURVIVAL_NAME
+        for foreign in ('{"version": 99}', '{"records": {}, "future": 7}'):
+            note.write_text(foreign, encoding="utf-8")
+            assert lint.record_advice_survival(note, "ADR-001.md", ["x"]) is None, foreign
+            assert note.read_text(encoding="utf-8") == foreign, "another version's note is left as it is"
+        # The clean twin: this version's own shape folds.
+        note.write_text('{"records": {}}', encoding="utf-8")
+        assert dict(lint.record_advice_survival(note, "ADR-001.md", ["x"])) == {"x": 1}
+
+        # The override is a root with one place per repository: one shared note merged
+        # two repositories' counts, and a run with no findings in one erased the
+        # other's (Codex review of this batch).
+        previous = os.environ.get("QUALITY_HARNESS_STATE_DIR")
+        os.environ["QUALITY_HARNESS_STATE_DIR"] = str(pathlib.Path(tmp) / "state")
+        try:
+            notes = []
+            for name in ("a", "b"):
+                repo = pathlib.Path(tmp) / name
+                subprocess.run(["git", "init", "-q", str(repo)], check=True, capture_output=True, text=True)
+                notes.append(lint.advice_survival_path(repo))
+            state = (pathlib.Path(tmp) / "state").resolve()
+            assert all(p is not None and state in p.parents for p in notes), notes
+            assert notes[0] != notes[1], "each repository keeps its own note under the root"
+        finally:
+            if previous is None:
+                os.environ.pop("QUALITY_HARNESS_STATE_DIR", None)
+            else:
+                os.environ["QUALITY_HARNESS_STATE_DIR"] = previous
+
+        adr = pathlib.Path(tmp) / "ADR-001-probe.md"
+        text = "# ADR-001: Probe\n\n**Status:** Accepted\n\n## Decision\n\nx\n"
+        adr.write_bytes(text.encode("utf-16-le"))
+        errors = lint.Findings()
+        lint.check_adr(adr, errors)
+        assert any("holds NUL bytes" in e for e in errors), list(errors)
+        adr.write_text(text, encoding="utf-8")
+        errors = lint.Findings()
+        lint.check_adr(adr, errors)
+        assert not any("holds NUL bytes" in e for e in errors), "the UTF-8 twin is readable"
 
 
 

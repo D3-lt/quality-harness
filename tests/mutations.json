@@ -12762,8 +12762,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas') k += 1",
-      "to": "    if (word === 'exec' || word === 'nohup' || word === 'doas') k += 1",
+      "from": "    if (KEYWORDS.has(word) || word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
+      "to": "    if (word === 'exec' || word === 'nohup' || word === 'doas' || /^call$/i.test(word)) k += 1",
       "only": "every publish form is recognised"
     },
     {
@@ -12802,8 +12802,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    if (/^\\/\\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ')])",
-      "to": "    if (false) return inner([argv.slice(k + 1).join(' ')])",
+      "from": "    if (/^\\/\\/?[cCkK]$/.test(argv[k] ?? '')) return inner([argv.slice(k + 1).join(' ').replace(/\\^(.)/gs, '$1')])",
+      "to": "    if (false) return inner([argv.slice(k + 1).join(' ').replace(/\\^(.)/gs, '$1')])",
       "only": "Windows spellings of a publish are recognised"
     },
     {
@@ -13215,6 +13215,476 @@
       "from": "      const end = ansiC(i + 2)",
       "to": "      const end = (startWord(), word.dynamic = true, ansiC(i + 2))",
       "only": "every publish form is recognised"
+    },
+    {
+      "label": "chaos 626934a: git globals: a print-and-exit option ends git before its verb",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (GIT_EXITS.has(argv[k])) return argv.length",
+      "to": "    if (false) return argv.length",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: git globals: a boolean option does not swallow the verb",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    k += GIT_VALUED.has(argv[k]) ? 2 : 1",
+      "to": "    k += argv[k + 1] !== undefined && !argv[k + 1].startsWith('-') ? 2 : 1",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: a dry run publishes nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (dryRun(argv[k], argv.slice(k + 1))) return null",
+      "to": "  if (false) return null",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: git submodule foreach, rebase --exec and bisect run run their commands",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    const ran = inner(gitRunsCommands(argv, start))",
+      "to": "    const ran = null",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: xargs builds git's argv from literal stdin",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    for (const built of xargsInvocations(commands, n, start)) {",
+      "to": "    for (const built of []) {",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: cmd's call runs its arguments",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": " || word === 'doas' || /^call$/i.test(word)) k += 1",
+      "to": " || word === 'doas') k += 1",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: cmd's caret escapes the next character",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": ".join(' ').replace(/\\^(.)/gs, '$1')])",
+      "to": ".join(' ')])",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: PowerShell -EncodedCommand is recognised",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (power && POWERSHELL_ENCODED(word)) return { flag: k, encoded: true }",
+      "to": "    if (false) return { flag: k, encoded: true }",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: an encoded script is decoded before it is read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "        const found = inner([shell.encoded ? decodedPowerShell(script) : script])",
+      "to": "        const found = inner([script])",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: Invoke-Expression runs its string",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (/^(?:iex|invoke-expression)$/i.test(name)) return inner(",
+      "to": "  if (false) return inner(",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: start and Start-Process run a command line",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (/^(?:start|saps|start-process)$/i.test(name)) {",
+      "to": "  if (false) {",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: the advisory arm reads a PowerShell backtick escape",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(",
+      "to": "  return [command, ...decoded].some(",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: the advisory arm reads an encoded PowerShell script",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(",
+      "to": "  return [command, command.replace(/`(.)/gs, '$1')].some(",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: the constant check: || takes the next status only after a failure",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    else if (joiner === '||') status = status === 'nonzero' ? own.status : status === 'zero' ? 'zero' : merge(own.status, 'zero')",
+      "to": "    else if (joiner === '||') status = own.status",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a: the constant check: true, echo and exit are known statuses",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  if (name in KNOWN_STATUS) return { status: KNOWN_STATUS[name] }",
+      "to": "  if (false) return { status: KNOWN_STATUS[name] }",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a: the constant check: test with one literal operand is fixed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    if (operands.length === 1 && !operands[0].startsWith('-')) return",
+      "to": "    if (false) return",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a: the constant check: a bare [ is the test builtin, not a glob",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "(c.dynamic.includes(0) && c.argv[0] !== '['))",
+      "to": "(c.dynamic.includes(0)))",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a: SessionStart says a directory with an unreadable task is UNPROVEN",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    if (unreadTasks.length) {",
+      "to": "    if (false) {",
+      "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
+    },
+    {
+      "label": "chaos 626934a: SessionStart does not count an unreadable task's directory as evidenced",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    } else if (report.done?.length && !unreadTasks.length) {",
+      "to": "    } else if (report.done?.length) {",
+      "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
+    },
+    {
+      "label": "chaos 626934a: SessionStart says a stopped task instead of dropping it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    } else if ((report.stopped?.length ?? 0) > unreadTasks.length) {",
+      "to": "    } else if (false) {",
+      "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
+    },
+    {
+      "label": "chaos 626934a: work-next reads an unreadable task as an unproven directory",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    if ((answer.stopped ?? []).some(task => task.unreadable)) unproven.push(dir)",
+      "to": "    if (false) unproven.push(dir)",
+      "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
+    },
+    {
+      "label": "chaos 626934a: adr-next marks a task it could not read",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "\"stopped_by\": why, \"blocked_on\": None, \"unreadable\": True}",
+      "to": "\"stopped_by\": why, \"blocked_on\": None}",
+      "only": "an unreadable task is marked in the JSON, and the acceptance line is quoted corpus text"
+    },
+    {
+      "label": "chaos 626934a: adr-next quotes the acceptance fence as corpus text",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        print(f\"  acceptance: {quoted(inf['acceptance'])}\")",
+      "to": "        print(f\"  acceptance: {shown(inf['acceptance'])}\")",
+      "only": "an unreadable task is marked in the JSON, and the acceptance line is quoted corpus text"
+    },
+    {
+      "label": "chaos 626934a: adr-lint blocks a record holding NUL bytes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        errors.append(f\"{adr_path.name}: holds NUL bytes",
+      "to": "        errors.advise(f\"{adr_path.name}: holds NUL bytes",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "chaos 626934a: another version's survival note is not read as empty",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if set(data) - {\"records\"}:",
+      "to": "    if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "chaos 626934a: QUALITY_HARNESS_STATE_DIR moves the survival note",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if state:\n        key = hashlib",
+      "to": "    if False:\n        key = hashlib",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "chaos 626934a: adr-state's JSON names what it could not read",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/adr-state-label.test.mjs"
+      ],
+      "from": "    unread: unreadable.map(entry =>",
+      "to": "    unread: [].map(entry =>",
+      "only": "a record whose status cannot be read is named in the JSON and in the text alike"
+    },
+    {
+      "label": "chaos 626934a: adr-state's text lists a record it could not read rather than \"none found\"",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/adr-state-label.test.mjs"
+      ],
+      "from": "  if (!corpus.length && !unreadable.length) {",
+      "to": "  if (!corpus.length) {",
+      "only": "a record whose status cannot be read is named in the JSON and in the text alike"
+    },
+    {
+      "label": "chaos 626934a: the probe names the records it could not use",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const undecided = (corpus.unreadable ?? []).map(entry => ({",
+      "to": "  const undecided = [].map(entry => ({",
+      "only": "a corpus with records is linted without writing"
+    },
+    {
+      "label": "chaos 626934a: the probe lints a record it could not use",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const adrLint = [...corpus, ...(corpus.unreadable ?? [])].map(record => {",
+      "to": "  const adrLint = [...corpus].map(record => {",
+      "only": "a corpus with records is linted without writing"
+    },
+    {
+      "label": "chaos 626934a: the probe's adr-lint runs record into scratch, not the corpus",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, env: { ...process.env, QUALITY_HARNESS_STATE_DIR: lintState } }))",
+      "to": "      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs }))",
+      "only": "a corpus with records is linted without writing"
+    },
+    {
+      "label": "chaos 626934a: the probe names the task files adr-next could not read",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      unreadable: answer ? (answer.stopped ?? []).filter(task => task.unreadable)",
+      "to": "      unreadable: answer ? [].filter(task => task.unreadable)",
+      "only": "corpus undecided-records"
+    },
+    {
+      "label": "chaos 626934a: the repository is the common directory itself",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  const repository = path.resolve(cwd, common.stdout.trim())",
+      "to": "  const repository = path.dirname(path.resolve(cwd, common.stdout.trim()))",
+      "only": "a worktree of a bare repository is judged, and a submodule is its own repository"
+    },
+    {
+      "label": "chaos 626934a: a payload that is not an object is named",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (input === null || typeof input !== 'object' || Array.isArray(input)",
+      "to": "  if (false",
+      "only": "a JSON payload that is not the object the host sends is named"
+    },
+    {
+      "label": "chaos 626934a: a payload whose cwd is not a string is named",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    || (input.cwd !== undefined && typeof input.cwd !== 'string')) {",
+      "to": "    || false) {",
+      "only": "a JSON payload that is not the object the host sends is named"
+    },
+    {
+      "label": "chaos 626934a (Codex round): a valued option's --dry-run is its value, not a dry run",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (VERB_VALUED[verb].test(word)) k += 1",
+      "to": "    if (false) k += 1",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a (Codex round): --no-dry-run turns the dry run off again",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    else if (word === '--no-dry-run') dry = false",
+      "to": "    else if (false) dry = false",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a (Codex round): a --dry-run after -- is a pathspec",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (word === '--') break\n    if (VERB_VALUED",
+      "to": "    if (false) break\n    if (VERB_VALUED",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: a redirection can fail on its own",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "c => c.redirects > 0 || c.ended",
+      "to": "c => c.ended",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: a subshell is not the list",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "c.ended === '(' || c.ended === ')' || LIST_CONTROL",
+      "to": "c.ended === '(' || LIST_CONTROL",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: set -e and friends change how the list runs",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "|| LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'",
+      "to": ")) return 'either'",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: a background command is 0",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "const own = commands[i].ended === '&' ? { status: 'zero' } : commandStatus(commands[i], depth)",
+      "to": "const own = commandStatus(commands[i], depth)",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: exit as the last command is the list's status",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    if (own.exits && i < commands.length - 1) {",
+      "to": "    if (own.exits) {",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: only a bare -c string is read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "args[0] === '-c' && args[1] !== undefined) return",
+      "to": "/^-[A-Za-z]*c$/.test(args[0] ?? '') && args[1] !== undefined) return",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): xargs options outside the model leave it to the advisory arm",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (!XARGS_MODELLED.test(argv[k])) {",
+      "to": "    if (false) {",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a (Codex round): only an echo upstream feeds xargs",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "|| programName(upstream.argv[from] ?? '') !== 'echo') return []",
+      "to": ") return []",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the survival override keeps one note per repository",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return keyed / ADVICE_SURVIVAL_NAME",
+      "to": "        return Path(state).resolve() / ADVICE_SURVIVAL_NAME",
+      "only": "focused false-green regressions remain closed"
     }
   ]
 }

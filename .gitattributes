@@ -14,3 +14,7 @@ plugin/bin/* text eol=lf
 # the file. Asserted with `git check-attr`, never by reading the bytes.
 *.yml text eol=lf
 *.yaml text eol=lf
+# A fixture whose point is its bytes: a task saved as UTF-16LE. `*.md` above would
+# make it text, and a text conversion on any checkout could change what the readers
+# are handed. Asserted with `git check-attr` in tests/corpus-matrix.test.mjs.
+tests/fixtures/corpora/undecided-records/**/T1-read-the-task.md -text

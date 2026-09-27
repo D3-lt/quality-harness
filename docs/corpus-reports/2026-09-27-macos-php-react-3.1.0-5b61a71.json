@@ -1,0 +1,17 @@
+{
+  "date": "2026-09-27",
+  "at": "5b61a7103ff8f498146d940770db618e775dd928",
+  "plugin": "3.1.0",
+  "kind": "probe",
+  "probeSha256": "045fb13e8bba5a7c10dd41dd77e142dbb201b46d72871a7f760935b8f74f2ee4",
+  "readers": "2f67a616f508efc68002504af168b8bd4e79c646b27684c966a596cfb896b75e",
+  "platform": "Darwin 27.0.0",
+  "node": "26.10.0",
+  "python": "3.14.7",
+  "corpus": { "records": 92, "tasks": 273, "taskDirectories": 40 },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "macos-php-react",
+  "found": ""
+}

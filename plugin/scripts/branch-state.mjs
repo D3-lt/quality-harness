@@ -173,8 +173,8 @@ export function collect(run = shell, checkpoint = () => {}) {
   const unreadable = !remotes.ok
   const onGitHub = remotes.ok && /github/i.test(remotes.out)
   const runs = onGitHub
-    ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', '1',
-      '--json', 'headSha,status,conclusion,databaseId'])
+    ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', '20',
+      '--json', 'headSha,status,conclusion,databaseId,workflowName'])
     : {
       ok: false,
       out: '',
@@ -186,22 +186,29 @@ export function collect(run = shell, checkpoint = () => {}) {
   if (runs.ok) {
     let rows = []
     try { rows = JSON.parse(runs.out) } catch { rows = [] }
-    const newest = rows[0]
-    if (newest) {
+    const answering = headRuns(rows)
+    if (answering) {
+      const failing = answering.filter(r => r.status === 'completed' && r.conclusion !== 'success')
+      const running = answering.find(r => r.status !== 'completed')
+      const verdict = failing[0] ?? running ?? answering[0]
       ci = {
-        looked: true, sha: String(newest.headSha).slice(0, 7),
-        status: newest.status, conclusion: newest.conclusion, failed: [],
+        looked: true, sha: String(verdict.headSha).slice(0, 7),
+        status: verdict.status, conclusion: verdict.conclusion, failed: [],
+        runs: answering.map(r => r.databaseId),
       }
-      if (newest.conclusion && newest.conclusion !== 'success') {
-        const jobs = run(['gh', 'run', 'view', String(newest.databaseId), '--json', 'jobs'])
-        if (jobs.ok) {
-          try {
-            ci.failed = JSON.parse(jobs.out).jobs
-              .filter(job => job.conclusion && job.conclusion !== 'success')
-              .map(job => `${job.name}: ${job.conclusion}`)
-          } catch { ci.failed = [] }
-        }
+      for (const bad of failing.filter(r => r.conclusion)) {
+        const jobs = run(['gh', 'run', 'view', String(bad.databaseId), '--json', 'jobs'])
+        if (!jobs.ok) continue
+        // A job name alone cannot say which workflow failed once two did.
+        const where = failing.length > 1 ? `${bad.workflowName ?? 'a workflow'} / ` : ''
+        try {
+          ci.failed.push(...JSON.parse(jobs.out).jobs
+            .filter(job => job.conclusion && job.conclusion !== 'success')
+            .map(job => `${where}${job.name}: ${job.conclusion}`))
+        } catch { /* an unreadable job list names no job; the verdict stands */ }
       }
+    } else if (rows.length) {
+      ci = { looked: false, note: '`gh` listed runs this reader could not order' }
     }
   }
 
@@ -256,6 +263,42 @@ export function collect(run = shell, checkpoint = () => {}) {
     releaseBlocked: blocked,
 }
   }
+
+/**
+ * The runs that answer for the branch's newest commit: the newest run of EACH
+ * workflow at the sha of the newest run listed, or null when nothing can be ordered.
+ *
+ * ⚠ `--limit 1` READ ONE RUN, AND WHICH ONE WAS A COIN TOSS (BACKLOG §304). At
+ * cdd3bda the push and the dispatched campaign were created in the same second
+ * (17:56:53Z); gh listed the CANCELLED push first, so the brief said CANCELLED over
+ * a campaign that had concluded `failure` — and the same tie with a green push
+ * would have read green over red. `createdAt` has one-second resolution and cannot
+ * break that tie; the run id can. Measured 2026-09-27: at cdd3bda the surviving
+ * dispatch is 36260813407 and the push it cancelled 36260813368, and across the
+ * newest eight runs on main id order and `createdAt` order agree. `cancel-in-progress`
+ * cancels the OLDER run, so the higher id is the one whose verdict stands.
+ *
+ * ⚠ AND ONE RUN IS ONE WORKFLOW. This repository's weekly `evals` schedule runs at
+ * main's HEAD; once it is the newest run there, one row reads evals and says
+ * nothing about selftest. An adopter measured the same day lists `ci`, `platforms`
+ * and `e2e` at one sha. So every workflow's newest run answers, and the caller reads
+ * the worst of them.
+ *
+ * `release-evidence.mjs` has its own `selectRun`, and that is not duplication: it
+ * asks whether a FULL campaign exists, so a same-second tie goes to the dispatch;
+ * this asks which verdict stands, so it goes to the run created last.
+ */
+export function headRuns(rows) {
+  const ordered = (Array.isArray(rows) ? rows : [])
+    .filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
+    .sort((a, b) => b.databaseId - a.databaseId)
+  if (ordered.length === 0) return null
+  const latest = new Map()
+  for (const r of ordered) {
+    if (r.headSha === ordered[0].headSha && !latest.has(r.workflowName ?? '')) latest.set(r.workflowName ?? '', r)
+  }
+  return [...latest.values()]
+}
 
 
 /**
@@ -323,7 +366,10 @@ export function render(state, { brief = false } = {}) {
         + 'different checks.'] : [])].join('\n')
   }
 
-  const lines = [head, `  ${alarm ? '⚠ CI    ' : 'CI      '} ${ci}`]
+  // Which runs answered, in the full form only: the brief stays one short line, and
+  // `gh run view <id>` is the next question a reader of this report asks.
+  const read = Array.isArray(state.ci.runs) && state.ci.runs.length ? ` (run ${state.ci.runs.join(', ')})` : ''
+  const lines = [head, `  ${alarm ? '⚠ CI    ' : 'CI      '} ${ci}${read}`]
   if (alarm && state.ci.looked) {
     // "the local check", not this repository's `scripts/selftest.sh`: the line
     // ships to every adopter, and one read it in a repository that has no such

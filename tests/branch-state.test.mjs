@@ -1058,3 +1058,96 @@ test('a collection on the prompt path is written under the key it read', t => {
   assert.notEqual(key, null, 'a keyed collection')
   assert.equal(key, snapshotKey(gitDir))
 })
+
+// BACKLOG §304. `--limit 1` read one run, and which one was decided by gh's list
+// order: at cdd3bda the push and the dispatched campaign were created in the same
+// second, the CANCELLED push came first, and the brief said CANCELLED over a
+// campaign that had failed. These are the rows gh returned there, in both orders.
+const listing = rows => ['gh run list', ok(JSON.stringify(rows))]
+const jobsOf = (id, jobs) => [`gh run view ${id}`, ok(JSON.stringify({ jobs }))]
+const TIE_SHA = 'cdd3bda817384b43e6c37afbb0819da8fb30a3e6'
+const pushRun = { headSha: TIE_SHA, status: 'completed', conclusion: 'cancelled', databaseId: 36260813368, workflowName: 'selftest' }
+const campaign = conclusion => ({ headSha: TIE_SHA, status: 'completed', conclusion, databaseId: 36260813407, workflowName: 'selftest' })
+
+test('a same-second tie reads the run that survived, whatever order gh lists it in', () => {
+  for (const order of [rows => rows, rows => [...rows].reverse()]) {
+    const red = render(collect(runner([...GIT_CLEAN,
+      listing(order([pushRun, campaign('failure')])),
+      jobsOf(36260813407, [{ name: 'mutations (2/4)', conclusion: 'failure' }]),
+      jobsOf(36260813368, [{ name: 'selftest (ubuntu-latest)', conclusion: 'cancelled' }]),
+    ]))).split('\n')
+    assert.match(red[1], /⚠ CI +cdd3bda: FAILURE — mutations \(2\/4\): failure \(run 36260813407\)$/, red.join('\n'))
+
+    const green = render(collect(runner([...GIT_CLEAN, listing(order([pushRun, campaign('success')]))])))
+    assert.match(green, /cdd3bda: every job concluded success\. \(run 36260813407\)/, green)
+    assert.doesNotMatch(green, /CANCELLED|⚠/, green)
+  }
+})
+
+test('every workflow at the newest commit answers, and a green one does not hide a red one', () => {
+  const at = (workflowName, databaseId, conclusion, status = 'completed') =>
+    ({ headSha: 'feed1234', status, conclusion, databaseId, workflowName })
+  // This repository's weekly `evals` schedule runs at main's HEAD, after the push.
+  const red = render(collect(runner([...GIT_CLEAN,
+    listing([at('evals', 20, 'success'), at('selftest', 10, 'failure')]),
+    jobsOf(10, [{ name: 'coverage floor', conclusion: 'failure' }]),
+  ])), { brief: true })
+  assert.match(red, /⚠ CI feed123: FAILURE — coverage floor: failure/, red)
+
+  const green = render(collect(runner([...GIT_CLEAN,
+    listing([at('evals', 20, 'success'), at('selftest', 10, 'success')]),
+  ])))
+  assert.match(green, /feed123: every job concluded success\. \(run 20, 10\)/, green)
+
+  // Two red workflows: a bare job name no longer says which workflow to open.
+  const both = render(collect(runner([...GIT_CLEAN,
+    listing([at('evals', 20, 'failure'), at('selftest', 10, 'failure')]),
+    jobsOf(20, [{ name: 'grade', conclusion: 'failure' }]),
+    jobsOf(10, [{ name: 'coverage floor', conclusion: 'failure' }]),
+  ])), { brief: true })
+  assert.match(both, /FAILURE — evals \/ grade: failure, selftest \/ coverage floor: failure/, both)
+
+  // The worst answer wins: a red workflow is not "still running" because another is.
+  const busy = render(collect(runner([...GIT_CLEAN,
+    listing([at('evals', 20, null, 'in_progress'), at('selftest', 10, 'failure')]),
+    jobsOf(10, [{ name: 'coverage floor', conclusion: 'failure' }]),
+  ])), { brief: true })
+  assert.match(busy, /FAILURE/, busy)
+  const running = render(collect(runner([...GIT_CLEAN,
+    listing([at('evals', 20, null, 'in_progress'), at('selftest', 10, 'success')]),
+  ])), { brief: true })
+  assert.match(running, /feed123: still running/, running)
+})
+
+test('a run at an older commit does not colour the newest one', () => {
+  const run = (headSha, databaseId, conclusion, workflowName = 'selftest') =>
+    ({ headSha, status: 'completed', conclusion, databaseId, workflowName })
+  const green = render(collect(runner([...GIT_CLEAN,
+    listing([run('01d00000', 20, 'failure'), run('0e100000', 30, 'success')]),
+  ])), { brief: true })
+  assert.match(green, /CI 0e10000: every job concluded success/, green)
+  assert.doesNotMatch(green, /⚠/, green)
+  // Nor does another workflow's red at that older commit: only the newest sha answers.
+  const other = render(collect(runner([...GIT_CLEAN,
+    listing([run('01d00000', 20, 'failure', 'evals'), run('0e100000', 30, 'success')]),
+  ])), { brief: true })
+  assert.match(other, /CI 0e10000: every job concluded success/, other)
+
+  const red = render(collect(runner([...GIT_CLEAN,
+    listing([run('01d00000', 20, 'success'), run('0e100000', 30, 'failure')]),
+  ])), { brief: true })
+  assert.match(red, /⚠ CI 0e10000: FAILURE/, red)
+})
+
+test('runs nothing can order are COULD NOT LOOK, and a snapshot from before names no run', () => {
+  const unordered = render(collect(runner([...GIT_CLEAN,
+    listing([{ headSha: 'feed1234', status: 'completed', conclusion: 'success', databaseId: 'x' }]),
+  ])))
+  assert.match(unordered, /⚠ CI +COULD NOT LOOK — `gh` listed runs this reader could not order/, unordered)
+
+  // A 3.0.1 snapshot carries no `runs`; it still renders, and names none.
+  const before = render({ looked: true, branch: 'main', head: 'abc1234', dirty: 0, ahead: 0, behind: 0,
+    ci: { looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] },
+    tag: null, shippedSinceTag: null, releaseBlocked: null })
+  assert.match(before, /abc1234: every job concluded success\.$/m, before)
+})

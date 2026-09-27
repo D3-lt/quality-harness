@@ -611,11 +611,6 @@ _MACHINE = re.compile(
     r"^- (?P<date>\d{4}-\d{2}-\d{2}) · (?:[0-9a-f]{4,64}\*?|no-git) · "
     r"exit (?P<exit>\d+) · `"
 )
-# Retired quote-kind classes (`[^'\n]+`). Live walk is `_iter_bdd_calls`.
-# A leftover HAND_MUTANT restores finditer on this regex.
-_BDD_NAME = re.compile(
-    r"""(?:\b(?:it|test)\s*\()\s*(?:'([^'\n]+)'|"([^"\n]+)"|`([^`\n]+)`)\s*,"""
-)
 _BDD_CALL_HEAD = re.compile(r"\b(?:it|test)\s*\(")
 # adr-lint `_go_direct_test_definitions` plus go/testing isTest: Test + not-lowercase.
 # `Fuzz` beside `Test`: a fuzz target is ordinary Go testing (`go test` runs its

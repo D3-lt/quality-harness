@@ -9,7 +9,8 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { dirname } from 'node:path'
+import { dirname, join } from 'node:path'
+import { readFileSync } from 'node:fs'
 import { orphanDefinitions, SHIPPED } from '../scripts/orphan-sweep.mjs'
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -37,8 +38,21 @@ function shippedAt(rev) {
   return files
 }
 
+// The tree about to be committed: tracked and new files as git lists them (CLAUDE.md
+// §8), read from disk. HEAD is the commit BEFORE this work, so a change that removes an
+// orphan would fail its own gate until it was committed — and it may not be committed
+// on a red gate (2026-09-27, the widened sweep's first run).
+function shippedInTree() {
+  const files = {}
+  const listed = git('ls-files', '--cached', '--others', '--exclude-standard').split('\n').filter(Boolean).filter(SHIPPED)
+  for (const path of listed) {
+    try { files[path] = readFileSync(join(repoRoot, path), 'utf8') } catch { /* listed, deleted on disk */ }
+  }
+  return files
+}
+
 test('the shipped tree defines nothing it does not reach', () => {
-  const { orphans, defined } = orphanDefinitions(shippedAt('HEAD'))
+  const { orphans, defined } = orphanDefinitions(shippedInTree())
   assert.deepEqual(orphans, [],
     'these are defined in the plugin and called from nothing a user downloads')
   assert.ok(defined > 300, `expected the plugin to define hundreds of functions, saw ${defined}`)
@@ -52,13 +66,31 @@ test('...and it finds the two orphans this repository actually shipped', () => {
   // dcb7df4 (v2.47.0) shipped `implausibly_fast` — BACKLOG §99, GitHub issue #6.
   // It carries `gitBranch` too, which §100 later deleted.
   const shipped = orphanDefinitions(shippedAt('dcb7df4')).orphans.map(o => o.name).sort()
-  assert.deepEqual(shipped, ['gitBranch', 'implausibly_fast'],
+  assert.deepEqual(shipped, ['DURATION_REQUIRED_FROM', 'VALIDATION_VERDICTS', '__declaredEnforcementForTest',
+    '__pathMatchesDeclarationForTest', 'gitBranch', 'implausibly_fast'],
     'the sweep must catch the defect at the commit that shipped it')
 
   // cb45a39 is the commit that deleted gitBranch (§100), so its parent still has
   // it and no longer has implausibly_fast — a second, independent data point.
-  const before = orphanDefinitions(shippedAt('cb45a39^')).orphans.map(o => o.name)
-  assert.deepEqual(before, ['gitBranch'])
+  const before = orphanDefinitions(shippedAt('cb45a39^')).orphans.map(o => o.name).sort()
+  assert.deepEqual(before, ['DURATION_REQUIRED_FROM', 'VALIDATION_VERDICTS', '__declaredEnforcementForTest',
+    '__pathMatchesDeclarationForTest', 'gitBranch'])
+})
+
+test('a binding is a definition, and plugin/lib is shipped', () => {
+  // 826ec94 (v3.0.2) shipped five bindings only tests read and one only repository
+  // tooling read. The sweep counted `function` and `def` alone and read no `.py`, so
+  // it reported 0 of 726 there (2026-09-27).
+  const found = orphanDefinitions(shippedAt('826ec94')).orphans.map(o => `${o.path}: ${o.name}`).sort()
+  assert.deepEqual(found, [
+    'plugin/lib/record.py: _BDD_NAME',
+    'plugin/scripts/lifecycle.mjs: SLOW_HOOK_NOTE',
+    'plugin/scripts/lifecycle.mjs: __declaredEnforcementForTest',
+    'plugin/scripts/lifecycle.mjs: __pathMatchesDeclarationForTest',
+    'plugin/scripts/lifecycle.mjs: probedPythonVersion',
+    'plugin/scripts/reader-paths.mjs: READER_PATHS',
+  ])
+  assert.ok(SHIPPED('plugin/lib/record.py'), 'plugin/lib is what a user downloads')
 })
 
 test('tests and records do not make a function reachable', () => {
@@ -83,14 +115,14 @@ test('a name reached only through a string literal counts as reached', () => {
   // themselves. This is also why the scan must be bare-identifier and not `name(`.
   const dispatch = {
     'plugin/bin/gate': 'def _go_pass_marker(p):\n    return p\n',
-    'plugin/bin/table': 'ARMS = {"go": "_go_pass_marker"}\n',
+    'plugin/bin/table': 'ARMS = {"go": "_go_pass_marker"}\nrun(ARMS)\n',
   }
   assert.deepEqual(orphanDefinitions(dispatch).orphans, [])
 
   // ...and the spread-operator call that a `name(` scan misreported as an orphan.
   const spread = {
     'plugin/scripts/a.mjs': 'export function expandExistingGlob(p) { return [p] }\n',
-    'plugin/scripts/b.mjs': 'const all = [...expandExistingGlob(x)]\n',
+    'plugin/scripts/b.mjs': 'const all = [...expandExistingGlob(x)]\nrun(all)\n',
   }
   assert.deepEqual(orphanDefinitions(spread).orphans, [])
 })

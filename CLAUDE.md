@@ -36,7 +36,7 @@ node scripts/mutate.mjs             # the full campaign; --case '<substring>' fo
 python3 plugin/bin/adr-lint <adr>   # a record's own gate
 node scripts/flag-claim-sweep.mjs     # advisory sweeps: a place to look, never a verdict
 node scripts/backlog-claim-sweep.mjs
-node scripts/orphan-sweep.mjs
+node scripts/orphan-sweep.mjs         # dead code: a definition in plugin/ nothing shipped reaches
 node scripts/backlog-record-sweep.mjs
 node scripts/chaos-fixture-sweep.mjs
 node --expose-internals scripts/untimed-spawns.mjs   # every JS child carries a timeout; UNKNOWN is a place to look
@@ -172,6 +172,10 @@ Why: `.claude/rules/12-reviews.md`
 CI not finished means not green.
 
 1. `bash scripts/selftest.sh` green after the last edit; Codex review done (§12).
+   **Scan for dead code before every release** (the owner, 2026-09-27): `node scripts/orphan-sweep.mjs`
+   must print `0 orphan(s)`. A definition in `plugin/` that nothing shipped reaches — dead, or read
+   only by tests or repository tooling — is deleted or wired, never allow-listed. The selftest
+   fails on it at HEAD too; the sweep is how you see which, before the commit that would.
 2. Bump `version` in `plugin/.claude-plugin/plugin.json`; push.
 3. **Wait for the push's own run to EXIST, then ask for the full campaign at the sha you are about
    to tag**: `gh run list --commit <sha> --limit 1` until it answers, then `gh workflow run
@@ -190,6 +194,14 @@ Why: `.claude/rules/13-releasing.md`
 
 ## 14. Read and write through `mrw`; remember through agentsmemory
 
+- **HARD RULE — the `mrw` CLI, always, for every file in this repository** (the owner, 2026-09-27,
+  after a session drafted a record with the harness's own file tools). Reading, editing AND creating:
+  `mrw read`, `mrw write` with `replace` / `insert-*` / `delete` / `create`. The harness's Read,
+  Edit and Write tools are not used on a tracked or new repository file — not for one line, not for
+  a new ADR, not "just this once". The one thing written outside `mrw` is the plan file itself, in
+  the scratchpad, and only when a heredoc cannot carry it (ADR-061's text refusal reads a plan that
+  names a publish as one). Pass `--no-check` for an intermediate write: by default every write runs
+  the declared check, which here is the whole selftest.
 - **Every read of a range and every edit goes through `mrw`** — one call for many ranges across
   files, one plan for many edits. Not `sed -n`/`head`/`awk` to read; not `sed -i`, `perl -i` or a
   heredoc rewrite to edit; not a throwaway script that rewrites a file. A batched edit where one

@@ -15961,3 +15961,31 @@ Named, not fixed:
 - Nested template literals inside options (`` `a${`}`}z` ``) defeat the masker, which is pre-existing in callbacks too (#2).
 - An unclosed call is invalid JS (#4).
 - An expression callback's trailing arguments are hashed with it (`() => x, 5000`), so changing the timeout moves the lock. This is inherited and fails closed (#6).
+
+## 306. 2026-09-27 — ADR-067 (a lexer for the text refusal), a dead-code cleanup, and a sweep that could not see bindings
+
+**Released first:** v3.0.2 at 826ec94 (release-evidence SUCCESS, 55/55; §304 item 1).
+
+**ADR-067, Accepted by the owner 2026-09-27.** §301 Stage 3, scoped to what git's hook (ADR-066) does not decide. T1 (`plugin/scripts/shell-words.mjs`, proved against bash 3.2 and zsh 5.9 with a recording stand-in git) and T2 (`publishCommandIn` walks the lexer's argv; the `PUBLISH_*` regexes except `PUBLISH_MENTION` are gone) are built. T3 (the armed grammar on the same lexer) is next.
+- Measured against the old classifier row by row: every `PUBLISHES`, `WINDOWS_PUBLISHES` and `DISABLES_THE_HOOK` row returns the same invocation; the seven `KNOWN_FALSE_REFUSALS` return null and moved to `NOT_PUBLISHES`; mean cost 4.57 µs per call against 2.1 µs before (bound 25).
+- **A fail-open the old table encoded as correct.** `node -e "/names commit or push \\(`git commit`\\)/"` sat in `NOT_PUBLISHES`. Run under bash and zsh with a stand-in git, both run `git commit`: a backtick inside double quotes is a command substitution. The walk refuses it; the row moved to `PUBLISHES`. The same class as §16's "one of this repository's own tests had encoded the fail-open".
+- **A GREEN T2 mutant was a finding about the tests.** Dropping the heredoc-fed-to-a-shell path changed no verdict: the only heredoc row was `cat <<X | bash`, which reaches the shell through the upstream path. `bash <<'EOF' … EOF` and `bash <<<"…"` joined `PUBLISHES`.
+- Isolation: the first harness run executed the REAL git under `zsh -c`, because zsh read a startup file that put it back on PATH. The probe row (`/usr/bin/env git --version` must reach the stand-in) caught it; the harness runs `zsh -f`.
+- Measured 2026-09-27 for Decision 4: with an unclosed quote on the same line neither bash nor zsh runs anything; bash runs a completed earlier LINE, zsh does not.
+
+**Dead code, removed (owner, 2026-09-27: "cleanup these").** A scan of top-level definitions found five instances that `scripts/orphan-sweep.mjs` had reported clean ("0 orphan(s) of 726" at 826ec94):
+- `plugin/lib/record.py` `_BDD_NAME`: a retired regex kept only as a catalogue mutant's restore target; the mutant now inlines it.
+- `plugin/scripts/lifecycle.mjs` `lastPythonVersion` / `probedPythonVersion()`: recorded "for whatever wants to RECORD which interpreter ran", and nothing did. Removed with its test asserts; §93's recording half stays open, now without a stand-in that only tests read.
+- `SLOW_HOOK_NOTE`: a test oracle exported from production; it moved to `tests/hook-env.mjs`.
+- `__pathMatchesDeclarationForTest` (an alias of an exported function) and `__declaredEnforcementForTest` (`declaredEnforcement` is exported itself now).
+- A sixth, found by the widened sweep below: `READER_PATHS` in `plugin/scripts/reader-paths.mjs`, read only by `scripts/release-evidence.mjs`. The list stays shared (ADR-064); the `plugin/` prefix moved into release-evidence.
+
+**Why the sweep saw none of them (§5, the class):** it counted `function` and `def` only, and its `SHIPPED` scope matched no `.py`, so `plugin/lib/` was never read. It now counts top-level `const`/`let`/`var`, Python classes and module-level names, and reads `.py`. At dcb7df4 and cb45a39^ it finds `DURATION_REQUIRED_FROM`, `VALIDATION_VERDICTS` and both `__…ForTest` aliases beside the functions it already found; the tests say so. At 826ec94 it finds all six. The test "the shipped tree defines nothing it does not reach" runs it at HEAD, so the selftest now fails on a dead binding as it did on a dead function. CLAUDE.md §13 step 1 names it as the pre-release dead-code scan.
+
+**The gate found a fail-open in the lexer, and a name collision.** `((1 << 2))` then `git commit` on the next line: the lexer read the arithmetic shift as a heredoc and swallowed the commit into its body, so `publishCommandIn` returned null. `tests/lifecycle.test.mjs` "the publish warning reads commit or push through wrappers and quoting" caught it. An arithmetic command at command position is now skipped whole; the row is in the bash/zsh differential fixtures, and a catalogue mutant is RED. ADR-060's "the command classifiers are gone" flagged the lexer's inner `heredocBodies`, a retired symbol name; it is `readHeredocs`.
+
+**Open:**
+- ADR-067 T3.
+- The catalogue's 27 walk mutants run once load allows (the armed tests misfire under contention); the 22 regex mutants they replace are gone.
+- Leads from the 826ec94 outside run: the brief says "every job concluded success" when some jobs were skipped (a locked test's regex pins the wording); `corpus-probe --diff` prints slowdowns and never speedups.
+- A run-level `skipped` workflow reads as an alarm (§304); quality-blueprints has 9 in its last 100 runs. The owner's decision.

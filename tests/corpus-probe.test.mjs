@@ -504,3 +504,22 @@ test('an adr-lint verdict that is only an exit code carries what the gate said',
     assert.match(lint.reason ?? '', /could not run: \S*T1-locked\.md/, JSON.stringify(lint))
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+// A corpus-chaos run of 916b515 (quality-blueprints, a sparse checkout): the probe spawned
+// adr-lint once per record git lists and the disk lacks, 164 of them, 48 s against 4 s,
+// for a verdict that could never be reached. Such a file is named `unread`, with its reason.
+test('a record the corpus reader never opened is named unread, not linted', () => {
+  const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-probe-unread-')))
+  try {
+    mkdirSync(path.join(root, 'docs', 'adr'), { recursive: true })
+    writeFileSync(path.join(root, 'docs', 'adr', 'ADR-001-gone.md'), '# ADR-001: gone\n\n**Status:** Accepted\n')
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: root, encoding: 'utf8', timeout: 30_000 })
+    git('init', '-q'); git('add', '-A'); git('commit', '-qm', 'base', '--no-verify')
+    rmSync(path.join(root, 'docs', 'adr', 'ADR-001-gone.md'))
+    const run = spawnSync(process.execPath, [probeScript, '--json'], { cwd: root, encoding: 'utf8', timeout: 300_000 })
+    assert.equal(run.status, 0, run.stderr)
+    const report = JSON.parse(run.stdout)
+    assert.deepEqual(report.adrLint.map(({ file, verdict, reason }) => ({ file, verdict, reason })),
+      [{ file: 'docs/adr/ADR-001-gone.md', verdict: 'unread', reason: 'ENOENT' }])
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

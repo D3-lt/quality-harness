@@ -2407,7 +2407,10 @@ def lock_findings(vlog, *, root, tests, label=""):
                 "red, restore it, then run adr-verify for the green"
             )
         if date is None or date < TEST_HASH_REQUIRED_FROM:
-            return [], [missing + f" (advisory until {TEST_HASH_REQUIRED_FROM})"]
+            # Keyed on the ENTRY's date, not today's: "(advisory until <date>)" read as a
+            # grace period that had ended (a Windows chaos round of 916b515).
+            when = "an undated entry" if date is None else f"an entry recorded before {TEST_HASH_REQUIRED_FROM}"
+            return [], [missing + f" (advisory: {when})"]
         return [missing + f" (required from {TEST_HASH_REQUIRED_FROM})"], []
 
     if recorded.get("conflict"):

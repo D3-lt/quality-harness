@@ -44,6 +44,15 @@ export function main(argv) {
   // Keyed by id (ADR-063), so a supersession by a dated record's stem resolves.
   const byId = new Map(corpus.filter(record => record.id !== null && record.id !== undefined)
   .map(record => [record.id, record]))
+  // One id, several records: nothing said so, and each could be read as the other
+  // (a Windows chaos round of 916b515, C1 and C6 — the same id in one root, or three).
+  const byIdAll = new Map()
+  for (const record of corpus) {
+    if (record.id === null || record.id === undefined) continue
+    if (!byIdAll.has(record.id)) byIdAll.set(record.id, [])
+    byIdAll.get(record.id).push(record)
+  }
+  const duplicateIds = [...byIdAll].filter(([, records]) => records.length > 1)
 
   // One entry per governed path, naming the accepted record that holds it and
   // whatever it replaced. A path claimed by two accepted records is contested:
@@ -102,6 +111,7 @@ export function main(argv) {
     governingNothing: orphans.map(record => ({ id: label(record), file: relative(record) })),
     governsUnproven: unknownScope.map(record => ({ id: label(record), file: relative(record), unreadTasks: record.unreadTasks.map(file => relative({ file })) })),
     danglingSupersession: dangling.map(record => ({ id: label(record), status: record.status })),
+    duplicateIds: duplicateIds.map(([id, records]) => ({ id, files: records.map(record => relative(record)) })),
   }, null, 2)}\n`)
   return 0
   }
@@ -212,6 +222,13 @@ export function main(argv) {
   say('\nContested — the corpus says two things about the same code:\n')
   for (const [declared, records] of contested) {
     say(`  ${declared}: ${records.map(label).join(' and ')}\n`)
+  }
+  }
+  if (duplicateIds.length) {
+  say('\nOne id names more than one record — each is read on its own, and nothing here can\n'
+    + 'say which one a reference to that id means:\n')
+  for (const [id, records] of duplicateIds.slice(0, SHOWN)) {
+    say(`  ${id}  ${records.map(record => relative(record)).join(', ')}\n`)
   }
   }
   if (orphans.length) {

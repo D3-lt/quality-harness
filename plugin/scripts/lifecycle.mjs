@@ -1469,8 +1469,12 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
           + `the task file calls it ${quotedCorpusText(next.goal)}.`
         : `  ${readyPath}: ${ownerCaveat(report)}${next.id} is ready — the task file calls it ${quotedCorpusText(next.goal)}`
         + (next.acceptance ? `, and its Acceptance fence reads ${quotedCorpusText(next.acceptance)}` : '')
-        + `. Prove it with ${commandInCode(`adr-verify ${posixListed(path.relative(root, next.path) || next.path)}`)}, which runs that fence `
-        + 'as written: read the fence in the task file first.')
+        + (next.acceptance === null && next.human_observed === false
+          // No fence was read, and adr-verify refuses the file, so the instruction could
+          // not succeed (a Windows chaos round of 916b515, C-4).
+          ? '. It has no runnable Acceptance fence, so `adr-verify` has nothing to run: fix its `## Acceptance` section first.'
+          : `. Prove it with ${commandInCode(`adr-verify ${posixListed(path.relative(root, next.path) || next.path)}`)}, which runs that fence `
+            + 'as written: read the fence in the task file first.'))
     } else if (report.blocked?.length) {
       lines.push(`  ${relative}: nothing ready; ${report.blocked.length} task(s) blocked.`)
     } else if ((report.stopped?.length ?? 0) > unreadTasks.length) {
@@ -1519,7 +1523,10 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
 // postmortem or a journal entry was read as ADR-2026. Measured on a real corpus,
 // 2026-08-26. The guard is the shared date shape since ADR-063, so `2026_03_08`
 // and `2026.3.8` are dates too, not only the hyphen spelling.
-const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?)?\d{3,4}[-._]/i
+// With the ADR prefix a record is named at any width (`ADR-7-x.md`), as record.py's
+// RECORD_FILE_RE reads it; a BARE number still needs three or four digits, so
+// `1-intro.md` is not a record (a Windows chaos round of 916b515, C-2).
+const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\d{1,4}|\d{3,4})[-._]/i
 const RECORD_BUDGET = 200
 
 // --- Record identity (ADR-063) ------------------------------------------------
@@ -1923,8 +1930,14 @@ function taskDirectoriesFor(file, number, reader) {
   const stem = path.basename(file).replace(/\.md$/i, '')
   let siblings = []
   try { siblings = reader.entries(directory) } catch { return found }
+  // A directory named exactly for ANOTHER record is that record's. Ownership by number
+  // alone gave `ADR-002-prices-are-integer-cents/tasks` to a second ADR-002 beside it,
+  // so a record with no tasks was linted against another's (a Windows chaos round of
+  // 916b515, C1). A number-only directory (`ADR-110/tasks`) still binds by number.
+  const stems = new Set(siblings.filter(entry => entry.isFile() && /\.md$/i.test(entry.name))
+    .map(entry => entry.name.replace(/\.md$/i, '')))
   for (const entry of siblings) {
-    if (!entry.isDirectory()) continue
+    if (!entry.isDirectory() || (entry.name !== stem && stems.has(entry.name))) continue
     const owns = number !== null && /^(?:adr[-_]?)?0*(\d{1,4})\b/i.exec(entry.name)
     if ((owns && Number(owns[1]) === number) || entry.name === stem) {
       found.push({ path: path.join(directory, entry.name, 'tasks'), owned: true })
@@ -3146,8 +3159,13 @@ const POWERSHELL = new Set(['pwsh', 'powershell'])
 // Control keywords before a command, and the interpreters whose call spellings of a
 // subprocess run git (`subprocess.run(["git","push"])`, `execSync('git push')`).
 const KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'do', 'while', 'until'])
-const INTERPRETERS = /^(?:python[\d.]*|node|nodejs|deno|bun)$/
+const INTERPRETERS = /^(?:python[\d.]*|node|nodejs|deno|bun|perl)$/
 const SUBPROCESS_LIST = /subprocess\.(?:run|call|check_call|check_output|Popen)\(\s*\[\s*((?:(["'])[^"']*\2\s*,?\s*)+)/g
+// The same argv list through node's child_process and perl's system/exec (a chaos round
+// of 916b515: `spawnSync('git', ['push'])` and `system("git", "push")` pushed unread).
+// perl's list form needs two items; a single string is a shell line, read below.
+const CHILD_PROCESS_LIST = /\b(?:spawn|spawnSync|execFile|execFileSync)\(\s*((["'])[^"']*\2\s*,\s*\[[^\]]*)/g
+const PERL_LIST = /\b(?:system|exec)\s*\(?\s*((["'])[^"']*\2(?:\s*,\s*(["'])[^"']*\3)+)/g
 // `os.system` and `os.popen` hand their string to a shell (a Windows chaos round of
 // 916b515: `python -c "import os; os.system('git push')"` pushed and was read as nothing).
 const SUBPROCESS_STRING = /(?:subprocess\.(?:run|call|check_call|check_output|Popen)|\bexec(?:Sync|File|FileSync)?|\bos\.(?:system|popen))\(\s*(["'])(.*?)\1/g
@@ -3264,13 +3282,31 @@ function dryRun(verb, rest) {
   return dry
 }
 
+// Aliases set on git's own command line with `-c alias.<name>=<value>`, keyed by name,
+// which git reads case-insensitively (a chaos round of 916b515: `git -c alias.p=push p`
+// pushes, and `git -c 'alias.x=!git push' x` runs its value as a shell line).
+function gitAliases(argv, at, k) {
+  const aliases = new Map()
+  for (let i = at + 1; i < k; i++) {
+    const value = argv[i] === '-c' ? argv[i + 1] : /^-c./.test(argv[i] ?? '') ? argv[i].slice(2) : null
+    const alias = typeof value === 'string' ? /^alias\.([^=]+)=(.*)$/is.exec(value) : null
+    if (alias) aliases.set(alias[1].toLowerCase(), alias[2])
+  }
+  return aliases
+}
+
+// git runs its own command over an alias of the same name (`git -c alias.version=status
+// version` printed the version, 2.55.0, 2026-09-27), so `commit` and `push` stay publishes.
+const BUILTIN_PUBLISH = new Set(['commit', 'push'])
 function gitInvocation(argv, at, dynamic) {
   const k = gitVerbIndex(argv, at)
-  if ((argv[k] !== 'commit' && argv[k] !== 'push') || dynamic.includes(k)) return null
+  const alias = BUILTIN_PUBLISH.has(argv[k]) ? undefined : gitAliases(argv, at, k).get(String(argv[k] ?? '').toLowerCase())
+  const verb = alias !== undefined && !alias.startsWith('!') ? alias.trim().split(/\s+/)[0] : argv[k]
+  if ((verb !== 'commit' && verb !== 'push') || dynamic.includes(k)) return null
   if (argv[k + 1] === '--help' || argv[k + 1] === '-h') return null
   // A dry run publishes nothing (a chaos round of 626934a, R6). `commit -n` is
   // `--no-verify`, not a dry run, and stays a publish.
-  if (dryRun(argv[k], argv.slice(k + 1))) return null
+  if (dryRun(verb, argv.slice(k + 1))) return null
   return argv.slice(at, k + 1).join(' ')
 }
 
@@ -3280,6 +3316,8 @@ function gitInvocation(argv, at, dynamic) {
 function gitRunsCommands(argv, at) {
   const k = gitVerbIndex(argv, at)
   const rest = argv.slice(k + 1)
+  const alias = BUILTIN_PUBLISH.has(argv[k]) ? undefined : gitAliases(argv, at, k).get(String(argv[k] ?? '').toLowerCase())
+  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.join(' ')}`.trim()]
   if (argv[k] === 'submodule') {
     const each = rest.indexOf('foreach')
     if (each < 0) return []
@@ -3534,7 +3572,7 @@ function publishInCommand(commands, n, depth) {
   }
   if (INTERPRETERS.test(name)) {
     for (const word of argv.slice(start + 1)) {
-      for (const call of word.matchAll(SUBPROCESS_LIST)) {
+      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]) {
         const list = [...call[1].matchAll(/(["'])([^"']*)\1/g)].map(item => item[2])
         const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null
         if (invoked) return invoked

@@ -16147,4 +16147,33 @@ Leads, unconfirmed here:
 - A task reached through a self-symlink (`tasks/tasks -> ../tasks`) is named by that path in SessionStart and adr-next. The probe reports it as a disagreement.
 - Rule P misses a static argv in `node -e "…spawnSync('git',['push'])"` and `perl -e 'system("git","push")'`, while Python's list form is read. It also misses `git -c alias.p=push p` and `make -f /dev/stdin`. The rest of its 13 rows are the dynamic §307 class.
 - A sparse checkout makes the probe spawn adr-lint once per path git lists and the disk lacks: 164 of them, 48 s against 4 s.
+
+**A third pass on the leads** (the owner: "proceed with the §309 leads"). Committed in def97b9 and the commit after it. Each lead was confirmed against source and reproduced (on macOS, or through a portable stand-in: a directory named like a task file is unreadable on every platform). Each has a test through the reader's CLI that failed first, and catalogue mutants that are RED.
+- **Raw escapes.** work-next and adr-state print their human lines through `terminalText`, and adr-state quotes a record title. Both quoters drop zero-width characters and a BOM; adr-next's title drops a BOM-held `# `.
+- **G2.**
+  - No task is offered as ready beside one nobody could read.
+  - `adr-next --json` answers JSON for a path with no tasks directory.
+  - corpus-report counts a NUL-byte or empty task as unreadable. The matrix asserts it: `corpusReportUnreadable` on the undecided-records fixture.
+- **C-5.**
+  - adr-lint crashed with a traceback on any unreadable task file anywhere in the corpus; it is could-not-run, exit 2, naming the file.
+  - An exit-code verdict in the probe carries the gate's reason.
+  - The corpus reader no longer drops an unreadable task file: its directory is asked about (work-next: UNPROVEN), and adr-state reports that record's scope as `governsUnproven` rather than governing nothing.
+- **C-4.** A task whose Acceptance fence could not be read no longer says its fence "changed", and SessionStart no longer sends it to `adr-verify`, which would refuse it.
+- **C1 and C6.** A folder named exactly for another record is that record's, so a second ADR-002 no longer takes the first's tasks: in the corpus reader, and in adr-next's `resolve_tasks_dir`. adr-state names every id carried by more than one record (`duplicateIds`).
+- **Rule P.** Now read: node's `child_process` argv lists and perl's `system`/`exec` lists (`perl` is an interpreter now), and an alias set with `git -c alias.<name>=<value>`, including `!` aliases. git's own `commit` and `push` run over an alias of the same name (measured: `git -c alias.version=status version` printed the version), so those stay publishes.
+- **C-2.** A record named with the ADR prefix is found at any width (`ADR-7-x.md`), as record.py reads it; a bare number still needs three or four digits. work-next's own text named `ADR-12-thing.md` as findable by filename, which the regex made false until now.
+- **Sparse checkout.** A record the corpus reader never opened is `unread` in the probe, with its reason, and adr-lint is not spawned for it.
+- **Wording.** The pre-cutover lock advice says "(advisory: an entry recorded before 2026-09-13)".
+- Catalogue entries that named rewritten lines were re-pointed by hand after `--repoint` refused them, correctly, as rewrites: CF1, L7, the §288 PARTIAL line, the router line, the ISO-date guard, the dry-run guard, the orphans line, the single-quoting and append lines.
+
+**By design, recorded.**
+- `accepted` and `ACCEPTED` govern, because a status is read case-insensitively. `Accepted (partially)` governs too, because its first word is read, as `Superseded by …` is.
+- A FIFO is never listed by git, so a reader that must not depend on the disk (§8) cannot count it.
+- Specs are read one level under `docs/specs/`, the location the spec-write stage writes to. A project that nests them gets no count, and nothing says why: a wording lead.
+
+**Still leads.**
+- NTFS case folding (C-3) and Windows 8.3 short names: Windows-only, needing a Windows run to confirm a fix.
+- A task named through a self-symlink: the probe already reports it as a disagreement.
+- adr-lint's `check_test_lock` and its other README-only loops still read only the README's done claim.
+- adr-next's Permission-denied line prints the path as it was given, absolute when the caller passed one.
 The readers changed with this batch (lifecycle.mjs, corpus-probe.mjs, work-next.mjs, adr-next, adr-lint), so the four attestations at 916b515 do not cover a tag cut after it; another outside run is needed at the final sha (§18).

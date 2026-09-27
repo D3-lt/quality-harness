@@ -1539,3 +1539,31 @@ test('--json over a path with no tasks directory answers in JSON', () => {
   assert.equal(said.status, 0)
   assert.match(said.stdout, /owns no tasks directory/)
 })
+
+// A Windows chaos round of 916b515 (scalable-badger C-4): a non-breaking space after
+// `##` is not a heading, so no fence was read, and the note said the fence CHANGED.
+test('a task whose Acceptance fence cannot be read says so, not that the fence changed', () => {
+  const { tasksDir } = corpus([{ id: 'T1', evidence: true }])
+  const file = join(tasksDir, 'T1-t.md')
+  writeFileSync(file, readFileSync(file, 'utf8').replace('## Acceptance', '##\u{a0}Acceptance'))
+  const report = JSON.parse(next([tasksDir, '--json'], root).stdout)
+  const [t1] = report.ready
+  assert.equal(t1?.id, 'T1', JSON.stringify(report))
+  assert.match(t1.unproven ?? '', /no runnable Acceptance fence was read/, JSON.stringify(t1))
+  assert.doesNotMatch(t1.unproven ?? '', /different Acceptance/)
+})
+
+// A Windows chaos round of 916b515 (tender-reef C1): two records named ADR-002. Asked
+// about the one with no tasks, adr-next sequenced the other's by their shared number.
+test("a record is never given the tasks of another record that shares its number", () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-dupid-'))
+  temps.push(dir)
+  mkdirSync(join(dir, 'ADR-002-a', 'tasks'), { recursive: true })
+  writeFileSync(join(dir, 'ADR-002-a.md'), '# ADR-002: a\n\n**Status:** Accepted\n')
+  writeFileSync(join(dir, 'ADR-002-b.md'), '# ADR-002: b\n\n**Status:** Accepted\n')
+  writeFileSync(join(dir, 'ADR-002-a', 'tasks', 'T1-a.md'), task({ id: 'T1' }))
+  const other = next([join(dir, 'ADR-002-b.md')], root)
+  assert.match(other.stdout, /owns no tasks directory/, other.stdout)
+  // Clean twin: the record the folder is named for still has its task.
+  assert.match(next([join(dir, 'ADR-002-a.md')], root).stdout, /T1/)
+})

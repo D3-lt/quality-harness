@@ -173,8 +173,8 @@ export function collect(run = shell, checkpoint = () => {}) {
   const unreadable = !remotes.ok
   const onGitHub = remotes.ok && /github/i.test(remotes.out)
   const runs = onGitHub
-    ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', '20',
-      '--json', 'headSha,status,conclusion,databaseId,workflowName'])
+    ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', String(RUN_WINDOW), '--json',
+      'headSha,status,conclusion,databaseId,startedAt,event,workflowDatabaseId,workflowName'])
     : {
       ok: false,
       out: '',
@@ -186,8 +186,9 @@ export function collect(run = shell, checkpoint = () => {}) {
   if (runs.ok) {
     let rows = []
     try { rows = JSON.parse(runs.out) } catch { rows = [] }
-    const answering = headRuns(rows)
-    if (answering) {
+    const answer = headRuns(rows, git.head)
+    if (answer) {
+      const answering = answer.runs
       const failing = answering.filter(r => r.status === 'completed' && r.conclusion !== 'success')
       const running = answering.find(r => r.status !== 'completed')
       const verdict = failing[0] ?? running ?? answering[0]
@@ -196,11 +197,18 @@ export function collect(run = shell, checkpoint = () => {}) {
         status: verdict.status, conclusion: verdict.conclusion, failed: [],
         runs: answering.map(r => r.databaseId),
       }
+      // A red run is red however many were not read; a green answer is only as
+      // complete as the listing, and a window holding nothing but this commit may
+      // have cut off one of its workflows (Codex review of 3.0.2).
+      if (!answer.complete && !failing.length) {
+        ci = { looked: false, note: `the newest ${rows.length} runs are all at ${ci.sha}, so a workflow listed `
+          + 'before them was not read' }
+      }
       for (const bad of failing.filter(r => r.conclusion)) {
         const jobs = run(['gh', 'run', 'view', String(bad.databaseId), '--json', 'jobs'])
         if (!jobs.ok) continue
         // A job name alone cannot say which workflow failed once two did.
-        const where = failing.length > 1 ? `${bad.workflowName ?? 'a workflow'} / ` : ''
+        const where = failing.length > 1 ? `${bad.workflowName || 'a workflow'} (${bad.event ?? 'run'}) / ` : ''
         try {
           ci.failed.push(...JSON.parse(jobs.out).jobs
             .filter(job => job.conclusion && job.conclusion !== 'success')
@@ -264,40 +272,61 @@ export function collect(run = shell, checkpoint = () => {}) {
 }
   }
 
+// How many runs one listing asks for. A window whose rows are ALL at the answering
+// commit is not known to be complete, and says so rather than reading green.
+const RUN_WINDOW = 20
+
 /**
- * The runs that answer for the branch's newest commit: the newest run of EACH
- * workflow at the sha of the newest run listed, or null when nothing can be ordered.
+ * The runs that answer for a commit, as `{ sha, runs, complete }`, or null when
+ * nothing can be ordered. The commit is HEAD when any listed run is at HEAD, and
+ * otherwise the commit of the newest run, which the render names.
  *
  * ⚠ `--limit 1` READ ONE RUN, AND WHICH ONE WAS A COIN TOSS (BACKLOG §304). At
  * cdd3bda the push and the dispatched campaign were created in the same second
  * (17:56:53Z); gh listed the CANCELLED push first, so the brief said CANCELLED over
  * a campaign that had concluded `failure` — and the same tie with a green push
- * would have read green over red. `createdAt` has one-second resolution and cannot
- * break that tie; the run id can. Measured 2026-09-27: at cdd3bda the surviving
- * dispatch is 36260813407 and the push it cancelled 36260813368, and across the
- * newest eight runs on main id order and `createdAt` order agree. `cancel-in-progress`
- * cancels the OLDER run, so the higher id is the one whose verdict stands.
+ * would have read green over red.
  *
- * ⚠ AND ONE RUN IS ONE WORKFLOW. This repository's weekly `evals` schedule runs at
- * main's HEAD; once it is the newest run there, one row reads evals and says
- * nothing about selftest. An adopter measured the same day lists `ci`, `platforms`
- * and `e2e` at one sha. So every workflow's newest run answers, and the caller reads
- * the worst of them.
+ * ⚠ ONE RUN IS NEITHER ONE WORKFLOW NOR ONE EVENT. This repository's weekly `evals`
+ * schedule runs at main's HEAD, and an adopter measured the same day lists `ci`,
+ * `platforms` and `e2e` at one sha. And `selftest.yml` keys its concurrency group on
+ * the EVENT, so a dispatch never cancels the push: both verdicts stand, and a green
+ * dispatch must not hide a red push (Codex review of 3.0.2, which also caught this
+ * comment claiming the higher id always wins). So the newest run of each workflow —
+ * by `workflowDatabaseId`, since a ruleset workflow lists no name — for each event
+ * answers, and the caller reads the worst of them.
  *
- * `release-evidence.mjs` has its own `selectRun`, and that is not duplication: it
- * asks whether a FULL campaign exists, so a same-second tie goes to the dispatch;
- * this asks which verdict stands, so it goes to the run created last.
+ * ⚠ A CANCELLED RUN ANSWERS NOTHING ONCE ITS WORKFLOW RAN TO COMPLETION AT THE SAME
+ * COMMIT under another event: the code it would have judged was judged. Alone, it is
+ * still an alarm.
+ *
+ * "Newest" is the latest START, because a re-run keeps its id and moves
+ * `startedAt`; the id breaks what the one-second clock cannot.
  */
-export function headRuns(rows) {
-  const ordered = (Array.isArray(rows) ? rows : [])
+export function headRuns(rows, head = '') {
+  const listed = (Array.isArray(rows) ? rows : [])
     .filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
-    .sort((a, b) => b.databaseId - a.databaseId)
-  if (ordered.length === 0) return null
+  if (listed.length === 0) return null
+  const newest = listed.reduce((a, b) => (b.databaseId > a.databaseId ? b : a))
+  const sha = (head && listed.find(r => String(r.headSha).startsWith(head))?.headSha) || newest.headSha
+  const workflowOf = r => String(r.workflowDatabaseId ?? r.workflowName ?? '')
+  const started = r => Date.parse(String(r.startedAt ?? ''))
+  const later = (a, b) => (started(b) - started(a)) || (b.databaseId - a.databaseId)
   const latest = new Map()
-  for (const r of ordered) {
-    if (r.headSha === ordered[0].headSha && !latest.has(r.workflowName ?? '')) latest.set(r.workflowName ?? '', r)
+  for (const r of listed.filter(r => r.headSha === sha).sort(later)) {
+    const key = `${workflowOf(r)}\u0000${r.event ?? ''}`
+    if (!latest.has(key)) latest.set(key, r)
   }
-  return [...latest.values()]
+  const chosen = [...latest.values()]
+  const judged = new Set(chosen.filter(r => r.status === 'completed' && r.conclusion !== 'cancelled').map(workflowOf))
+  const oldest = Math.min(...listed.filter(r => r.headSha === sha).map(r => r.databaseId))
+  return {
+    sha,
+    runs: chosen.filter(r => !(r.conclusion === 'cancelled' && judged.has(workflowOf(r)))),
+    // Complete when the listing is the branch's whole history, or reaches a run at
+    // another commit older than every run at this one.
+    complete: listed.length < RUN_WINDOW || listed.some(r => r.headSha !== sha && r.databaseId < oldest),
+  }
 }
 
 

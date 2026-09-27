@@ -12591,34 +12591,104 @@
       "to": "          const header = line.match(/^\\[\\s*branch\\s+\"([^\"\\\\]*)\"\\s*\\]\\s*(?:[;#].*)?$/)"
     },
     {
-      "label": "branch-state: a same-second tie reads the run created last (BACKLOG §304)",
+      "label": "branch-state: a re-run is ordered by its latest start (BACKLOG §304)",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "only": "a same-second tie reads the run that survived",
-      "from": "    .sort((a, b) => b.databaseId - a.databaseId)",
-      "to": "    .sort((a, b) => a.databaseId - b.databaseId)"
+      "only": "a re-run is as new as its latest start",
+      "from": "  const later = (a, b) => (started(b) - started(a)) || (b.databaseId - a.databaseId)",
+      "to": "  const later = (a, b) => (started(a) - started(b)) || (b.databaseId - a.databaseId)"
     },
     {
-      "label": "branch-state: only the newest commit's runs answer (BACKLOG §304)",
+      "label": "branch-state: the run id orders what the clock cannot (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a re-run is as new as its latest start",
+      "from": "  const later = (a, b) => (started(b) - started(a)) || (b.databaseId - a.databaseId)",
+      "to": "  const later = (a, b) => (started(b) - started(a)) || (a.databaseId - b.databaseId)"
+    },
+    {
+      "label": "branch-state: only one commit's runs answer (BACKLOG §304)",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [
         "tests/branch-state.test.mjs"
       ],
       "only": "a run at an older commit does not colour the newest one",
-      "from": "    if (r.headSha === ordered[0].headSha && !latest.has(r.workflowName ?? '')) latest.set(r.workflowName ?? '', r)",
-      "to": "    if (!latest.has(r.workflowName ?? '')) latest.set(r.workflowName ?? '', r)"
+      "from": "  for (const r of listed.filter(r => r.headSha === sha).sort(later)) {",
+      "to": "  for (const r of listed.slice().sort(later)) {"
     },
     {
-      "label": "branch-state: every workflow at the head answers, not only the newest run (BACKLOG §304)",
+      "label": "branch-state: HEAD answers when it ran (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a run at an older commit does not colour the newest one",
+      "from": "  const sha = (head && listed.find(r => String(r.headSha).startsWith(head))?.headSha) || newest.headSha",
+      "to": "  const sha = newest.headSha"
+    },
+    {
+      "label": "branch-state: every workflow at the commit answers (BACKLOG §304)",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [
         "tests/branch-state.test.mjs"
       ],
       "only": "every workflow at the newest commit answers",
-      "from": "    if (r.headSha === ordered[0].headSha && !latest.has(r.workflowName ?? '')) latest.set(r.workflowName ?? '', r)",
-      "to": "    if (r.headSha === ordered[0].headSha && !latest.has('')) latest.set('', r)"
+      "from": "    const key = `${workflowOf(r)}\\u0000${r.event ?? ''}`",
+      "to": "    const key = `${r.event ?? ''}`"
+    },
+    {
+      "label": "branch-state: each event answers for itself (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a green dispatch does not hide a red push",
+      "from": "    const key = `${workflowOf(r)}\\u0000${r.event ?? ''}`",
+      "to": "    const key = `${workflowOf(r)}`"
+    },
+    {
+      "label": "branch-state: a workflow is its id, not its name (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "every workflow at the newest commit answers",
+      "from": "  const workflowOf = r => String(r.workflowDatabaseId ?? r.workflowName ?? '')",
+      "to": "  const workflowOf = r => String(r.workflowName ?? '')"
+    },
+    {
+      "label": "branch-state: a cancelled run answers nothing once its workflow was judged (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a same-second tie reads the run that survived",
+      "from": "    runs: chosen.filter(r => !(r.conclusion === 'cancelled' && judged.has(workflowOf(r)))),",
+      "to": "    runs: chosen,"
+    },
+    {
+      "label": "branch-state: a window that may be cut off is not green (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a listing that may have cut off a workflow",
+      "from": "      if (!answer.complete && !failing.length) {",
+      "to": "      if (false) {"
+    },
+    {
+      "label": "branch-state: a red run is red however many were not read (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a listing that may have cut off a workflow",
+      "from": "      if (!answer.complete && !failing.length) {",
+      "to": "      if (!answer.complete) {"
     },
     {
       "label": "branch-state: a red workflow outranks one still running (BACKLOG §304)",

@@ -10450,8 +10450,8 @@
       "tests": [
         "tests/late-baseline.test.mjs"
       ],
-      "from": "      && observedClean(input.cwd, entry.observation)) {",
-      "to": "      && true) {",
+      "from": "    && observedClean(cwd, observation)",
+      "to": "    && true",
       "only": "^(?:a DIRTY tree with no SessionStart is still unchecked work, and gets no late baseline)$"
     },
     {
@@ -10570,8 +10570,8 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "!sessionBaseline(log) && !log.some(event => event.event === 'file.written' && event.observable !== false)",
-      "to": "!sessionBaseline(log)",
+      "from": "  return !logIncomplete(log) && !log.some(event => event.observation?.ok === true)\n    && !log.some(event => event.event === 'file.written' && event.observable !== false)",
+      "to": "  return !logIncomplete(log) && !log.some(event => event.observation?.ok === true)",
       "only": "^(?:a write already on record is not forgiven by a baseline adopted after it was committed|a compact SessionStart does not hand a fresh baseline to a session with outstanding work)$"
     },
     {
@@ -15828,8 +15828,8 @@
       "label": "BACKLOG §319 A: a flat spec is listed as nested too",
       "file": "plugin/scripts/work-next.mjs",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/.+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))",
-      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/.+\\.md$/i.test(posixRel(rel)))",
+      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))",
+      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)))",
       "only": "a spec in a subdirectory of docs/specs"
     },
     {
@@ -15937,19 +15937,19 @@
       "only": "a session whose first look failed"
     },
     {
-      "label": "BACKLOG §319 H: a late baseline is taken beside a real one",
+      "label": "BACKLOG §319 H: a late baseline is taken after the tree was already seen",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/late-baseline.test.mjs"],
-      "from": "    if (!logIncomplete(log) && !sessionBaseline(log) && !log.some(event => event.event === 'file.written' && event.observable !== false)",
-      "to": "    if (!logIncomplete(log) && !log.some(event => event.event === 'file.written' && event.observable !== false)",
-      "only": "a session that did start normally gets no late baseline"
+      "tests": ["tests/late-baseline.test.mjs", "tests/chaos-e016066.test.mjs"],
+      "from": "!log.some(event => event.observation?.ok === true)",
+      "to": "true",
+      "only": "a session that did start normally gets no late baseline|a tree seen before a commit is not forgiven"
     },
     {
       "label": "BACKLOG §319 H: the publish decision reads a start that could not look",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "  const baseline = sessionBaseline(log)?.observation\n  const treeStanding = checkStanding(log, now.tree)",
-      "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n  const treeStanding = checkStanding(log, now.tree)",
+      "from": "  const baseline = sessionBaseline(log)?.observation\n    ?? (log.some(entry => entry.event === 'session.started')",
+      "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n    ?? (log.some(entry => entry.event === 'session.started')",
       "only": "a session whose first look failed"
     },
     {
@@ -15975,6 +15975,70 @@
       "from": "    governsUnmatched: rotted.map(entry => entry.slice('governs:'.length)),",
       "to": "    governsUnmatched: [],",
       "only": "adr-state --json lists the Governs paths"
+    },
+    {
+      "label": "BACKLOG §319 H: git's hook gets no late baseline",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "    ?? (log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now) ? now : undefined)",
+      "to": "    ?? undefined",
+      "only": "git's own hook gives a failed start"
+    },
+    {
+      "label": "BACKLOG §319 H: git's hook hands a worktree a late baseline",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now)",
+      "to": "lateBaselineAllowed(log, cwd, now)",
+      "only": "git's own hook gives a failed start"
+    },
+    {
+      "label": "BACKLOG §319 G: a script whose value is not a string is a definition",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "    return {name for name, value in scripts.items() if isinstance(value, str)} if isinstance(scripts, dict) else set()",
+      "to": "    return set(scripts) if isinstance(scripts, dict) else set()",
+      "only": "adr-lint reads a package.json script"
+    },
+    {
+      "label": "BACKLOG §319 G: a BOM hides every script",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "        manifest = json.loads(source.lstrip(chr(0xFEFF)))",
+      "to": "        manifest = json.loads(source)",
+      "only": "adr-lint reads a package.json script"
+    },
+    {
+      "label": "BACKLOG §319 A: a nested spec with a line break is invisible",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))",
+      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/.+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "BACKLOG §319 C: a task that is not a regular file is read",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  if (!statSync(file).isFile()) throw Object.assign(new Error(`${file} is not a regular file`), { code: 'ENOTREG' })",
+      "to": "  if (false) throw Object.assign(new Error(`${file} is not a regular file`), { code: 'ENOTREG' })",
+      "only": "corpus-report counts a FIFO task"
+    },
+    {
+      "label": "BACKLOG §319 C: a FIFO named like a task is skipped",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "      // and left to the reader, which refuses it unopened, rather than skipped in silence.\n      else if (task) found.push(full)",
+      "to": "      // and left to the reader, which refuses it unopened, rather than skipped in silence.\n      else if (false) found.push(full)",
+      "only": "corpus-report counts a FIFO task"
+    },
+    {
+      "label": "BACKLOG §319 C: corpus-report's CLI reads through a reader that opens anything",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "export function run(argv, { read = readRegularFile,",
+      "to": "export function run(argv, { read = readFileSync,",
+      "only": "corpus-report counts a FIFO task"
     }
   ]
 }

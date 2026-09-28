@@ -35,6 +35,16 @@ const ENTRY = /^-\s+\d{4}-\d{2}-\d{2}\s+·/
 const EXIT = /·\s*exit\s+(\d+)\s*·/
 const MUTANT = /·\s*mutant\s+(killed|survived|inconclusive)\s*·/
 
+/**
+ * Read a task file, refusing anything but a regular file before opening it. A FIFO or a
+ * device named like a task, directly or through a link, blocked this synchronous read
+ * (Codex review of fe918bb); it is counted unreadable instead, in neither half.
+ */
+export function readRegularFile(file, encoding) {
+  if (!statSync(file).isFile()) throw Object.assign(new Error(`${file} is not a regular file`), { code: 'ENOTREG' })
+  return readFileSync(file, encoding)
+}
+
 /** Every `*.md` under a `tasks/` directory below root, README excluded. */
 export function taskFiles(root, unreadableDirs = [], readdir = readdirSync) {
   const found = []
@@ -68,6 +78,9 @@ export function taskFiles(root, unreadableDirs = [], readdir = readdirSync) {
         if (target?.isDirectory()) unreadableDirs.push(full)
         else if (task) found.push(full)
       }
+      // A FIFO, a socket or a device named like a task is a task nobody can read: counted,
+      // and left to the reader, which refuses it unopened, rather than skipped in silence.
+      else if (task) found.push(full)
     }
   }
   walk(root)
@@ -126,7 +139,7 @@ export function holdsConflict(text) {
   })
 }
 
-export function readTask(file, read = readFileSync) {
+export function readTask(file, read = readRegularFile) {
   let text
   try {
     text = read(file, 'utf8')
@@ -168,7 +181,7 @@ export function readTask(file, read = readFileSync) {
  * so there is no trajectory to judge and it is outside the ratio entirely. A
  * MUTATION VERDICT IS A CLAIM and keeps a task in — all three of them, see below.
  */
-export function measure(files, read = readFileSync) {
+export function measure(files, read = readRegularFile) {
   const tasks = files.map(file => readTask(file, read))
   const totals = {
     tasks: tasks.length,

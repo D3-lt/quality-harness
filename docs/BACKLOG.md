@@ -16469,3 +16469,18 @@ Nothing changed here. §241's fix, moving the guard test's campaign into a dispo
 - the name as an `assert.ok` message.
 
 Two false refusals: `//` followed by U+2028, and the raw-versus-value case in the other direction. All are ADR-072 Decision 2's literal reader (§318), which ADR-073 (Proposed) would not depend on.
+
+**The Codex round and the CI run of fe918bb (2026-09-29).** gpt-6-astra, xhigh: REQUEST CHANGES, with six findings. Each was confirmed against the source and fixed in the same batch, with a regression test and a RED mutant.
+- **P1, a fail-open.** The late baseline counted only `file.written` as prior work. A shell edit writes none, so a sequence of failed start, a Stop that saw the edit, a commit, and a clean publish look adopted the committed tree and forgave it. The fix: a late baseline is taken only from the FIRST look that succeeded (`lateBaselineAllowed`). The same holds for a session with no `session.started` at all, whose first look saw a dirty tree.
+- **P2, a false refusal left behind.** git's own hook prepares no late baseline, so a push launched from a script was still refused over a pristine tree. `publishVerdict` now applies the same rule without writing, and only to a log that holds the failed start. A linked worktree's empty log is still judged unchecked (ADR-068), and a test holds that.
+- **npm scripts.** A script whose value is not a string (`null`, a number) counted as a definition, and npm drops it. A manifest behind a BOM lost every script.
+- **A line break in a nested spec's name** hid the spec again: `.+` does not cross it.
+- **A task-shaped FIFO, directly or through a link,** reached a blocking read in corpus-report. The default reader now refuses anything but a regular file without opening it, including in `run()`, whose own `readFileSync` default had bypassed it.
+
+The CI run of fe918bb, 36486684619, was red in three jobs.
+- **Two catalogue mutants went GREEN:** "work-next speaks through terminalText" and adr-lint's "C-5 could-not-run".
+  - This is the hazard §18 names: `shown` now escapes every path before `terminalText` sees it, and `refuse_irregular` answers the directory case before the global OSError handler does.
+  - Each got a test on the route it still guards alone: an archive catalog's effect cell in work-next's PARTIAL line, and a permission-denied task file.
+  - Only the new mutants had been run locally, not every catalogue entry on the files changed.
+- **Windows.** A test compared a POSIX path with work-next's native `docs\specs\…`. And MSYS `mkfifo` exits 0 while native Python sees no file, so the FIFO tests now skip unless `statSync().isFIFO()` holds.
+- **One more slip, found by a STALE mutant:** the agent tool decoded a backslash-u escape for U+FEFF in a plan into a raw BOM inside adr-lint's source. It is written `chr(0xFEFF)` now.

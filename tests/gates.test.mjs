@@ -1883,6 +1883,28 @@ test('a task file adr-lint cannot read is could-not-run, never a traceback', () 
   assert.match(said, /could not run: \S*T1-dir\.md/, said)
 })
 
+// The directory case above is now answered by `refuse_irregular` before anything is read, so
+// it no longer reaches the handler that turns every other OSError into could-not-run: a
+// catalogue mutant of that handler stayed GREEN (CI run 36486684619). A regular file the
+// process may not read still does.
+test('a permission-denied task file adr-lint cannot read is could-not-run, never a traceback', t => {
+  if (process.platform === 'win32' || process.getuid?.() === 0) { t.skip('a mode of 000 does not refuse a read here'); return }
+  const aged = agedCorpus('qh-unreadable-mode-', '{"strictFrom":"ADR-0012"}\n')
+  const adrDir = join(aged.repo, 'docs', 'adr')
+  cpSync(join(fixture, 'ADR-001-selftest.md'), join(adrDir, 'ADR-002-other.md'))
+  const task = join(adrDir, 'ADR-002-other', 'tasks', 'T1-locked.md')
+  mkdirSync(dirname(task), { recursive: true })
+  writeFileSync(task, '# Task ADR-002-T1: locked\n')
+  chmodSync(task, 0o000)
+  try {
+    const result = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+    const said = `${result.stdout}${result.stderr}`
+    expectExit(result, 2, 'a file that could not be read is could-not-run')
+    assert.doesNotMatch(said, /Traceback/, said)
+    assert.match(said, /could not run: \S*T1-locked\.md/, said)
+  } finally { chmodSync(task, 0o644) }
+})
+
 test('an unreadable or unusable strictFrom changes nothing, and says so', () => {
   const aged = agedCorpus('qh-strict-broken-', '{ this is not json\n')
   const broken = run('adr-lint', [aged.adr, aged.tasks], aged.repo)

@@ -2713,11 +2713,13 @@ def npm_scripts(source):
     dependency, a nested key or a value is data, and still points nowhere.
     """
     try:
-        manifest = json.loads(source)
+        manifest = json.loads(source.lstrip(chr(0xFEFF)))
     except ValueError:
         return set()
     scripts = manifest.get("scripts") if isinstance(manifest, dict) else None
-    return set(scripts) if isinstance(scripts, dict) else set()
+    # A script npm runs is a string, and npm drops any other value when it normalises the
+    # manifest, so `null` or a number names nothing (Codex review of fe918bb).
+    return {name for name, value in scripts.items() if isinstance(value, str)} if isinstance(scripts, dict) else set()
 
 
 def looks_like_a_test(path):

@@ -68,6 +68,22 @@ test('work-next shows a hostile spec path with nothing that drives a terminal', 
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
+// Every path in work-next's text now goes through `visiblePath` before `say` (BACKLOG §319),
+// so the hostile spec path above no longer tells whether `say` itself escapes. An archive
+// catalog's effect cell reaches a PARTIAL line as corpus text, not as a path: a catalogue
+// mutant that dropped `terminalText` from `say` stayed GREEN until this (CI run 36486684619).
+test('work-next shows a hostile archive catalog effect with nothing that drives a terminal', () => {
+  const dir = repository({
+    'docs/adr/archive/README.md': `# Archive\n\n**Lifecycle:** Frozen historical ADR records\n\n| Record | Title | Effect |\n| --- | --- | --- |\n| [ADR-001-a.md](ADR-001-a.md) | A | ${ESC}]0;title${BEL}${ESC}[31mnot an effect |\n`,
+    'docs/adr/archive/ADR-001-a.md': '# ADR-001: A\n\n**Status:** Accepted\n\n## Context\n\nc\n\n## Decision\n\nd\n',
+  })
+  try {
+    const out = human('work-next.mjs', dir)
+    assert.match(out, /effect this reader does not know/, out)
+    assert.doesNotMatch(out, DRIVES_A_TERMINAL, JSON.stringify(out))
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
 test('SessionStart quoting drops zero-width characters and a BOM, as adr-next does', () => {
   assert.equal(quotedCorpusText(`\u{feff}cursed${ZWSP} task\u{2060}`), '«cursed task»')
 })

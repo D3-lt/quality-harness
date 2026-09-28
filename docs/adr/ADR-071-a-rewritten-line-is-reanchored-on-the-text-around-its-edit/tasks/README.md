@@ -16,4 +16,4 @@ Implementation tasks for ADR-071: A rewritten line is re-anchored on the text ar
 | Task | File | Status |
 |------|------|--------|
 | T1 | [T1-the-reanchor-rule-and-its-replay.md](T1-the-reanchor-rule-and-its-replay.md) | done |
-| T2 | [T2-the-reanchor-flag.md](T2-the-reanchor-flag.md) | pending |
+| T2 | [T2-the-reanchor-flag.md](T2-the-reanchor-flag.md) | done |

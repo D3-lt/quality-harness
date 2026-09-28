@@ -136,7 +136,7 @@ test('the command it prints is one you can actually paste', () => {
 test('unreadable subdirectories are reported as PARTIAL, and named relative to the corpus', () => {
   const out = render(report({ totals: totals({ unreadable: 3 }), unreadableDirs: ['ADR-9/tasks'] }))
   assert.match(out, /3 task file\(s\) could not be read/)
-  assert.match(out, /1 directory\(ies\) could not be listed: ADR-9\/tasks — PARTIAL, not clean/)
+  assert.match(out, /1 directory\(ies\) could not be listed, or are links this reader does not follow: ADR-9\/tasks — PARTIAL, not clean/)
   assert.doesNotMatch(render(report()), /could not be (read|listed)/)
 })
 

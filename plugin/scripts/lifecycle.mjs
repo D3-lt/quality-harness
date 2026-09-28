@@ -2136,6 +2136,15 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       records.look = 'PARTIAL'
       continue
     }
+    // ⚠ A NUL BYTE IS NOT TEXT. Its Status was read as one this reader does not know, so the
+    // record was counted "undecided" with look ok, byte-identical to an honest Proposed (a
+    // corpus-chaos run of e016066, js-spa-client B5; BACKLOG §319). adr-lint already said it
+    // could not read the same file.
+    if (text.includes('\u0000')) {
+      unreadable.push({ file, status: null, taskFiles: [], reason: 'it holds a NUL byte, so it is not text this reader can read' })
+      records.look = 'PARTIAL'
+      continue
+    }
     // A frozen record's effect comes from its archive's catalog; `governing` there
     // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
     // and the record then governs nothing here rather than whatever it last said.
@@ -2468,7 +2477,7 @@ export function bumpSessionGeneration(sessionId) {
 // transcript, so what it reports is what git and the tool events show.
 export function observedFacts(log, root, observation) {
   const writes = unobservableWrites(log)
-  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const baseline = sessionBaseline(log)?.observation
   const status = observation?.ok === true ? statusPaths(root) : []
   // By when it RAN, like the verdict: this kept `.at(-1)` after `latestCheckFor`
   // stopped trusting append order, so a stale re-imported pass landing last made
@@ -2517,7 +2526,7 @@ export function observedFacts(log, root, observation) {
     // changed" then means "since watching began", and says nothing about a commit
     // made before it — the note and the status line have to carry that, or the
     // once-only R4 line is the only place it was ever said.
-    late: log.find(entry => entry.event === 'session.started')?.late === true,
+    late: sessionBaseline(log)?.late === true,
     // Null from a torn log, not merely unprinted: SessionEnd persists this as
     // `lastVerdict`, and a row is read by a session that never saw the log.
     lastCheck: check && !logIncomplete(log)
@@ -3850,8 +3859,12 @@ export function checkEventName(record) {
   // AFTER the signal: `unproven` is read from a phrase, and a recorded SIGTERM is
   // an observation. "deadline exceeded" at exit 1 with a signal is a timeout.
   if (record?.verdict === 'unproven') return 'check.unproven'
-  if (record?.exit !== 0) return 'check.failed'
-  if (record?.git == null) return 'check.unproven'
+  // ⚠ GRADED ONLY ON THE TYPES qh-check WRITES. A row missing its exit was graded a failure,
+  // and one whose `git` was the string "yes" a pass (js-spa-client D5, BACKLOG §319): a field
+  // that is not what the writer puts there is a row nobody can read, which is could-not-look.
+  if (typeof record?.exit !== 'number') return 'check.unproven'
+  if (record.exit !== 0) return 'check.failed'
+  if (typeof record.git !== 'boolean') return 'check.unproven'
   if (record.git === true && !sameObservation(treeOnly(record.before), treeOnly(record.after))) return 'check.unproven'
   if (record.verdict === 'no-work') return 'check.no-work'
   return 'check.passed'
@@ -3910,6 +3923,20 @@ export function importCheckRecords(cwd, session) {
 
 export function sameObservation(a, b) {
   return a?.ok === true && b?.ok === true && a.tree === b.tree && a.index === b.index && a.head === b.head
+}
+
+/**
+ * The session's baseline: its first `session.started` whose look at the tree succeeded.
+ *
+ * ⚠ ONE THAT COULD NOT LOOK IS NO BASELINE. A SessionStart whose git outran its budget
+ * records an observation that is not ok, and read as the baseline it made every later tree
+ * "changed since the session started": a Stop over a pristine tree said "work no `qh-check`
+ * has passed on", and `git push` was REFUSED (go-cli-adr-corpus's corpus-chaos D5,
+ * reproduced at e016066; BACKLOG §319). It is the late case instead, so the first clean
+ * observation becomes the baseline, marked `late`.
+ */
+export function sessionBaseline(log) {
+  return log.find(entry => entry.event === 'session.started' && entry.observation?.ok === true)
 }
 
 const OBSERVED_HOOK_EVENTS = {
@@ -4058,7 +4085,8 @@ export function recordHookEvent(input) {
     // unchecked write `neutral`. Only a write GIT CAN SEE counts: one outside the
     // repository says nothing about this tree, stays outstanding on its own, and
     // refusing the baseline over it accused a repository nothing had touched.
-    if (!logIncomplete(log) && !log.some(event => event.event === 'session.started' || (event.event === 'file.written' && event.observable !== false))
+    // A `session.started` that could not look is no baseline either (sessionBaseline).
+    if (!logIncomplete(log) && !sessionBaseline(log) && !log.some(event => event.event === 'file.written' && event.observable !== false)
       && observedClean(input.cwd, entry.observation)) {
       lateBaseline = appendEvent(input.cwd, session, { event: 'session.started', late: true, observation: entry.observation }) !== false
     }
@@ -4511,7 +4539,7 @@ export function publishVerdict({ cwd, session, observation, invoked }) {
   }
   const now = observation
   const log = readEvents(cwd, session)
-  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const baseline = sessionBaseline(log)?.observation
   const treeStanding = checkStanding(log, now.tree)
   const indexStanding = checkStanding(log, now.index)
   const treeUnchecked = treeStanding !== 'passed' && (baseline?.ok !== true || now.tree !== baseline.tree)
@@ -4794,7 +4822,7 @@ function statusPaths(root) {
 // "authored here": a fetch, a merge or a checkout makes commits reachable too,
 // and this says only that no check has passed on their trees.
 function sessionCommits(log, root, head) {
-  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const baseline = sessionBaseline(log)?.observation
   const first = baseline?.head
   if (!root || typeof head !== 'string') return mark([], true)
   // ⚠ AN UNBORN BASELINE IS OBSERVED-AND-EMPTY, NOT UNKNOWN. `observe()` records a
@@ -4984,7 +5012,7 @@ export function alreadyAnswered(answered, file, identity) {
 function artifactRule(input, recorded) {
   if (typeof input.session_id !== 'string' || !input.session_id) return
   const log = readEvents(input.cwd, input.session_id)
-  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const baseline = sessionBaseline(log)?.observation
   const first = baseline?.head
   const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
   const root = directory ? gitRepositoryRoot(directory) : null
@@ -5058,7 +5086,7 @@ function completionRules(input, ended) {
   const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
   const found = directory ? gitRepositoryLookup(directory) : { ok: false, root: null, reason: 'no directory' }
   const root = found.ok ? found.root : null
-  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const baseline = sessionBaseline(log)?.observation
   const writes = unobservableWrites(log)
   const status = observation?.ok !== true ? []
     : !found.ok ? mark([], false, found.reason)

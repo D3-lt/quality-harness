@@ -26,7 +26,7 @@
 //
 // Buckets follow ADR-010: a task whose log cannot be read is `unreadable` and
 // sits in NEITHER half. "I could not look" is not "it showed nothing".
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import { isMainModule } from './main-module.mjs'
@@ -53,9 +53,21 @@ export function taskFiles(root, unreadableDirs = [], readdir = readdirSync) {
     }
     for (const entry of entries) {
       const full = path.join(dir, entry.name)
+      const task = entry.name.endsWith('.md') && path.basename(dir) === 'tasks' && entry.name.toLowerCase() !== 'readme.md'
       if (entry.isDirectory()) walk(full)
-      else if (entry.isFile() && entry.name.endsWith('.md')
-        && path.basename(dir) === 'tasks' && entry.name.toLowerCase() !== 'readme.md') found.push(full)
+      else if (entry.isFile() && task) found.push(full)
+      // ⚠ A LINK IS NEITHER A FILE NOR A DIRECTORY TO `Dirent`, and both kinds were skipped in
+      // silence: a dangling task link was counted nowhere while three other readers said they
+      // could not read it, and a linked tasks directory counted one directory's tasks as
+      // another's (a corpus-chaos run of e016066, js-spa-client; BACKLOG §319). A linked task is
+      // read through the link, so a dangling one is counted unreadable; a linked directory is
+      // named and not followed, which also keeps a link cycle from walking forever.
+      else if (entry.isSymbolicLink?.()) {
+        let target = null
+        try { target = statSync(full) } catch { target = null }
+        if (target?.isDirectory()) unreadableDirs.push(full)
+        else if (task) found.push(full)
+      }
     }
   }
   walk(root)

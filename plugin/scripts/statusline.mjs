@@ -33,7 +33,7 @@ import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
-import { latestCheckFor, logIncomplete, projectCheckCommand, readEvents, sessionLogFile } from './lifecycle.mjs'
+import { latestCheckFor, logIncomplete, projectCheckCommand, readEvents, sessionBaseline, sessionLogFile } from './lifecycle.mjs'
 import { usableCache } from './branch-state.mjs'
 import { findGitDir } from './git-directory.mjs'
 
@@ -91,7 +91,7 @@ export function reading(input, { read = readEvents, now = Date.now() } = {}) {
 function observedReading(log, observed, check) {
   const observation = observed.observation
   const observedAt = Date.parse(observed.at ?? '')
-  const began = log.find(entry => entry.event === 'session.started')
+  const began = sessionBaseline(log)
   const baseline = began?.observation
   const checks = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.'))
   const lastPass = checks.filter(entry => entry.event === 'check.passed').at(-1)

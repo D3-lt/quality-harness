@@ -16312,3 +16312,33 @@ Not scanned: the shell scripts, because no standard dead-code tool reads bash. *
 **Fixed.** `literalScanner` keeps the scan's position, and the one caller asks in order of position, so a script is read once: the same input takes 46ms. The loop body is unchanged, so the §312 mutants still name its lines. A new test pins a 4,000-call script under 1s (5s under coverage) and checks both answers: a call inside a string is data, and a real call is still read. Its mutant, which makes every query rescan from the start, is RED. The call site's rewrite left three catalogue entries stale, and `mutate --repoint --reanchor --write` repaired all three (one of them re-anchored) and measured them RED.
 
 **The class, and what was missed.** The cost test measures a mean over short literals, and it is the class member that let this through: no test fed a long input to a scanner that could be quadratic. The other per-call scans over a word in the classifier are the `matchAll` regexes, which are linear. The ADR-067 lexer (`shellWords`) was measured at 42ms on this input before the change.
+
+## 316. FIXED 2026-09-28 — The slowest selftest test, batched; and a cost bound that was a claim about one machine
+
+**Stage 6, measured first** (the owner asked to work the open 3.x items, 2026-09-28). The hooks were not where the time went. Medians over 10-20 runs, this Mac:
+
+| Path | Median |
+|---|---|
+| a trivial PreToolUse | 59ms |
+| bare `node -e ''` | 40ms |
+| a warm compile cache on the trivial PreToolUse | 42ms |
+| PreToolUse on a `git commit` | 198ms |
+| Stop | 181ms |
+| SessionStart | 767ms |
+| `observe()` | 43ms |
+
+The selftest's node suite was 151s at 8cc0327. One test was 59s of it: "every catalogue mutant still parses, so a kill is behavioural", measured at 18.5-22.3s alone.
+
+**Batched, not cached.** 862 JavaScript mutant files took 8.7s through `node --check` over 8 workers, and 1.1s in ONE child that parses each as an ES module with V8's own parser (`vm.SourceTextModule`, under `--experimental-vm-modules`, which parses and never evaluates). Both flagged the same 10 files, with 0 disagreements. The Python half, 676 mutants and about 114MB of large gates, was one serial process and is now four concurrent ones. The test alone now takes 4.6-6.5s. Each batch carries a planted syntax error and a clean file, so a checker that stopped seeing errors fails the test, and a batch that did not run fails it too (ADR-005).
+- A content-addressed cache was considered and not built. It helps only a warm local run, CI never has one, and it puts a stale-verdict risk inside the test that proves a kill is behavioural.
+- **The whole suite did not get faster, measured.** The node suite took 153.5s after the change against 151s before, at load 15-19 (the first attempt took 73 minutes at load 82 and is not counted). The test ran concurrently with the others and was never on the suite's critical path. The change saves about 50s of CPU per run on a shared machine, not wall-clock time. The critical path is the next thing to measure, not guess.
+
+**The cost bound.** "the classifier stays under its cost bound" failed in CI's coverage-floor job at 287a207 (the push run) and at 43b0353, with means of 45.3 and 46.8µs against 25, while the dispatched run of 287a207 passed. It fails in the Python-gates phase of `coverage.sh`: that phase runs the suite in parallel under coverage.py without `NODE_V8_COVERAGE`, so the 25µs bound meant for an uncontended machine applied to a loaded one. Locally the same test under node's coverage measured 5.27µs.
+- The bound now also scales with a reference workload timed in the same process: 275 times a regex-and-split iteration of about 0.09µs here, which is 25µs.
+- Contention slows both sides. A slower classifier slows only one, so the twenty-fold mutant stays RED. ADR-067 T2 recorded that mutant only in its Mutation Log, and it is now also a catalogue entry (RED at load 16).
+- The test body is locked by ADR-067 T3 and is byte-identical; only the module-level constant changed.
+
+**Named, not started:**
+- The CI mutation campaign, about 25 minutes a release, is the largest wall-clock cost still unmeasured by stage.
+- The 30s scripted-session and 23s false-green tests are next on the list.
+- The compile cache saves about 17ms a hook: measured, small, cheap.

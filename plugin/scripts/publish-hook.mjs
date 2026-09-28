@@ -33,7 +33,7 @@ const INVOKED = { 'prepare-commit-msg': 'git commit', 'pre-push': 'git push' }
 const SEQUENCER = ['MERGE_HEAD', 'CHERRY_PICK_HEAD', 'REVERT_HEAD', 'rebase-merge', 'rebase-apply']
 
 export function sequencerInProgress(cwd) {
-  const dir = spawnSync('git', ['rev-parse', '--absolute-git-dir'], { cwd, encoding: 'utf8', timeout: 10_000 })
+  const dir = spawnSync('git', ['rev-parse', '--absolute-git-dir'], { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true })
   if (dir.error || dir.status !== 0) return false
   const gitDir = dir.stdout.trim()
   return SEQUENCER.some(name => existsSync(path.join(gitDir, name)))
@@ -44,7 +44,7 @@ export function sequencerInProgress(cwd) {
 // answer is resolved against `cwd`, since some gits print the common directory
 // relative to it.
 function sessionOwnsRepository(cwd, session) {
-  const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', timeout: 10_000 })
+  const common = spawnSync('git', ['rev-parse', '--git-common-dir'], { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true })
   if (common.error || common.status !== 0) return null
   // The common directory itself, not its parent: a bare repository IS its common
   // directory, and a submodule's lives under the superproject's `.git/modules/`,

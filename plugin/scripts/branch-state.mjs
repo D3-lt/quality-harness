@@ -96,7 +96,7 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
     // different-lineage review — a comment is a claim, and this one was wrong on
     // the day it was written (CLAUDE.md, "Comments Lie — Follow the Code").
     return { ok: true, out: execFileSync(argv[0], argv.slice(1),
-      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }
+      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }
   } catch (error) {
     return { ok: false, out: '', note: (error.stderr || error.message || 'failed').toString().split('\n')[0] }
   }

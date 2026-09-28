@@ -22,6 +22,12 @@
 // line: `// untimed-spawn: <reason>`. It is then reported as acknowledged, not
 // untimed — the reason is read by a person, and a bare acknowledgement is
 // refused as untimed.
+//
+// `--hidden` asks the Windows question of the same calls in plugin/: does each pass
+// `windowsHide`? A hook runs with no console, so a child without it gets a console of
+// its own, which Windows Terminal opens as a tab that flashes (reported on 3.1.0,
+// 2026-09-28). Exit 1 names every call that would show one; a call whose options are
+// a variable or begin with a spread before the key is UNKNOWN, named, and not failed.
 import { readFileSync } from 'node:fs'
 import { createRequire } from 'node:module'
 import { spawnSync } from 'node:child_process'
@@ -72,6 +78,19 @@ function classify(options) {
   return spread ? 'unknown' : 'untimed'
 }
 
+function hiddenOf(options) {
+  if (!options) return 'shown'
+  if (options.type !== 'ObjectExpression') return 'unknown'
+  let spread = false
+  for (const property of options.properties) {
+    if (property.type === 'SpreadElement') { spread = true; continue }
+    const key = property.key
+    const name = key.type === 'Identifier' ? key.name : key.type === 'Literal' ? String(key.value) : null
+    if (name === 'windowsHide') return 'hidden'
+  }
+  return spread ? 'unknown' : 'shown'
+}
+
 function acknowledgement(lines, line) {
   for (const candidate of [lines[line - 1], lines[line - 2]]) {
     const match = /\/\/\s*untimed-spawn:\s*(.*)$/.exec(candidate ?? '')
@@ -113,13 +132,14 @@ export function scanSource(acorn, source, file) {
     }
     const line = node.loc.start.line
     let verdict = classify(optionsArgument(node.arguments))
+    const hidden = hiddenOf(optionsArgument(node.arguments))
     let reason = null
     if (verdict === 'untimed') {
       reason = acknowledgement(lines, line)
       if (reason) verdict = 'acknowledged'
       else if (reason === '') verdict = 'untimed'
     }
-    findings.push({ file, line, call: name, verdict, reason })
+    findings.push({ file, line, call: name, verdict, reason, hidden })
   })
   return { file, findings }
 }
@@ -164,13 +184,24 @@ export function main(argv = process.argv.slice(2), { acorn = loadAcorn(), stdout
     return 2
   }
   const json = argv.includes('--json')
-  const named = argv.filter(arg => arg !== '--json')
-  const files = named.length ? named.map(file => path.resolve(file)) : trackedJavaScript()
+  const hiddenMode = argv.includes('--hidden')
+  const named = argv.filter(arg => arg !== '--json' && arg !== '--hidden')
+  const tracked = named.length ? null : trackedJavaScript()
+  const files = named.length ? named.map(file => path.resolve(file))
+    : tracked && (hiddenMode ? tracked.filter(file => path.relative(ROOT, file).split(path.sep)[0] === 'plugin') : tracked)
   if (files === null) {
     stderr.write('UNRUN: git ls-files did not answer, so the set of files to check is unknown.\n')
     return 2
   }
   const results = files.map(file => scanSource(acorn, readFileSync(file, 'utf8'), file))
+  if (hiddenMode) {
+    const all = results.flatMap(result => result.findings)
+    const shown = all.filter(finding => finding.hidden === 'shown')
+    for (const finding of shown) stdout.write(`${path.relative(ROOT, finding.file)}:${finding.line}: ${finding.call}() passes no windowsHide, so on Windows it opens a console window\n`)
+    for (const finding of all.filter(f => f.hidden === 'unknown')) stdout.write(`${path.relative(ROOT, finding.file)}:${finding.line}: ${finding.call}() options could not be read here — UNKNOWN, a place to look\n`)
+    stdout.write(`${all.filter(f => f.hidden === 'hidden').length} hidden · ${shown.length} shown · ${all.filter(f => f.hidden === 'unknown').length} unknown\n`)
+    return shown.length ? 1 : 0
+  }
   stdout.write(`${report(results, { json })}\n`)
   const untimed = results.some(result => result.findings.some(finding => finding.verdict === 'untimed'))
   return untimed ? 1 : 0

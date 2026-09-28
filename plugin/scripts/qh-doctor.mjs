@@ -185,7 +185,7 @@ export function driftReading(raw) {
 export function drift(pluginRoot = PLUGIN_ROOT) {
   try {
     const out = execFileSync(process.execPath, [join(pluginRoot, 'scripts', 'sync-standalone.mjs')],
-      { encoding: 'utf8', timeout: 60_000 })
+      { encoding: 'utf8', timeout: 60_000, windowsHide: true })
     return driftReading({ looked: true, out })
   } catch (error) {
     return { looked: false, clean: null, unidentified: 0, out: error.message }
@@ -205,7 +205,7 @@ export function releaseReport({
   // No terminal prompt: a credential helper that asks would hold the doctor past
   // its own timeout, which is a wall around the child, not around the prompt.
   run = (args, options) => execFileSync('git', args, {
-    encoding: 'utf8', timeout: 15_000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, ...options,
+    encoding: 'utf8', timeout: 15_000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, windowsHide: true, ...options,
   }),
 } = {}) {
   if (!version) return { looked: false, note: 'the installed version is unreadable' }

@@ -75,7 +75,7 @@ export function resolveCodex(env = process.env, exists = existsSync, which = com
 }
 
 function commandWhich(name) {
-  const run = spawnSync('sh', ['-c', 'command -v "$1"', 'which', name], { encoding: 'utf8', timeout: 5_000 })
+  const run = spawnSync('sh', ['-c', 'command -v "$1"', 'which', name], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   if (run.status !== 0) return null
   const found = run.stdout.trim()
   return found || null

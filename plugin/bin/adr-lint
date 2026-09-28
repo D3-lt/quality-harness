@@ -118,7 +118,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
-from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers  # noqa: E402
+from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW  # noqa: E402
 
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
@@ -337,7 +337,7 @@ def committed_lines(path, run=None):
     # raises UnicodeDecodeError and kills the gate instead of letting it judge.
     runner = run or (lambda argv, cwd: subprocess.run(
         argv, cwd=cwd, capture_output=True, text=True, timeout=10,
-        encoding="utf-8", errors="replace"))
+        encoding="utf-8", errors="replace", **NO_WINDOW))
     target = Path(path)
     directory = target.parent if target.parent != Path("") else Path(".")
     try:
@@ -495,7 +495,7 @@ def git_root(d):
     try:
         r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
                            capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace")
+                           encoding="utf-8", errors="replace", **NO_WINDOW)
         if r.returncode == 0:
             return Path(r.stdout.strip())
     except Exception:
@@ -3419,7 +3419,7 @@ def fence_parses(fence, bash=None):
         return "unrun", "no POSIX shell resolvable (set CLAUDE_CODE_GIT_BASH_PATH on Windows)"
     try:
         r = subprocess.run([bash, "-n"], input=fence, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=15)
+                           encoding="utf-8", errors="replace", timeout=15, **NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired) as e:
         return "unrun", f"`{bash}` could not be run ({e.__class__.__name__})"
     if r.returncode == 0:
@@ -3779,7 +3779,7 @@ def tracked_or_unignored_paths(root):
         try:
             r = subprocess.run(["git", "-C", str(root), "-c", "core.quotePath=false", *args],
                                capture_output=True, text=True, timeout=30,
-                               encoding="utf-8", errors="replace")
+                               encoding="utf-8", errors="replace", **NO_WINDOW)
         except Exception:
             return None
         if r.returncode != 0:
@@ -4387,7 +4387,7 @@ def ignored_paths(root, candidates):
         r = subprocess.run(["git", "-C", str(root), "-c", "core.quotePath=false",
                             "check-ignore", "-v", "-z", "--stdin"],
                            input="\0".join(sorted(candidates)) + "\0", capture_output=True,
-                           text=True, timeout=30, encoding="utf-8", errors="replace")
+                           text=True, timeout=30, encoding="utf-8", errors="replace", **NO_WINDOW)
     except Exception:
         return None
     # 0 = at least one ignored, 1 = none ignored, 128 = not a repository. Only
@@ -5675,7 +5675,7 @@ def advice_survival_path(start):
     try:
         r = subprocess.run(["git", "-C", str(start), "rev-parse", "--git-path", ADVICE_SURVIVAL_NAME],
                            capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace")
+                           encoding="utf-8", errors="replace", **NO_WINDOW)
     except Exception:
         return None
     if r.returncode != 0 or not r.stdout.strip():

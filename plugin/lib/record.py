@@ -36,12 +36,27 @@ import ast
 import base64
 import hashlib
 import json
+import os
 import re
 from functools import lru_cache
 from pathlib import Path
 
+# A gate a hook starts hidden has no console, and every console program it starts
+# (git, bash) then gets a console window of its own, which Windows Terminal opens as a
+# tab that flashes for a moment (reported on 3.1.0, 2026-09-28). Every subprocess call
+# in the gates passes this; it is empty off Windows. 0x08000000 is CREATE_NO_WINDOW.
+
+
+def no_window(platform):
+    """The keyword arguments that start a child with no console window on `platform`."""
+    return {"creationflags": 0x08000000} if platform == "nt" else {}
+
+
+NO_WINDOW = no_window(os.name)
+
 __all__ = [
     "sections_of",
+    "NO_WINDOW",
     "section_span",
     "repeated_headings",
     "unterminated_fence",

@@ -113,6 +113,11 @@ export function check(text, root) {
     refused.push(`2: keys outside the attestation schema (${[...unknown, ...corpusUnknown.map(k => `corpus.${k}`)].join(', ')}): a report's content is never committed`)
   }
   if (attestation.kind !== 'probe') refused.push(`3: kind is ${JSON.stringify(attestation.kind)}; only a probe attestation carries digests to check, and a hand one is filed by hand`)
+  // The date names the file, so it must be a date: `../../x` would have filed outside
+  // docs/corpus-reports (Codex review of 3.1.0..e0ef6d4, F1).
+  if (typeof attestation.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(attestation.date)) {
+    refused.push(`2: date is ${JSON.stringify(attestation.date)}, not YYYY-MM-DD`)
+  }
   if (typeof attestation.at !== 'string' || !/^[0-9a-f]{40}$/.test(attestation.at)) {
     refused.push(`4: at is ${JSON.stringify(attestation.at)}, not a full 40-hex sha`)
     return { refused }
@@ -132,6 +137,9 @@ export function check(text, root) {
   try { pluginVersion = JSON.parse(version.stdout.toString('utf8')).version } catch { /* compared below as null */ }
   if (attestation.plugin !== pluginVersion) refused.push(`5: plugin ${JSON.stringify(attestation.plugin)} is not ${JSON.stringify(pluginVersion)}, plugin.json at ${attestation.at.slice(0, 7)}`)
   const name = fileName(attestation)
+  // And the name it builds is a plain name, whatever a field held: the file lands in
+  // docs/corpus-reports or nowhere.
+  if (name !== path.basename(name) || name.startsWith('.')) refused.push(`6: the file name ${JSON.stringify(name)} is not a plain name inside docs/corpus-reports`)
   const dir = path.join(root, 'docs', 'corpus-reports')
   const duplicate = existsSync(dir) && readdirSync(dir).filter(file => file.endsWith('.json')).some(file => {
     try {

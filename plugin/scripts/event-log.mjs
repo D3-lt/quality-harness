@@ -102,7 +102,7 @@ function repositoryStateDir(cwd, { spawn = true } = {}) {
     resolved = findGitDir(directory)
     if (resolved) resolved = path.join(canonical(resolved), 'quality-harness')
     if (!resolved && spawn) {
-      const run = spawnSync('git', ['-C', directory, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 5_000 })
+      const run = spawnSync('git', ['-C', directory, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
       if (!run.error && run.status === 0 && run.stdout.trim()) resolved = path.join(canonical(run.stdout.trim()), 'quality-harness')
     }
   }

@@ -86,7 +86,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402
-from record import vlog_row_is_lock_snapshot, conflict_markers  # noqa: E402
+from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -385,7 +385,7 @@ def git_root(d):
     try:
         r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
                            capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace")
+                           encoding="utf-8", errors="replace", **NO_WINDOW)
         if r.returncode == 0:
             return Path(r.stdout.strip())
     except Exception:
@@ -403,7 +403,7 @@ def listed_absent(tasks_dir):
     """
     try:
         r = subprocess.run(["git", "-C", str(tasks_dir), "ls-files", "-z", "--", "."],
-                           capture_output=True, timeout=10)
+                           capture_output=True, timeout=10, **NO_WINDOW)
     except Exception:
         return []
     if r.returncode != 0:

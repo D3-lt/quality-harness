@@ -881,3 +881,34 @@ test('an argv list in node or perl, and an alias set with -c, are read as the pu
   }
   for (const command of ARGV_AND_ALIAS_CONTROLS) assert.equal(publishCommandIn(command), null, command)
 })
+
+// Codex review of 3.1.0..e0ef6d4. An alias is expanded as git expands it, its words
+// before the command line's (F2); git's own commands win over an alias (F4, measured on
+// 2.55.0: `alias.mergetool=version mergetool` ran mergetool); a `!` alias's arguments
+// are data (F5, measured: `echo` printed `ok; git status`); and a call spelled inside a
+// string literal is printed, not run (F3).
+const REVIEWED_PUBLISHES = {
+  "git -c 'alias.c=commit -m' c --dry-run": 'git -c alias.c=commit -m c',
+  "git -c 'alias.x=!git' x push": 'git push',
+  "git -c 'alias.x=!git push' x": 'git push',
+  "perl -e 'print qq{x}; system(\"git\", \"push\")'": 'git push',
+  'python3 -c "print(\'x\'); import os; os.system(\'git push\')"': 'git push',
+}
+const REVIEWED_CONTROLS = [
+  "git -c 'alias.p=push --dry-run' p",
+  'git -c alias.version=push version', 'git -c alias.mergetool=push mergetool',
+  "git -c 'alias.x=!echo' x 'ok; git push'",
+  'node -e "console.log(\\"spawnSync(\'git\', [\'push\'])\\")"',
+  'python3 -c "print(\\"os.system(\'git push\')\\")"',
+  'python3 -c "print(\\"run: os.system(\'git push\') now\\")"',
+  "perl -e 'print qq{system(\"git\", \"push\")}'",
+  'node -e "console.log(\\"a\\\\\\" spawnSync(\'git\', [\'push\'])\\")"',
+]
+test('an alias is read as git expands it, and a call inside a string is data', () => {
+  const unarmed = armedSession('reviewed-e0ef6d4-', { armed: false })
+  for (const [command, expected] of Object.entries(REVIEWED_PUBLISHES)) {
+    assert.equal(publishCommandIn(command), expected, command)
+    assert.equal(unarmed.decide(command), 'deny', command)
+  }
+  for (const command of REVIEWED_CONTROLS) assert.equal(publishCommandIn(command), null, command)
+})

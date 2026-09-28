@@ -74,7 +74,7 @@ export function probeDigest(read = readFileSync) {
  * is what lets an attestation refuse to claim readers the runner did not commit.
  * Two git spawns at most. `run` is the seam.
  */
-export function readerFingerprint(pluginRoot, { run = args => spawnSync('git', ['-C', pluginRoot, ...args], { encoding: 'utf8', timeout: 30_000 }) } = {}) {
+export function readerFingerprint(pluginRoot, { run = args => spawnSync('git', ['-C', pluginRoot, ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true }) } = {}) {
   const files = []
   const walk = relative => {
     for (const entry of readdirSync(path.join(pluginRoot, relative), { withFileTypes: true })) {
@@ -255,7 +255,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const couldNotRun = []
   const note = (readerName, why) => couldNotRun.push({ reader: scrub(readerName), why: scrub(why) })
   const node = (script, args, options = {}) => spawnSync(process.execPath, [path.join(here, script), ...args],
-    { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, ...options })
+    { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, windowsHide: true, ...options })
   const gate = (tool, args, timeout = timeoutMs) => spawnGate(path.join(bin, tool), args, { cwd: resolved, encoding: 'utf8', timeout })
   // ADR-064 T4: every spawn is timed, including one that failed, so a reader that
   // is `null` below still has its time here. A disk walk that took minutes per
@@ -535,7 +535,7 @@ export function diffReports(before, after, scrub = text => String(text)) {
 function pythonVersion() {
   const command = process.platform === 'win32' ? resolvePython() : ['python3']
   if (!command) return null
-  const run = spawnSync(command[0], [...command.slice(1), '--version'], { encoding: 'utf8', timeout: 10_000 })
+  const run = spawnSync(command[0], [...command.slice(1), '--version'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
   return /Python (\S+)/.exec(`${run.stdout ?? ''}${run.stderr ?? ''}`)?.[1] ?? null
 }
 

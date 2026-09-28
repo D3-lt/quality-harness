@@ -133,3 +133,17 @@ Six false blocks came from writing fences that DO assert and checking whether th
 Four more — including one introduced by that very self-attack, in the function it had just rewritten
 — came from a different-lineage review that built its own inputs and executed them. Three GREEN
 mutants said tests were not testing what they claimed. None of the ten came from re-reading.
+
+## An exemption is attacked from the side it opens (3.1.1, BACKLOG §311-§312)
+
+A Codex round found `node -e "console.log(\"spawnSync('git', ['push'])\")"` refused, which was a false
+refusal. The fix taught the publish classifier that a call inside a string literal is data. The next
+round found the fail-open the fix had opened:
+- a JS template's `${spawnSync("git", ["push"])}` runs;
+- so does a Python f-string's `{os.system("git push")}`;
+- and so does Perl's `@{[system("git", "push")]}`.
+
+The exemption was measured only on the rows that motivated it. So each "this is data" row now has a
+"this is code again" twin beside it in `tests/publish-command.test.mjs`. The same held for git
+aliases, twice: an alias of a builtin is ignored, an external command's alias is not (measured with
+`--exec-path=/nonexistent`), and git splits an alias on whitespace, not like a shell.

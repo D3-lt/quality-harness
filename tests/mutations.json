@@ -14616,6 +14616,46 @@
       "from": "  return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())",
       "to": "  return GIT_COMMANDS.has(name) || name === 'mergetool' ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())",
       "only": "read as git expands it"
+    },
+    {
+      "label": "§314: a tree that could not be observed is said at a publish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (observation?.ok !== true) {\n    const reason = observation?.reason ?? 'no observation was made'",
+      "to": "  if (false) {\n    const reason = observation?.reason ?? 'no observation was made'",
+      "only": "could not be observed"
+    },
+    {
+      "label": "§314: git's own hook says an unobserved tree too",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (verdict?.unobserved) return { code: 0, message: verdict.text }",
+      "to": "  if (false) return { code: 0, message: verdict.text }",
+      "only": "could not be observed"
+    },
+    {
+      "label": "§314: git's own hook reads the budget from its environment",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "observation: observe(cwd, observeBudgetMs(env)), invoked })",
+      "to": "observation: observe(cwd), invoked })",
+      "only": "could not be observed"
+    },
+    {
+      "label": "§314: observe()'s budget is read from the environment",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return Number.isSafeInteger(configured) && configured > 0 ? configured : OBSERVE_BUDGET_MS",
+      "to": "  return OBSERVE_BUDGET_MS",
+      "only": "budget is read|could not be observed"
     }
   ]
 }

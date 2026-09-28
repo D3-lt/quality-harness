@@ -3776,7 +3776,14 @@ export function readOnlyRole(agentType) {
 // repository's own objects as alternate: measured 2026-09-17, the repository's
 // objects, index and status are unchanged by it (ADR-060 Context).
 const OBSERVE_BUDGET_MS = 5_000
-export function observe(cwd, budgetMs = OBSERVE_BUDGET_MS) {
+// A slow host may raise it, and the suite does: git on a loaded Windows runner outran
+// 5s, and every rule that needs the tree read could-not-look (release run of d174c76,
+// BACKLOG §314). Anything but a positive whole number of milliseconds is ignored.
+export function observeBudgetMs(env = process.env) {
+  const configured = Number(env.QUALITY_HARNESS_OBSERVE_BUDGET_MS)
+  return Number.isSafeInteger(configured) && configured > 0 ? configured : OBSERVE_BUDGET_MS
+}
+export function observe(cwd, budgetMs = observeBudgetMs()) {
   const started = Date.now()
   const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
   if (!directory) return { ok: false, reason: 'the working directory does not exist' }
@@ -4466,13 +4473,28 @@ export function leavesHookInPlace(command) {
  * is nothing to say, else `{ deny, key, detail, text }`.
  */
 export function publishVerdict({ cwd, session, observation, invoked }) {
-  if (observation?.ok !== true) return null
   // ONE root lookup for this decision: the check and the opt-out are read from
   // the same answer, so they cannot disagree about which project this is.
   const place = nearestExistingDirectory(path.resolve(cwd))
   const found = place ? gitRepositoryLookup(place) : { ok: false, root: null, reason: 'the working directory does not exist' }
   const origin = checkCommandOrigin(cwd, found)
   if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven') return null
+  // ⚠ A TREE THAT COULD NOT BE OBSERVED IS SAID, NEVER PASSED IN SILENCE. This
+  // returned null before anything was said, so where git outran observe()'s budget an
+  // unchecked commit met neither a refusal nor a word, from PreToolUse or from git's
+  // own hook (reproduced with a slow git, BACKLOG §314). A state nobody could read is
+  // advice, never a refusal (CLAUDE.md §16), and the sentence names the look that failed.
+  if (observation?.ok !== true) {
+    const reason = observation?.reason ?? 'no observation was made'
+    return {
+      deny: false, unobserved: true, key: `unobserved:${reason}`, detail: { reason },
+      text: `quality-harness: whether this repository is checked is unknown — its working tree could not be observed (${reason}) — and the command `
+        + (invoked !== null
+          ? `about to run names commit or push (\`${invoked}\`). Nothing is refused on a state that could not be read. Run \`qh-check\` before publishing; on a slow host, QUALITY_HARNESS_OBSERVE_BUDGET_MS raises the 5s budget.`
+          : 'about to run only mentions commit or push. Advisory; nothing is refused.')
+        + inferredCheckCaveat(cwd),
+    }
+  }
   const now = observation
   const log = readEvents(cwd, session)
   const baseline = log.find(entry => entry.event === 'session.started')?.observation

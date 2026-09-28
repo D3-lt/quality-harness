@@ -14796,6 +14796,16 @@
       "from": "  return at => insideLiteral(script, at, language, state)",
       "to": "  return at => insideLiteral(script, at, language)",
       "only": "stays linear"
+    },
+    {
+      "label": "§316: a classifier twenty times slower breaks the cost bound",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  return publishInText(command, 0)",
+      "to": "  for (let i = 0; i < 19; i++) publishInText(command, 0)\n  return publishInText(command, 0)",
+      "only": "stays under its cost bound"
     }
   ]
 }

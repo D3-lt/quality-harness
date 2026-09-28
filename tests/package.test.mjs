@@ -5,7 +5,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
-import { pythonArgv, runPython } from '../scripts/python-interpreter.mjs'
+import { pythonArgv } from '../scripts/python-interpreter.mjs'
 import { fileURLToPath } from 'node:url'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -684,43 +684,67 @@ test('every catalogue mutant still parses, so a kill is behavioural', async (t) 
     jobs.push({ label: entry.label, isJs, original: originals.get(entry.file), mutant })
   }
 
-  // Python in ONE process: interpreter startup dominates a per-file spawn, and
-  // there are hundreds of gate files here.
-  const pythonFiles = [...new Set(jobs.filter(j => !j.isJs).flatMap(j => [j.original, j.mutant]))]
+  // Python in FOUR processes, run concurrently: interpreter startup dominated a
+  // per-file spawn, and one process then spent most of this test serially parsing
+  // 676 mutants of large gates, about 114 MB (BACKLOG §316).
+  const knownBadPy = join(dir, 'known-bad.py')
+  const knownGoodPy = join(dir, 'known-good.py')
+  writeFileSync(knownBadPy, 'def broken(:\n')
+  writeFileSync(knownGoodPy, 'fine = 1\n')
+  const pythonFiles = [...new Set(jobs.filter(j => !j.isJs).flatMap(j => [j.original, j.mutant])), knownBadPy, knownGoodPy]
   const badPython = new Set()
   if (pythonFiles.length) {
-    const list = join(dir, 'python-files.json')
-    writeFileSync(list, JSON.stringify(pythonFiles))
     const batched = 'import ast,sys,json\n'
       + 'bad=[]\n'
       + 'for p in json.load(open(sys.argv[1],encoding="utf-8")):\n'
       + '    try: ast.parse(open(p,encoding="utf-8").read())\n'
       + '    except Exception: bad.append(p)\n'
       + 'print(json.dumps(bad))\n'
-    const out = runPython(['-c', batched, list], { encoding: 'utf8' })
-    // A batch that did not run is NOT a batch in which everything parsed
-    // (ADR-005); fail loudly rather than reporting a clean sweep nobody took.
-    assert.equal(out.status, 0, `the batched python parse did not run: ${out.stderr ?? ''}`)
-    for (const p of JSON.parse(out.stdout)) badPython.add(p)
-  }
-
-  // Node in parallel: `node --check` is one file per process and there is no
-  // stable in-process ESM syntax check, so the win here is concurrency rather
-  // than batching.
-  const jsFiles = [...new Set(jobs.filter(j => j.isJs).flatMap(j => [j.original, j.mutant]))]
-  const badJs = new Set()
-  const checkJs = file => new Promise(resolve => {
-    const child = spawn(process.execPath, ['--check', file], { stdio: 'ignore', timeout: 60_000 })
-    child.on('exit', code => resolve(code === 0))
-    child.on('error', () => resolve(false))
-  })
-  let next = 0
-  await Promise.all(Array.from({ length: Math.min(8, jsFiles.length) }, async () => {
-    while (next < jsFiles.length) {
-      const file = jsFiles[next]; next += 1
-      if (!await checkJs(file)) badJs.add(file)
+    const [python, ...prefix] = pythonArgv()
+    const chunks = Array.from({ length: 4 }, (_, i) => pythonFiles.filter((_, n) => n % 4 === i)).filter(chunk => chunk.length)
+    const outs = await Promise.all(chunks.map((chunk, i) => new Promise(done => {
+      const list = join(dir, `python-files-${i}.json`)
+      writeFileSync(list, JSON.stringify(chunk))
+      const child = spawn(python, [...prefix, '-c', batched, list], { timeout: 120_000 })
+      let stdout = ''
+      let stderr = ''
+      child.stdout.on('data', data => { stdout += data })
+      child.stderr.on('data', data => { stderr += data })
+      child.on('close', status => done({ status, stdout, stderr }))
+      child.on('error', error => done({ status: null, stdout, stderr: String(error) }))
+    })))
+    for (const out of outs) {
+      // A batch that did not run is NOT a batch in which everything parsed
+      // (ADR-005); fail loudly rather than reporting a clean sweep nobody took.
+      assert.equal(out.status, 0, `a batched python parse did not run: ${out.stderr}`)
+      for (const p of JSON.parse(out.stdout)) badPython.add(p)
     }
-  }))
+  }
+  assert.ok(badPython.has(knownBadPy) && !badPython.has(knownGoodPy), 'the batched python parse tells a syntax error from valid code')
+
+  // Node in ONE process as well. `node --check` is one file per process, and 862
+  // files took 8.7s over 8 workers; one child parsing each file as an ES module
+  // with V8's own parser (`vm.SourceTextModule`, which parses and never evaluates)
+  // took 1.1s and agreed on every file, the same 10 unparseable (measured
+  // 2026-09-28, BACKLOG §316). A known-bad module and a known-good one ride in the
+  // same batch, so a checker that stopped seeing syntax errors fails here.
+  const jsFiles = [...new Set(jobs.filter(j => j.isJs).flatMap(j => [j.original, j.mutant]))]
+  const knownBad = join(dir, 'known-bad.mjs')
+  const knownGood = join(dir, 'known-good.mjs')
+  writeFileSync(knownBad, 'export const broken = (\n')
+  writeFileSync(knownGood, 'export const fine = 1\n')
+  const jsList = join(dir, 'js-files.json')
+  writeFileSync(jsList, JSON.stringify([...jsFiles, knownBad, knownGood]))
+  const esmCheck = "import vm from 'node:vm'; import { readFileSync } from 'node:fs'; const bad = [];"
+    + " for (const file of JSON.parse(readFileSync(process.argv[1], 'utf8'))) {"
+    + " try { new vm.SourceTextModule(readFileSync(file, 'utf8'), { identifier: file }) } catch { bad.push(file) } }"
+    + ' process.stdout.write(JSON.stringify(bad))'
+  const js = spawnSync(process.execPath, ['--experimental-vm-modules', '--no-warnings', '--input-type=module', '-e', esmCheck, jsList],
+    { encoding: 'utf8', timeout: 120_000, maxBuffer: 64 * 1024 * 1024 })
+  // As for Python: a batch that did not run is not one in which everything parsed.
+  assert.equal(js.status, 0, `the batched module parse did not run: ${js.stderr ?? ''}`)
+  const badJs = new Set(JSON.parse(js.stdout))
+  assert.ok(badJs.has(knownBad) && !badJs.has(knownGood), 'the batched module parse tells a syntax error from valid code')
 
   const parses = (file, isJs) => !(isJs ? badJs : badPython).has(file)
   const unparseable = []

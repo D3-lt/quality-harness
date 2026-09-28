@@ -201,10 +201,13 @@ function publishAttempt(command, dir, session, options = {}) {
 
 // A turn end in the observed model: no transcript, a session id, and whatever
 // the assistant's last message was (the suppressions read it).
+// The slow-hook note is off for a turn's end unless a test asks for it: a slow
+// runner appended it to the Stop message a test was reading (windows, CI at aa3da2b:
+// Stop took 5.0s). The note's own test drives PreToolUse, with its threshold set.
 function turnEnd(dir, session, message, options = {}) {
   return runLifecycleHook({
     hook_event_name: 'Stop', cwd: dir, session_id: session, last_assistant_message: message,
-  }, options)
+  }, { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, QUALITY_HARNESS_SLOW_HOOK_MS: '600000' }, ...options })
 }
 
 function toolUse(id, name, input) {

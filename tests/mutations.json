@@ -14806,6 +14806,26 @@
       "from": "  return publishInText(command, 0)",
       "to": "  for (let i = 0; i < 19; i++) publishInText(command, 0)\n  return publishInText(command, 0)",
       "only": "stays under its cost bound"
+    },
+    {
+      "label": "ADR-072 T1: a RED record carries its killers",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "ms: result.elapsedMs, killers: result.killers ?? [] }",
+      "to": "ms: result.elapsedMs }",
+      "only": "the campaign cache records"
+    },
+    {
+      "label": "ADR-072 T1: a record without killers is measured again",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (hit && Array.isArray(hit.killers)) reuse.set(m.label, hit)",
+      "to": "if (hit) reuse.set(m.label, hit)",
+      "only": "the campaign cache records"
     }
   ]
 }

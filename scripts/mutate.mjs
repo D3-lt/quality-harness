@@ -1014,7 +1014,9 @@ export function main(argv) {
   if (!argv.includes('--no-cache')) {
     for (const m of selected) {
       const hit = reusable(m, cache, keys.get(m.label))
-      if (hit) reuse.set(m.label, hit)
+      // ADR-072: a RED record from before killers were recorded cannot narrow an entry,
+      // so it is measured again. `reusable` is unchanged, and so are the tests that lock it.
+      if (hit && Array.isArray(hit.killers)) reuse.set(m.label, hit)
     }
   }
   const toMeasure = selected.filter(m => !reuse.has(m.label))
@@ -1103,7 +1105,8 @@ export function main(argv) {
       // The duration rides along for BACKLOG §106's cost-balanced slicing: a
       // measurement from the campaign's own last run, never a table beside it.
       if (result.verdict === 'RED') {
-        entries[key] = { verdict: 'RED', sha, label: result.label, ms: result.elapsedMs }
+        // ADR-072: the killers ride along too, so a narrowing is read from this record.
+        entries[key] = { verdict: 'RED', sha, label: result.label, ms: result.elapsedMs, killers: result.killers ?? [] }
       }
       else delete entries[key]
     }

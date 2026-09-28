@@ -984,3 +984,46 @@ test('a campaign leaves nothing in the temp directory, whatever its tests forget
     rmSync(probe, { recursive: true, force: true })
   }
 })
+
+// ADR-072 T1. The campaign's cache is the only record of which tests killed a mutant,
+// and a narrowing is built from it. A RED record carries its killers, a GREEN entry is
+// not stored, and a RED record without killers, as every record before ADR-072 is, is
+// measured again rather than reused, so no old record reaches a narrowing.
+test('the campaign cache records the tests that killed each RED entry', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-killers-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const env = { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '' }
+    const campaign = () => spawnSync(process.execPath, [runner, '--root', repo], { cwd: repo, encoding: 'utf8', timeout: 180_000, env })
+    const cacheFile = join(repo, '.mutation-cache.json')
+    const records = () => Object.values(JSON.parse(readFileSync(cacheFile, 'utf8')).entries).map(record => [record.label, record.killers])
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), "export const f = () => 1\nexport const g = () => 'kept'\n")
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { f, g } from '../a.mjs'\n"
+      + "test('f is one', () => { assert.equal(f(), 1) })\ntest('g exists', () => { assert.equal(typeof g, 'function') })\n")
+    writeFileSync(join(repo, 'tests', 'mutations.json'), `${JSON.stringify({ mutations: [
+      { label: 'red', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2' },
+      { label: 'green', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: "export const g = () => 'kept'", to: "export const g = () => 'lost'" },
+    ] }, null, 2)}\n`)
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base', '--no-verify')
+
+    // Measured: the RED record names its killer, and the GREEN entry is not stored.
+    const first = campaign()
+    assert.ok(first.stdout.includes('1/2 mutations were noticed.'), `${first.stdout}\n${first.stderr}`)
+    assert.deepEqual(records(), [['red', ['f is one']]])
+
+    // Reused while the record carries its killers: the control for the step below.
+    const second = campaign()
+    assert.ok(second.stdout.includes('REUSED   red'), `${second.stdout}\n${second.stderr}`)
+
+    // The same record without its killers is measured again, and stored with them.
+    const cache = JSON.parse(readFileSync(cacheFile, 'utf8'))
+    for (const record of Object.values(cache.entries)) delete record.killers
+    writeFileSync(cacheFile, `${JSON.stringify(cache, null, 2)}\n`)
+    const third = campaign()
+    assert.ok(!third.stdout.includes('REUSED'), `${third.stdout}\n${third.stderr}`)
+    assert.ok(third.stdout.includes('1/2 mutations were noticed.'), third.stdout)
+    assert.deepEqual(records(), [['red', ['f is one']]])
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})

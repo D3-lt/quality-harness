@@ -1656,8 +1656,12 @@ test('adr-lint reports Go fences whose required success is unreachable', (t) => 
 
 // A corpus with history: the fixture copied into a repo of its own, with one
 // content rule broken and one evidence claim unbacked.
+// Removed when the file ends (BACKLOG §310): an aged corpus is a whole repository.
+const agedRepos = []
+test.after(() => { for (const dir of agedRepos) rmSync(dir, { recursive: true, force: true }) })
 function agedCorpus(prefix, config) {
   const repo = mkdtempSync(join(os.tmpdir(), prefix))
+  agedRepos.push(repo)
   spawnSync('git', ['init', '-q', repo], { encoding: 'utf8', timeout: 60_000 })
   const adrDir = join(repo, 'docs', 'adr')
   mkdirSync(adrDir, { recursive: true })

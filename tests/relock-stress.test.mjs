@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdtempSync } from 'node:fs'
+import { mkdtempSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -21,6 +21,9 @@ const pyEnv = {
   PYTHONPYCACHEPREFIX: mkdtempSync(join(os.tmpdir(), 'qh-pyc-')),
   QH_RELOCK_STRESS_MUTANTS: '0',
 }
+// Removed when the file ends, with the per-run cache below (BACKLOG §310).
+const pycaches = [pyEnv.PYTHONPYCACHEPREFIX]
+test.after(() => { for (const dir of pycaches) rmSync(dir, { recursive: true, force: true }) })
 
 test('ADR-052 --relock stress against the Decision oracle', () => {
   // stress-testing skill: oracle from ADR-052 §Decision, never from the code.
@@ -32,7 +35,7 @@ test('ADR-052 --relock stress against the Decision oracle', () => {
   // tests/relock-stress.py
   const run = runPython(['-B', join(testDir, 'relock-stress.py')], {
     cwd: repoRoot,
-    env: { ...pyEnv, PYTHONPYCACHEPREFIX: mkdtempSync(join(os.tmpdir(), 'qh-pyc-')) },
+    env: { ...pyEnv, PYTHONPYCACHEPREFIX: pycaches[pycaches.push(mkdtempSync(join(os.tmpdir(), 'qh-pyc-'))) - 1] },
     encoding: 'utf8',
     timeout: 120_000,
   })

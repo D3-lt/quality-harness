@@ -1,12 +1,12 @@
 # Task ADR-072-T3: The catalogue narrowed, and the next campaign measured against run 36413858960
 
-**Depends-on:** T2
+**Depends-on:** T2, T4
 **Covers:** none — no spec
 **Estimated scope:** M (the catalogue, one CI campaign)
 **Owner:** unassigned
 **Produces:** `tests/mutations.json` with `only` filled for the admitted entries
-**Consumes:** `narrowEntry(entry, record, sources)` (T2)
-**Data dependency:** needs a full campaign's cache (a `--no-cache` run that records killers) and one dispatched CI campaign after the write
+**Consumes:** `narrowEntry(entry, record, sources)` (T2), and `--narrow --write` measuring before it writes (T4)
+**Data dependency:** needs the shard caches of a push campaign run after T1, which record killers (a `--no-cache` dispatched run writes no cache), and one dispatched CI campaign after the write
 **Proof map:** v1
 
 ## Goal

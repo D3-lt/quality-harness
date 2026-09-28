@@ -598,12 +598,91 @@ export function staleEntries(mutations, read) {
   return stale
 }
 
-// ADR-072 Decision 2: a test is defined in a file when its name appears there verbatim as
-// a string literal. A name built at runtime is not, so an entry it kills is refused.
+// ADR-072 Decision 2, as T4 reads it after the Codex review of T1 and T2: a test is
+// defined in a file when its name is one of the file's string literal TOKENS. A name left
+// in a comment, inside a fixture string or in a regular expression defines nothing, and a
+// name built at runtime (a template with `${…}`) is no token, so an entry it kills is refused.
 function definesTest(source, name) {
-  if (typeof source !== 'string') return false
-  const quotes = name.includes('${') ? ["'", '"'] : ["'", '"', '`']
-  return quotes.some(quote => !name.includes(quote) && source.includes(`${quote}${name}${quote}`))
+  return typeof source === 'string' && literalsOf(source).has(name)
+}
+
+// The string literal tokens of a JavaScript source: '…', "…" and a template with no hole,
+// each as written between its quotes. It reads past comments, regular-expression literals
+// and template holes. Not a parser (CLAUDE.md §16): a `/` opens a regular expression after
+// an operator, an opening bracket, a keyword that takes an expression, or nothing, and is a
+// division after anything else. T4 measured it over every test file the catalogue names.
+const REGEX_AFTER = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '<', '>', '~', '^'])
+const REGEX_KEYWORDS = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case', 'do', 'else', 'yield', 'await'])
+const literalTokens = new Map()
+function literalsOf(source) {
+  if (literalTokens.has(source)) return literalTokens.get(source)
+  const found = new Set()
+  // For each open template hole, how many `{` it has opened since.
+  const holes = []
+  let last = ''
+  let i = 0
+  // A template's text from `from` to its closing backtick or its next hole.
+  const template = from => {
+    let j = from
+    while (j < source.length && source[j] !== '`' && !(source[j] === '$' && source[j + 1] === '{')) j += source[j] === '\\' ? 2 : 1
+    return { text: source.slice(from, j), end: j, hole: source[j] === '$' }
+  }
+  while (i < source.length) {
+    const c = source[i]
+    if (c === '/' && source[i + 1] === '/') { const end = source.indexOf('\n', i); i = end < 0 ? source.length : end; continue }
+    if (c === '/' && source[i + 1] === '*') { const end = source.indexOf('*/', i + 2); i = end < 0 ? source.length : end + 2; continue }
+    if (c === "'" || c === '"') {
+      let j = i + 1
+      while (j < source.length && source[j] !== c && source[j] !== '\n') j += source[j] === '\\' ? 2 : 1
+      if (source[j] === c) found.add(source.slice(i + 1, j))
+      i = j + 1
+      last = 'value'
+      continue
+    }
+    if (c === '`' || (c === '}' && holes[holes.length - 1] === 0)) {
+      if (c === '}') holes.pop()
+      const part = template(i + 1)
+      if (part.hole) { holes.push(0); i = part.end + 2; last = '{'; continue }
+      if (c === '`' && source[part.end] === '`') found.add(part.text)
+      i = part.end + 1
+      last = 'value'
+      continue
+    }
+    if (holes.length && c === '{') holes[holes.length - 1] += 1
+    if (holes.length && c === '}') holes[holes.length - 1] -= 1
+    if (c === '/') {
+      if (last === '' || REGEX_AFTER.has(last) || REGEX_KEYWORDS.has(last)) {
+        let j = i + 1
+        let inClass = false
+        while (j < source.length && source[j] !== '\n' && (inClass || source[j] !== '/')) {
+          if (source[j] === '\\') j += 1
+          else if (source[j] === '[') inClass = true
+          else if (source[j] === ']') inClass = false
+          j += 1
+        }
+        i = j + 1
+        while (i < source.length && /[A-Za-z]/.test(source[i])) i += 1
+        last = 'value'
+        continue
+      }
+      last = '/'
+      i += 1
+      continue
+    }
+    if (/\s/.test(c)) { i += 1; continue }
+    if (/[\w$]/.test(c)) {
+      let j = i + 1
+      while (j < source.length && /[\w$]/.test(source[j])) j += 1
+      const word = source.slice(i, j)
+      last = REGEX_KEYWORDS.has(word) ? word : 'value'
+      i = j
+      continue
+    }
+    last = c
+    i += 1
+  }
+  literalTokens.set(source, found)
+  return found
 }
 
 // A test name as a pattern that matches only that name: every metacharacter escaped.
@@ -862,6 +941,15 @@ export function main(argv) {
     return 2
   }
   const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
+  // ADR-072 T4: --narrow refuses an option it does not take before any branch does work,
+  // or `--repoint --write` would rewrite the catalogue first and the refusal come after it.
+  if (argv.includes('--narrow')) {
+    const alongside = ['--force', '--repoint', '--stale', '--list', '--shard', '--changed'].filter(flag => argv.includes(flag))
+    if (alongside.length) {
+      process.stderr.write(`mutate: --narrow measures every entry it narrows, over committed sources, so it does not take ${alongside.join(', ')}\n`)
+      return 2
+    }
+  }
   // `--stale`, `--repoint` and `--changed` are read-only questions about the catalogue,
   // so they are answered before the campaign lock (BACKLOG §280, the tooling half).
   if (argv.includes('--stale')) {
@@ -966,15 +1054,11 @@ export function main(argv) {
     repointed = { labels: new Set(proposals.map(({ entry }) => entry.label)), stillStale: stale - proposed }
   }
   // ADR-072: each entry whose killers the cache recorded, narrowed to exactly those tests,
-  // or refused with the condition that failed. Writes nothing without --write. With it,
-  // ADR-069's order: the lock, then the catalogue, the `only` fields, the measurement.
+  // or refused with the condition that failed. Writes nothing without --write. With it, the
+  // lock and the catalogue read under it come first, as for --repoint (ADR-069); then every
+  // narrowing is measured, and only then written (T4).
   let narrowed = null
   if (argv.includes('--narrow')) {
-    const alongside = ['--force', '--repoint', '--list', '--shard', '--changed'].filter(flag => argv.includes(flag))
-    if (alongside.length) {
-      process.stderr.write(`mutate: --narrow measures every entry it writes, over committed sources, so it does not take ${alongside.join(', ')}\n`)
-      return 2
-    }
     const writing = argv.includes('--write')
     if (writing) {
       process.on('exit', () => { releaseTheRun() })
@@ -982,6 +1066,16 @@ export function main(argv) {
       recover()
       // Read again under the lock: a writer that held it before this run may have changed it.
       catalogue = JSON.parse(readFileSync(paths.catalogue, 'utf8'))
+    }
+    // ADR-072 T4: an entry is found again by its label, so a label that appears twice could
+    // take one entry's pattern back from another. Refused before anything is measured.
+    const seen = new Set()
+    const repeated = new Set()
+    for (const { label } of catalogue.mutations) (seen.has(label) ? repeated : seen).add(label)
+    if (repeated.size) {
+      process.stderr.write(`mutate: --narrow finds each entry by its label, and ${[...repeated].join(', ')} `
+        + `${repeated.size === 1 ? 'appears' : 'appear'} more than once. Nothing was written.\n`)
+      return 2
     }
     const records = loadCache(argv.includes('--cache') ? argv[argv.indexOf('--cache') + 1] : paths.cache)
     const texts = new Map()
@@ -1016,9 +1110,11 @@ export function main(argv) {
         + 'and measuring a narrowed entry rewrites and restores exactly those files. Nothing was written.\n')
       return 2
     }
+    // ADR-072 T4: the patterns are set in memory and measured first. The catalogue is
+    // written only after that, with only the entries RED under their pattern, so a run
+    // stopped mid-measurement leaves it as it was.
     for (const { entry, only } of proposals) entry.only = only
-    writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\n`)
-    console.log(`${proposals.length} narrowed in ${path.relative(root, paths.catalogue)}, ${refusedCount} refused. Measuring each under its pattern:`)
+    console.log(`${proposals.length} narrowable, ${refusedCount} refused. Measuring each under its pattern before anything is written:`)
     narrowed = { labels: new Set(proposals.map(({ entry }) => entry.label)) }
   }
   let selected = repointed
@@ -1137,7 +1233,9 @@ export function main(argv) {
   }
   const keys = new Map(selected.map(m => [m.label, cacheKey(m, readForKey)]))
   const reuse = new Map()
-  if (!argv.includes('--no-cache')) {
+  // ADR-072 T4: a narrowing is measured, never reused. A RED verdict cached at a narrowed
+  // key says nothing about the run that decides whether to write it.
+  if (!argv.includes('--no-cache') && !narrowed) {
     for (const m of selected) {
       const hit = reusable(m, cache, keys.get(m.label))
       // ADR-072: a RED record from before killers were recorded cannot narrow an entry,
@@ -1254,15 +1352,16 @@ export function main(argv) {
       + 'so neither verdict is evidence. The line above each says whether that suite FAILED or '
       + 'never finished — they need different things done to them.')
   }
-  // ADR-072: nothing stays narrowed on a measurement it failed. An entry that is not RED
-  // under its pattern loses the pattern again and is named, and the run exits 1.
+  // ADR-072: nothing is left narrowed on a measurement it failed. An entry that is not RED
+  // under its pattern loses the pattern again and is named, and the run exits 1. The
+  // catalogue is written only here, after every narrowing was measured (T4).
   if (narrowed) {
     const undone = results.filter(result => result.verdict !== 'RED')
     for (const result of undone) {
       delete catalogue.mutations.find(m => m.label === result.label).only
-      console.log(`UNDONE   ${result.label} — ${result.verdict} under its pattern, so it runs its whole files again`)
+      console.log(`UNDONE   ${result.label} — ${result.verdict} under its pattern, so it keeps running its whole files`)
     }
-    if (undone.length) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\n`)
+    if (undone.length < narrowed.labels.size) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\n`)
     return undone.length ? 1 : 0
   }
   // ADR-069 T2: the write is trusted only when every rewritten entry is RED and nothing

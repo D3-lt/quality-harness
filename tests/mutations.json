@@ -14886,6 +14886,86 @@
       "from": "'--root', '--narrow'])",
       "to": "'--root'])",
       "only": "mutate --narrow proposes"
+    },
+    {
+      "label": "ADR-072 T4: a line comment is read as code, so a name left in it counts as defined",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (c === '/' && source[i + 1] === '/') {",
+      "to": "if (false) {",
+      "only": "narrowEntry reads a killer only"
+    },
+    {
+      "label": "ADR-072 T4: only the first killer is recorded",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "killers: result.killers ?? [] }",
+      "to": "killers: (result.killers ?? []).slice(0, 1) }",
+      "only": "the campaign cache records every test"
+    },
+    {
+      "label": "ADR-072 T4: the catalogue is written with every narrowing before any is measured",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    for (const { entry, only } of proposals) entry.only = only",
+      "to": "    for (const { entry, only } of proposals) entry.only = only\n    writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\\n`)",
+      "only": "leaves nothing narrowed when it is stopped"
+    },
+    {
+      "label": "ADR-072 T4: a RED verdict cached at a narrowed key is reused instead of measured",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (!argv.includes('--no-cache') && !narrowed) {",
+      "to": "if (!argv.includes('--no-cache')) {",
+      "only": "measures only what it narrowed, fresh"
+    },
+    {
+      "label": "ADR-072 T4: a narrowing measures the whole catalogue, not only what it narrowed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (narrowed) selected = catalogue.mutations.filter(m => narrowed.labels.has(m.label))",
+      "to": "if (narrowed) selected = catalogue.mutations",
+      "only": "measures only what it narrowed, fresh"
+    },
+    {
+      "label": "ADR-072 T4: --stale checks only a narrowed pattern's first name",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "const missing = names.filter(name => !texts.some(text => definesTest(text, name)))",
+      "to": "const missing = names.slice(0, 1).filter(name => !texts.some(text => definesTest(text, name)))",
+      "only": "mutate --stale names every narrowed killer"
+    },
+    {
+      "label": "ADR-072 T4: --narrow runs beside --repoint and --stale instead of refusing them first",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "const alongside = ['--force', '--repoint', '--stale', '--list', '--shard', '--changed']",
+      "to": "const alongside = ['--force', '--list', '--shard', '--changed']",
+      "only": "measures only what it narrowed, fresh"
+    },
+    {
+      "label": "ADR-072 T4: a catalogue with a repeated label is narrowed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (repeated.size) {",
+      "to": "    if (false) {",
+      "only": "measures only what it narrowed, fresh"
     }
   ]
 }

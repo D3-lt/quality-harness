@@ -16371,7 +16371,7 @@ Nothing changed here. §241's fix, moving the guard test's campaign into a dispo
 
 **The check that would not depend on the reader.** A narrowing's killers are real tests by construction: the campaign that recorded them ran exactly the entry's files, at the key the narrowing reads. The fail-open that matters is later, when a killer is renamed or deleted and its name survives as some other literal: `--stale` then says nothing, the entry stays RED through its other killers, and it runs fewer tests than its pattern names. The campaign's own baseline already runs the pattern. Comparing the number of tests it ran (`leafTestsRun`) with the number of names in the pattern would catch that, whatever the source text says. That is a campaign change and is not scheduled here.
 
-## 319. OPEN 2026-09-28 — The corpus-chaos round of e016066 (plugin/ = v3.1.3): four fail-opens, a forged line, and two repository leads
+## 319. PARTLY FIXED 2026-09-29 — The corpus-chaos round of e016066 (plugin/ = v3.1.3): four fail-opens, a forged line, and two repository leads
 
 **Asked of ten sessions** (owner, 2026-09-28): eight local and two over Remote Control, with the corpus-chaos Asker text at e016066, whose plugin/ is byte-identical to v3.1.3 (ae06e14).
 - **Ran:** quality-blueprints (TS generator, a spec-only corpus, seed 1790626717) and klientams-front-v2 (JS SPA, 2 records and 9 tasks, seed 1790626777). Both on macOS 27.0 and Python 3.14.7; Node 24.11.1 and Node 26.10.0 respectively. Their attestations are filed: `docs/corpus-reports/2026-09-28-{static-generator-ts,js-spa-two-adr}-3.1.3-e016066.json`.
@@ -16401,3 +16401,71 @@ Nothing changed here. §241's fix, moving the guard test's campaign into a dispo
 **Repository tooling.**
 12. **mutate.mjs crashes with a TypeError on a catalogue that is not `{ mutations: [...] }`**, and exits 1, the same status as a stale finding, so a consumer cannot tell the two apart. Also, `--stale`'s gone-killer line leads with the word `undefined`, which reads as a JavaScript `undefined` (klientams).
 13. **bash 3.2 aborts on an empty array's `"${a[@]}"` under `set -u`** (memory-runtime's lead from its own analyze.sh). Audited here over every `set -u` script: `plugin/scripts/facts-gate-dispatch.sh` is safe, because `candidates` starts non-empty and `matches` is expanded only after its count check. `scripts/coverage.sh` already uses `${a[@]+"${a[@]}"}`, with a comment on why. `scripts/dead-code-scan.sh:46` is a member: an empty `files` would abort, although this repository always has Python gates. Confirmed on /bin/bash 3.2.57: `"${a[@]}"` on an empty array aborts with "unbound variable", while `${#a[@]}` and the guarded form do not.
+
+**Addendum, 2026-09-29: the reports that arrived after this entry was written, and the 3.1.4 batch.**
+- **Ran, and attested:**
+  - playtrix: a Laravel + React monorepo with 93 records and 278 tasks, seed 1790626837, Node 24.11.1.
+  - tool-multipathreadwrite: a Go corpus with 92 records and 232 tasks, seed 1790626901, Node 26.10.0.
+  - Both ran at e016066 on macOS 27.0 and Python 3.14.7. Filed: `docs/corpus-reports/2026-09-28-{laravel-react-monorepo-contract-first,mrw-go-corpus}-3.1.3-e016066.json`.
+  - tool-multipathreadwrite had also run at cd7e6ab (seed 1790620491, its inbox drawer 4f199b24), and six of its eight findings there reproduced at e016066.
+  - memory-runtime filed one lead to the inbox. The two Remote Control sessions stayed offline.
+
+**Fixed in 3.1.4.** Each has a regression in `tests/chaos-e016066.test.mjs` and catalogue mutants, and every mutant is RED.
+- **Items 1 to 5 above:**
+  - Item 1: `work-next` names nested specs (`nestedSpecs`) and routes to neither core nor an all-clear while they exist.
+  - Item 2: a NUL byte makes a record unreadable, with a reason, so the look is PARTIAL. The binary task under it is covered by that PARTIAL rather than named on its own, because the owner of a task under an unreadable record is unknown.
+  - Item 3: `taskFiles` reads a linked task file through the link, so a dangling one is counted unreadable. It names a linked directory without following it, and corpus-report's line now says "or are links this reader does not follow".
+  - Item 4: `checkEventName` grades only a numeric `exit` and a boolean `git`.
+  - Item 5: every path in `work-next`'s text goes through `visiblePath`.
+- **A false refusal (tool-multipathreadwrite D5, at both commits).** A `session.started` whose observation failed was read as the baseline. A Stop over a pristine tree then said "work no `qh-check` has passed on", and PreToolUse denied `git push`. Reproduced here through the hook.
+  - It is the late-baseline class (`tests/late-baseline.test.mjs`), and this member was missed. `sessionBaseline(log)` now takes the first start that looked, and every reader uses it.
+  - Enumerated with `mrw read --grep "=== 'session.started'" plugin/`: 7 sites in lifecycle.mjs and 1 in statusline.mjs.
+  - The twins still refuse: a dirty tree, and a write on record. A torn log still gets no baseline.
+  - The session note's reader stayed GREEN under its mutant until a test was added for it.
+- **A fail-open in JSON (tool-multipathreadwrite item 1, at both commits).** adr-state's text listed "Declared but matching nothing git tracks … `--json for all`", while the JSON had no such field. It now has `governsUnmatched`. The class is every `--json for all` pointer in plugin/, enumerated with `mrw read --grep 'json for' plugin/`: 8 pointers, and this was the only one without a field.
+- **playtrix E5.** adr-lint waited forever on a FIFO named as a record or as a task. It now refuses a named non-regular file as could-not-run, with exit 2. So does a FIFO among another record's tasks, which the cross-record cycle check reads: the same could-not-run a directory named like a task already got (`tests/gates.test.mjs`).
+  - Members left, as a class: adr-lint's other reads of corpus paths, such as a spec, a test file, a README or the config. `mrw read --grep 'read_text\(' plugin/bin/adr-lint` lists 29 lines.
+  - Git lists no FIFO, so the git-listed reads never meet one. The glob-listed and header-named reads can.
+  - adr-next and the other Python readers are not audited.
+- **playtrix, the real corpus: a false refusal.** A Tests row naming an npm script (`test:visual` in `package.json`) was refused as "no executable definition". A top-level `scripts` key now counts as a definition. A dependency key, a nested key and a value are still refused.
+- **The corpus-chaos skill (tool-multipathreadwrite).** Step 4's hook example set `cwd` to the probed repository, and the hook appends a session log there (218 rows), which step 6 forbids. The example now names a scratch clone and says that the hook writes.
+
+**Next batch: output that forges the tool, the same class as item 5.**
+- A `.quality-harness.json` `check` value holding newlines, a closing tag, ESC and a fake SYSTEM line reaches SessionStart's Verification line verbatim (tool-multipathreadwrite H1).
+- A task file name holding a newline splits adr-lint's advice (A6).
+- Item 6 above.
+- `work-next`'s relock remedy prints a task path raw inside a command, under `commandInCode`'s keep-the-bytes rule.
+
+**Next batch: wording, and readers that disagree.**
+- **§307 F-1 gains members.** Each of these still lints PASS:
+  - `**Status:** Acc\xc3\x28epted`, invalid UTF-8 (B3).
+  - An empty `**Status:**` (C4). Its regex, `^\*\*Status:\*\*\s*(.+?)\s*$` under `re.M`, crosses the newline and reads the next line. That regex is at two sites, adr-lint:2681 and :6130, found with `mrw read --grep 'Status:.{1,8}s\*' plugin/bin/ plugin/lib/ plugin/scripts/`.
+  - `**Statusas:**` (playtrix, Lithuanian headers), which is read as a `**Status` prefix and quoted by adr-next as `**as:** …**`.
+- **A torn `checks.jsonl`** is reported as "this session's event log could not be read whole" (D4, at both commits). The verdict, unknown, is right; it names the wrong file.
+- **corpusReport's `showsFailing`** counts every red-first row, so it reads as 232 of 232 failing.
+- **The probe** keeps adr-lint's verdict and drops its advice.
+- **The orphaned tasks of a removed record** are counted three ways: 232 tasks, 90 directories and 89 adr-next entries (C2).
+- **adr-state's `unread`** gives `reason: null` for an unrecognised status (X1, §293).
+- **A trailing-space task file** is invisible to readiness (playtrix A1), a sibling of item 7.
+- **A README Execution Order row** with its Depends-on column dropped passes (B9).
+- **adr-lint's Invalidates check** does not look in a sibling archive.
+- **Stripped ESC** leaves `[31m` residue inside «…».
+
+**By design, with the reason.**
+- **A FIFO record is invisible to work-next, adr-state and the probe.** Git lists no FIFO, and every corpus reader reads git's listing (§8).
+- **adr-lint's version line names the plugin root that answered.** That line is the evidence of which copy ran, and the probe redacts it.
+- **memory-runtime's lead (inbox drawer 8ce8d68): adr-next calls a task done while a `[proof: human: …]` step has no human-observed row.**
+  - This matches the done rule as written: the proof map maps steps to proof forms, and done needs an exit-0 entry plus a killed mutant.
+  - Whether a step-level human proof should gate done is a question for the owner, and needs a record.
+
+**Repository tooling.** At e016066, tool-multipathreadwrite measured `mutate --stale` against `node --test --test-name-pattern`. Twelve more shapes pass it, although no test runs:
+- a hashbang holding the name;
+- a regex literal after `export default` or a spread;
+- the raw text compared, not the literal's value;
+- `test.skip`, `test.todo` and `describe.skip`;
+- a test under `if (false)`;
+- a test in a function never called;
+- a name passed through `.toUpperCase()`;
+- the name as an `assert.ok` message.
+
+Two false refusals: `//` followed by U+2028, and the raw-versus-value case in the other direction. All are ADR-072 Decision 2's literal reader (§318), which ADR-073 (Proposed) would not depend on.

@@ -86,6 +86,11 @@ export function main(argv) {
   const unknownScope = governing.filter(record => record.governs.length === 0 && record.unreadTasks?.length)
   const SHOWN = 12
   const dangling = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))
+  // Declared paths that match nothing git tracks, in the text AND the JSON: the text said
+  // `--json for all` and the JSON had no such field (tool-multipathreadwrite's corpus-chaos
+  // run, BACKLOG §319).
+  const rotted = [...new Set(corpus.flatMap(record => record.unresolved))]
+    .filter(entry => entry.startsWith('governs:'))
 
   const unreadable = corpus.unreadable ?? []
   if (json) {
@@ -110,6 +115,7 @@ export function main(argv) {
     })),
     governingNothing: orphans.map(record => ({ id: label(record), file: relative(record) })),
     governsUnproven: unknownScope.map(record => ({ id: label(record), file: relative(record), unreadTasks: record.unreadTasks.map(file => relative({ file })) })),
+    governsUnmatched: rotted.map(entry => entry.slice('governs:'.length)),
     danglingSupersession: dangling.map(record => ({ id: label(record), status: record.status })),
     duplicateIds: duplicateIds.map(([id, records]) => ({ id, files: records.map(record => relative(record)) })),
   }, null, 2)}\n`)
@@ -257,8 +263,6 @@ export function main(argv) {
   // With no tracked listing the corpus reader reports none of these, so silence
   // here means "nothing to report" only when git could answer. That is the
   // reader's contract (ADR-005), not a claim made in this renderer.
-  const rotted = [...new Set(corpus.flatMap(record => record.unresolved))]
-    .filter(entry => entry.startsWith('governs:'))
   if (rotted.length) {
   say('\nDeclared but matching nothing git tracks — these decisions govern no\n'
     + 'file, and `adr-context` will answer "none governs" for the code they were\n'

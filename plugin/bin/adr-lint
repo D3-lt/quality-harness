@@ -1023,10 +1023,24 @@ def read_named(path):
     """Open a named path, or could-not-run. FileNotFoundError is OSError, so
     callers that have an exists()/is_dir() arm must run those first.
     """
+    refuse_irregular(path)
     try:
         return Path(path).read_text(errors="replace", encoding="utf-8")
     except OSError as exc:
         print(f"[adr-lint] could not run: {path} — {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
+def refuse_irregular(path):
+    """Could-not-run for a named path that exists and is not a regular file.
+
+    ⚠ NEVER A WAIT. A FIFO named like a record, or among a record's tasks, blocked the first
+    read of it until the process was killed (playtrix's corpus-chaos E5, BACKLOG §319). A
+    missing path is left to the caller's own arm, as FileNotFoundError is in read_named.
+    """
+    target = Path(path)
+    if target.exists() and not target.is_file():
+        print(f"[adr-lint] could not run: {path} — not a regular file", file=sys.stderr)
         sys.exit(2)
 
 
@@ -2117,6 +2131,7 @@ def check_cross_record_cycles(root, corpus_dir, tracked, errors):
         for f in sorted(tasks.glob("*.md")):
             if f.name.lower() == "readme.md":
                 continue
+            refuse_irregular(f)
             local = re.search(r"(?<!\w)T\d+(?!\w)", f.stem, re.I)
             if not local:
                 continue
@@ -2687,6 +2702,22 @@ def check_status_allows_execution(adr_path, readme_text, errors):
                       f"{', '.join(sorted(done))} {'is' if len(done) == 1 else 'are'} marked done "
                       f"— execution requires Accepted; either the decision was never taken or the "
                       f"record was never updated, and both are wrong to leave standing")
+
+
+def npm_scripts(source):
+    """The script names a package.json defines: the keys of its top-level "scripts" object.
+
+    A Tests row may name an npm script (`test:visual` in `package.json`), the command an
+    Acceptance fence runs, and it was refused as naming "no executable definition"
+    (playtrix, BACKLOG §319). Only a top-level "scripts" key is one: the same name as a
+    dependency, a nested key or a value is data, and still points nowhere.
+    """
+    try:
+        manifest = json.loads(source)
+    except ValueError:
+        return set()
+    scripts = manifest.get("scripts") if isinstance(manifest, dict) else None
+    return set(scripts) if isinstance(scripts, dict) else set()
 
 
 def looks_like_a_test(path):
@@ -4553,6 +4584,8 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None):
             # is a string literal and stripping strings here deleted the thing
             # being searched for (docs/BACKLOG.md §57).
             source = f.read_text(errors="replace", encoding="utf-8")
+            if f.name == "package.json" and name in npm_scripts(source):
+                continue
             if test_body(source, name, python=f.suffix == ".py",
                          php=f.suffix == ".php", swift=f.suffix == ".swift",
                          rust=f.suffix == ".rs") is None:
@@ -6160,6 +6193,8 @@ def main():
         # with the reason, so "nothing to say" and "not looked at" stay different.
         withdrawn_tasks.clear()
         task_files = sorted(p for p in tasks_dir.glob("*.md") if p.name != "README.md")
+        for p in task_files:
+            refuse_irregular(p)
         stems = [p.stem for p in task_files]
         if not task_files:
             errors.append(f"{tasks_dir}: no task files")

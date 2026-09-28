@@ -20,7 +20,7 @@ import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, frozenArchiveOf, listedUnderUninterestingDirectory, spawnGate, terminalText, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, frozenArchiveOf, listedUnderUninterestingDirectory, spawnGate, terminalText, trackedPaths, visiblePath } from './lifecycle.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
@@ -202,9 +202,22 @@ function taskFiles(directory, listing) {
   return { files: found, archiveUnknown: [...archiveUnknown] }
 }
 
+// A spec is a file directly in a `docs/specs/` directory: the contract is flat.
+const FLAT_SPEC = /(?:^|\/)docs\/specs\/[^/]+\.md$/i
+
 function specFiles(directory, listing) {
   if (listing == null) return null
-  return listing.filter(rel => /(?:^|\/)docs\/specs\/[^/]+\.md$/i.test(posixRel(rel)))
+  return listing.filter(rel => FLAT_SPEC.test(posixRel(rel)))
+    .map(rel => path.join(directory, rel))
+}
+
+// A spec in a subdirectory of `docs/specs/`, which this reader does not read. It was counted
+// nowhere and named nowhere, and a tree holding only such specs was told "No QH corpus is in
+// use" (a corpus-chaos run of e016066, quality-blueprints C5; BACKLOG §319). Named, so a spec
+// this reader did not read is never mistaken for no spec.
+function nestedSpecFiles(directory, listing) {
+  if (listing == null) return null
+  return listing.filter(rel => /(?:^|\/)docs\/specs\/.+\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))
     .map(rel => path.join(directory, rel))
 }
 
@@ -347,6 +360,7 @@ export function observe(directory, { spawn = spawnGate } = {}) {
   }))
   const tasks = (listedTasks?.files ?? []).filter(file => !absentTasks.has(file))
   const specPaths = specFiles(directory, listing) ?? []
+  const nestedSpecPaths = nestedSpecFiles(directory, listing) ?? []
 
   const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
 
@@ -538,6 +552,7 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // Archive-named directories with no Lifecycle marker: read as live, and named.
     unmarkedArchives: corpus.unmarkedArchives ?? [],
     specs: specPaths.length,
+    nestedSpecs: nestedSpecPaths,
     uncoveredReadySpecs: uncoveredReady,
     unprovenSpecs,
     specStatusUnproven: unprovenSpecs.length > 0,
@@ -564,7 +579,8 @@ export function nextStage(state) {
   // ⚠ NOT "no corpus" when a record was found and could not be classified: that is a
   // confident negative over input this reader could not read, and it routed away from
   // every corpus stage (BACKLOG §293, a fullwidth-colon Status from a chaos round).
-  if (!state.records && !state.specs && !state.tasks && !state.undecided) return STAGES.find(s => s.id === 'core')
+  // …nor while a spec sits unread in a subdirectory of docs/specs/ (BACKLOG §319).
+  if (!state.records && !state.specs && !state.tasks && !state.undecided && !state.nestedSpecs?.length) return STAGES.find(s => s.id === 'core')
   return null
 }
 
@@ -618,6 +634,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       unmarkedArchives: state.unmarkedArchives,
       readyButClaimedDone: state.readyButClaimedDone.map(relative),
       specs: state.specs,
+      nestedSpecs: (state.nestedSpecs ?? []).map(relative),
       uncoveredReadySpecs: (state.uncoveredReadySpecs ?? []).map(relative),
       unprovenSpecs: (state.unprovenSpecs ?? []).map(relative),
       next: stage ? { id: stage.id, entry: stage.entry, when: stage.when, remedy: remedy(stage) } : null,
@@ -630,6 +647,10 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   // Every human line goes through `say`: a spec path reached a terminal and a
   // session's context raw (a corpus-chaos run of 916b515). The JSON keeps exact values.
   const say = text => process.stdout.write(terminalText(text))
+  // A path in a human line is shown escaped. A newline in a spec's file name was printed raw
+  // and forged a line of this tool's own output (quality-blueprints V, BACKLOG §319);
+  // terminalText keeps newlines, because the output's own lines need them.
+  const shown = file => visiblePath(relative(file))
   if (state.look === 'UNPROVEN') {
     say('could-not-look: git could not list the tree (UNPROVEN). '
       + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
@@ -638,11 +659,11 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   if (state.look === 'PARTIAL') {
     say('could-not-look: a listed record could not be read (PARTIAL). '
       + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
-    for (const entry of state.partialBecause.slice(0, 5)) say(`  ${relative(entry.file)}: ${entry.reason}\n`)
+    for (const entry of state.partialBecause.slice(0, 5)) say(`  ${shown(entry.file)}: ${entry.reason}\n`)
     if (state.partialBecause.length > 5) say(`  (+${state.partialBecause.length - 5} more; --json for all)\n`)
     // A PARTIAL look returns here, so the directories this reader withheld are named
     // HERE too, or the text says less than the JSON (Codex review of 17edd2d).
-    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  readiness UNPROVEN: ${relative(dir)}\n`)
+    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  readiness UNPROVEN: ${shown(dir)}\n`)
     if (state.readinessUnproven.length > 5) say(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
     return 0
   }
@@ -655,6 +676,12 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   if (state.unprovenSpecs?.length) {
     say(`\n${state.unprovenSpecs.length} spec file(s) have an UNPROVEN Status `
       + '(unreadable, binary, missing, unknown, or two different values). They are not counted as "not Ready-for-ADR".\n')
+  }
+  if (state.nestedSpecs.length) {
+    say(`\n${state.nestedSpecs.length} spec file(s) sit in a subdirectory of docs/specs/, which this reader does `
+      + 'not read, so their Status is UNPROVEN: not "no spec", and not an all-clear:\n')
+    for (const file of state.nestedSpecs.slice(0, 5)) say(`  ${shown(file)}\n`)
+    if (state.nestedSpecs.length > 5) say(`  (+${state.nestedSpecs.length - 5} more; --json for all)\n`)
   }
   // Said whatever the next stage is, and BEFORE it: work that exists and is not
   // executable is the answer to "why is nothing waiting?", and a reader who does
@@ -681,7 +708,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       + 'this reader cannot execute — Proposed, Draft, or a status it does not recognise. They are '
       + 'not counted as ready, because a record is a work order only once it is Accepted:\n')
     for (const file of state.notYetDecided.slice(0, 5)) {
-      say(`  ${relative(file)}\n`)
+      say(`  ${shown(file)}\n`)
     }
     if (state.notYetDecided.length > 5) {
       say(`  (+${state.notYetDecided.length - 5} more; --json for all)\n`)
@@ -694,7 +721,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       + 'could not be read by adr-next, sit under a README whose archive marker could not be decided, '
       + 'or hold a task git lists that is not on disk, '
       + 'so readiness there is UNPROVEN — not "nothing ready" (ADR-005):\n')
-    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  ${relative(dir)}\n`)
+    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  ${shown(dir)}\n`)
     if (state.readinessUnproven.length > 5) say(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
   }
   if (state.readyButClaimedDone.length) {
@@ -703,11 +730,11 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
     // are a subset of the ready list AND of the unbacked claims, said here once.
     say(`\n${n} task${n === 1 ? ' is' : 's are'} both READY and claimed done without evidence — \`adr-verify\` ${n === 1 ? 'it' : 'them'} first `
       + `(${n === 1 ? 'it is' : 'they are'} also counted among the ready tasks and the unbacked done claims):\n`)
-    for (const file of state.readyButClaimedDone.slice(0, 5)) say(`  ${relative(file)}\n`)
+    for (const file of state.readyButClaimedDone.slice(0, 5)) say(`  ${shown(file)}\n`)
     if (n > 5) say(`  (+${n - 5} more; --json for all)\n`)
   }
   for (const archive of state.unmarkedArchives) {
-    say(`\n\`${archive}\` looks like an archive but has no Lifecycle marker, so it is read as live; `
+    say(`\n\`${visiblePath(archive)}\` looks like an archive but has no Lifecycle marker, so it is read as live; `
       + '`adr-retire-check --adopt <active> <archive>` adopts it.\n')
   }
   if (!stage) {
@@ -721,8 +748,8 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
         + 'this reader acts on (unreadable, missing, or not yet Accepted), so this is not "no corpus" and not an all-clear. '
         + 'Read them with `adr-state` or `adr-lint <record>`.\n')
     } else {
-      say(state.readinessUnproven.length
-        ? '\nNothing this reader could see is waiting; the directories above were not read, so this is not an all-clear.\n'
+      say(state.readinessUnproven.length || state.nestedSpecs.length
+        ? `\nNothing this reader could see is waiting; the ${state.readinessUnproven.length ? 'directories' : 'spec files'} above were not read, so this is not an all-clear.\n`
         : '\nNothing in the QH corpus is waiting.\n')
     }
     for (const entry of STAGES) say(`  ${entry.entry.padEnd(36)} ${entry.when}\n`)
@@ -737,7 +764,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       : stage.id === 'adr-retire' ? state.retirable.map(record => record.file)
         : stage.id === 'adr-write' ? state.uncoveredReadySpecs
           : []
-  for (const file of evidence.slice(0, 5)) say(`    ${relative(file)}\n`)
+  for (const file of evidence.slice(0, 5)) say(`    ${shown(file)}\n`)
   if (evidence.length > 5) say(`    (+${evidence.length - 5} more)\n`)
   if (remedy(stage)) {
     say(`\n  ${state.relock.length} of these carry a moved test lock, which bare \`adr-verify\` `

@@ -3,12 +3,13 @@
 // came through, with a control beside it, so a check that can only say "clean" fails here.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { checkEventName, importCheckRecords, observedFacts } from '../plugin/scripts/lifecycle.mjs'
+import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
 import { hookSaid } from './hook-env.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -36,7 +37,7 @@ test('a spec in a subdirectory of docs/specs is named, and the corpus is never c
   const text = node('work-next.mjs', [], repo)
   assert.equal(text.status, 0, text.stderr)
   assert.ok(!text.stdout.includes('No QH corpus is in use'), text.stdout)
-  assert.ok(text.stdout.includes('docs/specs/billing/refunds.md'), text.stdout)
+  assert.ok(text.stdout.replaceAll('\\', '/').includes('docs/specs/billing/refunds.md'), text.stdout)
   assert.ok(!text.stdout.includes('Nothing in the QH corpus is waiting'), text.stdout)
   assert.deepEqual(JSON.parse(node('work-next.mjs', ['--json'], repo).stdout).nestedSpecs.map(tail), ['docs/specs/billing/refunds.md'])
   // The control: a flat spec is read as a spec, and named as nothing else.
@@ -44,6 +45,14 @@ test('a spec in a subdirectory of docs/specs is named, and the corpus is never c
   const both = JSON.parse(node('work-next.mjs', ['--json'], repo).stdout)
   assert.equal(both.specs, 1)
   assert.deepEqual(both.nestedSpecs.map(tail), ['docs/specs/billing/refunds.md'])
+  // A line break in a nested spec's name hid it again (Codex review of fe918bb). Windows
+  // allows none in a file name, so there the write fails and this part cannot be built.
+  let broken = true
+  try { write(repo, 'docs/specs/billing/a\nforged.md', '**Status:** Ready-for-ADR\n') } catch { broken = false }
+  if (broken) {
+    assert.ok(node('work-next.mjs', [], repo).stdout.includes('docs/specs/billing/a\\u{a}forged.md'))
+    assert.equal(JSON.parse(node('work-next.mjs', ['--json'], repo).stdout).nestedSpecs.length, 2)
+  }
 })
 
 // §319 item 2 (klientams B5).
@@ -83,6 +92,26 @@ test('corpus-report counts a linked task file, names a dangling one, and names a
   assert.deepEqual(report.unreadableDirs, ['ADR-002-y/tasks'])
 })
 
+// Codex review of fe918bb: a task-shaped FIFO, directly or through a link, went to a
+// synchronous read that blocks. The default reader refuses anything but a regular file unopened.
+test('corpus-report counts a FIFO task, directly or through a link, as unreadable without opening it', t => {
+  const repo = scratch()
+  write(repo, 'docs/adr/ADR-001-x.md', '# ADR-001: X\n\n**Status:** Accepted\n')
+  write(repo, 'docs/adr/ADR-001-x/tasks/T1-real.md', '# Task ADR-001-T1: real\n')
+  const fifo = join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks', 'T2-fifo.md')
+  const made = spawnSync('mkfifo', [fifo], { timeout: 10_000, windowsHide: true })
+  let isFifo = false
+  try { isFifo = statSync(fifo).isFIFO() } catch { isFifo = false }
+  if (made.error || made.status !== 0 || !isFifo) { t.skip('no FIFO can be made here'); return }
+  try { symlinkSync('T2-fifo.md', join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks', 'T3-linked.md')) } catch (error) { t.skip(`symlinks cannot be made here: ${error.code}`); return }
+  const run = spawnSync(process.execPath, [join(scripts, 'corpus-report.mjs'), '--json', 'docs/adr'], { cwd: repo, encoding: 'utf8', timeout: 20_000, windowsHide: true })
+  assert.equal(run.signal, null, 'corpus-report waited on a FIFO until it was killed')
+  assert.equal(run.status, 0, run.stderr)
+  const report = JSON.parse(run.stdout)
+  assert.equal(report.totals.tasks, 3, JSON.stringify(report.totals))
+  assert.equal(report.totals.unreadable, 2, JSON.stringify(report.totals))
+})
+
 // §319 item 4 (klientams D5), through the import that reads checks.jsonl.
 test('a check record whose exit is not a number, or whose git is not a boolean, is imported as UNPROVEN', () => {
   const repo = scratch()
@@ -118,7 +147,9 @@ test('adr-lint refuses a file that is not a regular file instead of waiting on i
   const task = join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks', 'T1-fifo.md')
   mkdirSync(dirname(task), { recursive: true })
   const made = [record, task].map(target => spawnSync('mkfifo', [target], { timeout: 10_000, windowsHide: true }))
-  if (made.some(run => run.error || run.status !== 0)) { t.skip('mkfifo is not available here'); return }
+  // MSYS mkfifo exits 0 on Windows and leaves nothing native Python can open (CI, fe918bb).
+  const fifo = target => { try { return statSync(target).isFIFO() } catch { return false } }
+  if (made.some(run => run.error || run.status !== 0) || ![record, task].every(fifo)) { t.skip('no FIFO can be made here'); return }
   write(repo, 'docs/adr/ADR-001-x.md', '# ADR-001: X\n\n**Status:** Accepted\n')
   for (const target of [record, join(repo, 'docs', 'adr', 'ADR-001-x.md')]) {
     const run = lint(target, repo, 20_000)
@@ -147,7 +178,7 @@ test('adr-lint reads a package.json script as the executable definition a Tests 
     const edited = original.replace('| `removes_an_item` | `src/cart.test.ts` |', `| \`${name}\` | \`package.json\` |`)
     assert.notEqual(edited, original, 'the fixture row this test rewrites is still there')
     writeFileSync(task, edited)
-    writeFileSync(join(repo, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`)
+    writeFileSync(join(repo, 'package.json'), typeof manifest === 'string' ? manifest : `${JSON.stringify(manifest, null, 2)}\n`)
     const said = `${lint(record, repo).stdout}`
     assert.ok(said.includes('[PASS]') || said.includes('[FAIL]'), `adr-lint gave no verdict: ${said}`)
     // Any finding that is not advice and names package.json is the row refused, in whatever words.
@@ -159,6 +190,11 @@ test('adr-lint reads a package.json script as the executable definition a Tests 
   assert.equal(refused('test:visual', { name: 'spa', dependencies: { 'test:visual': '1.0.0' } }), true)
   assert.equal(refused('test:visual', { name: 'spa', description: 'test:visual' }), true)
   assert.equal(refused('test:visual', { name: 'spa', config: { scripts: { 'test:visual': 'vitest run' } } }), true)
+  // npm drops a script whose value is not a string, and reads a manifest behind a BOM
+  // (Codex review of fe918bb).
+  assert.equal(refused('test:visual', { name: 'spa', scripts: { 'test:visual': null } }), true)
+  assert.equal(refused('test:visual', { name: 'spa', scripts: { 'test:visual': 1 } }), true)
+  assert.equal(refused('test:visual', `\u{feff}${JSON.stringify({ name: 'spa', scripts: { 'test:visual': 'vitest run' } })}\n`), false)
 })
 
 // tool-multipathreadwrite's chaos D5: a session whose SessionStart could not look at the tree,
@@ -198,7 +234,7 @@ function failedStart(label, extra = () => []) {
   const started = () => readFileSync(logFile, 'utf8').split('\n').filter(Boolean)
     .flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
     .filter(entry => entry.event === 'session.started')
-  return { repo, hook, started, git }
+  return { repo, hook, started, git, session }
 }
 
 test('a session whose first look failed takes a late baseline over a clean tree, so a push is not refused', () => {
@@ -228,6 +264,35 @@ test('a failed first look still refuses over a dirty tree or a write on record, 
   const tornSaid = torn.hook(PUSH)
   assert.ok(tornSaid.includes('could not be read whole'), tornSaid.slice(0, 400))
   assert.equal(torn.started().length, 1)
+})
+
+// Codex review of fe918bb, P1: a shell edit writes no `file.written`, so a Stop that saw the
+// edit, a commit, and a clean publish look adopted the committed tree and forgave it.
+test('a tree seen before a commit is not forgiven by a late baseline after a failed start', () => {
+  const seen = failedStart('seen')
+  writeFileSync(join(seen.repo, 'a.md'), 'edited in a shell\n')
+  seen.hook({ hook_event_name: 'Stop' })
+  seen.git('commit', '-qam', 'the shell edit')
+  const push = seen.hook(PUSH)
+  assert.ok(push.includes(DENY), push.slice(0, 400))
+  assert.equal(seen.started().length, 1, 'no late baseline once a boundary has seen the tree')
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: seen.session }
+  assert.equal(runPublishHook({ event: 'pre-push', cwd: seen.repo, env }).code, 1, 'and git\'s own hook agrees')
+})
+
+// P2: git's own hook prepares no late baseline, so a failed start refused a pristine push
+// launched from a script. It applies the same rule without writing, and only to the log
+// that holds that start: a linked worktree's empty log is still judged unchecked (ADR-068).
+test('git\'s own hook gives a failed start the same late baseline, and a worktree none', () => {
+  const clean = failedStart('hook-clean')
+  const env = { ...process.env, CLAUDE_CODE_SESSION_ID: clean.session }
+  assert.equal(runPublishHook({ event: 'pre-push', cwd: clean.repo, env }).code, 0)
+  assert.equal(clean.started().length, 1, 'git\'s hook writes no baseline')
+  const worktree = join(dirname(clean.repo), 'wt')
+  clean.git('worktree', 'add', '-q', '-b', 'wt', worktree)
+  assert.equal(runPublishHook({ event: 'pre-push', cwd: worktree, env }).code, 1, 'a worktree is not handed a baseline')
+  writeFileSync(join(clean.repo, 'a.md'), 'edited\n')
+  assert.equal(runPublishHook({ event: 'pre-push', cwd: clean.repo, env }).code, 1, 'a dirty tree is still refused')
 })
 
 // The session note's reader, which the Stop text above never reaches: a catalogue mutant that

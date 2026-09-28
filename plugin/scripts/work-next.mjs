@@ -217,7 +217,7 @@ function specFiles(directory, listing) {
 // this reader did not read is never mistaken for no spec.
 function nestedSpecFiles(directory, listing) {
   if (listing == null) return null
-  return listing.filter(rel => /(?:^|\/)docs\/specs\/.+\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))
+  return listing.filter(rel => /(?:^|\/)docs\/specs\/[\s\S]+\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))
     .map(rel => path.join(directory, rel))
 }
 

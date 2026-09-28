@@ -3939,6 +3939,23 @@ export function sessionBaseline(log) {
   return log.find(entry => entry.event === 'session.started' && entry.observation?.ok === true)
 }
 
+/**
+ * Whether `observation` may stand as a late baseline: the first look of a session that has
+ * no baseline, over a clean tree, with no write on record. recordHookEvent adopts it, and
+ * publishVerdict applies the same rule without writing, for git's own hook, which prepares
+ * none (Codex review of fe918bb, P2).
+ *
+ * ⚠ NOT AFTER THE TREE WAS SEEN. A shell edit writes no `file.written`, so a failed start,
+ * a Stop that saw the edit, a commit and a clean publish look adopted the committed tree and
+ * forgave it (Codex review of fe918bb, P1). An earlier look that succeeded, a baseline that
+ * looked included, means this is not the first one, and what changed since is not known.
+ */
+function lateBaselineAllowed(log, cwd, observation) {
+  return !logIncomplete(log) && !log.some(event => event.observation?.ok === true)
+    && !log.some(event => event.event === 'file.written' && event.observable !== false)
+    && observedClean(cwd, observation)
+}
+
 const OBSERVED_HOOK_EVENTS = {
   TaskCompleted: 'task.completed',
   PreCompact: 'context.compacting',
@@ -4086,8 +4103,8 @@ export function recordHookEvent(input) {
     // repository says nothing about this tree, stays outstanding on its own, and
     // refusing the baseline over it accused a repository nothing had touched.
     // A `session.started` that could not look is no baseline either (sessionBaseline).
-    if (!logIncomplete(log) && !sessionBaseline(log) && !log.some(event => event.event === 'file.written' && event.observable !== false)
-      && observedClean(input.cwd, entry.observation)) {
+    // Nor after any earlier boundary already saw the tree (lateBaselineAllowed).
+    if (lateBaselineAllowed(log, input.cwd, entry.observation)) {
       lateBaseline = appendEvent(input.cwd, session, { event: 'session.started', late: true, observation: entry.observation }) !== false
     }
   }
@@ -4539,7 +4556,11 @@ export function publishVerdict({ cwd, session, observation, invoked }) {
   }
   const now = observation
   const log = readEvents(cwd, session)
+  // A start that could not look, judged by git's own hook, which prepares no late baseline:
+  // the rule recordHookEvent adopts by, applied without writing. Only where this log holds
+  // that start, so a linked worktree's empty log is not handed one (ADR-068).
   const baseline = sessionBaseline(log)?.observation
+    ?? (log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now) ? now : undefined)
   const treeStanding = checkStanding(log, now.tree)
   const indexStanding = checkStanding(log, now.index)
   const treeUnchecked = treeStanding !== 'passed' && (baseline?.ok !== true || now.tree !== baseline.tree)

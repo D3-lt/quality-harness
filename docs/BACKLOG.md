@@ -16269,3 +16269,14 @@ The readers changed with this batch (lifecycle.mjs, corpus-probe.mjs, work-next.
 3. **`plugin/workflows/*.js` were outside knip's globs.** They are scanned now. Their `meta` is read by the Workflow host, so knip's export check is off there, and the scan names any other export instead: a planted one was hidden by the exemption alone.
 
 Not scanned: the shell scripts, because no standard dead-code tool reads bash. **Left:** `dead-code-scan.sh` has no test showing it dirty, since it needs `uvx` and `npx`. The dirty runs above were probes, not a test.
+
+## 313. OPEN — The outside run for 3.1.1, and the leads it and the refused runs brought
+
+**Outside run at 7cccbac** (§18), by a peer session over a Laravel 7 / PHP 7.4 e-commerce admin: Darwin 27.0.0 arm64, node 24.11.1, python 3.14.7. Their tree was not clean: 7 uncommitted paths, none of them ADR or decision files. The run was a probe with exit 0: 17 records, 24 tasks, 7 task directories, couldNotRun 0, disagreements 0, readinessUnproven 0. It is filed as `docs/corpus-reports/2026-09-28-laravel-cms-3.1.0-7cccbac.json`, and `attest-import --check` agreed with the commit. The runner verified `partialBecause` (an archive record with no catalog row) and `unprovenSpecs` (a spec with no Status line) against their corpus as real. Their adr-lint gave 6 FAIL, 1 not-recognised and 17 PASS, and they read each FAIL as the corpus's own gap.
+
+**Could not run: three peers**, each refused by its own permission classifier ("Code from External"): a React SPA, an Ansible repository and a Rust repository. That refusal is correct, and none was asked to work around it.
+
+**Leads, not yet confirmed against source:**
+- **adr-retire-check reads a status exactly; every other reader reads its first word.** An archived governing record whose status is `Accepted (2026-07-17 — …)` fails with "archived governing decision is not Accepted" (`is_accepted_status`, plugin/bin/adr-retire-check). adr-state, work-next and adr-lint count the same record as governing (§309, "by design"). The strict docstring says the difference is deliberate, and no record decides it either way. It was measured with 3.0.1 on an Ansible corpus and needs the owner's decision.
+- **adr-lint FAILs `./docs/decisions/tasks: no task files`** where that directory holds only a subdirectory: `docs/decisions/tasks/007_wallet_aggregate/` has a README and T1. The corpus keeps legacy `docs/decisions/NNN_*.md` records beside `docs/adr/`. Whether the task walk should enter `tasks/<NNN>/` for that shape is the question, and whether this FAIL speaks about a directory it never looked into.
+- `not-recognised` for a legacy `docs/decisions/005_*.md` record reads as the reader declining a shape, which is correct.

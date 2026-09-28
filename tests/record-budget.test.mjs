@@ -128,3 +128,22 @@ test('a record named with the ADR prefix is found at any width, and a bare short
     assert.equal(state.read, 3, JSON.stringify(state))
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// Codex review of 3.1.0..e0ef6d4, F6: an unread file in a SHARED tasks/ beside one record
+// was attributed to nobody, so work-next never asked about the directory.
+test('an unread task in a shared tasks directory goes to the sole record beside it', { skip: cannotDenyRead }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-shared-unread-'))
+  const locked = join(dir, 'docs', 'adr', 'tasks', 'T1-locked.md')
+  try {
+    mkdirSync(dirname(locked), { recursive: true })
+    writeFileSync(locked, '# Task ADR-002-T1: a\n\n## Acceptance\n\n```bash\ntrue\n```\n')
+    writeFileSync(join(dir, 'docs', 'adr', 'ADR-002-a.md'), '# ADR-002: a\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
+    chmodSync(locked, 0o000)
+    const workNext = spawnSync(process.execPath, [join(dirname(adrState), 'work-next.mjs'), '--json'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+    assert.deepEqual(JSON.parse(workNext.stdout).readinessUnproven, ['docs/adr/tasks'], workNext.stdout)
+  } finally {
+    try { chmodSync(locked, 0o644) } catch { /* already gone */ }
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

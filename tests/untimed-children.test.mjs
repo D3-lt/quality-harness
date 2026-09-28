@@ -55,3 +55,41 @@ test('every shipped gate names a timeout on every child it spawns', () => {
   assert.equal(run.status, 0,
     `these calls can hang a gate for ever (BACKLOG §130):\n${run.stdout}${run.stderr}`)
 })
+
+// Windows, 3.1.0 (the owner, 2026-09-28): a gate a hook starts has no console, and
+// each child it starts without CREATE_NO_WINDOW gets a console of its own, which
+// Windows Terminal opens as a tab that flashes. Dirty and clean first, then the tree.
+test('every shipped gate starts its children with no window, and one that does not is named', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-unhidden-'))
+  try {
+    const dirty = join(dir, 'dirty.py')
+    writeFileSync(dirty, [
+      'import subprocess',
+      'NO_WINDOW = {}',
+      'def shown(cwd):',
+      '    return subprocess.run(["git", "status"], capture_output=True, timeout=30)',
+      'def hidden(cwd):',
+      '    return subprocess.run(["git", "status"], capture_output=True, timeout=30, **NO_WINDOW)',
+      'def flagged(cwd):',
+      '    return subprocess.run(["git", "status"], capture_output=True, timeout=30, creationflags=0x08000000)',
+      '',
+    ].join('\n'))
+    const run = check(['--hidden', dirty])
+    assert.equal(run.status, 1, `${run.stdout}${run.stderr}`)
+    assert.match(run.stdout, /dirty\.py:4: subprocess\.run in shown\(\) passes neither/)
+    assert.equal(run.stdout.trim().split('\n').length, 1, 'only the call with neither is a finding')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+  const tree = check(['--hidden'])
+  assert.equal(tree.status, 0, `a gate child would open a window on Windows:\n${tree.stdout}${tree.stderr}`)
+})
+
+// The value behind NO_WINDOW, with the platform a parameter (CLAUDE.md §7): on this
+// host os.name is never "nt", so only the parameter lets the Windows answer be tested.
+test('no_window names CREATE_NO_WINDOW on Windows and nothing elsewhere', () => {
+  const run = spawnSync(python, [...prefix, '-c', 'import sys; sys.path.insert(0, "plugin/lib"); import record; print(record.no_window("nt"), record.no_window("posix"))'],
+    { cwd: repoRoot, encoding: 'utf8', timeout: 30_000 })
+  assert.equal(run.status, 0, run.stderr)
+  assert.equal(run.stdout.trim(), "{'creationflags': 134217728} {}")
+})

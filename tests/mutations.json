@@ -870,8 +870,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })",
-      "to": "    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })"
+      "from": "    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })",
+      "to": "    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })"
     },
     {
       "label": "hooks: EVIDENCE-LIMITED needs a stated reason",
@@ -5613,8 +5613,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }",
-      "to": "      { cwd, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }"
+      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }",
+      "to": "      { cwd, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }"
     },
     {
       "label": "branch-state: gh is not asked where no remote names a GitHub host",
@@ -12713,7 +12713,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  if (argv[k + 1] === '--help' || argv[k + 1] === '-h') return null",
+      "from": "  if (rest[0] === '--help' || rest[0] === '-h') return null",
       "to": "  if (false) return null",
       "only": "nothing that only mentions a publish is refused"
     },
@@ -13223,7 +13223,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  if (dryRun(verb, argv.slice(k + 1))) return null",
+      "from": "  if (dryRun(verb, rest)) return null",
       "to": "  if (false) return null",
       "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
     },
@@ -14223,8 +14223,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]) {",
-      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(PERL_LIST)]) {",
+      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
+      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
       "only": "argv list in node or perl"
     },
     {
@@ -14233,8 +14233,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]) {",
-      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST)]) {",
+      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
+      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST)].filter(called)) {",
       "only": "argv list in node or perl"
     },
     {
@@ -14253,7 +14253,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  const verb = alias !== undefined && !alias.startsWith('!') ? alias.trim().split(/\\s+/)[0] : argv[k]",
+      "from": "  const verb = expanded ? expanded[0] : argv[k]",
       "to": "  const verb = argv[k]",
       "only": "argv list in node or perl"
     },
@@ -14263,18 +14263,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.join(' ')}`.trim()]",
+      "from": "  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]",
       "to": "  void alias",
-      "only": "argv list in node or perl"
-    },
-    {
-      "label": "chaos 916b515: git's own commit and push win over an alias",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "const BUILTIN_PUBLISH = new Set(['commit', 'push'])",
-      "to": "const BUILTIN_PUBLISH = new Set([])",
       "only": "argv list in node or perl"
     },
     {
@@ -14336,6 +14326,146 @@
       "from": "    TMPDIR: scratch,",
       "to": "",
       "only": "leaves nothing in the temp directory"
+    },
+    {
+      "label": "win: spawnGate hides the gate it starts on Windows",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "  return spawnSync(command, [...prefix, tool, ...args], { windowsHide: true, ...options })",
+      "to": "  return spawnSync(command, [...prefix, tool, ...args], options)",
+      "only": "passes windowsHide"
+    },
+    {
+      "label": "win: branch-state hides git and gh",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }",
+      "to": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }",
+      "only": "passes windowsHide"
+    },
+    {
+      "label": "win: no_window names CREATE_NO_WINDOW on Windows",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "    return {\"creationflags\": 0x08000000} if platform == \"nt\" else {}",
+      "to": "    return {}",
+      "only": "no_window names"
+    },
+    {
+      "label": "win: adr-next starts git with no window",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "                           capture_output=True, timeout=10, **NO_WINDOW)",
+      "to": "                           capture_output=True, timeout=10)",
+      "only": "starts its children with no window"
+    },
+    {
+      "label": "review e0ef6d4 F4: git runs its own command over an alias",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())",
+      "to": "  return gitAliases(argv, at, k).get(name.toLowerCase())",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "review e0ef6d4 F2: an alias's own words come first",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)",
+      "to": "  const rest = argv.slice(k + 1)",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "review e0ef6d4 F5: a ! alias's arguments are data",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]",
+      "to": "  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.join(' ')}`.trim()]",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "review e0ef6d4 F3: a call inside a string literal is data",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      const called = call => !insideLiteral(word, call.index, name === 'perl')",
+      "to": "      const called = () => true",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "F3 residual: an escaped quote does not close a literal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (c === '\\\\') i++",
+      "to": "      if (false) i++",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "F3 residual: perl's qq{} is a literal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    else if (perl && c === 'q' && !/[\\w$@%]/.test(script[i - 1] ?? '')) {",
+      "to": "    else if (false) {",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "F3 residual: perl's qq{ closes on }",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (quote) { open = CLOSER[quote[1]] ?? quote[1]; i += quote[0].length - 1 }",
+      "to": "      if (quote) { open = quote[1]; i += quote[0].length - 1 }",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "review e0ef6d4 F6: an unread shared task goes to the sole record",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "    if (sole) for (const taskPath of unreadTasks) if (!owned.includes(taskPath)) owned.push(taskPath)",
+      "to": "    if (false) for (const taskPath of unreadTasks) if (!owned.includes(taskPath)) owned.push(taskPath)",
+      "only": "shared tasks directory goes to the sole"
+    },
+    {
+      "label": "review e0ef6d4 F1: an attestation date must be a date",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (typeof attestation.date !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(attestation.date)) {",
+      "to": "  if (false) {",
+      "only": "date that is not a date"
+    },
+    {
+      "label": "review e0ef6d4 F1: an attestation files under a plain name",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (name !== path.basename(name) || name.startsWith('.')) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "date that is not a date"
     }
   ]
 }

@@ -70,7 +70,7 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
   // which that lock refuses again (BACKLOG §281 item 7).
   const notes = new Map()
   for (const dir of [...dirs].sort()) {
-    const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000 })
+    const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000, windowsHide: true })
     // adr-next answers 0 (a ready task) or 3 (nothing ready) — BOTH with JSON. Reading
     // only 0 as an answer put every finished directory in `unproven` (Codex review of
     // bdeba73, P2); anything else is the gate not running, and that IS unproven.

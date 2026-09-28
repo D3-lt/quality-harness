@@ -710,8 +710,10 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, **popen):
     if popen.pop("capture_output", False):
         popen["stdout"] = popen["stderr"] = subprocess.PIPE
     if platform == "nt":
+        # CREATE_NO_WINDOW too: a fence started from a hidden hook would otherwise
+        # give every console program it runs a window of its own (see record.py).
         popen["creationflags"] = (popen.get("creationflags", 0)
-                                  | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200))
+                                  | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200) | 0x08000000)
     else:
         popen["start_new_session"] = True
     factory = windows_job if job_factory is None else job_factory

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { linkDirectory } from './symlink-support.mjs'
 import os from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
@@ -29,8 +29,13 @@ function digestOf(fence) {
 }
 
 /** A minimal corpus in a temp directory. Never the live one — see F-17. */
+// Removed when the file ends: nothing did, and one Mac held 15,885 of these (BACKLOG §310).
+const corpora = []
+test.after(() => { for (const dir of corpora) rmSync(dir, { recursive: true, force: true }) })
 function corpus() {
-  return mkdtempSync(join(os.tmpdir(), 'qh-sweep-'))
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-sweep-'))
+  corpora.push(dir)
+  return dir
 }
 
 /**
@@ -713,7 +718,7 @@ test('the json report and the printed report agree on every count', () => {
 test('a corpus reached through a symlink is swept', () => {
   const real = corpus()
   task(real, 'T1', { fence: 'exit 0' })
-  const link = join(mkdtempSync(join(os.tmpdir(), 'qh-link-')), 'corpus')
+  const link = join(corpus(), 'corpus')
   linkDirectory(real, link)
   assert.equal(JSON.parse(sweep(link, ['--json']).stdout).claims, 1)
 })

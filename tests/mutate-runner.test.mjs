@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve, sep } from 'node:path'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
@@ -839,4 +839,34 @@ test('mutate --repoint --write rewrites only what it proposed, measures it, and 
     assert.equal(weak.status, 1, `${weak.stdout}\n${weak.stderr}`)
     assert.ok(weak.stdout.includes('GREEN'), weak.stdout)
   } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+// BACKLOG §310: a campaign re-runs suites once per mutant, and what a test forgot to
+// remove stayed once per mutant, 15,885 directories from one test file on one Mac. Each
+// child writes under a scratch temp directory the campaign removes when the child ends.
+test('a campaign leaves nothing in the temp directory, whatever its tests forget', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-mutate-tmp-'))
+  const probe = mkdtempSync(join(tmpdir(), 'qh-mutate-probe-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\n')
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "import assert from 'node:assert/strict'\nimport { mkdtempSync } from 'node:fs'\n"
+      + "import { tmpdir } from 'node:os'\nimport { join } from 'node:path'\nimport test from 'node:test'\nimport { f } from '../a.mjs'\n"
+      + "test('f', () => { mkdtempSync(join(tmpdir(), 'forgotten-')); assert.equal(f(), 1) })\n")
+    writeFileSync(join(repo, 'tests', 'mutations.json'), `${JSON.stringify({ mutations: [
+      { label: 'm', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2' },
+    ] }, null, 2)}\n`)
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base', '--no-verify')
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const run = spawnSync(process.execPath, [runner, '--root', repo, '--force', '--no-cache'], {
+      cwd: repo, encoding: 'utf8', timeout: 180_000,
+      env: { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '', TMPDIR: probe, TMP: probe, TEMP: probe },
+    })
+    assert.match(run.stdout, /1\/1 mutations were noticed/, `${run.stdout}\n${run.stderr}`)
+    assert.deepEqual(readdirSync(probe), [], 'what the child forgot went with its scratch directory')
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+    rmSync(probe, { recursive: true, force: true })
+  }
 })

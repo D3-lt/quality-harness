@@ -4,7 +4,27 @@ set -euo pipefail
 # behind — a fence, a probe, a heartbeat — is killed when the shell exits, and
 # the last step below asserts nothing is still attached, so a leak is a red run
 # here rather than a hot laptop later.
-if command -v pkill >/dev/null 2>&1; then trap 'pkill -P $$ 2>/dev/null || true' EXIT; fi
+#
+# BACKLOG §310: nor does a temp directory. Tests, and every gate and hook they spawn,
+# write through os.tmpdir() and Python's tempfile, which read TMPDIR/TMP/TEMP, so the
+# run writes under one directory this script owns and removes on exit, a run cut
+# short included. A peer session found 65,904 leaked `qh-*` directories on one Mac
+# (2026-09-28); what the tests still forget is named at the end, then removed.
+# Not on Windows: a CI runner there is discarded after the job, and a longer temp
+# prefix eats into MAX_PATH under fixtures that are measured against it.
+QH_RUN_TMP=''
+cleanup() {
+  if command -v pkill >/dev/null 2>&1; then pkill -P $$ 2>/dev/null || true; fi
+  if [ -n "$QH_RUN_TMP" ]; then rm -rf "${QH_RUN_TMP:?}"; fi
+}
+trap cleanup EXIT
+case "$(uname -s)" in
+  MINGW*|MSYS*|CYGWIN*) ;;
+  *)
+    QH_RUN_TMP=$(mktemp -d "${TMPDIR:-/tmp}/qh-selftest.XXXXXX")
+    export TMPDIR="$QH_RUN_TMP" TMP="$QH_RUN_TMP" TEMP="$QH_RUN_TMP"
+    ;;
+esac
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # ADR-008 split the two: the tests live in the repository, the thing they
@@ -132,6 +152,17 @@ else
     exit 1
   fi
   rm -f "$leak_list"
+fi
+
+# §310: what the tests left in their temp directory, by name, before the trap removes
+# it. Advice, never a failure: the directory goes whatever it holds, and this line is
+# how a new leak is seen rather than found on a full disk.
+if [ -n "$QH_RUN_TMP" ] && [ -n "$(ls -A "$QH_RUN_TMP" 2>/dev/null)" ]; then
+  left=$(ls -A "$QH_RUN_TMP" | wc -l | tr -d ' ')
+  prefixes=$(ls -A "$QH_RUN_TMP" | sed -E 's/[-._][A-Za-z0-9]{6}$//; s/-[0-9a-f]{16,}$//' | sort | uniq -c | sort -rn \
+    | awk '{ printf "%s%s x%s", sep, $2, $1; sep = ", " }')
+  printf 'advice: the tests left %s entr%s in their temp directory, removed on exit: %s\n' \
+    "$left" "$([ "$left" = 1 ] && echo y || echo ies)" "$prefixes"
 fi
 
 # The verdict is the last line, because it is the line a reader skims. PARTIAL

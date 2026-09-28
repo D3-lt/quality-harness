@@ -32,6 +32,7 @@ const pyEnv = {
   PYTHONDONTWRITEBYTECODE: '1',
   PYTHONPYCACHEPREFIX: mkdtempSync(join(os.tmpdir(), 'qh-pyc-')),
 }
+test.after(() => rmSync(pyEnv.PYTHONPYCACHEPREFIX, { recursive: true, force: true }))
 
 function python(src, input) {
   return spawnSync('python3', ['-c', src], {

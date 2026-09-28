@@ -303,7 +303,7 @@ export function testArgs(root, entry) {
  * the campaign from inside `node --test`, so every run they drove had children
  * nobody could read — it worked because exit status alone used to decide.
  */
-export function childEnv(base = process.env) {
+export function childEnv(base = process.env, scratch = mkdtempSync(path.join(tmpdir(), 'qh-mutate-run-'))) {
   // FORCE_COLOR is dropped for the same reason as the two below it: it changes
   // what a child prints. Under it the spec reporter prefixes every `✔`/`✖` line
   // with an escape code, leafTestsRun finds none, and every baseline in a campaign
@@ -319,13 +319,28 @@ export function childEnv(base = process.env) {
   // child imported the UNMUTATED module. The suite noticed nothing because
   // nothing had changed in the code it ran. Measured 2026-09-13: the same mutant
   // is RED with the cache cleared. Every child gets its own cache directory.
+  // And everything else a child writes to a temp directory lands in `scratch`, which
+  // `runChild` removes when the child ends. A campaign re-runs suites once per mutant,
+  // and what a test forgot stayed once per mutant: 15,885 `qh-sweep-*` from one test
+  // file on one Mac (BACKLOG §310).
   return {
     ...rest,
     NODE_OPTIONS: kept.join(' '),
     QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1',
     PYTHONDONTWRITEBYTECODE: '1',
-    PYTHONPYCACHEPREFIX: mkdtempSync(path.join(tmpdir(), 'qh-mutate-pyc-')),
+    PYTHONPYCACHEPREFIX: path.join(scratch, 'pycache'),
+    TMPDIR: scratch,
+    TMP: scratch,
+    TEMP: scratch,
   }
+}
+
+/** One child of the campaign, in a scratch temp directory removed when it ends. */
+function runChild(root, args, timeoutMs) {
+  const scratch = mkdtempSync(path.join(tmpdir(), 'qh-mutate-run-'))
+  try {
+    return spawnSync(process.execPath, args, { cwd: root, encoding: 'utf8', timeout: timeoutMs, env: childEnv(process.env, scratch) })
+  } finally { rmSync(scratch, { recursive: true, force: true }) }
 }
 /**
  * The test names that failed in a mutated run, read from the reporter's own
@@ -947,8 +962,7 @@ export function main(argv) {
   for (const set of sets) {
     // The same files and the same arguments as the mutated run below, or this
     // would be measuring a different thing than the one it licenses.
-    const run = spawnSync(process.execPath, testArgs(root, set),
-      { cwd: root, encoding: 'utf8', timeout: timeoutMs, env: childEnv() })
+    const run = runChild(root, testArgs(root, set), timeoutMs)
     baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t))))
   }
 
@@ -985,8 +999,7 @@ export function main(argv) {
     begin(file, original)
     writeFileSync(file, original.replace(mutation.from, mutation.to))
     const startedAt = Date.now()
-    const run = spawnSync(process.execPath, testArgs(root, mutation),
-      { cwd: root, encoding: 'utf8', timeout: timeoutMs, env: childEnv() })
+    const run = runChild(root, testArgs(root, mutation), timeoutMs)
     const elapsedMs = Date.now() - startedAt
     finish(file, original)
 

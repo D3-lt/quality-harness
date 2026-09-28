@@ -64,7 +64,7 @@ async function runLaunched({ file, args, shell }, { root, env, platform, timeout
   // Its own process group on POSIX, so a forwarded signal reaches the whole check,
   // not only the shell that started it.
   const group = platform !== 'win32'
-  const child = spawn(file, args, { cwd: root, shell, env, stdio: ['ignore', 'pipe', 'pipe'], detached: group, timeout: timeoutMs })
+  const child = spawn(file, args, { cwd: root, shell, env, stdio: ['ignore', 'pipe', 'pipe'], detached: group, timeout: timeoutMs, windowsHide: true })
   let received = null
   const forward = signal => {
     received = signal
@@ -87,7 +87,7 @@ async function runLaunched({ file, args, shell }, { root, env, platform, timeout
 }
 
 export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr } = {}) {
-  const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000 })
+  const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
   const { command, origin } = checkCommandOrigin(root)

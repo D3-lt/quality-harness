@@ -137,7 +137,7 @@ export function checkModuleSource (source, name = '<source>', { spawn = spawnSyn
   try {
     const copy = join(dir, 'candidate.mjs')
     writeFileSync(copy, source)
-    const checked = spawn(execPath, ['--check', copy], { encoding: 'utf8', timeout: 60_000 })
+    const checked = spawn(execPath, ['--check', copy], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
     // ⚠ READ THE FAILURE FIELDS BEFORE THE STATUS, NOT AFTER. `spawnSync` can return
     // status 0 ALONGSIDE an ETIMEDOUT error, and a killed child returns a null status
     // with no error at all — so `status === 0` tested first hands back a clean answer

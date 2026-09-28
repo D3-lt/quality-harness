@@ -274,10 +274,10 @@ function underTempRoot(candidate, depth = 0) {
 // of holding an unanswerable question against every later commit in the session.
 // Returns null when Git cannot answer, which keeps the gate closed.
 function deletedTrackedPaths(cwd) {
-  const options = { encoding: 'utf8', timeout: 10_000 }
-  const root = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], options)
+  const root = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
   if (root.status !== 0) return null
-  const deleted = spawnSync('git', ['-C', cwd, '-c', 'core.quotePath=false', 'diff', '--no-renames', '--name-only', '--diff-filter=D', 'HEAD'], options)
+  const deleted = spawnSync('git', ['-C', cwd, '-c', 'core.quotePath=false', 'diff', '--no-renames', '--name-only', '--diff-filter=D', 'HEAD'],
+    { encoding: 'utf8', timeout: 10_000, windowsHide: true })
   if (deleted.status !== 0) return null
   const top = root.stdout.trim()
   return deleted.stdout.split('\n')
@@ -366,7 +366,7 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000,
         const timeoutMs = artifactGateTimeoutMs()
         const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh', '--batch'], {
           input: JSON.stringify({ paths: uniqueTargets, deadline, windowMs, timeoutMs }),
-          encoding: 'utf8',
+          encoding: 'utf8', windowsHide: true,
           // Each shell is capped separately; leave room for its diagnostic framing too.
           maxBuffer: uniqueTargets.length * ARTIFACT_OUTPUT_LIMIT * 2,
           env: { ...process.env, QUALITY_HARNESS_ADR_LEDGER: ledger,
@@ -774,7 +774,7 @@ export function checkCommandOrigin(cwd = process.cwd(), discovery = null) {
 // Callers that would certify or go silent on that null use `gitRepositoryLookup`.
 export function gitRepositoryLookup(directory, spawnResult) {
   const run = spawnResult !== undefined ? spawnResult : spawnSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], {
-    encoding: 'utf8', timeout: 5_000,
+    encoding: 'utf8', timeout: 5_000, windowsHide: true,
   })
   if (!run || run.error || run.status == null) {
     return { ok: false, root: null, reason: run?.error?.message ?? 'git produced no status' }
@@ -1284,7 +1284,7 @@ const WINDOWS_PYTHONS = [['py', '-3'], ['python'], ['python3']]
 export function resolvePython(platform = process.platform, candidates = WINDOWS_PYTHONS, run = spawnSync) {
   if (platform !== 'win32') return null
   for (const [command, ...prefix] of candidates) {
-    const probe = run(command, [...prefix, '-c', PYTHON_PROBE], { encoding: 'utf8', timeout: 10_000 })
+    const probe = run(command, [...prefix, '-c', PYTHON_PROBE], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
     const answered = (probe.stdout ?? '').trim()
     // Keyed on the MAJOR: any 3.x is a real Python 3.
     if (probe.status === 0 && /^3(\.\d+)?$/.test(answered)) {
@@ -1303,7 +1303,10 @@ const UNPROBED = Symbol('python interpreter not yet resolved')
 let cachedPython = UNPROBED
 
 export function spawnGate(tool, args, options = {}, platform = process.platform, python) {
-  if (platform !== 'win32') return spawnSync(tool, args, options)
+  // Hidden, and on Windows it is the whole point: a hook runs with no console, so a
+  // child without windowsHide gets a console of its own, which Windows Terminal
+  // opens as a tab that flashes (reported on 3.1.0, 2026-09-28).
+  if (platform !== 'win32') return spawnSync(tool, args, { windowsHide: true, ...options })
   if (python === undefined && cachedPython === UNPROBED) cachedPython = resolvePython(platform)
   const interpreter = python !== undefined ? python : cachedPython
   if (!interpreter) {
@@ -1317,7 +1320,7 @@ export function spawnGate(tool, args, options = {}, platform = process.platform,
     }
   }
   const [command, ...prefix] = interpreter
-  return spawnSync(command, [...prefix, tool, ...args], options)
+  return spawnSync(command, [...prefix, tool, ...args], { windowsHide: true, ...options })
 }
 
 // ⚠ CORPUS TEXT IS QUOTED, NEVER SPOKEN IN THE TOOL'S VOICE. A task's title and
@@ -1418,7 +1421,7 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
         + 'Ready tasks there are not known.')
       continue
     }
-    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
+    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
     // posixListed: path.relative is native separators; SessionStart text and
     // the Windows CI structural-path rule need a listed form (ADR-046 T5).
     const relative = visiblePath(posixListed(path.relative(root, directory) || directory))
@@ -2074,7 +2077,7 @@ export function trackedPaths(root) {
   // tracked_paths already used `-z`; this copy did not.
   for (const args of [['ls-files', '-z'], ['ls-files', '--others', '--exclude-standard', '-z']]) {
     const run = spawnSync('git', ['-C', root, '-c', 'core.quotePath=false', ...args],
-      { encoding: 'utf8', timeout: 30000 })
+      { encoding: 'utf8', timeout: 30000, windowsHide: true })
     if (run.error || run.status !== 0 || typeof run.stdout !== 'string') return null
     for (const value of run.stdout.split('\0')) {
       if (value) found.add(value)
@@ -2233,6 +2236,10 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       owned.push(entry.path)
       for (const declaredPath of affectedFiles(entry.text)) governs.add(declaredPath)
     }
+    // An unread file in a shared tasks/ goes to the sole record beside it, as its text
+    // would have. With several records it is nobody's, and each keeps it in unreadTasks,
+    // so each says its scope is unknown (Codex review of 3.1.0..e0ef6d4, F6).
+    if (sole) for (const taskPath of unreadTasks) if (!owned.includes(taskPath)) owned.push(taskPath)
     records.push({
       file,
       number,
@@ -3169,6 +3176,28 @@ const PERL_LIST = /\b(?:system|exec)\s*\(?\s*((["'])[^"']*\2(?:\s*,\s*(["'])[^"'
 // `os.system` and `os.popen` hand their string to a shell (a Windows chaos round of
 // 916b515: `python -c "import os; os.system('git push')"` pushed and was read as nothing).
 const SUBPROCESS_STRING = /(?:subprocess\.(?:run|call|check_call|check_output|Popen)|\bexec(?:Sync|File|FileSync)?|\bos\.(?:system|popen))\(\s*(["'])(.*?)\1/g
+// Whether offset `at` of an interpreter's script lies inside a string literal. A call
+// there is text the script prints, not a call it makes (Codex review of 3.1.0..e0ef6d4,
+// F3: `print("run: os.system('git push')")` and perl's `print qq{system("git", "push")}`
+// ran nothing), and a match not proved a call stays advice (§16). Not a parser: a quote
+// inside a comment can flip it, which only ever turns a refusal into advice.
+const PERL_QUOTE = /^qq?\s*([^\w\s])/
+const CLOSER = { '{': '}', '(': ')', '[': ']', '<': '>' }
+function insideLiteral(script, at, perl) {
+  let open = null
+  for (let i = 0; i < at; i++) {
+    const c = script[i]
+    if (open !== null) {
+      if (c === '\\') i++
+      else if (c === open) open = null
+    } else if (c === '"' || c === "'" || c === '`') open = c
+    else if (perl && c === 'q' && !/[\w$@%]/.test(script[i - 1] ?? '')) {
+      const quote = PERL_QUOTE.exec(script.slice(i, i + 8))
+      if (quote) { open = CLOSER[quote[1]] ?? quote[1]; i += quote[0].length - 1 }
+    }
+  }
+  return open !== null
+}
 // Deep enough for `bash -c "sudo sh -c 'eval …'"`, bounded so a crafted command
 // cannot make a hook recurse without end.
 const WALK_DEPTH = 5
@@ -3295,18 +3324,55 @@ function gitAliases(argv, at, k) {
   return aliases
 }
 
-// git runs its own command over an alias of the same name (`git -c alias.version=status
-// version` printed the version, 2.55.0, 2026-09-27), so `commit` and `push` stay publishes.
-const BUILTIN_PUBLISH = new Set(['commit', 'push'])
+// git's own commands on 2.55.0 (`git --list-cmds=main`, measured 2026-09-28). An alias of
+// any of them is ignored, builtin or not: `git -c alias.mergetool=version mergetool` ran
+// mergetool, and `alias.version=status version` printed the version. A name git does not
+// ship takes its alias (`alias.lfsx=version lfsx` printed the version). A command added
+// after 2.55 is missing here, so its alias reads as applying: a refusal of a command git
+// would not run, the conservative way (Codex review of 3.1.0..e0ef6d4, F4).
+const GIT_COMMANDS = new Set(`add am annotate apply archimport archive backfill bisect blame branch bugreport bundle
+  cat-file check-attr check-ignore check-mailmap check-ref-format checkout checkout--worker checkout-index cherry
+  cherry-pick clean clone column commit commit-graph commit-tree config count-objects credential credential-cache
+  credential-cache--daemon credential-netrc credential-osxkeychain credential-store cvsexportcommit cvsimport
+  cvsserver daemon describe diagnose diff diff-files diff-index diff-pairs diff-tree difftool difftool--helper
+  fast-export fast-import fetch fetch-pack filter-branch fmt-merge-msg for-each-ref for-each-repo format-patch
+  format-rev fsck fsck-objects fsmonitor--daemon gc get-tar-commit-id grep hash-object help history hook
+  http-backend http-fetch http-push imap-send index-pack init init-db instaweb interpret-trailers jump
+  last-modified log ls-files ls-remote ls-tree mailinfo mailsplit maintenance merge merge-base merge-file
+  merge-index merge-octopus merge-one-file merge-ours merge-recursive merge-recursive-ours merge-recursive-theirs
+  merge-resolve merge-subtree merge-tree mergetool mktag mktree multi-pack-index mv name-rev notes p4 pack-objects
+  pack-redundant pack-refs patch-id pickaxe prune prune-packed pull push quiltimport range-diff read-tree rebase
+  receive-pack reflog refs remote remote-ext remote-fd remote-ftp remote-ftps remote-http remote-https repack
+  replace replay repo request-pull rerere reset restore rev-list rev-parse revert rm send-email send-pack
+  sh-i18n--envsubst shell shortlog show show-branch show-index show-ref sparse-checkout stage stash status
+  stripspace submodule submodule--helper subtree switch symbolic-ref tag unpack-file unpack-objects update-index
+  update-ref update-server-info upload-archive upload-archive--writer upload-pack url-parse var verify-commit
+  verify-pack verify-tag version web--browse whatchanged worktree write-tree`.split(/\s+/))
+
+// The alias git would run for the word at k, or undefined when git runs its own command.
+function aliasFor(argv, at, k) {
+  const name = String(argv[k] ?? '')
+  return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())
+}
+
+// A word as shell data: what `"$@"` hands a `!` alias is arguments, never source.
+const shellQuote = word => `'${String(word).replace(/'/g, `'\\''`)}'`
+
 function gitInvocation(argv, at, dynamic) {
   const k = gitVerbIndex(argv, at)
-  const alias = BUILTIN_PUBLISH.has(argv[k]) ? undefined : gitAliases(argv, at, k).get(String(argv[k] ?? '').toLowerCase())
-  const verb = alias !== undefined && !alias.startsWith('!') ? alias.trim().split(/\s+/)[0] : argv[k]
+  const alias = aliasFor(argv, at, k)
+  // An alias is split as git splits it, and its own words come BEFORE the command
+  // line's: `alias.c=commit -m` makes `c --dry-run` a commit whose message is
+  // `--dry-run`, and `alias.p=push --dry-run` makes `p` a dry run (Codex review of
+  // 3.1.0..e0ef6d4, F2). A `!` alias is a shell line, which gitRunsCommands reads.
+  const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null
+  const verb = expanded ? expanded[0] : argv[k]
+  const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)
   if ((verb !== 'commit' && verb !== 'push') || dynamic.includes(k)) return null
-  if (argv[k + 1] === '--help' || argv[k + 1] === '-h') return null
+  if (rest[0] === '--help' || rest[0] === '-h') return null
   // A dry run publishes nothing (a chaos round of 626934a, R6). `commit -n` is
   // `--no-verify`, not a dry run, and stays a publish.
-  if (dryRun(verb, argv.slice(k + 1))) return null
+  if (dryRun(verb, rest)) return null
   return argv.slice(at, k + 1).join(' ')
 }
 
@@ -3316,8 +3382,10 @@ function gitInvocation(argv, at, dynamic) {
 function gitRunsCommands(argv, at) {
   const k = gitVerbIndex(argv, at)
   const rest = argv.slice(k + 1)
-  const alias = BUILTIN_PUBLISH.has(argv[k]) ? undefined : gitAliases(argv, at, k).get(String(argv[k] ?? '').toLowerCase())
-  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.join(' ')}`.trim()]
+  const alias = aliasFor(argv, at, k)
+  // Git runs a `!` alias as `<body> "$@"`: the command line's words are data appended
+  // to it, so `x 'ok; git push'` is one argument to `echo` (Codex review, F5).
+  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]
   if (argv[k] === 'submodule') {
     const each = rest.indexOf('foreach')
     if (each < 0) return []
@@ -3572,12 +3640,14 @@ function publishInCommand(commands, n, depth) {
   }
   if (INTERPRETERS.test(name)) {
     for (const word of argv.slice(start + 1)) {
-      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]) {
+      // A call inside a string literal is data that is printed, not run (F3, above).
+      const called = call => !insideLiteral(word, call.index, name === 'perl')
+      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {
         const list = [...call[1].matchAll(/(["'])([^"']*)\1/g)].map(item => item[2])
         const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null
         if (invoked) return invoked
       }
-      const found = inner([...word.matchAll(SUBPROCESS_STRING)].map(call => call[2]))
+      const found = inner([...word.matchAll(SUBPROCESS_STRING)].filter(called).map(call => call[2]))
       if (found) return found
     }
   }
@@ -3648,7 +3718,7 @@ export function observe(cwd, budgetMs = OBSERVE_BUDGET_MS) {
     const remaining = budgetMs - (Date.now() - started)
     if (remaining <= 0) throw new Error(`git took more than ${budgetMs} ms`)
     const run = spawnSync('git', ['-C', directory, ...args], {
-      encoding: 'utf8', timeout: remaining, maxBuffer: 16 * 1024 * 1024,
+      encoding: 'utf8', timeout: remaining, maxBuffer: 16 * 1024 * 1024, windowsHide: true,
       env: env ? { ...process.env, ...env } : process.env,
     })
     if (run.error?.code === 'ETIMEDOUT') throw new Error(`git took more than ${budgetMs} ms`)
@@ -3788,9 +3858,9 @@ function recordFileWritten(input) {
       return inside.startsWith('..') || path.isAbsolute(inside)
     })()
     if (relative && !relative.startsWith('..') && !path.isAbsolute(relative) && !escapes) {
-      const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', relative], { encoding: 'utf8', timeout: 5_000 })
+      const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', relative], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
       if (!ignored.error && ignored.status === 1) {
-        const hashed = spawnSync('git', ['-C', root, 'hash-object', '--', relative], { encoding: 'utf8', timeout: 5_000 })
+        const hashed = spawnSync('git', ['-C', root, 'hash-object', '--', relative], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
         entry.observable = true
         entry.blob = !hashed.error && hashed.status === 0 ? hashed.stdout.trim() : null
       }
@@ -4446,7 +4516,7 @@ function mark(lines, ok, why = '') {
 // after the first was fixed (CLAUDE.md §5). `nul` splits on NUL and trims nothing —
 // a name may end in a space.
 function gitLines(root, args, { nul = false } = {}) {
-  const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000 })
+  const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   if (run.error || run.status !== 0) {
     const verb = args.find(arg => /^[a-z][a-z-]*$/.test(arg)) ?? args[0]
     const why = run.error ? run.error.message : `git ${verb} exited ${run.status}`
@@ -4602,7 +4672,7 @@ function statusPaths(root) {
   // `-z` quotes nothing: NUL-terminated, and a rename's ORIGINAL path follows as
   // its own field, which is skipped — the new name is the path that exists.
   const run = spawnSync('git', ['-C', root, 'status', '--porcelain', '-z', '-uall', ...harnessPathspecs(root)],
-    { encoding: 'utf8', timeout: 5_000 })
+    { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   if (run.error || run.status !== 0) {
     return mark([], false, run.error ? run.error.message : `git status exited ${run.status}`)
   }

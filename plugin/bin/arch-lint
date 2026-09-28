@@ -70,7 +70,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of  # noqa: E402
+from record import sections_of, NO_WINDOW  # noqa: E402
 
 RULE_SECTIONS = ["Dependency Contracts", "Concept Ownership (DRY)", "Composition Root",
                  "Test Doubles", "Trust & Data Boundaries"]
@@ -94,7 +94,7 @@ def repo_roots(doc):
     try:
         r = subprocess.run(["git", "-C", str(doc.parent), "rev-parse", "--show-toplevel"],
                            capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace")
+                           encoding="utf-8", errors="replace", **NO_WINDOW)
         if r.returncode == 0:
             roots.append(Path(r.stdout.strip()))
     except Exception:
@@ -312,7 +312,7 @@ def tracked_paths(root):
         # character, `"` or `\`; and text mode's universal newlines turn a CR inside a
         # name into LF, so the path no longer names the file (Codex review of f905d8a).
         r = subprocess.run(["git", "-C", str(root), "ls-files", "--cached", "-z"],
-                           capture_output=True, timeout=30)
+                           capture_output=True, timeout=30, **NO_WINDOW)
     except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0:

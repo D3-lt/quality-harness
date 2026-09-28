@@ -44,6 +44,10 @@ import subprocess
 import sys
 from pathlib import Path
 
+# The same console rule as record.py's NO_WINDOW, here because this entry point does
+# not import the gate library: a hidden hook's children get no window of their own.
+NO_WINDOW = {"creationflags": 0x08000000} if os.name == "nt" else {}
+
 
 def gate_identity():
     """Who is answering: this gate's name, version and plugin root (ADR-031).
@@ -84,7 +88,7 @@ def main(argv):
     except ValueError:
         seconds = 3600.0
     try:
-        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60)
+        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60, **NO_WINDOW)
     except subprocess.TimeoutExpired:
         return 1
 

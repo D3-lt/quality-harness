@@ -145,3 +145,26 @@ test('the documented signatures are classified through the CLI, one fixture per 
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// Windows, 3.1.0 (the owner, 2026-09-28): a terminal tab flashed after each prompt. A
+// hook runs with no console, so every child it starts without `windowsHide` gets a
+// console of its own, which Windows Terminal opens as a tab. Shown dirty and clean on a
+// fixture first, then held for every call in plugin/.
+test('every spawn in plugin/ passes windowsHide, and a call that does not is named', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-hidden-'))
+  try {
+    const file = join(dir, 'fixture.mjs')
+    writeFileSync(file, "import { spawnSync } from 'node:child_process'\n"
+      + "export const shown = () => spawnSync('git', ['status'], { encoding: 'utf8', timeout: 5_000 })\n"
+      + "export const hidden = () => spawnSync('git', ['status'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })\n")
+    const dirty = check(['--hidden', file])
+    assert.equal(dirty.status, 1, `${dirty.stdout}${dirty.stderr}`)
+    assert.match(dirty.stdout, /fixture\.mjs:2: spawnSync\(\) passes no windowsHide/)
+    assert.doesNotMatch(dirty.stdout, /fixture\.mjs:3:/)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+  const tree = check(['--hidden'])
+  assert.equal(tree.status, 0, `${tree.stdout}${tree.stderr}`)
+  // UNKNOWN fails here too: a call whose options are a variable cannot be read, and
+  // spawnGate's own was one until a mutant removing its windowsHide went unnoticed.
+  assert.match(tree.stdout, /[1-9]\d* hidden · 0 shown · 0 unknown/)
+})

@@ -103,3 +103,17 @@ test('an at this clone lacks is could-not-look, not a refusal', () => {
   assert.ok(`${run.stdout}${run.stderr}`.includes('fetch'), run.stderr)
   assert.deepEqual(reports(repo), [])
 })
+
+// Codex review of 3.1.0..e0ef6d4, F1: the date names the file, and `../../x` would have
+// filed outside docs/corpus-reports. It is refused, and nothing is written anywhere.
+test('a date that is not a date is refused, and nothing is written outside the reports', () => {
+  const { repo, attestation } = repository('escape')
+  const refused = importing(repo, message({ ...attestation, date: '../../../escape', runner: 'escape-probe' }))
+  assert.equal(refused.status, 1, `${refused.stdout}\n${refused.stderr}`)
+  assert.match(refused.stdout, /date is "\.\.\/\.\.\/\.\.\/escape", not YYYY-MM-DD/)
+  assert.match(refused.stdout, /is not a plain name inside docs\/corpus-reports/)
+  assert.deepEqual(reports(repo), [])
+  assert.ok(!readdirSync(scratch).some(name => name.startsWith('escape-escape-probe')), 'nothing lands beside the repository')
+  // Clean twin: the same attestation with a real date is filed.
+  assert.equal(importing(repo, message({ ...attestation, runner: 'escape-probe' })).status, 0)
+})

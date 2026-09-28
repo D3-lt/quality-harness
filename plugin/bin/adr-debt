@@ -72,7 +72,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of  # noqa: E402
+from record import sections_of, NO_WINDOW  # noqa: E402
 
 
 def disposition_span(text):
@@ -256,7 +256,7 @@ def git_root(d):
     try:
         r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
                            capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace")
+                           encoding="utf-8", errors="replace", **NO_WINDOW)
         if r.returncode == 0:
             return Path(r.stdout.strip())
     except Exception:

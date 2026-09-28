@@ -121,4 +121,4 @@ See `tasks/README.md`: T1 (the cache records killers), T2 (the proposal and the 
 
 ## Follow-ups
 
-- [ ] After T3's campaign, record the measured runner-seconds against run 36413858960 in BACKLOG §301.
+- [x] After T3's campaign, record the measured runner-seconds against run 36413858960 in BACKLOG §301. Done 2026-09-28: the dispatched campaign 36476465667 summed 10,304 against 50,430, a 79.6% saving; the record's claim holds.

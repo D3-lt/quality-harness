@@ -36,7 +36,6 @@ import { isMainModule } from './main-module.mjs'
 import { latestCheckFor, logIncomplete, projectCheckCommand, readEvents, sessionLogFile } from './lifecycle.mjs'
 import { usableCache } from './branch-state.mjs'
 import { findGitDir } from './git-directory.mjs'
-export { findGitDir } from './git-directory.mjs'
 
 // An observation older than this is not a verdict about the tree as it is now;
 // it is the last thing that WAS seen, and the segment says so instead.

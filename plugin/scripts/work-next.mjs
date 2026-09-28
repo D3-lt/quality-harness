@@ -53,7 +53,9 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
     // `tasks/`, no archive, no fixture path), so the two views of "which tasks
     // exist" cannot drift apart — a record's `taskFiles` includes its archived
     // and nested files, and asking adr-next about those offered history as work.
-    for (const file of record.taskFiles ?? []) {
+    // And the directory of a task nobody could read: whose it is is unknown, so it is
+    // asked about rather than dropped (Codex review of 3.1.0..e0ef6d4, F6; round 2, F5).
+    for (const file of [...(record.taskFiles ?? []), ...(record.unreadTasks ?? [])]) {
       if (allowed && !allowed.has(path.resolve(file))) continue
       dirs.add(path.dirname(path.resolve(file)))
     }

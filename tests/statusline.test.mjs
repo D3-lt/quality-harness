@@ -12,7 +12,8 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
-import { CI_STALE_MS, STALE_MS, ciReading, findGitDir, reading, render, renderCi } from '../plugin/scripts/statusline.mjs'
+import { CI_STALE_MS, STALE_MS, ciReading, reading, render, renderCi } from '../plugin/scripts/statusline.mjs'
+import { findGitDir } from '../plugin/scripts/git-directory.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')

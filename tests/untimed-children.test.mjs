@@ -56,9 +56,11 @@ test('every shipped gate names a timeout on every child it spawns', () => {
     `these calls can hang a gate for ever (BACKLOG §130):\n${run.stdout}${run.stderr}`)
 })
 
-// Windows, 3.1.0 (the owner, 2026-09-28): a gate a hook starts has no console, and
-// each child it starts without CREATE_NO_WINDOW gets a console of its own, which
-// Windows Terminal opens as a tab that flashes. Dirty and clean first, then the tree.
+// Windows, 3.1.0 (the owner, 2026-09-28): a child with a console of its own opens a
+// Windows Terminal tab. But CREATE_NO_WINDOW on a child that shares the gate's stdio
+// loses everything it prints: qh-check printed nothing on Windows at 2b036de. So a
+// redirected call must set it and an inheriting one must not, the flag's VALUE is
+// read, and an injected runner counts as the call it defaults to (Codex round 2, F4).
 test('every shipped gate starts its children with no window, and one that does not is named', () => {
   const dir = mkdtempSync(join(tmpdir(), 'qh-unhidden-'))
   try {
@@ -72,12 +74,23 @@ test('every shipped gate starts its children with no window, and one that does n
       '    return subprocess.run(["git", "status"], capture_output=True, timeout=30, **NO_WINDOW)',
       'def flagged(cwd):',
       '    return subprocess.run(["git", "status"], capture_output=True, timeout=30, creationflags=0x08000000)',
+      'def zero(cwd):',
+      '    return subprocess.run(["git", "status"], capture_output=True, timeout=30, creationflags=0)',
+      'def forwards(argv):',
+      '    return subprocess.call(argv, timeout=30, **NO_WINDOW)',
+      'def shares(argv):',
+      '    return subprocess.call(argv, timeout=30)',
+      'def injected(pid, run=subprocess.run):',
+      '    return run(["taskkill", str(pid)], capture_output=True, timeout=30)',
       '',
     ].join('\n'))
     const run = check(['--hidden', dirty])
     assert.equal(run.status, 1, `${run.stdout}${run.stderr}`)
-    assert.match(run.stdout, /dirty\.py:4: subprocess\.run in shown\(\) passes neither/)
-    assert.equal(run.stdout.trim().split('\n').length, 1, 'only the call with neither is a finding')
+    assert.match(run.stdout, /dirty\.py:4: subprocess\.run in shown\(\) redirects its output but sets no CREATE_NO_WINDOW/)
+    assert.match(run.stdout, /dirty\.py:10: subprocess\.run in zero\(\) redirects/)
+    assert.match(run.stdout, /dirty\.py:12: subprocess\.call in forwards\(\) shares this gate's stdio and sets CREATE_NO_WINDOW/)
+    assert.match(run.stdout, /dirty\.py:16: subprocess\.run in injected\(\) redirects/)
+    assert.equal(run.stdout.trim().split('\n').length, 4, run.stdout)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

@@ -214,55 +214,11 @@ export const SHADOW_SCOPE = [
   { home: 'workflows', shipped: 'workflows', whenAbsent: 'skip', wired: false },
 ]
 
-/**
- * The directories this plugin ships that are deliberately NOT mirrored home-side.
- *
- * MIRRORING IS THE DEFAULT and this is the exception list, which is the whole
- * point of the pairing. The table above was hand-written, so a shipped directory
- * was covered only if somebody remembered it — and on 2026-09-01, the day the
- * hooks gap shipped its fix, `workflows` was still missing: two files under the
- * home were ours, still shipped and drifted, and `grep -n workflows` over the
- * three scanning modules returned nothing. Same defect as GitHub issue #1, one
- * directory over, found by enumerating the class instead of the instance.
- *
- * A test asserts that every shipped directory is either in SHADOW_SCOPE or named
- * here, so the NEXT directory this plugin adds cannot be silently unscanned. It
- * fails loudly and the author decides which list it joins; that decision is a
- * judgement no derivation can make, and leaving it to memory is what produced
- * this entry.
- *
- * WHAT THE RULE CANNOT CATCH, said out loud because a mutation measured it: moving
- * a directory OUT of SHADOW_SCOPE and INTO this set in the same edit is invisible
- * to the check, since that is exactly what a legitimate exclusion looks like. A
- * mutation adding `workflows` here came back GREEN on 2026-09-01 — it changes
- * nothing while SHADOW_SCOPE still covers it, so it was a no-op rather than a gap
- * in the test. The gap it points at is real and is a review question, not a
- * mechanical one: every entry below has to carry the reason it is here.
- */
-export const NEVER_MIRRORED = new Set([
-  // Named agent definitions (ADR-030), read by the loader from the plugin root.
-  // A copy under the home would register a SECOND definition of the same role
-  // under the same bare name, and the host would have two answers for one
-  // `subagent_type` — which is ADR-001's rule for skills, one directory over.
-  'agents',
-  // The eval corpus is the plugin's own test fixtures. Nothing under the home
-  // reads it, and its results directory is gitignored (CLAUDE.md §6).
-  'evals',
-  // `hooks/hooks.json` is the plugin's own hook REGISTRATION, read by the loader
-  // from the plugin root. The home `hooks/` directory holds the scripts it points
-  // at, which ship under `scripts/` — that asymmetry is the SHADOW_SCOPE entry
-  // above, and copying the registration itself home-side would register a second
-  // set of hooks nobody asked for.
-  'hooks',
-  // The plugin manifest. One per installed plugin, resolved by the loader; a copy
-  // under the home is not a plugin.
-  '.claude-plugin',
-  // Shared code the gates import from the plugin root (`plugin/lib/fence.py`,
-  // 2026-09-06). A forwarder execs `$root/bin/<gate>`, which resolves lib/ from
-  // its own path — so a copy under the home would be exactly the stale
-  // duplicate this whole module exists to keep out, and nothing would read it.
-  'lib',
-])
+// The directories deliberately NOT mirrored home-side are listed beside the test that
+// asserts every shipped directory is either in SHADOW_SCOPE or named there
+// (tests/lifecycle.test.mjs, NEVER_MIRRORED). That test is its only reader, and a list
+// only a test reads is not shipped code (CLAUDE.md §13; knip, 2026-09-28). A directory
+// added to plugin/ fails that test until it joins one list or the other.
 
 /**
  * A predicate for "the user's settings name this file", read once per call.
@@ -672,7 +628,7 @@ export function scanSet(homeDirectory = os.homedir()) {
     // `.claude-plugin` alongside the real seven, because some cached releases are
     // checkouts rather than exports. Scanning the home `.git` would be absurd on
     // its face, and `.claude-plugin` is a manifest directory that is never
-    // mirrored (see NEVER_MIRRORED).
+    // mirrored (see NEVER_MIRRORED in tests/lifecycle.test.mjs).
     for (const entry of entries) {
       if (entry.isDirectory() && !entry.name.startsWith('.')) names.add(entry.name)
     }

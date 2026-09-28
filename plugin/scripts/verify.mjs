@@ -32,8 +32,9 @@ export function main(argv, spawnFn = spawn) {
     process.stderr.write(`${parsed.error}\n`)
     return 2
   }
+  // untimed-spawn: the caller's own verification command in the foreground, stdio inherited; it ends with the caller's call
   const child = spawnFn(parsed.command, parsed.commandArgs,
-    { cwd: parsed.cwd, stdio: 'inherit', shell: false })
+    { cwd: parsed.cwd, stdio: 'inherit', shell: false, windowsHide: true })
 
   child.on('error', error => {
     process.stderr.write(`verification command failed to start: ${error.message}\n`)

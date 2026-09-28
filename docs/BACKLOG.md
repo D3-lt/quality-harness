@@ -16230,3 +16230,42 @@ The readers changed with this batch (lifecycle.mjs, corpus-probe.mjs, work-next.
 - Each has a test and a RED entry; three older entries were re-pointed by `--repoint`, five by hand after it refused them as rewrites, and "git's own commit and push win over an alias" is deleted with the set it mutated (F4's entry covers the rule).
 
 **Left.** The readers changed again (lifecycle.mjs, corpus-probe.mjs, work-next.mjs, adr-next, adr-lint), so an outside run is needed at the release sha (§18); Windows peers are asked about the tabs in the same request. The §309 leads stand.
+
+## 312. FIXED 2026-09-28 — §311's Windows fix lost qh-check's output; a second Codex round; the dead-code scan's blind spots
+
+**CI at 2b036de (run 36389420507) went red: windows and one mutation shard.** Both came from §311 itself.
+
+- **windows: four tests read `''` from `qh-check`.** They were "a constant success is not a check…", "every gate refuses a flag it does not know", and two in `qh-check-shell`. Each exit code was right; the output was gone. §311 added CREATE_NO_WINDOW to the Python forwarder's `subprocess.call`, which shares the gate's stdio. Python passes no handles when none are given, so a child started with that flag gets a console of its own, and everything it prints goes there. libuv draws the line the other way for Node: `windowsHide` adds CREATE_NO_WINDOW only when no stdio is inherited.
+  - **§311's model was wrong, and this corrects it (the record stays as written).** It said the Python gates' children "had the same gap one level down". They did not. A gate Node starts with `windowsHide` has a windowless console, and its children share it. What opened the tabs is a process with NO console, which is the `detached` refresher (CREATE_NO_WINDOW is ignored beside DETACHED_PROCESS), and its children. The Python `NO_WINDOW` sweep is harmless on a call whose output is redirected, and wrong on one that inherits.
+  - **Fixed.** `qh-check` no longer passes the flag. `untimed-children --hidden` now has two halves. A call that shares the gate's stdio must not set CREATE_NO_WINDOW. A redirected call must set it, and `creationflags` is read by its value (`creationflags=0` was accepted). A parameter that defaults to a subprocess call (`run=subprocess.run`) is read as that call.
+  - It found `fence.py`'s `taskkill`, which now sets the flag. The fixture shows each half firing.
+  - The four Windows tests are the outermost check, and only CI runs them.
+- **mutations 16/48: "chaos 916b515 C-5: an unread task file stays attributed to its record" went GREEN.** §311's F6 line handed unread shared tasks to the sole record, so deleting C-5's own `owned.push` changed nothing a test could see. The test now asserts `taskFiles` directly, and the mutant is RED.
+
+**Codex round 2** (gpt-6-astra, xhigh, 2b036de; REQUEST CHANGES; five findings, each confirmed against source or by execution):
+
+- **F2, a fail-open this batch introduced, so the release was held.** §311's `insideLiteral` read an interpolating literal as data:
+  - JS `` `${spawnSync("git", ["push"])}` ``, a python f-string, and perl `qq{@{[system(…)]}}` each ran the call and read as nothing;
+  - so did python's `"""a " b"""; os.system(…)`;
+  - and perl `q{a {b} system(…)}` was still refused.
+
+  Now a literal's interpolation hole is code again: `${`, `@{`, and `{` in an f-string, where `{{` is a literal brace. Triple quotes and perl's nested bracket delimiters are followed.
+- **F1.** An alias was split as a shell splits it. Git splits on whitespace only, and refuses `alias.x=push;true` and a value with a leading space; both were measured on 2.55.0 as "is not a git command". `gitSplit` follows git's rules.
+- **F3.** `GIT_COMMANDS` held `--list-cmds=main`, which includes external programs. An external program's alias runs when the program is missing: `--exec-path=/nonexistent -c alias.mergetool=version mergetool` printed the version. The list is now the 149 builtins (`--list-cmds=builtins`), and a builtin's alias is still ignored with the exec path broken. An external name's alias is read, which refuses a command git would not run when the program is installed; that is the conservative direction.
+- **F4.** The Node scanner saw neither injected runners nor `windowsHide: false`. Runner parameters are read now, scoped to their own function; a file-wide first cut flagged a local `run` string builder. Five sites gained `windowsHide`: offerPublishHook's probe, archiveHistory, host-review twice, and verify.
+  - `verify.mjs`'s spawn is acknowledged untimed, since it is the caller's own foreground command.
+  - `untimed-spawns --hidden`: 33 hidden · 0 shown · 0 unknown.
+  - §311's "29 hidden · 0 shown · 0 unknown, class-wide" was incomplete, and this corrects it.
+- **F5.** Once unreadable, T2 (naming ADR-002) became the sole record ADR-001's task. An unread shared task is nobody's now. It stays in `unreadTasks`, and readiness asks about its directory through them, so it is still UNPROVEN rather than dropped.
+- The round-2 fixes were not re-reviewed.
+- Residual, stated rather than claimed away:
+  - a quote in a comment can still flip `insideLiteral`, which only turns a refusal into advice;
+  - an escape that spells `push` at runtime (`"pu\x73h"`) predates this batch and reads as nothing;
+  - perl backticks are not read.
+
+**The dead-code scan's blind spots** (the owner asked whether 0 findings was real, 2026-09-28). The zero was real, but three things would have hidden a finding:
+1. **vulture's allowlist works by name, in every file.** `process` (46 sites) and `assertion` (70) hid any unused variable of that name, and a planted `process = 1` went unreported. The three renameable sites now carry a leading underscore, which vulture skips at that site only, and the allowlist keeps the three names that cannot be renamed. The planted variable is reported now.
+2. **knip treated tests as entry points.** Four exports were reached only by tests. `appendEvent` and `ASSERTION_ARM_WITHDRAWN` (re-exported by lifecycle.mjs) and `findGitDir` (by statusline.mjs) are now imported from their own modules. `NEVER_MIRRORED`, a list only a test read, moved into that test. The scan runs knip a second time with `--production`.
+3. **`plugin/workflows/*.js` were outside knip's globs.** They are scanned now. Their `meta` is read by the Workflow host, so knip's export check is off there, and the scan names any other export instead: a planted one was hidden by the exemption alone.
+
+Not scanned: the shell scripts, because no standard dead-code tool reads bash. **Left:** `dead-code-scan.sh` has no test showing it dirty, since it needs `uvx` and `npx`. The dirty runs above were probes, not a test.

@@ -44,9 +44,6 @@ import subprocess
 import sys
 from pathlib import Path
 
-# The same console rule as record.py's NO_WINDOW, here because this entry point does
-# not import the gate library: a hidden hook's children get no window of their own.
-NO_WINDOW = {"creationflags": 0x08000000} if os.name == "nt" else {}
 
 
 def gate_identity():
@@ -87,8 +84,13 @@ def main(argv):
         seconds = float(os.environ.get("QUALITY_HARNESS_CHECK_TIMEOUT", "3600"))
     except ValueError:
         seconds = 3600.0
+    # No CREATE_NO_WINDOW: node shares this gate's stdio, and a child started with
+    # that flag and no handles passed gets a console of its own, so everything it
+    # prints is lost (Windows CI at 2b036de: four tests read ''). It shares this
+    # gate's console instead, which opens no window. libuv draws the same line for
+    # Node's windowsHide: the flag only when no stdio is inherited.
     try:
-        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60, **NO_WINDOW)
+        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60)
     except subprocess.TimeoutExpired:
         return 1
 

@@ -6,9 +6,10 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { basename, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { adrCorpus } from '../plugin/scripts/lifecycle.mjs'
 
 const adrState = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'plugin', 'scripts', 'adr-state.mjs')
 
@@ -85,6 +86,11 @@ test('a tracked task file nobody could read makes its directory UNPROVEN in work
     const workNext = spawnSync(process.execPath, [join(dirname(adrState), 'work-next.mjs'), '--json'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
     assert.deepEqual(JSON.parse(workNext.stdout).readinessUnproven, ['docs/adr/ADR-002-a/tasks'], workNext.stdout)
     assert.deepEqual(stateOf(dir).governsUnproven.map(entry => entry.id), ['ADR-002'])
+    // The attribution itself, not only what readiness does with it: readiness also
+    // asks about unread files, so it could not see this line go (a GREEN mutant, CI at
+    // 2b036de).
+    const record = adrCorpus(dir).find(entry => entry.id === 'ADR-002')
+    assert.deepEqual(record.taskFiles.map(file => basename(file)), ['T1-locked.md'])
   } finally {
     try { chmodSync(locked, 0o644) } catch { /* already gone */ }
     rmSync(dir, { recursive: true, force: true })
@@ -131,7 +137,7 @@ test('a record named with the ADR prefix is found at any width, and a bare short
 
 // Codex review of 3.1.0..e0ef6d4, F6: an unread file in a SHARED tasks/ beside one record
 // was attributed to nobody, so work-next never asked about the directory.
-test('an unread task in a shared tasks directory goes to the sole record beside it', { skip: cannotDenyRead }, () => {
+test('an unread task in a shared tasks directory leaves that directory UNPROVEN', { skip: cannotDenyRead }, () => {
   const dir = mkdtempSync(join(tmpdir(), 'qh-shared-unread-'))
   const locked = join(dir, 'docs', 'adr', 'tasks', 'T1-locked.md')
   try {
@@ -140,6 +146,30 @@ test('an unread task in a shared tasks directory goes to the sole record beside 
     writeFileSync(join(dir, 'docs', 'adr', 'ADR-002-a.md'), '# ADR-002: a\n\n**Status:** Accepted\n\n## Context\n\nc\n')
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
     chmodSync(locked, 0o000)
+    const workNext = spawnSync(process.execPath, [join(dirname(adrState), 'work-next.mjs'), '--json'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
+    assert.deepEqual(JSON.parse(workNext.stdout).readinessUnproven, ['docs/adr/tasks'], workNext.stdout)
+  } finally {
+    try { chmodSync(locked, 0o644) } catch { /* already gone */ }
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// Codex round 2, F5: an unread file in a shared tasks/ is nobody's. With ADR-001 the
+// only record beside it, T2 (which names ADR-002) was handed to ADR-001 once it could
+// not be read. Its directory is still asked about, so readiness stays UNPROVEN.
+test('an unread task in a shared tasks directory is nobody\'s, and its directory is still asked about', { skip: cannotDenyRead }, () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-shared-owner-'))
+  const tasks = join(dir, 'docs', 'adr', 'tasks')
+  const locked = join(tasks, 'T2-other.md')
+  try {
+    mkdirSync(tasks, { recursive: true })
+    writeFileSync(join(tasks, 'T1-mine.md'), '# Task ADR-001-T1: mine\n\n## Acceptance\n\n```bash\ntrue\n```\n')
+    writeFileSync(locked, '# Task ADR-002-T2: other\n\n## Acceptance\n\n```bash\ntrue\n```\n')
+    writeFileSync(join(dir, 'docs', 'adr', 'ADR-001-a.md'), '# ADR-001: a\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+    assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
+    chmodSync(locked, 0o000)
+    const record = adrCorpus(dir).find(entry => entry.id === 'ADR-001')
+    assert.deepEqual(record.taskFiles.map(file => basename(file)), ['T1-mine.md'])
     const workNext = spawnSync(process.execPath, [join(dirname(adrState), 'work-next.mjs'), '--json'], { cwd: dir, encoding: 'utf8', timeout: 120_000 })
     assert.deepEqual(JSON.parse(workNext.stdout).readinessUnproven, ['docs/adr/tasks'], workNext.stdout)
   } finally {

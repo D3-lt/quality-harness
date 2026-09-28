@@ -1106,7 +1106,7 @@ test('mutate --narrow proposes, writes only with --write, and undoes a narrowing
     assert.ok(run('--force').stdout.includes('3/3 mutations were noticed.'))
     const dirty = run('--narrow', '--write')
     assert.equal(dirty.status, 2, `${dirty.stdout}\n${dirty.stderr}`)
-    git('checkout', '--', 'a.mjs')
+    writeFileSync(join(repo, 'a.mjs'), subject)
     assert.equal(run('--narrow', '--write', '--force').status, 2)
     assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([fe, ge, kept]))
 

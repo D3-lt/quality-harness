@@ -16370,3 +16370,34 @@ Nothing changed here. §241's fix, moving the guard test's campaign into a dispo
 **Why this is recorded, not chased.** The owner's rule for a heuristic reader is one different-lineage round per change, then outside runs (2026-09-24). Over the 81 test files the catalogue names, the reader and the old quoted-substring rule agree on 1,386 of 1,387 runner-reported names; the one difference is a name that sits only in a comment, which the reader correctly refuses. That measurement cannot see a false definition the two rules share.
 
 **The check that would not depend on the reader.** A narrowing's killers are real tests by construction: the campaign that recorded them ran exactly the entry's files, at the key the narrowing reads. The fail-open that matters is later, when a killer is renamed or deleted and its name survives as some other literal: `--stale` then says nothing, the entry stays RED through its other killers, and it runs fewer tests than its pattern names. The campaign's own baseline already runs the pattern. Comparing the number of tests it ran (`leafTestsRun`) with the number of names in the pattern would catch that, whatever the source text says. That is a campaign change and is not scheduled here.
+
+## 319. OPEN 2026-09-28 — The corpus-chaos round of e016066 (plugin/ = v3.1.3): four fail-opens, a forged line, and two repository leads
+
+**Asked of ten sessions** (owner, 2026-09-28): eight local and two over Remote Control, with the corpus-chaos Asker text at e016066, whose plugin/ is byte-identical to v3.1.3 (ae06e14).
+- **Ran:** ts-generator (TS generator, a spec-only corpus, seed 1790626717) and vitest-spa-v2 (JS SPA, 2 records and 9 tasks, seed 1790626777). Both on macOS 27.0 and Python 3.14.7; Node 24.11.1 and Node 26.10.0 respectively. Their attestations are filed: `docs/corpus-reports/2026-09-28-{static-generator-ts,js-spa-two-adr}-3.1.3-e016066.json`.
+- **Could not run:** rust-adr-corpus and infrastructure, whose classifiers refused the foreign code as "Code from External". Each surfaced it to its user and did not work around it.
+- **Deferred:** go-recall-service, for its own owner-set goal.
+- **Pending when this was written:** go-cli-adr-corpus, and the two Remote Control sessions.
+
+**Fail-open. To be fixed before the next plugin release.**
+1. **A spec one directory below `docs/specs/` is counted nowhere, named nowhere, and with only such specs work-next says "No QH corpus is in use"** (ts-generator C5). Reproduced here: `docs/specs/billing/refunds.md` with `Ready-for-ADR` gives `0 spec(s)` and that sentence.
+2. **A record whose Status line holds a NUL byte is counted "undecided" with `look: ok`**, byte-identical to an honest `Proposed` (js-spa-client B5). It also hides a binary task under it: `readinessUnproven` stays empty, and only SessionStart's adr-next line names the task. adr-lint, handed the same file, says it cannot read it. Reproduced here: `look ok`, `undecidedRecords 1`, `partialBecause []`.
+3. **corpus-report counts a dangling task symlink nowhere and names it nowhere**, while adr-lint, adr-next and work-next each say they could not read it, and the probe reports no disagreement (js-spa-client). A tasks directory that is a symlink to a sibling's counts one directory's tasks. Partly reproduced here: `unreadableDirs []`.
+4. **The checks.jsonl import grades malformed rows:** a row with a numeric `at` and odd types becomes `check.passed`, and a row missing its fields becomes `check.failed` (js-spa-client D5). The runner could show no downstream wrong answer, because the tree had changed. Not reproduced here.
+
+**Output that forges the tool. Next batch, security-flavoured.**
+5. **work-next's human output prints a newline in a spec's file name raw**, so a name can forge a line such as `[quality-harness] Nothing in the QH corpus is waiting.` (ts-generator V). ESC and BEL are already escaped, and `--json` escapes newlines. Reproduced here.
+6. **SessionStart passes adr-next's stderr through unredacted**, so an absolute scratch path reaches the model (js-spa-client, a symlink loop). The probe's own copy of those lines is redacted. Not reproduced here.
+
+**Wording. Next batch.**
+7. adr-next guesses "a sparse or partial checkout?" for a task file whose name gained a trailing space (js-spa-client A1). The verdict, UNPROVEN, is right; the guessed cause is not.
+8. The corpus-chaos skill offers `perl -e 'alarm shift; exec @ARGV' 120 <cmd>` as a macOS timeout. It does not bound a Go binary, whose runtime ignores SIGALRM: measured on mrw v1.30.0 and a dev build, an alarm of 3 ran 30 s (infrastructure). `gtimeout -s KILL` bounds it.
+
+**By design, recorded with the reason.**
+9. Vendored fixture trees under any `docs/specs/` are counted as the repository's specs: 77 golden renders in ts-generator give a standing "77 UNPROVEN" warning. This is §291's class (open): what counts as the project's own corpus.
+10. ADR-072's literal reader counts any quoted literal as a definition: an array element, a `console.warn` argument, an object key, a `describe` name, `test.skip`, `test.todo`, a test in dead code. It refuses a name built by concatenation (js-spa-client, 9 of 14 fooled). That is Decision 2's rule as written. ADR-073 (Proposed) is the check that does not depend on it: a narrowed baseline that runs fewer tests than it names.
+11. No reader flags a supersession cycle or a record that supersedes itself: everything reads as superseded, and nothing governs (js-spa-client Z3). Not reproduced here. Whether this is by design is open.
+
+**Repository tooling.**
+12. **mutate.mjs crashes with a TypeError on a catalogue that is not `{ mutations: [...] }`**, and exits 1, the same status as a stale finding, so a consumer cannot tell the two apart. Also, `--stale`'s gone-killer line leads with the word `undefined`, which reads as a JavaScript `undefined` (js-spa-client).
+13. **bash 3.2 aborts on an empty array's `"${a[@]}"` under `set -u`** (go-recall-service's lead from its own analyze.sh). Audited here over every `set -u` script: `plugin/scripts/facts-gate-dispatch.sh` is safe, because `candidates` starts non-empty and `matches` is expanded only after its count check. `scripts/coverage.sh` already uses `${a[@]+"${a[@]}"}`, with a comment on why. `scripts/dead-code-scan.sh:46` is a member: an empty `files` would abort, although this repository always has Python gates. Confirmed on /bin/bash 3.2.57: `"${a[@]}"` on an empty array aborts with "unbound variable", while `${#a[@]}` and the guarded form do not.

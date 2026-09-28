@@ -73,3 +73,10 @@ Stop and ask if fewer than half the runner-seconds are saved: the record's claim
 ## Verification Log
 - 2026-09-28 · 4060fce* · exit 0 · `set -o pipefail …` · acceptance-sha256:44c9b8e8f756246fbafb5fcac7405da4ef6154dd587fa74fe0085293f88e8a84 · ms:272
 - 2026-09-28 · 4060fce* · exit 0 · `set -o pipefail …` · acceptance-sha256:44c9b8e8f756246fbafb5fcac7405da4ef6154dd587fa74fe0085293f88e8a84 · ms:249
+- 2026-09-28 · human-observed · observed and signed off: the dispatched campaign 36476465667 at e016066 summed 10,304 shard runner-seconds against 50,430 for run 36413858960, a 79.6% saving over the 50% bar; its slowest shard took 382 s against 1,258 s and its median 212 s against 1,084 s; S1 read 812 narrowable of 1,582 entries from push run 36467374356, and S2 kept 811 of them RED under their pattern
+- 2026-09-28 · e016066* · exit 1 · `set -o pipefail …` · acceptance-sha256:44c9b8e8f756246fbafb5fcac7405da4ef6154dd587fa74fe0085293f88e8a84 · ms:59 · test-lock-sha256:55df23630405cc8f92048cc4e01f5f6130109ebd049d14a3bb7123e5926883ff · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ng
+  ```
+  --- last 1 line(s) of stdout
+  0 narrowed
+  ```
+- 2026-09-28 · e016066* · exit 0 · `set -o pipefail …` · acceptance-sha256:44c9b8e8f756246fbafb5fcac7405da4ef6154dd587fa74fe0085293f88e8a84 · ms:250

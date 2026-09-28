@@ -16280,3 +16280,24 @@ Not scanned: the shell scripts, because no standard dead-code tool reads bash. *
 - **adr-retire-check reads a status exactly; every other reader reads its first word.** An archived governing record whose status is `Accepted (2026-07-17 — …)` fails with "archived governing decision is not Accepted" (`is_accepted_status`, plugin/bin/adr-retire-check). adr-state, work-next and adr-lint count the same record as governing (§309, "by design"). The strict docstring says the difference is deliberate, and no record decides it either way. It was measured with 3.0.1 on an Ansible corpus and needs the owner's decision.
 - **adr-lint FAILs `./docs/decisions/tasks: no task files`** where that directory holds only a subdirectory: `docs/decisions/tasks/007_ledger_rollup/` has a README and T1. The corpus keeps legacy `docs/decisions/NNN_*.md` records beside `docs/adr/`. Whether the task walk should enter `tasks/<NNN>/` for that shape is the question, and whether this FAIL speaks about a directory it never looked into.
 - `not-recognised` for a legacy `docs/decisions/005_*.md` record reads as the reader declining a shape, which is correct.
+
+## 314. FIXED 2026-09-28 — Where git outran observe()'s budget, an unchecked publish passed in silence; and what the 3.1.1 batch's failures now cost to repeat
+
+**Found by a red release run.** On the first attempt of the 3.1.1 release run (36400420809) the Windows runner was about 3× slower than the two runs before it. A PreToolUse hook took 14.5s, and two tests that expected a refusal failed. Reproduced here, not guessed at, with a `git` shim that sleeps 6s on `write-tree`, which only `observe()` runs. The tests fail the same way, and a PreToolUse `git commit` on an unchecked tree printed only the slow-hook line: no refusal, and no word about the state. `publishVerdict` returned `null` before saying anything whenever the observation had failed. So did git's own hook (ADR-066), which calls the same function. On a host where git is slow, the publish check was silent at both ends. That breaks ADR-005's rule that could-not-look is said in those words.
+
+**Fixed.**
+- `publishVerdict` now says "whether this repository is checked is unknown — its working tree could not be observed (<reason>)". It never refuses on that: a state nobody could read is advice (CLAUDE.md §16).
+- git's hook prints the same sentence at the event, still exiting 0.
+- `QUALITY_HARNESS_OBSERVE_BUDGET_MS` raises observe()'s 5s budget on a slow host, and it is what makes the case deterministic in a test.
+- The two suites that expect refusals set the budget themselves, so a slow runner no longer fails them. Both pass under the 6s shim.
+- The new test drives both paths and shows each one's twin refusing at the normal budget. Four catalogue mutants are RED.
+- `lifecycle.mjs` is a reader, so a release needs another outside run (§18).
+
+**The batch's failures, and what now catches each one before it repeats:**
+- **CREATE_NO_WINDOW on a child that shares stdio lost its output** (§312). `untimed-children --hidden` fails on it, CLAUDE.md §7 states the rule, and the evidence is in `.claude/rules/07`.
+- **A "this is data" exemption opened a fail-open** (§312, F2). CLAUDE.md §16 now requires a "this is code again" twin row, with the evidence in `.claude/rules/16`.
+- **A locked test was edited, the third time** (2026-09-25, -26, -28). `python3 scripts/test-locks.py <file> [name]` answers "is it locked" in one command, and its test names ADR-068 T2 on a copy of the incident's own task file. CLAUDE.md §2 says to run it before changing a test. It reports 97 locks on `tests/lifecycle.test.mjs`.
+- **A new line blinded an old mutant** (§312, C-5). `mutate --changed` cannot see this class: it picked 22 of 1544 entries for that diff and not C-5. A file-level pass is 338 `lifecycle.mjs` entries, which is the campaign. CLAUDE.md §18 now fixes the order instead: no bump and no outside run until the push's own campaign is green. Evidence is in `.claude/rules/18`.
+- **Tests inherited a product budget that a slow runner outran.** CLAUDE.md §7 says a test sets the budgets it depends on.
+
+**Not addressed here:** the Windows tabs the owner still sees on the new version. They wait on which process opens them and whether the plugin is the source; see the reply of 2026-09-28.

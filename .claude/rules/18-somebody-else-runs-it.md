@@ -80,3 +80,14 @@ second. The recipe that held: a `Monitor` that exits when the 1-minute load drop
 count, THEN the gate as its own background job with the whole budget — never a waiter and the gate
 inside one background budget, which killed one run mid-suite and reported it as the gate's exit 1. A
 contended result is unattributable in both directions, including a pass (`costly-runs`).
+
+## A new line can blind an old mutant, and `--changed` cannot see it (3.1.1, BACKLOG §312)
+
+The Codex fix F6 added a line that handed unread shared tasks to the sole record. That made C-5's
+mutant, which deletes an older `owned.push`, change nothing a test could see. It went GREEN in a CI
+shard. `mutate.mjs --changed <ref>` selects only entries whose own line was added: it picked 22 of
+1544 entries for that diff, and C-5 was not among them. Running every entry on the touched file is
+the whole `lifecycle.mjs` share of the catalogue (338 entries at 3.1.1), which is the campaign. So the
+campaign stays in CI, and the rule is about order. Nothing is bumped and no outside run is asked for
+until the push's own campaign is green. The test that went vacuous now asserts the attribution
+directly, rather than what readiness does with it.

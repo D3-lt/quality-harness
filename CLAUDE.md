@@ -41,6 +41,7 @@ bash scripts/dead-code-scan.sh        # before a release: orphan-sweep, vulture 
 node scripts/backlog-record-sweep.mjs
 node scripts/chaos-fixture-sweep.mjs
 node --expose-internals scripts/untimed-spawns.mjs   # every JS child carries a timeout; UNKNOWN is a place to look
+python3 scripts/test-locks.py <test-file> [name]    # before editing an existing test: which tasks lock it
 ```
 
 - **Never pipe the gate.** `| tail` and `|| true` hide the exit code. Run it, read it, then commit.
@@ -49,6 +50,9 @@ node --expose-internals scripts/untimed-spawns.mjs   # every JS child carries a 
   `node plugin/scripts/…`). A bare name runs an INSTALLED copy, never your edit.
 - **Install the hooks once per clone:** `git config core.hooksPath .githooks`.
 - **Never run a mutation tool and edit the tree at the same time.**
+- **Before changing an existing test, ask which tasks lock it** (`scripts/test-locks.py`). A lock
+  stores its test names base64-encoded, so grepping the corpus for a name finds nothing. A locked test
+  stays byte-identical: add a test beside it, or change a helper it calls.
 
 - **Never commit while a gate is red**, and never chain a commit after a test in one command.
 - **Commit messages go through `git commit -F -` with a quoted heredoc**, never `-m "..."`.
@@ -122,6 +126,14 @@ CI blocks on Windows, macOS and Linux; you develop on one of them and cannot run
 - **Make the platform a parameter.** A Windows-only branch with no injectable seam has no test.
 - A fixture that cannot be built on a platform gets a `skip:` with the reason named — after the log
   shows it, not by analogy.
+- **A child's console follows its stdio.** Pass `windowsHide: true` on every Node spawn: libuv adds
+  CREATE_NO_WINDOW only when no stdio is inherited. In Python, set CREATE_NO_WINDOW only on a child
+  whose output is redirected; on one that inherits stdio, its output is lost. A `detached` process
+  has no console at all, so every child it starts needs the flag. `untimed-spawns --hidden` and
+  `untimed-children --hidden` hold both halves.
+- **A Windows runner can be several times slower than your machine.** A budget a test depends on is
+  set by the test (`QUALITY_HARNESS_OBSERVE_BUDGET_MS`, `QUALITY_HARNESS_SLOW_HOOK_MS`), never
+  inherited from the product's default.
 
 Why: `.claude/rules/07-platforms-and-paths.md`
 
@@ -254,6 +266,10 @@ can be reasoned correct. Every member of it is a claim about the world.
   `pipefail` do not behave the way a confident sentence about them behaves.
 - A classification that permits a **block** needs stronger evidence than one that permits advice:
   unaccounted costs a weaker finding, wrong costs a false refusal of correct work.
+- **Every "this is data" exemption needs a "this is code again" twin.** An exemption that turns a
+  refusal into advice is attacked from the fail-open side: a string literal that interpolates, an
+  alias that expands, a comment that ends. Beside each row that is now data, write the row that must
+  still refuse.
 
 Why: `.claude/rules/16-classifiers-are-empirical.md`
 
@@ -291,7 +307,9 @@ already thought of; it cannot read the whole output over a shape it has never se
   never ask a peer to work around that.
 - **A refactor that moves an observable to another tool turns the tests on the old site vacuous.** Run
   every catalogue mutant on the file you refactored, not only the new ones; a GREEN there is the
-  class, not an instance.
+  class, not an instance. A new line elsewhere in the same function does it too, and `--changed`
+  cannot see that, since it selects only entries whose own line was added. So nothing is bumped and
+  no outside run is asked for until the push's own campaign is green.
 - **A gate run under contention is unattributable, including a pass.** Wait for load below the core
   count, then run the gate as its own job with its whole budget.
 

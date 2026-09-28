@@ -32,7 +32,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
 
-import { measure, taskFiles } from './trajectory-metrics.mjs'
+import { measure, readRegularFile, taskFiles } from './trajectory-metrics.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
@@ -87,7 +87,7 @@ export function recordCount(root, readdir = readdirSync) {
  * the root itself into the unreadable sink when it cannot list it, which is exactly
  * the signal needed to say UNRUN instead (ADR-005).
  */
-export function collect(root, { read = readFileSync, readdir = readdirSync } = {}) {
+export function collect(root, { read = readRegularFile, readdir = readdirSync } = {}) {
   const unreadableDirs = []
   const files = taskFiles(root, unreadableDirs, readdir)
   const rootUnreadable = unreadableDirs.includes(root)
@@ -171,7 +171,7 @@ export function render(report) {
 }
 
 /** Read, report, and return the exit code — always 0. This reports; it judges nothing. */
-export function run(argv, { read = readFileSync, readdir = readdirSync, log = console.log, cwd = process.cwd() } = {}) {
+export function run(argv, { read = readRegularFile, readdir = readdirSync, log = console.log, cwd = process.cwd() } = {}) {
   if (argv.includes('--help') || argv.includes('-h')) {
     log('corpus-report.mjs — your corpus\'s numbers, in a form you can hand back.\n\n'
       + 'Usage: node corpus-report.mjs [<corpus-dir>] [--json]\n\n'

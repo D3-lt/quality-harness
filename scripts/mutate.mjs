@@ -639,6 +639,59 @@ export function repointEntry(entry, text, added) {
 }
 
 /**
+ * ADR-071. An entry `repointEntry` refuses at its condition 2 or 3, re-anchored on the
+ * text around its edit: the common prefix P and suffix S of `from` and `to`, each
+ * ended on a word boundary, found on a line the change added. Every other verdict is
+ * `repointEntry`'s, unchanged. Replayed on the 3.1.0 and 3.1.1 batches (2026-09-28):
+ * no proposal differs from the hand repoint. Each refusal names its rule. Pure.
+ */
+export function reanchorEntry(entry, text, added) {
+  const verdict = repointEntry(entry, text, added)
+  if (verdict.verdict !== 'refused' || !/^[23]:/.test(verdict.why)) return verdict
+  if (added === null) return { verdict: 'refused', why: 'the diff: the diff since the ref could not be read' }
+  const { from, to } = entry
+  let p = 0
+  while (p < from.length && p < to.length && from[p] === to[p]) p += 1
+  let s = 0
+  while (s < from.length - p && s < to.length - p && from[from.length - 1 - s] === to[to.length - 1 - s]) s += 1
+  // The anchors end on a word boundary, as seen in `from`: 'alias' and 'argv' share an
+  // `a` that is not an anchor, and cutting there lost the alias row of the 3.1.1 batch.
+  const word = ch => /\w/.test(ch ?? '')
+  while (p > 0 && word(from[p - 1]) && word(from[p])) p -= 1
+  while (s > 0 && word(from[from.length - s]) && word(from[from.length - s - 1])) s -= 1
+  const P = from.slice(0, p)
+  const S = from.slice(from.length - s)
+  const newMid = to.slice(p, to.length - s)
+  const significant = (P + S).replace(/\s/g, '').length
+  if (significant < 8) {
+    return { verdict: 'refused', why: `the anchor floor: the text around the edit holds ${significant} significant characters, fewer than 8` }
+  }
+  const once = (hay, needle) => hay.split(needle).length - 1 === 1
+  // A candidate is a line the change added holding P, then S, each once. An empty P
+  // anchors at the start of the line and an empty S at its end.
+  const fits = line => added.has(line.trim())
+    && (!P || once(line, P)) && (!S || once(line, S))
+    && (P ? line.indexOf(P) + P.length : 0) <= (S ? line.lastIndexOf(S) : line.length)
+  const lines = text.split('\n')
+  const candidates = lines.filter(fits)
+  let line = candidates.length === 1 ? candidates[0] : null
+  if (candidates.length > 1) {
+    const [stale] = staleEntries([entry], () => text)
+    const nearest = stale?.hint ? lines[stale.hint.line - 1] : null
+    line = candidates.includes(nearest) ? nearest : null
+  }
+  if (line === null) {
+    return { verdict: 'refused', why: candidates.length === 0
+      ? 'one added line: no line the change added holds the text around the edit'
+      : `one added line: ${candidates.length} added lines hold it, and the nearest line is none of them` }
+  }
+  if (!once(text, line)) return { verdict: 'refused', why: 'one in the file: the chosen line occurs more than once in the file' }
+  const head = line.slice(0, P ? line.indexOf(P) + P.length : 0)
+  const tail = S ? line.slice(line.lastIndexOf(S)) : ''
+  return { verdict: 'reanchored', from: line, to: head + newMid + tail }
+}
+
+/**
  * The entries a change reaches: those whose `from` sits on a line the change ADDED
  * to that entry's file. A new mutant names new code, and a mutant whose code was
  * edited names the edit, so both are picked; an untouched mutant in a touched file

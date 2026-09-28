@@ -97,6 +97,17 @@ the harness has that mechanism yet.
 | **Epigenetics** | The same code expressed differently per project, with no change to the genome: `.quality-harness.json` (`"publish": "warn"`, the declared `check`). | Built. |
 | **Evolution / genesis** | Generate and select candidate fixes or tests under fitness pressure. GenProg (Le Goues et al., 2012); co-evolution of programs and tests (Arcuri, Yao, 2008). | Not planned. The fitness function would be the gates, so it only becomes safe once they cannot be gamed (Stage 3 onward). |
 
+**The nervous system (added 2026-09-28, from the owner's "central nervous system" framing).** The immune rows above are about recognising and remembering defects. These rows are about sensing, integrating and acting within one session. Each names its mechanism, its state, and the check that makes it more than a metaphor. None of them is a work order: each becomes work through its own spec and an Accepted ADR.
+
+| Process | Mechanism in the harness | State, and the check |
+|---|---|---|
+| **Afferent nerves** | Hooks that read state and report it: branch-state (git and CI), SessionStart's corpus reader, ADR-060's observed events, Stop's changed paths. | Built. `session-profile --attribute` counts each one's bytes and time per turn. |
+| **Reflex arc** | A response computed with no model in the loop: ADR-061 and ADR-066's publish refusal, ADR-060's advisories. The principle above, the model as exception handler, is this row. | Built. The publish-command tables and ADR-066's git-hook tests. |
+| **Central integration** | One state that every hook reads and renders, where today each hook derives its own. This is Stage 2's facts object, recast from a token saver into the integration layer. | Not built: no spec, no ADR. The check to write first counts, per turn, the facts that two or more hooks derive separately (git state, CI, corpus readiness). Seen on 2026-09-28: SessionStart reads six task directories per start and marks the rest UNPROVEN, and one session received six always-on streams that nothing ranked. |
+| **Myelination** | Less latency on the paths that fire every turn: ADR-065's branch-state snapshot, then Stage 6's gate cache and compile cache. | Partly built. Branch-state's per-prompt mean fell from 1,609 ms (Stage 1) to 532 ms (one session, 112 prompts, 2026-09-28). `lifecycle.mjs` PreToolUse:Bash measured 1,116 ms against 416 ms, at load 20 to 80, so that rise is unattributable until re-measured at rest. |
+| **Interoception** | Sensing the machine's own state before a costly run: load, memory, a peer's campaign in the same checkout. | Not built. The costly-runs skill is prose the model must remember to load. Seen on 2026-09-28: a session started at load 62 to 76 with no line saying so. Homeostasis, above, is the loop that would act on it. |
+| **Motor pathway** | The work itself as deterministic steps: `mutate --repoint --write`, `--narrow --write`, `attest-import`. | Partly built. Still done by hand: a release after `release-evidence` SUCCESS, a finding turned into a fixture, and a campaign run in its own worktree (ADR-072 T3 ran one by hand, because peer sessions run this checkout's hooks). |
+
 **Where the analogy stops.** An immune system tolerates losing some cells to a false attack;
 here a false refusal blocks a person's correct work, and §16 already says a block needs more
 evidence than advice. Evolution optimises whatever the fitness function measures, including

@@ -16301,3 +16301,14 @@ Not scanned: the shell scripts, because no standard dead-code tool reads bash. *
 - **Tests inherited a product budget that a slow runner outran.** CLAUDE.md §7 says a test sets the budgets it depends on.
 
 **Not addressed here:** the Windows tabs the owner still sees on the new version. They wait on which process opens them and whether the plugin is the source; see the reply of 2026-09-28.
+
+## 315. FIXED 2026-09-28 — 3.1.1's literal check made the publish classifier quadratic on long interpreter scripts
+
+**Found by a push run's coverage job** (36413849215, at 287a207). "the classifier stays under its cost bound" failed under coverage instrumentation while the dispatched run's coverage job passed, which points to runner contention. The test was not the finding. Checking whether this batch had moved the classifier toward the bound was.
+- On the suite's 712 short literals it had not: a mean of 3.5-4.5µs per call, against 3.4-3.8µs over 673 literals at e0ef6d4. The bound is 25µs, or 400µs under coverage.
+- A long script was another matter. `insideLiteral` (§311, §312) rescanned an interpreter script from its start for every call it tested. A `python3 -c` script with 4,000 `os.system` calls in 125 KB took 6,427ms, where e0ef6d4 took 41.8ms on the same input (measured in a worktree, 2026-09-28). That runs inside the PreToolUse hook, so a big enough generated script could run past the host's hook timeout.
+- **Shipped in 3.1.1 and 3.1.2.** 3.1.2's notes name it under Known open.
+
+**Fixed.** `literalScanner` keeps the scan's position, and the one caller asks in order of position, so a script is read once: the same input takes 46ms. The loop body is unchanged, so the §312 mutants still name its lines. A new test pins a 4,000-call script under 1s (5s under coverage) and checks both answers: a call inside a string is data, and a real call is still read. Its mutant, which makes every query rescan from the start, is RED. The call site's rewrite left three catalogue entries stale, and `mutate --repoint --reanchor --write` repaired all three (one of them re-anchored) and measured them RED.
+
+**The class, and what was missed.** The cost test measures a mean over short literals, and it is the class member that let this through: no test fed a long input to a scanner that could be quadratic. The other per-call scans over a word in the classifier are the `matchAll` regexes, which are linear. The ADR-067 lexer (`shellWords`) was measured at 42ms on this input before the change.

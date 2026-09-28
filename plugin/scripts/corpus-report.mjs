@@ -147,7 +147,7 @@ export function render(report) {
     if (t.unreadable) lines.push(`  ⚠ ${t.unreadable} task file(s) could not be read — in neither half of the ratio.`)
   }
   if (report.unreadableDirs.length) {
-    lines.push(`  ⚠ ${report.unreadableDirs.length} directory(ies) could not be listed: `
+    lines.push(`  ⚠ ${report.unreadableDirs.length} directory(ies) could not be listed, or are links this reader does not follow: `
       + `${report.unreadableDirs.slice(0, 3).join(', ')} — PARTIAL, not clean.`)
   }
   lines.push(

@@ -665,8 +665,8 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "  if (!state.records && !state.specs && !state.tasks && !state.undecided) return STAGES.find(s => s.id === 'core')",
-      "to": "  if (!state.records && !state.specs && !state.tasks) return STAGES.find(s => s.id === 'core')",
+      "from": "  if (!state.records && !state.specs && !state.tasks && !state.undecided && !state.nestedSpecs?.length) return STAGES.find(s => s.id === 'core')",
+      "to": "  if (!state.records && !state.specs && !state.tasks && !state.nestedSpecs?.length) return STAGES.find(s => s.id === 'core')",
       "only": "^(?:a record this reader cannot classify is not \"no corpus\")$"
     },
     {
@@ -724,7 +724,7 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  readiness UNPROVEN: ${relative(dir)}\\n`)",
+      "from": "    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  readiness UNPROVEN: ${shown(dir)}\\n`)",
       "to": "",
       "only": "^(?:a task under an archive whose README spelling is ambiguous is unproven, not work)$"
     },
@@ -10570,8 +10570,8 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": " || (event.event === 'file.written' && event.observable !== false))",
-      "to": ")",
+      "from": "!sessionBaseline(log) && !log.some(event => event.event === 'file.written' && event.observable !== false)",
+      "to": "!sessionBaseline(log)",
       "only": "^(?:a write already on record is not forgiven by a baseline adopted after it was committed|a compact SessionStart does not hand a fresh baseline to a session with outstanding work)$"
     },
     {
@@ -10791,8 +10791,8 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "(event.event === 'file.written' && event.observable !== false))",
-      "to": "(event.event === 'file.written'))",
+      "from": "event => event.event === 'file.written' && event.observable !== false)",
+      "to": "event => event.event === 'file.written')",
       "only": "^(?:a write OUTSIDE the repository does not stop a clean repository getting its late baseline)$"
     },
     {
@@ -15807,6 +15807,174 @@
       "from": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t))))",
       "to": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t))))\n    if (narrowed) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\\n`)",
       "only": "killed while a mutant runs"
+    },
+    {
+      "label": "BACKLOG §319 A: a nested spec does not stop the core route",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  if (!state.records && !state.specs && !state.tasks && !state.undecided && !state.nestedSpecs?.length) return STAGES.find(s => s.id === 'core')",
+      "to": "  if (!state.records && !state.specs && !state.tasks && !state.undecided) return STAGES.find(s => s.id === 'core')",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "BACKLOG §319 A: nested specs are never listed",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  const nestedSpecPaths = nestedSpecFiles(directory, listing) ?? []",
+      "to": "  const nestedSpecPaths = []",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "BACKLOG §319 A: a flat spec is listed as nested too",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/.+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))",
+      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/.+\\.md$/i.test(posixRel(rel)))",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "BACKLOG §319 A: the all-clear ignores unread nested specs",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "      say(state.readinessUnproven.length || state.nestedSpecs.length",
+      "to": "      say(state.readinessUnproven.length",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "BACKLOG §319 B: a record holding NUL is read as text",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "    if (text.includes('\\u0000')) {\n      unreadable.push({ file, status: null, taskFiles: [], reason: 'it holds a NUL byte, so it is not text this reader can read' })",
+      "to": "    if (false) {\n      unreadable.push({ file, status: null, taskFiles: [], reason: 'it holds a NUL byte, so it is not text this reader can read' })",
+      "only": "a record holding a NUL byte"
+    },
+    {
+      "label": "BACKLOG §319 C: a linked tasks directory is walked",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "        if (target?.isDirectory()) unreadableDirs.push(full)",
+      "to": "        if (target?.isDirectory()) walk(full)",
+      "only": "corpus-report counts a linked task file"
+    },
+    {
+      "label": "BACKLOG §319 C: a linked task file is skipped",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "        else if (task) found.push(full)",
+      "to": "        else if (false) found.push(full)",
+      "only": "corpus-report counts a linked task file"
+    },
+    {
+      "label": "BACKLOG §319 D: a check record's exit is graded whatever its type",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  if (typeof record?.exit !== 'number') return 'check.unproven'",
+      "to": "  if (record?.exit === undefined) return 'check.unproven'",
+      "only": "a check record whose exit is not a number"
+    },
+    {
+      "label": "BACKLOG §319 D: a check record's git is graded whatever its type",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  if (typeof record.git !== 'boolean') return 'check.unproven'",
+      "to": "  if (record.git == null) return 'check.unproven'",
+      "only": "a check record whose exit is not a number"
+    },
+    {
+      "label": "BACKLOG §319 E: a path in work-next's text is printed raw",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  const shown = file => visiblePath(relative(file))",
+      "to": "  const shown = file => relative(file)",
+      "only": "a newline in a spec file name"
+    },
+    {
+      "label": "BACKLOG §319 F: adr-lint reads a named file that is not regular",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "    if target.exists() and not target.is_file():",
+      "to": "    if False:",
+      "only": "adr-lint refuses a file that is not a regular file"
+    },
+    {
+      "label": "BACKLOG §319 F: adr-lint reads a task that is not regular",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "            refuse_irregular(p)",
+      "to": "            pass",
+      "only": "adr-lint refuses a file that is not a regular file"
+    },
+    {
+      "label": "BACKLOG §319 F: the cross-record check reads another record's irregular task",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "            refuse_irregular(f)",
+      "to": "            pass",
+      "only": "adr-lint refuses a file that is not a regular file"
+    },
+    {
+      "label": "BACKLOG §319 G: an npm script is not a definition",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "            if f.name == \"package.json\" and name in npm_scripts(source):",
+      "to": "            if False:",
+      "only": "adr-lint reads a package.json script"
+    },
+    {
+      "label": "BACKLOG §319 G: any mention of the name in package.json is a definition",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "            if f.name == \"package.json\" and name in npm_scripts(source):",
+      "to": "            if f.name == \"package.json\" and f'\"{name}\"' in source:",
+      "only": "adr-lint reads a package.json script"
+    },
+    {
+      "label": "BACKLOG §319 H: a start that could not look is a baseline",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  return log.find(entry => entry.event === 'session.started' && entry.observation?.ok === true)",
+      "to": "  return log.find(entry => entry.event === 'session.started')",
+      "only": "a session whose first look failed"
+    },
+    {
+      "label": "BACKLOG §319 H: a late baseline is taken beside a real one",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/late-baseline.test.mjs"],
+      "from": "    if (!logIncomplete(log) && !sessionBaseline(log) && !log.some(event => event.event === 'file.written' && event.observable !== false)",
+      "to": "    if (!logIncomplete(log) && !log.some(event => event.event === 'file.written' && event.observable !== false)",
+      "only": "a session that did start normally gets no late baseline"
+    },
+    {
+      "label": "BACKLOG §319 H: the publish decision reads a start that could not look",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  const baseline = sessionBaseline(log)?.observation\n  const treeStanding = checkStanding(log, now.tree)",
+      "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n  const treeStanding = checkStanding(log, now.tree)",
+      "only": "a session whose first look failed"
+    },
+    {
+      "label": "BACKLOG §319 H: the session note reads a start that could not look",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true ? statusPaths(root) : []",
+      "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n  const status = observation?.ok === true ? statusPaths(root) : []",
+      "only": "the session note reads the late baseline"
+    },
+    {
+      "label": "BACKLOG §319 H: the session note's late flag reads a start that could not look",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "    late: sessionBaseline(log)?.late === true,",
+      "to": "    late: log.find(entry => entry.event === 'session.started')?.late === true,",
+      "only": "the session note reads the late baseline"
+    },
+    {
+      "label": "BACKLOG §319 I: adr-state's JSON drops the Governs paths that match nothing",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "    governsUnmatched: rotted.map(entry => entry.slice('governs:'.length)),",
+      "to": "    governsUnmatched: [],",
+      "only": "adr-state --json lists the Governs paths"
     }
   ]
 }

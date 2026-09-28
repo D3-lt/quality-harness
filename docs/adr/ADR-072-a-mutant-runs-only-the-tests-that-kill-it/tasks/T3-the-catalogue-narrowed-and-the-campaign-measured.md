@@ -1,6 +1,6 @@
 # Task ADR-072-T3: The catalogue narrowed, and the next campaign measured against run 36413858960
 
-**Depends-on:** T2, T4
+**Depends-on:** T2, T4, T5
 **Covers:** none — no spec
 **Estimated scope:** M (the catalogue, one CI campaign)
 **Owner:** unassigned

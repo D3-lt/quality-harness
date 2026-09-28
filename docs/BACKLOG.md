@@ -16354,3 +16354,17 @@ The selftest's node suite was 151s at 8cc0327. One test was 59s of it: "every ca
 - UNPROVEN that this entry was the one installed at that moment: nothing captured the file's bytes. The output matches it and no other of the hook's six catalogue entries.
 
 Nothing changed here. §241's fix, moving the guard test's campaign into a disposable repository as `tests/mutation-cache-merge.test.mjs` does, closes both readers. It was declined on 2026-09-24; this is the evidence that it now fails the gate.
+
+## 318. OPEN 2026-09-28 — What ADR-072's literal reader still misreads, and the check that would not depend on it
+
+**Found by the second Codex review** (gpt-6-astra, xhigh, read-only, of ADR-072 T4 at cd7e6ab). T5 fixed the two inputs where a quoted name inside a regular expression counted as a definition: after a control statement's condition, and after a postfix `++` or `--`. The review's other inputs are recorded here, not fixed. Each was reproduced by the reviewer in memory, not by a campaign.
+- `const q = {} / 2; const r = /'ghost'/;`: `}` is read as a statement's end, so the division opens a regular expression, the reader loses its place, and `ghost` counts as defined (fail-open). An object literal followed by a division is rare in a test file.
+- `const q = {} / 2; test('real', …)`: the same misreading hides `real` (a false refusal).
+- A regular expression holding `{` inside a template hole, when that expression is itself misread, changes the hole's depth (fail-open, through the misreading above).
+- A line comment ended by a lone carriage return runs on (a false refusal). A CRLF line ends it.
+- Malformed input (an unterminated literal or hole) is not diagnosed globally; later literals can still be returned.
+- The catalogue write is a plain `writeFileSync`, so a kill during that one write can leave a torn file.
+
+**Why this is recorded, not chased.** The owner's rule for a heuristic reader is one different-lineage round per change, then outside runs (2026-09-24). Over the 81 test files the catalogue names, the reader and the old quoted-substring rule agree on 1,386 of 1,387 runner-reported names; the one difference is a name that sits only in a comment, which the reader correctly refuses. That measurement cannot see a false definition the two rules share.
+
+**The check that would not depend on the reader.** A narrowing's killers are real tests by construction: the campaign that recorded them ran exactly the entry's files, at the key the narrowing reads. The fail-open that matters is later, when a killer is renamed or deleted and its name survives as some other literal: `--stale` then says nothing, the entry stays RED through its other killers, and it runs fewer tests than its pattern names. The campaign's own baseline already runs the pattern. Comparing the number of tests it ran (`leafTestsRun`) with the number of names in the pattern would catch that, whatever the source text says. That is a campaign change and is not scheduled here.

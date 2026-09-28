@@ -14966,6 +14966,36 @@
       "from": "    if (repeated.size) {",
       "to": "    if (false) {",
       "only": "measures only what it narrowed, fresh"
+    },
+    {
+      "label": "ADR-072 T5: a control statement's closing paren reads as a value",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (c === ')') { last = parens.pop() ? ';' : ')'; i += 1; continue }",
+      "to": "    if (c === ')') { parens.pop(); last = ')'; i += 1; continue }",
+      "only": "literalsOf keeps its place"
+    },
+    {
+      "label": "ADR-072 T5: a postfix operator is read as a binary one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if ((c === '+' || c === '-') && source[i + 1] === c && (last === 'value' || last === ')' || last === ']')) { i += 2; continue }",
+      "to": "    if (false) { i += 2; continue }",
+      "only": "literalsOf keeps its place"
+    },
+    {
+      "label": "ADR-072 T5: the catalogue is written after the baselines, before the mutants run",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t))))",
+      "to": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t))))\n    if (narrowed) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\\n`)",
+      "only": "killed while a mutant runs"
     }
   ]
 }

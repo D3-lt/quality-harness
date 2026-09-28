@@ -16342,3 +16342,15 @@ The selftest's node suite was 151s at 8cc0327. One test was 59s of it: "every ca
 - The CI mutation campaign, about 25 minutes a release, is the largest wall-clock cost still unmeasured by stage.
 - The 30s scripted-session and 23s false-green tests are next on the list.
 - The compile cache saves about 17ms a hook: measured, small, cheap.
+
+## 317. OPEN 2026-09-28 — §241's race has a second reader: the hook's own test executes the mutant the suite installed
+
+**Found running the gate for ADR-072 T1** (`qh-check`, 2026-09-28, load about 8 to 16 on 10 cores). `tests/post-edit-check.test.mjs` "the hook only acts on the tools it is for, and on files that exist" failed once: `run('Bash', broken.sh)` printed bash's `syntax error near unexpected token 'then'` for its scratch file. `plugin/scripts/post-edit-check.sh` exits at once for any tool but Edit, Write, MultiEdit and NotebookEdit (:7-9). The file then passed 3/3 alone, and the re-run passed 1471/1471.
+
+**The writer is §241's.** `tests/gate-rules.test.mjs:1330-1353` runs `scripts/mutate.mjs --case 'the post-edit check acts only on the edit tools'` in the real checkout, and its empty-lock arm proceeds. That installs `Edit|Write|MultiEdit|NotebookEdit|Bash) ;;` in the hook while other test files run beside it, and a hook that acts on `Bash` prints exactly the output above. Lines 1362-1372 also write a `# scratch` line into the real hook and restore it.
+- §241 named `tests/package.test.mjs`, which reads the file's text. This reader EXECUTES the hook, so it fails on the mutant's behaviour, not on a count.
+- It is a false red on this repository's own gate, and each hit costs a gate re-run.
+- The same window is live for every session that runs this checkout's hooks (§272): a peer's PostToolUse on a `Bash` call during that window runs the mutant.
+- UNPROVEN that this entry was the one installed at that moment: nothing captured the file's bytes. The output matches it and no other of the hook's six catalogue entries.
+
+Nothing changed here. §241's fix, moving the guard test's campaign into a disposable repository as `tests/mutation-cache-merge.test.mjs` does, closes both readers. It was declined on 2026-09-24; this is the evidence that it now fails the gate.

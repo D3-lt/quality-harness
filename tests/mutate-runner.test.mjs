@@ -1145,3 +1145,172 @@ test('mutate --stale names a narrowed entry whose killer is no longer defined', 
     assert.ok(!renamed.stdout.includes('"f.call() works"'), renamed.stdout)
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
+
+// ADR-072 T4 (Codex review of T1 and T2). A killer's name is defined only by a string
+// literal token of its file: not in a comment, inside a fixture string or a regular
+// expression, or bare in code. The literals after a regular expression, a division and
+// a template are still found, so the reading does not lose its place.
+test('narrowEntry reads a killer only from a string literal its file holds', () => {
+  const { narrowEntry } = mutateModule
+  const source = [
+    "// test('in a line comment', () => {})",
+    "/* test('in a block comment', () => {}) */",
+    "const fixture = \"test('in a fixture string', () => {})\"",
+    "for (const names of lists) test(`corpus ${names}: reads`, () => {})",
+    "assert.match(text, /it's in a regex/)",
+    "test('after a regex', () => {})",
+    "const half = total / 2; test('after a division', () => {}) // 2 / 1",
+    "test(`a plain template`, () => {})",
+    "test(\"double quoted\", () => {})",
+  ].join('\n')
+  const entry = { label: 'e', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'x', to: 'y' }
+  const sources = file => (file === 'tests/a.test.mjs' ? source : null)
+  const red = killers => ({ verdict: 'RED', sha: 'abc1234', killers })
+  for (const name of ['in a line comment', 'in a block comment', 'in a fixture string', "it's in a regex", 'names', 'corpus alpha: reads']) {
+    const answer = narrowEntry(entry, red([name]), sources)
+    assert.equal(answer.verdict, 'refused', name)
+    assert.ok(answer.why.includes(JSON.stringify(name)), answer.why)
+  }
+  for (const name of ['after a regex', 'after a division', 'a plain template', 'double quoted']) {
+    assert.equal(narrowEntry(entry, red([name]), sources).verdict, 'narrowed', name)
+  }
+})
+
+// ADR-072 T4. A mutant two tests kill records both, so a narrowing keeps both.
+test('the campaign cache records every test that killed an entry', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-killers-two-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const env = { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '' }
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\n')
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { f } from '../a.mjs'\n"
+      + "test('f is one', () => { assert.equal(f(), 1) })\ntest('f is odd', () => { assert.equal(f() % 2, 1) })\n")
+    writeFileSync(join(repo, 'tests', 'mutations.json'), `${JSON.stringify({ mutations: [
+      { label: 'both', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2' },
+    ] }, null, 2)}\n`)
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base', '--no-verify')
+    const run = spawnSync(process.execPath, [runner, '--root', repo], { cwd: repo, encoding: 'utf8', timeout: 180_000, env })
+    assert.ok(run.stdout.includes('1/1 mutations were noticed.'), `${run.stdout}\n${run.stderr}`)
+    const records = Object.values(JSON.parse(readFileSync(join(repo, '.mutation-cache.json'), 'utf8')).entries)
+    assert.deepEqual(records.map(record => [record.label, [...record.killers].sort()]), [['both', ['f is odd', 'f is one']]])
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+// ADR-072 T4. --narrow refuses an option it does not take, and a repeated label, before
+// any branch does work. --write measures exactly the entries it narrowed, each afresh: a
+// RED verdict cached at a narrowed key is not reused, and only what is RED is written.
+test('mutate --narrow --write measures only what it narrowed, fresh, and refuses before any work', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-narrow-fresh-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const env = { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '' }
+    const run = (...extra) => spawnSync(process.execPath, [runner, '--root', repo, ...extra], { cwd: repo, encoding: 'utf8', timeout: 180_000, env })
+    const catalogueFile = join(repo, 'tests', 'mutations.json')
+    const cacheFile = join(repo, '.mutation-cache.json')
+    const serialize = mutations => `${JSON.stringify({ mutations }, null, 2)}\n`
+    const fe = { label: 'fe', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2' }
+    const ge = { label: 'ge', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const g = () => 2', to: 'export const g = () => 3' }
+    const kept = { label: 'kept', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const h = () => 3', to: 'export const h = () => 4', only: 'h is three' }
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\nexport const g = () => 2\nexport const h = () => 3\n')
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { f, g, h } from '../a.mjs'\n"
+      + "test('f is one', () => { assert.equal(f(), 1) })\ntest('g is two', () => { assert.equal(g(), 2) })\n"
+      + "test('h is three', () => { assert.equal(h(), 3) })\ntest('all exist', () => { assert.equal(typeof f + typeof g + typeof h, 'functionfunctionfunction') })\n")
+    writeFileSync(catalogueFile, serialize([fe, ge, kept]))
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base', '--no-verify')
+    const measured = run()
+    assert.ok(measured.stdout.includes('3/3 mutations were noticed.'), `${measured.stdout}\n${measured.stderr}`)
+
+    // ge's record names a test that does not kill it, and a RED verdict waits in the cache
+    // at the key ge has once narrowed: the narrowing has to measure it, not reuse that.
+    const cache = JSON.parse(readFileSync(cacheFile, 'utf8'))
+    for (const record of Object.values(cache.entries)) if (record.label === 'ge') record.killers = ['all exist']
+    const read = file => { try { return readFileSync(join(repo, file), 'utf8') } catch { return null } }
+    cache.entries[cacheKey({ ...ge, only: '^(?:all exist)$' }, read)] = { verdict: 'RED', sha: 'abc1234', label: 'ge', ms: 1, killers: ['all exist'] }
+    writeFileSync(cacheFile, `${JSON.stringify(cache, null, 2)}\n`)
+
+    // Refused before any branch works: an option --narrow does not take, and a repeated label.
+    for (const flag of ['--repoint', '--stale']) {
+      const refused = run('--narrow', flag)
+      assert.equal(refused.status, 2, `${flag}\n${refused.stdout}\n${refused.stderr}`)
+    }
+    const twice = [fe, ge, kept, { ...fe, from: 'export const h = () => 3', to: 'export const h = () => 5' }]
+    writeFileSync(catalogueFile, serialize(twice))
+    const repeated = run('--narrow', '--write')
+    assert.equal(repeated.status, 2, `${repeated.stdout}\n${repeated.stderr}`)
+    assert.ok(repeated.stderr.includes('fe'), repeated.stderr)
+    assert.equal(readFileSync(catalogueFile, 'utf8'), serialize(twice))
+    writeFileSync(catalogueFile, serialize([fe, ge, kept]))
+
+    // Exactly the two narrowed entries are measured, both afresh, and only the RED one is written.
+    const written = run('--narrow', '--write')
+    assert.equal(written.status, 1, `${written.stdout}\n${written.stderr}`)
+    assert.ok(!written.stdout.includes('REUSED'), written.stdout)
+    assert.ok(written.stdout.includes('1/2 mutations were noticed.'), written.stdout)
+    assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([{ ...fe, only: '^(?:f is one)$' }, ge, kept]))
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
+// ADR-072 T4. A narrowing is written only after it is measured, so a run killed while it
+// measures leaves the catalogue as it was. SIGKILL, because the runner is synchronous: a
+// SIGTERM waits for the run to end, and a kill is what a crash or a host timeout is. The
+// killer marks when it runs, then takes long enough to be killed.
+test('mutate --narrow --write leaves nothing narrowed when it is stopped mid-measurement', async () => {
+  const { spawn } = await import('node:child_process')
+  const { existsSync } = await import('node:fs')
+  const repo = mkdtempSync(join(tmpdir(), 'qh-narrow-stop-'))
+  const mark = join(repo, 'measuring')
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const env = { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '', QH_NARROW_MARK: mark }
+    const catalogueFile = join(repo, 'tests', 'mutations.json')
+    const serialize = mutations => `${JSON.stringify({ mutations }, null, 2)}\n`
+    const fe = { label: 'fe', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2' }
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\n')
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "import assert from 'node:assert/strict'\nimport { writeFileSync } from 'node:fs'\nimport test from 'node:test'\nimport { f } from '../a.mjs'\n"
+      + "test('f is one, slowly', async () => { writeFileSync(process.env.QH_NARROW_MARK, 'x'); await new Promise(done => setTimeout(done, 3000)); assert.equal(f(), 1) })\n")
+    writeFileSync(catalogueFile, serialize([fe]))
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base', '--no-verify')
+    const measured = spawnSync(process.execPath, [runner, '--root', repo], { cwd: repo, encoding: 'utf8', timeout: 180_000, env })
+    assert.ok(measured.stdout.includes('1/1 mutations were noticed.'), `${measured.stdout}\n${measured.stderr}`)
+    rmSync(mark, { force: true })
+
+    const narrowing = spawn(process.execPath, [runner, '--root', repo, '--narrow', '--write'], { cwd: repo, env, stdio: 'ignore', windowsHide: true, timeout: 180_000 })
+    const exited = new Promise(done => narrowing.on('exit', done))
+    const deadline = Date.now() + 120_000
+    while (!existsSync(mark) && Date.now() < deadline) await new Promise(done => setTimeout(done, 50))
+    assert.ok(existsSync(mark), 'the narrowed measurement never started')
+    narrowing.kill('SIGKILL')
+    await exited
+    assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([fe]), 'a stopped narrowing wrote the catalogue')
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 }) }
+})
+
+// ADR-072 T4. --stale names every alternative of a narrowed pattern that is gone: a later
+// one renamed, and one left only in a comment, and not the one still defined.
+test('mutate --stale names every narrowed killer that is gone', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-narrow-gone-'))
+  try {
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const stale = () => spawnSync(process.execPath, [runner, '--root', repo, '--stale'], { cwd: repo, encoding: 'utf8', timeout: 60_000 })
+    const testFile = join(repo, 'tests', 'a.test.mjs')
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\n')
+    writeFileSync(join(repo, 'tests', 'mutations.json'), `${JSON.stringify({ mutations: [
+      { label: 'narrowed-f', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2', only: '^(?:first|second|third)$' },
+    ] }, null, 2)}\n`)
+    writeFileSync(testFile, "test('first', () => {})\ntest('second', () => {})\ntest('third', () => {})\n")
+    const defined = stale()
+    assert.equal(defined.status, 0, `${defined.stdout}\n${defined.stderr}`)
+    writeFileSync(testFile, "test('first', () => {})\ntest('second, renamed', () => {})\n// test('third', () => {})\n")
+    const gone = stale()
+    assert.equal(gone.status, 1, `${gone.stdout}\n${gone.stderr}`)
+    assert.ok(gone.stdout.includes('"second", "third"'), gone.stdout)
+    assert.ok(!gone.stdout.includes('"first"'), gone.stdout)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})

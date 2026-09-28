@@ -43,6 +43,7 @@ The cache does not record killers today (`entries[key] = { verdict, sha, label, 
 
 1. **The campaign records killers.** A RED entry's cache record gains `killers`, the names `killedBy` returned. A RED record without `killers` is not reusable, so no record from before this change survives into a narrowing.
 2. **"Defined in a file" means the test's name appears verbatim as a string literal in that file's source.** A name built at runtime (a template literal with `${…}`, or one built in a loop) is not defined by this rule, and an entry killed by one is refused. That is the safe direction, and it costs part of the saving: `tests/timeout-tree.test.mjs` builds names from `${gate}`.
+   - **Amended 2026-09-28 (T4), after a Codex review of T1 and T2:** "a string literal" means one of the file's string literal TOKENS. A name left in a comment, inside another literal such as a fixture string, or in a regular expression defines nothing. The first rule was a quoted-substring search, and it passed a killer that survived only in a comment. Measured over the 81 test files the catalogue names against the 1,474 test names the runner reported: the two rules agree on 1,386 pairs; the substring rule alone found one, a name that `tests/gates.test.mjs` holds only in a comment; the token rule alone found none.
 3. **`scripts/mutate.mjs --narrow [--cache <file>] [--write]`** proposes an `only` for each entry that meets all of these:
    - it has no `only` today;
    - its cached verdict is RED at the current key;
@@ -51,6 +52,7 @@ The cache does not record killers today (`entries[key] = { verdict, sha, label, 
 
    The proposal is `^(?:<killer>|<killer>)$`, each name with every regular-expression metacharacter escaped. Measured on Node 24.11.1 (2026-09-28): a test inside a `describe` is selected by its leaf name anchored this way. A subtest created with `t.test` is not, because its parent does not match. No test file here creates one, and one that did would come back UNPROVEN and be undone. Every other entry is refused, naming why. Nothing is written without `--write`.
 4. **`--narrow --write`** follows ADR-069's order: claim the campaign lock, read the catalogue, write only the proposed `only` fields, then measure every narrowed entry. An entry that is not RED under its pattern has its `only` removed again and is named, and the command exits 1. Nothing is left narrowed on a measurement it failed. It refuses uncommitted subjects as every campaign does, and `--force` is not part of this flow.
+   - **Amended 2026-09-28 (T4), after the same review:** the patterns are set in memory and measured first, and the catalogue is written once, after the measurement, with only the entries RED under their pattern. Writing first left a killed run with unmeasured patterns in the catalogue, because nothing restores it. The runner is synchronous, so a SIGTERM waits for the run to end; the case this order exists for is a kill. A narrowing never reuses a cached verdict, and `--narrow` refuses a repeated label, and an option it does not take, before any branch does work.
 5. **A narrowed entry whose killer is renamed or deleted is named by `--stale`.** Its pattern then selects nothing, the baseline reads `unrun`, and the entry would be UNPROVEN, which does not fail a campaign. So `--stale` also reports every narrowed entry whose pattern names a test that no named file defines under rule 2, and the selftest runs `--stale` over the real catalogue. A narrowed entry that stays selected but stops being killed is GREEN, and the campaign already names that.
 
 **What makes it fail.** The tests show each of these:
@@ -90,7 +92,7 @@ None — internal to `scripts/mutate.mjs` and its catalogue; repository tooling 
 
 ## Implementation
 
-See `tasks/README.md`: T1 (the cache records killers), T2 (the proposal and the measured write), T3 (applied to the catalogue, and the campaign measured).
+See `tasks/README.md`: T1 (the cache records killers), T2 (the proposal and the measured write), T4 (the review of T1 and T2, closed), T3 (applied to the catalogue, and the campaign measured).
 
 ## Consequences
 

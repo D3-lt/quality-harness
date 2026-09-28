@@ -14316,6 +14316,26 @@
       "from": "            return [], [missing + f\" (advisory: {when})\"]",
       "to": "            return [], [missing + f\" (advisory until {TEST_HASH_REQUIRED_FROM})\"]",
       "only": "about the entry, not about today"
+    },
+    {
+      "label": "§310: a campaign child's scratch temp directory is removed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  } finally { rmSync(scratch, { recursive: true, force: true }) }",
+      "to": "  } finally { void scratch }",
+      "only": "leaves nothing in the temp directory"
+    },
+    {
+      "label": "§310: a campaign child writes its temp files to its scratch directory",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    TMPDIR: scratch,",
+      "to": "",
+      "only": "leaves nothing in the temp directory"
     }
   ]
 }

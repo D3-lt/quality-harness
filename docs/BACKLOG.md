@@ -16188,3 +16188,21 @@ Leads, unconfirmed here:
 - The same terminal-output test matched `docs/specs/a` with a `/`; work-next prints native separators, and its output was right, escapes included (`docs\specs\a\u{202e}b\u{200b}dm.md`). The match takes either separator now (§7, broken again by its author).
 - `timeout-tree.test.mjs::adr-verify: run_bounded kills the tree on timeout` failed with "the grandchild never wrote a beat". It passed on this job at 77cdded and at 8badec4, and nothing in this batch touches `run_bounded`. §121 closed that message's truncation cause. What remains looks like a slow Windows runner where the bound fires before the grandchild's first beat, which the fixture cannot tell from a grandchild that never started. It cannot be reproduced here, so it is a lead for the next Windows run, not a fix.
 The readers changed with this batch (lifecycle.mjs, corpus-probe.mjs, work-next.mjs, adr-next, adr-lint), so the four attestations at 916b515 do not cover a tag cut after it; another outside run is needed at the final sha (§18).
+
+## 310. FIXED 2026-09-28 — The suite and the mutation campaign left their temp directories behind, 66,000 of them on one Mac
+
+**Found by a peer session** (quality-blueprints-87, 2026-09-28). It counted 65,904 `qh-*` directories in this Mac's user temp dir, about 0.7 GiB, and deleted 45,367 older than a day at its own user's request. Confirmed here by measurement, not from the prefixes alone: temp entries counted by prefix before and after each suite run on its own, then around one whole selftest.
+- One selftest left about 160 entries: `qh-sweep` 84 (`tests/sweep.test.mjs`'s corpus helper never removed what it made), `quality-harness-status-<hash>` 26 (statusline's per-session cache, one per test session id), `qh-mutate-pyc` 12, Python `tmp*` 5, `qh-pyc` 4, and about 25 single entries.
+- Two of the singles came from tests this batch added: `qh-own-done` and `qh-unreadable-task` reuse `agedCorpus`, which leaked.
+- The mutation campaign multiplied all of it. Each mutant re-runs the suites it names, and `scripts/mutate.mjs`'s `childEnv` made a `qh-mutate-pyc-*` directory per child and removed none. That is how `qh-sweep` alone reached 15,885.
+
+**Removed.** 28,000 entries older than an hour, then the rest once `lsof` showed nothing held any of them, then 2,959 statusline cache files. 24 remain: live sessions' `-gen`, `-note` and `-status` files. Python `tmp*` directories and the peer sessions' `qh-probe-*.json` files in `/private/tmp` were left alone; they are not provably this project's.
+
+**Prevented, class-wide.**
+- `scripts/selftest.sh` gives the run one temp directory, exported as TMPDIR, TMP and TEMP, so every test, gate and hook it spawns writes there. The exit trap removes it, a run cut short included. Before the verdict, one `advice:` line names by prefix whatever the tests left. Not on Windows, whose CI runner is discarded after the job and whose MAX_PATH the longer prefix would eat into.
+- `scripts/mutate.mjs` runs every child through `runChild`, in a scratch temp directory that also holds its bytecode cache, and removes it when the child ends.
+- Tested at the outermost boundary: a real campaign over a scratch repository whose test deliberately forgets a temp directory leaves the probe TMPDIR empty. Both mutants (no removal, no TMPDIR) are RED.
+
+**And at the source,** so a file run on its own stays clean. `sweep` (its corpus helper and the `qh-link` directory), the `qh-pyc` caches in `test-lock` and `relock-stress`, and `agedCorpus` in `gates` now remove what they create. Measured on their own: sweep +85 to +0, test-lock +2 to +1, relock-stress +2 to +0. The one left is the stress test's per-run cache. That test is LOCKED (ADR-052, ADR-054, ADR-055), and an edit to its body moved the lock and refused four tasks' done at the gate. So the body was restored byte for byte, and its cache is left to the selftest's temp directory.
+
+**Left.** The long tail of single leaks is caught by the selftest's temp directory and named by its advice line, not fixed one by one. A developer running one of those files outside `selftest.sh` still leaves one entry. The statusline's per-session cache in the product is one small file per Claude session, never pruned; a lead, not a leak the tests cause.

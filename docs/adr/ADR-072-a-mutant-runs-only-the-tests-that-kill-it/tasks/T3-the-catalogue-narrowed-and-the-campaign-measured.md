@@ -51,6 +51,7 @@ Human-observed: the dispatched campaign's summed shard runner-seconds, against 5
 | 4 — it is used | the dispatched campaign's shard times |
 
 ## Mutation Log
+- 2026-09-28 · 4060fce* · mutant killed · exit 1 · `tests/mutations.json` · a narrowed entry names a killer no test file defines, and --stale must refuse it · acceptance-sha256:44c9b8e8f756246fbafb5fcac7405da4ef6154dd587fa74fe0085293f88e8a84
 
 ## Invariants
 
@@ -70,3 +71,5 @@ Stop and ask if fewer than half the runner-seconds are saved: the record's claim
 - The 22 cross-file entries (permanent: boundary: ADR-072 Out of Scope)
 
 ## Verification Log
+- 2026-09-28 · 4060fce* · exit 0 · `set -o pipefail …` · acceptance-sha256:44c9b8e8f756246fbafb5fcac7405da4ef6154dd587fa74fe0085293f88e8a84 · ms:272
+- 2026-09-28 · 4060fce* · exit 0 · `set -o pipefail …` · acceptance-sha256:44c9b8e8f756246fbafb5fcac7405da4ef6154dd587fa74fe0085293f88e8a84 · ms:249

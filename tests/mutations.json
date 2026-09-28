@@ -5225,8 +5225,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "                       capture_output=True, timeout=timeout)",
-      "to": "                       capture_output=True)",
+      "from": "                       capture_output=True, timeout=timeout, creationflags=0x08000000)",
+      "to": "                       capture_output=True, creationflags=0x08000000)",
       "only": "^a taskkill that hangs is bounded, and answers \"not confirmed\"$"
     },
     {
@@ -14403,7 +14403,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "      const called = call => !insideLiteral(word, call.index, name === 'perl')",
+      "from": "      const called = call => !insideLiteral(word, call.index, name === 'perl' ? 'perl' : name.startsWith('python') ? 'python' : 'js')",
       "to": "      const called = () => true",
       "only": "read as git expands it"
     },
@@ -14413,8 +14413,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "      if (c === '\\\\') i++",
-      "to": "      if (false) i++",
+      "from": "      if (c === '\\\\' && top.escapes) { i++; continue }",
+      "to": "      if (false) { i++; continue }",
       "only": "read as git expands it"
     },
     {
@@ -14423,8 +14423,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    else if (perl && c === 'q' && !/[\\w$@%]/.test(script[i - 1] ?? '')) {",
-      "to": "    else if (false) {",
+      "from": "  if (language === 'perl' && c === 'q' && !/[\\w$@%]/.test(script[i - 1] ?? '')) {",
+      "to": "  if (false) {",
       "only": "read as git expands it"
     },
     {
@@ -14433,19 +14433,19 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "      if (quote) { open = CLOSER[quote[1]] ?? quote[1]; i += quote[0].length - 1 }",
-      "to": "      if (quote) { open = quote[1]; i += quote[0].length - 1 }",
+      "from": "    return { length: quote[0].length, close: CLOSER[opener] ?? opener, nest: CLOSER[opener] ? opener : null,",
+      "to": "    return { length: quote[0].length, close: opener, nest: null,",
       "only": "read as git expands it"
     },
     {
       "label": "review e0ef6d4 F6: an unread shared task goes to the sole record",
-      "file": "plugin/scripts/lifecycle.mjs",
+      "file": "plugin/scripts/work-next.mjs",
       "tests": [
         "tests/record-budget.test.mjs"
       ],
-      "from": "    if (sole) for (const taskPath of unreadTasks) if (!owned.includes(taskPath)) owned.push(taskPath)",
-      "to": "    if (false) for (const taskPath of unreadTasks) if (!owned.includes(taskPath)) owned.push(taskPath)",
-      "only": "shared tasks directory goes to the sole"
+      "from": "    for (const file of [...(record.taskFiles ?? []), ...(record.unreadTasks ?? [])]) {",
+      "to": "    for (const file of record.taskFiles ?? []) {",
+      "only": "shared tasks directory"
     },
     {
       "label": "review e0ef6d4 F1: an attestation date must be a date",
@@ -14466,6 +14466,156 @@
       "from": "  if (name !== path.basename(name) || name.startsWith('.')) refused.push(",
       "to": "  if (false) refused.push(",
       "only": "date that is not a date"
+    },
+    {
+      "label": "win: taskkill starts with no window",
+      "file": "plugin/lib/fence.py",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "                       capture_output=True, timeout=timeout, creationflags=0x08000000)",
+      "to": "                       capture_output=True, timeout=timeout)",
+      "only": "no window"
+    },
+    {
+      "label": "win: qh-check shares its console with node, so its output is not lost",
+      "file": "plugin/bin/qh-check",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60)",
+      "to": "        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60, creationflags=0x08000000)",
+      "only": "no window"
+    },
+    {
+      "label": "win: a call that shares the gate's stdio with CREATE_NO_WINDOW is named",
+      "file": "scripts/untimed-children.py",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "        if inherits and hides:",
+      "to": "        if False:",
+      "only": "no window"
+    },
+    {
+      "label": "win: creationflags is read by its value",
+      "file": "scripts/untimed-children.py",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "    return any((isinstance(n, ast.Constant) and n.value == 0x08000000)",
+      "to": "    return any((isinstance(n, ast.Constant))",
+      "only": "no window"
+    },
+    {
+      "label": "win: an injected Python runner is the call it defaults to",
+      "file": "scripts/untimed-children.py",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "                aliases.setdefault(fn.name, {})[arg.arg] = default.attr",
+      "to": "                pass",
+      "only": "no window"
+    },
+    {
+      "label": "win: windowsHide is read by its value",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "      return property.value.type === 'Literal' ? (property.value.value === true ? 'hidden' : 'shown') : 'unknown'",
+      "to": "      return 'hidden'",
+      "only": "passes windowsHide"
+    },
+    {
+      "label": "win: an injected Node runner is the spawner it defaults to",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "    if (!name || !(SPAWNERS.has(name) || aliased(node))) return",
+      "to": "    if (!name || !SPAWNERS.has(name)) return",
+      "only": "passes windowsHide"
+    },
+    {
+      "label": "win: a runner alias is scoped to its own function",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "    && aliases.some(alias => alias.name === node.callee.name && alias.start <= node.start && node.end <= alias.end)",
+      "to": "    && aliases.some(alias => alias.name === node.callee.name)",
+      "only": "passes windowsHide"
+    },
+    {
+      "label": "round 2 F2: an interpolation hole is code",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (hole) { stack.push({ depth: 0 }); i += hole.length - 1; continue }",
+      "to": "      if (false) { stack.push({ depth: 0 }); i += hole.length - 1; continue }",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "round 2 F2: python's triple quotes close on three",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    const triple = script.startsWith(c.repeat(3), i)",
+      "to": "    const triple = false",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "round 2 F2: perl's bracket delimiters nest",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (top.nest && c === top.nest) { top.depth = (top.depth ?? 0) + 1; continue }",
+      "to": "      if (false) { top.depth = (top.depth ?? 0) + 1; continue }",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "round 2 F2: an f-string's {{ is a brace, not a hole",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (top.fstring && script.startsWith('{{', i)) { i++; continue }",
+      "to": "      if (false) { i++; continue }",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "round 2 F1: an alias that starts with a space names no command",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (/^\\s/.test(value)) return ['']",
+      "to": "  if (false) return ['']",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "round 2 F1: git splits an alias with no shell operators",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const expanded = alias !== undefined && !alias.startsWith('!') ? gitSplit(alias) : null",
+      "to": "  const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null",
+      "only": "read as git expands it"
+    },
+    {
+      "label": "round 2 F3: an external command's alias is read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())",
+      "to": "  return GIT_COMMANDS.has(name) || name === 'mergetool' ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())",
+      "only": "read as git expands it"
     }
   ]
 }

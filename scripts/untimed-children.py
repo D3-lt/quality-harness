@@ -13,17 +13,39 @@ REPOSITORY TOOLING, never shipped. Exit 1 with one line per finding, exit 0
 with none — and tests/untimed-children.test.mjs shows it returning dirty on a
 fixture before it is trusted to return clean on the tree (CLAUDE.md §4).
 
-`--hidden` asks the Windows question of the same calls: does each pass `**NO_WINDOW`
-(record.py) or `creationflags`? A gate a hook starts has no console, so a child
-without CREATE_NO_WINDOW gets a console window of its own, which Windows Terminal
-opens as a tab that flashes (reported on 3.1.0, 2026-09-28). `run_bounded` sets it
-in the flags it builds, so it stays the one exemption here too.
+`--hidden` asks the Windows question of the same calls, and it has two halves. A
+call whose output is redirected should pass `**NO_WINDOW` (record.py), or
+creationflags naming CREATE_NO_WINDOW, so no console window opens for it. A call
+that shares the gate's stdio must NOT: with no handles passed, a child started
+with that flag gets a console of its own and everything it prints is lost, which
+is how qh-check printed nothing on Windows at 2b036de. libuv draws the same line
+for Node's windowsHide. A parameter whose default is a subprocess call (`run=
+subprocess.run`) is read as that call, since that is what runs.
 """
 import ast
 import pathlib
 import sys
 
 CALLS = {"run", "call", "check_call", "check_output", "Popen"}
+# Any of these gives the child explicit handles, which is what CREATE_NO_WINDOW needs.
+IO = {"stdin", "stdout", "stderr", "capture_output", "input"}
+
+
+def runner_aliases(tree):
+    """{function name: {parameter: call}} for parameters that default to subprocess.<call>."""
+    aliases = {}
+    for fn in ast.walk(tree):
+        if not isinstance(fn, ast.FunctionDef):
+            continue
+        args = fn.args
+        positional = args.posonlyargs + args.args
+        pairs = list(zip(positional[len(positional) - len(args.defaults):], args.defaults))
+        pairs += [(arg, default) for arg, default in zip(args.kwonlyargs, args.kw_defaults) if default is not None]
+        for arg, default in pairs:
+            if (isinstance(default, ast.Attribute) and isinstance(default.value, ast.Name)
+                    and default.value.id == "subprocess" and default.attr in CALLS):
+                aliases.setdefault(fn.name, {})[arg.arg] = default.attr
+    return aliases
 
 
 def subprocess_calls(source):
@@ -34,32 +56,57 @@ def subprocess_calls(source):
         if isinstance(fn, ast.FunctionDef):
             for node in ast.walk(fn):
                 enclosing.setdefault(id(node), fn.name)
+    aliases = runner_aliases(tree)
     for node in ast.walk(tree):
-        if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Attribute)):
-            continue
-        if not (isinstance(node.func.value, ast.Name) and node.func.value.id == "subprocess"):
-            continue
-        if node.func.attr not in CALLS:
+        if not isinstance(node, ast.Call):
             continue
         where = enclosing.get(id(node), "<module>")
-        if node.func.attr == "Popen" and where == "run_bounded":
+        if (isinstance(node.func, ast.Attribute) and isinstance(node.func.value, ast.Name)
+                and node.func.value.id == "subprocess" and node.func.attr in CALLS):
+            attr = node.func.attr
+        elif isinstance(node.func, ast.Name) and node.func.id in aliases.get(where, {}):
+            attr = aliases[where][node.func.id]
+        else:
             continue
-        yield node, node.func.attr, where
+        if attr == "Popen" and where == "run_bounded":
+            continue
+        yield node, attr, where
 
 
 def untimed(source, label):
-    """(label, line, call, enclosing function) for every call with no timeout."""
-    return [(label, node.lineno, attr, where) for node, attr, where in subprocess_calls(source)
+    """(label, line, call, enclosing function, why) for every call with no timeout."""
+    return [(label, node.lineno, attr, where, "names no timeout") for node, attr, where in subprocess_calls(source)
             if not any(k.arg == "timeout" for k in node.keywords)]
 
 
+def sets_no_window(keyword):
+    """Whether this keyword sets CREATE_NO_WINDOW: `**NO_WINDOW`, or creationflags naming it.
+
+    The value is read, not only the key: `creationflags=0` opens a window like no flag.
+    """
+    if keyword.arg is None:
+        return isinstance(keyword.value, ast.Name) and keyword.value.id == "NO_WINDOW"
+    if keyword.arg != "creationflags":
+        return False
+    return any((isinstance(n, ast.Constant) and n.value == 0x08000000)
+               or (isinstance(n, ast.Name) and n.id in ("NO_WINDOW", "CREATE_NO_WINDOW"))
+               or (isinstance(n, ast.Attribute) and n.attr == "CREATE_NO_WINDOW")
+               for n in ast.walk(keyword.value))
+
+
 def unhidden(source, label):
-    """(label, line, call, enclosing function) for every call that would show a window on Windows."""
-    def hidden(keyword):
-        return keyword.arg == "creationflags" or (
-            keyword.arg is None and isinstance(keyword.value, ast.Name) and keyword.value.id == "NO_WINDOW")
-    return [(label, node.lineno, attr, where) for node, attr, where in subprocess_calls(source)
-            if not any(hidden(k) for k in node.keywords)]
+    """(label, line, call, enclosing function, why) for every call whose console is wrong on Windows."""
+    findings = []
+    for node, attr, where in subprocess_calls(source):
+        hides = any(sets_no_window(k) for k in node.keywords)
+        inherits = not ({k.arg for k in node.keywords} & IO)
+        if inherits and hides:
+            findings.append((label, node.lineno, attr, where,
+                             "shares this gate's stdio and sets CREATE_NO_WINDOW, so on Windows its output is lost"))
+        elif not inherits and not hides:
+            findings.append((label, node.lineno, attr, where,
+                             "redirects its output but sets no CREATE_NO_WINDOW (**NO_WINDOW or creationflags)"))
+    return findings
 
 
 def main(argv):
@@ -75,9 +122,8 @@ def main(argv):
             findings.extend(check(path.read_text(encoding="utf-8"), str(path)))
         except SyntaxError:
             continue
-    for label, line, call, where in findings:
-        what = "passes neither **NO_WINDOW nor creationflags" if hidden_mode else "names no timeout"
-        print(f"{label}:{line}: subprocess.{call} in {where}() {what}")
+    for label, line, call, where, why in findings:
+        print(f"{label}:{line}: subprocess.{call} in {where}() {why}")
     return 1 if findings else 0
 
 

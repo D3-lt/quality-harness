@@ -17,7 +17,8 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
-import { appendEvent, containsCommitOrPush, leavesHookInPlace, mentionsCommitOrPush, publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
+import { containsCommitOrPush, leavesHookInPlace, mentionsCommitOrPush, publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
+import { appendEvent } from '../plugin/scripts/event-log.mjs'
 
 // Invocations a session could publish with. Each must be refused on an
 // unchecked tree and denied to a read-only role.
@@ -893,11 +894,24 @@ const REVIEWED_PUBLISHES = {
   "git -c 'alias.x=!git push' x": 'git push',
   "perl -e 'print qq{x}; system(\"git\", \"push\")'": 'git push',
   'python3 -c "print(\'x\'); import os; os.system(\'git push\')"': 'git push',
+  // Codex round 2: an interpolation hole is code (F2), an external command's alias is
+  // read, since git runs the alias when the program is missing (F3).
+  "node -e 'console.log(`${spawnSync(\"git\", [\"push\"])}`)'": 'git push',
+  'python3 -c "import os; print(f\'{os.system(\\"git push\\")}\')"': 'git push',
+  "perl -e 'print qq{@{[system(\"git\", \"push\")]}}'": 'git push',
+  "python3 -c 's = \"\"\"a \" b\"\"\"; import os; os.system(\"git push\")'": 'git push',
+  'git -c alias.mergetool=push mergetool': 'git -c alias.mergetool=push mergetool',
 }
 const REVIEWED_CONTROLS = [
   "git -c 'alias.p=push --dry-run' p",
-  'git -c alias.version=push version', 'git -c alias.mergetool=push mergetool',
+  'git -c alias.version=push version', 'git -c alias.status=push status',
+  // Codex round 2: git splits an alias on whitespace only and refuses `push;true` and a
+  // leading space (F1); perl's q{} nests its braces (F2).
+  "git -c 'alias.x=push;true' x", "git -c 'alias.x= push' x",
+  "perl -e 'print q{a {b} system(\"git\", \"push\")}'",
   "git -c 'alias.x=!echo' x 'ok; git push'",
+  // A python f-string's `{{` is a literal brace, not a hole (round 2, F2).
+  'python3 -c "print(f\'{{os.system(\\"git push\\")}}\')"',
   'node -e "console.log(\\"spawnSync(\'git\', [\'push\'])\\")"',
   'python3 -c "print(\\"os.system(\'git push\')\\")"',
   'python3 -c "print(\\"run: os.system(\'git push\') now\\")"',

@@ -156,11 +156,19 @@ test('every spawn in plugin/ passes windowsHide, and a call that does not is nam
     const file = join(dir, 'fixture.mjs')
     writeFileSync(file, "import { spawnSync } from 'node:child_process'\n"
       + "export const shown = () => spawnSync('git', ['status'], { encoding: 'utf8', timeout: 5_000 })\n"
-      + "export const hidden = () => spawnSync('git', ['status'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })\n")
+      + "export const hidden = () => spawnSync('git', ['status'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })\n"
+      // Codex round 2, F4: the value is read, an injected runner is the spawner it
+      // defaults to, and a `run` that is not one stays unread.
+      + "export const off = () => spawnSync('git', ['status'], { timeout: 5_000, windowsHide: false })\n"
+      + "export function injected(run = spawnSync) { return run('git', ['status'], { timeout: 5_000 }) }\n"
+      + "export const local = () => { const run = x => x; return run('git') }\n")
     const dirty = check(['--hidden', file])
     assert.equal(dirty.status, 1, `${dirty.stdout}${dirty.stderr}`)
     assert.match(dirty.stdout, /fixture\.mjs:2: spawnSync\(\) passes no windowsHide/)
     assert.doesNotMatch(dirty.stdout, /fixture\.mjs:3:/)
+    assert.match(dirty.stdout, /fixture\.mjs:4: spawnSync\(\) passes no windowsHide/)
+    assert.match(dirty.stdout, /fixture\.mjs:5: run\(\) passes no windowsHide/)
+    assert.doesNotMatch(dirty.stdout, /fixture\.mjs:6:/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
   const tree = check(['--hidden'])
   assert.equal(tree.status, 0, `${tree.stdout}${tree.stderr}`)

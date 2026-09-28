@@ -30,15 +30,15 @@ import {
   readyTaskLines,
   runArtifactGates,
   observe,
-  appendEvent,
   surfaceReadyLines,
-  ASSERTION_ARM_WITHDRAWN,
   completionClaim,
   saidMarkerDirectory,
   sweepStaleMarkers,
 } from '../plugin/scripts/lifecycle.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
-import { NEVER_MIRRORED, SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
+import { SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
+import { appendEvent } from '../plugin/scripts/event-log.mjs'
+import { ASSERTION_ARM_WITHDRAWN } from '../plugin/scripts/claim-status.mjs'
 import { reading } from '../plugin/scripts/statusline.mjs'
 import {
   HOOK_SCRIPTS,
@@ -50,6 +50,58 @@ import {
   shellHookTimeoutMs,
   shellRuntimeCrashed,
 } from '../plugin/scripts/run-shell-hook.mjs'
+
+// Moved here from plugin/scripts/standalone-link.mjs on 2026-09-28: this test is the
+// only thing that reads it, and knip named it an export only a test reaches.
+/**
+ * The directories this plugin ships that are deliberately NOT mirrored home-side.
+ *
+ * MIRRORING IS THE DEFAULT and this is the exception list, which is the whole
+ * point of the pairing. The table above was hand-written, so a shipped directory
+ * was covered only if somebody remembered it — and on 2026-09-01, the day the
+ * hooks gap shipped its fix, `workflows` was still missing: two files under the
+ * home were ours, still shipped and drifted, and `grep -n workflows` over the
+ * three scanning modules returned nothing. Same defect as GitHub issue #1, one
+ * directory over, found by enumerating the class instead of the instance.
+ *
+ * A test asserts that every shipped directory is either in SHADOW_SCOPE or named
+ * here, so the NEXT directory this plugin adds cannot be silently unscanned. It
+ * fails loudly and the author decides which list it joins; that decision is a
+ * judgement no derivation can make, and leaving it to memory is what produced
+ * this entry.
+ *
+ * WHAT THE RULE CANNOT CATCH, said out loud because a mutation measured it: moving
+ * a directory OUT of SHADOW_SCOPE and INTO this set in the same edit is invisible
+ * to the check, since that is exactly what a legitimate exclusion looks like. A
+ * mutation adding `workflows` here came back GREEN on 2026-09-01 — it changes
+ * nothing while SHADOW_SCOPE still covers it, so it was a no-op rather than a gap
+ * in the test. The gap it points at is real and is a review question, not a
+ * mechanical one: every entry below has to carry the reason it is here.
+ */
+const NEVER_MIRRORED = new Set([
+  // Named agent definitions (ADR-030), read by the loader from the plugin root.
+  // A copy under the home would register a SECOND definition of the same role
+  // under the same bare name, and the host would have two answers for one
+  // `subagent_type` — which is ADR-001's rule for skills, one directory over.
+  'agents',
+  // The eval corpus is the plugin's own test fixtures. Nothing under the home
+  // reads it, and its results directory is gitignored (CLAUDE.md §6).
+  'evals',
+  // `hooks/hooks.json` is the plugin's own hook REGISTRATION, read by the loader
+  // from the plugin root. The home `hooks/` directory holds the scripts it points
+  // at, which ship under `scripts/` — that asymmetry is the SHADOW_SCOPE entry
+  // above, and copying the registration itself home-side would register a second
+  // set of hooks nobody asked for.
+  'hooks',
+  // The plugin manifest. One per installed plugin, resolved by the loader; a copy
+  // under the home is not a plugin.
+  '.claude-plugin',
+  // Shared code the gates import from the plugin root (`plugin/lib/fence.py`,
+  // 2026-09-06). A forwarder execs `$root/bin/<gate>`, which resolves lib/ from
+  // its own path — so a copy under the home would be exactly the stale
+  // duplicate this whole module exists to keep out, and nothing would read it.
+  'lib',
+])
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')

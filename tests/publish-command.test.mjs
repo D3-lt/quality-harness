@@ -732,6 +732,19 @@ test('the classifier stays under its cost bound', t => {
   assert.ok(mean < COST_BOUND_US, `mean ${mean} µs`)
 })
 
+// BACKLOG §315: the literal check rescanned an interpreter script from its start for
+// every call it tested, so a long script was quadratic: 4,000 calls in 125 KB took 6.4s
+// inside the PreToolUse hook, where 3.1.0 took 42ms. The suite's literals are short and
+// never showed it; this one is long, and a call inside a string still reads as data.
+test('the classifier stays linear on a long interpreter script', () => {
+  const body = Array.from({ length: 4000 }, (_, i) => `x${i} = os.system("echo ${i}")`).join('; ')
+  const started = process.hrtime.bigint()
+  assert.equal(publishCommandIn(`python3 -c 'import os; print("os.system(\\"git push\\")"); ${body}'`), null)
+  const ms = Number(process.hrtime.bigint() - started) / 1e6
+  assert.ok(ms < (process.env.NODE_V8_COVERAGE ? 5000 : 1000), `${ms.toFixed(0)} ms for 4,000 calls`)
+  assert.equal(publishCommandIn(`python3 -c 'import os; ${body}; os.system("git push")'`), 'git push')
+})
+
 // ADR-067 T3: the armed grammar reads the same lexer the publish classifier does.
 const LIFECYCLE_SOURCE = new URL('../plugin/scripts/lifecycle.mjs', import.meta.url)
 const BRACE_BYPASS = 'git {-c,hook.qh-publish-commit.enabled=false} commit -m x'

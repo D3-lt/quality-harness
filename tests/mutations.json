@@ -14656,6 +14656,96 @@
       "from": "  return Number.isSafeInteger(configured) && configured > 0 ? configured : OBSERVE_BUDGET_MS",
       "to": "  return OBSERVE_BUDGET_MS",
       "only": "budget is read|could not be observed"
+    },
+    {
+      "label": "ADR-071 T1: the anchors end on a word boundary",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  while (p > 0 && word(from[p - 1]) && word(from[p])) p -= 1",
+      "to": "  p = p + 0",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: a thin anchor is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (significant < 8) {",
+      "to": "  if (false) {",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: only a line the change added is a candidate",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const fits = line => added.has(line.trim())",
+      "to": "  const fits = line => line.length > 0",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: P comes before S on the candidate",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    && (P ? line.indexOf(P) + P.length : 0) <= (S ? line.lastIndexOf(S) : line.length)",
+      "to": "    && true",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: P and S occur once on the candidate",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    && (!P || once(line, P)) && (!S || once(line, S))",
+      "to": "    && (!P || line.includes(P)) && (!S || line.includes(S))",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: the nearest line breaks a tie",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    line = candidates.includes(nearest) ? nearest : null",
+      "to": "    line = null",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: a line that occurs twice is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (!once(text, line)) return",
+      "to": "  if (false) return",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: only a refusal at conditions 2 and 3 is re-anchored",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (verdict.verdict !== 'refused' || !/^[23]:/.test(verdict.why)) return verdict",
+      "to": "  if (verdict.verdict !== 'refused') return verdict",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: a diff that could not be read is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (added === null) return { verdict: 'refused', why: 'the diff:",
+      "to": "  if (false) return { verdict: 'refused', why: 'the diff:",
+      "only": "reanchorEntry"
     }
   ]
 }

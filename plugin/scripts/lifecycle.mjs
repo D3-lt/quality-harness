@@ -3208,10 +3208,19 @@ function literalAt(script, i, language) {
   }
   return { length: 1, close: c, nest: null, escapes: true, holes: c === '`' ? ['${'] : [] }
 }
-function insideLiteral(script, at, language) {
-  // Open literals, and inside them the interpolation holes that are code again.
-  const stack = []
-  for (let i = 0; i < at; i++) {
+// One scan per script, asked in order of position (the one caller sorts). Asked from the
+// start for every call, a long script was quadratic: 4,000 calls in 125 KB took 6.4s
+// where 3.1.0 took 42ms (BACKLOG §315).
+function literalScanner(script, language) {
+  const state = { stack: [], i: 0 }
+  return at => insideLiteral(script, at, language, state)
+}
+function insideLiteral(script, at, language, state = { stack: [], i: 0 }) {
+  // Open literals, and inside them the interpolation holes that are code again. `state`
+  // resumes where the last query stopped, so the scan is not repeated.
+  const stack = state.stack
+  let i = state.i
+  for (; i < at; i++) {
     const top = stack[stack.length - 1]
     const c = script[i]
     if (top?.close) {
@@ -3232,6 +3241,7 @@ function insideLiteral(script, at, language) {
     const literal = literalAt(script, i, language)
     if (literal) { stack.push(literal); i += literal.length - 1 }
   }
+  state.i = i
   return Boolean(stack[stack.length - 1]?.close)
 }
 // Deep enough for `bash -c "sudo sh -c 'eval …'"`, bounded so a crafted command
@@ -3708,13 +3718,17 @@ function publishInCommand(commands, n, depth) {
   if (INTERPRETERS.test(name)) {
     for (const word of argv.slice(start + 1)) {
       // A call inside a string literal is data that is printed, not run (F3, above).
-      const called = call => !insideLiteral(word, call.index, name === 'perl' ? 'perl' : name.startsWith('python') ? 'python' : 'js')
-      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {
+      const calls = [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]
+      const strings = [...word.matchAll(SUBPROCESS_STRING)]
+      const scan = literalScanner(word, name === 'perl' ? 'perl' : name.startsWith('python') ? 'python' : 'js')
+      const literal = new Map([...new Set([...calls, ...strings].map(call => call.index))].sort((a, b) => a - b).map(index => [index, scan(index)]))
+      const called = call => !literal.get(call.index)
+      for (const call of calls.filter(called)) {
         const list = [...call[1].matchAll(/(["'])([^"']*)\1/g)].map(item => item[2])
         const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null
         if (invoked) return invoked
       }
-      const found = inner([...word.matchAll(SUBPROCESS_STRING)].filter(called).map(call => call[2]))
+      const found = inner(strings.filter(called).map(call => call[2]))
       if (found) return found
     }
   }

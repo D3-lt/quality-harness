@@ -14223,8 +14223,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
-      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
+      "from": "      const calls = [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]",
+      "to": "      const calls = [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(PERL_LIST)]",
       "only": "argv list in node or perl"
     },
     {
@@ -14233,8 +14233,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
-      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST)].filter(called)) {",
+      "from": "      const calls = [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]",
+      "to": "      const calls = [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST)]",
       "only": "argv list in node or perl"
     },
     {
@@ -14403,7 +14403,7 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "      const called = call => !insideLiteral(word, call.index, name === 'perl' ? 'perl' : name.startsWith('python') ? 'python' : 'js')",
+      "from": "      const called = call => !literal.get(call.index)",
       "to": "      const called = () => true",
       "only": "read as git expands it"
     },
@@ -14786,6 +14786,16 @@
       "from": "      if (answer.verdict === 'repointed' || answer.verdict === 'reanchored') {",
       "to": "      if (answer.verdict === 'repointed') {",
       "only": "repoint --reanchor"
+    },
+    {
+      "label": "§315: the literal scan resumes, so a long script is read once",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  return at => insideLiteral(script, at, language, state)",
+      "to": "  return at => insideLiteral(script, at, language)",
+      "only": "stays linear"
     }
   ]
 }

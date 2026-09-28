@@ -598,6 +598,65 @@ export function staleEntries(mutations, read) {
   return stale
 }
 
+// ADR-072 Decision 2: a test is defined in a file when its name appears there verbatim as
+// a string literal. A name built at runtime is not, so an entry it kills is refused.
+function definesTest(source, name) {
+  if (typeof source !== 'string') return false
+  const quotes = name.includes('${') ? ["'", '"'] : ["'", '"', '`']
+  return quotes.some(quote => !name.includes(quote) && source.includes(`${quote}${name}${quote}`))
+}
+
+// A test name as a pattern that matches only that name: every metacharacter escaped.
+function escapeName(name) {
+  return name.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+}
+
+/**
+ * ADR-072 Decision 3: the `only` that runs just the tests the cache saw kill `entry`, or
+ * why it cannot be narrowed. `record` is the cache record at the entry's current key, and
+ * `sources` reads a test file by its catalogue path. Pure.
+ */
+export function narrowEntry(entry, record, sources) {
+  if (typeof entry.only === 'string' && entry.only) return { verdict: 'refused', why: 'it already has an only' }
+  if (!record || record.verdict !== 'RED') return { verdict: 'refused', why: 'no RED verdict at its current key' }
+  if (!Array.isArray(record.killers) || !record.killers.length) return { verdict: 'refused', why: 'no killers were recorded' }
+  const killers = [...new Set(record.killers)]
+  const texts = entry.tests.map(sources)
+  const missing = killers.find(name => !texts.some(text => definesTest(text, name)))
+  if (missing !== undefined) {
+    return { verdict: 'refused', why: `a killer is not a string literal in a file it names: ${JSON.stringify(missing)}` }
+  }
+  return { verdict: 'narrowed', only: `^(?:${killers.map(escapeName).join('|')})$` }
+}
+
+// The names a narrowed pattern selects, or null for a pattern `--narrow` did not write.
+function namesOf(only) {
+  if (typeof only !== 'string' || !only.startsWith('^(?:') || !only.endsWith(')$')) return null
+  const names = ['']
+  const inner = only.slice(4, -2)
+  for (let i = 0; i < inner.length; i += 1) {
+    if (inner[i] === '\\') names[names.length - 1] += inner[++i] ?? ''
+    else if (inner[i] === '|') names.push('')
+    else names[names.length - 1] += inner[i]
+  }
+  return names
+}
+
+// ADR-072 Decision 5: each narrowed entry whose pattern names a test that no file it
+// names defines. Its pattern would select nothing, and an entry that selects nothing is
+// UNPROVEN, which fails no campaign.
+function undefinedKillers(mutations, read) {
+  const found = []
+  for (const mutation of mutations) {
+    const names = namesOf(mutation.only)
+    if (!names) continue
+    const texts = mutation.tests.map(read)
+    const missing = names.filter(name => !texts.some(text => definesTest(text, name)))
+    if (missing.length) found.push({ label: mutation.label, missing })
+  }
+  return found
+}
+
 // An entry's EDIT: the text between the longest common prefix and suffix of its
 // `from` and `to`. `oldMid` is what the mutation removes, `newMid` what it puts there.
 function editOf(from, to) {
@@ -776,11 +835,11 @@ export function main(argv) {
   // `--filter 'sync:'` — the flag is `--case` — selected nothing, so the filter
   // stayed null and all 181 mutations ran for twenty minutes while the caller
   // waited on three. Every gate in this project names the offending option.
-  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root'])
+  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow'])
   const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
   if (unknown.length) {
     process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
-      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--repoint [--reanchor] [--since <ref>] [--write]] [--root <dir>] [--force] [--no-cache] [--cache <path>]\n')
+      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--repoint [--reanchor] [--since <ref>] [--write]] [--narrow [--write]] [--root <dir>] [--force] [--no-cache] [--cache <path>]\n')
     return 2
   }
   // ADR-069: one root for the catalogue, the sources, the lock, the journal and the cache.
@@ -812,10 +871,18 @@ export function main(argv) {
       console.log(`${entry.count === null ? 'unreadable' : `${entry.count}x`}  ${entry.file} :: ${entry.label}`
         + (entry.hint ? `\n  nearest now: ${entry.file}:${entry.hint.line}  ${entry.hint.text}` : ''))
     }
+    // ADR-072: a narrowed entry whose killer is gone selects nothing; name it too.
+    const orphaned = undefinedKillers(catalogue.mutations, readSource)
+    for (const entry of orphaned) {
+      console.log(`undefined  ${entry.label} :: no file it names defines ${entry.missing.map(name => JSON.stringify(name)).join(', ')}`)
+    }
     console.log(stale.length
       ? `${stale.length} catalogue entr${stale.length === 1 ? 'y does' : 'ies do'} not match the source exactly once`
       : 'every entry matches its source exactly once')
-    return stale.length ? 1 : 0
+    if (orphaned.length) {
+      console.log(`${orphaned.length} narrowed entr${orphaned.length === 1 ? 'y names' : 'ies name'} a test that no file it names defines`)
+    }
+    return stale.length || orphaned.length ? 1 : 0
   }
   // ADR-069: each stale entry, repointed by its own edit or refused with the condition
   // that failed. Writes nothing; exits 1 while anything is stale, as `--stale` does.
@@ -898,9 +965,67 @@ export function main(argv) {
     console.log(`${stale} stale: ${proposed} rewritten in ${path.relative(root, paths.catalogue)}, ${stale - proposed} refused. Measuring the rewritten ${proposed === 1 ? 'entry' : 'entries'}:`)
     repointed = { labels: new Set(proposals.map(({ entry }) => entry.label)), stillStale: stale - proposed }
   }
+  // ADR-072: each entry whose killers the cache recorded, narrowed to exactly those tests,
+  // or refused with the condition that failed. Writes nothing without --write. With it,
+  // ADR-069's order: the lock, then the catalogue, the `only` fields, the measurement.
+  let narrowed = null
+  if (argv.includes('--narrow')) {
+    const alongside = ['--force', '--repoint', '--list', '--shard', '--changed'].filter(flag => argv.includes(flag))
+    if (alongside.length) {
+      process.stderr.write(`mutate: --narrow measures every entry it writes, over committed sources, so it does not take ${alongside.join(', ')}\n`)
+      return 2
+    }
+    const writing = argv.includes('--write')
+    if (writing) {
+      process.on('exit', () => { releaseTheRun() })
+      if (!claimTheRun()) return 2
+      recover()
+      // Read again under the lock: a writer that held it before this run may have changed it.
+      catalogue = JSON.parse(readFileSync(paths.catalogue, 'utf8'))
+    }
+    const records = loadCache(argv.includes('--cache') ? argv[argv.indexOf('--cache') + 1] : paths.cache)
+    const texts = new Map()
+    const readSource = file => {
+      if (!texts.has(file)) texts.set(file, (() => { try { return readFileSync(path.join(root, file), 'utf8') } catch { return null } })())
+      return texts.get(file)
+    }
+    const proposals = []
+    const refusals = new Map()
+    for (const entry of catalogue.mutations) {
+      const key = cacheKey(entry, readSource)
+      const answer = narrowEntry(entry, key ? records[key] : null, readSource)
+      if (answer.verdict === 'narrowed') {
+        proposals.push({ entry, only: answer.only })
+        console.log(`NARROW   ${entry.label}\n  only ${answer.only}`)
+      } else {
+        console.log(`REFUSED  ${entry.label} — ${answer.why}`)
+        const reason = answer.why.split(':')[0]
+        refusals.set(reason, (refusals.get(reason) ?? 0) + 1)
+      }
+    }
+    const tally = [...refusals].map(([reason, count]) => `${count} ${reason}`).join('; ')
+    const refusedCount = catalogue.mutations.length - proposals.length
+    if (!writing || !proposals.length) {
+      console.log(`${proposals.length} narrowable, ${refusedCount} refused${tally ? ` (${tally})` : ''}. Nothing was written.`
+        + (proposals.length ? ' Run it again with --write to narrow them and measure each.' : ''))
+      return 0
+    }
+    const uncommitted = dirtyTargets(proposals.map(({ entry }) => entry))
+    if (uncommitted.length) {
+      process.stderr.write(`mutate: ${uncommitted.join(', ')} ${uncommitted.length === 1 ? 'has' : 'have'} uncommitted changes, `
+        + 'and measuring a narrowed entry rewrites and restores exactly those files. Nothing was written.\n')
+      return 2
+    }
+    for (const { entry, only } of proposals) entry.only = only
+    writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\n`)
+    console.log(`${proposals.length} narrowed in ${path.relative(root, paths.catalogue)}, ${refusedCount} refused. Measuring each under its pattern:`)
+    narrowed = { labels: new Set(proposals.map(({ entry }) => entry.label)) }
+  }
   let selected = repointed
     ? catalogue.mutations.filter(m => repointed.labels.has(m.label))
     : catalogue.mutations.filter(m => !filter || m.label.includes(filter))
+  // ADR-072: `--narrow --write` measures exactly the entries it narrowed.
+  if (narrowed) selected = catalogue.mutations.filter(m => narrowed.labels.has(m.label))
   // `--changed <ref>`: only the entries a change since <ref> could affect, so a fix
   // is checked by the mutants that name its files, not by labels picked by hand.
   if (argv.includes('--changed')) {
@@ -975,9 +1100,10 @@ export function main(argv) {
   // and reported the mutation unnoticed. Found on 2026-08-26 by a test that
   // spawns this runner: the guard it was written for could never fail, because
   // this ran first and quietly repaired the thing under test.
-  // `--repoint --write` claimed the lock and repaired before it read a source.
-  if (!repointed && !claimTheRun()) return 2
-  if (!repointed) recover()
+  // `--repoint --write` and `--narrow --write` claimed the lock and repaired before they
+  // read a source.
+  if (!repointed && !narrowed && !claimTheRun()) return 2
+  if (!repointed && !narrowed) recover()
   // AFTER the repair, not before. `--case` with no match used to exit here-ish
   // and leave a killed run's mutation applied — the same class of bug as
   // recover() running before claimTheRun(), which was fixed on 2026-08-26 as a
@@ -1127,6 +1253,17 @@ export function main(argv) {
     console.log(`${counts.unproven} could not be judged: their test-set did not pass at baseline, `
       + 'so neither verdict is evidence. The line above each says whether that suite FAILED or '
       + 'never finished — they need different things done to them.')
+  }
+  // ADR-072: nothing stays narrowed on a measurement it failed. An entry that is not RED
+  // under its pattern loses the pattern again and is named, and the run exits 1.
+  if (narrowed) {
+    const undone = results.filter(result => result.verdict !== 'RED')
+    for (const result of undone) {
+      delete catalogue.mutations.find(m => m.label === result.label).only
+      console.log(`UNDONE   ${result.label} — ${result.verdict} under its pattern, so it runs its whole files again`)
+    }
+    if (undone.length) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\n`)
+    return undone.length ? 1 : 0
   }
   // ADR-069 T2: the write is trusted only when every rewritten entry is RED and nothing
   // is left stale. A GREEN, STALE, UNPROVEN or HUNG rewritten entry stays written and

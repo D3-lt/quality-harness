@@ -17,5 +17,5 @@ Implementation tasks for ADR-072: A mutant runs only the tests that kill it. See
 | Task | File | Status |
 |------|------|--------|
 | T1 | [T1-the-cache-records-killers.md](T1-the-cache-records-killers.md) | done |
-| T2 | [T2-narrow-proposes-and-writes-only-what-it-measured.md](T2-narrow-proposes-and-writes-only-what-it-measured.md) | pending |
+| T2 | [T2-narrow-proposes-and-writes-only-what-it-measured.md](T2-narrow-proposes-and-writes-only-what-it-measured.md) | done |
 | T3 | [T3-the-catalogue-narrowed-and-the-campaign-measured.md](T3-the-catalogue-narrowed-and-the-campaign-measured.md) | pending |

@@ -13733,8 +13733,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root'])",
-      "to": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--reanchor', '--since', '--root'])",
+      "from": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow'])",
+      "to": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--reanchor', '--since', '--root', '--narrow'])",
       "only": "mutate --repoint reads a scratch repository"
     },
     {
@@ -14826,6 +14826,66 @@
       "from": "if (hit && Array.isArray(hit.killers)) reuse.set(m.label, hit)",
       "to": "if (hit) reuse.set(m.label, hit)",
       "only": "the campaign cache records"
+    },
+    {
+      "label": "ADR-072 T2: the pattern is no longer anchored at either end",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "only: `^(?:${killers.map(escapeName).join('|')})$`",
+      "to": "only: `(?:${killers.map(escapeName).join('|')})`",
+      "only": "narrowEntry proposes exactly"
+    },
+    {
+      "label": "ADR-072 T2: a killer's metacharacters are left unescaped",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  return name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')",
+      "to": "  return name",
+      "only": "narrowEntry proposes exactly"
+    },
+    {
+      "label": "ADR-072 T2: a killer no named file defines as a literal is narrowed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (missing !== undefined) {",
+      "to": "if (false) {",
+      "only": "narrowEntry proposes exactly"
+    },
+    {
+      "label": "ADR-072 T2: an entry that is not RED under its pattern keeps the pattern",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "      delete catalogue.mutations.find(m => m.label === result.label).only",
+      "to": "      catalogue.mutations.find(m => m.label === result.label).only",
+      "only": "mutate --narrow proposes"
+    },
+    {
+      "label": "ADR-072 T2: --stale exits 0 over a narrowed entry whose killer is gone",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "return stale.length || orphaned.length ? 1 : 0",
+      "to": "return stale.length ? 1 : 0",
+      "only": "mutate --stale names a narrowed entry"
+    },
+    {
+      "label": "ADR-072 T2: --narrow is no longer an accepted option",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "'--root', '--narrow'])",
+      "to": "'--root'])",
+      "only": "mutate --narrow proposes"
     }
   ]
 }

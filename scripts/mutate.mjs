@@ -613,12 +613,17 @@ function definesTest(source, name) {
 // division after anything else. T4 measured it over every test file the catalogue names.
 const REGEX_AFTER = new Set(['(', ',', '=', ':', '[', '!', '&', '|', '?', '{', '}', ';', '+', '-', '*', '%', '<', '>', '~', '^'])
 const REGEX_KEYWORDS = new Set(['return', 'typeof', 'instanceof', 'in', 'of', 'new', 'delete', 'void', 'throw', 'case', 'do', 'else', 'yield', 'await'])
+// A condition in parentheses after one of these is followed by a statement, where a `/`
+// opens a regular expression (T5, the second Codex review: `if (x) /'a'/.test(y)`).
+const CONTROL_KEYWORDS = new Set(['if', 'while', 'for', 'with'])
 const literalTokens = new Map()
 function literalsOf(source) {
   if (literalTokens.has(source)) return literalTokens.get(source)
   const found = new Set()
   // For each open template hole, how many `{` it has opened since.
   const holes = []
+  // For each open `(`, whether a control keyword came before it.
+  const parens = []
   let last = ''
   let i = 0
   // A template's text from `from` to its closing backtick or its next hole.
@@ -674,10 +679,14 @@ function literalsOf(source) {
       let j = i + 1
       while (j < source.length && /[\w$]/.test(source[j])) j += 1
       const word = source.slice(i, j)
-      last = REGEX_KEYWORDS.has(word) ? word : 'value'
+      last = REGEX_KEYWORDS.has(word) || CONTROL_KEYWORDS.has(word) ? word : 'value'
       i = j
       continue
     }
+    if (c === '(') parens.push(CONTROL_KEYWORDS.has(last))
+    if (c === ')') { last = parens.pop() ? ';' : ')'; i += 1; continue }
+    // A `++` or `--` right after a value is postfix, and the value stands: a `/` after it divides.
+    if ((c === '+' || c === '-') && source[i + 1] === c && (last === 'value' || last === ')' || last === ']')) { i += 2; continue }
     last = c
     i += 1
   }

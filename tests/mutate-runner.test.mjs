@@ -1314,3 +1314,63 @@ test('mutate --stale names every narrowed killer that is gone', () => {
     assert.ok(!gone.stdout.includes('"first"'), gone.stdout)
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
+
+// ADR-072 T5 (the second Codex review). A `/` after a control statement's condition, or
+// after a postfix operator, is read as JavaScript reads it, so a quoted name inside a
+// regular expression there defines nothing and the literals after it are still found.
+test('literalsOf keeps its place after a control statement and a postfix operator', () => {
+  const { narrowEntry } = mutateModule
+  const source = [
+    "if (ready) /'ghost in an if'/.test(x)",
+    "while (more) /'ghost in a while'/.test(x)",
+    "let n = 2; n++ / 2; const r = /'ghost after a postfix'/",
+    "if (check(a, b)) /'ghost after nested parens'/.test(x)",
+    "test('after them all', () => {})",
+    "const q = (total) / 2; test('after a parenthesised division', () => {})",
+  ].join('\n')
+  const entry = { label: 'e', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'x', to: 'y' }
+  const sources = file => (file === 'tests/a.test.mjs' ? source : null)
+  const red = killers => ({ verdict: 'RED', sha: 'abc1234', killers })
+  for (const name of ['ghost in an if', 'ghost in a while', 'ghost after a postfix', 'ghost after nested parens']) {
+    assert.equal(narrowEntry(entry, red([name]), sources).verdict, 'refused', name)
+  }
+  for (const name of ['after them all', 'after a parenthesised division']) {
+    assert.equal(narrowEntry(entry, red([name]), sources).verdict, 'narrowed', name)
+  }
+})
+
+// ADR-072 T5. The catalogue is written after the mutants run, not after the baselines: a
+// run killed while a mutant runs leaves it as it was. The killer marks only when it sees
+// the mutated value, so the kill lands in the mutant measurement.
+test('mutate --narrow --write leaves nothing narrowed when it is killed while a mutant runs', async () => {
+  const { spawn } = await import('node:child_process')
+  const { existsSync } = await import('node:fs')
+  const repo = mkdtempSync(join(tmpdir(), 'qh-narrow-kill-'))
+  const mark = join(repo, 'mutant-running')
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const env = { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '', QH_NARROW_MARK: mark }
+    const catalogueFile = join(repo, 'tests', 'mutations.json')
+    const serialize = mutations => `${JSON.stringify({ mutations }, null, 2)}\n`
+    const fe = { label: 'fe', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2' }
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\n')
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "import assert from 'node:assert/strict'\nimport { writeFileSync } from 'node:fs'\nimport test from 'node:test'\nimport { f } from '../a.mjs'\n"
+      + "test('f is one, slowly when it is not', async () => { if (f() !== 1) { writeFileSync(process.env.QH_NARROW_MARK, 'x'); await new Promise(done => setTimeout(done, 3000)) } assert.equal(f(), 1) })\n")
+    writeFileSync(catalogueFile, serialize([fe]))
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base', '--no-verify')
+    const measured = spawnSync(process.execPath, [runner, '--root', repo], { cwd: repo, encoding: 'utf8', timeout: 180_000, env })
+    assert.ok(measured.stdout.includes('1/1 mutations were noticed.'), `${measured.stdout}\n${measured.stderr}`)
+    rmSync(mark, { force: true })
+
+    const narrowing = spawn(process.execPath, [runner, '--root', repo, '--narrow', '--write'], { cwd: repo, env, stdio: 'ignore', windowsHide: true, timeout: 180_000 })
+    const exited = new Promise(done => narrowing.on('exit', done))
+    const deadline = Date.now() + 120_000
+    while (!existsSync(mark) && Date.now() < deadline) await new Promise(done => setTimeout(done, 50))
+    assert.ok(existsSync(mark), 'the mutant measurement never started')
+    narrowing.kill('SIGKILL')
+    await exited
+    assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([fe]), 'a killed narrowing wrote the catalogue')
+  } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 }) }
+})

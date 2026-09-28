@@ -11,7 +11,8 @@ Implementation tasks for ADR-072: A mutant runs only the tests that kill it. See
 | 1 | T1 | none |
 | 2 | T2 | T1 |
 | 3 | T4 | T2 |
-| 4 | T3 | T2, T4 |
+| 4 | T5 | T4 |
+| 5 | T3 | T2, T4, T5 |
 
 ## Task Index
 
@@ -21,3 +22,4 @@ Implementation tasks for ADR-072: A mutant runs only the tests that kill it. See
 | T2 | [T2-narrow-proposes-and-writes-only-what-it-measured.md](T2-narrow-proposes-and-writes-only-what-it-measured.md) | done |
 | T3 | [T3-the-catalogue-narrowed-and-the-campaign-measured.md](T3-the-catalogue-narrowed-and-the-campaign-measured.md) | pending |
 | T4 | [T4-the-review-findings-closed.md](T4-the-review-findings-closed.md) | done |
+| T5 | [T5-the-second-review-closed.md](T5-the-second-review-closed.md) | done |

@@ -675,7 +675,24 @@ const LITERAL = /'((?:[^'\\\n]|\\.)*)'/g
 // Measured 2026-09-27: 4.6 µs per call uninstrumented on the owner's machine, 57 µs in
 // CI's coverage floor job. Coverage instrumentation is a tax this bound is not about,
 // and the twenty-fold mutant still lands above the wider bound (about 1,100 µs).
-const COST_BOUND_US = process.env.NODE_V8_COVERAGE ? 400 : 25
+// ⚠ A BOUND IN µs IS A CLAIM ABOUT ONE MACHINE. The coverage floor's Python-gates phase
+// runs this suite in parallel under coverage.py without NODE_V8_COVERAGE, and a loaded
+// runner measured 45.3 and 46.8 µs there against 25 while the same commit passed in
+// another run (BACKLOG §316). So the bound also scales with a reference workload timed
+// here, in this process, under the same load: locally it is about 0.09 µs an iteration,
+// which puts 25 µs at about 275 of them. Contention slows both; a slower classifier
+// slows only one, so the twenty-fold mutant still lands far above the bound.
+const REFERENCE_US = (() => {
+  const once = () => {
+    const started = process.hrtime.bigint()
+    let n = 0
+    for (let i = 0; i < 20000; i++) n += /(["'])(.*?)\1/.exec(`echo "x${i}" | grep y`)[2].length + 'a b c d'.split(' ').length
+    return n > 0 ? Number(process.hrtime.bigint() - started) / 1000 / 20000 : 0
+  }
+  const runs = Array.from({ length: 5 }, once).sort((a, b) => a - b)
+  return runs[2]
+})()
+const COST_BOUND_US = Math.max(process.env.NODE_V8_COVERAGE ? 400 : 25, 275 * REFERENCE_US)
 
 test('a publish is found by argv, as the shell runs it', () => {
   for (const [command, expected] of Object.entries({ ...INVOKED_AT_826EC94, ...ADDED_BY_ADR_067 })) {

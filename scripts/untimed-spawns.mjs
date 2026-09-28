@@ -86,7 +86,10 @@ function hiddenOf(options) {
     if (property.type === 'SpreadElement') { spread = true; continue }
     const key = property.key
     const name = key.type === 'Identifier' ? key.name : key.type === 'Literal' ? String(key.value) : null
-    if (name === 'windowsHide') return 'hidden'
+    // The value, not only the key: `windowsHide: false` shows a window like no key.
+    if (name === 'windowsHide') {
+      return property.value.type === 'Literal' ? (property.value.value === true ? 'hidden' : 'shown') : 'unknown'
+    }
   }
   return spread ? 'unknown' : 'shown'
 }
@@ -119,10 +122,27 @@ export function scanSource(acorn, source, file) {
     return { file, unparsed: `${error.message}` , findings }
   }
   const lines = source.split('\n')
+  // A parameter that defaults to a spawner (`run = spawnSync`, `spawnFn = spawn`) is
+  // that spawner when nothing is injected, which is how the product runs (Codex round
+  // 2, F4: offerPublishHook, archiveHistory, host-review and verify were not seen).
+  // Scoped to the function that declares the parameter: a `run` elsewhere in the file
+  // is somebody else's `run`.
+  const aliases = []
+  walk(tree, node => {
+    if (!/Function/.test(node.type)) return
+    for (const param of node.params ?? []) {
+      if (param.type === 'AssignmentPattern' && param.left.type === 'Identifier'
+        && param.right.type === 'Identifier' && SPAWNERS.has(param.right.name)) {
+        aliases.push({ name: param.left.name, start: node.start, end: node.end })
+      }
+    }
+  })
+  const aliased = node => node.callee.type === 'Identifier'
+    && aliases.some(alias => alias.name === node.callee.name && alias.start <= node.start && node.end <= alias.end)
   walk(tree, node => {
     if (node.type !== 'CallExpression') return
     const name = calleeName(node.callee)
-    if (!name || !SPAWNERS.has(name)) return
+    if (!name || !(SPAWNERS.has(name) || aliased(node))) return
     // `regex.exec(...)`, `promise.then(...)`: only child_process names, and only
     // when the receiver is not something that plainly is not child_process.
     if (name === 'exec' && node.callee.type === 'MemberExpression') {

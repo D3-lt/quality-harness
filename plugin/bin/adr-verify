@@ -780,7 +780,7 @@ def git_sha(cwd):
     return sha + ("*" if d.stdout.strip() else "")
 
 
-def _restore_and_exit(signum, frame):
+def _restore_and_exit(signum, _frame):
     """Turn SIGTERM into an unwind so the `finally` restore actually runs."""
     raise SystemExit(128 + signum)
 

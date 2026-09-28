@@ -488,7 +488,7 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
     const remaining = deadline - Date.now()
     if (remaining < 1000) return null
     const result = run('git', ['-C', cwd, '--literal-pathspecs', ...args], {
-      input, timeout: Math.min(remaining, 3000), maxBuffer: 4 * 1024 * 1024,
+      input, timeout: Math.min(remaining, 3000), maxBuffer: 4 * 1024 * 1024, windowsHide: true,
     })
     return !result.error && result.status === 0 ? result.stdout : null
   }

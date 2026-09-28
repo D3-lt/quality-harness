@@ -447,7 +447,7 @@ class RefusingAssignment:
     def __getattr__(self, name):
         return getattr(self._real, name)
 
-    def AssignProcessToJobObject(self, job, process):
+    def AssignProcessToJobObject(self, job, _process):
         import ctypes
         setter = getattr(ctypes, "set_last_error", None)
         if setter is not None:
@@ -582,7 +582,7 @@ def kill_tree(pid, platform=None, run=subprocess.run, timeout=15, job=None, proc
                 except Exception as failure:
                     sys.stderr.write(f"[trace-timeout] tree before taskkill: COULD NOT LIST ({type(failure).__name__}: {failure})\n")
             done = run(["taskkill", "/F", "/T", "/PID", str(pid)],
-                       capture_output=True, timeout=timeout)
+                       capture_output=True, timeout=timeout, creationflags=0x08000000)
             if traced:
                 try:
                     now = {(name, cpid) for name, cpid, parent in processes()}

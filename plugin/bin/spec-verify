@@ -763,7 +763,7 @@ def check_spec(path, mode, root_override, collect):
             if len(row) < 4:
                 errors.advise(f"fact row too short (need ID|Assertion|Test|Tag): {line.strip()}")
                 continue
-            fid, assertion, test, tag = row[0], row[1], row[2].strip("`"), row[3]
+            fid, _assertion, test, tag = row[0], row[1], row[2].strip("`"), row[3]
             # Backticks stripped, exactly as the Test cell above is stripped. The
             # template writes every command in backticks, and this cell goes
             # straight to a shell: on POSIX the backticks made it a command

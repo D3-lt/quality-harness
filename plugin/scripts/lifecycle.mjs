@@ -24,7 +24,7 @@ import { findGitDir } from './git-directory.mjs'
 import {
   appendEvent, canonical, canonicalFile, nearestExistingDirectory, readEvents, sessionLogFile, stateDir,
 } from './event-log.mjs'
-export { appendEvent, readEvents, sessionLogFile, stateDir } from './event-log.mjs'
+export { readEvents, sessionLogFile, stateDir } from './event-log.mjs'
 import { listedUnderUninterestingDirectory } from './uninteresting.mjs'
 import { contentId } from './event-log.mjs'
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
@@ -485,13 +485,13 @@ function unverifiedDisclosure(message) {
 // `asserted`, no advisory quotes a claim, and the ledger keeps recording the
 // other four kinds so the EVIDENCE half is still counted.
 //
-// ⚠ THIS CONSTANT IS A LABEL, NOT A SWITCH. Flipping it to `false` restores
-// nothing, because there is no longer anything for it to gate; it exists so the
-// tools that PRINT a rate can say the false half is not being measured, instead
-// of printing a structural zero that reads as clean. Restoring the arm means a
-// corrected negation vocabulary and a fresh measurement on answers not used to
-// build it — not this one re-read more kindly. BACKLOG §124, §126.
-export { ASSERTION_ARM_WITHDRAWN } from './claim-status.mjs'
+// ⚠ THE CONSTANT (ASSERTION_ARM_WITHDRAWN, in claim-status.mjs) IS A LABEL, NOT A
+// SWITCH. Flipping it to `false` restores nothing, because there is no longer
+// anything for it to gate; it exists so the tools that PRINT a rate can say the
+// false half is not being measured, instead of printing a structural zero that
+// reads as clean. Restoring the arm means a corrected negation vocabulary and a
+// fresh measurement on answers not used to build it — not this one re-read more
+// kindly. BACKLOG §124, §126.
 
 export function completionClaim(message) {
   if (typeof message !== 'string') return { kind: 'unavailable', phrase: null }
@@ -2236,10 +2236,10 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       owned.push(entry.path)
       for (const declaredPath of affectedFiles(entry.text)) governs.add(declaredPath)
     }
-    // An unread file in a shared tasks/ goes to the sole record beside it, as its text
-    // would have. With several records it is nobody's, and each keeps it in unreadTasks,
-    // so each says its scope is unknown (Codex review of 3.1.0..e0ef6d4, F6).
-    if (sole) for (const taskPath of unreadTasks) if (!owned.includes(taskPath)) owned.push(taskPath)
+    // An unread file in a shared tasks/ belongs to nobody: its text is what would have
+    // said whose it is, and a sole record beside it is no evidence (Codex round 2, F5:
+    // T2 naming ADR-002 became ADR-001's once it could not be read). It stays in
+    // unreadTasks, which is how readiness still asks about its directory (F6).
     records.push({
       file,
       number,
@@ -3176,27 +3176,63 @@ const PERL_LIST = /\b(?:system|exec)\s*\(?\s*((["'])[^"']*\2(?:\s*,\s*(["'])[^"'
 // `os.system` and `os.popen` hand their string to a shell (a Windows chaos round of
 // 916b515: `python -c "import os; os.system('git push')"` pushed and was read as nothing).
 const SUBPROCESS_STRING = /(?:subprocess\.(?:run|call|check_call|check_output|Popen)|\bexec(?:Sync|File|FileSync)?|\bos\.(?:system|popen))\(\s*(["'])(.*?)\1/g
-// Whether offset `at` of an interpreter's script lies inside a string literal. A call
-// there is text the script prints, not a call it makes (Codex review of 3.1.0..e0ef6d4,
-// F3: `print("run: os.system('git push')")` and perl's `print qq{system("git", "push")}`
-// ran nothing), and a match not proved a call stays advice (§16). Not a parser: a quote
-// inside a comment can flip it, which only ever turns a refusal into advice.
-const PERL_QUOTE = /^qq?\s*([^\w\s])/
+// Whether offset `at` of an interpreter's script lies inside a string literal, as data.
+// A call there is text the script prints, not a call it makes (Codex review of
+// 3.1.0..e0ef6d4, F3: `print("run: os.system('git push')")` ran nothing). A literal
+// that INTERPOLATES is code again inside its hole: `${…}` in a JS template or a perl
+// "…"/qq, `@{[…]}` in perl, `{…}` in a python f-string (Codex round 2, F2: each ran the
+// call it held and read as data). Python's triple quotes and perl's nested bracket
+// delimiters (`q{a {b} …}`) are followed. Not a parser: a quote inside a comment can
+// flip it, which only ever turns a refusal into advice (§16).
+const PERL_QUOTE = /^(qq?)\s*([^\w\s])/
 const CLOSER = { '{': '}', '(': ')', '[': ']', '<': '>' }
-function insideLiteral(script, at, perl) {
-  let open = null
-  for (let i = 0; i < at; i++) {
-    const c = script[i]
-    if (open !== null) {
-      if (c === '\\') i++
-      else if (c === open) open = null
-    } else if (c === '"' || c === "'" || c === '`') open = c
-    else if (perl && c === 'q' && !/[\w$@%]/.test(script[i - 1] ?? '')) {
-      const quote = PERL_QUOTE.exec(script.slice(i, i + 8))
-      if (quote) { open = CLOSER[quote[1]] ?? quote[1]; i += quote[0].length - 1 }
-    }
+function literalAt(script, i, language) {
+  const c = script[i]
+  if (language === 'perl' && c === 'q' && !/[\w$@%]/.test(script[i - 1] ?? '')) {
+    const quote = PERL_QUOTE.exec(script.slice(i, i + 8))
+    if (!quote) return null
+    const opener = quote[2]
+    return { length: quote[0].length, close: CLOSER[opener] ?? opener, nest: CLOSER[opener] ? opener : null,
+      escapes: true, holes: quote[1] === 'qq' ? ['${', '@{'] : [] }
   }
-  return open !== null
+  if (c !== '"' && c !== "'" && c !== '`') return null
+  if (language === 'python') {
+    const prefix = /[A-Za-z]{0,2}$/.exec(script.slice(Math.max(0, i - 2), i))[0].toLowerCase()
+    const triple = script.startsWith(c.repeat(3), i)
+    return { length: triple ? 3 : 1, close: triple ? c.repeat(3) : c, nest: null,
+      escapes: !prefix.includes('r'), holes: prefix.includes('f') ? ['{'] : [], fstring: prefix.includes('f') }
+  }
+  if (language === 'perl') {
+    if (c === '`') return null
+    return { length: 1, close: c, nest: null, escapes: true, holes: c === '"' ? ['${', '@{'] : [] }
+  }
+  return { length: 1, close: c, nest: null, escapes: true, holes: c === '`' ? ['${'] : [] }
+}
+function insideLiteral(script, at, language) {
+  // Open literals, and inside them the interpolation holes that are code again.
+  const stack = []
+  for (let i = 0; i < at; i++) {
+    const top = stack[stack.length - 1]
+    const c = script[i]
+    if (top?.close) {
+      if (c === '\\' && top.escapes) { i++; continue }
+      if (top.fstring && script.startsWith('{{', i)) { i++; continue }
+      const hole = top.holes.find(opening => script.startsWith(opening, i))
+      if (hole) { stack.push({ depth: 0 }); i += hole.length - 1; continue }
+      if (top.nest && c === top.nest) { top.depth = (top.depth ?? 0) + 1; continue }
+      if (script.startsWith(top.close, i)) {
+        if (top.depth) { top.depth--; continue }
+        stack.pop()
+        i += top.close.length - 1
+      }
+      continue
+    }
+    if (top && c === '{') { top.depth++; continue }
+    if (top && c === '}') { if (top.depth) top.depth--; else stack.pop(); continue }
+    const literal = literalAt(script, i, language)
+    if (literal) { stack.push(literal); i += literal.length - 1 }
+  }
+  return Boolean(stack[stack.length - 1]?.close)
 }
 // Deep enough for `bash -c "sudo sh -c 'eval …'"`, bounded so a crafted command
 // cannot make a hook recurse without end.
@@ -3324,30 +3360,61 @@ function gitAliases(argv, at, k) {
   return aliases
 }
 
-// git's own commands on 2.55.0 (`git --list-cmds=main`, measured 2026-09-28). An alias of
-// any of them is ignored, builtin or not: `git -c alias.mergetool=version mergetool` ran
-// mergetool, and `alias.version=status version` printed the version. A name git does not
-// ship takes its alias (`alias.lfsx=version lfsx` printed the version). A command added
-// after 2.55 is missing here, so its alias reads as applying: a refusal of a command git
-// would not run, the conservative way (Codex review of 3.1.0..e0ef6d4, F4).
-const GIT_COMMANDS = new Set(`add am annotate apply archimport archive backfill bisect blame branch bugreport bundle
-  cat-file check-attr check-ignore check-mailmap check-ref-format checkout checkout--worker checkout-index cherry
-  cherry-pick clean clone column commit commit-graph commit-tree config count-objects credential credential-cache
-  credential-cache--daemon credential-netrc credential-osxkeychain credential-store cvsexportcommit cvsimport
-  cvsserver daemon describe diagnose diff diff-files diff-index diff-pairs diff-tree difftool difftool--helper
-  fast-export fast-import fetch fetch-pack filter-branch fmt-merge-msg for-each-ref for-each-repo format-patch
-  format-rev fsck fsck-objects fsmonitor--daemon gc get-tar-commit-id grep hash-object help history hook
-  http-backend http-fetch http-push imap-send index-pack init init-db instaweb interpret-trailers jump
-  last-modified log ls-files ls-remote ls-tree mailinfo mailsplit maintenance merge merge-base merge-file
-  merge-index merge-octopus merge-one-file merge-ours merge-recursive merge-recursive-ours merge-recursive-theirs
-  merge-resolve merge-subtree merge-tree mergetool mktag mktree multi-pack-index mv name-rev notes p4 pack-objects
-  pack-redundant pack-refs patch-id pickaxe prune prune-packed pull push quiltimport range-diff read-tree rebase
-  receive-pack reflog refs remote remote-ext remote-fd remote-ftp remote-ftps remote-http remote-https repack
-  replace replay repo request-pull rerere reset restore rev-list rev-parse revert rm send-email send-pack
-  sh-i18n--envsubst shell shortlog show show-branch show-index show-ref sparse-checkout stage stash status
-  stripspace submodule submodule--helper subtree switch symbolic-ref tag unpack-file unpack-objects update-index
-  update-ref update-server-info upload-archive upload-archive--writer upload-pack url-parse var verify-commit
-  verify-pack verify-tag version web--browse whatchanged worktree write-tree`.split(/\s+/))
+// git's BUILTIN commands on 2.55.0 (`git --list-cmds=builtins`, measured 2026-09-28). An
+// alias of a builtin is ignored: `alias.version=status version` printed the version, and
+// `--exec-path=/nonexistent -c alias.status=version status` still ran status. An
+// EXTERNAL command is not in this list, because its alias wins when the program is
+// missing (`--exec-path=/nonexistent -c alias.mergetool=version mergetool` printed the
+// version; Codex round 2, F3), so its alias is read. A builtin added after 2.55 is
+// missing here, so its alias reads as applying: a refusal of a command git would not
+// run, the conservative way (Codex review of 3.1.0..e0ef6d4, F4).
+const GIT_COMMANDS = new Set(`
+  add am annotate apply archive backfill bisect blame branch bugreport bundle cat-file check-attr check-ignore
+  check-mailmap check-ref-format checkout checkout--worker checkout-index cherry cherry-pick clean clone column
+  commit commit-graph commit-tree config count-objects credential credential-cache credential-cache--daemon
+  credential-store describe diagnose diff diff-files diff-index diff-pairs diff-tree difftool fast-export
+  fast-import fetch fetch-pack fmt-merge-msg for-each-ref for-each-repo format-patch format-rev fsck
+  fsck-objects fsmonitor--daemon gc get-tar-commit-id grep hash-object help history hook index-pack init
+  init-db interpret-trailers last-modified log ls-files ls-remote ls-tree mailinfo mailsplit maintenance merge
+  merge-base merge-file merge-index merge-ours merge-recursive merge-recursive-ours merge-recursive-theirs
+  merge-subtree merge-tree mktag mktree multi-pack-index mv name-rev notes pack-objects pack-redundant
+  pack-refs patch-id pickaxe prune prune-packed pull push range-diff read-tree rebase receive-pack reflog refs
+  remote remote-ext remote-fd repack replace replay repo rerere reset restore rev-list rev-parse revert rm
+  send-pack shortlog show show-branch show-index show-ref sparse-checkout stage stash status stripspace
+  submodule--helper switch symbolic-ref tag unpack-file unpack-objects update-index update-ref
+  update-server-info upload-archive upload-archive--writer upload-pack url-parse var verify-commit verify-pack
+  verify-tag version whatchanged worktree write-tree`.trim().split(/\s+/))
+
+// An alias value split as git splits it (split_cmdline): on whitespace, with quotes and
+// backslashes, and no shell operators. `alias.x=push;true` names the one command
+// `push;true`, which git refuses, and a value that starts with a space names the empty
+// command (both measured on 2.55.0: "is not a git command"; Codex round 2, F1). An
+// unclosed quote is refused by git too.
+function gitSplit(value) {
+  if (/^\s/.test(value)) return ['']
+  const words = []
+  let word = null
+  let quote = null
+  for (let i = 0; i < value.length; i++) {
+    const c = value[i]
+    if (quote) {
+      if (c === quote) quote = null
+      else if (c === '\\' && quote === '"' && i + 1 < value.length) word += value[++i]
+      else word += c
+    } else if (/\s/.test(c)) {
+      if (word !== null) words.push(word)
+      word = null
+    } else {
+      word ??= ''
+      if (c === '"' || c === "'") quote = c
+      else if (c === '\\' && i + 1 < value.length) word += value[++i]
+      else word += c
+    }
+  }
+  if (quote) return ['']
+  if (word !== null) words.push(word)
+  return words
+}
 
 // The alias git would run for the word at k, or undefined when git runs its own command.
 function aliasFor(argv, at, k) {
@@ -3365,7 +3432,7 @@ function gitInvocation(argv, at, dynamic) {
   // line's: `alias.c=commit -m` makes `c --dry-run` a commit whose message is
   // `--dry-run`, and `alias.p=push --dry-run` makes `p` a dry run (Codex review of
   // 3.1.0..e0ef6d4, F2). A `!` alias is a shell line, which gitRunsCommands reads.
-  const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null
+  const expanded = alias !== undefined && !alias.startsWith('!') ? gitSplit(alias) : null
   const verb = expanded ? expanded[0] : argv[k]
   const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)
   if ((verb !== 'commit' && verb !== 'push') || dynamic.includes(k)) return null
@@ -3641,7 +3708,7 @@ function publishInCommand(commands, n, depth) {
   if (INTERPRETERS.test(name)) {
     for (const word of argv.slice(start + 1)) {
       // A call inside a string literal is data that is printed, not run (F3, above).
-      const called = call => !insideLiteral(word, call.index, name === 'perl')
+      const called = call => !insideLiteral(word, call.index, name === 'perl' ? 'perl' : name.startsWith('python') ? 'python' : 'js')
       for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {
         const list = [...call[1].matchAll(/(["'])([^"']*)\1/g)].map(item => item[2])
         const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null
@@ -4244,7 +4311,7 @@ export function offerPublishHook({ cwd, session, env = process.env, run = spawnS
   // Once per env file: a resume or compact SessionStart must not add a second copy.
   if (existing.includes('hook.qh-publish-')) return null
   const probe = run('git', ['-c', 'hook.qhprobe.command=true', '-c', 'hook.qhprobe.event=pre-commit', 'hook', 'list', 'pre-commit'],
-    { cwd, encoding: 'utf8', timeout: 10_000 })
+    { cwd, encoding: 'utf8', timeout: 10_000, windowsHide: true })
   if (probe.error || probe.status !== 0 || !/\bqhprobe\b/.test(probe.stdout ?? '')) {
     const why = probe.error ? probe.error.code ?? probe.error.message : `exit ${probe.status}: ${String(probe.stderr ?? '').trim().split('\n')[0]}`
     return record({ event: 'publish.unarmed', reason: `git here does not list a config-based hook (${why}); git 2.54 or later runs them` })

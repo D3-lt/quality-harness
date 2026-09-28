@@ -115,7 +115,7 @@ export function hostReview({ host, effort = 'high', model = null, repo, scope, r
     '-m', CODEX_MODEL, '-c', `model_reasoning_effort="${effort}"`,
     '-c', 'sandbox_mode="read-only"', '--ephemeral',
     `CODEX-REVIEW-LEAF: ${reviewPrompt(target)}`,
-  ], { encoding: 'utf8', timeout: 600_000 })
+  ], { encoding: 'utf8', timeout: 600_000, windowsHide: true })
   if (!child || child.error || child.status !== 0) {
     return unavailable('codex', effort, child?.error?.message ?? `codex exited ${child?.status}`, CODEX_MODEL)
   }
@@ -136,7 +136,7 @@ function runCursor({ model, target, resolve, run, output }) {
   if (missing) return unavailable('cursor', null, missing, model)
   const args = ['-p', '--output-format', 'json', '--mode', 'ask', '--sandbox', 'enabled', reviewPrompt(target)]
   if (typeof model === 'string' && model.trim()) args.splice(args.length - 1, 0, '--model', model.trim())
-  const child = run(bin, args, { encoding: 'utf8', timeout: 600_000, cwd: target.repo })
+  const child = run(bin, args, { encoding: 'utf8', timeout: 600_000, cwd: target.repo, windowsHide: true })
   if (!child || child.error || child.status !== 0) {
     return unavailable('cursor', null, child?.error?.message ?? `agent exited ${child?.status}`, model)
   }

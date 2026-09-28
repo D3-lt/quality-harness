@@ -1,18 +1,10 @@
 # Names vulture reports as unused that are kept on purpose, each with the reason
 # (CLAUDE.md §13: a deliberate finding is allowlisted with its reason, never ignored).
-# vulture reads this file as code: each bare name below counts as used.
-
-# signal.signal() calls a handler with (signum, frame); plugin/bin/adr-verify's
-# _restore_and_exit has no use for the frame, and the signature is the signal module's.
-frame
-
-# plugin/lib/fence.py: a test double for kernel32.AssignProcessToJobObject(job, process);
-# the signature is Windows', not ours.
-process
-
-# plugin/bin/spec-verify unpacks a Facts row as (id, assertion, test, tag); the unused
-# column is named so the row reads as the table it parses.
-assertion
+# vulture reads this file as code: each bare name below counts as used EVERYWHERE, so
+# a name here hides every unused variable of that name in every file. Only names that
+# cannot be renamed belong here. An unused parameter or unpacked column is renamed
+# with a leading underscore instead, which vulture skips at that one site (a planted
+# `process = 1` went unreported while `process` was listed, 2026-09-28).
 
 # plugin/lib/fence.py: ctypes structure fields the Windows API reads, not Python.
 LimitFlags

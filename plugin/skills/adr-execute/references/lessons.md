@@ -186,3 +186,11 @@ not count them, by design. After a multi-line replace, run the WHOLE test file o
 fence, before recording mutants. The same batch copied a line a catalogue mutant names into new
 code, making that entry match twice: name the new code differently, and let `mutate --stale`
 (which the selftest runs) prove it.
+
+**2026-09-28 — Settle the test before recording red, and run the whole test file before the
+mutants.** ADR-071 T1's red run locked the test, and a case strengthened between red and green
+moved its hash, so `done` needed `adr-verify --relock --replace-hashes`, which `adr-lint` rightly
+rates weaker than a first-red lock. In T2, a new flag added to a line a catalogue entry names left
+that entry stale, so `mutate --stale` failed a test outside the fence and `adr-verify --mutant`
+refused every mutant as UNPROVEN. `mutate --repoint --write --force` repaired it. Run
+`mutate --stale` after touching any line in `scripts/` or `plugin/`, before the mutants.

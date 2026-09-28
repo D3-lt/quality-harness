@@ -776,11 +776,11 @@ export function main(argv) {
   // `--filter 'sync:'` — the flag is `--case` — selected nothing, so the filter
   // stayed null and all 181 mutations ran for twenty minutes while the caller
   // waited on three. Every gate in this project names the offending option.
-  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--since', '--root'])
+  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root'])
   const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
   if (unknown.length) {
     process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
-      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--repoint [--since <ref>] [--write]] [--root <dir>] [--force] [--no-cache] [--cache <path>]\n')
+      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--repoint [--reanchor] [--since <ref>] [--write]] [--root <dir>] [--force] [--no-cache] [--cache <path>]\n')
     return 2
   }
   // ADR-069: one root for the catalogue, the sources, the lock, the journal and the cache.
@@ -823,6 +823,11 @@ export function main(argv) {
   // FIRST, before any source is read: a live campaign's mutated source would be read
   // as the refactor, and its proposal would be written over the real one.
   let repointed = null
+  // ADR-071: --reanchor re-anchors what --repoint refuses, so on its own it asks nothing.
+  if (argv.includes('--reanchor') && !argv.includes('--repoint')) {
+    process.stderr.write('mutate: --reanchor re-anchors what --repoint refuses, so it needs --repoint\n')
+    return 2
+  }
   if (argv.includes('--repoint')) {
     const since = argv.includes('--since') ? argv[argv.indexOf('--since') + 1] : 'HEAD'
     if (!since || since.startsWith('--')) {
@@ -850,16 +855,20 @@ export function main(argv) {
     }
     let stale = 0
     let proposed = 0
+    let reanchored = 0
+    // Without --reanchor, ADR-069's rule alone answers, and the output is what it was.
+    const reanchoring = argv.includes('--reanchor')
     const proposals = []
     for (const entry of catalogue.mutations) {
       const text = textOf(entry.file)
       if (text != null && text.split(entry.from).length - 1 === 1) continue
       stale += 1
-      const answer = repointEntry(entry, text, text == null ? null : addedIn(entry.file))
-      if (answer.verdict === 'repointed') {
+      const answer = (reanchoring ? reanchorEntry : repointEntry)(entry, text, text == null ? null : addedIn(entry.file))
+      if (answer.verdict === 'repointed' || answer.verdict === 'reanchored') {
         proposed += 1
+        if (answer.verdict === 'reanchored') reanchored += 1
         proposals.push({ entry, answer })
-        console.log(`REPOINT  ${entry.label}\n  ${entry.file}\n  - ${entry.from}\n  + ${answer.from}\n  to ${answer.to}`)
+        console.log(`${answer.verdict === 'reanchored' ? 'REANCHOR  ' : 'REPOINT  '}${entry.label}\n  ${entry.file}\n  - ${entry.from}\n  + ${answer.from}\n  to ${answer.to}`)
       } else console.log(`REFUSED  ${entry.label} — ${answer.why}`)
     }
     if (!stale) {
@@ -867,7 +876,7 @@ export function main(argv) {
       return 0
     }
     if (!writing || !proposals.length) {
-      console.log(`${stale} stale: ${proposed} repointable, ${stale - proposed} refused. Nothing was written.`
+      console.log(`${stale} stale: ${reanchoring ? `${proposed - reanchored} repointable, ${reanchored} re-anchored` : `${proposed} repointable`}, ${stale - proposed} refused. Nothing was written.`
         + (proposed ? ` Run it again with --write to rewrite ${proposed === 1 ? 'the proposal' : `the ${proposed} proposals`} and measure ${proposed === 1 ? 'it' : 'them'}.` : ''))
       return stale ? 1 : 0
     }

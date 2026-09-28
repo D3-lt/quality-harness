@@ -896,6 +896,65 @@ test('mutate --repoint --write rewrites only what it proposed, measures it, and 
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
 
+// ADR-071 T2. --reanchor answers only where it is asked. --repoint alone prints what it
+// always printed; with the flag, a rewritten line is proposed as REANCHOR and the write
+// measures it; and --reanchor without --repoint is a usage error the usage line names.
+test('mutate --repoint --reanchor proposes what repointEntry refused, and --repoint alone is unchanged', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-reanchor-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const env = { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '' }
+    const run = (...extra) => spawnSync(process.execPath, [runner, '--root', repo, ...extra], { cwd: repo, encoding: 'utf8', timeout: 180_000, env })
+    const oldLine = '  if (alpha > 0 && beta > 0) return launch(beta)'
+    const newLine = '  if (Math.min(alpha, beta) > -1) return launch(beta)'
+    const anchored = { label: 'anchored', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: oldLine, to: '  if (false) return launch(beta)' }
+    const thin = { label: 'thin', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: '  return 0', to: '  return 9' }
+    const serialize = mutations => `${JSON.stringify({ mutations }, null, 2)}\n`
+    const catalogueFile = join(repo, 'tests', 'mutations.json')
+    const source = line => `export const launch = x => x * 2\nexport function g(alpha, beta) {\n${line}\n  return ${line === oldLine ? '0' : '-1'}\n}\n`
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), source(oldLine))
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'),
+      "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { g } from '../a.mjs'\ntest('g', () => { assert.equal(g(1, 3), 6) })\n")
+    writeFileSync(catalogueFile, serialize([anchored, thin]))
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base')
+    writeFileSync(join(repo, 'a.mjs'), source(newLine))
+
+    // --repoint alone: ADR-069's output, both refused, nothing re-anchored.
+    const plain = run('--repoint')
+    assert.equal(plain.status, 1, `${plain.stdout}\n${plain.stderr}`)
+    assert.ok(plain.stdout.includes('REFUSED  anchored — 3:'), plain.stdout)
+    assert.ok(plain.stdout.includes('REFUSED  thin — 3:'), plain.stdout)
+    assert.ok(!plain.stdout.includes('REANCHOR'), plain.stdout)
+    assert.ok(plain.stdout.includes('2 stale: 0 repointable, 2 refused. Nothing was written.'), plain.stdout)
+
+    // With --reanchor: the rewritten line is proposed; the thin anchor is refused by its rule.
+    const flagged = run('--repoint', '--reanchor')
+    assert.equal(flagged.status, 1, `${flagged.stdout}\n${flagged.stderr}`)
+    assert.ok(flagged.stdout.includes('REANCHOR  anchored'), flagged.stdout)
+    assert.ok(flagged.stdout.includes(`+ ${newLine}`), flagged.stdout)
+    assert.ok(flagged.stdout.includes('to   if (false) return launch(beta)'), flagged.stdout)
+    assert.ok(flagged.stdout.includes('REFUSED  thin — the anchor floor:'), flagged.stdout)
+    assert.ok(flagged.stdout.includes('2 stale: 0 repointable, 1 re-anchored, 1 refused. Nothing was written.'), flagged.stdout)
+    assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([anchored, thin]))
+
+    // --write: only the re-anchored entry changes, and it is measured.
+    const written = run('--repoint', '--reanchor', '--write', '--force')
+    assert.equal(written.status, 1, `${written.stdout}\n${written.stderr}`)
+    assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([{ ...anchored, from: newLine, to: '  if (false) return launch(beta)' }, thin]))
+    assert.ok(written.stdout.includes('1/1 mutations were noticed.'), written.stdout)
+
+    // The flag is discoverable, and means nothing without --repoint.
+    const usage = run('--bogus')
+    assert.equal(usage.status, 2)
+    assert.match(usage.stderr, /--reanchor/)
+    const alone = run('--reanchor')
+    assert.equal(alone.status, 2, `${alone.stdout}\n${alone.stderr}`)
+    assert.match(alone.stderr, /--reanchor.*--repoint/)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
 // BACKLOG §310: a campaign re-runs suites once per mutant, and what a test forgot to
 // remove stayed once per mutant, 15,885 directories from one test file on one Mac. Each
 // child writes under a scratch temp directory the campaign removes when the child ends.

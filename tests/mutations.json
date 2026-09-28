@@ -13733,8 +13733,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "'--changed', '--repoint', '--since', '--root'])",
-      "to": "'--changed', '--since', '--root'])",
+      "from": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root'])",
+      "to": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--reanchor', '--since', '--root'])",
       "only": "mutate --repoint reads a scratch repository"
     },
     {
@@ -13753,8 +13753,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "      if (answer.verdict === 'repointed') {",
-      "to": "      if (answer.verdict !== 'current') {",
+      "from": "      if (answer.verdict === 'repointed' || answer.verdict === 'reanchored') {",
+      "to": "      if (answer.verdict !== 'current' || answer.verdict === 'reanchored') {",
       "only": "mutate --repoint --write rewrites only what it proposed"
     },
     {
@@ -14746,6 +14746,46 @@
       "from": "  if (added === null) return { verdict: 'refused', why: 'the diff:",
       "to": "  if (false) return { verdict: 'refused', why: 'the diff:",
       "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T2: --reanchor is an accepted option",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "'--repoint', '--reanchor', '--since'",
+      "to": "'--repoint', '--since'",
+      "only": "repoint --reanchor"
+    },
+    {
+      "label": "ADR-071 T2: --reanchor without --repoint is a usage error",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (argv.includes('--reanchor') && !argv.includes('--repoint')) {",
+      "to": "  if (false) {",
+      "only": "repoint --reanchor"
+    },
+    {
+      "label": "ADR-071 T2: --repoint alone does not re-anchor",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    const reanchoring = argv.includes('--reanchor')",
+      "to": "    const reanchoring = true",
+      "only": "repoint --reanchor"
+    },
+    {
+      "label": "ADR-071 T2: a re-anchored proposal is printed and written",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "      if (answer.verdict === 'repointed' || answer.verdict === 'reanchored') {",
+      "to": "      if (answer.verdict === 'repointed') {",
+      "only": "repoint --reanchor"
     }
   ]
 }

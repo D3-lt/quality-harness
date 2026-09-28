@@ -36,6 +36,8 @@ const GIT_IDENTITY = {
 const HOOK_ENV = {
   ...process.env, ...GIT_IDENTITY,
   CLAUDE_PLUGIN_DATA: path.join(testTmp, 'plugin-data'), TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp,
+  // A loaded runner outran observe()'s 5s and these read could-not-look (BACKLOG §314).
+  QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000',
 }
 const RULE_ONE_TEXT = 'first finding for the probe'
 const RULE_TWO_TEXT = 'second finding for the probe'

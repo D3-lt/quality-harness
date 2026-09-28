@@ -89,3 +89,22 @@ You cannot run Windows locally: `windows-latest` is a VM, not a container, and D
 macOS is a Linux VM with no Windows container mode. So the seam is not a nicety — it is the only way
 this code gets tested before it is pushed. When the Windows log is minutes away, wait for it rather
 than guessing at the platform difference.
+
+## A child's console follows its stdio (3.1.1, BACKLOG §311-§312, §314)
+
+From 3.0.0, Windows Terminal opened a tab for a second, several times after every prompt. ADR-065 had
+made the branch-state hook start a `detached` refresher. A detached process has no console, and each
+`git` and `gh` child it started without `windowsHide` was given a console of its own, which Windows
+Terminal shows as a tab.
+
+The first fix over-reached, and CI caught it. CREATE_NO_WINDOW went onto every Python gate's
+children, including `qh-check`'s forwarder, whose `node` child shares the gate's stdio. Python passes
+no handles when none are given, so that child got a hidden console of its own, and four Windows tests
+read `''`. libuv already draws the right line for Node: `windowsHide` adds CREATE_NO_WINDOW only when
+no stdio is inherited. The Python rule now matches it, and `untimed-children --hidden` fails either
+way it is broken.
+
+**A Windows runner is not your machine.** On one release run a PreToolUse hook took 14.5s where the
+two runs before took about 5s. `observe()` then outran its 5s git budget, and the publish check said
+nothing at all (§314 fixed the silence). Two tests that expected a refusal failed because of runner
+speed, not because of the change under test. Tests now set the budgets they depend on.

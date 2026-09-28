@@ -34,7 +34,9 @@ import {
   completionClaim,
   saidMarkerDirectory,
   sweepStaleMarkers,
+  observeBudgetMs,
 } from '../plugin/scripts/lifecycle.mjs'
+import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
@@ -259,8 +261,10 @@ function runLifecycleHook(payload, options = {}) {
     // under os.tmpdir() in the child, so the child is pointed at THIS run's
     // root or they outlive the cleanup (Codex review, 2026-09-05). An explicit
     // `env` is the whole environment, as before (a test that deletes a variable
-    // must see it gone); only the temp pointers are always set.
-    env: { ...(extraEnv ?? { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome }), TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp },
+    // must see it gone); only the temp pointers are always set. observe()'s budget is
+    // raised: a loaded runner outran 5s and the tests that expect a refusal read
+    // could-not-look (release run of d174c76, BACKLOG §314).
+    env: { ...(extraEnv ?? { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000' }), TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp },
     ...rest,
   })
 }
@@ -895,6 +899,37 @@ test('the artifact pass never outlives the hook it runs inside', async () => {
   const exhausted = runArtifactGates([adr], repo, 500)
   assert.match(exhausted, /window was exhausted before/)
   assert.match(exhausted, /Artifact validation failed/)
+})
+
+// BACKLOG §314: where git outran observe()'s budget, an unchecked commit met neither a
+// refusal nor a word, from PreToolUse or from git's own hook. Unknown is said, as
+// advice (CLAUDE.md §16). The budget seam makes the slow host deterministic.
+test('a tree that could not be observed is said at a publish, in PreToolUse and in git\'s hook', async () => {
+  const { dir, session } = await unheldRepository('quality-unobserved-')
+  const slow = { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, QUALITY_HARNESS_OBSERVE_BUDGET_MS: '1' }
+  const attempt = publishAttempt('git commit -m x', dir, session, { env: slow })
+  assert.equal(attempt.status, 0, attempt.stderr)
+  const said = JSON.parse(attempt.stdout)
+  assert.notEqual(said.hookSpecificOutput?.permissionDecision, 'deny', 'a state nobody read is not refused')
+  assert.match(said.systemMessage ?? '', /whether this repository is checked is unknown — its working tree could not be observed \(git took more than 1 ms\)/)
+  assert.match(said.hookSpecificOutput?.additionalContext ?? '', /names commit or push \(`git commit`\)\. Nothing is refused on a state that could not be read/)
+  // With the budget it needs, the same tree is refused as before: each path's twin.
+  const refused = publishAttempt('git commit -m y', dir, session)
+  assert.equal(JSON.parse(refused.stdout).hookSpecificOutput?.permissionDecision, 'deny')
+  const atEvent = runPublishHook({ event: 'prepare-commit-msg', cwd: dir, env: { ...slow, CLAUDE_CODE_SESSION_ID: session } })
+  assert.equal(atEvent.code, 0)
+  assert.match(atEvent.message ?? '', /its working tree could not be observed \(git took more than 1 ms\)/)
+  const refusedAtEvent = runPublishHook({ event: 'prepare-commit-msg', cwd: dir,
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, CLAUDE_CODE_SESSION_ID: session, QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000' } })
+  assert.equal(refusedAtEvent.code, 1, refusedAtEvent.message)
+})
+
+test('observe()\'s budget is read from the environment, and nonsense keeps the default', () => {
+  assert.equal(observeBudgetMs({}), 5000)
+  assert.equal(observeBudgetMs({ QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000' }), 60000)
+  for (const value of ['0', '-5', '1.5', 'soon', '']) {
+    assert.equal(observeBudgetMs({ QUALITY_HARNESS_OBSERVE_BUDGET_MS: value }), 5000, value)
+  }
 })
 
 // --- the false blocks users actually reported -------------------------------

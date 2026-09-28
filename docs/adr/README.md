@@ -72,3 +72,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-068](ADR-068-git-refuses-in-a-linked-worktree-and-says-when-it-is-armed.md) | Git refuses in a linked worktree too, and the session is told when it is armed | Accepted |
 | [ADR-069](ADR-069-a-stale-mutant-is-repointed-by-its-own-edit.md) | A stale mutant is repointed by its own edit | Accepted |
 | [ADR-070](ADR-070-a-peer-attestation-is-imported-and-checked-against-its-commit.md) | A peer's attestation is imported, and checked against its commit | Accepted |
+| [ADR-071](ADR-071-a-rewritten-line-is-reanchored-on-the-text-around-its-edit.md) | A rewritten line is re-anchored on the text around its edit | Accepted |

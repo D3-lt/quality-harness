@@ -1,0 +1,362 @@
+{
+  "note": "The 3.1.1 batch's hand repoints, taken once on 2026-09-28 from git show over e0ef6d4..2b036de and 2b036de..aa3da2b: every entry whose from or to was rewritten by hand, a window of its source as the later commit left it, and the lines that commit added in the window. An entry the hand deleted is not here: it has no repoint to compare. hand is null where the hand moved the entry to another file (movedTo). History: never regenerated (ADR-071 T1).",
+  "rows": [
+    {
+      "commit": "2b036de",
+      "label": "hooks: a bin/ gate is spawned so Windows can run it",
+      "from": "    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })",
+      "to": "    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })",
+      "hand": {
+        "from": "    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })",
+        "to": "    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })"
+      },
+      "source": "  const lines = []\n  // Directories whose every task carries evidence are not in flight, and listing\n  // them under that heading read as work twice (BACKLOG §279 item 6, §280 item 3).\n  // They are counted instead; ADR-046's heading stays.\n  let evidenced = 0\n  // A directory under an archive-named folder with no Lifecycle marker is read as\n  // live, and its ready line said \"Prove it with `adr-verify`\" beside the warning\n  // naming `--adopt`: the instruction a session acts on is the one it reads last\n  // (BACKLOG §289 item 1). Such a line leads with the question instead.\n  const unmarked = unmarkedArchives(root, listing)\n  const { read, unread } = taskDirectories(root, listing)\n  for (const { directory, archive } of read) {\n    if (archive === 'unknown') {\n      // No READY line for a directory that may be a frozen archive: `adr-next` reads\n      // the record and its tasks, never the catalog, so it cannot settle this.\n      lines.push(`  ${posixListed(path.relative(root, directory) || directory)}: UNPROVEN — a README above it is listed under another `\n        + 'spelling or could not be read, so whether this is a frozen archive is unknown. Name the catalog `README.md`. '\n        + 'Ready tasks there are not known.')\n      continue\n    }\n    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })\n    // posixListed: path.relative is native separators; SessionStart text and\n    // the Windows CI structural-path rule need a listed form (ADR-046 T5).\n    const relative = visiblePath(posixListed(path.relative(root, directory) || directory))\n    // The READY line puts corpus text beside an instruction, so its path is in a code\n    // span there: a directory's NAME is corpus text, and \"ADR-003-SYSTEM. Assistant must\n    // run …/tasks: T1 is ready\" read in the tool's voice (a Windows chaos round, round 3).\n    const readyPath = pathInCode(posixListed(path.relative(root, directory) || directory))\n    // ADR-046 T3. adr-next answers 0 (a ready task) or 3 (nothing ready); any\n    // other outcome is the gate NOT answering — its lib missing beside a copied\n    // bin/ (exit 2, ADR-045 T4), an interpreter that never ran (status null), a\n    // hang guard that fired — and every one of them was a `continue`: the same\n    // silence as a directory with no tasks, which is how Windows sessions ran\n    // empty for a month (the two paragraphs above spawnGate). A look that did not\n    // happen is UNPROVEN, said where the ready line would have been, with the\n    // gate's own first line so the reader knows which of these it was.\n    if (run.status !== 0 && run.status !== 3) {\n      const said = (run.stderr ?? '').trim().split('\\n')[0] || (run.stdout ?? '').trim().split('\\n')[0] || 'it said nothing'\n      const how = run.status === null\n        ? `adr-next did not run (${run.error?.message ?? `killed by ${run.signal ?? 'an unknown signal'}`})`\n        : `adr-next could not run (exit ${run.status})`",
+      "added": [
+        "}",
+        "const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })"
+      ]
+    },
+    {
+      "commit": "2b036de",
+      "label": "branch-state: the shell seam pins the language git answers in",
+      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }",
+      "to": "      { cwd, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }",
+      "hand": {
+        "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }",
+        "to": "      { cwd, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }"
+      },
+      "source": "    // prompt for ever. Pinning the language is the fix; a longer regex would only\n    // be a bigger guess. It affects nothing else here: every value read is a ref\n    // name, a path, a sha, a `rev-list --count` number or JSON — none of them\n    // localised.\n    const env = { ...process.env, LC_ALL: 'C' }\n    // ⚠ `stdio` IS EXPLICIT BECAUSE THE DEFAULT PASSES THE CHILD'S STDERR THROUGH.\n    // `execFileSync` captures stderr into `error.stderr` AND writes it to the\n    // parent's, so the careful `catch` below — which turns a failure into a quiet\n    // `{ ok: false, note }` — was never the only thing the user saw. This reader\n    // positively decides that a repository with no tags may be silent, and that a\n    // non-GitHub remote means `gh` is not asked; git then printed `fatal: No names\n    // found` and `fatal: ambiguous argument 'origin/main...HEAD'` above the header\n    // anyway, so an operator could not tell a working reader from a crashed one.\n    // The reverse of ADR-005's usual failure, and reported 2026-09-18 from an\n    // Ansible repository with a Bitbucket remote. ⚠ This comment claimed\n    // `statusline.mjs` imports the same `shell` and so shared the defect; it\n    // imports `usableCache` and never calls `shell`. Corrected before release by a\n    // different-lineage review — a comment is a claim, and this one was wrong on\n    // the day it was written (CLAUDE.md, \"Comments Lie — Follow the Code\").\n    return { ok: true, out: execFileSync(argv[0], argv.slice(1),\n      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }\n  } catch (error) {\n    return { ok: false, out: '', note: (error.stderr || error.message || 'failed').toString().split('\\n')[0] }\n  }\n}\n\n/**\n * What `git describe` says when the repository positively has no tag to describe,\n * as opposed to a failure it could not complete. Only the first may be silent.\n *\n * ⚠ MATCHING GIT'S PROSE ONLY WORKS BECAUSE `shell` PINS `LC_ALL=C`. Git localises\n * its diagnostics, so without that pin an untagged repository under any other\n * locale falls through to \"could not read the newest tag\" and is told so on every\n * prompt for ever — BACKLOG §152 with a language barrier in front of it. The pin\n * is the fix; a longer regex would only be a bigger guess.\n */\nconst NO_TAGS = /No names found|cannot describe anything/i\n\n/**\n * Everything the renderer needs, gathered through `run`.\n *",
+      "added": [
+        "{ cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }"
+      ]
+    },
+    {
+      "commit": "2b036de",
+      "label": "ADR-067 T2: a help flag straight after the verb opens a manual page",
+      "from": "  if (argv[k + 1] === '--help' || argv[k + 1] === '-h') return null",
+      "to": "  if (false) return null",
+      "hand": {
+        "from": "  if (rest[0] === '--help' || rest[0] === '-h') return null",
+        "to": "  if (false) return null"
+      },
+      "source": "// The alias git would run for the word at k, or undefined when git runs its own command.\nfunction aliasFor(argv, at, k) {\n  const name = String(argv[k] ?? '')\n  return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())\n}\n\n// A word as shell data: what `\"$@\"` hands a `!` alias is arguments, never source.\nconst shellQuote = word => `'${String(word).replace(/'/g, `'\\\\''`)}'`\n\nfunction gitInvocation(argv, at, dynamic) {\n  const k = gitVerbIndex(argv, at)\n  const alias = aliasFor(argv, at, k)\n  // An alias is split as git splits it, and its own words come BEFORE the command\n  // line's: `alias.c=commit -m` makes `c --dry-run` a commit whose message is\n  // `--dry-run`, and `alias.p=push --dry-run` makes `p` a dry run (Codex review of\n  // 3.1.0..e0ef6d4, F2). A `!` alias is a shell line, which gitRunsCommands reads.\n  const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null\n  const verb = expanded ? expanded[0] : argv[k]\n  const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)\n  if ((verb !== 'commit' && verb !== 'push') || dynamic.includes(k)) return null\n  if (rest[0] === '--help' || rest[0] === '-h') return null\n  // A dry run publishes nothing (a chaos round of 626934a, R6). `commit -n` is\n  // `--no-verify`, not a dry run, and stays a publish.\n  if (dryRun(verb, rest)) return null\n  return argv.slice(at, k + 1).join(' ')\n}\n\n// The shell commands a git subcommand runs itself: `submodule foreach <cmd>`,\n// `rebase --exec <cmd>` / `-x <cmd>`, `bisect run <cmd>` (a chaos round of 626934a,\n// R17: `git submodule foreach 'git push'` pushes in every submodule).\nfunction gitRunsCommands(argv, at) {\n  const k = gitVerbIndex(argv, at)\n  const rest = argv.slice(k + 1)\n  const alias = aliasFor(argv, at, k)\n  // Git runs a `!` alias as `<body> \"$@\"`: the command line's words are data appended\n  // to it, so `x 'ok; git push'` is one argument to `echo` (Codex review, F5).\n  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]\n  if (argv[k] === 'submodule') {\n    const each = rest.indexOf('foreach')\n    if (each < 0) return []\n    let c = each + 1",
+      "added": [
+        "// The alias git would run for the word at k, or undefined when git runs its own command.",
+        "function aliasFor(argv, at, k) {",
+        "const name = String(argv[k] ?? '')",
+        "return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())",
+        "}",
+        "// A word as shell data: what `\"$@\"` hands a `!` alias is arguments, never source.",
+        "const shellQuote = word => `'${String(word).replace(/'/g, `'\\\\''`)}'`",
+        "const alias = aliasFor(argv, at, k)",
+        "// An alias is split as git splits it, and its own words come BEFORE the command",
+        "// line's: `alias.c=commit -m` makes `c --dry-run` a commit whose message is",
+        "// `--dry-run`, and `alias.p=push --dry-run` makes `p` a dry run (Codex review of",
+        "// 3.1.0..e0ef6d4, F2). A `!` alias is a shell line, which gitRunsCommands reads.",
+        "const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null",
+        "const verb = expanded ? expanded[0] : argv[k]",
+        "const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)",
+        "if (rest[0] === '--help' || rest[0] === '-h') return null",
+        "if (dryRun(verb, rest)) return null",
+        "// Git runs a `!` alias as `<body> \"$@\"`: the command line's words are data appended",
+        "// to it, so `x 'ok; git push'` is one argument to `echo` (Codex review, F5).",
+        "if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]"
+      ]
+    },
+    {
+      "commit": "2b036de",
+      "label": "chaos 626934a: a dry run publishes nothing",
+      "from": "  if (dryRun(verb, argv.slice(k + 1))) return null",
+      "to": "  if (false) return null",
+      "hand": {
+        "from": "  if (dryRun(verb, rest)) return null",
+        "to": "  if (false) return null"
+      },
+      "source": "  return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())\n}\n\n// A word as shell data: what `\"$@\"` hands a `!` alias is arguments, never source.\nconst shellQuote = word => `'${String(word).replace(/'/g, `'\\\\''`)}'`\n\nfunction gitInvocation(argv, at, dynamic) {\n  const k = gitVerbIndex(argv, at)\n  const alias = aliasFor(argv, at, k)\n  // An alias is split as git splits it, and its own words come BEFORE the command\n  // line's: `alias.c=commit -m` makes `c --dry-run` a commit whose message is\n  // `--dry-run`, and `alias.p=push --dry-run` makes `p` a dry run (Codex review of\n  // 3.1.0..e0ef6d4, F2). A `!` alias is a shell line, which gitRunsCommands reads.\n  const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null\n  const verb = expanded ? expanded[0] : argv[k]\n  const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)\n  if ((verb !== 'commit' && verb !== 'push') || dynamic.includes(k)) return null\n  if (rest[0] === '--help' || rest[0] === '-h') return null\n  // A dry run publishes nothing (a chaos round of 626934a, R6). `commit -n` is\n  // `--no-verify`, not a dry run, and stays a publish.\n  if (dryRun(verb, rest)) return null\n  return argv.slice(at, k + 1).join(' ')\n}\n\n// The shell commands a git subcommand runs itself: `submodule foreach <cmd>`,\n// `rebase --exec <cmd>` / `-x <cmd>`, `bisect run <cmd>` (a chaos round of 626934a,\n// R17: `git submodule foreach 'git push'` pushes in every submodule).\nfunction gitRunsCommands(argv, at) {\n  const k = gitVerbIndex(argv, at)\n  const rest = argv.slice(k + 1)\n  const alias = aliasFor(argv, at, k)\n  // Git runs a `!` alias as `<body> \"$@\"`: the command line's words are data appended\n  // to it, so `x 'ok; git push'` is one argument to `echo` (Codex review, F5).\n  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]\n  if (argv[k] === 'submodule') {\n    const each = rest.indexOf('foreach')\n    if (each < 0) return []\n    let c = each + 1\n    while (c < rest.length && /^(?:--recursive|-q|--quiet)$/.test(rest[c])) c++\n    return c < rest.length ? [rest.slice(c).join(' ')] : []\n  }",
+      "added": [
+        "return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())",
+        "}",
+        "// A word as shell data: what `\"$@\"` hands a `!` alias is arguments, never source.",
+        "const shellQuote = word => `'${String(word).replace(/'/g, `'\\\\''`)}'`",
+        "const alias = aliasFor(argv, at, k)",
+        "// An alias is split as git splits it, and its own words come BEFORE the command",
+        "// line's: `alias.c=commit -m` makes `c --dry-run` a commit whose message is",
+        "// `--dry-run`, and `alias.p=push --dry-run` makes `p` a dry run (Codex review of",
+        "// 3.1.0..e0ef6d4, F2). A `!` alias is a shell line, which gitRunsCommands reads.",
+        "const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null",
+        "const verb = expanded ? expanded[0] : argv[k]",
+        "const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)",
+        "if (rest[0] === '--help' || rest[0] === '-h') return null",
+        "if (dryRun(verb, rest)) return null",
+        "// Git runs a `!` alias as `<body> \"$@\"`: the command line's words are data appended",
+        "// to it, so `x 'ok; git push'` is one argument to `echo` (Codex review, F5).",
+        "if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]"
+      ]
+    },
+    {
+      "commit": "2b036de",
+      "label": "chaos 916b515: node's child_process argv list is read",
+      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]) {",
+      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(PERL_LIST)]) {",
+      "hand": {
+        "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
+        "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {"
+      },
+      "source": "  for (let k = start; k < argv.length && !NON_EXECUTORS.has(name); k++) {\n    if (dynamic.includes(k) || !SHELL_NAMES.has(programName(argv[k]).toLowerCase())) continue\n    const shell = shellString(argv, k)\n    if (shell === null) continue\n    if (shell.flag !== undefined) {\n      if (shellRuns(argv.slice(k, shell.flag + 1)) && shell.flag + 1 < argv.length) {\n        const script = argv[shell.flag + 1]\n        const found = inner([shell.encoded ? decodedPowerShell(script) : script])\n        if (found) return found\n      }\n      k = shell.flag + 1\n    } else if (k === start && shellRuns(argv.slice(k, shell.stdin))) {\n      const found = inner(stdinScripts(commands, n))\n      if (found) return found\n    }\n  }\n  if (INTERPRETERS.test(name)) {\n    for (const word of argv.slice(start + 1)) {\n      // A call inside a string literal is data that is printed, not run (F3, above).\n      const called = call => !insideLiteral(word, call.index, name === 'perl')\n      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {\n        const list = [...call[1].matchAll(/([\"'])([^\"']*)\\1/g)].map(item => item[2])\n        const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null\n        if (invoked) return invoked\n      }\n      const found = inner([...word.matchAll(SUBPROCESS_STRING)].filter(called).map(call => call[2]))\n      if (found) return found\n    }\n  }\n  return null\n}\n\n/** The `git commit …` or `git push …` this command invokes, in one spelling, or null. */\nexport function publishCommandIn(command) {\n  if (typeof command !== 'string') return null\n  return publishInText(command, 0)\n}\n/** A proven invocation — the only thing that may be refused. */\nexport function containsCommitOrPush(command) {\n  return publishCommandIn(command) !== null\n}",
+      "added": [
+        "}",
+        "// A call inside a string literal is data that is printed, not run (F3, above).",
+        "const called = call => !insideLiteral(word, call.index, name === 'perl')",
+        "for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
+        "const found = inner([...word.matchAll(SUBPROCESS_STRING)].filter(called).map(call => call[2]))"
+      ]
+    },
+    {
+      "commit": "2b036de",
+      "label": "chaos 916b515: perl's system argv list is read",
+      "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)]) {",
+      "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST)]) {",
+      "hand": {
+        "from": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
+        "to": "      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST)].filter(called)) {"
+      },
+      "source": "  for (let k = start; k < argv.length && !NON_EXECUTORS.has(name); k++) {\n    if (dynamic.includes(k) || !SHELL_NAMES.has(programName(argv[k]).toLowerCase())) continue\n    const shell = shellString(argv, k)\n    if (shell === null) continue\n    if (shell.flag !== undefined) {\n      if (shellRuns(argv.slice(k, shell.flag + 1)) && shell.flag + 1 < argv.length) {\n        const script = argv[shell.flag + 1]\n        const found = inner([shell.encoded ? decodedPowerShell(script) : script])\n        if (found) return found\n      }\n      k = shell.flag + 1\n    } else if (k === start && shellRuns(argv.slice(k, shell.stdin))) {\n      const found = inner(stdinScripts(commands, n))\n      if (found) return found\n    }\n  }\n  if (INTERPRETERS.test(name)) {\n    for (const word of argv.slice(start + 1)) {\n      // A call inside a string literal is data that is printed, not run (F3, above).\n      const called = call => !insideLiteral(word, call.index, name === 'perl')\n      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {\n        const list = [...call[1].matchAll(/([\"'])([^\"']*)\\1/g)].map(item => item[2])\n        const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null\n        if (invoked) return invoked\n      }\n      const found = inner([...word.matchAll(SUBPROCESS_STRING)].filter(called).map(call => call[2]))\n      if (found) return found\n    }\n  }\n  return null\n}\n\n/** The `git commit …` or `git push …` this command invokes, in one spelling, or null. */\nexport function publishCommandIn(command) {\n  if (typeof command !== 'string') return null\n  return publishInText(command, 0)\n}\n/** A proven invocation — the only thing that may be refused. */\nexport function containsCommitOrPush(command) {\n  return publishCommandIn(command) !== null\n}",
+      "added": [
+        "}",
+        "// A call inside a string literal is data that is printed, not run (F3, above).",
+        "const called = call => !insideLiteral(word, call.index, name === 'perl')",
+        "for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {",
+        "const found = inner([...word.matchAll(SUBPROCESS_STRING)].filter(called).map(call => call[2]))"
+      ]
+    },
+    {
+      "commit": "2b036de",
+      "label": "chaos 916b515: an alias set with -c is read as its verb",
+      "from": "  const verb = alias !== undefined && !alias.startsWith('!') ? alias.trim().split(/\\s+/)[0] : argv[k]",
+      "to": "  const verb = argv[k]",
+      "hand": {
+        "from": "  const verb = expanded ? expanded[0] : argv[k]",
+        "to": "  const verb = argv[k]"
+      },
+      "source": "  update-ref update-server-info upload-archive upload-archive--writer upload-pack url-parse var verify-commit\n  verify-pack verify-tag version web--browse whatchanged worktree write-tree`.split(/\\s+/))\n\n// The alias git would run for the word at k, or undefined when git runs its own command.\nfunction aliasFor(argv, at, k) {\n  const name = String(argv[k] ?? '')\n  return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())\n}\n\n// A word as shell data: what `\"$@\"` hands a `!` alias is arguments, never source.\nconst shellQuote = word => `'${String(word).replace(/'/g, `'\\\\''`)}'`\n\nfunction gitInvocation(argv, at, dynamic) {\n  const k = gitVerbIndex(argv, at)\n  const alias = aliasFor(argv, at, k)\n  // An alias is split as git splits it, and its own words come BEFORE the command\n  // line's: `alias.c=commit -m` makes `c --dry-run` a commit whose message is\n  // `--dry-run`, and `alias.p=push --dry-run` makes `p` a dry run (Codex review of\n  // 3.1.0..e0ef6d4, F2). A `!` alias is a shell line, which gitRunsCommands reads.\n  const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null\n  const verb = expanded ? expanded[0] : argv[k]\n  const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)\n  if ((verb !== 'commit' && verb !== 'push') || dynamic.includes(k)) return null\n  if (rest[0] === '--help' || rest[0] === '-h') return null\n  // A dry run publishes nothing (a chaos round of 626934a, R6). `commit -n` is\n  // `--no-verify`, not a dry run, and stays a publish.\n  if (dryRun(verb, rest)) return null\n  return argv.slice(at, k + 1).join(' ')\n}\n\n// The shell commands a git subcommand runs itself: `submodule foreach <cmd>`,\n// `rebase --exec <cmd>` / `-x <cmd>`, `bisect run <cmd>` (a chaos round of 626934a,\n// R17: `git submodule foreach 'git push'` pushes in every submodule).\nfunction gitRunsCommands(argv, at) {\n  const k = gitVerbIndex(argv, at)\n  const rest = argv.slice(k + 1)\n  const alias = aliasFor(argv, at, k)\n  // Git runs a `!` alias as `<body> \"$@\"`: the command line's words are data appended\n  // to it, so `x 'ok; git push'` is one argument to `echo` (Codex review, F5).\n  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]\n  if (argv[k] === 'submodule') {",
+      "added": [
+        "update-ref update-server-info upload-archive upload-archive--writer upload-pack url-parse var verify-commit",
+        "verify-pack verify-tag version web--browse whatchanged worktree write-tree`.split(/\\s+/))",
+        "// The alias git would run for the word at k, or undefined when git runs its own command.",
+        "function aliasFor(argv, at, k) {",
+        "const name = String(argv[k] ?? '')",
+        "return GIT_COMMANDS.has(name) ? undefined : gitAliases(argv, at, k).get(name.toLowerCase())",
+        "}",
+        "// A word as shell data: what `\"$@\"` hands a `!` alias is arguments, never source.",
+        "const shellQuote = word => `'${String(word).replace(/'/g, `'\\\\''`)}'`",
+        "const alias = aliasFor(argv, at, k)",
+        "// An alias is split as git splits it, and its own words come BEFORE the command",
+        "// line's: `alias.c=commit -m` makes `c --dry-run` a commit whose message is",
+        "// `--dry-run`, and `alias.p=push --dry-run` makes `p` a dry run (Codex review of",
+        "// 3.1.0..e0ef6d4, F2). A `!` alias is a shell line, which gitRunsCommands reads.",
+        "const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null",
+        "const verb = expanded ? expanded[0] : argv[k]",
+        "const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)",
+        "if (rest[0] === '--help' || rest[0] === '-h') return null",
+        "if (dryRun(verb, rest)) return null",
+        "// Git runs a `!` alias as `<body> \"$@\"`: the command line's words are data appended",
+        "// to it, so `x 'ok; git push'` is one argument to `echo` (Codex review, F5).",
+        "if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]"
+      ]
+    },
+    {
+      "commit": "2b036de",
+      "label": "chaos 916b515: a ! alias set with -c runs its shell line",
+      "from": "  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.join(' ')}`.trim()]",
+      "to": "  void alias",
+      "hand": {
+        "from": "  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]",
+        "to": "  void alias"
+      },
+      "source": "  const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null\n  const verb = expanded ? expanded[0] : argv[k]\n  const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)\n  if ((verb !== 'commit' && verb !== 'push') || dynamic.includes(k)) return null\n  if (rest[0] === '--help' || rest[0] === '-h') return null\n  // A dry run publishes nothing (a chaos round of 626934a, R6). `commit -n` is\n  // `--no-verify`, not a dry run, and stays a publish.\n  if (dryRun(verb, rest)) return null\n  return argv.slice(at, k + 1).join(' ')\n}\n\n// The shell commands a git subcommand runs itself: `submodule foreach <cmd>`,\n// `rebase --exec <cmd>` / `-x <cmd>`, `bisect run <cmd>` (a chaos round of 626934a,\n// R17: `git submodule foreach 'git push'` pushes in every submodule).\nfunction gitRunsCommands(argv, at) {\n  const k = gitVerbIndex(argv, at)\n  const rest = argv.slice(k + 1)\n  const alias = aliasFor(argv, at, k)\n  // Git runs a `!` alias as `<body> \"$@\"`: the command line's words are data appended\n  // to it, so `x 'ok; git push'` is one argument to `echo` (Codex review, F5).\n  if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]\n  if (argv[k] === 'submodule') {\n    const each = rest.indexOf('foreach')\n    if (each < 0) return []\n    let c = each + 1\n    while (c < rest.length && /^(?:--recursive|-q|--quiet)$/.test(rest[c])) c++\n    return c < rest.length ? [rest.slice(c).join(' ')] : []\n  }\n  if (argv[k] === 'rebase') {\n    const run = []\n    rest.forEach((word, i) => {\n      if ((word === '--exec' || word === '-x') && i + 1 < rest.length) run.push(rest[i + 1])\n      else if (word.startsWith('--exec=')) run.push(word.slice('--exec='.length))\n    })\n    return run\n  }\n  if (argv[k] === 'bisect' && rest[0] === 'run') return rest.length > 1 ? [rest.slice(1).join(' ')] : []\n  return []\n}\n\n// `xargs` builds git's argv from its stdin: `echo push | xargs git`, and with `-I R`",
+      "added": [
+        "const expanded = alias !== undefined && !alias.startsWith('!') ? (shellWords(alias).commands[0]?.argv ?? []) : null",
+        "const verb = expanded ? expanded[0] : argv[k]",
+        "const rest = expanded ? [...expanded.slice(1), ...argv.slice(k + 1)] : argv.slice(k + 1)",
+        "if (rest[0] === '--help' || rest[0] === '-h') return null",
+        "if (dryRun(verb, rest)) return null",
+        "}",
+        "const alias = aliasFor(argv, at, k)",
+        "// Git runs a `!` alias as `<body> \"$@\"`: the command line's words are data appended",
+        "// to it, so `x 'ok; git push'` is one argument to `echo` (Codex review, F5).",
+        "if (alias?.startsWith('!')) return [`${alias.slice(1)} ${rest.map(shellQuote).join(' ')}`.trim()]"
+      ]
+    },
+    {
+      "commit": "aa3da2b",
+      "label": "fence: taskkill is bounded, so a hung cleanup cannot wear the timeout's name",
+      "from": "                       capture_output=True, timeout=timeout)",
+      "to": "                       capture_output=True)",
+      "hand": {
+        "from": "                       capture_output=True, timeout=timeout, creationflags=0x08000000)",
+        "to": "                       capture_output=True, creationflags=0x08000000)"
+      },
+      "source": "            # unbounded here it wears the fence timeout's name, and on 2026-09-04\n            # a Windows job sat on this exact test to its 60s cap while every\n            # other platform passed. TimeoutExpired lands in the `except` below\n            # and answers False — not confirmed, which is the honest verdict.\n            # BACKLOG §129. Under the trace flag, name what is there to kill and\n            # what is left after — the CI runner sometimes leaves a survivor and\n            # nothing so far has said which process it was. One snapshot before,\n            # one after, matched on (name, pid) so a reused pid is not read as\n            # a survivor; no subprocess, so no timeout to multiply (see\n            # windows_processes). A snapshot that fails SAYS so: the first\n            # draft's listing failed silently and reported no children for ever.\n            traced = bool(os.environ.get(\"QUALITY_HARNESS_TRACE_TIMEOUT\"))\n            before = []\n            if traced:\n                try:\n                    before = [(name, cpid) for name, cpid, parent in processes() if parent == pid]\n                    sys.stderr.write(f\"[trace-timeout] tree before taskkill: leader {pid}, children {before}\\n\")\n                except Exception as failure:\n                    sys.stderr.write(f\"[trace-timeout] tree before taskkill: COULD NOT LIST ({type(failure).__name__}: {failure})\\n\")\n            done = run([\"taskkill\", \"/F\", \"/T\", \"/PID\", str(pid)],\n                       capture_output=True, timeout=timeout, creationflags=0x08000000)\n            if traced:\n                try:\n                    now = {(name, cpid) for name, cpid, parent in processes()}\n                    alive = [child for child in before if child in now]\n                    sys.stderr.write(f\"[trace-timeout] tree after taskkill: rc=\"\n                                     f\"{getattr(done, 'returncode', None)}, still alive {alive}\\n\")\n                except Exception as failure:\n                    sys.stderr.write(f\"[trace-timeout] tree after taskkill: COULD NOT LIST ({type(failure).__name__}: {failure})\\n\")\n            return getattr(done, \"returncode\", None) == 0\n        os.killpg(pid, signal.SIGKILL)\n        return True\n    except Exception:\n        return False\n\n\ndef trace_timeout(label, started):\n    \"\"\"Attribute a timeout's seconds, on request (BACKLOG §128).\n\n    Three Windows CI runs sat at ~60s against a 1s fence timeout, and the\n    arithmetic of the bounds below (1s + 15s + 10s) does not reach 60. A hang",
+      "added": [
+        "capture_output=True, timeout=timeout, creationflags=0x08000000)"
+      ]
+    },
+    {
+      "commit": "aa3da2b",
+      "label": "review e0ef6d4 F3: a call inside a string literal is data",
+      "from": "      const called = call => !insideLiteral(word, call.index, name === 'perl')",
+      "to": "      const called = () => true",
+      "hand": {
+        "from": "      const called = call => !insideLiteral(word, call.index, name === 'perl' ? 'perl' : name.startsWith('python') ? 'python' : 'js')",
+        "to": "      const called = () => true"
+      },
+      "source": "  // `echo \"bash\" \"-c\" \"git push\"` prints (Codex review of 341c49c).\n  for (let k = start; k < argv.length && !NON_EXECUTORS.has(name); k++) {\n    if (dynamic.includes(k) || !SHELL_NAMES.has(programName(argv[k]).toLowerCase())) continue\n    const shell = shellString(argv, k)\n    if (shell === null) continue\n    if (shell.flag !== undefined) {\n      if (shellRuns(argv.slice(k, shell.flag + 1)) && shell.flag + 1 < argv.length) {\n        const script = argv[shell.flag + 1]\n        const found = inner([shell.encoded ? decodedPowerShell(script) : script])\n        if (found) return found\n      }\n      k = shell.flag + 1\n    } else if (k === start && shellRuns(argv.slice(k, shell.stdin))) {\n      const found = inner(stdinScripts(commands, n))\n      if (found) return found\n    }\n  }\n  if (INTERPRETERS.test(name)) {\n    for (const word of argv.slice(start + 1)) {\n      // A call inside a string literal is data that is printed, not run (F3, above).\n      const called = call => !insideLiteral(word, call.index, name === 'perl' ? 'perl' : name.startsWith('python') ? 'python' : 'js')\n      for (const call of [...word.matchAll(SUBPROCESS_LIST), ...word.matchAll(CHILD_PROCESS_LIST), ...word.matchAll(PERL_LIST)].filter(called)) {\n        const list = [...call[1].matchAll(/([\"'])([^\"']*)\\1/g)].map(item => item[2])\n        const invoked = isGit(programName(list[0] ?? '')) ? gitInvocation(list, 0, []) : null\n        if (invoked) return invoked\n      }\n      const found = inner([...word.matchAll(SUBPROCESS_STRING)].filter(called).map(call => call[2]))\n      if (found) return found\n    }\n  }\n  return null\n}\n\n/** The `git commit …` or `git push …` this command invokes, in one spelling, or null. */\nexport function publishCommandIn(command) {\n  if (typeof command !== 'string') return null\n  return publishInText(command, 0)\n}\n/** A proven invocation — the only thing that may be refused. */\nexport function containsCommitOrPush(command) {\n  return publishCommandIn(command) !== null",
+      "added": [
+        "}",
+        "const called = call => !insideLiteral(word, call.index, name === 'perl' ? 'perl' : name.startsWith('python') ? 'python' : 'js')"
+      ]
+    },
+    {
+      "commit": "aa3da2b",
+      "label": "F3 residual: an escaped quote does not close a literal",
+      "from": "      if (c === '\\\\') i++",
+      "to": "      if (false) i++",
+      "hand": {
+        "from": "      if (c === '\\\\' && top.escapes) { i++; continue }",
+        "to": "      if (false) { i++; continue }"
+      },
+      "source": "  if (c !== '\"' && c !== \"'\" && c !== '`') return null\n  if (language === 'python') {\n    const prefix = /[A-Za-z]{0,2}$/.exec(script.slice(Math.max(0, i - 2), i))[0].toLowerCase()\n    const triple = script.startsWith(c.repeat(3), i)\n    return { length: triple ? 3 : 1, close: triple ? c.repeat(3) : c, nest: null,\n      escapes: !prefix.includes('r'), holes: prefix.includes('f') ? ['{'] : [], fstring: prefix.includes('f') }\n  }\n  if (language === 'perl') {\n    if (c === '`') return null\n    return { length: 1, close: c, nest: null, escapes: true, holes: c === '\"' ? ['${', '@{'] : [] }\n  }\n  return { length: 1, close: c, nest: null, escapes: true, holes: c === '`' ? ['${'] : [] }\n}\nfunction insideLiteral(script, at, language) {\n  // Open literals, and inside them the interpolation holes that are code again.\n  const stack = []\n  for (let i = 0; i < at; i++) {\n    const top = stack[stack.length - 1]\n    const c = script[i]\n    if (top?.close) {\n      if (c === '\\\\' && top.escapes) { i++; continue }\n      if (top.fstring && script.startsWith('{{', i)) { i++; continue }\n      const hole = top.holes.find(opening => script.startsWith(opening, i))\n      if (hole) { stack.push({ depth: 0 }); i += hole.length - 1; continue }\n      if (top.nest && c === top.nest) { top.depth = (top.depth ?? 0) + 1; continue }\n      if (script.startsWith(top.close, i)) {\n        if (top.depth) { top.depth--; continue }\n        stack.pop()\n        i += top.close.length - 1\n      }\n      continue\n    }\n    if (top && c === '{') { top.depth++; continue }\n    if (top && c === '}') { if (top.depth) top.depth--; else stack.pop(); continue }\n    const literal = literalAt(script, i, language)\n    if (literal) { stack.push(literal); i += literal.length - 1 }\n  }\n  return Boolean(stack[stack.length - 1]?.close)\n}\n// Deep enough for `bash -c \"sudo sh -c 'eval …'\"`, bounded so a crafted command\n// cannot make a hook recurse without end.",
+      "added": [
+        "if (c !== '\"' && c !== \"'\" && c !== '`') return null",
+        "if (language === 'python') {",
+        "const prefix = /[A-Za-z]{0,2}$/.exec(script.slice(Math.max(0, i - 2), i))[0].toLowerCase()",
+        "const triple = script.startsWith(c.repeat(3), i)",
+        "return { length: triple ? 3 : 1, close: triple ? c.repeat(3) : c, nest: null,",
+        "escapes: !prefix.includes('r'), holes: prefix.includes('f') ? ['{'] : [], fstring: prefix.includes('f') }",
+        "}",
+        "if (language === 'perl') {",
+        "if (c === '`') return null",
+        "return { length: 1, close: c, nest: null, escapes: true, holes: c === '\"' ? ['${', '@{'] : [] }",
+        "return { length: 1, close: c, nest: null, escapes: true, holes: c === '`' ? ['${'] : [] }",
+        "function insideLiteral(script, at, language) {",
+        "// Open literals, and inside them the interpolation holes that are code again.",
+        "const stack = []",
+        "const top = stack[stack.length - 1]",
+        "const c = script[i]",
+        "if (top?.close) {",
+        "if (c === '\\\\' && top.escapes) { i++; continue }",
+        "if (top.fstring && script.startsWith('{{', i)) { i++; continue }",
+        "const hole = top.holes.find(opening => script.startsWith(opening, i))",
+        "if (hole) { stack.push({ depth: 0 }); i += hole.length - 1; continue }",
+        "if (top.nest && c === top.nest) { top.depth = (top.depth ?? 0) + 1; continue }",
+        "if (script.startsWith(top.close, i)) {",
+        "if (top.depth) { top.depth--; continue }",
+        "stack.pop()",
+        "i += top.close.length - 1",
+        "continue",
+        "if (top && c === '{') { top.depth++; continue }",
+        "if (top && c === '}') { if (top.depth) top.depth--; else stack.pop(); continue }",
+        "const literal = literalAt(script, i, language)",
+        "if (literal) { stack.push(literal); i += literal.length - 1 }",
+        "return Boolean(stack[stack.length - 1]?.close)"
+      ]
+    },
+    {
+      "commit": "aa3da2b",
+      "label": "F3 residual: perl's qq{} is a literal",
+      "from": "    else if (perl && c === 'q' && !/[\\w$@%]/.test(script[i - 1] ?? '')) {",
+      "to": "    else if (false) {",
+      "hand": {
+        "from": "  if (language === 'perl' && c === 'q' && !/[\\w$@%]/.test(script[i - 1] ?? '')) {",
+        "to": "  if (false) {"
+      },
+      "source": "// The same argv list through node's child_process and perl's system/exec (a chaos round\n// of 916b515: `spawnSync('git', ['push'])` and `system(\"git\", \"push\")` pushed unread).\n// perl's list form needs two items; a single string is a shell line, read below.\nconst CHILD_PROCESS_LIST = /\\b(?:spawn|spawnSync|execFile|execFileSync)\\(\\s*(([\"'])[^\"']*\\2\\s*,\\s*\\[[^\\]]*)/g\nconst PERL_LIST = /\\b(?:system|exec)\\s*\\(?\\s*(([\"'])[^\"']*\\2(?:\\s*,\\s*([\"'])[^\"']*\\3)+)/g\n// `os.system` and `os.popen` hand their string to a shell (a Windows chaos round of\n// 916b515: `python -c \"import os; os.system('git push')\"` pushed and was read as nothing).\nconst SUBPROCESS_STRING = /(?:subprocess\\.(?:run|call|check_call|check_output|Popen)|\\bexec(?:Sync|File|FileSync)?|\\bos\\.(?:system|popen))\\(\\s*([\"'])(.*?)\\1/g\n// Whether offset `at` of an interpreter's script lies inside a string literal, as data.\n// A call there is text the script prints, not a call it makes (Codex review of\n// 3.1.0..e0ef6d4, F3: `print(\"run: os.system('git push')\")` ran nothing). A literal\n// that INTERPOLATES is code again inside its hole: `${…}` in a JS template or a perl\n// \"…\"/qq, `@{[…]}` in perl, `{…}` in a python f-string (Codex round 2, F2: each ran the\n// call it held and read as data). Python's triple quotes and perl's nested bracket\n// delimiters (`q{a {b} …}`) are followed. Not a parser: a quote inside a comment can\n// flip it, which only ever turns a refusal into advice (§16).\nconst PERL_QUOTE = /^(qq?)\\s*([^\\w\\s])/\nconst CLOSER = { '{': '}', '(': ')', '[': ']', '<': '>' }\nfunction literalAt(script, i, language) {\n  const c = script[i]\n  if (language === 'perl' && c === 'q' && !/[\\w$@%]/.test(script[i - 1] ?? '')) {\n    const quote = PERL_QUOTE.exec(script.slice(i, i + 8))\n    if (!quote) return null\n    const opener = quote[2]\n    return { length: quote[0].length, close: CLOSER[opener] ?? opener, nest: CLOSER[opener] ? opener : null,\n      escapes: true, holes: quote[1] === 'qq' ? ['${', '@{'] : [] }\n  }\n  if (c !== '\"' && c !== \"'\" && c !== '`') return null\n  if (language === 'python') {\n    const prefix = /[A-Za-z]{0,2}$/.exec(script.slice(Math.max(0, i - 2), i))[0].toLowerCase()\n    const triple = script.startsWith(c.repeat(3), i)\n    return { length: triple ? 3 : 1, close: triple ? c.repeat(3) : c, nest: null,\n      escapes: !prefix.includes('r'), holes: prefix.includes('f') ? ['{'] : [], fstring: prefix.includes('f') }\n  }\n  if (language === 'perl') {\n    if (c === '`') return null\n    return { length: 1, close: c, nest: null, escapes: true, holes: c === '\"' ? ['${', '@{'] : [] }\n  }\n  return { length: 1, close: c, nest: null, escapes: true, holes: c === '`' ? ['${'] : [] }\n}\nfunction insideLiteral(script, at, language) {",
+      "added": [
+        "// Whether offset `at` of an interpreter's script lies inside a string literal, as data.",
+        "// A call there is text the script prints, not a call it makes (Codex review of",
+        "// 3.1.0..e0ef6d4, F3: `print(\"run: os.system('git push')\")` ran nothing). A literal",
+        "// that INTERPOLATES is code again inside its hole: `${…}` in a JS template or a perl",
+        "// \"…\"/qq, `@{[…]}` in perl, `{…}` in a python f-string (Codex round 2, F2: each ran the",
+        "// call it held and read as data). Python's triple quotes and perl's nested bracket",
+        "// delimiters (`q{a {b} …}`) are followed. Not a parser: a quote inside a comment can",
+        "// flip it, which only ever turns a refusal into advice (§16).",
+        "const PERL_QUOTE = /^(qq?)\\s*([^\\w\\s])/",
+        "function literalAt(script, i, language) {",
+        "const c = script[i]",
+        "if (language === 'perl' && c === 'q' && !/[\\w$@%]/.test(script[i - 1] ?? '')) {",
+        "const quote = PERL_QUOTE.exec(script.slice(i, i + 8))",
+        "if (!quote) return null",
+        "const opener = quote[2]",
+        "return { length: quote[0].length, close: CLOSER[opener] ?? opener, nest: CLOSER[opener] ? opener : null,",
+        "escapes: true, holes: quote[1] === 'qq' ? ['${', '@{'] : [] }",
+        "}",
+        "if (c !== '\"' && c !== \"'\" && c !== '`') return null",
+        "if (language === 'python') {",
+        "const prefix = /[A-Za-z]{0,2}$/.exec(script.slice(Math.max(0, i - 2), i))[0].toLowerCase()",
+        "const triple = script.startsWith(c.repeat(3), i)",
+        "return { length: triple ? 3 : 1, close: triple ? c.repeat(3) : c, nest: null,",
+        "escapes: !prefix.includes('r'), holes: prefix.includes('f') ? ['{'] : [], fstring: prefix.includes('f') }",
+        "if (language === 'perl') {",
+        "if (c === '`') return null",
+        "return { length: 1, close: c, nest: null, escapes: true, holes: c === '\"' ? ['${', '@{'] : [] }",
+        "return { length: 1, close: c, nest: null, escapes: true, holes: c === '`' ? ['${'] : [] }",
+        "function insideLiteral(script, at, language) {"
+      ]
+    },
+    {
+      "commit": "aa3da2b",
+      "label": "F3 residual: perl's qq{ closes on }",
+      "from": "      if (quote) { open = CLOSER[quote[1]] ?? quote[1]; i += quote[0].length - 1 }",
+      "to": "      if (quote) { open = quote[1]; i += quote[0].length - 1 }",
+      "hand": {
+        "from": "    return { length: quote[0].length, close: CLOSER[opener] ?? opener, nest: CLOSER[opener] ? opener : null,",
+        "to": "    return { length: quote[0].length, close: opener, nest: null,"
+      },
+      "source": "const PERL_LIST = /\\b(?:system|exec)\\s*\\(?\\s*(([\"'])[^\"']*\\2(?:\\s*,\\s*([\"'])[^\"']*\\3)+)/g\n// `os.system` and `os.popen` hand their string to a shell (a Windows chaos round of\n// 916b515: `python -c \"import os; os.system('git push')\"` pushed and was read as nothing).\nconst SUBPROCESS_STRING = /(?:subprocess\\.(?:run|call|check_call|check_output|Popen)|\\bexec(?:Sync|File|FileSync)?|\\bos\\.(?:system|popen))\\(\\s*([\"'])(.*?)\\1/g\n// Whether offset `at` of an interpreter's script lies inside a string literal, as data.\n// A call there is text the script prints, not a call it makes (Codex review of\n// 3.1.0..e0ef6d4, F3: `print(\"run: os.system('git push')\")` ran nothing). A literal\n// that INTERPOLATES is code again inside its hole: `${…}` in a JS template or a perl\n// \"…\"/qq, `@{[…]}` in perl, `{…}` in a python f-string (Codex round 2, F2: each ran the\n// call it held and read as data). Python's triple quotes and perl's nested bracket\n// delimiters (`q{a {b} …}`) are followed. Not a parser: a quote inside a comment can\n// flip it, which only ever turns a refusal into advice (§16).\nconst PERL_QUOTE = /^(qq?)\\s*([^\\w\\s])/\nconst CLOSER = { '{': '}', '(': ')', '[': ']', '<': '>' }\nfunction literalAt(script, i, language) {\n  const c = script[i]\n  if (language === 'perl' && c === 'q' && !/[\\w$@%]/.test(script[i - 1] ?? '')) {\n    const quote = PERL_QUOTE.exec(script.slice(i, i + 8))\n    if (!quote) return null\n    const opener = quote[2]\n    return { length: quote[0].length, close: CLOSER[opener] ?? opener, nest: CLOSER[opener] ? opener : null,\n      escapes: true, holes: quote[1] === 'qq' ? ['${', '@{'] : [] }\n  }\n  if (c !== '\"' && c !== \"'\" && c !== '`') return null\n  if (language === 'python') {\n    const prefix = /[A-Za-z]{0,2}$/.exec(script.slice(Math.max(0, i - 2), i))[0].toLowerCase()\n    const triple = script.startsWith(c.repeat(3), i)\n    return { length: triple ? 3 : 1, close: triple ? c.repeat(3) : c, nest: null,\n      escapes: !prefix.includes('r'), holes: prefix.includes('f') ? ['{'] : [], fstring: prefix.includes('f') }\n  }\n  if (language === 'perl') {\n    if (c === '`') return null\n    return { length: 1, close: c, nest: null, escapes: true, holes: c === '\"' ? ['${', '@{'] : [] }\n  }\n  return { length: 1, close: c, nest: null, escapes: true, holes: c === '`' ? ['${'] : [] }\n}\nfunction insideLiteral(script, at, language) {\n  // Open literals, and inside them the interpolation holes that are code again.\n  const stack = []\n  for (let i = 0; i < at; i++) {\n    const top = stack[stack.length - 1]",
+      "added": [
+        "// Whether offset `at` of an interpreter's script lies inside a string literal, as data.",
+        "// A call there is text the script prints, not a call it makes (Codex review of",
+        "// 3.1.0..e0ef6d4, F3: `print(\"run: os.system('git push')\")` ran nothing). A literal",
+        "// that INTERPOLATES is code again inside its hole: `${…}` in a JS template or a perl",
+        "// \"…\"/qq, `@{[…]}` in perl, `{…}` in a python f-string (Codex round 2, F2: each ran the",
+        "// call it held and read as data). Python's triple quotes and perl's nested bracket",
+        "// delimiters (`q{a {b} …}`) are followed. Not a parser: a quote inside a comment can",
+        "// flip it, which only ever turns a refusal into advice (§16).",
+        "const PERL_QUOTE = /^(qq?)\\s*([^\\w\\s])/",
+        "function literalAt(script, i, language) {",
+        "const c = script[i]",
+        "if (language === 'perl' && c === 'q' && !/[\\w$@%]/.test(script[i - 1] ?? '')) {",
+        "const quote = PERL_QUOTE.exec(script.slice(i, i + 8))",
+        "if (!quote) return null",
+        "const opener = quote[2]",
+        "return { length: quote[0].length, close: CLOSER[opener] ?? opener, nest: CLOSER[opener] ? opener : null,",
+        "escapes: true, holes: quote[1] === 'qq' ? ['${', '@{'] : [] }",
+        "}",
+        "if (c !== '\"' && c !== \"'\" && c !== '`') return null",
+        "if (language === 'python') {",
+        "const prefix = /[A-Za-z]{0,2}$/.exec(script.slice(Math.max(0, i - 2), i))[0].toLowerCase()",
+        "const triple = script.startsWith(c.repeat(3), i)",
+        "return { length: triple ? 3 : 1, close: triple ? c.repeat(3) : c, nest: null,",
+        "escapes: !prefix.includes('r'), holes: prefix.includes('f') ? ['{'] : [], fstring: prefix.includes('f') }",
+        "if (language === 'perl') {",
+        "if (c === '`') return null",
+        "return { length: 1, close: c, nest: null, escapes: true, holes: c === '\"' ? ['${', '@{'] : [] }",
+        "return { length: 1, close: c, nest: null, escapes: true, holes: c === '`' ? ['${'] : [] }",
+        "function insideLiteral(script, at, language) {",
+        "// Open literals, and inside them the interpolation holes that are code again.",
+        "const stack = []",
+        "const top = stack[stack.length - 1]"
+      ]
+    },
+    {
+      "commit": "aa3da2b",
+      "label": "review e0ef6d4 F6: an unread shared task goes to the sole record",
+      "from": "    if (sole) for (const taskPath of unreadTasks) if (!owned.includes(taskPath)) owned.push(taskPath)",
+      "to": "    if (false) for (const taskPath of unreadTasks) if (!owned.includes(taskPath)) owned.push(taskPath)",
+      "hand": null,
+      "movedTo": "plugin/scripts/work-next.mjs",
+      "source": "#!/usr/bin/env node\n\nimport { readFile } from 'node:fs/promises'\nimport { readFileSync } from 'node:fs'\nimport { createHash, randomUUID } from 'node:crypto'\nimport { spawnSync } from 'node:child_process'\nimport { appendFileSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'\nimport os from 'node:os'\nimport path from 'node:path'\nimport { fileURLToPath } from 'node:url'\nimport { isMainModule } from './main-module.mjs'\nimport { shellWords } from './shell-words.mjs'\n\n// The standalone install's scope and PATH arithmetic live in one module, shared\n// with sync-standalone.mjs. Two copies of that list drifted apart once already.\nimport {\n  FORWARDER_MARK, SHADOW_SCOPE, barePathWinner, citeOrphan, orphans, wiredInSettings,\n} from './standalone-link.mjs'\n\nimport { ARTIFACT_OUTPUT_LIMIT } from './run-shell-hook.mjs'\nimport { findGitDir } from './git-directory.mjs'",
+      "added": []
+    }
+  ]
+}

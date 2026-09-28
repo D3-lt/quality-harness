@@ -7,6 +7,7 @@ import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 import { addedLineNumbers, addedLines, baselineOf, cacheKey, campaignPaths, changedDiffArgs, childEnv, classify, killedBy, leafTestsRun, renderLine, repointEntry, reusable, setKeyOf, shardByCost, staleEntries, summarise, testArgs, testSets, touchedBy } from '../scripts/mutate.mjs'
+import * as mutateModule from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -695,6 +696,9 @@ test('--changed reads its diff in one shape whatever the user configured', () =>
 const HERE = dirname(fileURLToPath(import.meta.url))
 const REPLAY = JSON.parse(readFileSync(join(HERE, 'fixtures', 'mutate-repoint', 'replay.json'), 'utf8')).rows
 const MECHANICAL = 6
+// ADR-071 T1: the 3.1.1 batch's hand repoints, taken the same way. A row the hand moved
+// to another file has `hand: null`: no proposal is right for it.
+const REPLAY_311 = JSON.parse(readFileSync(join(HERE, 'fixtures', 'mutate-repoint', 'replay-3.1.1.json'), 'utf8')).rows
 
 test('repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest', () => {
   let reproduced = 0
@@ -732,6 +736,57 @@ test('repointEntry reproduces the mechanical repoints of the 3.1.0 batch and ref
   // An entry that matches twice is ambiguous, and one that matches once is current.
   assert.ok(why({ label: 't', file: 'x', from: 'const', to: 'let' }, source, added).startsWith('ambiguous'))
   assert.equal(repointEntry({ label: 'c', file: 'x', from: 'const before = 1', to: 'const before = 2' }, source, added).verdict, 'current')
+})
+
+// ADR-071 T1. Over both batches' fixtures, reanchorEntry keeps repointEntry's verdict
+// where it repoints, re-anchors the rows the text around their edit still names, and
+// refuses the rest; no proposal may differ from the hand. In its window the ADR-067
+// help-flag row has one fitting line, where the whole file has two (ADR-071 Context).
+test('reanchorEntry reproduces the hand repoints repointEntry refused, and proposes no line the hand did not choose', () => {
+  const reanchorEntry = mutateModule.reanchorEntry
+  assert.equal(typeof reanchorEntry, 'function', 'reanchorEntry is exported')
+  const counts = { repointed: 0, reanchored: 0, refused: 0 }
+  for (const row of [...REPLAY, ...REPLAY_311]) {
+    const entry = { label: row.label, file: 'x', from: row.from, to: row.to }
+    const answer = reanchorEntry(entry, row.source, new Set(row.added))
+    counts[answer.verdict] += 1
+    if (answer.verdict === 'refused') continue
+    assert.ok(row.hand, `${row.label}: proposed, but the hand moved it to another file`)
+    assert.deepEqual({ from: answer.from, to: answer.to }, row.hand, row.label)
+    if (answer.verdict === 'repointed') assert.deepEqual(answer, repointEntry(entry, row.source, new Set(row.added)), row.label)
+  }
+  assert.deepEqual(counts, { repointed: 10, reanchored: 6, refused: 10 })
+
+  // Hand-built cases, one per rule, as ADR-069's own test does.
+  const newLine = '  if (isReady(alpha, beta)) return launch(gamma)'
+  const entry = { label: 'e', file: 'x', from: '  if (ready(alpha) && armed(beta)) return launch(gamma)', to: '  if (false) return launch(gamma)' }
+  const source = `const before = 1\n${newLine}\nconst after = 2\n`
+  const added = new Set([newLine.trim()])
+  assert.deepEqual(reanchorEntry(entry, source, added), { verdict: 'reanchored', from: newLine, to: '  if (false) return launch(gamma)' })
+  const why = (...args) => reanchorEntry(...args).why ?? ''
+  // The diff: none could be read.
+  assert.match(why(entry, source, null), /^the diff/)
+  // One added line: a sibling the change did not add; S before P; P twice on the line.
+  assert.match(why(entry, source, new Set()), /^one added line/)
+  const backwards = ') return launch(gamma);  if (isReady(alpha, beta)'
+  assert.match(why(entry, `const before = 1\n${backwards}\n`, new Set([backwards.trim()])), /^one added line/)
+  const twice = '  if (isReady(alpha) ||  if (beta)) return launch(gamma)'
+  assert.match(why(entry, `const before = 1\n${twice}\n`, new Set([twice.trim()])), /^one added line/)
+  // One added line, the tie-break: two fit, and the nearest of them is chosen.
+  const other = '  if (other(x)) return launch(gamma)'
+  assert.deepEqual(reanchorEntry(entry, `${other}\n${newLine}\n`, new Set([other.trim(), newLine.trim()])),
+    { verdict: 'reanchored', from: newLine, to: '  if (false) return launch(gamma)' })
+  // One in the file: the chosen line occurs twice.
+  assert.match(why(entry, `${source}${newLine}\n`, added), /^one in the file/)
+  // The anchors: an empty S anchors at the end of the line.
+  const verdictLine = '  const verdict = computeWith(alpha, beta, gamma)'
+  assert.deepEqual(reanchorEntry({ label: 's', file: 'x', from: '  const verdict = compute(alpha, beta)', to: '  const verdict = null' },
+    `${verdictLine}\n`, new Set([verdictLine.trim()])), { verdict: 'reanchored', from: verdictLine, to: '  const verdict = null' })
+  // A refusal at ADR-069's condition 5 passes through unchanged.
+  const sibling = { label: 'p', file: 'x', from: "  if (word === 'a' || word === 'b') return 1", to: "  if (word === 'b') return 1" }
+  const siblingSource = "const before = 1\n  if (word === 'a' || word === 'b' || word === 'c') return 1\n"
+  assert.deepEqual(reanchorEntry(sibling, siblingSource, new Set()), repointEntry(sibling, siblingSource, new Set()))
+  assert.match(repointEntry(sibling, siblingSource, new Set()).why, /^5:/)
 })
 
 test('campaignPaths keeps every campaign file inside the root it is given', () => {

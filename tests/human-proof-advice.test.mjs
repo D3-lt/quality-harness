@@ -69,3 +69,38 @@ test('a human-proof step with no sign-off is advised on, and done is unchanged',
     rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
 })
+
+// Corpus-chaos at 559827d (the React SPA corpus 4a/4b, the Laravel/React corpus, the PHP/Laravel corpus, the Go kernel corpus F5): the
+// advice named README.md, not the task file the step is in; a corpus whose steps carry no `[S<n>]`
+// id got nothing at all; and two steps read "names".
+test('the human-proof advice names the task file, reads a step without an id, and agrees in number', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-human-proof-shape-'))
+  try {
+    const tasks = join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks')
+    mkdirSync(tasks, { recursive: true })
+    const record = join(repo, 'docs', 'adr', 'ADR-001-x.md')
+    writeFileSync(record, '# ADR-001: X\n\n**Status:** Accepted\n\n## Context\n\nx\n\n## Decision\n\nx\n')
+    const body = (id, steps) => `# Task ADR-001-${id}: do\n\n**Depends-on:** none\n**Consumes:** none\n**Produces:** none\n\n`
+      + `## Ordered Steps\n\n${steps}\n\n## Acceptance\n\n${FENCE}bash\ntest -f built-${id}\n${FENCE}\n\n## Verification Log\n\n## Mutation Log\n`
+    writeFileSync(join(tasks, 'T1-idless.md'), body('T1', '1. See it fail first.\n2. Look at the page. [proof: human: the page renders]'))
+    writeFileSync(join(tasks, 'T2-two.md'), body('T2', '1. [S1] See it fail first. [proof: human: the page renders]\n2. [S2] Look again. [proof: human: the menu opens]'))
+    writeFileSync(join(tasks, 'README.md'), '# ADR-001 Tasks\n\n| Task | File | Status |\n|------|------|--------|\n'
+      + '| T1 | [T1-idless.md](T1-idless.md) | done |\n| T2 | [T2-two.md](T2-two.md) | done |\n')
+    for (const args of [['init', '-q'], ['add', '-A'], ['commit', '-qm', 'fixture']]) assert.equal(run('git', args, repo).status, 0)
+    for (const [id, file] of [['T1', 'T1-idless.md'], ['T2', 'T2-two.md']]) {
+      assert.equal(run('python3', [join(bin, 'adr-verify'), join(tasks, file)], repo).status, 1)
+      writeFileSync(join(repo, `built-${id}`), '')
+      assert.equal(run('python3', [join(bin, 'adr-verify'), join(tasks, file)], repo).status, 0)
+    }
+    const lint = run('python3', [join(bin, 'adr-lint'), record, tasks], repo)
+    const about = lint.stdout.split('\n').filter(line => line.includes('[proof: human'))
+    assert.equal(about.length, 2, lint.stdout)
+    assert.ok(about.some(line => line.startsWith('  advice: T1-idless.md: T1 is done') && /\bstep 2 names\b/.test(line)), lint.stdout)
+    assert.ok(about.some(line => line.startsWith('  advice: T2-two.md: T2 is done') && /\bS1, S2 name\b/.test(line)), lint.stdout)
+    const json = run('python3', [join(bin, 'adr-next'), tasks, '--json'], repo)
+    const done = Object.fromEntries(JSON.parse(json.stdout).done.map(inf => [inf.id, inf.unsigned_human_proof]))
+    assert.deepEqual(done, { T1: ['step 2'], T2: ['S1', 'S2'] }, json.stdout)
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  }
+})

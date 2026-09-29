@@ -77,3 +77,46 @@ test('a Status section is read, and an inline Status wins with advice when they 
     rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
 })
+
+// Corpus-chaos at 559827d (the TS generator corpus lead 2, the React SPA corpus lead 3, the Go kernel corpus F2/F6/F7): a
+// record adr-lint reads was invisible to the corpus readers. lifecycle's content test, and its
+// Python twin that adr-retire-check lists records with, accepted only an inline Status line, and
+// lifecycle looked for content records only under an `adr` directory — so an unnumbered record
+// whose Status is a `## Status` section, or one in docs/decisions, was linted and never listed.
+test('a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-section-listed-'))
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true })
+    const files = {
+      'docs/adr/no-number.md': '# A decision\n\n## Status\n\nAccepted\n\n## Context\n\nx\n',
+      'docs/decisions/decision-e.md': '# Decision E\n\n**Status**: Accepted\n\n## Context\n\nx\n',
+    }
+    for (const [rel, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(repo, rel)), { recursive: true })
+      writeFileSync(join(repo, rel), text)
+    }
+    const records = adrCorpus(repo)
+    for (const rel of Object.keys(files)) {
+      const entry = records.find(record => record.file === join(repo, rel))
+      assert.equal(entry?.kind, 'governing', `lifecycle adrCorpus on ${rel}: ${JSON.stringify(entry)}`)
+    }
+    // adr-retire-check lists records with `adr_files`; an unnumbered one lands in `unidentified`,
+    // which it names, so either list counts as seen — neither is the silent drop.
+    const listed = spawnSync('python3', ['-c', [
+      'import importlib.machinery, importlib.util, json, pathlib, sys',
+      "loader = importlib.machinery.SourceFileLoader('adr_retire_check', sys.argv[1])",
+      "module = importlib.util.module_from_spec(importlib.util.spec_from_loader('adr_retire_check', loader))",
+      'loader.exec_module(module)',
+      'seen = []',
+      'for root in sys.argv[2:]:',
+      '    unidentified = []',
+      '    found = module.adr_files(pathlib.Path(root), unidentified)',
+      '    seen += [p.name for paths in found.values() for p in paths] + [p.name for p in unidentified]',
+      'print(json.dumps(seen))',
+    ].join('\n'), join(bin, 'adr-retire-check'), join(repo, 'docs', 'adr'), join(repo, 'docs', 'decisions')], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(listed.status, 0, listed.stderr)
+    assert.deepEqual(JSON.parse(listed.stdout).sort(), ['decision-e.md', 'no-number.md'])
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  }
+})

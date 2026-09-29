@@ -634,9 +634,12 @@ def first_reference(text):
 
 
 def looks_like_record(text):
-    """Whether `text` reads as a decision record: a Status line, and a
-    `## Context` or `## Decision` section (lifecycle's `looksLikeRecord`)."""
-    return bool(_RECORD_STATUS.search(text) and _RECORD_SECTION.search(text))
+    """Whether `text` reads as a decision record: a Status — an inline line or, since the
+    corpus-chaos runs of 559827d, a `## Status` section (ADR-074 T2) — and a `## Context` or
+    `## Decision` section (lifecycle's `looksLikeRecord`). A section-only record was linted by
+    adr-lint and silently absent from adr-retire-check's listing until then."""
+    return bool((_RECORD_STATUS.search(text) or status_section(text) is not None)
+                and _RECORD_SECTION.search(text))
 
 
 def record_status(text):
@@ -673,24 +676,32 @@ def status_section(text):
 
 # ADR-074 T4: a step that names `[proof: human: <reason>]`, and the step identity it hangs off.
 _HUMAN_PROOF = re.compile(r"\[proof: human: (?P<reason>[^\]\r\n]*)\]")
-_STEP_ID = re.compile(r"^\s*(?:\d+\.|[-*])\s+\[S(?P<number>[1-9]\d*)\]")
+# A step's own identity: `[S<n>]` under Proof map v1, or its number in a corpus that gives none.
+_STEP_ID = re.compile(r"^\s*(?:(?P<ordinal>\d+)\.|[-*])\s+(?:\[S(?P<number>[1-9]\d*)\])?")
 
 
 def unsigned_human_proof_steps(text):
     """ADR-074 T4: the Ordered Steps (`S<n>`) that name `[proof: human: …]` with a reason, when
     the task's Verification Log holds no `· human-observed ·` sign-off; [] otherwise.
 
-    One reader for adr-lint's advice and adr-next's note, so the two cannot name different
-    steps. It asks only whether a sign-off EXISTS: whether its note reads as a stop is adr-next's
-    `human_outcome`, and `done` keeps its own rule — this is advice, never a refusal."""
+    One reader for adr-lint's advice and adr-next's note, so when both speak they name the same
+    steps. They do not always both speak: adr-lint advises on a task CLAIMED done, adr-next notes
+    only a task its evidence makes done (a claimed-done task without evidence is READY there, with
+    its own reason). It asks only whether a sign-off EXISTS: whether its note reads as a stop is
+    adr-next's `human_outcome`, and `done` keeps its own rule — this is advice, never a refusal."""
     sections = sections_of(text)
     if any("· human-observed ·" in line for line in sections.get("Verification Log", [])):
         return []
     steps, current = [], None
     for line in sections.get("Ordered Steps", []):
         step = _STEP_ID.match(line)
-        if step:
+        # An item with an `[S<n>]` id is that step; a numbered item without one is `step <n>`
+        # (corpora that write no ids went unadvised, the React SPA corpus at 559827d); a bullet without an id
+        # is part of the step above it.
+        if step and step.group("number"):
             current = f"S{step.group('number')}"
+        elif step and step.group("ordinal"):
+            current = f"step {step.group('ordinal')}"
         if (current and current not in steps
                 and any(proof.group("reason").strip() for proof in _HUMAN_PROOF.finditer(line))):
             steps.append(current)

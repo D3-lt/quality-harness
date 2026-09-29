@@ -121,6 +121,15 @@ from record import sections_of, repeated_headings, unterminated_fence, acceptanc
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible  # noqa: E402
 
 
+def one_line(value):
+    """`value` as it may be printed: one line, its controls written as escapes (`record.visible`).
+
+    A path, an option or a finding holding a newline printed a line this gate never wrote, such as
+    `[PASS] forged.md` (§319's addendum, A6, and the Codex review of ffd4892).
+    """
+    return visible(str(value), keep="")
+
+
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
 TASK_HEADERS = ["Depends-on", "Covers", "Produces", "Consumes"]
@@ -1032,7 +1041,7 @@ def read_named(path):
     try:
         return Path(path).read_text(errors="replace", encoding="utf-8")
     except OSError as exc:
-        print(f"[adr-lint] could not run: {path} — {exc}", file=sys.stderr)
+        print(f"[adr-lint] could not run: {one_line(path)} — {one_line(exc)}", file=sys.stderr)
         sys.exit(2)
 
 
@@ -1045,7 +1054,7 @@ def refuse_irregular(path):
     """
     target = Path(path)
     if target.exists() and not target.is_file():
-        print(f"[adr-lint] could not run: {path} — not a regular file", file=sys.stderr)
+        print(f"[adr-lint] could not run: {one_line(path)} — not a regular file", file=sys.stderr)
         sys.exit(2)
 
 
@@ -1079,17 +1088,28 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
     elif re.search(r"^\*\*Status:\*\*[ \t]*\r?$", text, re.M):
         errors.advise(f"{adr_path.name}: the **Status:** line is empty, so no reader can tell "
                       f"whether this decision was taken")
-    # §307 F-1. A Status no reader recognises lints PASS, while every reader treats the record as
-    # not Accepted: lifecycle's statusKind governs only an Accepted, adr-next calls anything else
-    # undecided. So say it. The FIRST WORD decides, as it does in those readers, so a recognised
-    # word with a qualifier after it (`Accepted (partially)`, `Superseded by ADR-7`) is that word.
+    # §307 F-1. A Status adr-lint does not recognise linted PASS in silence; it is said now, as
+    # advice. The FIRST WORD decides, so `Accepted (partially)` and `Superseded by ADR-7` are that
+    # word. The value is read with `*` and backticks trimmed from its EDGES only, as adr-lint's two
+    # other Status readers read it.
+    # ⚠ THE ADVICE SPEAKS FOR ADR-LINT AND FOR ADR-NEXT'S RULE, NEVER FOR "THE READERS": they do
+    # not agree (Codex on ffd4892, #5). lifecycle removes every `*`, `_` and backtick first, so it
+    # reads `_Accepted_` as Accepted where adr-next does not; and its JS `\b` is ASCII, so it reads
+    # `Acceptedé` as Accepted where Python does not. Removing the markup here too silenced
+    # `_Proposed_`, which the other readers do not read as Proposed (a review of that fix), so the
+    # advice names lifecycle's reading instead. U+FFFD is what bytes that are not UTF-8 are read as,
+    # and valid UTF-8 can hold it too, so the character is named, not its origin (#6).
     else:
         status_value = re.search(r"^\*\*Status:\*\*[ \t]*(.+?)[ \t]*$", text, re.M).group(1).strip().strip("`*")
         if not re.match(RECORD_STATUS_WORDS, status_value, re.I):
-            errors.advise(f"{adr_path.name}: Status `{status_value}` is not a status these readers recognise "
-                          f"(Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated), so they "
-                          f"treat this record as not Accepted — a plan, not a work order"
-                          + (", and it holds bytes that are not UTF-8" if chr(0xFFFD) in status_value else ""))
+            errors.advise(f"{adr_path.name}: Status `{status_value}` starts with no status adr-lint recognises "
+                          f"(Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated); adr-next "
+                          f"calls a record undecided, a plan and not a work order, unless its Status starts with "
+                          f"the word Accepted"
+                          + ("; lifecycle.mjs reads it with `*`, `_` and backticks removed, and may read it otherwise"
+                             if re.search(r"[*_`]", status_value) else "")
+                          + ("; the value holds U+FFFD, which is what bytes that are not UTF-8 are read as"
+                             if chr(0xFFFD) in status_value else ""))
     secs = sections_of(text)
     # An ADR has no digest, so no repeat blocks here; every section below is read
     # last-wins, and the author is told so (ADR-045 T5).
@@ -5680,7 +5700,7 @@ def reject_unknown_flags(known=()):
         sys.exit(0)
     unknown = [a for a in sys.argv[1:] if a.startswith("--") and a not in known]
     if unknown:
-        print(f"unknown option: {unknown[0]}", file=sys.stderr)
+        print(f"unknown option: {one_line(unknown[0])}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -6035,7 +6055,7 @@ def main():
     sys.argv = [sys.argv[0], *positional]
     adr = Path(sys.argv[1])
     if not adr.exists():
-        print(f"ADR not found: {adr}")
+        print(f"ADR not found: {one_line(adr)}")
         sys.exit(1)
     # A DIRECTORY is the first thing anyone types — `adr-lint docs/adr`, or the
     # record's own `ADR-002/` sitting beside `ADR-002.md`. It used to reach
@@ -6064,14 +6084,14 @@ def main():
                         sibling = candidate
                         break
         records = sorted(str(f) for f in adr.glob("*.md") if f.name.lower() != "readme.md")
-        print(f"expected a record FILE, got a directory: {adr}")
+        print(f"expected a record FILE, got a directory: {one_line(adr)}")
         if sibling.exists():
-            print(f"  the record for this directory is {sibling} — lint that, and this "
+            print(f"  the record for this directory is {one_line(sibling)} — lint that, and this "
                   f"directory's tasks are found beside it")
         elif records:
             print("  this directory holds records; lint one of them:")
             for found in records[:5]:
-                print(f"    {found}")
+                print(f"    {one_line(found)}")
             if len(records) > 5:
                 print(f"    (+{len(records) - 5} more)")
         else:
@@ -6095,7 +6115,7 @@ def main():
     text = read_named(adr)
     if not re.match(r"(?:adr|spec)[-_]?\d", adr.name, re.I) and not re.search(
             r"(?m)^\*\*Status:\*\*", text):
-        print(f"not-recognised: {adr} has no **Status:** line and is not named ADR-…, "
+        print(f"not-recognised: {one_line(adr)} has no **Status:** line and is not named ADR-…, "
               f"so nothing here was checked. This is not a finding about that file — "
               f"`adr-lint` reads one record at a time, and a backlog, a README or a "
               f"pre-registration kept beside the records is not one. `adr-debt <corpus-dir>` "
@@ -6123,7 +6143,7 @@ def main():
     if len(sys.argv) > 2:
         tasks_dir = Path(sys.argv[2])
         if not tasks_dir.is_dir():
-            print(f"tasks dir not found: {tasks_dir}")
+            print(f"tasks dir not found: {one_line(tasks_dir)}")
             sys.exit(1)
     else:
         tasks_dir = None
@@ -6305,7 +6325,7 @@ def main():
         errors.advice[:] = kept
     status = "PASS" if not errors else "FAIL"
     if errors.demotion:
-        print(f"[strictFrom] {errors.demotion}")
+        print(f"[strictFrom] {one_line(errors.demotion)}")
     # BACKLOG §143: the verdict names the BINARY as well as the record. The
     # suffix rides on the verdict line rather than a line of its own because the
     # case that produced this is someone pasting `[PASS] …` into a PR body: the
@@ -6349,12 +6369,12 @@ def main():
             # Two causes, said apart: the reason printed was "no git metadata directory
             # here" over a note that was there and unparsable (F-5b, 626934a).
             where = ("no git metadata directory here" if note is None
-                     else f"the note at {note.name} could not be read as this version's, or not stored")
+                     else f"the note at {one_line(note.name)} could not be read as this version's, or not stored")
             print(f"  survival: UNKNOWN — {where}. Nothing has been shown to be seen before "
                   "or not, which is NOT \"every finding is new\" (ADR-005).")
         else:
             for message, runs in sorted(survival, key=lambda pair: -pair[1]):
-                print(f"  survival: {runs} run(s) unchanged · {message}")
+                print(f"  survival: {runs} run(s) unchanged · {one_line(message)}")
     sys.exit(1 if errors else 0)
 
 
@@ -6366,5 +6386,5 @@ if __name__ == "__main__":
     try:
         main()
     except OSError as exc:
-        print(f"[adr-lint] could not run: {exc.filename or 'a file'} — {exc.strerror or exc}", file=sys.stderr)
+        print(f"[adr-lint] could not run: {one_line(exc.filename or 'a file')} — {one_line(exc.strerror or exc)}", file=sys.stderr)
         sys.exit(2)

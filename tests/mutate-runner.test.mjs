@@ -1463,3 +1463,49 @@ test('a narrowed killer whose name ends in a source extension is counted, and a 
     assert.ok(campaign.stdout.includes('1/1 mutations were noticed.'), campaign.stdout)
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
+
+// Codex review of ffd4892, P1. A suite prints `✔ <name>` when it completes, in the same shape as a
+// test that ran, so a suite whose children were all skipped, or an empty one, counted as a leaf
+// test that executed: `baselineOf` said `pass` with nothing run. The count is capped at what the
+// summary says passed or failed, which a suite and a skip never add to. Driven against real node
+// output, because fabricated stdout is what let the first guard pass (2026-09-06).
+test('a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it', () => {
+  const probe = mkdtempSync(join(tmpdir(), 'qh-suite-leaf-'))
+  const file = 'suite.test.mjs'
+  // The file prints a summary-shaped line of its own before the reporter's summary, which is
+  // the LAST block (a review of the first cap read the first match, 2026-09-29).
+  writeFileSync(join(probe, file), "import test, { describe } from 'node:test'\n"
+    + "console.log('ℹ pass 7')\n"
+    + "describe('killer.js', () => { test.skip('child', () => {}) })\n"
+    + "describe('empty suite', () => {})\n"
+    + "test('real one', () => {})\n")
+  // A second file that the pattern matches nothing in: Node prints its wrapper as a passing test
+  // and counts it in `ℹ pass`, which lifted the cap by one.
+  writeFileSync(join(probe, 'other.test.mjs'), "import test from 'node:test'\ntest('other', () => {})\n")
+  const env = childEnv({ ...process.env }, join(probe, '.child'))
+  const runNode = (only, tests = [file]) => spawnSync(process.execPath, testArgs(probe, { tests, only }),
+    { cwd: probe, encoding: 'utf8', env, timeout: 60_000, windowsHide: true })
+  try {
+    const skipped = runNode('^(?:killer\\.js)$')
+    assert.equal(skipped.status, 0, skipped.stderr)
+    assert.equal(leafTestsRun(skipped.stdout, [join(probe, file)], ['killer.js']), 0, skipped.stdout)
+    assert.equal(baselineOf(skipped, [join(probe, file)], ['killer.js']).state, 'short', skipped.stdout)
+    const empty = runNode('^(?:empty suite)$')
+    assert.equal(empty.status, 0, empty.stderr)
+    assert.equal(leafTestsRun(empty.stdout, [join(probe, file)]), 0, empty.stdout)
+    assert.equal(baselineOf(empty, [join(probe, file)]).state, 'unrun', empty.stdout)
+    // The control: a test that ran is still counted, beside a suite that ran none.
+    const mixed = runNode('^(?:real one|killer\\.js)$')
+    assert.equal(mixed.status, 0, mixed.stderr)
+    assert.equal(leafTestsRun(mixed.stdout, [join(probe, file)], ['real one', 'killer.js']), 1, mixed.stdout)
+    assert.equal(baselineOf(mixed, [join(probe, file)], ['real one']).state, 'pass', mixed.stdout)
+    // And output with no summary at all says nothing about how many ran.
+    assert.equal(leafTestsRun('✔ one (1ms)\n'), null)
+    // Two files, one matching nothing: its wrapper is not a leaf, and it does not lift the cap.
+    const two = runNode('^(?:killer\\.js)$', [file, 'other.test.mjs'])
+    assert.equal(two.status, 0, two.stderr)
+    const both = [join(probe, file), join(probe, 'other.test.mjs')]
+    assert.equal(leafTestsRun(two.stdout, both, ['killer.js']), 0, two.stdout)
+    assert.equal(baselineOf(two, both, ['killer.js']).state, 'short', two.stdout)
+  } finally { rmSync(probe, { recursive: true, force: true }) }
+})

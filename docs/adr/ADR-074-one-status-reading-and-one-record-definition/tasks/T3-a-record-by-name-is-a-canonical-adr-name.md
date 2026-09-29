@@ -66,5 +66,21 @@ Stop and ask if one of this machine's corpora names its records `adr<digit>` wit
 - lifecycle's corpus reader (permanent: boundary: its content test already requires a Status and one of those headings)
 
 ## Verification Log
+- 2026-09-29 · 9625781* · exit 1 · `set -o pipefail …` · acceptance-sha256:b62b7d219898cd731f536a334cdede03afd435eae3f2759008a200e51d948c52 · ms:655 · test-lock-sha256:b7998b75b7e78f793ef90f1d7135c6c50698d2d088c7c51abbd37be5b2c7d5a0 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL3JlY29yZC1ieS1uYW1lLnRlc3QubWpzCWEgZmlsZSBuYW1lZCBhZHI8ZGlnaXQ-IHdpdGhvdXQgcmVjb3JkIGNvbnRlbnQgaXMgbm90IGEgcmVjb3JkLCBhbmQgYSBjYW5vbmljYWwgQURSLTxuPiBuYW1lIHN0aWxsIGlzCTZjNmZmM2QzN2UwNmJmZGQ5ZTUwMGVjODQ2M2RiYWU2N2MzOWNlOWM2MDI5NjdjZWM1MjA0MzNlNjZjYWRiYTc
+  ```
+  --- last 1 line(s) of stdout
+  0
+  --- last 10 line(s) of stderr (of 41 after folding 41 raw)
+    ...
+  1..1
+  # tests 1
+  # suites 0
+  # pass 0
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 553.515083
+  ```
 
 ## Mutation Log

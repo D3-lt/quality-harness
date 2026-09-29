@@ -11064,7 +11064,7 @@
       "tests": [
         "tests/record-identity.test.mjs"
       ],
-      "only": "the corpus reader lists dated records",
+      "only": "^a record under a frozen archive with no record-directory name is listed by its content$",
       "from": "    else if (frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)",
       "to": "    else if (false && frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)"
     },
@@ -11194,7 +11194,7 @@
       "tests": [
         "tests/record-identity.test.mjs"
       ],
-      "only": "a catalog this reader cannot read",
+      "only": "^a catalog this reader cannot read, under a non-record name, leaves the record listed$",
       "from": "    if (underFrozenArchive(root, parts, frozen, listed) === false) return false",
       "to": "    if (underFrozenArchive(root, parts, frozen, listed) !== true) return false"
     },
@@ -17159,16 +17159,6 @@
       "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),",
       "to": "      advice, ...frozen(record),",
       "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
-    },
-    {
-      "label": "§321 probe: the matrix holds advice to the records the gate checked (§18)",
-      "file": "plugin/scripts/corpus-probe.mjs",
-      "tests": [
-        "tests/corpus-matrix.test.mjs"
-      ],
-      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),",
-      "to": "      advice, ...frozen(record),",
-      "only": "^corpus madr: every reader answers as reviewed, through a symlink$"
     },
     {
       "label": "§321 probe: the verdict line is found by name, not by its bracket",

@@ -131,13 +131,20 @@ for (const [name, dir] of corpora) {
     // beside readers that counted the same file. Declared in every expectation
     // and, until a review noticed, asserted by none (Codex, c1f546a).
     assert.deepEqual(report.adrLint.map(entry => ({ file: entry.file, verdict: entry.verdict })),
-      expected.adrLint.map(({ reasonMatches, ...entry }) => entry), `${name}: adr-lint:\n${JSON.stringify(report.adrLint, null, 2)}`)
+      expected.adrLint.map(({ reasonMatches, adviceMatches, ...entry }) => entry), `${name}: adr-lint:\n${JSON.stringify(report.adrLint, null, 2)}`)
     // A verdict can be right for the wrong reason. Where an expectation names the
     // reason, the report's must match it: a stale Tests row's FAIL names the row's
     // `file:line` (§280 item 2), and a different FAIL on the same record is not it.
     for (const { file, reasonMatches } of expected.adrLint.filter(entry => entry.reasonMatches !== undefined)) {
       const reason = report.adrLint.find(entry => entry.file === file)?.reason
       assert.ok(typeof reason === 'string' && new RegExp(reasonMatches).test(reason), `${name}: ${file} reason must match /${reasonMatches}/, got ${JSON.stringify(reason)}`)
+    }
+    // A PASS the gate advised on read as a bare PASS until the probe carried the advice (BACKLOG
+    // §319's addendum). Where an expectation names advice, one of the entry's lines matches it.
+    for (const { file, adviceMatches } of expected.adrLint.filter(entry => entry.adviceMatches !== undefined)) {
+      const advice = report.adrLint.find(entry => entry.file === file)?.advice
+      assert.ok(Array.isArray(advice) && advice.some(line => new RegExp(adviceMatches).test(line)),
+        `${name}: ${file} advice must include /${adviceMatches}/, got ${JSON.stringify(advice)}`)
     }
     // A frozen record is still linted, and its entry says it is frozen, so a reader
     // can set an archive's verdicts aside. Reported from a Laravel corpus whose
@@ -159,6 +166,14 @@ for (const [name, dir] of corpora) {
       assert.ok(typeof entry.reason === 'string' && entry.reason.length > 0, `${name}: ${entry.file} FAILs with no reason`)
     }
     assert.ok(report.adrLint.filter(e => e.verdict !== 'FAIL').every(e => !('reason' in e)), `${name}: only a FAIL carries a reason`)
+    // Advice rides only under a verdict the gate reached: it prints advice below its [PASS] or
+    // [FAIL] line and nowhere else, so a list on a record it never checked — madr's
+    // not-recognised records here — would be an observation nobody made (ADR-005; the review of
+    // BACKLOG §319's addendum fix).
+    for (const entry of report.adrLint) {
+      assert.equal('advice' in entry, entry.verdict === 'PASS' || entry.verdict === 'FAIL',
+        `${name}: ${entry.file} is ${entry.verdict} and ${'advice' in entry ? 'carries' : 'lacks'} an advice list`)
+    }
     assert.deepEqual(report.sweep.map(entry => ({ root: entry.root, claims: entry.claims, held: entry.held, false: entry.false, superseded: entry.superseded, unrunnable: entry.unrunnable })), expected.sweep, `${name}: sweep buckets:\n${JSON.stringify(report.sweep, null, 2)}`)
     assert.deepEqual(report.disagreements.map(d => ({ task: d.task, adrNext: d.adrNext, workNext: d.workNext })), expected.disagreements, `${name}: readers disagree:\n${JSON.stringify(report.disagreements, null, 2)}`)
     for (const line of expected.sessionStart.mustMatch ?? []) {

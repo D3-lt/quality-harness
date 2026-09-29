@@ -950,6 +950,31 @@ export function addedLineNumbers(diff) {
   return numbers
 }
 
+// What each field of a catalogue entry must be, and the words that say so. `only` may be absent.
+const ENTRY_FIELDS = [
+  ['label', 'a string', value => typeof value === 'string'],
+  ['file', 'a string', value => typeof value === 'string'],
+  ['from', 'a string', value => typeof value === 'string'],
+  ['to', 'a string', value => typeof value === 'string'],
+  ['tests', 'an array of strings', value => Array.isArray(value) && value.every(test => typeof test === 'string')],
+  ['only', 'a string when present', value => value === undefined || typeof value === 'string'],
+]
+
+// Why `catalogue` is not `{ mutations: [entry, …] }`, or null when it is (BACKLOG §319 item 12).
+// A catalogue of another shape crashed later with a TypeError at exit 1, the status of a stale
+// finding, and an entry that was not a mutation passed a check of the top level alone: `--stale`
+// printed `unreadable  undefined :: undefined` for `{"mutations":[42]}`. The first bad entry is
+// named by its index, and by its label when it has one, among over a thousand.
+function catalogueShapeError(catalogue) {
+  if (!Array.isArray(catalogue?.mutations)) return 'it must be a JSON object whose "mutations" is an array'
+  for (const [index, entry] of catalogue.mutations.entries()) {
+    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return `entry ${index} must be an object`
+    const wrong = ENTRY_FIELDS.find(([key, , holds]) => !holds(entry[key]))
+    if (wrong) return `entry ${index}${typeof entry.label === 'string' ? ` (${JSON.stringify(entry.label)})` : ''}'s "${wrong[0]}" must be ${wrong[1]}`
+  }
+  return null
+}
+
 export function main(argv) {
   // An unknown option used to be ignored in silence, and the run it produced
   // looked exactly like the run that was asked for. Measured 2026-08-27:
@@ -982,6 +1007,12 @@ export function main(argv) {
     process.stderr.write(`mutate: could not read ${paths.catalogue}: ${error?.message ?? error}\n`)
     return 2
   }
+  // Refused before any branch reads it, at exit 2: could-not-read, never a stale finding's 1.
+  const malformed = catalogueShapeError(catalogue)
+  if (malformed) {
+    process.stderr.write(`mutate: ${paths.catalogue} is not a mutation catalogue: ${malformed}\n`)
+    return 2
+  }
   const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
   // ADR-072 T4: --narrow refuses an option it does not take before any branch does work,
   // or `--repoint --write` would rewrite the catalogue first and the refusal come after it.
@@ -1004,7 +1035,7 @@ export function main(argv) {
     // ADR-072: a narrowed entry whose killer is gone selects nothing; name it too.
     const orphaned = undefinedKillers(catalogue.mutations, readSource)
     for (const entry of orphaned) {
-      console.log(`undefined  ${entry.label} :: no file it names defines ${entry.missing.map(name => JSON.stringify(name)).join(', ')}`)
+      console.log(`killer gone  ${entry.label} :: no file it names defines ${entry.missing.map(name => JSON.stringify(name)).join(', ')}`)
     }
     console.log(stale.length
       ? `${stale.length} catalogue entr${stale.length === 1 ? 'y does' : 'ies do'} not match the source exactly once`

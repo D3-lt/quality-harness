@@ -43,9 +43,9 @@ test('a task proves its trajectory with a red entry OR a killed mutant, and neit
   })
   const totals = measure(taskFiles(dir))
   assert.equal(totals.evidenced, 4)
-  assert.equal(totals.showsFailing, 2, 'red and killed each count; green-only and survived-only do not')
+  assert.equal(totals.shownAbleToFail, 2, 'red and killed each count; green-only and survived-only do not')
   assert.equal(totals.outcomeOnly, 2)
-  assert.equal(totals.showsFailing + totals.outcomeOnly, totals.evidenced, 'the buckets are total')
+  assert.equal(totals.shownAbleToFail + totals.outcomeOnly, totals.evidenced, 'the buckets are total')
   assert.equal(totals.rate, 0.5)
   assert.equal(totals.survived, 1, 'a survivor is counted and is not proof the fence can fail')
 
@@ -191,7 +191,7 @@ test('a mutation verdict is never parsed and then discarded, whichever verdict i
   assert.equal(totals.killed, 1)
   // The survivor and the inconclusive show nothing about whether the fence can
   // fail, so they are outcome-only. Only the killed mutant proves a trajectory.
-  assert.equal(totals.showsFailing, 1)
+  assert.equal(totals.shownAbleToFail, 1)
   assert.equal(totals.outcomeOnly, 2)
 
   // Shown able to answer the other way in the same test (CLAUDE.md §4): a task

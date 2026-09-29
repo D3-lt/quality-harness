@@ -20,7 +20,8 @@ Checks:
            every Proof map: v1 step resolves to a Tests row or exact non-test proof ·
            recognized Go fences can select the PASS marker they require
   README : listed task IDs ↔ task files match (task files are the source of truth) ·
-           wave table required only for >5 tasks
+           wave table required only for >5 tasks · a row with fewer cells than its
+           table's header advises
   DAG    : edges from Depends-on + Consumes (T-id refs and backticked contract tokens
            matching a sibling's Produces) · no cycles · wave/order table is a valid
            topological leveling: every producer lands in a strictly earlier wave/order
@@ -647,6 +648,7 @@ def task_tests_table(rows):
 
 def spec_ids(spec_path):
     """Fact + scenario IDs tagged @spec/@implemented in the spec."""
+    refuse_special(spec_path)
     text = Path(spec_path).read_text(errors="replace", encoding="utf-8")
     ids = set()
     for m in re.finditer(r"^\|\s*(F-\d+)\s*\|.*\|\s*(@spec|@implemented)\s*(?:\|.*)?$",
@@ -1056,6 +1058,17 @@ def refuse_irregular(path):
     if target.exists() and not target.is_file():
         print(f"[adr-lint] could not run: {one_line(path)} — not a regular file", file=sys.stderr)
         sys.exit(2)
+
+
+def refuse_special(path):
+    """refuse_irregular for a read whose site already answers a directory its own way.
+
+    A FIFO named by a Spec: line, as a tasks README or by a Tests row waited like a FIFO
+    record did (BACKLOG §319's addendum). A directory there keeps the answer its site gave.
+    `is_dir` follows a link, so a link to a FIFO is still refused.
+    """
+    if not Path(path).is_dir():
+        refuse_irregular(path)
 
 
 def check_adr(adr_path, errors, root=_ROOT_UNSET):
@@ -3667,6 +3680,35 @@ def leaves_the_tree(pointer):
             or re.match(r"^[A-Za-z]:", pointer) is not None)
 
 
+def mutation_labels(root):
+    """The labels in `root`'s tests/mutations.json, and why they could not be read.
+
+    `(labels, None)`, or `(None, why)` when the file is there and is not a catalogue: not
+    JSON, nested too deep for the parser, or not an object whose "mutations" is a list of
+    objects each with a string "label". No file at all is `(set(), None)`: nothing there is
+    a mutation, which is seen, not assumed.
+
+    Never raises. A file of another shape under that name raised out of check_enforcement,
+    which runs outside `protected()`, so linting a record with an Enforced-by pointer ended
+    in a traceback; and an unparsable one read as holding no labels, so the advice said a
+    pointer "is not a mutation label" of a catalogue nobody read (ADR-005).
+    """
+    catalogue = root / "tests" / "mutations.json"
+    if not catalogue.is_file():
+        return set(), None
+    try:
+        data = json.loads(catalogue.read_text(encoding="utf-8", errors="replace"))
+    except (ValueError, OSError, RecursionError) as exc:
+        return None, f"{type(exc).__name__}: {exc}"
+    entries = data.get("mutations") if isinstance(data, dict) else None
+    if not isinstance(entries, list):
+        return None, 'it is not a JSON object whose "mutations" is a list'
+    for index, entry in enumerate(entries):
+        if not isinstance(entry, dict) or not isinstance(entry.get("label"), str):
+            return None, f'its entry {index} is not an object with a string "label"'
+    return {entry["label"] for entry in entries}, None
+
+
 def resolve_enforcement(pointer, root, tracked=None):
     """Which FORM a pointer resolved as, or None when it names nothing here.
 
@@ -3684,16 +3726,9 @@ def resolve_enforcement(pointer, root, tracked=None):
     """
     if root is None or leaves_the_tree(pointer):
         return None
-    catalogue = root / "tests" / "mutations.json"
-    if catalogue.is_file():
-        try:
-            labels = {m.get("label") for m
-                      in json.loads(catalogue.read_text(encoding="utf-8", errors="replace"))
-                      .get("mutations", [])}
-            if pointer in labels:
-                return "mutation"
-        except (ValueError, OSError):
-            pass
+    labels, _ = mutation_labels(root)
+    if labels and pointer in labels:
+        return "mutation"
     if "::" in pointer:
         rel, name = pointer.split("::", 1)
         f = resolve_test_file(root, rel.strip(), tracked)
@@ -3781,6 +3816,13 @@ def check_enforcement(text, path, errors, root, tracked=None):
     """
     for pointer in enforcement_pointers(text):
         if resolve_enforcement(pointer, root, tracked) is None:
+            unread = mutation_labels(root)[1] if root is not None else None
+            if unread:
+                errors.advise(f"{path.name}: Enforced-by names `{pointer}`, which is not a `path::name` "
+                              f"test that exists or a gate in bin/, and whether it is a mutation label "
+                              f"is UNPROVEN: tests/mutations.json could not be read as a catalogue "
+                              f"({unread}). Make it one, or name the check another way")
+                continue
             errors.advise(f"{path.name}: Enforced-by names `{pointer}`, which is not a mutation "
                           f"label in tests/mutations.json, a `path::name` test that exists, or a "
                           f"gate in bin/ — a pointer to nothing is the rot this header exists to "
@@ -4544,6 +4586,8 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None):
             if not spaced and not IDENTIFIER_TEST_NAME.match(name):
                 continue  # placeholder like "—" or a prose description
             f = resolve_test_file(root, rel, tracked)
+            if f is not None:
+                refuse_special(f)
             if spaced:
                 # Advice only, and only for the one observation it can make: the
                 # title is not in the file. A missing file stays unreported for a
@@ -5680,6 +5724,72 @@ def check_readme(readme, task_stems, errors):
         errors.advise(f"README.md: {len(task_stems)} tasks (>5) requires a wave table")
 
 
+def check_readme_row_widths(text, errors):
+    """A README row with fewer cells than its table's header is SAID, not read as whole.
+
+    BACKLOG §319's addendum, B9: an Execution Order row whose Depends-on cell was
+    dropped linted PASS and nothing said so, and neither did a Task Index row whose
+    last cell, Status, was gone. Markdown shows a missing cell as an empty one, so
+    the index silently says nothing where the author wrote something.
+
+    Advice, as the README's other shape findings are (an unlisted task file, an
+    unrecognised status word) and as adr-retire-check's catalog row width is. Not
+    every README finding advises: a listed task with no file blocks, and so does an
+    order that breaks an edge, because each says the index contradicts a task file.
+    This says only that a row is short, and the task files win (CLAUDE.md §10).
+    Which cell was dropped is not observable — only that one was — so the finding
+    names the row and the header, not a column.
+    A header is a row followed by a separator; a table ends at a line that is not
+    a row. Cells split as Markdown splits them: one outer pipe each side, never an
+    escaped one, so `| 1 | T1 ||` is three cells and says nothing here.
+
+    A table inside a fenced block or an HTML comment is an example, a template's
+    or a doc's, and CommonMark renders neither as a table, so neither is measured.
+    The comment is the HTML BLOCK CommonMark reads (a line opening `<!--` within
+    three spaces of indent, through the line holding `-->`), never an inline one
+    stripped out of a row: a row's cells split before inline HTML is read, so
+    `| 1 | T1 <!-- x | y --> |` is three cells, and a `<!--` later on a row line
+    opens nothing and hides no row below it. `without_html_comments` models the
+    inline form and would do both wrongly here (measured with markdown-it-py
+    4.2.0, `gfm-like`).
+    """
+    lines, fence, comment = [], None, False
+    for raw in text.splitlines():
+        if comment:
+            comment = "-->" not in raw
+            lines.append("")
+            continue
+        opening = None if fence is not None else re.match(r"^ {0,3}<!--", raw)
+        if opening:
+            comment = "-->" not in raw[opening.end():]
+            lines.append("")
+            continue
+        was_fenced, fence_line = fence is not None, False
+        # A backtick run followed later by a backtick is inline code, never a fence
+        # (CommonMark 4.5). markdown_fence_state opens one there, and here that
+        # would hide every table below the line.
+        if was_fenced or not re.match(r"^ {0,3}`{3,}(?!`)[^`]*`", raw):
+            fence, fence_line = markdown_fence_state(raw, fence)
+        lines.append("" if was_fenced or fence_line else raw.strip())
+    separator = re.compile(r"^\|[\s:|-]+\|?$")
+    header = None
+    for i, line in enumerate(lines):
+        if not line.startswith("|"):
+            header = None
+            continue
+        if separator.match(line):
+            continue
+        inner = line[1:-1] if len(line) > 1 and line.endswith("|") and not line.endswith("\\|") else line[1:]
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", inner)]
+        if i + 1 < len(lines) and separator.match(lines[i + 1]):
+            header = cells
+            continue
+        if header is not None and len(cells) < len(header):
+            errors.advise(f"README.md: row `{line}` has {len(cells)} cell(s) under the "
+                          f"{len(header)}-column header `| {' | '.join(header)} |`, so a cell is "
+                          f"missing. This index is derived: regenerate the row from the task files")
+
+
 def reject_unknown_flags(known=()):
     """A flag this gate does not know is a typo, and a gate that ignores one
     answers a question nobody asked.
@@ -5956,6 +6066,13 @@ def strict_from_number(start, errors):
         return None
     config = root / CONFIG_NAME
     if not config.exists():
+        return None
+    if not config.is_file() and not config.is_dir():
+        # A FIFO here waited on the read below (BACKLOG §319's addendum). Unreadable, it
+        # changes nothing, as the contract above says; so it is never opened, and the
+        # lint goes on. A directory keeps the except arm's own words.
+        errors.advise(f"{CONFIG_NAME} could not be read (not a regular file); "
+                      f"strictFrom is not in effect and every record is checked in full")
         return None
     try:
         declared = json.loads(config.read_text(encoding="utf-8", errors="replace")).get("strictFrom")
@@ -6256,8 +6373,10 @@ def main():
         readme = tasks_dir / "README.md"
         readme_text = None
         if readme.exists():
+            refuse_special(readme)
             readme_text = readme.read_text(errors="replace", encoding="utf-8")
             check_readme(readme, stems, errors)
+            check_readme_row_widths(readme_text, errors)
         else:
             errors.advise(f"{tasks_dir}: no README.md index")
         check_dag(infos, readme_text, errors)

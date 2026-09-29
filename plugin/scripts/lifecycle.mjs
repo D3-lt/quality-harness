@@ -819,7 +819,7 @@ export function runTheCheckSentence(cwd) {
   // cause teaches distrust of the gate, which is what let an earlier wrong
   // command survive so long (docs/BACKLOG.md §59).
   if (origin === 'declared') {
-    return `Run \`qh-check\` — it runs \`${command}\` (this project's own check) and records what it `
+    return `Run \`qh-check\` — it runs ${checkInCode(command)} (this project's own check) and records what it `
       + 'observed — after the final edit and report the exact command and result.'
   }
   // The word "environment" is deliberately NOT used here. It is reserved for a
@@ -830,10 +830,10 @@ export function runTheCheckSentence(cwd) {
   // Lead with undeclared: burying the caveat after "this project's own check" is
   // how a Makefile `make test` was read as the project's check (2026-09-12).
   return `No \`check\` is declared in \`.quality-harness.json\`. I inferred from this `
-    + `repository rather than from a declaration: \`${command}\`, so that is not this `
+    + `repository rather than from a declaration: ${checkInCode(command)}, so that is not this `
     + 'project\'s own check. If it is red on an unmodified tree the finding is about this '
     + 'machine and not about your change — say which, and declare the real command as `check`. '
-    + `Run \`qh-check\` (it runs \`${command}\` and records what it observed) after the final `
+    + `Run \`qh-check\` (it runs ${checkInCode(command)} and records what it observed) after the final `
     + 'edit and report the exact command and result.'
 }
 
@@ -1331,12 +1331,32 @@ export function spawnGate(tool, args, options = {}, platform = process.platform,
 // the task file's, stripped of controls, bidi overrides and ANSI (which reorder or
 // hide what is shown), collapsed to one line and bounded.
 export function quotedCorpusText(value, max = 160) {
+  return `«${corpusText(value, max)}»`
+}
+
+// quotedCorpusText without its marks: a gate's own words, said on the gate's behalf.
+function corpusText(value, max = 160) {
   const clean = String(value ?? '')
     .replace(/[\u{0}-\u{1f}\u{7f}-\u{9f}\u{200b}-\u{200f}\u{202a}-\u{202e}\u{2060}-\u{2069}\u{feff}]/gu, ' ')
     .replace(/\s+/g, ' ').trim()
   const cut = clean.length > max ? `${clean.slice(0, max - 1)}…` : clean
   // Angle brackets too: a quoted "</system-reminder>" is still a frame to its reader.
-  return `«${cut.replaceAll('«', '‹').replaceAll('»', '›').replaceAll('<', '‹').replaceAll('>', '›')}»`
+  return cut.replaceAll('«', '‹').replaceAll('»', '›').replaceAll('<', '‹').replaceAll('>', '›')
+}
+
+// adr-next's first line, said on its behalf. A path under the repository is said relative to it,
+// and the home directory as `~`, so a scratch checkout's absolute path is not repeated into the
+// session; the rest is cleaned as corpus text is, because a task file's name reaches this line and
+// must not print a control or a frame in this tool's voice (BACKLOG §319 item 6: klientams, a
+// symlink loop).
+function gateSaid(text, root) {
+  let out = String(text)
+  for (const [prefix, placeholder] of [[root, '.'], [os.homedir(), '~']].filter(([prefix]) => prefix)) {
+    for (const spelling of new Set([prefix, prefix.replaceAll('\\', '/'), prefix.replaceAll('/', '\\')])) {
+      out = out.split(spelling).join(placeholder)
+    }
+  }
+  return corpusText(out)
 }
 
 // A path is the corpus's text too. An invisible character in a name (zero-width,
@@ -1372,13 +1392,26 @@ export function pathInCode(value) {
 
 // A command to RUN keeps the real bytes, or a copied command names a file that does not
 // exist; so the invisible characters are named beside it instead (a Windows chaos
-// round, 2.110.0-rc round 3).
+// round, 2.110.0-rc round 3). A control is the exception: it cannot be copied, and a kept
+// newline in a task's name printed a line in this tool's voice (§319's addendum), so it is
+// shown escaped.
 export function commandInCode(command) {
-  const hidden = [...new Set([...String(command)].filter(char => visiblePath(char) !== char))]
+  const text = String(command).replace(/[\u{0}-\u{1f}\u{7f}-\u{9f}]/gu, visiblePath)
+  const hidden = [...new Set([...text].filter(char => visiblePath(char) !== char))]
   const note = hidden.length
     ? ` (its path holds ${hidden.map(char => `U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`).join(', ')}, invisible: copy it, do not retype it)`
     : ''
-  return `${codeSpan(command)}${note}`
+  return `${codeSpan(text)}${note}`
+}
+
+// A check command is the project's text spoken in this tool's voice. A `check` in
+// `.quality-harness.json` put newlines, a closing tag, ESC and a fake SYSTEM line into
+// SessionStart's Verification line verbatim (tool-multipathreadwrite H1, BACKLOG §319's
+// addendum). So it is one line in a code span: its controls shown as escapes, and a `<` directly
+// before a tag name shown as `‹`. A redirection (`2>&1`, `< in.txt`) keeps its bytes, since the
+// span names the command; qh-check runs the declared one from the file, never from this text.
+export function checkInCode(command) {
+  return codeSpan(visiblePath(command).replace(/<(?=\/?[A-Za-z])/g, '‹'))
 }
 
 // What a ready line says first about the record that owns the task. adr-next's answer
@@ -1438,7 +1471,7 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     // happen is UNPROVEN, said where the ready line would have been, with the
     // gate's own first line so the reader knows which of these it was.
     if (run.status !== 0 && run.status !== 3) {
-      const said = (run.stderr ?? '').trim().split('\n')[0] || (run.stdout ?? '').trim().split('\n')[0] || 'it said nothing'
+      const said = gateSaid((run.stderr ?? '').trim().split('\n')[0] || (run.stdout ?? '').trim().split('\n')[0] || 'it said nothing', root)
       const how = run.status === null
         ? `adr-next did not run (${run.error?.message ?? `killed by ${run.signal ?? 'an unknown signal'}`})`
         : `adr-next could not run (exit ${run.status})`
@@ -2494,7 +2527,7 @@ export function observedFacts(log, root, observation) {
   // B4). `tests/evidence-flip.test.mjs` holds this for every reader at once.
   const why = observation?.ok !== true ? 'the working tree could not be observed'
     : status.ok === false ? 'git could not list the working tree'
-      : logIncomplete(log) ? 'the session log could not be read whole'
+      : logIncomplete(log) ? `${tornRecord(log, 'the session log')} could not be read whole`
         : null
   return {
     files: root ? status.map(relative => path.join(root, relative)) : [],
@@ -2705,11 +2738,11 @@ function previousSessionNotice(cwd, platform = process.platform) {
       // as what is ON RECORD — the row may come from a log that lost a line, and
       // "no check passed" would be a verdict about the line that was lost.
       + `${other ? ` ${other} write(s) git cannot see were recorded, and no passing check after them is on record.` : ''} `
-      + (check ? `\`${check}\` is this project's check.` : 'No check is declared here.')
+      + (check ? `${checkInCode(check)} is this project's check.` : 'No check is declared here.')
   }
   return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with `
     + `${what} after which no recognised check passed${files.length ? `: ${files.join(', ')}` : ''}. `
-    + (check ? `Run \`${check}\` before building on them.` : 'Nothing has checked them since.')
+    + (check ? `Run ${checkInCode(check)} before building on them.` : 'Nothing has checked them since.')
 }
 
 // Where the "already said this" markers live, and the sweep that bounds them
@@ -3055,8 +3088,8 @@ export function sessionOrientation(cwd) {
     lines.push('Verification: the check declared in `.quality-harness.json` is a constant success and was refused. Declare a command that can fail.')
   } else if (check) {
     const named = origin === 'declared'
-      ? `this project's own check is \`${check}\``
-      : `no \`check\` is declared in \`.quality-harness.json\`; inferred \`${check}\` from a manifest — that is not this project's own check, and it may be narrower than this project's own gate (a step the inference did not pick, such as a typecheck or lint), so its pass is not that gate's pass`
+      ? `this project's own check is ${checkInCode(check)}`
+      : `no \`check\` is declared in \`.quality-harness.json\`; inferred ${checkInCode(check)} from a manifest — that is not this project's own check, and it may be narrower than this project's own gate (a step the inference did not pick, such as a typecheck or lint), so its pass is not that gate's pass`
     lines.push(`Verification: ${named}. `
       // ADR-060: a check is an EVENT `qh-check` writes, so how the command is
       // spelled, piped or redirected no longer decides anything — but running it
@@ -4300,7 +4333,7 @@ function checkRevision(log, tree) {
 function inferredCheckCaveat(cwd) {
   const { command, origin } = checkCommandOrigin(cwd)
   return origin === 'inferred'
-    ? ` The check \`${command}\` was inferred from a manifest, not declared; declare it as \`check\` in .quality-harness.json.`
+    ? ` The check ${checkInCode(command)} was inferred from a manifest, not declared; declare it as \`check\` in .quality-harness.json.`
     : ''
 }
 
@@ -4590,7 +4623,7 @@ export function publishVerdict({ cwd, session, observation, invoked }) {
     // has": a check may have succeeded and its record be what was lost (ADR-005).
     // An order that cannot be established is the same kind of could-not-look.
     text: (logIncomplete(log)
-      ? 'quality-harness: whether this repository is checked is unknown — the session log could not be read whole, so whether `qh-check` succeeded on its current tree cannot be shown — and the command '
+      ? `quality-harness: whether this repository is checked is unknown — ${tornRecord(log, 'the session log')} could not be read whole, so whether \`qh-check\` succeeded on its current tree cannot be shown — and the command `
       : unordered
         ? 'quality-harness: whether this repository is checked is unknown — the order of its check events could not be established — and the command '
         : couldNotLook
@@ -4704,7 +4737,8 @@ function reviewChangedState(input, ended) {
     const told = entry => entry.detail?.kind === 'unobserved' && entry.detail.agent === input.agent_id
     if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && told(entry))) {
       const why = !started
-        ? (logIncomplete(log)
+        // Only the session's own log can have lost where the run began; a torn `checks.jsonl` cannot.
+        ? (log?.complete !== true
           ? 'this session\'s event log could not be read whole, and the record of where that run began may be among what was lost'
           : 'where that run began was never recorded')
         : before?.ok !== true ? `the repository could not be observed when it began (${before?.reason ?? 'no reason was recorded'})`
@@ -4877,7 +4911,7 @@ function unseenPathNote(count) {
 // as the old commit-loop shape surviving in a quieter form. R2 is silent for
 // that commit on purpose (its tree is the observed tree, which is R1's to speak
 // for), so R1 is the one that has to say the commit.
-function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = false, orderUnknown = false, couldNotLook = false } = {}) {
+function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = paths.slice(0, 8)
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   const listed = paths.length
@@ -4896,7 +4930,7 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
   // and a torn line never repairs, so silence here would be silence for good.
   // An order that cannot be established is the same: not an accusation.
   const opening = logTorn
-    ? 'this turn ends with work whose check state is unknown — the session log could not be read whole, '
+    ? `this turn ends with work whose check state is unknown — ${tornWords ?? 'the session log'} could not be read whole, `
       + 'so whether `qh-check` succeeded on it cannot be shown.'
     : orderUnknown
       ? 'which check ran last on this turn\'s work could not be established, so it is not known to be checked.'
@@ -4916,7 +4950,7 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
 // (ADR-060's key), carried in the action's detail.
 const NAMED_COMMIT_LIMIT = 5
 // Exported so its wording is tested without building newly reachable commits.
-export function uncheckedCommitsReason(cwd, commits, { logTorn = false, orderUnknown = false, couldNotLook = false } = {}) {
+export function uncheckedCommitsReason(cwd, commits, { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
   const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
   const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
@@ -4925,7 +4959,7 @@ export function uncheckedCommitsReason(cwd, commits, { logTorn = false, orderUnk
   // lost line may be the pass. R2 kept saying it beside R4's could-not-look.
   const head = logTorn
     ? `whether a \`qh-check\` passed on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} `
-      + 'is UNKNOWN — this session\'s log could not be read whole, and the record of a pass may be among what was lost:'
+      + `is UNKNOWN — ${tornWords ?? 'this session\'s log'} could not be read whole, and the record of a pass may be among what was lost:`
     // The flags say at least one tree is so, not that all are (Codex review
     // round 3): a plural never claims the reason for every commit it lists.
     : orderUnknown
@@ -4966,6 +5000,16 @@ export function logIncomplete(log) {
   // site makes such a copy today; the next one would have been invisible.
   return log?.complete !== true
     || (Array.isArray(log) && log.some(event => event?.event === 'check.source-unreadable'))
+}
+
+/**
+ * Which record could not be read whole, for the sentence that says so. A torn `checks.jsonl`
+ * was reported as the session's own log, which was whole (a corpus-chaos run's D4, at two
+ * commits): the verdict, unknown, was right and the file it named was not. `sessionWords` is
+ * how the calling sentence spells the session log, kept when that is what tore.
+ */
+export function tornRecord(log, sessionWords = null) {
+  return log?.complete !== true ? sessionWords : '`checks.jsonl`, where `qh-check` records its runs,'
 }
 
 // The ledger's evidence, computed from the tree, the commits and the writes
@@ -5134,7 +5178,7 @@ function completionRules(input, ended) {
     if (!emittedFor(log, 'R1', key)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
-      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor, { logTorn: logIncomplete(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look' }) })
+      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look' }) })
     }
   }
   const unchecked = commits.filter(commit => {
@@ -5150,7 +5194,7 @@ function completionRules(input, ended) {
     const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
     queueAction({
       rule: 'R2', key: keys.join(' '), detail: { commits: keys },
-      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),
+      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),
     })
   }
   if (observation?.ok !== true || status?.ok === false || commits?.ok === false
@@ -5165,7 +5209,7 @@ function completionRules(input, ended) {
       const why = observation?.ok !== true
         ? (observation?.reason ?? 'no reason was recorded')
         : logIncomplete(log)
-          ? 'this session’s event log could not be read whole — at least one record is torn or unreadable'
+          ? `${tornRecord(log, 'this session’s event log')} could not be read whole — at least one record is torn or unreadable`
           : (status?.why || commits?.why || 'a git query failed without saying why')
       queueAction({ rule: 'R4', key, text: couldNotLookReason(input.cwd, why) })
     }

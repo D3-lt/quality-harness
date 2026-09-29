@@ -215,7 +215,7 @@ export function leafTestsRun(stdout, files = []) {
     // discounted with it (BACKLOG §53).
     .filter(m => !/\.(mjs|js|py|cjs)$/.test(m[1])).length
 }
-export function baselineOf(run, files = []) {
+export function baselineOf(run, files = [], named = 0) {
   if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }
   // A run in which NO test executed is not a passing baseline, whatever its exit
   // status: a mutant measured against it reads GREEN — "the tests did not
@@ -226,6 +226,11 @@ export function baselineOf(run, files = []) {
   // exactly that before the child's environment was scrubbed.
   const ran = leafTestsRun(run.stdout, files)
   if (ran === null) return { state: 'unrun', why: 'the test output carried no spec reporter lines' }
+  // ADR-073. A narrowed pattern (ADR-072) names its tests, so a passing run of FEWER is not
+  // the baseline the entry claims: a killer was renamed, deleted or skipped. Asked before "no
+  // test ran", because a narrowed pattern that selects nothing is the same defect, and read as
+  // could-not-look it was UNPROVEN, which fails no campaign.
+  if (run.status === 0 && named > 0 && ran < named) return { state: 'short', ran, named }
   if (ran === 0) return run.status === 0 ? { state: 'unrun', why: 'no test ran — the name pattern selected nothing' } : { state: 'fail' }
   return run.status === 0 ? { state: 'pass' } : { state: 'fail' }
 }
@@ -236,6 +241,9 @@ export function classify({ occurrences, baseline, run }) {
     // describes the code, so there is no mutation to be right or wrong about.
     return { verdict: 'STALE', detail: `matches ${occurrences} times` }
   }
+  // ADR-073: a narrowed entry that no longer runs every test it names no longer describes its
+  // tests, whatever the ones it still runs would do.
+  if (baseline?.state === 'short') return { verdict: 'STALE', detail: `its pattern names ${baseline.named} tests and ${baseline.ran} ran` }
   const observed = (run.signal || run.status === null)
     ? 'HUNG'
     : run.status === 0 ? 'GREEN' : 'RED'
@@ -1260,7 +1268,9 @@ export function main(argv) {
     // The same files and the same arguments as the mutated run below, or this
     // would be measuring a different thing than the one it licenses.
     const run = runChild(root, testArgs(root, set), timeoutMs)
-    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t))))
+    // ADR-073: a narrowed pattern is held to the number of tests it names; a hand-written one
+    // selects every test whose name contains it, and implies no count.
+    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only)?.length ?? 0))
   }
 
   const results = []
@@ -1279,7 +1289,8 @@ export function main(argv) {
     const baseline = baselines.get(setKeyOf(mutation))
       ?? { state: 'unrun', why: 'no baseline was taken' }
 
-    if (occurrences !== 1) {
+    // ADR-073: nor is a mutant applied under a narrowed pattern that no longer runs every test it names.
+    if (occurrences !== 1 || baseline.state === 'short') {
       // PRINTED, like every other verdict. This branch used to push and continue
       // in silence, so a mutation whose `from` no longer matched produced no line
       // at all — and the campaign then closed by telling the author a test had
@@ -1387,8 +1398,8 @@ export function main(argv) {
       // NOTHING WAS APPLIED, so nothing was learned about any test. Saying the
       // other sentence here is a verdict about a suite that was never challenged.
       ? 'Nothing was measured: every failing entry is STALE — its `from` no longer '
-        + 'matches the file, so no mutation was applied. Re-read the subject and fix '
-        + 'the catalogue entry; this says nothing about the tests.'
+        + 'matches the file, or its narrowed pattern no longer runs every test it names, so no '
+        + 'mutation was applied. Re-read the subject and its tests, and fix the catalogue entry.'
       : 'A test that stays green with its mechanism broken is asserting something else.')
     return 1
   }

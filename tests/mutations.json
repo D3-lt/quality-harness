@@ -6399,8 +6399,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "              f\"reads a whole directory.\")\n        sys.exit(2)",
-      "to": "              f\"reads a whole directory.\")\n        pass",
+      "from": "              f\"`adr-debt <corpus-dir>` reads a whole directory.\")\n        sys.exit(2)",
+      "to": "              f\"`adr-debt <corpus-dir>` reads a whole directory.\")\n        pass",
       "only": "^(?:missing file, directory, and not-recognised stay their current exits|a document that never claimed to be a record is not judged as a malformed one \\(BACKLOG §141\\))$"
     },
     {
@@ -6409,8 +6409,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    if not re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I) and not re.search(",
-      "to": "    if True and not re.search(",
+      "from": "    canonical = _NUMBERED_REF.match(adr.name)",
+      "to": "    canonical = None",
       "only": "^(?:a form finding is reported to the reader without failing the record|a document that never claimed to be a record is not judged as a malformed one \\(BACKLOG §141\\))$"
     },
     {
@@ -16538,8 +16538,8 @@
       "tests": [
         "tests/chaos-e016066.test.mjs"
       ],
-      "from": "print(f\"not-recognised: {one_line(adr)} has no",
-      "to": "print(f\"not-recognised: {adr} has no",
+      "from": "print(f\"not-recognised: {one_line(adr)} is not named",
+      "to": "print(f\"not-recognised: {adr} is not named",
       "only": "other printers show a newline escaped"
     },
     {
@@ -16641,6 +16641,30 @@
       "from": "  return (statusSection(text) ?? '').replace(/[*_`]/g, '').trim()",
       "to": "  return (statusSection(text) ?? '').trim()",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
+      "label": "ADR-074 T3: the old adr<digit> name arm is back",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/record-by-name.test.mjs"],
+      "from": "    spec = re.match(r\"spec[-_]?\\d\", adr.name, re.I)",
+      "to": "    spec = re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I)",
+      "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
+    },
+    {
+      "label": "ADR-074 T3: the content arm is dropped",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/record-by-name.test.mjs"],
+      "from": "    content = record_status(text)[0] is not None and _RECORD_SECTION.search(text)",
+      "to": "    content = False",
+      "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
+    },
+    {
+      "label": "ADR-074 T3: a Status alone admits a file",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/record-by-name.test.mjs"],
+      "from": "    content = record_status(text)[0] is not None and _RECORD_SECTION.search(text)",
+      "to": "    content = record_status(text)[0] is not None",
+      "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
     },
     {
       "label": "§321 codex status: U+FFFD is called bytes that are not UTF-8",

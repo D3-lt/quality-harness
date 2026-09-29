@@ -527,10 +527,14 @@ test('a QH-shaped record still reaches adr-lint', () => {
   assert.doesNotMatch(`${run.stdout}${run.stderr}`, /not-recognised/)
 })
 
-test('a MADR file is not-recognised, not a failed record', () => {
+// ADR-038 named a file that is not a record not-recognised rather than a failed record. ADR-074
+// T3 then decided what a record is: the canonical ADR-<n> name, or a Status and a `## Context` or
+// `## Decision` heading. A MADR record has both, so it is linted now (the owner, 2026-09-29), and
+// a markdown file with neither is still not-recognised through both entry points.
+test('a MADR record is linted as a record, and a file that is not one is still not-recognised', () => {
   const root = mkdtempSync(path.join(testTmp, 'madr-'))
-  const file = path.join(root, '0001-use-postgres.md')
-  writeFileSync(file, [
+  const record = path.join(root, '0001-use-postgres.md')
+  writeFileSync(record, [
     '# 1. Use Postgres',
     '',
     '## Status',
@@ -550,11 +554,16 @@ test('a MADR file is not-recognised, not a failed record', () => {
     'OK.',
     '',
   ].join('\n'))
-  const dispatched = factsGate(file)
+  const linted = adrLint(record)
+  assert.match(linted.stdout, /^\[(PASS|FAIL)\] /m, `${linted.stdout}${linted.stderr}`)
+  assert.doesNotMatch(`${linted.stdout}${linted.stderr}`, /not-recognised/)
+  const notes = path.join(root, '0002-notes.md')
+  writeFileSync(notes, '# Notes\n\nNothing is decided here.\n')
+  const dispatched = factsGate(notes)
   assert.equal(dispatched.status, 0)
   assert.match(`${dispatched.stdout}${dispatched.stderr}`, /not-recognised/)
   assert.doesNotMatch(`${dispatched.stdout}${dispatched.stderr}`, /NOT A DECISION RECORD|not a decision record/i)
-  const direct = adrLint(file)
+  const direct = adrLint(notes)
   assert.match(`${direct.stdout}${direct.stderr}`, /not-recognised/)
   assert.doesNotMatch(`${direct.stdout}${direct.stderr}`, /NOT A DECISION RECORD/)
 })

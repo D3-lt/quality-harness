@@ -120,7 +120,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible  # noqa: E402
-from record import record_status, status_kind, status_section, status_word  # noqa: E402
+from record import record_status, status_kind, status_section, status_word, _NUMBERED_REF, _RECORD_SECTION  # noqa: E402
 
 
 def one_line(value):
@@ -6222,18 +6222,25 @@ def main():
     # class as the defect §138 fixed: a verdict about a thing the tool was never
     # looking at.
     #
-    # The discriminator is `**Status:**`, which every record carries and none of
-    # those five documents does. A file NAMED `ADR-…` keeps its findings whatever
-    # it contains — a record missing its Status line is a real finding, and this
-    # must not become the way to silence one.
+    # The discriminator is what makes a record (ADR-074 T3): the canonical `ADR-<n>` name, or
+    # content that reads as one — a Status by ADR-074 Decision 1 and a `## Context` or
+    # `## Decision` heading, lifecycle's content test. A file NAMED `ADR-<n>` keeps its findings
+    # whatever it contains — a record missing its Status line is a real finding, and this must
+    # not become the way to silence one. The name arm used to be `(?:adr|spec)[-_]?\d`, and it
+    # linted two corpora's REPORTS about records (`adr018-chaos.md`,
+    # `adr002_codex_review_round1_20260707.md`) as records (BACKLOG §320.1). A `## Status`
+    # section alone does not admit a file: a backlog carries one (BACKLOG §141). The `spec` arm
+    # admits a spec to its own checks, and is unchanged.
     text = read_named(adr)
-    if not re.match(r"(?:adr|spec)[-_]?\d", adr.name, re.I) and not re.search(
-            r"(?m)^\*\*Status:\*\*", text):
-        print(f"not-recognised: {one_line(adr)} has no **Status:** line and is not named ADR-…, "
-              f"so nothing here was checked. This is not a finding about that file — "
-              f"`adr-lint` reads one record at a time, and a backlog, a README or a "
-              f"pre-registration kept beside the records is not one. `adr-debt <corpus-dir>` "
-              f"reads a whole directory.")
+    canonical = _NUMBERED_REF.match(adr.name)
+    spec = re.match(r"spec[-_]?\d", adr.name, re.I)
+    content = record_status(text)[0] is not None and _RECORD_SECTION.search(text)
+    if not (canonical or spec or content):
+        print(f"not-recognised: {one_line(adr)} is not named ADR-<n> and does not read as a record "
+              f"(a Status, and a `## Context` or `## Decision` heading), so nothing here was checked. "
+              f"This is not a finding about that file — `adr-lint` reads one record at a time, and a "
+              f"backlog, a README, a report or a pre-registration kept beside the records is not one. "
+              f"`adr-debt <corpus-dir>` reads a whole directory.")
         sys.exit(2)
     errors = Findings()
     root = git_root(adr.parent)

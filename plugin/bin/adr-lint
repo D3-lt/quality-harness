@@ -1068,6 +1068,12 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
 
     if not re.search(r"^\*\*Status:\*\*", text, re.M):
         errors.advise(f"{adr_path.name}: no **Status:** line")
+    # An EMPTY Status line was read from the line after it: `\s*` crosses a line break, and a
+    # blocking check quoted a status the record does not have (BACKLOG §319, from a corpus-chaos
+    # run's C4). The value is read on its own line now, and an empty one is said.
+    elif re.search(r"^\*\*Status:\*\*[ \t]*\r?$", text, re.M):
+        errors.advise(f"{adr_path.name}: the **Status:** line is empty, so no reader can tell "
+                      f"whether this decision was taken")
     secs = sections_of(text)
     # An ADR has no digest, so no repeat blocks here; every section below is read
     # last-wins, and the author is told so (ADR-045 T5).
@@ -2693,7 +2699,7 @@ def check_status_allows_execution(adr_path, readme_text, errors):
     if not done:
         return
     text = Path(adr_path).read_text(errors="replace", encoding="utf-8")
-    m = re.search(r"^\*\*Status:\*\*\s*(.+?)\s*$", text, re.M)
+    m = re.search(r"^\*\*Status:\*\*[ \t]*(.+?)[ \t]*$", text, re.M)
     if not m:
         return  # the missing-Status line is already reported by check_adr
     status = m.group(1).strip().strip("`*")
@@ -6162,7 +6168,7 @@ def main():
         # tasks. The cheapest observation this gate CAN make: does every path the
         # record's own ## Implementation names already exist? Against git, never the
         # disk (CLAUDE.md §8). It says a coincidence is possible and concludes nothing.
-        status_m = re.search(r"^\*\*Status:\*\*\s*(.+?)\s*$", body, re.M)
+        status_m = re.search(r"^\*\*Status:\*\*[ \t]*(.+?)[ \t]*$", body, re.M)
         status_text = status_m.group(1).strip().strip("`*") if status_m else ""
         if re.match(r"^(proposed|draft)\b", status_text, re.I):
             named = implementation_paths(body)

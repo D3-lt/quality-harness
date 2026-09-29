@@ -1711,10 +1711,27 @@ function recordStatus(text) {
 // Accepted governs — including in the archive, where "an archived Accepted ADR
 // may still govern" is this corpus's own stated rule. Proposed and Draft govern
 // nothing yet, and are neither.
+//
+// ADR-074: the kind is a LOOKUP of the run of Unicode letters and digits the value
+// starts with, lower-cased, never a case-insensitive regex. JS's `\b` is ASCII, so
+// `/^accepted\b/i` let `Acceptedé` govern where Python did not; a lookup has no
+// word end and no case folding to differ in. record.py's `status_kind` is the
+// same table, and tests/status-reading.test.mjs holds the two to one answer.
+const STATUS_KINDS = new Map([
+  ['accepted', 'governing'],
+  ['proposed', 'pending'], ['draft', 'pending'],
+  ['superseded', 'graveyard'], ['withdrawn', 'graveyard'], ['rejected', 'graveyard'], ['deprecated', 'graveyard'],
+])
+
+// `status` is recordStatus's, whose markup is already removed (ADR-063), or an archive effect.
+export function recordStatusKind(status) {
+  const word = String(status ?? '').trim().match(/^[\p{L}\p{N}]+/u)?.[0].toLowerCase()
+  return STATUS_KINDS.get(word) ?? null
+}
+
 function statusKind(status) {
-  if (/^accepted\b/i.test(status)) return 'governing'
-  if (/^(?:superseded|withdrawn|rejected|deprecated)\b/i.test(status)) return 'graveyard'
-  return null
+  const kind = recordStatusKind(status)
+  return kind === 'pending' ? null : kind
 }
 
 // What the archive catalog of a frozen record says its decision's effect is

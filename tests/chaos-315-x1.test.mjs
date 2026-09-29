@@ -28,9 +28,9 @@ const state = (repo, args = []) => spawnSync(process.execPath, [adrState, ...arg
 const json = repo => JSON.parse(state(repo, ['--json']).stdout)
 const record = (title, status) => `# ${title}\n\n${status}\n\n## Context\n\nx\n\n## Decision\n\ny\n`
 const unread = report => Object.fromEntries(report.unread.map(entry => [entry.file.split(/[\\/]/).pop(), entry]))
-// The words lifecycle's statusKind and adr-state's pending test act on, as lifecycle reads a
-// status. adr-lint and adr-next read a status otherwise (adr-lint's Status advice), so the
-// sentence speaks for this reader, never for "the readers".
+// The words lifecycle's kind and adr-state's pending test act on, as lifecycle reads a status.
+// Since ADR-074 every reader reads a status that way (tests/status-reading.test.mjs), so a
+// fullwidth colon, which starts the value with punctuation, is undecided in all of them.
 const UNKNOWN_WORD = /its status does not start with a word this reader knows \(Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated\)/
 const NO_STATUS = /no \*\*Status:\*\* value this reader can read/
 

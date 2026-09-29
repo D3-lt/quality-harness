@@ -13,7 +13,7 @@
 // is NOT here on purpose: anything about lessons learned. That is a different
 // kind of memory with a different lifetime, and it lives outside this harness.
 import path from 'node:path'
-import { adrCorpus, quotedCorpusText, terminalText, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, quotedCorpusText, recordStatusKind, terminalText, trackedPaths } from './lifecycle.mjs'
 
 import { isMainModule } from './main-module.mjs'
 
@@ -94,7 +94,7 @@ export function main(argv) {
 
   const unreadable = corpus.unreadable ?? []
   // Proposed and Draft govern nothing yet BY DESIGN; the text and the JSON split on this one test.
-  const isPending = entry => /^(?:proposed|draft)\b/i.test(entry.status ?? '')
+  const isPending = entry => recordStatusKind(entry.status) === 'pending'
   // Why an entry governs nothing, for the JSON: it gave a file and a status and no why for a
   // record the corpus reader had opened, where the text said why (a corpus-chaos run's X1,
   // BACKLOG §293 and §319). Each arm says only what this reader observed (ADR-005):
@@ -102,9 +102,10 @@ export function main(argv) {
   // - a standing the corpus reader could not establish: its words for what it could not tell.
   //   Not "frozen", and not "its catalog": beside an unreadable README, or one of another
   //   spelling, whether the directory is an archive at all is unknown (a review of this fix);
-  // - a status: the words statusKind and isPending act on, as recordStatus reads it. adr-lint
-  //   and adr-next read a status otherwise (adr-lint's Status advice), so this reader speaks
-  //   for itself. An empty Status line reads as none, so "value" covers both.
+  // - a status: the kind lifecycle's recordStatusKind gives it, as recordStatus reads it.
+  //   ADR-074 gives every reader that one reading (tests/status-reading.test.mjs), so what
+  //   this says is what adr-lint and adr-next say too. An empty Status line reads as none,
+  //   so "value" covers both.
   // The text still lists an UNPROVEN record among the statuses it does not know, with a
   // spelling remedy that cannot apply to it; the JSON does not copy that.
   const why = entry => entry.reason

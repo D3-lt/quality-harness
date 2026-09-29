@@ -1319,8 +1319,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (/^(?:superseded|withdrawn|rejected|deprecated)\\b/i.test(status)) return 'graveyard'",
-      "to": "  if (false) return null",
+      "from": "  ['superseded', 'graveyard'], ['withdrawn', 'graveyard'], ['rejected', 'graveyard'], ['deprecated', 'graveyard'],",
+      "to": "  ['superseded', null], ['withdrawn', null], ['rejected', null], ['deprecated', null],",
       "only": "^(?:decisions reach the code: what governs a file, and what was killed there|reported: a shared tasks directory does not make every record claim its neighbours|adr-context answers which decisions govern a path, and which were killed there|adr-state derives what is decided now, instead of asking anyone to maintain it|the lifecycle router reads corpus state, and says so when it cannot)$"
     },
     {
@@ -1815,8 +1815,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (/^accepted\\b/i.test(status)) return 'governing'",
-      "to": "  if (/^accepted$/i.test(status)) return 'governing'",
+      "from": "  const word = String(status ?? '').trim().match(/^[\\p{L}\\p{N}]+/u)?.[0].toLowerCase()",
+      "to": "  const word = String(status ?? '').trim().toLowerCase()",
       "only": "^(?:reported: the layouts and scale a real corpus actually has)$"
     },
     {
@@ -5572,8 +5572,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    return None if status is None else bool(not re.match(r\"accepted\\b\", status, re.I))",
-      "to": "    return status is not None and not re.match(r\"accepted\\b\", status, re.I)",
+      "from": "    return None if status is None else status_kind(status) != \"governing\"",
+      "to": "    return status is not None and status_kind(status) != \"governing\"",
       "only": "^(?:a status this tool could not read is unknown, never decided)$"
     },
     {
@@ -16041,26 +16041,18 @@
       "only": "corpus-report counts a FIFO task"
     },
     {
-      "label": "BACKLOG §319 C4: the done check reads an empty Status from the next line",
-      "file": "plugin/bin/adr-lint",
+      "label": "BACKLOG §319 C4: the shared Status reader reads an empty Status from the next line",
+      "file": "plugin/lib/record.py",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "    m = re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+?)[ \\t]*$\", text, re.M)",
-      "to": "    m = re.search(r\"^\\*\\*Status:\\*\\*\\s*(.+?)\\s*$\", text, re.M)",
-      "only": "an empty Status line is not read"
-    },
-    {
-      "label": "BACKLOG §319 C4: the no-tasks advice reads an empty Status from the next line",
-      "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "        status_m = re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+?)[ \\t]*$\", body, re.M)",
-      "to": "        status_m = re.search(r\"^\\*\\*Status:\\*\\*\\s*(.+?)\\s*$\", body, re.M)",
+      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status:?\\*{0,2}[ \\t]*:?[ \\t]*(.+)$\", re.M | re.I)",
+      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status:?\\*{0,2}\\s*:?\\s*(.+)$\", re.M | re.I)",
       "only": "an empty Status line is not read"
     },
     {
       "label": "BACKLOG §319 C4: an empty Status line is not said",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "    elif re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*\\r?$\", text, re.M):",
+      "from": "    elif not status_value.strip(\": \\t\"):",
       "to": "    elif False:",
       "only": "an empty Status line is not read"
     },
@@ -16236,16 +16228,16 @@
       "label": "§307 F-1: an unrecognised record Status is not said",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "        if not re.match(RECORD_STATUS_WORDS, status_value, re.I):",
-      "to": "        if False:",
+      "from": "    elif status_kind(status_value) is None:",
+      "to": "    elif False:",
       "only": "Status is not one the readers recognise"
     },
     {
       "label": "§307 F-1: a recognised Status with a qualifier is called unrecognised",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "        if not re.match(RECORD_STATUS_WORDS, status_value, re.I):",
-      "to": "        if not re.fullmatch(RECORD_STATUS_WORDS, status_value, re.I):",
+      "from": "    run = _STATUS_RUN.match((value or \"\").strip())",
+      "to": "    run = _STATUS_RUN.fullmatch((value or \"\").strip())",
       "only": "Status is not one the readers recognise"
     },
     {
@@ -16571,24 +16563,36 @@
       "only": "a tag whose name ends at a control"
     },
     {
-      "label": "§321 codex status: the markup clause is dropped",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/chaos-315-codex-status.test.mjs"
-      ],
-      "from": "if re.search(r\"[*_`]\", status_value) else \"\"",
-      "to": "if False else \"\"",
-      "only": "a Status written with markup is still advised on"
+      "label": "ADR-074 T1: markup is kept in a record's Status value",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "    return _STATUS_MARKUP.sub(\"\", found.group(1)).strip(), \"inline\"",
+      "to": "    return found.group(1).strip(), \"inline\"",
+      "only": "^every reader gives one Status the same reading$"
     },
     {
-      "label": "§321 codex status: markup is removed before matching, which silences _Proposed_",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/chaos-315-codex-status.test.mjs"
-      ],
-      "from": "status_value = re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+?)[ \\t]*$\", text, re.M).group(1).strip().strip(\"`*\")",
-      "to": "status_value = re.sub(r\"[*_`]\", \"\", re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+?)[ \\t]*$\", text, re.M).group(1)).strip()",
-      "only": "a Status written with markup is still advised on"
+      "label": "ADR-074 T1: an ASCII regex word end stands in for the lookup",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "  const word = String(status ?? '').trim().match(/^[\\p{L}\\p{N}]+/u)?.[0].toLowerCase()",
+      "to": "  const word = String(status ?? '').trim().match(/^[a-z]+\\b/i)?.[0].toLowerCase()",
+      "only": "^every reader gives one Status the same reading$"
+    },
+    {
+      "label": "ADR-074 T1: adr-retire-check bypasses the shared rule",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "    return status_kind(status) == \"governing\"",
+      "to": "    return status.strip().casefold() == \"accepted\"",
+      "only": "^every reader gives one Status the same reading$"
+    },
+    {
+      "label": "ADR-074 T1: the label forms are narrowed to **Status:**",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status:?\\*{0,2}[ \\t]*:?[ \\t]*(.+)$\", re.M | re.I)",
+      "to": "_STATUS_LINE = re.compile(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+)$\", re.M | re.I)",
+      "only": "^every reader gives one Status the same reading$"
     },
     {
       "label": "§321 codex status: U+FFFD is called bytes that are not UTF-8",

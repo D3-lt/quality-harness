@@ -68,5 +68,21 @@ Stop and ask if a Status every reader agreed on at ebfaee0 reads differently aft
 - Task, spec and architecture Status readers (permanent: boundary: ADR-074 Out of Scope)
 
 ## Verification Log
+- 2026-09-29 · 8e995fc* · exit 1 · `set -o pipefail …` · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282 · ms:6102 · test-lock-sha256:f6f34146d74b35f62f9bf32d8a1d09bef98fa366e78736876f99c2bf857e3a15 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL3N0YXR1cy1yZWFkaW5nLnRlc3QubWpzCWV2ZXJ5IHJlYWRlciBnaXZlcyBvbmUgU3RhdHVzIHRoZSBzYW1lIHJlYWRpbmcJYWYwZjc3ODFjNWUxMTFjNTdlYWE0YTNmNjVkM2IwZTkwZGNkNzEwYmYzMmI3ZWYwYTE0ODRkNGNmNTc1NGJjMA
+  ```
+  --- last 1 line(s) of stdout
+  0
+  --- last 10 line(s) of stderr (of 135 after folding 135 raw)
+    ...
+  1..1
+  # tests 1
+  # suites 0
+  # pass 0
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 6004.537333
+  ```
 
 ## Mutation Log

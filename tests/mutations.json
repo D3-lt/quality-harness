@@ -15804,8 +15804,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t))))",
-      "to": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t))))\n    if (narrowed) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\\n`)",
+      "from": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only)?.length ?? 0))",
+      "to": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only)?.length ?? 0))\n    if (narrowed) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\\n`)",
       "only": "killed while a mutant runs"
     },
     {
@@ -16063,6 +16063,30 @@
       "from": "    elif re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*\\r?$\", text, re.M):",
       "to": "    elif False:",
       "only": "an empty Status line is not read"
+    },
+    {
+      "label": "ADR-073 T1: no narrowed baseline is ever short",
+      "file": "scripts/mutate.mjs",
+      "tests": ["tests/mutate-runner.test.mjs"],
+      "from": "if (run.status === 0 && named > 0 && ran < named) return",
+      "to": "if (false) return",
+      "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
+    },
+    {
+      "label": "ADR-073 T1: a narrowed baseline that runs every name reads short",
+      "file": "scripts/mutate.mjs",
+      "tests": ["tests/mutate-runner.test.mjs"],
+      "from": "named > 0 && ran < named)",
+      "to": "named > 0 && ran <= named)",
+      "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
+    },
+    {
+      "label": "ADR-073 T1: a hand-written pattern is held to a count",
+      "file": "scripts/mutate.mjs",
+      "tests": ["tests/mutate-runner.test.mjs"],
+      "from": "namesOf(set.only)?.length ?? 0))",
+      "to": "namesOf(set.only)?.length ?? 99))",
+      "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
     }
   ]
 }

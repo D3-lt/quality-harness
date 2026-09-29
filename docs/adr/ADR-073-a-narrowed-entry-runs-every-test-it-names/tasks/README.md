@@ -14,4 +14,4 @@ Implementation tasks for ADR-073: A narrowed entry runs every test it names. See
 
 | Task | File | Status |
 |------|------|--------|
-| T1 | [T1-a-short-baseline-is-stale.md](T1-a-short-baseline-is-stale.md) | pending |
+| T1 | [T1-a-short-baseline-is-stale.md](T1-a-short-baseline-is-stale.md) | done |

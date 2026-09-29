@@ -61,5 +61,21 @@ Stop and ask if a record in this repository's corpus reads a different Status af
 - A multi-line section read as one value (permanent: boundary: the owner chose the first non-empty line, 2026-09-29)
 
 ## Verification Log
+- 2026-09-29 · ebb9332* · exit 1 · `set -o pipefail …` · acceptance-sha256:3ffa9f5d2636b6c21c3e6ab71b33b259712ac7cdedd202c16428e4ec561d51dd · ms:1599 · test-lock-sha256:c8eb70e64533d63bdfaa764314f4e22ad383670522f7fc04b5bc39f29fd688c3 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL3N0YXR1cy1zZWN0aW9uLnRlc3QubWpzCWEgU3RhdHVzIHNlY3Rpb24gaXMgcmVhZCwgYW5kIGFuIGlubGluZSBTdGF0dXMgd2lucyB3aXRoIGFkdmljZSB3aGVuIHRoZXkgZGlzYWdyZWUJNTJiYWQyMDhlMjQwYTg3ZDMwZTU5NzRhNjZkNDY4YmM0Mjk4NzRlY2NmOGUyZWMxZDViNzVlOWZjNjQ4MzJmMw
+  ```
+  --- last 1 line(s) of stdout
+  0
+  --- last 10 line(s) of stderr (of 49 after folding 49 raw)
+    ...
+  1..1
+  # tests 1
+  # suites 0
+  # pass 0
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 1493.036958
+  ```
 
 ## Mutation Log

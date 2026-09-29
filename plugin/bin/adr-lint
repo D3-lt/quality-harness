@@ -120,7 +120,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible  # noqa: E402
-from record import record_status, status_kind, status_word  # noqa: E402
+from record import record_status, status_kind, status_section, status_word  # noqa: E402
 
 
 def one_line(value):
@@ -1094,7 +1094,14 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
     # An EMPTY Status line used to be read from the line after it (BACKLOG §319, from a
     # corpus-chaos run's C4); the shared reader reads the value on its own line, and an empty
     # one is said.
-    status_value, _ = record_status(text)
+    status_value, status_source = record_status(text)
+    # ADR-074 T2: an inline line wins over a `## Status` section. When a record has both and
+    # they give different kinds, every reader is ignoring the section, and the author is told.
+    section_value = status_section(text) if status_source == "inline" else None
+    if section_value is not None and status_kind(section_value) != status_kind(status_value):
+        errors.advise(f"{adr_path.name}: its **Status:** line says `{status_value}` and its ## Status section "
+                      f"says `{section_value}`; every reader reads the line, so the section is ignored. "
+                      f"Make them agree, or remove one")
     if status_value is None:
         errors.advise(f"{adr_path.name}: no **Status:** line")
     elif not status_value.strip(": \t"):

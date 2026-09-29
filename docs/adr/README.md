@@ -75,3 +75,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-071](ADR-071-a-rewritten-line-is-reanchored-on-the-text-around-its-edit.md) | A rewritten line is re-anchored on the text around its edit | Accepted |
 | [ADR-072](ADR-072-a-mutant-runs-only-the-tests-that-kill-it.md) | A mutant runs only the tests that kill it | Accepted |
 | [ADR-073](ADR-073-a-narrowed-entry-runs-every-test-it-names.md) | A narrowed entry runs every test it names | Accepted |
+| [ADR-074](ADR-074-one-status-reading-and-one-record-definition.md) | One Status reading and one record definition for every reader | Accepted |

@@ -1166,9 +1166,17 @@ def main():
         assert retirement_exit() == 0
         archived.write_text(
             "# ADR-001: History\n\n**Status:** Acceptedé\n\n"
-            "## Decision\n\nHistorical choice.\n")
+            "## Decision\n\nHistorical choice.\n", encoding="utf-8")
         write_archive()
         assert retirement_exit() == 1
+        # The same letter as a cp1252 byte is invalid UTF-8, read with replacement: U+FFFD is no
+        # letter, so it ends the word as `Accepted.` does. Pinned as bytes so every platform runs
+        # it: the text write above defaulted to cp1252 on Windows and read as this (CI b866a0f).
+        archived.write_bytes(
+            b"# ADR-001: History\n\n**Status:** Accepted\xe9\n\n"
+            b"## Decision\n\nHistorical choice.\n")
+        write_archive()
+        assert retirement_exit() == 0
         archived.write_text(
             "# ADR-001: History\n\n**Status:** Accepted\n\n"
             "## Decision\n\nHistorical choice.\n")
@@ -1192,7 +1200,7 @@ def main():
         assert retirement_exit() == 0
         active_current.write_text(
             "# ADR-002: Current\n\n**Status:** Acceptedé\n\n"
-            "## Decision\n\nCurrent.\n")
+            "## Decision\n\nCurrent.\n", encoding="utf-8")
         assert retirement_exit() == 1
         active_current.write_text(
             "# ADR-002: Current\n\n**Status:** Accepted\n\n## Decision\n\nCurrent.\n")

@@ -16484,3 +16484,36 @@ The CI run of fe918bb, 36486684619, was red in three jobs.
   - Only the new mutants had been run locally, not every catalogue entry on the files changed.
 - **Windows.** A test compared a POSIX path with work-next's native `docs\specs\…`. And MSYS `mkfifo` exits 0 while native Python sees no file, so the FIFO tests now skip unless `statSync().isFIFO()` holds.
 - **One more slip, found by a STALE mutant:** the agent tool decoded a backslash-u escape for U+FEFF in a plan into a raw BOM inside adr-lint's source. It is written `chr(0xFEFF)` now.
+
+## 320. OPEN 2026-09-29 — The inbox, reviewed: seventeen findings, two not yet recorded anywhere
+
+The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date from 2026-09-24 to 2026-09-28. Each one was matched to the section that answered it, and every "fixed" claim below was checked against the code at 1ba1681, not taken from the prose.
+
+**Answered by earlier sections, and confirmed in the code:**
+- go-cli-adr-corpus, the false self-dependency: fixed for 3.0 (§302 item 1).
+- go-recall-service, advice on relock rows: fixed (§302 item 2).
+- rust-adr-corpus, cargo's `--test` read as a name filter: fixed (§302 item 3). adr-lint's filter flags are now `-run|--filter|-k|--name`.
+- go-recall-service, the two-runner fence: fixed (§302 item 4). Its `Class::method` spelling for Python unittest is still open there.
+- go-recall-service, arch-lint reading Go's `./...` as a missing path: fixed (§302 item 5). arch-lint now reads `...` as a package pattern.
+- go-cli-adr-corpus, the artifact hook linting `tasks/README.md` as a record: fixed (§285). The same finding reported "files not in the commit", which is by design, since the artifact set is the session's changes. Its "could not classify" was a file that no longer existed.
+- go-recall-service, corpus-probe linting frozen archived records: changed in §279 item 4. A frozen record is still linted, and its adrLint entry carries `frozen: true`.
+- go-cli-adr-corpus's round at cd7e6ab, and go-recall-service's `[proof: human]` lead: triaged in §319's addendum.
+
+**Recorded and still open:**
+- ts-generator, generated fixture trees read as specs: §291.
+- The nested `[build failed]`, reported twice by go-recall-service: §253.
+- A fullwidth colon in a Status line: §293.
+- A status adr-lint cannot read, which still lints PASS: §307 F-1, with the members §319 adds.
+- A trailing-space task file: §319, next batch.
+
+**By design, with the reason:**
+- go-recall-service's D2: a Verification Log row whose digest matches no fence, and whose sha names no commit, changes nothing. A row whose `acceptance-sha256` matches no current fence is history and never counts toward done. A local gate cannot tell a run from a transcription, so it does not check that the sha exists either; it raises the cost of a forged row instead.
+
+**Not recorded anywhere until now. Both are open, and both are for the next batch:**
+1. **adr-lint lints a non-record as a record when its name starts `adr<digit>`** (go-recall-service, 2026-09-26: `docs/evaluations/adr018-sweep.md`). The commit dispatcher routes a file titled `# ADR-<n>` to adr-lint. adr-lint's not-recognised guard, `(?:adr|spec)[-_]?\d`, then accepts the name, and it FAILs the report for missing record sections. A sibling named `2026-09-25-adr018-gap-list.md` got "not-recognised".
+   - The artifact check is advice, so this is noise and not a refusal. But it cannot be silenced there: renaming the file would orphan a `--human` row that names its path.
+   - The design question is §16's: which signal separates a record from a report about one? The candidates are a `**Status:**` line, the ADR corpus directory, or the name. Changing it must not silence a real record that lacks its Status line, which the guard's own comment forbids.
+2. **adr-verify writes a failing run's raw control bytes into the task file** (go-cli-adr-corpus, 2026-09-25: a UTF-16 fixture's NULs).
+   - `excerpt_fence(failure_tail(...))` passes each line through `fence_safe`, which neutralises fence markers and nothing else. A NUL makes git treat the task file as binary, and mrw then refuses to edit it.
+   - The reporter escaped the NULs by hand. The acceptance digest covers the fence, not the capture, so that edit left it unchanged.
+   - The fix belongs in `excerpt_fence`, beside `fence_safe`: show control bytes as visible escapes, as `visiblePath` already does in the readers.

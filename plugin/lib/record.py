@@ -523,9 +523,13 @@ _RECORD_SECTION = re.compile(r"^##\s+(?:Context|Decision)\b", re.M | re.I)
 # folds `ſtatus` to `status` and JS's `/i` does not; it is matched one line at a time, outside code
 # fences (`record_status`), so a fenced example never overrules the record's own line.
 _STATUS_LINE = re.compile(r"^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]+)$")
-# The only whitespace at a value's edges, in both languages: `str.strip()` and JS `trim()` disagree
-# (a byte-order mark, `\x1c`), and one record must get one reading.
-_EDGE_SPACE = " \t\r\n\f\v"
+# The only whitespace at a value's edges, in both languages: exactly what `str.strip()` and JS
+# `trim()` BOTH remove, so a no-break space after the label reads as it did at ebfaee0 (the React SPA corpus
+# at 084d925: leaving it out made a governing record undecided, invisibly), while the two they
+# disagree on stay in the value in both — a byte-order mark (only `trim`) and `\x1c`-`\x1f`,
+# `\x85` (only `strip`) — so one record still gets one reading.
+_EDGE_SPACE = "".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, *range(0x2000, 0x200B),
+                                0x2028, 0x2029, 0x202F, 0x205F, 0x3000)))
 # Where a record is kept, for a file admitted by its content (ADR-074 T3, the owner, 2026-09-29):
 # a directory named `adr`/`decisions`, or an archive of one. lifecycle.mjs's RECORD_DIRECTORY is
 # this pattern, so adr-lint and the corpus readers look in the same places.

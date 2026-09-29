@@ -57,6 +57,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of  # noqa: E402
 from record import first_number_id, first_reference, looks_like_record, record_id, references_in, title_line  # noqa: E402
+from record import record_status, status_kind  # noqa: E402
 
 
 PLACEHOLDERS = {"", "none", "none.", "_none._", "(empty at authoring)"}
@@ -128,14 +129,16 @@ def closes_the_line(text, end):
 
 
 def status_of(path):
+    """A record's Status by ADR-074's one reading, or "" when it has none."""
     text = path.read_text(errors="replace", encoding="utf-8")
-    match = re.search(r"^(?:\*\*)?Status:(?:\*\*)?\s*(.+?)\s*$", text, re.M | re.I)
-    return match.group(1).strip() if match else ""
+    return record_status(text)[0] or ""
 
 
 def is_accepted_status(status):
-    """Only the canonical Accepted state grants current decision authority."""
-    return status.strip().casefold() == "accepted"
+    """Only an Accepted status grants current decision authority. The first word
+    decides, by ADR-074's lookup, so `Accepted (Zy, 2026-09-01)` is Accepted
+    (BACKLOG §313's open question)."""
+    return status_kind(status) == "governing"
 
 
 def adr_files(root, unidentified=None):
@@ -416,8 +419,7 @@ def adoption_report(active_root, archive_root):
         if len(paths) != 1:
             continue
         status = status_of(paths[0])
-        if not re.match(r"^(accepted|proposed|superseded|deprecated|rejected|withdrawn)\b",
-                        status, re.I):
+        if status_kind(status) is None:
             errors.append(f"{adr_id}: cannot classify legacy status '{status or 'missing'}'")
         elif is_accepted_status(status):
             provisional_governing.add(adr_id)

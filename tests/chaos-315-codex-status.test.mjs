@@ -4,10 +4,11 @@
 // said so. #6: a literal U+FFFD in valid UTF-8 was called "bytes that are not UTF-8". Each test
 // runs adr-lint on a record file, the boundary the finding came through, with a control beside it.
 //
-// ⚠ THE STATUS IS NOT READ THROUGH ITS MARKUP HERE. A first fix removed every `*`, `_` and backtick
-// before matching, as lifecycle does, and that silenced `_Proposed_`, which adr-lint's two other
-// Status readers and adr-next do not read as Proposed (a review of that fix, 2026-09-29). So the
-// advice still speaks for such a value, and says that lifecycle may read it otherwise.
+// ADR-074 settled #5: every reader reads a Status with its `*`, `_` and backticks removed and
+// looks up the word it starts with, so `_Accepted_`, `Acc**epted` and `_Proposed_` are
+// recognised and not advised on, and the advice states adr-next's rule as the rule. The clause
+// that named lifecycle as the reader that might read a value otherwise is gone with the
+// disagreement it described; tests/status-reading.test.mjs holds the readers to one answer.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
@@ -53,38 +54,36 @@ const undecided = status => {
 }
 const UNRECOGNISED = /^ {2}advice: ADR-001-x\.md: Status `[^`]*` starts with no status adr-lint recognises \(/
 const ADR_NEXT_RULE = 'adr-next calls a record undecided, a plan and not a work order, unless its Status starts with the word Accepted'
-const MARKUP = 'lifecycle.mjs reads it with `*`, `_` and backticks removed, and may read it otherwise'
 
-// Markup inside or around a status word is still advised on, because adr-next and adr-lint's other
-// Status readers do not read `_Proposed_` as Proposed; the advice names the reader that might.
-test('a Status written with markup is still advised on, and the advice names the reader that strips it', () => {
-  for (const status of ['_Accepted_', 'Acc**epted', '_Proposed_']) {
+// Markup inside or around a status word is read through, as every reader now reads it.
+test('a Status written with markup is read through it, and a word no reader knows is still advised on', () => {
+  for (const status of ['_Accepted_', 'Acc**epted', '_Proposed_', '**Accepted**']) {
+    assert.equal(statusAdvice(status), '', status)
+  }
+  // The controls: a word no reader knows is advised on, with or without markup, and the advice
+  // names no reader that reads it otherwise, because none does.
+  for (const status of ['Implemented', '_Implemented_']) {
     const said = statusAdvice(status)
     assert.match(said, UNRECOGNISED, status)
-    assert.ok(said.includes(MARKUP), said)
+    assert.doesNotMatch(said, /may read it otherwise/, said)
   }
-  // The controls: markup only at the edges is the edge-stripped word every reader shares, and a
-  // plain unknown word names no markup.
-  assert.equal(statusAdvice('**Accepted**'), '')
-  const plain = statusAdvice('Implemented')
-  assert.match(plain, UNRECOGNISED)
-  assert.ok(!plain.includes(MARKUP), plain)
 })
 
-// #5: the readers do not agree about such a record, so the advice names what adr-lint read and
-// what adr-next's rule is, and claims no consensus.
-test('the Status advice claims what adr-lint read and adr-next\'s rule, and no consensus', () => {
-  for (const status of ['Acceptedé', 'Implemented', '_Accepted_']) {
+// #5: the advice states adr-next's rule, and adr-next applies that rule to the same record.
+test('the Status advice states adr-next\'s rule, and adr-next applies it to the record', () => {
+  for (const status of ['Acceptedé', 'Implemented']) {
     const said = statusAdvice(status)
     assert.match(said, UNRECOGNISED, status)
     assert.ok(said.includes(ADR_NEXT_RULE), said)
     assert.doesNotMatch(said, /these readers|they treat/, said)
-    // The rule the advice states is the one adr-next applies to this record.
     assert.equal(undecided(status), true, status)
   }
-  // The control: an Accepted record is not advised on, and adr-next calls it decided.
-  assert.equal(statusAdvice('Accepted'), '')
-  assert.equal(undecided('Accepted'), false)
+  // The controls: an Accepted record, bare or in markup, is not advised on, and adr-next calls
+  // it decided.
+  for (const status of ['Accepted', '_Accepted_']) {
+    assert.equal(statusAdvice(status), '', status)
+    assert.equal(undecided(status), false, status)
+  }
 })
 
 // #6: U+FFFD is what bytes that are not UTF-8 are read as, and it is also a character valid

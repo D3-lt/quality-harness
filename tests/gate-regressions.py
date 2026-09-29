@@ -1157,8 +1157,15 @@ def main():
             "## Decision\n\nHistorical choice.\n")
         write_archive()
         assert retirement_exit() == 1
+        # ADR-074 (BACKLOG §313): the first word decides, as in every other reader, so a
+        # qualified Accepted is Accepted here too. A word no reader knows still is not.
         archived.write_text(
             "# ADR-001: History\n\n**Status:** Accepted with caveat\n\n"
+            "## Decision\n\nHistorical choice.\n")
+        write_archive()
+        assert retirement_exit() == 0
+        archived.write_text(
+            "# ADR-001: History\n\n**Status:** Acceptedé\n\n"
             "## Decision\n\nHistorical choice.\n")
         write_archive()
         assert retirement_exit() == 1
@@ -1181,6 +1188,10 @@ def main():
         assert retirement_exit() == 0
         active_current.write_text(
             "# ADR-002: Current\n\n**Status:** Accepted with caveat\n\n"
+            "## Decision\n\nCurrent.\n")
+        assert retirement_exit() == 0
+        active_current.write_text(
+            "# ADR-002: Current\n\n**Status:** Acceptedé\n\n"
             "## Decision\n\nCurrent.\n")
         assert retirement_exit() == 1
         active_current.write_text(

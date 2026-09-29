@@ -509,6 +509,24 @@ _REF_SEPARATOR = re.compile(r"[/\\]")
 _RECORD_STATUS = re.compile(r"^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S", re.M | re.I)
 _RECORD_SECTION = re.compile(r"^##\s+(?:Context|Decision)\b", re.M | re.I)
 
+# ADR-074: one reading of a record's Status, shared by every Python reader and pinned
+# to lifecycle.mjs's by tests/status-reading.test.mjs. The label is any form lifecycle
+# already accepts (`**Status:**`, `Status:`, `**Status**:`); every `*`, `_` and
+# backtick is removed from the value wherever it stands (ADR-063's rule); and the kind
+# is a LOOKUP of the run of letters and digits the value STARTS with, never a
+# case-insensitive regex: Python's and JS's case folding and word ends differ
+# (`Wıthdrawn`, `Acceptedé`), and a lookup has no folding to differ in. The run must
+# start the value: `**Status：** Accepted` (a fullwidth colon, BACKLOG §293's X1) was
+# undecided in every reader before this rule, and skipping its colon made it govern.
+_STATUS_LINE = re.compile(r"^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$", re.M | re.I)
+_STATUS_MARKUP = re.compile(r"[*_`]")
+_STATUS_RUN = re.compile(r"[^\W_]+")
+_STATUS_KINDS = {
+    "accepted": "governing",
+    "proposed": "pending", "draft": "pending",
+    "superseded": "graveyard", "withdrawn": "graveyard", "rejected": "graveyard", "deprecated": "graveyard",
+}
+
 
 def number_id(number):
     """The id of record `number`, spelled the way every gate prints it: `ADR-012`."""
@@ -619,6 +637,32 @@ def looks_like_record(text):
     """Whether `text` reads as a decision record: a Status line, and a
     `## Context` or `## Decision` section (lifecycle's `looksLikeRecord`)."""
     return bool(_RECORD_STATUS.search(text) and _RECORD_SECTION.search(text))
+
+
+def record_status(text):
+    """ADR-074 Decisions 1-2: `(value, source)` for a record's Status, or `(None, None)`.
+
+    The value is what follows the first Status label, with every `*`, `_` and backtick
+    removed; `source` says where it was read (`inline`). A caller reading WHICH record a
+    supersession names reads the raw line itself: removing `_` is right for classifying
+    and wrong for a name (lifecycle.mjs `rawStatus`)."""
+    found = _STATUS_LINE.search(text)
+    if not found:
+        return None, None
+    return _STATUS_MARKUP.sub("", found.group(1)).strip(), "inline"
+
+
+def status_word(value):
+    """The run of Unicode letters and digits a Status value starts with, lower-cased, or None.
+    The value is `record_status`'s, whose markup is already removed: removing it once is what
+    lets a mutant that keeps it be seen (ADR-074 T1)."""
+    run = _STATUS_RUN.match((value or "").strip())
+    return run.group(0).lower() if run else None
+
+
+def status_kind(value):
+    """ADR-074 Decision 3: `governing`, `pending`, `graveyard`, or None when undecided."""
+    return _STATUS_KINDS.get(status_word(value))
 
 
 # First-red test-body lock (ADR-050). One hasher, one parse, three callers.

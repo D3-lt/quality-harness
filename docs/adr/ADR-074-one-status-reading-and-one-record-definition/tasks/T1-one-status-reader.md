@@ -84,5 +84,15 @@ Stop and ask if a Status every reader agreed on at ebfaee0 reads differently aft
   # todo 0
   # duration_ms 6004.537333
   ```
+- 2026-09-29 · 6cb57a2 · exit 0 · `set -o pipefail …` · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282 · ms:6964
+- 2026-09-29 · 6cb57a2* · exit 0 · `set -o pipefail …` · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282 · ms:7034
+- 2026-09-29 · 6cb57a2* · exit 0 · `set -o pipefail …` · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282 · ms:6378
+- 2026-09-29 · 6cb57a2* · exit 0 · `set -o pipefail …` · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282 · ms:6250
+- 2026-09-29 · 6cb57a2* · exit 0 · `set -o pipefail …` · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282 · ms:6262
 
 ## Mutation Log
+- 2026-09-29 · 6cb57a2 · mutant killed · exit 1 · `plugin/lib/record.py` · markup kept: `_Accepted_` and `Acc**epted` stop governing in the Python readers while lifecycle still reads them as Accepted · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282
+- 2026-09-29 · 6cb57a2* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · an ASCII regex word end in place of the lookup: `Acceptedé` governs in lifecycle and adr-state again · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282
+- 2026-09-29 · 6cb57a2* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · one reader bypasses the shared rule: adr-retire-check refuses `Accepted (Zy, 2026-09-01)` again · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282
+- 2026-09-29 · 6cb57a2* · mutant killed · exit 1 · `plugin/lib/record.py` · the label forms narrowed to `**Status:**`: `Status: Accepted` and `**Status**: Accepted` go unread in the Python readers · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282
+- 2026-09-29 · 6cb57a2* · mutant killed · exit 1 · `plugin/lib/record.py` · the Python kind is not the shared lookup: `Acceptedé` and `Accepted` + U+1C89 govern in the Python readers and not in lifecycle · acceptance-sha256:d0131377ff690d479378fd7d5d9985eb8f71e4b1eef6c081946065898e0cf282 · covers:every reader gives one Status the same reading

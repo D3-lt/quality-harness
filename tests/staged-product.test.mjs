@@ -533,7 +533,8 @@ test('a QH-shaped record still reaches adr-lint', () => {
 // a markdown file with neither is still not-recognised through both entry points.
 test('a MADR record is linted as a record, and a file that is not one is still not-recognised', () => {
   const root = mkdtempSync(path.join(testTmp, 'madr-'))
-  const record = path.join(root, '0001-use-postgres.md')
+  const record = path.join(root, 'docs', 'adr', '0001-use-postgres.md')
+  mkdirSync(path.dirname(record), { recursive: true })
   writeFileSync(record, [
     '# 1. Use Postgres',
     '',

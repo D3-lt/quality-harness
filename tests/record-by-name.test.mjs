@@ -47,3 +47,40 @@ test('a file named adr<digit> without record content is not a record, and a cano
     rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
 })
+
+// The owner, 2026-09-29, after T3: any Status but the exact `**Status:**` line makes a record only
+// where records are kept — under a directory named `adr` or `decisions` (lifecycle's
+// CORPUS_DIR_NAMES), never under `tasks/`. A comparison over this machine's checkouts found
+// the Laravel/React corpus postmortems and the PHP/Laravel corpus feature notes written `**Status**: ✅ COMPLETE` beside
+// a `## Context` linted as records by T3's rule, and FAILing on this plugin's sections, while
+// lifecycle never counted them. The `**Status:**` line keeps §141's rule wherever the file is.
+const WHERE = [
+  { path: 'docs/postmortems/2026-08-11-a-conflict.md', text: '# A conflict\n\n## Status\n\nResolved\n\n## Context\n\nx\n', record: false },
+  { path: 'docs/features/a-feature.md', text: '# A feature\n\n**Status**: ✅ COMPLETE\n\n## Context\n\nx\n', record: false },
+  { path: 'docs/adr/ADR-001-x/tasks/notes.md', text: '# Notes\n\n## Status\n\nAccepted\n\n## Context\n\nx\n', record: false },
+  { path: 'docs/decisions/005_a-decision.md', text: '# A decision\n\n## Status\n\nProposed\n\n## Context\n\nx\n', record: true },
+  { path: 'docs/adr/0001-use-postgres.md', text: '# 1. Use Postgres\n\n## Status\n\nAccepted\n\n## Context\n\nx\n', record: true },
+  { path: 'docs/notes/decision-2026-09-05.md', text: '# A decision\n\n**Status:** Accepted\n\n## Context\n\nx\n', record: true },
+]
+
+test('a Status section makes a record only in a directory records are kept in', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-record-where-'))
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true })
+    const wrong = []
+    for (const file of WHERE) {
+      const full = join(repo, file.path)
+      mkdirSync(dirname(full), { recursive: true })
+      writeFileSync(full, file.text)
+      // 60s: a Windows runner's first Python spawn can take 30 (tests/adr-next.test.mjs:29).
+      const run = spawnSync('python3', [adrLint, full], { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+      assert.ok([0, 1, 2].includes(run.status), `adr-lint could not run on ${file.path}: ${run.stdout}\n${run.stderr}`)
+      const notRecognised = run.status === 2 && /^not-recognised: /m.test(run.stdout)
+      const linted = /^\[(PASS|FAIL)\] /m.test(run.stdout)
+      if (notRecognised === file.record || linted !== file.record) wrong.push(`${file.path}: exit ${run.status}, ${notRecognised ? 'not-recognised' : linted ? 'linted' : 'neither'}, expected ${file.record ? 'linted' : 'not-recognised'}`)
+    }
+    assert.deepEqual(wrong, [])
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  }
+})

@@ -200,8 +200,10 @@ export function leafTestsRun(stdout, files = [], names = []) {
   // macOS the same day, 2026-09-18; it was never platform-specific.
   const wrappers = new Set(files.flatMap(file => [file, path.resolve(file)]))
   const named = new Set(names)
-  return [...text.matchAll(/^\s*[✔✖] (.+?) \(\d[\d.]*ms\)\s*$/gm)]
-    .filter(m => !wrappers.has(m[1]) && !wrappers.has(path.resolve(m[1])))
+  const lines = [...text.matchAll(/^\s*[✔✖] (.+?) \(\d[\d.]*ms\)\s*$/gm)]
+  const wrapper = m => wrappers.has(m[1]) || wrappers.has(path.resolve(m[1]))
+  const leaves = lines
+    .filter(m => !wrapper(m))
     // ⚠ THE FALLBACK MAY NOT KEY ON WHITESPACE, and passing `files` is not
     // enough on its own: a caller that omits them — including this project's own
     // end-to-end test — still has to be safe. Node prints the file wrapper ONLY
@@ -220,6 +222,22 @@ export function leafTestsRun(stdout, files = [], names = []) {
     // one of the names a narrowing recorded. Without this a killer named `… for .js` counted one
     // short on a complete run, and short is STALE, which fails the campaign (run 36521596839).
     .filter(m => named.has(m[1]) || !/\.(mjs|js|py|cjs)$/.test(m[1])).length
+  // Codex review of ffd4892, P1. A suite prints `✔ <name>` when it completes, the same shape as a
+  // test that ran, so a suite whose children were all skipped, or an empty one, counted as a leaf
+  // that executed and a baseline of nothing graded `pass`. No line says which it is, but the
+  // summary counts only tests that passed or failed, and a suite or a skip adds to neither. So the
+  // count is capped at that sum, and output carrying neither line says nothing about how many ran.
+  //
+  // The summary is the reporter's LAST block: a test file may print a line shaped like it first,
+  // and `ℹ pass 7` printed by one lifted the cap. And a file the pattern matched nothing in prints
+  // its wrapper as a test that passed, counted in `ℹ pass`, so each KNOWN wrapper is taken off the
+  // cap. Only those: a line discounted by its extension may be a suite named like a file, which the
+  // summary never counted (a review of the first cap, 2026-09-29).
+  const summary = label => [...text.matchAll(new RegExp(`^\\s*ℹ ${label} (\\d+)\\s*$`, 'gm'))].at(-1)
+  const passed = summary('pass')
+  const failed = summary('fail')
+  if (!passed && !failed) return null
+  return Math.max(0, Math.min(leaves, Number(passed?.[1] ?? 0) + Number(failed?.[1] ?? 0) - lines.filter(wrapper).length))
 }
 export function baselineOf(run, files = [], names = []) {
   if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }

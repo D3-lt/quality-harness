@@ -485,7 +485,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    const readyPath = pathInCode(posixListed(path.relative(root, directory) || directory))",
+      "from": "    const readyPath = pathInCode(listed)",
       "to": "    const readyPath = relative",
       "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
     },
@@ -495,7 +495,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  return `${codeSpan(text)}${note}`",
+      "from": "  return `${codeSpan(shown)}${note}${tagged}`",
       "to": "  return pathInCode(command)",
       "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
     },
@@ -684,7 +684,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "      const archive = unmarked.find(dir => relative === dir || relative.startsWith(`${dir}/`))",
+      "from": "      const archive = unmarked.find(dir => listed === dir || listed.startsWith(`${dir}/`))",
       "to": "      const archive = undefined",
       "only": "^(?:a ready task under an unmarked archive leads with adopting it, not with adr-verify|the ready line says first when the owning record is unreadable or not Accepted)$"
     },
@@ -1448,7 +1448,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        print(f\"[strictFrom] {errors.demotion}\")",
+      "from": "        print(f\"[strictFrom] {one_line(errors.demotion)}\")",
       "to": "        pass",
       "only": "^(?:strictFrom lets a corpus adopt these gates without failing on its own history)$"
     },
@@ -14934,8 +14934,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    except OSError as exc:\n        print(f\"[adr-lint] could not run: {exc.filename or 'a file'}",
-      "to": "    except ZeroDivisionError as exc:\n        print(f\"[adr-lint] could not run: {exc.filename or 'a file'}",
+      "from": "    except OSError as exc:\n        print(f\"[adr-lint] could not run: {one_line(exc.filename or 'a file')}",
+      "to": "    except ZeroDivisionError as exc:\n        print(f\"[adr-lint] could not run: {one_line(exc.filename or 'a file')}",
       "only": "cannot read is could-not-run"
     },
     {
@@ -16156,24 +16156,24 @@
       "label": "§319 H1: a check command's controls are printed raw",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "return codeSpan(visiblePath(command).replace(",
-      "to": "return codeSpan(String(command).replace(",
+      "from": "return codeSpan(untagged(String(command).split('\\t').map(visiblePath).join('\\t')))",
+      "to": "return codeSpan(untagged(String(command)))",
       "only": "a declared check cannot forge a line"
     },
     {
       "label": "§319 H1: a tag in a check command is left to open or close a frame",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": ".replace(/<(?=\\/?[A-Za-z])/g, '‹'))",
-      "to": ".replace(/<(?=\\/?[A-Za-z])/g, '<'))",
+      "from": "codeSpan(untagged(String(command).split(",
+      "to": "codeSpan((String(command).split(",
       "only": "a declared check cannot forge a line"
     },
     {
       "label": "§319 H1: every < in a check command is neutralised, a redirection too",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": ".replace(/<(?=\\/?[A-Za-z])/g, '‹'))",
-      "to": ".replace(/</g, '‹'))",
+      "from": "const TAG_OPEN = /<(?=\\/?[A-Za-z](?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "const TAG_OPEN = /</g",
       "only": "a declared check cannot forge a line"
     },
     {
@@ -16279,6 +16279,336 @@
       "from": "${tornRecord(log, 'this session’s event log')} could not be read whole",
       "to": "this session’s event log could not be read whole",
       "only": "a torn checks.jsonl is named as checks.jsonl"
+    },
+    {
+      "label": "§321 codex P1: a suite's completion line counts as a leaf that ran",
+      "file": "scripts/mutate.mjs",
+      "tests": ["tests/mutate-runner.test.mjs"],
+      "from": "  return Math.max(0, Math.min(leaves, Number(passed?.[1] ?? 0) + Number(failed?.[1] ?? 0) - lines.filter(wrapper).length))",
+      "to": "  return leaves",
+      "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
+    },
+    {
+      "label": "§321 codex P1: output with no summary still gives a count",
+      "file": "scripts/mutate.mjs",
+      "tests": ["tests/mutate-runner.test.mjs"],
+      "from": "  if (!passed && !failed) return null",
+      "to": "  if (false) return null",
+      "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
+    },
+    {
+      "label": "§321 codex P2: adr-lint prints a missing file's name raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "print(f\"ADR not found: {one_line(adr)}\")",
+      "to": "print(f\"ADR not found: {adr}\")",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "§321 codex P2: adr-lint prints an unknown option raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "print(f\"unknown option: {one_line(unknown[0])}\", file=sys.stderr)",
+      "to": "print(f\"unknown option: {unknown[0]}\", file=sys.stderr)",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "§321 codex P2: a survival line prints its finding raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "unchanged · {one_line(message)}\")",
+      "to": "unchanged · {message}\")",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "§321 codex render: the tag rule reverts to every < before a letter, a redirection too",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "const TAG_OPEN = /<(?=\\/?[A-Za-z](?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "const TAG_OPEN = /<(?=\\/?[A-Za-z])/g",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: a < that a > closes is kept when its name goes on",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "(?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$))",
+      "to": "(?:[\\w:-]*(?:[\\s/\\\\]|$))",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: a tag name that ends at a / is kept",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "[\\w:-]*(?:[\\s\\\\]|$)))/g",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: a tag name that ends the text is kept",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "[\\w:-]*(?:[\\s/])))/g",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: a tab in a check command is shown escaped",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "untagged(String(command).split('\\t').map(visiblePath).join('\\t'))",
+      "to": "untagged(visiblePath(command))",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: the adr-verify command prints a tag raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "  return `${codeSpan(shown)}${note}${tagged}`",
+      "to": "  return `${codeSpan(text)}${note}${tagged}`",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: the adr-verify command does not say its shown path is not the real name",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "const tagged = shown === text ? '' :",
+      "to": "const tagged = true ? '' :",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: a ready line's diagnostic prefix prints a tag raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "    const relative = shownPath(listed)",
+      "to": "    const relative = visiblePath(listed)",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: the unreadable-README line prints its path raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "lines.push(`  ${shownPath(posixListed(path.relative(root, directory) || directory))}: UNPROVEN",
+      "to": "lines.push(`  ${posixListed(path.relative(root, directory) || directory)}: UNPROVEN",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: a ready line's own path prints a tag raw in its code span",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "  return codeSpan(shownPath(value))",
+      "to": "  return codeSpan(visiblePath(value))",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: an unmarked archive is matched on its shown path",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "unmarked.find(dir => listed === dir || listed.startsWith(`${dir}/`))",
+      "to": "unmarked.find(dir => relative === dir || relative.startsWith(`${dir}/`))",
+      "only": "an unmarked archive whose name holds a tag"
+    },
+    {
+      "label": "§321 codex render: the ready line prints an archive's name raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "read as live only because ${pathInCode(archive)} has no",
+      "to": "read as live only because \\`${archive}\\` has no",
+      "only": "an unmarked archive whose name holds a tag"
+    },
+    {
+      "label": "§321 codex render: the adopt command prints an archive's name raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "${codeSpan(`adr-retire-check --adopt <active> ${shownPath(archive)}`)}",
+      "to": "${codeSpan(`adr-retire-check --adopt <active> ${archive}`)}",
+      "only": "an unmarked archive whose name holds a tag"
+    },
+    {
+      "label": "§321 codex render: SessionStart prints an unmarked archive's name raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "      lines.push(`${pathInCode(archive)} looks like an archive",
+      "to": "      lines.push(`\\`${archive}\\` looks like an archive",
+      "only": "SessionStart names an unmarked archive holding a tag"
+    },
+    {
+      "label": "§321 codex render: the previous-session line says to run the check as shown",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "(check ? `Run \\`qh-check\\` (it runs ${checkInCode(check)}) before building on them.`",
+      "to": "(check ? `Run ${checkInCode(check)} before building on them.`",
+      "only": "names the previous session"
+    },
+    {
+      "label": "§321 codex render: the previous session's files print a tag raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "row.files.slice(0, 5).map(file => shownPath(path.relative(cwd, file) || file))",
+      "to": "row.files.slice(0, 5).map(file => path.relative(cwd, file) || file)",
+      "only": "names the previous session"
+    },
+    {
+      "label": "§321 codex render: the compaction note's Last check prints the command raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "`Last check: ${checkInCode(facts.lastCheck.command ?? 'qh-check')}",
+      "to": "`Last check: \\`${facts.lastCheck.command ?? 'qh-check'}\\`",
+      "only": "the compaction note shows"
+    },
+    {
+      "label": "§321 codex render: the compaction note's paths print a tag raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "const shown = files.slice(0, 5).map(file => shownPath(path.relative(cwd, file) || file))",
+      "to": "const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)",
+      "only": "the compaction note shows"
+    },
+    {
+      "label": "§321 codex render: the compaction note's inferred check prints raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "INFERRED check (${checkInCode(facts.checkCommand ?? 'unknown')})",
+      "to": "INFERRED check (\\`${facts.checkCommand ?? 'unknown'}\\`)",
+      "only": "the compaction note shows"
+    },
+    {
+      "label": "§321 codex P1: the first summary-shaped line is read, not the reporter's last",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "'gm'))].at(-1)",
+      "to": "'gm'))][0]",
+      "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
+    },
+    {
+      "label": "§321 codex P1: a known wrapper lifts the cap",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": " - lines.filter(wrapper).length))",
+      "to": "))",
+      "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
+    },
+    {
+      "label": "§321 codex P2: a directory's name prints raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "print(f\"expected a record FILE, got a directory: {one_line(adr)}\")",
+      "to": "print(f\"expected a record FILE, got a directory: {adr}\")",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "§321 codex P2: a file adr-lint does not recognise prints its name raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "print(f\"not-recognised: {one_line(adr)} has no",
+      "to": "print(f\"not-recognised: {adr} has no",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "§321 codex render: work-next prints an archive's name raw",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "say(`\\n${pathInCode(archive)} looks like an archive",
+      "to": "say(`\\n\\`${visiblePath(archive)}\\` looks like an archive",
+      "only": "work-next names an unmarked archive holding a tag"
+    },
+    {
+      "label": "§321 codex render: a backslash does not end a tag's name",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "[\\w:-]*(?:[\\s/]|$)))/g",
+      "only": "a tag whose name ends at a control"
+    },
+    {
+      "label": "§321 codex status: the markup clause is dropped",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
+      "from": "if re.search(r\"[*_`]\", status_value) else \"\"",
+      "to": "if False else \"\"",
+      "only": "a Status written with markup is still advised on"
+    },
+    {
+      "label": "§321 codex status: markup is removed before matching, which silences _Proposed_",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
+      "from": "status_value = re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+?)[ \\t]*$\", text, re.M).group(1).strip().strip(\"`*\")",
+      "to": "status_value = re.sub(r\"[*_`]\", \"\", re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+?)[ \\t]*$\", text, re.M).group(1)).strip()",
+      "only": "a Status written with markup is still advised on"
+    },
+    {
+      "label": "§321 codex status: U+FFFD is called bytes that are not UTF-8",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
+      "from": "+ (\"; the value holds U+FFFD, which is what bytes that are not UTF-8 are read as\"",
+      "to": "+ (\", and it holds bytes that are not UTF-8\"",
+      "only": "a Status holding U\\+FFFD is named as holding U\\+FFFD"
+    },
+    {
+      "label": "§321 codex status: the advice claims every reader agrees",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
+      "from": "f\"calls a record undecided, a plan and not a work order, unless its Status starts with \"",
+      "to": "f\"and these readers treat it as not Accepted, unless its Status starts with \"",
+      "only": "the Status advice claims what adr-lint read"
     }
   ]
 }

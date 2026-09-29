@@ -16556,3 +16556,24 @@ The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date 
 - `showsFailing`; the probe dropping advice; C2; X1.
 - Trailing-space task files; B9; Invalidates in a sibling archive; `[31m` residue.
 - §302's `Class::method`; `**Statusas:**`; adr-lint's other corpus reads and FIFOs.
+
+**Addendum, the same day: one Codex round on ffd4892, and a review of its fixes.** Codex (gpt-6-astra, xhigh) answered REQUEST CHANGES with six findings. All six were confirmed against source and fixed, each with a failing test first and catalogue mutants, all RED. Read-only reviewers were then asked to refute each fix, and they found the defects named below. The ones that reached silence or a forged line are fixed; the rest are recorded.
+- **P1, a fail-open in `leafTestsRun`.** A suite prints `✔ <name>` when it completes, so a suite whose children were all skipped, or an empty one, counted as a test that ran, and a baseline of nothing graded `pass`. That was true before ffd4892 for any such suite; the names exemption only widened it.
+  - The count is capped at the reporter's summary (`ℹ pass` plus `ℹ fail`), which a suite or a skip never adds to.
+  - The review of the first cap found two holes, both fixed: it read the FIRST summary-shaped line, so a test printing `ℹ pass 7` lifted it; and a file the pattern matched nothing in prints its wrapper as a passing test, which lifted it by one. The last summary is read now, and each known wrapper is taken off.
+  - Every catalogue entry on `scripts/mutate.mjs` was run again after each change (§18).
+- **P2, adr-lint's other printers.** A missing file, an unknown option, `--advice-survival`, a directory named like a record and a file adr-lint does not recognise each printed a name's newline raw. All go through `one_line` now, and each route has a test.
+- **#3, a tag in SessionStart.** A ready line's prefix and its `adr-verify` command printed `<system-reminder>` from a directory or task name. Corpus-derived paths go through `shownPath` (a `<` before a tag name becomes `‹`), and `commandInCode` says when the shown path is not the file's real name.
+  - The review found work-next printing the same archive sentence raw (fixed), and a control after a tag name escaping the rule, because `visiblePath` had already turned it into a backslash (fixed).
+- **#4, a displayed command that no longer ran.** A tab stays raw in `checkInCode`, and `wc -l <CLAUDE.md` keeps its bytes. That was measured in bash, zsh, sh and dash: the `‹` spelling exits 1. The previous-session line says "Run `qh-check` (it runs …)", so the only runnable instruction names `qh-check`.
+- **#5, advice that claimed agreement.** It now says what adr-lint read and what adr-next's rule is, and it names lifecycle's reading when the value holds markup.
+  - A first fix removed the markup before matching, as lifecycle does. The review showed that it silenced `_Proposed_`, which adr-next and adr-lint's other Status readers do not read as Proposed. It was reverted.
+- **#6.** The advice names U+FFFD, not where it came from.
+- **Codex's residual:** the D4 test's Stop regex missed "the session log". It no longer does.
+
+**Recorded, open:**
+- **The printer shape in the other Python gates.** spec-verify, arch-lint, adr-retire-check, adr-next, adr-verify, adr-debt, adr-judge and postmortem-verify each print a path or a finding without `one_line`. Find them with `mrw read --grep 'print\(' plugin/bin/`.
+- **U+2028 and U+2029 pass through** `record.visible`, `visiblePath` and `terminalText`. A JS multiline regex and Python's `splitlines` both break a line there. This predates this batch and applies to the whole class.
+- **A redirection from a path holding `/`** (`npm test </dev/null`) is still shown with `‹`. It is display only: the runnable instruction names `qh-check`.
+- **The readers disagree about a status with markup inside it, or a letter after the word.** lifecycle removes `*`, `_` and backticks, and its `\b` is ASCII, so it reads `_Accepted_` and `Acceptedé` as Accepted; adr-next and adr-lint do not. Which reading is right is the owner's decision.
+- **`leafTestsRun` called without `files`** takes no wrapper off the cap. The campaign always passes them.

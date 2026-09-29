@@ -16039,6 +16039,30 @@
       "from": "export function run(argv, { read = readRegularFile,",
       "to": "export function run(argv, { read = readFileSync,",
       "only": "corpus-report counts a FIFO task"
+    },
+    {
+      "label": "BACKLOG §319 C4: the done check reads an empty Status from the next line",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "    m = re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+?)[ \\t]*$\", text, re.M)",
+      "to": "    m = re.search(r\"^\\*\\*Status:\\*\\*\\s*(.+?)\\s*$\", text, re.M)",
+      "only": "an empty Status line is not read"
+    },
+    {
+      "label": "BACKLOG §319 C4: the no-tasks advice reads an empty Status from the next line",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "        status_m = re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+?)[ \\t]*$\", body, re.M)",
+      "to": "        status_m = re.search(r\"^\\*\\*Status:\\*\\*\\s*(.+?)\\s*$\", body, re.M)",
+      "only": "an empty Status line is not read"
+    },
+    {
+      "label": "BACKLOG §319 C4: an empty Status line is not said",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "    elif re.search(r\"^\\*\\*Status:\\*\\*[ \\t]*\\r?$\", text, re.M):",
+      "to": "    elif False:",
+      "only": "an empty Status line is not read"
     }
   ]
 }

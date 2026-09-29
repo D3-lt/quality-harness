@@ -320,3 +320,30 @@ test('adr-state --json lists the Governs paths that match nothing git tracks, as
   const json = JSON.parse(node('adr-state.mjs', ['--json'], repo).stdout)
   assert.deepEqual(json.governsUnmatched, ['src/gone.mjs'])
 })
+
+// tool-multipathreadwrite's C4 at e016066: `^\*\*Status:\*\*\s*(.+?)` crossed the line break, so an
+// empty Status line was read from the line after it. A blocking check then quoted a status the record
+// does not have, and the advice for a record with no tasks did the same.
+test('an empty Status line is not read from the line after it, and is said to be empty', () => {
+  const repo = scratch()
+  const lintBoth = (...targets) => {
+    const run = spawnSync('python3', [join(bin, 'adr-lint'), ...targets], { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    return `${run.stdout}${run.stderr}`
+  }
+  const empty = '# ADR-001: X\n\n**Status:**\n**Proposed:** 2026-09-01 by Zy\n\n## Context\n\nx\n'
+  write(repo, 'docs/adr/ADR-001-x.md', empty)
+  write(repo, 'docs/adr/ADR-001-x/tasks/README.md', '# ADR-001 tasks\n\n| Task | Goal | Status |\n| --- | --- | --- |\n| T1 | x | done |\n')
+  write(repo, 'docs/adr/ADR-001-x/tasks/T1-x.md', '# Task ADR-001-T1: x\n')
+  const record = join(repo, 'docs', 'adr', 'ADR-001-x.md')
+  const tasks = join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks')
+  const said = lintBoth(record, tasks)
+  assert.ok(!said.includes('Status is \'Proposed:'), said)
+  assert.ok(said.includes('the **Status:** line is empty'), said)
+  // The control: a Status that really says Proposed, over a task marked done, is still refused.
+  write(repo, 'docs/adr/ADR-001-x.md', empty.replace('**Status:**\n', '**Status:** Proposed\n'))
+  assert.ok(lintBoth(record, tasks).includes('Status is \'Proposed\' but T1 is marked done'))
+  // The no-tasks advice reads the same line, and it quoted the line after an empty one too.
+  write(repo, 'src/a.js', 'export const a = 1\n')
+  write(repo, 'docs/adr/ADR-002-y.md', '# ADR-002: Y\n\n**Status:**\n**Proposed:** 2026-09-01 by Zy\n\n## Context\n\nx\n\n## Implementation\n\n- `src/a.js`\n')
+  assert.ok(!lintBoth(join(repo, 'docs', 'adr', 'ADR-002-y.md')).includes('Status is `Proposed:'))
+})

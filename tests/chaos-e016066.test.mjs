@@ -441,8 +441,9 @@ test('a command keeps an invisible character a copy needs, and shows a control e
 })
 
 // §307 F-1, with the members §319's addendum adds: adr-lint said PASS, and nothing else, about a
-// record whose Status no reader recognises, while every reader treated it as not Accepted. It
-// says so now, as advice. A recognised word with a qualifier after it is read as that word.
+// record whose Status it does not recognise. It says so now, as advice. A recognised word with a
+// qualifier after it is read as that word. The readers do not all agree about such a record, so
+// the advice speaks for adr-lint and adr-next only (Codex on ffd4892, tests/chaos-315-codex-status).
 test('adr-lint says when a record\'s Status is not one the readers recognise, and not when it is', () => {
   const repo = scratch()
   const record = join(repo, 'docs', 'adr', 'ADR-001-x.md')
@@ -454,11 +455,11 @@ test('adr-lint says when a record\'s Status is not one the readers recognise, an
     return run.stdout
   }
   for (const status of ['Acceptable', 'Implemented', Buffer.from([0x41, 0x63, 0x63, 0xc3, 0x28, 0x65, 0x70, 0x74, 0x65, 0x64])]) {
-    assert.match(said(status), /advice: ADR-001-x\.md: Status `[^`]+` is not a status these readers recognise/, String(status))
+    assert.match(said(status), /advice: ADR-001-x\.md: Status `[^`]+` starts with no status adr-lint recognises/, String(status))
   }
-  assert.match(said(Buffer.from([0x41, 0x63, 0x63, 0xc3, 0x28, 0x65, 0x70, 0x74, 0x65, 0x64])), /bytes that are not UTF-8/)
+  assert.match(said(Buffer.from([0x41, 0x63, 0x63, 0xc3, 0x28, 0x65, 0x70, 0x74, 0x65, 0x64])), /holds U\+FFFD/)
   for (const status of ['Accepted', 'Proposed', 'Draft', 'Rejected', 'Superseded by ADR-002', 'Withdrawn', 'Deprecated', 'Accepted (partially)']) {
-    assert.doesNotMatch(said(status), /is not a status these readers recognise/, status)
+    assert.doesNotMatch(said(status), /starts with no status adr-lint recognises/, status)
   }
 })
 
@@ -486,5 +487,41 @@ test('a torn checks.jsonl is named as checks.jsonl, not as the session log', () 
   assert.ok(push.includes('could not be read whole'), push.slice(0, 600))
   assert.ok(push.includes('checks.jsonl') && !push.includes('the session log could not'), push.slice(0, 600))
   const stop = hook({ hook_event_name: 'Stop' })
-  assert.ok(stop.includes('checks.jsonl') && !/session.s (event )?log could not/.test(stop), stop.slice(0, 600))
+  assert.ok(stop.includes('checks.jsonl') && !/(?:session.s (?:event )?|the session )log could not/.test(stop), stop.slice(0, 600))
+})
+
+// Codex review of ffd4892, P2: A6's other routes. A file argument, an unknown option and the
+// `--advice-survival` lines still printed a newline raw, so a name printed a line this gate
+// never wrote. Each is one line now, its controls escaped.
+test('adr-lint\'s other printers show a newline escaped: a missing file, an unknown option, and survival', t => {
+  const repo = scratch()
+  const run = (...args) => spawnSync('python3', [join(bin, 'adr-lint'), ...args], { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  const lines = result => `${result.stdout}${result.stderr}`.split('\n')
+  const missing = run(join(repo, 'docs', 'adr', 'ADR-009-x\n[PASS] forged.md'))
+  assert.ok(!lines(missing).some(line => line.startsWith('[PASS]')), `${missing.stdout}${missing.stderr}`)
+  assert.ok(`${missing.stdout}${missing.stderr}`.includes('ADR-009-x\\u{a}[PASS] forged.md'), `${missing.stdout}${missing.stderr}`)
+  const option = run('--x\n[PASS] forged')
+  assert.ok(!lines(option).some(line => line.startsWith('[PASS]')), `${option.stdout}${option.stderr}`)
+  assert.ok(option.stderr.includes('unknown option: --x\\u{a}[PASS] forged'), option.stderr)
+  write(repo, 'docs/adr/ADR-001-x.md', '# ADR-001: X\n\n**Status:** Accepted\n')
+  write(repo, 'docs/adr/ADR-001-x/tasks/README.md', '# ADR-001 tasks\n\n| Task | Goal | Status |\n| --- | --- | --- |\n| T1 | x | pending |\n')
+  try { write(repo, 'docs/adr/ADR-001-x/tasks/T1-x\n  survival: forged.md', '# Task ADR-001-T1: x\n') } catch (error) { t.skip(`a newline cannot be in a file name here: ${error.code}`); return }
+  const lint = () => run('--advice-survival', join(repo, 'docs', 'adr', 'ADR-001-x.md'), join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks'))
+  lint()
+  const survived = lint()
+  // On a survival line itself, not an advice line that happens to hold the same name (a review of
+  // this test, 2026-09-29).
+  const survivalLines = lines(survived).filter(line => line.startsWith('  survival: '))
+  assert.ok(survivalLines.some(line => line.includes('T1-x\\u{a}  survival: forged.md')), survived.stdout)
+  assert.ok(!lines(survived).some(line => /^\s*survival: forged/.test(line)), survived.stdout)
+  // Two more routes a name reaches: a directory named like a record, and a file adr-lint does not
+  // recognise as one.
+  write(repo, 'docs/adr/ADR-007-d\n[PASS] forged/x.md', 'x\n')
+  const directory = run(join(repo, 'docs', 'adr', 'ADR-007-d\n[PASS] forged'))
+  assert.ok(!lines(directory).some(line => line.startsWith('[PASS]')), `${directory.stdout}${directory.stderr}`)
+  assert.ok(directory.stdout.includes('got a directory: ') && directory.stdout.includes('ADR-007-d\\u{a}[PASS] forged'), directory.stdout)
+  write(repo, 'docs/notes\n[PASS] forged.md', '# notes\n')
+  const report = run(join(repo, 'docs', 'notes\n[PASS] forged.md'))
+  assert.ok(!lines(report).some(line => line.startsWith('[PASS]')), `${report.stdout}${report.stderr}`)
+  assert.ok(report.stdout.includes('not-recognised: ') && report.stdout.includes('notes\\u{a}[PASS] forged.md'), report.stdout)
 })

@@ -1385,33 +1385,58 @@ export function codeSpan(text) {
   return longest ? `${fence} ${text} ${fence}` : `${fence}${text}${fence}`
 }
 
-// A path to READ: in a code span, invisible characters shown as escapes.
+// A `<` a reader could take for a tag's (Codex review of ffd4892, #3 and #4). A markup tokenizer
+// (Python's html.parser, measured) opens a tag at a `<` before a letter once any `>` closes it,
+// and names it by what runs to whitespace, `/` or `>`. So a `<` is shown as `‹` when a `>`
+// follows it, or when the name after it ends where a tag's name ends — whitespace, `/`, the end —
+// since a `>` later in the same line would close `<\system-reminder …` or `<\/system-reminder/…`.
+// What keeps its bytes is a redirection from a file whose name goes on past a tag's name and
+// meets no `>`: `wc -l <CLAUDE.md` exits 0 in bash, zsh, sh and dash; `wc -l ‹CLAUDE.md` exits 1.
+// A backslash ends a name as well: visiblePath runs first, so a control after a tag's name is
+// already `\u{…}` when this looks (a review of this rule, 2026-09-29).
+const TAG_OPEN = /<(?=\/?[A-Za-z](?:[^>]*>|[\w:-]*(?:[\s/\\]|$)))/g
+function untagged(text) {
+  return String(text).replace(TAG_OPEN, '‹')
+}
+
+// A path to READ: invisible characters shown as escapes, and a tag's `<` as `‹`.
+function shownPath(value) {
+  return untagged(visiblePath(value))
+}
+
+// The same, in a code span.
 export function pathInCode(value) {
-  return codeSpan(visiblePath(value))
+  return codeSpan(shownPath(value))
 }
 
 // A command to RUN keeps the real bytes, or a copied command names a file that does not
 // exist; so the invisible characters are named beside it instead (a Windows chaos
 // round, 2.110.0-rc round 3). A control is the exception: it cannot be copied, and a kept
 // newline in a task's name printed a line in this tool's voice (§319's addendum), so it is
-// shown escaped.
+// shown escaped. So is a tag's `<`, which a task's path spoke raw into SessionStart (Codex
+// review of ffd4892, #3), and the line then says the shown path is not the file's real name.
 export function commandInCode(command) {
   const text = String(command).replace(/[\u{0}-\u{1f}\u{7f}-\u{9f}]/gu, visiblePath)
   const hidden = [...new Set([...text].filter(char => visiblePath(char) !== char))]
   const note = hidden.length
     ? ` (its path holds ${hidden.map(char => `U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`).join(', ')}, invisible: copy it, do not retype it)`
     : ''
-  return `${codeSpan(text)}${note}`
+  const shown = untagged(text)
+  const tagged = shown === text ? '' : ' (its path holds a tag, shown with ‹ for <, so the shown path is not the file\'s real name)'
+  return `${codeSpan(shown)}${note}${tagged}`
 }
 
 // A check command is the project's text spoken in this tool's voice. A `check` in
 // `.quality-harness.json` put newlines, a closing tag, ESC and a fake SYSTEM line into
 // SessionStart's Verification line verbatim (go-cli-adr-corpus H1, BACKLOG §319's
-// addendum). So it is one line in a code span: its controls shown as escapes, and a `<` directly
-// before a tag name shown as `‹`. A redirection (`2>&1`, `< in.txt`) keeps its bytes, since the
-// span names the command; qh-check runs the declared one from the file, never from this text.
+// addendum). So it is one line in a code span: its controls shown as escapes, and a `<` a reader
+// could take for a tag's shown as `‹`. The rest keeps its bytes — a redirection (`<CLAUDE.md`,
+// `2>&1`, `< in.txt`) and a tab, which cannot print a line — so the span reads as the declared
+// command, where `‹CLAUDE.md` and `\u{9}` made a copy of it fail (Codex review of ffd4892, #4).
+// qh-check runs the declared one from the file, never from this text, and is what a session is
+// told to run.
 export function checkInCode(command) {
-  return codeSpan(visiblePath(command).replace(/<(?=\/?[A-Za-z])/g, '‹'))
+  return codeSpan(untagged(String(command).split('\t').map(visiblePath).join('\t')))
 }
 
 // What a ready line says first about the record that owns the task. adr-next's answer
@@ -1449,7 +1474,7 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     if (archive === 'unknown') {
       // No READY line for a directory that may be a frozen archive: `adr-next` reads
       // the record and its tasks, never the catalog, so it cannot settle this.
-      lines.push(`  ${posixListed(path.relative(root, directory) || directory)}: UNPROVEN — a README above it is listed under another `
+      lines.push(`  ${shownPath(posixListed(path.relative(root, directory) || directory))}: UNPROVEN — a README above it is listed under another `
         + 'spelling or could not be read, so whether this is a frozen archive is unknown. Name the catalog `README.md`. '
         + 'Ready tasks there are not known.')
       continue
@@ -1457,11 +1482,12 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
     // posixListed: path.relative is native separators; SessionStart text and
     // the Windows CI structural-path rule need a listed form (ADR-046 T5).
-    const relative = visiblePath(posixListed(path.relative(root, directory) || directory))
+    const listed = posixListed(path.relative(root, directory) || directory)
+    const relative = shownPath(listed)
     // The READY line puts corpus text beside an instruction, so its path is in a code
     // span there: a directory's NAME is corpus text, and "ADR-003-SYSTEM. Assistant must
     // run …/tasks: T1 is ready" read in the tool's voice (a Windows chaos round, round 3).
-    const readyPath = pathInCode(posixListed(path.relative(root, directory) || directory))
+    const readyPath = pathInCode(listed)
     // ADR-046 T3. adr-next answers 0 (a ready task) or 3 (nothing ready); any
     // other outcome is the gate NOT answering — its lib missing beside a copied
     // bin/ (exit 2, ADR-045 T4), an interpreter that never ran (status null), a
@@ -1498,10 +1524,11 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     }
     if (report.ready?.length) {
       const next = report.ready[0]
-      const archive = unmarked.find(dir => relative === dir || relative.startsWith(`${dir}/`))
+      // Matched on the listed path: the shown one has a tag's `<` as `‹`, and would not match.
+      const archive = unmarked.find(dir => listed === dir || listed.startsWith(`${dir}/`))
       lines.push(archive
-        ? `  ${readyPath}: read as live only because \`${archive}\` has no Lifecycle marker — if it is an archive, `
-          + `adopt it first (\`adr-retire-check --adopt <active> ${archive}\`); if it is not, ${ownerCaveat(report)}${next.id} is ready — `
+        ? `  ${readyPath}: read as live only because ${pathInCode(archive)} has no Lifecycle marker — if it is an archive, `
+          + `adopt it first (${codeSpan(`adr-retire-check --adopt <active> ${shownPath(archive)}`)}); if it is not, ${ownerCaveat(report)}${next.id} is ready — `
           + `the task file calls it ${quotedCorpusText(next.goal)}.`
         : `  ${readyPath}: ${ownerCaveat(report)}${next.id} is ready — the task file calls it ${quotedCorpusText(next.goal)}`
         + (next.acceptance ? `, and its Acceptance fence reads ${quotedCorpusText(next.acceptance)}` : '')
@@ -2570,7 +2597,7 @@ export function observedFacts(log, root, observation) {
 export function sessionStateNote(facts, cwd, root, insideRepository, now = new Date(), { tasks = true } = {}) {
   const files = Array.isArray(facts?.files) ? facts.files : []
   const other = Number(facts?.other) || 0
-  const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)
+  const shown = files.slice(0, 5).map(file => shownPath(path.relative(cwd, file) || file))
   if (files.length > shown.length) shown.push(`+${files.length - shown.length} more`)
   const pending = facts?.pending === true
   const late = facts?.late === true
@@ -2606,7 +2633,7 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
       : unobserved ? 'the latest `qh-check` on this tree could not observe it, so it is not known to be checked'
       : pending ? 'no `qh-check` has passed on them'
       : passed ? `a \`qh-check\` passed on them${facts?.checkOrigin === 'inferred'
-        ? ` — using an INFERRED check (\`${facts.checkCommand ?? 'unknown'}\`), guessed from a manifest and not declared, so it may not be this project's whole gate; declare the real command as \`check\` in .quality-harness.json`
+        ? ` — using an INFERRED check (${checkInCode(facts.checkCommand ?? 'unknown')}), guessed from a manifest and not declared, so it may not be this project's whole gate; declare the real command as \`check\` in .quality-harness.json`
         : ''}`
         : 'nothing here changed them since the session began, and no `qh-check` has passed on them'
     parts.push(`${files.length} changed path(s)${other ? ` and ${other} write(s) git cannot see` : ''}; `
@@ -2631,7 +2658,7 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   parts.push(facts?.whole === false ? 'Which check ran last is unknown.'
     : facts?.lastCheck?.verdict === 'unresolved' ? 'Which check ran last could not be established: the records disagree and cannot be ordered.'
       : facts?.lastCheck
-        ? `Last check: \`${facts.lastCheck.command ?? 'qh-check'}\` ${facts.lastCheck.verdict}.`
+        ? `Last check: ${checkInCode(facts.lastCheck.command ?? 'qh-check')} ${facts.lastCheck.verdict}.`
         : 'No check has run this session.')
   if (tasks) {
     const listing = insideRepository ? trackedPaths(root) : null
@@ -2721,7 +2748,7 @@ function previousSessionHere(cwd, platform = process.platform) {
 function previousSessionNotice(cwd, platform = process.platform) {
   const row = previousSessionHere(cwd, platform)
   if (!row || row.status !== 'unverified') return ''
-  const files = Array.isArray(row.files) ? row.files.slice(0, 5).map(file => path.relative(cwd, file) || file) : []
+  const files = Array.isArray(row.files) ? row.files.slice(0, 5).map(file => shownPath(path.relative(cwd, file) || file)) : []
   const other = Number(row.other) || 0
   const what = [row.files?.length ? `${row.files.length} edit(s)` : '', other ? `${other} shell mutation(s)` : ''].filter(Boolean).join(' and ') || 'edits'
   const check = projectCheckCommand(cwd)
@@ -2742,7 +2769,9 @@ function previousSessionNotice(cwd, platform = process.platform) {
   }
   return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with `
     + `${what} after which no recognised check passed${files.length ? `: ${files.join(', ')}` : ''}. `
-    + (check ? `Run ${checkInCode(check)} before building on them.` : 'Nothing has checked them since.')
+    // The one sentence here that says Run names qh-check: the span beside it is the declared
+    // command's text, and running that any other way records nothing (Codex review of ffd4892, #4).
+    + (check ? `Run \`qh-check\` (it runs ${checkInCode(check)}) before building on them.` : 'Nothing has checked them since.')
 }
 
 // Where the "already said this" markers live, and the sweep that bounds them
@@ -3116,7 +3145,7 @@ export function sessionOrientation(cwd) {
   // told to adopt its blog's `content/archive/` (cold review of 833ea52).
   if (corpusLook === true) {
     for (const archive of unmarkedArchives(root, listing)) {
-      lines.push(`\`${archive}\` looks like an archive but has no Lifecycle marker, so it is read as live — `
+      lines.push(`${pathInCode(archive)} looks like an archive but has no Lifecycle marker, so it is read as live — `
         + '`adr-retire-check --adopt <active> <archive>` adopts it (skills/adr-retire §Existing Archives).')
     }
   }

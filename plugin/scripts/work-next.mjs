@@ -20,7 +20,7 @@ import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, frozenArchiveOf, listedUnderUninterestingDirectory, spawnGate, terminalText, trackedPaths, visiblePath } from './lifecycle.mjs'
+import { adrCorpus, frozenArchiveOf, listedUnderUninterestingDirectory, pathInCode, spawnGate, terminalText, trackedPaths, visiblePath } from './lifecycle.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
@@ -734,7 +734,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
     if (n > 5) say(`  (+${n - 5} more; --json for all)\n`)
   }
   for (const archive of state.unmarkedArchives) {
-    say(`\n\`${visiblePath(archive)}\` looks like an archive but has no Lifecycle marker, so it is read as live; `
+    say(`\n${pathInCode(archive)} looks like an archive but has no Lifecycle marker, so it is read as live; `
       + '`adr-retire-check --adopt <active> <archive>` adopts it.\n')
   }
   if (!stage) {

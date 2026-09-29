@@ -75,5 +75,9 @@ Stop and ask if saying this needs anything adr-next's done rule does not already
   # todo 0
   # duration_ms 775.087792
   ```
+- 2026-09-29 · 541ac6c · exit 0 · `set -o pipefail …` · acceptance-sha256:df414037dcb5e4e0778e3387e8c4bec52c26c0e261625ff2c3e5315be45ba8dd · ms:1010
+- 2026-09-29 · 541ac6c* · exit 0 · `set -o pipefail …` · acceptance-sha256:df414037dcb5e4e0778e3387e8c4bec52c26c0e261625ff2c3e5315be45ba8dd · ms:1055
 
 ## Mutation Log
+- 2026-09-29 · 541ac6c · mutant killed · exit 1 · `plugin/bin/adr-lint` · the advice silent: a done task whose step names [proof: human: …] with no sign-off draws nothing from adr-lint · acceptance-sha256:df414037dcb5e4e0778e3387e8c4bec52c26c0e261625ff2c3e5315be45ba8dd · covers:a human-proof step with no sign-off is advised on, and done is unchanged
+- 2026-09-29 · 541ac6c* · mutant killed · exit 1 · `plugin/bin/adr-next` · the note silent: adr-next says nothing on the done line or in JSON about an unsigned human-proof step · acceptance-sha256:df414037dcb5e4e0778e3387e8c4bec52c26c0e261625ff2c3e5315be45ba8dd

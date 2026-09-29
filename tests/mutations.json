@@ -495,7 +495,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  return `${codeSpan(command)}${note}`",
+      "from": "  return `${codeSpan(text)}${note}`",
       "to": "  return pathInCode(command)",
       "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
     },
@@ -1169,7 +1169,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    for a in errors.advice:\n        print(f\"  advice: {a}\")",
+      "from": "    for a in errors.advice:\n        print(visible(f\"  advice: {a}\", keep=\"\"))",
       "to": "    pass",
       "only": "^(?:a form finding is reported to the reader without failing the record|an inline task claiming done is told nothing can prove it|a Proposed record with no tasks is told its Status was not checked, and when its paths all exist|a corpus that does not prefix its records with ADR- is still seen, and still spoken to|a cited tracker id or section number is not reported as a missing file|focused false-green regressions remain closed|adr-lint reports Go fences whose required success is unreachable|an evidenced task whose Affected Files git ignores is reported, with the pattern|a task whose archived path would exceed the Windows ceiling is advised, one under it is not|strictFrom lets a corpus adopt these gates without failing on its own history|strictFrom never reaches the evidence chain|an unreadable or unusable strictFrom changes nothing, and says so|adr-lint cross-checks every ordered step against an explicit proof|a parallelised acceptance fence that never collects its children is reported|a step whose proof is a named test has a run that names it|a path::name pointer at a production function does not resolve as a test)$"
     },
@@ -6619,7 +6619,7 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "    .filter(m => !/\\.(mjs|js|py|cjs)$/.test(m[1])).length",
+      "from": "    .filter(m => named.has(m[1]) || !/\\.(mjs|js|py|cjs)$/.test(m[1])).length",
       "to": "    .length",
       "only": "^(?:a run in which no test executed is an unrun baseline, never a passing one|end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes|a checkout path with a space is still an unrun baseline when nothing matched|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
     },
@@ -8112,8 +8112,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    return \"\\n\".join([\"  ```\"] + [\"  \" + fence_safe(ln) for ln in lines] + [\"  ```\"])",
-      "to": "    return \"\\n\".join([\"  ```\"] + [\"  \" + ln for ln in lines] + [\"  ```\"])",
+      "from": "    return \"\\n\".join([\"  ```\"] + [\"  \" + fence_safe(visible(ln)) for ln in lines] + [\"  ```\"])",
+      "to": "    return \"\\n\".join([\"  ```\"] + [\"  \" + visible(ln) for ln in lines] + [\"  ```\"])",
       "only": "^a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked$"
     },
     {
@@ -10271,8 +10271,8 @@
       "tests": [
         "tests/evidence-flip.test.mjs"
       ],
-      "from": "      : logIncomplete(log) ? 'the session log could not be read whole'",
-      "to": "      : false ? 'the session log could not be read whole'",
+      "from": "      : logIncomplete(log) ? `${tornRecord(log, 'the session log')} could not be read whole`",
+      "to": "      : false ? `${tornRecord(log, 'the session log')} could not be read whole`",
       "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
     },
     {
@@ -10351,7 +10351,7 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "        ? (logIncomplete(log)\n          ? 'this session\\'s event log could not be read whole",
+      "from": "        ? (log?.complete !== true\n          ? 'this session\\'s event log could not be read whole",
       "to": "        ? (false\n          ? 'this session\\'s event log could not be read whole",
       "only": "^(?:a review whose start or end could not be observed says so, instead of saying nothing)$"
     },
@@ -10530,8 +10530,8 @@
       "tests": [
         "tests/evidence-flip.test.mjs"
       ],
-      "from": "  return log?.complete !== true",
-      "to": "  return log?.complete === false",
+      "from": "  return log?.complete !== true\n    || (Array.isArray(log)",
+      "to": "  return log?.complete === false\n    || (Array.isArray(log)",
       "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
     },
     {
@@ -10610,7 +10610,7 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),",
+      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),",
       "to": "      text: uncheckedCommitsReason(input.cwd, unchecked),",
       "only": "^(?:over a torn log a newly reachable commit is \"not known to be checked\", never \"unchecked\")$"
     },
@@ -15804,8 +15804,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only)?.length ?? 0))",
-      "to": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only)?.length ?? 0))\n    if (narrowed) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\\n`)",
+      "from": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only) ?? []))",
+      "to": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only) ?? []))\n    if (narrowed) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\\n`)",
       "only": "killed while a mutant runs"
     },
     {
@@ -16084,9 +16084,201 @@
       "label": "ADR-073 T1: a hand-written pattern is held to a count",
       "file": "scripts/mutate.mjs",
       "tests": ["tests/mutate-runner.test.mjs"],
-      "from": "namesOf(set.only)?.length ?? 0))",
-      "to": "namesOf(set.only)?.length ?? 99))",
+      "from": "namesOf(set.only) ?? []))",
+      "to": "namesOf(set.only) ?? Array(99).fill('')))",
       "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
+    },
+    {
+      "label": "ADR-073: a named leaf ending in a source extension is discounted as a wrapper",
+      "file": "scripts/mutate.mjs",
+      "tests": ["tests/mutate-runner.test.mjs"],
+      "from": ".filter(m => named.has(m[1]) || !/",
+      "to": ".filter(m => !/",
+      "only": "^(?:a narrowed killer whose name ends in a source extension is counted, and a wrapper still is not)$"
+    },
+    {
+      "label": "ADR-073: any names rescue the file wrapper of a run that matched nothing",
+      "file": "scripts/mutate.mjs",
+      "tests": ["tests/mutate-runner.test.mjs"],
+      "from": ".filter(m => named.has(m[1]) || !/",
+      "to": ".filter(m => named.size > 0 || !/",
+      "only": "^(?:a narrowed killer whose name ends in a source extension is counted, and a wrapper still is not)$"
+    },
+    {
+      "label": "BACKLOG §320.2: adr-verify quotes a failed run's control bytes raw",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "fence_safe(visible(ln))",
+      "to": "fence_safe(ln)",
+      "only": "control bytes are written into the task as visible escapes"
+    },
+    {
+      "label": "BACKLOG §320.2: a tab inside a quoted line is escaped too",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/evidence-chain.test.mjs"],
+      "from": "def visible(text, keep=\"\\t\"):",
+      "to": "def visible(text, keep=\"\"):",
+      "only": "control bytes are written into the task as visible escapes"
+    },
+    {
+      "label": "§319 A6: adr-lint prints a finding's newline raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "print(visible(f\"  {e}\", keep=\"\"))",
+      "to": "print(f\"  {e}\")",
+      "only": "a newline in a task file name is shown escaped in adr-lint"
+    },
+    {
+      "label": "§319 A6: adr-lint prints advice's newline raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "print(visible(f\"  advice: {a}\", keep=\"\"))",
+      "to": "print(f\"  advice: {a}\")",
+      "only": "a newline in a task file name is shown escaped in adr-lint"
+    },
+    {
+      "label": "§319 A6: the withheld-advice line keeps a task name's newline",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "f\"Blocking checks still ran.\", keep=\"\"))",
+      "to": "f\"Blocking checks still ran.\", keep=\"\\n\"))",
+      "only": "a newline in a task file name is shown escaped in adr-lint"
+    },
+    {
+      "label": "§319 A6: the verdict line keeps a record name's newline",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "f\" · {gate_identity()}\", keep=\"\"))",
+      "to": "f\" · {gate_identity()}\", keep=\"\\n\"))",
+      "only": "a newline in a task file name is shown escaped in adr-lint"
+    },
+    {
+      "label": "§319 H1: a check command's controls are printed raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "return codeSpan(visiblePath(command).replace(",
+      "to": "return codeSpan(String(command).replace(",
+      "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "§319 H1: a tag in a check command is left to open or close a frame",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": ".replace(/<(?=\\/?[A-Za-z])/g, '‹'))",
+      "to": ".replace(/<(?=\\/?[A-Za-z])/g, '<'))",
+      "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "§319 H1: every < in a check command is neutralised, a redirection too",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": ".replace(/<(?=\\/?[A-Za-z])/g, '‹'))",
+      "to": ".replace(/</g, '‹'))",
+      "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "§319 H1: SessionStart's Verification line prints the declared check raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "? `this project's own check is ${checkInCode(check)}`",
+      "to": "? `this project's own check is \\`${check}\\``",
+      "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "§319 H1: runTheCheckSentence prints the declared check raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "it runs ${checkInCode(command)} (this project's own check)",
+      "to": "it runs \\`${command}\\` (this project's own check)",
+      "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "§319 item 6: SessionStart passes adr-next's line through raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "const said = gateSaid((run.stderr",
+      "to": "const said = String((run.stderr",
+      "only": "SessionStart says adr-next's failure relative to the repository"
+    },
+    {
+      "label": "§319 item 6: adr-next's line keeps the repository's absolute path",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "[[root, '.'], [os.homedir(), '~']]",
+      "to": "[[os.homedir(), '~']]",
+      "only": "SessionStart says adr-next's failure relative to the repository"
+    },
+    {
+      "label": "§319 item 6: adr-next's line is relativised but not cleaned",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  return corpusText(out)\n",
+      "to": "  return out\n",
+      "only": "SessionStart says adr-next's failure relative to the repository"
+    },
+    {
+      "label": "§319: work-next's relock remedy prints a task path's newline raw",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/work-next-readiness.test.mjs"],
+      "from": "would refuse again: ${visiblePath(remedy(stage))}.",
+      "to": "would refuse again: ${remedy(stage)}.",
+      "only": "the relock remedy shows a newline in a task path escaped"
+    },
+    {
+      "label": "§319: a command in code keeps a control's bytes",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "/gu, visiblePath)\n  const hidden",
+      "to": "/gu, char => char)\n  const hidden",
+      "only": "a command keeps an invisible character a copy needs"
+    },
+    {
+      "label": "§307 F-1: an unrecognised record Status is not said",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "        if not re.match(RECORD_STATUS_WORDS, status_value, re.I):",
+      "to": "        if False:",
+      "only": "Status is not one the readers recognise"
+    },
+    {
+      "label": "§307 F-1: a recognised Status with a qualifier is called unrecognised",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "        if not re.match(RECORD_STATUS_WORDS, status_value, re.I):",
+      "to": "        if not re.fullmatch(RECORD_STATUS_WORDS, status_value, re.I):",
+      "only": "Status is not one the readers recognise"
+    },
+    {
+      "label": "§307 F-1: a Status holding bytes that are not UTF-8 is not named as such",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "if chr(0xFFFD) in status_value else",
+      "to": "if False else",
+      "only": "Status is not one the readers recognise"
+    },
+    {
+      "label": "§319 D4: a torn checks.jsonl is named as the session log",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "  return log?.complete !== true ? sessionWords : '`checks.jsonl`",
+      "to": "  return true ? sessionWords : '`checks.jsonl`",
+      "only": "a torn checks.jsonl is named as checks.jsonl"
+    },
+    {
+      "label": "§319 D4: the publish warning names the session log whatever tore",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "unknown — ${tornRecord(log, 'the session log')} could not be read whole, so whether",
+      "to": "unknown — the session log could not be read whole, so whether",
+      "only": "a torn checks.jsonl is named as checks.jsonl"
+    },
+    {
+      "label": "§319 D4: the turn-end could-not-look names the session log whatever tore",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/chaos-e016066.test.mjs"],
+      "from": "${tornRecord(log, 'this session’s event log')} could not be read whole",
+      "to": "this session’s event log could not be read whole",
+      "only": "a torn checks.jsonl is named as checks.jsonl"
     }
   ]
 }

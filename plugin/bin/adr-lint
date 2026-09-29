@@ -118,7 +118,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
-from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW  # noqa: E402
+from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible  # noqa: E402
 
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
@@ -1016,6 +1016,11 @@ def check_permanent_disposition(inner, adr_path, errors, root, candidates):
             "exact lowercase text")
 
 
+# The record statuses the readers act on, by first word: Accepted governs, Proposed and Draft
+# are pending, and the rest are the graveyard (lifecycle.mjs statusKind, adr-state).
+RECORD_STATUS_WORDS = r"(?:accepted|proposed|draft|rejected|superseded|withdrawn|deprecated)\b"
+
+
 _ROOT_UNSET = object()
 
 
@@ -1074,6 +1079,17 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
     elif re.search(r"^\*\*Status:\*\*[ \t]*\r?$", text, re.M):
         errors.advise(f"{adr_path.name}: the **Status:** line is empty, so no reader can tell "
                       f"whether this decision was taken")
+    # §307 F-1. A Status no reader recognises lints PASS, while every reader treats the record as
+    # not Accepted: lifecycle's statusKind governs only an Accepted, adr-next calls anything else
+    # undecided. So say it. The FIRST WORD decides, as it does in those readers, so a recognised
+    # word with a qualifier after it (`Accepted (partially)`, `Superseded by ADR-7`) is that word.
+    else:
+        status_value = re.search(r"^\*\*Status:\*\*[ \t]*(.+?)[ \t]*$", text, re.M).group(1).strip().strip("`*")
+        if not re.match(RECORD_STATUS_WORDS, status_value, re.I):
+            errors.advise(f"{adr_path.name}: Status `{status_value}` is not a status these readers recognise "
+                          f"(Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated), so they "
+                          f"treat this record as not Accepted — a plan, not a work order"
+                          + (", and it holds bytes that are not UTF-8" if chr(0xFFFD) in status_value else ""))
     secs = sections_of(text)
     # An ADR has no digest, so no repeat blocks here; every section below is read
     # last-wins, and the author is told so (ADR-045 T5).
@@ -6295,18 +6311,23 @@ def main():
     # case that produced this is someone pasting `[PASS] …` into a PR body: the
     # identity has to travel with the claim, not sit above it where a copy drops
     # it.
-    print(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only; its Status is not checked against evidence here)") + f" · {gate_identity()}")
+    #
+    # §319's addendum, A6: a corpus name reaches every line below, and a newline in a task file's
+    # name printed lines this gate never wrote — "[PASS] forged.md: …" under a FAIL. So each line
+    # is printed as one line, its controls written as escapes (`record.visible`). Only the print
+    # changes: the finding recorded for ADR-037 keeps its own text.
+    print(visible(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only; its Status is not checked against evidence here)") + f" · {gate_identity()}", keep=""))
     for e in errors:
-        print(f"  {e}")
+        print(visible(f"  {e}", keep=""))
     # Advice is printed on a PASS too: a record that is acceptable and a record
     # that is finished are different things, and the reader deserves both.
     for a in errors.advice:
-        print(f"  advice: {a}")
+        print(visible(f"  advice: {a}", keep=""))
     for name in sorted(withheld):
-        print(f"  advice withheld: {name} declares **Status:** `{withdrawn_tasks[name]}`, so "
-              f"{len(withheld[name])} authoring advisory line(s) about it were NOT shown — a task "
-              f"that will never be built does not need its sections or its fence improved. "
-              f"Blocking checks still ran.")
+        print(visible(f"  advice withheld: {name} declares **Status:** `{withdrawn_tasks[name]}`, so "
+                      f"{len(withheld[name])} authoring advisory line(s) about it were NOT shown — a task "
+                      f"that will never be built does not need its sections or its fence improved. "
+                      f"Blocking checks still ran.", keep=""))
     # ADR-037 T1. RECORDED ON EVERY RUN — that is the only thing that makes the
     # count mean anything — and REPORTED only when asked, because the default
     # output must not change before the number exists to justify changing it.

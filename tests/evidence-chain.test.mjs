@@ -3112,6 +3112,25 @@ test('a run that prints a fence line is quoted so the excerpt cannot toggle the 
     `advice on an ADR, with the tilde opener named: ${advised.stdout}`)
 })
 
+// BACKLOG §320.2 (go-cli-adr-corpus, 2026-09-25). A failed run's quoted lines went into
+// the task file with their control bytes: a UTF-16 fixture's NULs made git read the task as
+// binary, and mrw then refused to edit it. Each control, bidi override and invisible character is
+// written as the escape the readers already show (`\u{0}`); a tab and the text around it are kept.
+// The bytes are written by number, so no quote or backslash has to survive the fence.
+test('a failed run\'s control bytes are written into the task as visible escapes, and its tabs are kept', () => {
+  const copy = corpus()
+  const bytes = [110, 117, 108, 0, 27, 91, 51, 49, 109, 226, 128, 174, 9, 120, 10]
+  writeTask(copy, readTask(copy)
+    .replace(/```bash\n[\s\S]*?\n```/, `\`\`\`bash\npython3 -c "import sys; sys.stdout.buffer.write(bytes([${bytes.join(',')}]))"\nexit 1\n\`\`\``)
+    .replace(/## Verification Log\n[\s\S]*$/, '## Verification Log\n\n## Mutation Log\n'))
+  expectExit(verify(copy, ['--cwd', '.']), 1, 'the fence fails and the run is recorded')
+  const text = readTask(copy)
+  assert.ok(text.includes('  nul\\u{0}\\u{1b}[31m\\u{202e}\tx'), `the line is kept, its controls escaped: ${JSON.stringify(text.slice(-400))}`)
+  assert.doesNotMatch(text, /[\x00-\x08\x0b\x0c\x0e-\x1f\x7f-\x9f]/, 'no raw control byte reaches the task file')
+  // The control: a clean line is written as it was.
+  assert.match(text, /^ {2}--- last \d+ line\(s\) of stdout/m, text.slice(-400))
+})
+
 // BACKLOG §295 item 7: the gates that write and judge evidence refuse a task holding
 // both sides of a merge. adr-verify writes nothing into it; adr-lint blocks the task
 // A chaos round (2.111.0-rc, CF4): a task depending on itself passed adr-lint and was

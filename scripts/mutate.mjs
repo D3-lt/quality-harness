@@ -186,7 +186,7 @@ function dirtyTargets(selected) {
  * uses (BACKLOG §53); a test whose NAME looks like a path is discounted with it,
  * which is the documented limit of that rule.
  */
-export function leafTestsRun(stdout, files = []) {
+export function leafTestsRun(stdout, files = [], names = []) {
   const text = stdout ?? ''
   if (!/^\s*(?:[✔✖﹣]|ℹ tests) /m.test(text)) return null
   // ⚠ WHICH LINE IS THE FILE WRAPPER IS KNOWN, NOT GUESSED. `files` is what
@@ -199,6 +199,7 @@ export function leafTestsRun(stdout, files = []) {
   // Reported by a Windows session from `Y:\qh with spaces` and reproduced on
   // macOS the same day, 2026-09-18; it was never platform-specific.
   const wrappers = new Set(files.flatMap(file => [file, path.resolve(file)]))
+  const named = new Set(names)
   return [...text.matchAll(/^\s*[✔✖] (.+?) \(\d[\d.]*ms\)\s*$/gm)]
     .filter(m => !wrappers.has(m[1]) && !wrappers.has(path.resolve(m[1])))
     // ⚠ THE FALLBACK MAY NOT KEY ON WHITESPACE, and passing `files` is not
@@ -213,9 +214,14 @@ export function leafTestsRun(stdout, files = []) {
     // `pass` into `unrun` and never the reverse — the safe direction for
     // ADR-005, at the documented cost that a test NAMED like a source file is
     // discounted with it (BACKLOG §53).
-    .filter(m => !/\.(mjs|js|py|cjs)$/.test(m[1])).length
+    //
+    // ADR-073: a line whose exact name a narrowed pattern names is a leaf, whatever it ends in.
+    // The discount is for a wrapper the path filter missed, and a wrapper's name is a path, never
+    // one of the names a narrowing recorded. Without this a killer named `… for .js` counted one
+    // short on a complete run, and short is STALE, which fails the campaign (run 36521596839).
+    .filter(m => named.has(m[1]) || !/\.(mjs|js|py|cjs)$/.test(m[1])).length
 }
-export function baselineOf(run, files = [], named = 0) {
+export function baselineOf(run, files = [], names = []) {
   if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }
   // A run in which NO test executed is not a passing baseline, whatever its exit
   // status: a mutant measured against it reads GREEN — "the tests did not
@@ -224,8 +230,9 @@ export function baselineOf(run, files = [], named = 0) {
   // the reporter (testArgs, childEnv), so their absence means the run did not
   // happen the way this reads it — an inherited `--test-reporter=dot` did
   // exactly that before the child's environment was scrubbed.
-  const ran = leafTestsRun(run.stdout, files)
+  const ran = leafTestsRun(run.stdout, files, names)
   if (ran === null) return { state: 'unrun', why: 'the test output carried no spec reporter lines' }
+  const named = names.length
   // ADR-073. A narrowed pattern (ADR-072) names its tests, so a passing run of FEWER is not
   // the baseline the entry claims: a killer was renamed, deleted or skipped. Asked before "no
   // test ran", because a narrowed pattern that selects nothing is the same defect, and read as
@@ -1268,9 +1275,9 @@ export function main(argv) {
     // The same files and the same arguments as the mutated run below, or this
     // would be measuring a different thing than the one it licenses.
     const run = runChild(root, testArgs(root, set), timeoutMs)
-    // ADR-073: a narrowed pattern is held to the number of tests it names; a hand-written one
-    // selects every test whose name contains it, and implies no count.
-    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only)?.length ?? 0))
+    // ADR-073: a narrowed pattern is held to the tests it names; a hand-written one selects every
+    // test whose name contains it, and implies no count.
+    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only) ?? []))
   }
 
   const results = []

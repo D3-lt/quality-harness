@@ -90,4 +90,6 @@ See `tasks/README.md`: T1 (the count, the state, the verdict, and the closing se
 
 ## Follow-ups
 
-- [ ] After ADR-072 T3's catalogue lands, run one campaign and record how many narrowed entries are short.
+- [x] After ADR-072 T3's catalogue lands, run one campaign and record how many narrowed entries are short.
+  - Run 36521596839 at d0d1e66 (2026-09-29, all 48 shards): 1 of 814 narrowed entries was short, and it was a false short. `leafTestsRun` discounts a leaf whose name ends in a source extension (BACKLOG §53's rule), and a killer of `workflow-parse: --js refuses a file neither dialect parses` is named `… the Workflow fallback is for .js`, so 8 tests ran and 7 were counted. No real short entry.
+  - Fixed in the 3.1.5 batch (BACKLOG §321): a leaf whose exact name the pattern names is counted, so `baselineOf` now takes the names rather than their count.

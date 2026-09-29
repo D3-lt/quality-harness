@@ -767,8 +767,10 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
   for (const file of evidence.slice(0, 5)) say(`    ${shown(file)}\n`)
   if (evidence.length > 5) say(`    (+${evidence.length - 5} more)\n`)
   if (remedy(stage)) {
+    // visiblePath: the command carries a task's path, and `say` keeps a newline, so a name holding
+    // one printed a line in this tool's voice (§319's addendum). The JSON keeps the bytes.
     say(`\n  ${state.relock.length} of these carry a moved test lock, which bare \`adr-verify\` `
-      + `would refuse again: ${remedy(stage)}.\n`)
+      + `would refuse again: ${visiblePath(remedy(stage))}.\n`)
   }
   return 0
 }

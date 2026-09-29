@@ -336,6 +336,22 @@ def fence_safe(line):
     return line[:m.end("indent")] + "\\" + line[m.end("indent"):]
 
 
+# What a reader cannot see, or what moves the terminal: C0 and C1 controls, DEL, the zero-width
+# and bidi-control ranges, and the BOM. The same set lifecycle.mjs visiblePath escapes.
+_INVISIBLE = re.compile("[\x00-\x1f\x7f-\x9f\U0000200b-\U0000200f\U0000202a-\U0000202e\U00002060-\U00002069\U0000feff]")
+
+
+def visible(text, keep="\t"):
+    """`text` with each invisible or control character written as the escape `\\u{hex}`.
+
+    lifecycle.mjs visiblePath spells it the same way, so one name reads one way in every reader.
+    For text a writer quotes but did not author: a failed run's lines put NULs into a task file,
+    and git then read the task as binary (BACKLOG §320.2). `keep` names what is left as it is: a tab
+    inside a quoted line is layout.
+    """
+    return _INVISIBLE.sub(lambda m: m.group(0) if m.group(0) in keep else "\\u{%x}" % ord(m.group(0)), text)
+
+
 def _as_lines(section):
     return section if isinstance(section, list) else [ln for ln, _s, _e in split_lines(section)]
 

@@ -77,5 +77,13 @@ Stop and ask if a record in this repository's corpus reads a different Status af
   # todo 0
   # duration_ms 1493.036958
   ```
+- 2026-09-29 · c14d06b · exit 0 · `set -o pipefail …` · acceptance-sha256:3ffa9f5d2636b6c21c3e6ab71b33b259712ac7cdedd202c16428e4ec561d51dd · ms:1183
+- 2026-09-29 · c14d06b* · exit 0 · `set -o pipefail …` · acceptance-sha256:3ffa9f5d2636b6c21c3e6ab71b33b259712ac7cdedd202c16428e4ec561d51dd · ms:1167
+- 2026-09-29 · c14d06b* · exit 0 · `set -o pipefail …` · acceptance-sha256:3ffa9f5d2636b6c21c3e6ab71b33b259712ac7cdedd202c16428e4ec561d51dd · ms:1187
+- 2026-09-29 · c14d06b* · exit 0 · `set -o pipefail …` · acceptance-sha256:3ffa9f5d2636b6c21c3e6ab71b33b259712ac7cdedd202c16428e4ec561d51dd · ms:1308
 
 ## Mutation Log
+- 2026-09-29 · c14d06b · mutant killed · exit 1 · `plugin/lib/record.py` · the section ignored: a record with only `## Status` has no Status in adr-next and adr-lint again · acceptance-sha256:3ffa9f5d2636b6c21c3e6ab71b33b259712ac7cdedd202c16428e4ec561d51dd · covers:a Status section is read, and an inline Status wins with advice when they disagree
+- 2026-09-29 · c14d06b* · mutant killed · exit 1 · `plugin/lib/record.py` · the section winning over an inline line: `Accepted` above `## Status Proposed` stops governing in the Python readers · acceptance-sha256:3ffa9f5d2636b6c21c3e6ab71b33b259712ac7cdedd202c16428e4ec561d51dd
+- 2026-09-29 · c14d06b* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a fenced heading read: a `## Status` inside a code example governs in lifecycle and nowhere else · acceptance-sha256:3ffa9f5d2636b6c21c3e6ab71b33b259712ac7cdedd202c16428e4ec561d51dd
+- 2026-09-29 · c14d06b* · mutant killed · exit 1 · `plugin/bin/adr-lint` · the conflict silent: a line and a section that disagree are not said · acceptance-sha256:3ffa9f5d2636b6c21c3e6ab71b33b259712ac7cdedd202c16428e4ec561d51dd

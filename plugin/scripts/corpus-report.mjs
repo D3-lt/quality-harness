@@ -125,7 +125,7 @@ export function render(report) {
   } else {
     lines.push(
       `  evidenced tasks        ${t.evidenced} of ${t.tasks}  (a task claiming nothing is outside the ratio)`,
-      `  ... shown able to fail ${t.showsFailing} (${pct(t.showsFailing, t.evidenced)})`
+      `  ... shown able to fail ${t.shownAbleToFail} (${pct(t.shownAbleToFail, t.evidenced)})`
         + '  — a red acceptance entry, a killed mutant, or both',
       // ⚠ NOT "passed". An entry-shaped row whose exit code could not be read is
       // counted in the entry total and in NEITHER half, so a task holding only

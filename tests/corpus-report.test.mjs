@@ -13,7 +13,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 /** The shape `trajectory-metrics.mjs::measure` returns, with every key present. */
 const totals = (over = {}) => ({
-  tasks: 73, unreadable: 0, unevidenced: 1, evidenced: 72, showsFailing: 71, outcomeOnly: 1,
+  tasks: 73, unreadable: 0, unevidenced: 1, evidenced: 72, shownAbleToFail: 71, outcomeOnly: 1,
   entries: 176, unjudgedEntries: 0, redEntries: 8, killed: 151, survived: 10, inconclusive: 2,
   outcomeOnlyFiles: [], rate: 71 / 72, ...over,
 })
@@ -167,7 +167,7 @@ test('a historical floor on this repository\'s own figures — not a reproductio
   const t = parsed.totals
   assert.equal(parsed.root, 'docs/adr')
   assert.ok(t.evidenced >= 72, `evidenced tasks: ${t.evidenced}`)
-  assert.ok(t.showsFailing >= 71, `shown able to fail: ${t.showsFailing}`)
+  assert.ok(t.shownAbleToFail >= 71, `shown able to fail: ${t.shownAbleToFail}`)
   assert.ok(t.killed > 100, `killed mutants: ${t.killed} — the field is read, not guessed`)
   assert.ok(t.redEntries >= 8, `red entries: ${t.redEntries}`)
   // Every published path is corpus-relative: the real corpus is the strongest

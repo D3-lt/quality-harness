@@ -234,11 +234,16 @@ def program_output_removed(note):
 # Zero-width characters and the BOM too: a U+200B passed into a quoted title (a Windows
 # chaos round of 916b515). Written as \U escapes, the same set as lifecycle.mjs.
 _UNSAFE = re.compile("[\x00-\x1f\x7f-\x9f\U0000200b-\U0000200f\U0000202a-\U0000202e\U00002060-\U00002069\U0000feff]")
+# A whole CSI sequence, and an OSC one ended by BEL or ST, is removed before _UNSAFE, which
+# would otherwise turn only its ESC into a space and print "[31mred" as the task's words
+# (BACKLOG §319 addendum). An unterminated OSC keeps its text visible. lifecycle.mjs
+# ESCAPE_SEQUENCE is the same rule, and names the forms neither removes.
+_SEQUENCE = re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x00-\x1f\x7f]*(?:\x07|\x1b\\)")
 
 
 def shown(value, limit=160):
     """Corpus text made safe to print: no controls, ANSI, bidi or angle brackets, one line, bounded."""
-    clean = " ".join(_UNSAFE.sub(" ", str(value or "")).split())
+    clean = " ".join(_UNSAFE.sub(" ", _SEQUENCE.sub("", str(value or ""))).split())
     if len(clean) > limit:
         clean = clean[:limit - 1] + "…"
     for a, b in (("«", "‹"), ("»", "›"), ("<", "‹"), (">", "›")):
@@ -409,8 +414,9 @@ def listed_absent(tasks_dir):
     if r.returncode != 0:
         return []
     names = (os.fsdecode(raw) for raw in r.stdout.split(b"\0") if raw)
+    # `rstrip`: a tracked "T1-a.md " is a task file too, and was dropped here (§321).
     return sorted(name for name in names
-                  if "/" not in name and name.lower().endswith(".md")
+                  if "/" not in name and name.rstrip().lower().endswith(".md")
                   and name.lower() != "readme.md" and not (tasks_dir / name).exists())
 
 
@@ -680,9 +686,27 @@ def load(tasks_dir):
             # was fixed and the CLASS was not (CLAUDE.md §5).
             "blocked_on": header_val(text, "Blocked-on") or None,
         }
+    # A file named "T1-a.md " — whitespace AFTER the extension — is matched by no `*.md`
+    # glob, so it was lost: committed, the record read as complete without it; renamed
+    # without a commit, git's listing below blamed a sparse checkout (BACKLOG §321,
+    # js-spa-client and php-react-app A1). It is named and stopped, never read as a task, so it
+    # is never READY; a file already read as the same id is stopped with it.
+    for path in sorted(tasks_dir.iterdir()):
+        bare = path.name.rstrip()
+        if bare == path.name or not bare.lower().endswith(".md"):
+            continue
+        m = TID_RE.search(bare.upper())
+        if not m:
+            continue
+        tid = m.group(0)
+        also = f"; {Path(infos[tid]['path']).name} names {tid} too" if tid in infos else ""
+        infos[tid] = unreadable_task(tid, path, (
+            f"could not read it: the file name {bare} ends in whitespace after .md, so it is "
+            f"not read as a task file and its state is UNPROVEN{also}"))
     # A task git lists and the disk lacks is an entry this reader could not read.
     # It is stopped with that reason rather than skipped, so what depends on it is
-    # blocked and no all-clear is printed over it (BACKLOG §295 item 19).
+    # blocked and no all-clear is printed over it (BACKLOG §295 item 19). Why it is
+    # absent is not observed, so no cause is named (§321).
     for name in listed_absent(tasks_dir):
         # Upper-cased as `foreign_state` does: `t1.md` names T1 (Codex review of §295.19).
         m = TID_RE.search(name.upper())
@@ -691,7 +715,7 @@ def load(tasks_dir):
             continue
         infos[tid] = unreadable_task(tid, tasks_dir / name, (
             f"could not read it: git lists {name} here but the disk does not hold "
-            f"it (a sparse or partial checkout?), so its state is UNPROVEN"))
+            f"it, so its state is UNPROVEN"))
     return infos
 
 

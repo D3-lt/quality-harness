@@ -1334,9 +1334,18 @@ export function quotedCorpusText(value, max = 160) {
   return `«${corpusText(value, max)}»`
 }
 
+// A whole escape sequence is removed before the control pass, which would otherwise turn only its
+// ESC into a space and print the rest as the corpus's words: `\x1b[31mred` was quoted «[31mred»
+// (BACKLOG §319 addendum). CSI, and OSC ended by BEL or ST. An OSC with no terminator is left to
+// the control pass, so its text stays visible. adr-next's _SEQUENCE is the same rule. Still one
+// character of residue, and not removed: 8-bit C1 introducers (U+009B, U+009D), DCS/APC/PM/SOS
+// strings, and two-byte ESC forms such as ESC c.
+const ESCAPE_SEQUENCE = /\x1b\[[0-?]*[ -/]*[@-~]|\x1b\][^\x00-\x1f\x7f]*(?:\x07|\x1b\\)/g
+
 // quotedCorpusText without its marks: a gate's own words, said on the gate's behalf.
 function corpusText(value, max = 160) {
   const clean = String(value ?? '')
+    .replace(ESCAPE_SEQUENCE, '')
     .replace(/[\u{0}-\u{1f}\u{7f}-\u{9f}\u{200b}-\u{200f}\u{202a}-\u{202e}\u{2060}-\u{2069}\u{feff}]/gu, ' ')
     .replace(/\s+/g, ' ').trim()
   const cut = clean.length > max ? `${clean.slice(0, max - 1)}…` : clean

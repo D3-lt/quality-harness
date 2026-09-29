@@ -1374,3 +1374,55 @@ test('mutate --narrow --write leaves nothing narrowed when it is killed while a 
     assert.equal(readFileSync(catalogueFile, 'utf8'), serialize([fe]), 'a killed narrowing wrote the catalogue')
   } finally { rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 500 }) }
 })
+
+// ADR-073. A narrowed entry (ADR-072) names the tests that killed its mutant, and its baseline
+// runs under that pattern, so a killer renamed, deleted or skipped makes the baseline run fewer
+// tests than the pattern names. That entry no longer describes its tests: STALE with the numbers,
+// whatever its remaining killers would do. One that runs every name is measured, and a
+// hand-written pattern is never counted.
+test('a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-short-baseline-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const env = { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '' }
+    const campaign = () => spawnSync(process.execPath, [runner, '--root', repo, '--no-cache'], { cwd: repo, encoding: 'utf8', timeout: 180_000, env })
+    const head = "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { f } from '../a.mjs'\n"
+    const one = "test('f is one', () => { assert.equal(f(), 1) })\n"
+    const notTwo = "test('f is not two', () => { assert.notEqual(f(), 2) })\n"
+    const catalogue = only => writeFileSync(join(repo, 'tests', 'mutations.json'), `${JSON.stringify({ mutations: [
+      { label: 'narrowed', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2', only },
+    ] }, null, 2)}\n`)
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\n')
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), head + one + notTwo)
+    catalogue('^(?:f is one|f is not two)$')
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base', '--no-verify')
+
+    // Every test it names runs: measured, and RED.
+    const complete = campaign()
+    assert.equal(complete.status, 0, `${complete.stdout}\n${complete.stderr}`)
+    assert.ok(complete.stdout.includes('1/1 mutations were noticed.'), complete.stdout)
+
+    // A killer is gone. The one left would still kill the mutant, but the entry no longer
+    // describes its tests: STALE with the numbers, and the campaign fails.
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), head + one)
+    const gone = campaign()
+    assert.equal(gone.status, 1, `${gone.stdout}\n${gone.stderr}`)
+    assert.ok(gone.stdout.includes('its pattern names 2 tests and 1 ran'), gone.stdout)
+    assert.ok(gone.stdout.includes('no longer runs every test it names'), gone.stdout)
+
+    // A skipped killer runs nothing, so it counts as gone.
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), head + one + notTwo.replace("test('", "test.skip('"))
+    const skipped = campaign()
+    assert.equal(skipped.status, 1, `${skipped.stdout}\n${skipped.stderr}`)
+    assert.ok(skipped.stdout.includes('its pattern names 2 tests and 1 ran'), skipped.stdout)
+
+    // A hand-written pattern that selects one of several tests implies no count: measured.
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), head + one + notTwo)
+    catalogue('f is one')
+    const handWritten = campaign()
+    assert.equal(handWritten.status, 0, `${handWritten.stdout}\n${handWritten.stderr}`)
+    assert.ok(handWritten.stdout.includes('1/1 mutations were noticed.'), handWritten.stdout)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})

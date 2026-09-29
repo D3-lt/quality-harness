@@ -1,0 +1,207 @@
+# Spec: A mutation campaign never touches the checkout, and every result says how loaded the machine was
+
+> **Date:** 2026-09-29 · **Status:** Draft
+> **Owner:** Zy · **Becomes:** ADR (not yet written)
+> **Gate:** Status may become Ready-for-ADR only after `spec-verify --spec <this file>` exits 0.
+> **Cross-references:** docs/research/2026-09-26-model-out-of-the-loop.md (Stage 4, the interoception and homeostasis rows), docs/adr/ADR-069-a-stale-mutant-is-repointed-by-its-own-edit.md (`--root`), BACKLOG §272
+
+## Problem
+
+`scripts/mutate.mjs` rewrites real files in this checkout and restores them from a journal, so each mutant is live for every process running this checkout's code; on 2026-09-29 five peer shells had this checkout in their command line during a campaign, and a mutant once reached another session's hook (BACKLOG §272). It also refuses to run while a file it would rewrite has uncommitted changes. The gate ran at load 13 to 32 on 10 cores that day with nothing recording it; the costly-runs rule that such a result is unattributable exists only as prose.
+
+What was observed on 2026-09-29, kept here as dated evidence rather than as Facts: none of it is behaviour a test in this repository may depend on (§8), and one line of it this change makes false by design. The catalogue mutates `plugin/` (about 1,570 entries) and `scripts/` (about 150), plus tests and config. The `~/.claude/bin` forwarders resolve the newest *installed* plugin, not this checkout: six peers ran an installed 3.1.4 that day. Exposure means sessions whose working directory is this checkout, and processes invoking its scripts by path: five live peer shells. qh-check's record carries no load and no concurrency field (F-10 replaces this). The costly-runs thresholds exist only as prose, in a skill outside this repository. And one of this repository's own tests, `tests/gate-rules.test.mjs::the mutation runner refuses to run over an editor, or beside another runner`, runs a real campaign over this checkout in its dead-owner arm: the exposure this spec is about, inside the gate.
+
+## Goal
+
+A campaign changes zero bytes of the checkout, adds under 2 s for its worktree (0.2-0.7 s measured), and every `qh-check` and campaign result carries the load it ran under.
+
+## Actors
+
+| Actor | Kind | Goal |
+|-------|------|------|
+| Maintainer session | human role | run a campaign or the gate and trust its verdict |
+| Peer session | system | keep running this checkout's code without meeting a mutant |
+| CI campaign | scheduled job | unchanged: runs in its own runner |
+
+## Use Cases
+
+### UC-1: Maintainer runs a campaign in isolation
+
+- **Trigger:** `node scripts/mutate.mjs [--case …]` · **Preconditions:** a git repository with a commit at `HEAD`
+- **Main flow:**
+  1. A worktree of `HEAD` is created under the OS temp directory.
+  2. The checkout's verdict cache is read into it.
+  3. The campaign runs there, and its verdicts are merged back into the checkout's cache.
+  4. The worktree is removed.
+- **Failure paths:** a. at step 1, the worktree cannot be created → exit 2, names `--in-place`, writes nothing. b. the run is killed → the next run removes the worktree and says so. c. at step 3, the merge fails → the checkout's cache is unchanged, and it is said.
+- **Postconditions:** the checkout is byte-identical; verdicts equal an in-place run's at the same commit.
+
+### UC-2: Maintainer runs the gate on a loaded machine
+
+- **Trigger:** `qh-check` · **Preconditions:** the project declares a check
+- **Main flow:**
+  1. Load and core count are sampled before and after the check.
+  2. The record and the printed result carry both, and `contended`.
+- **Failure paths:** a. load above the core count → `contended: true`, said as unattributable, exit unchanged. b. no load average on this platform → `contended: null`, said as could-not-read.
+- **Postconditions:** every record says the load it ran under, or that it could not be read.
+
+### UC-3: Maintainer runs a campaign in place
+
+- **Trigger:** `node scripts/mutate.mjs --in-place` · **Preconditions:** today's lock and uncommitted-file rules hold
+- **Main flow:**
+  1. The processes running this checkout's code are listed.
+  2. The campaign runs as it does today.
+- **Failure paths:** a. other processes run this checkout's code → they are named, as advice, and the run continues. b. the process list cannot be read → said as could-not-look.
+- **Postconditions:** nothing is refused for exposure; the exposure is said.
+
+## Scenarios
+
+### UC1-S1 [happy] A campaign leaves the checkout byte-identical [@spec] → `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there`
+
+```gherkin
+Given a checkout at a commit, with an uncommitted edit to an unrelated file
+When a campaign runs over two catalogue entries
+Then every tracked and untracked file in the checkout has the bytes it had before
+```
+
+### UC1-S2 [failure] A campaign that cannot isolate stops [@spec] → `tests/mutate-isolation.test.mjs::a campaign that cannot isolate stops and names --in-place, writing nothing`
+
+```gherkin
+Given a repository whose HEAD is unborn
+When a campaign starts
+Then it exits 2 with "could not isolate", names --in-place, and writes nothing
+```
+
+### UC1-S3 [failure] A killed campaign's worktree is removed by the next run [@spec] → `tests/mutate-isolation.test.mjs::a killed campaign's worktree is removed by the next run, and said`
+
+```gherkin
+Given a campaign killed with SIGKILL, leaving its worktree
+When the next campaign starts
+Then the old worktree is removed and pruned, and stderr says so
+```
+
+### UC1-S4 [happy] An isolated run reuses the checkout's cache [@spec] → `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache`
+
+```gherkin
+Given a checkout whose verdict cache holds a verdict for an entry
+When an isolated campaign runs that entry, then a second one
+Then the second reuses it, and the checkout's cache holds the new verdicts
+```
+
+### UC1-S5 [happy] Isolated and in-place runs agree [@spec] → `tests/mutate-isolation.test.mjs::an isolated run and an in-place run of the same entries give the same verdicts`
+
+```gherkin
+Given one commit and a fixed set of catalogue entries
+When they run isolated and then in place
+Then every entry has the same verdict both times
+```
+
+### UC2-S1 [happy] A quiet check is recorded as not contended [@spec] → `tests/qh-check.test.mjs::a check run below the core count is recorded as not contended`
+
+```gherkin
+Given a load below the core count
+When qh-check runs a passing check
+Then the record carries the load, the cores and contended false
+```
+
+### UC2-S2 [failure] A loaded check is said as unattributable [@spec] → `tests/qh-check.test.mjs::a check run above the core count is recorded as contended and said, and its exit is unchanged`
+
+```gherkin
+Given a load above the core count
+When qh-check runs a passing check
+Then it exits 0, records contended true, and prints "unattributable: load N on M cores"
+```
+
+### UC2-S3 [failure] No load average is said, never read as quiet [@spec] → `tests/qh-check.test.mjs::a check with no load average records contended null and says the load could not be read`
+
+```gherkin
+Given a platform whose load average reads 0 0 0
+When qh-check runs
+Then contended is null and the line says the load could not be read
+```
+
+### UC3-S1 [happy] An in-place campaign with no one exposed says nothing more [@spec] → `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look`
+
+```gherkin
+Given no other process names this checkout's path
+When an in-place campaign runs
+Then it prints no exposure line
+```
+
+### UC3-S2 [failure] Exposed processes are named [@spec] → `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look`
+
+```gherkin
+Given two other processes whose command lines name this checkout's path
+When an in-place campaign runs
+Then it names both, says an in-place mutant is live for them, and runs
+```
+
+### UC3-S3 [failure] An unreadable process list is said [@spec] → `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look`
+
+```gherkin
+Given the process list cannot be read
+When an in-place campaign runs
+Then it says it could not look, and runs
+```
+
+## Facts
+
+| ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
+|----|----------------------------------|---------------------|-----|----------------|
+| F-1 | `mutate.mjs --root <dir>` confines catalogue, lock, journal and verdict cache to `<dir>`. | `tests/mutate-runner.test.mjs::campaignPaths keeps every campaign file inside the root it is given` | @spec | |
+| F-2 | mutate refuses entries whose files have uncommitted changes, and runs one campaign per root. | `tests/gate-rules.test.mjs::the mutation runner refuses to run over an editor, or beside another runner` | @spec | |
+| F-8 | A campaign runs in a throwaway worktree of HEAD by default; the checkout is byte-identical before and after and no mutant appears in it; `--in-place` keeps today's behaviour. | `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there` | @spec | |
+| F-9 | The worktree lives under the OS temp directory, is removed on any exit including SIGINT and SIGTERM, and one left by SIGKILL is removed and pruned by the next run, which says so. | `tests/mutate-isolation.test.mjs::a killed campaign's worktree is removed by the next run, and said` | @spec | |
+| F-10 | qh-check and mutate record the 1-minute load and core count at start and end; above the core count the record is `contended: true` and the result says unattributable, exit and verdict unchanged; with no load average `contended` is null and said as could-not-read. | `tests/qh-check.test.mjs::a check run above the core count is recorded as contended and said, and its exit is unchanged` | @spec | |
+| F-11 | Before an `--in-place` campaign, mutate names the other processes whose command line names this checkout, as advice, and runs; where it cannot list processes it says so. | `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look` | @spec | |
+| F-12 | An isolated campaign reads the checkout's verdict cache and merges its verdicts back with the existing merge; a failed merge leaves the cache as it was and says so. | `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache` | @spec | |
+| F-13 | A campaign that cannot create its worktree exits 2 with "could not isolate", names `--in-place`, and writes nothing; it never falls back silently. | `tests/mutate-isolation.test.mjs::a campaign that cannot isolate stops and names --in-place, writing nothing` | @spec | |
+| F-14 | At one commit, isolated and in-place runs of the same entries give the same verdict for each. | `tests/mutate-isolation.test.mjs::an isolated run and an in-place run of the same entries give the same verdicts` | @spec | |
+
+## Domain
+
+A **campaign** runs catalogue **entries** (mutants) against a **root**. An **isolated** campaign's root is a throwaway **worktree** of `HEAD`; an **in-place** campaign's root is the checkout. A **result** (a `qh-check` record or a campaign's verdicts) is **contended** when the load exceeded the core count while it ran.
+
+## Contracts Touched
+
+| Surface | Change | Consumers |
+|---------|--------|-----------|
+| `scripts/mutate.mjs` CLI | add `--in-place`; isolation becomes the default | maintainers, CLAUDE.md §2, the costly-runs skill |
+| `checks.jsonl` record | add load samples, core count, `contended` | the completion and commit advisories that read it |
+| `qh-check` output | an "unattributable" line when contended | maintainers |
+
+## Non-Goals
+
+- The CI campaign: it already runs in its own runner.
+- Refusing or delaying a run for load: advice only (CLAUDE.md §3); a scheduler or job lease is Stage 7.
+- A gate cache: that is its own spec.
+
+## Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| A test leans on an untracked or ignored file, so an isolated run differs | Medium | High | F-14's parity test |
+| A worktree left on disk by a killed run | Low | Low | F-9 |
+| Load average means something else on a platform | Low | Medium | F-10's could-not-read arm |
+
+## Open Questions
+
+<!-- Empty: the grill closed with every checklist item mapped to a Fact. -->
+
+## Verify
+
+```bash
+python3 plugin/bin/spec-verify --spec docs/specs/2026-09-29-a-campaign-never-touches-the-checkout.md
+```
+
+## Grill Log (appendix)
+
+| # | Question | Fact | Decision |
+|---|----------|------|----------|
+| 1 | Isolation by default, `--in-place` to opt out | F-8 | accepted |
+| 2 | Where the worktree lives and how it is cleaned up | F-9 | accepted |
+| 3 | What load is recorded, and how a loaded result is said | F-10 | accepted |
+| 4 | Naming exposed processes before an in-place run | F-11 | accepted |
+| 5 | The verdict cache under isolation | F-12 | accepted |
+| 6 | What happens when isolation fails | F-13 | accepted |
+| 7 | The success criterion | F-14 | accepted |

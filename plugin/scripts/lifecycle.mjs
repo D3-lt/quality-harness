@@ -1704,8 +1704,36 @@ function rawStatus(text) {
 function recordStatus(text) {
   const inline = text.match(/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$/im)
   if (inline) return inline[1].replace(/[*_`]/g, '').trim()
-  const section = markdownSection(text, 'Status')
-  return section.split('\n').map(line => line.trim()).find(Boolean) ?? ''
+  return (statusSection(text) ?? '').replace(/[*_`]/g, '').trim()
+}
+
+// ADR-074 T2: the first non-empty line of a record's `## Status` section, or null when it has
+// none — found as record.py's `_sections` finds a section, so the two readers cannot disagree
+// about where it is. Level 2 only (`### Status` is not it); a `## ` line inside a ``` or ~~~
+// fence is text, and only a closer of the same marker, at least as long, with nothing but
+// spaces and tabs after it, ends the fence; a repeated heading yields the last. The generic
+// `markdownSection` matches any level and ignores fences, which is right for the sections it
+// still reads and was how a fenced example's `## Status` governed here and nowhere else.
+function statusSection(text) {
+  let fence = null
+  let body = null
+  let found = null
+  for (const line of text.split(/\r\n|\r|\n/)) {
+    const marker = line.match(/^[ \t]*(`{3,}|~{3,})(.*)$/)
+    if (fence === null) {
+      if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) fence = marker[1]
+    } else if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && /^[ \t]*$/.test(marker[2])) {
+      fence = null
+    }
+    const heading = fence === null ? line.match(/^## (.+?)\s*$/) : null
+    if (heading) {
+      body = heading[1].toLowerCase() === 'status' ? [] : null
+      if (body) found = body
+    } else if (body) {
+      body.push(line)
+    }
+  }
+  return found === null ? null : found.map(line => line.trim()).find(Boolean) ?? ''
 }
 
 // Accepted governs — including in the archive, where "an archived Accepted ADR

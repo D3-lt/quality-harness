@@ -16595,6 +16595,54 @@
       "only": "^every reader gives one Status the same reading$"
     },
     {
+      "label": "ADR-074 T2: the Status section is ignored",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/status-section.test.mjs"],
+      "from": "    section = status_section(text)",
+      "to": "    section = None",
+      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
+      "label": "ADR-074 T2: the section wins over an inline line",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/status-section.test.mjs"],
+      "from": "    found = _STATUS_LINE.search(text)",
+      "to": "    found = None if status_section(text) is not None else _STATUS_LINE.search(text)",
+      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
+      "label": "ADR-074 T2: a line and a section that disagree are not said",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/status-section.test.mjs"],
+      "from": "    if section_value is not None and status_kind(section_value) != status_kind(status_value):",
+      "to": "    if False:",
+      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
+      "label": "ADR-074 T2: lifecycle reads a ## Status inside a code fence",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/status-section.test.mjs"],
+      "from": "    const heading = fence === null ? line.match(/^## (.+?)\\s*$/) : null",
+      "to": "    const heading = line.match(/^## (.+?)\\s*$/)",
+      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
+      "label": "ADR-074 T2: lifecycle reads a ### Status as the section",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/status-section.test.mjs"],
+      "from": "    const heading = fence === null ? line.match(/^## (.+?)\\s*$/) : null",
+      "to": "    const heading = fence === null ? line.match(/^#{2,6} (.+?)\\s*$/) : null",
+      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
+      "label": "ADR-074 T2: lifecycle keeps the markup on a section's value",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/status-section.test.mjs"],
+      "from": "  return (statusSection(text) ?? '').replace(/[*_`]/g, '').trim()",
+      "to": "  return (statusSection(text) ?? '').trim()",
+      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
       "label": "§321 codex status: U+FFFD is called bytes that are not UTF-8",
       "file": "plugin/bin/adr-lint",
       "tests": [

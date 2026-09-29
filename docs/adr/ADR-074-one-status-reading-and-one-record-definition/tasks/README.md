@@ -20,4 +20,4 @@ Implementation tasks for ADR-074: One Status reading and one record definition f
 | T1 | [T1-one-status-reader.md](T1-one-status-reader.md) | done |
 | T2 | [T2-a-status-section-is-read.md](T2-a-status-section-is-read.md) | done |
 | T3 | [T3-a-record-by-name-is-a-canonical-adr-name.md](T3-a-record-by-name-is-a-canonical-adr-name.md) | done |
-| T4 | [T4-an-unsigned-human-proof-is-advised.md](T4-an-unsigned-human-proof-is-advised.md) | pending |
+| T4 | [T4-an-unsigned-human-proof-is-advised.md](T4-an-unsigned-human-proof-is-advised.md) | done |

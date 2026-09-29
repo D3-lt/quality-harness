@@ -16484,6 +16484,7 @@ The CI run of fe918bb, 36486684619, was red in three jobs.
   - Only the new mutants had been run locally, not every catalogue entry on the files changed.
 - **Windows.** A test compared a POSIX path with work-next's native `docs\specs\…`. And MSYS `mkfifo` exits 0 while native Python sees no file, so the FIFO tests now skip unless `statSync().isFIFO()` holds.
 - **One more slip, found by a STALE mutant:** the agent tool decoded a backslash-u escape for U+FEFF in a plan into a raw BOM inside adr-lint's source. It is written `chr(0xFEFF)` now.
+- (fixture-waived: the findings fixed from this section are names holding a newline, a tag or a NUL byte, and trees holding a FIFO or a dangling link. A Windows checkout of `tests/fixtures/corpora/` cannot hold any of them. Each has a regression that builds its own scratch tree, and skips where the platform refuses the name: `tests/chaos-e016066.test.mjs`, `tests/chaos-315-codex-render.test.mjs` and `tests/chaos-315-codex-status.test.mjs`.)
 
 ## 320. OPEN 2026-09-29 — The inbox, reviewed: seventeen findings, two not yet recorded anywhere
 
@@ -16577,3 +16578,11 @@ The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date 
 - **A redirection from a path holding `/`** (`npm test </dev/null`) is still shown with `‹`. It is display only: the runnable instruction names `qh-check`.
 - **The readers disagree about a status with markup inside it, or a letter after the word.** lifecycle removes `*`, `_` and backticks, and its `\b` is ASCII, so it reads `_Accepted_` and `Acceptedé` as Accepted; adr-next and adr-lint do not. Which reading is right is the owner's decision.
 - **`leafTestsRun` called without `files`** takes no wrapper off the cap. The campaign always passes them.
+
+**Released as v3.1.5 at ebfaee0 (2026-09-29).** The dispatched campaign 36536183116 was green on all 55 jobs. Five outside runs at ebfaee0 came back clean, and their attestations are in `docs/corpus-reports/` (…-3.1.5-ebfaee0.json): quality-blueprints, tool-multipathreadwrite, playtrix, klientams and pirkiniukampelis. What they raised is for the next batch, and none of it is a refusal or a fail-open:
+- **Enforced-by splits prose into pointers** (tool-multipathreadwrite, its ADR-007:9). `enforcement_pointers` cuts a sentence at backticks and commas, and `check_enforcement` advises on fragments such as `) and` and `eleven cases)`. It is advice only.
+- **The stage menu says "no QH corpus is in use"** under a message that has just named an unread nested spec (quality-blueprints). The menu is the static catalogue, but beside that message it reads as a claim.
+- **A record that keeps its status in a `## Status` section** is read by lifecycle's `recordStatus` and called not-recognised by adr-lint (pirkiniukampelis, `docs/decisions/005_…`). The two disagree about whether it is a record at all. This is the §320.1 question from the other side.
+- **A Tests row naming a missing test identifier FAILs, while one naming a missing test title is advice** (klientams). Whether that is by design is open.
+- **branch-state printed another commit's CI verdict** under `main @ <HEAD>`, twice on 2026-09-29 (9cc9a35, then 3ecf036), each from a cache entry written minutes earlier. The line names its sha, so it does not lie about which commit it describes, but it raised an alarm about a commit that was not HEAD. What wrote those entries was not established.
+- **Not exercised by any outside run:** H1, D4 and §320.2 need a hostile name, a torn file or a UTF-16 fixture. The runners said so rather than passing them.

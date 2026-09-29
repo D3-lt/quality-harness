@@ -149,9 +149,13 @@ test('every reader gives one Status the same reading', t => {
 const OUTSIDE = [
   { name: 'a fenced example above the real line', status: '```md\nStatus: Proposed\n```\n\n**Status:** Accepted', governs: true },
   { name: 'a prose line starting with Status, beside a section', status: '## Status\n\nAccepted', context: 'Status codes from the API are unstable.', governs: true },
-  { name: 'a byte-order mark before the word', status: '**Status:** ﻿Accepted', governs: false },
-  { name: 'a file separator before the word', status: '**Status:** \x1cAccepted', governs: false },
+  { name: 'a byte-order mark before the word', status: `**Status:** ${String.fromCharCode(0xFEFF)}Accepted`, governs: false },
+  { name: 'a file separator before the word', status: `**Status:** ${String.fromCharCode(0x1C)}Accepted`, governs: false },
   { name: 'a long s in the label', status: 'ſtatus: Accepted', governs: false },
+  // the React SPA corpus at 084d925: a no-break space after the label governed in every reader at ebfaee0
+  // (trim and strip both remove it) and stopped governing when the whitespace set left it out.
+  { name: 'a no-break space before the word', status: `**Status:** ${String.fromCharCode(0xA0)}Accepted`, governs: true },
+  { name: 'an em space before the word', status: `**Status:** ${String.fromCharCode(0x2003)}Accepted`, governs: true },
 ]
 
 test('a Status is read outside code fences and after a colon, with one idea of whitespace and case', () => {

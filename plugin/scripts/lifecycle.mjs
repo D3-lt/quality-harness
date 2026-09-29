@@ -1695,9 +1695,13 @@ function markdownSection(text, heading) {
 // colon is required, so a prose line such as `Status codes from the API …` is not a Status; the
 // word is matched letter by letter, since `/i` and Python's `re.I` fold `ſtatus` differently; a
 // line inside a code fence is text; and only these characters are whitespace at a value's edges,
-// since `trim` and Python's `strip` disagree (a byte-order mark, `\x1c`).
+// since `trim` and Python's `strip` disagree (a byte-order mark, `\x1c`), the set is exactly what
+// both remove — a no-break space included, which governed at ebfaee0 (the React SPA corpus at 084d925).
 const STATUS_LABEL = /^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]+)$/
-const EDGE_SPACE = /^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g
+const EDGE_CODES = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,
+  0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000]
+const EDGE_CLASS = `[${EDGE_CODES.map(code => String.fromCodePoint(code).replace(/[\\\]^-]/g, '\\$&')).join('')}]`
+const EDGE_SPACE = new RegExp(`^${EDGE_CLASS}+|${EDGE_CLASS}+$`, 'g')
 const edgeTrim = value => value.replace(EDGE_SPACE, '')
 
 // Each line with whether it sits inside a code fence, by record.py's `_scan` rules: a line of

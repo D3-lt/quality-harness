@@ -1127,7 +1127,7 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
                       f"calls a record undecided, a plan and not a work order, unless its Status starts with "
                       f"the word Accepted"
                       + (f"; it starts with `{status_value[0]}` (U+{ord(status_value[0]):04X}), which is not a "
-                         f"letter — a label written with it, such as a fullwidth colon, leaves it in the value"
+                         f"letter"
                          if not status_value[0].isalnum() else "")
                       + ("; the value holds U+FFFD, which is what bytes that are not UTF-8 are read as"
                          if chr(0xFFFD) in status_value else ""))

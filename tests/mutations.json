@@ -16835,6 +16835,22 @@
       "only": "^a Status label written with a fullwidth colon is named as not the colon$"
     },
     {
+      "label": "the React SPA corpus at 084d925: a no-break space is not edge whitespace in Python",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "_EDGE_SPACE = \"\".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, *range(0x2000, 0x200B),",
+      "to": "_EDGE_SPACE = \"\".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x1680, *range(0x2000, 0x200B),",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "the React SPA corpus at 084d925: a no-break space is not edge whitespace in JS",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "const EDGE_CODES = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,",
+      "to": "const EDGE_CODES = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
       "label": "§321 codex status: U+FFFD is called bytes that are not UTF-8",
       "file": "plugin/bin/adr-lint",
       "tests": [

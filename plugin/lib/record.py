@@ -656,6 +656,10 @@ def looks_like_record(text):
     return bool(record_status(text)[0] is not None and _RECORD_SECTION.search(text))
 
 
+# Memoised: adr-lint asks for one record's Status several times per run (main, check_adr, the done
+# check), and each ask is a fence-aware walk of the whole text. On a 400,000-line record that cost
+# 2.5s against 1.5s at v3.1.5 and ran the coverage job's 30s gate budget out (CI 677c63d).
+@lru_cache(maxsize=16)
 def record_status(text):
     """ADR-074 Decisions 1-2: `(value, source)` for a record's Status, or `(None, None)`.
 
@@ -672,6 +676,7 @@ def record_status(text):
     return (section, "section") if section is not None else (None, None)
 
 
+@lru_cache(maxsize=16)
 def status_section(text):
     """The first non-empty line of a record's `## Status` section, markup removed, or None
     when it has none. The section is found by `_sections`, the one fence-aware walk, so a

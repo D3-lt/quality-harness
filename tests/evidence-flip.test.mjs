@@ -255,6 +255,7 @@ test('every reader of the session log is driven above, or says why a lost line c
     logIncomplete: 'is the qualifier itself',
     unobservableWrites: 'ordered by the log; an incomplete log leaves every such write outstanding',
     sessionBaseline: 'the first start that looked; a lost line can only remove it, which every caller reads as unchecked, because a late baseline is adopted only from a log read whole',
+    tornRecord: 'names which record tore, asked only once logIncomplete is true; a lost session-log line makes it name the session log, and it answers nothing positive',
   }
   const naming = []
   const taking = []

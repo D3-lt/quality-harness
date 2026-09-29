@@ -182,7 +182,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON, conflict_markers  # noqa: E402,E501
+from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, visible, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON, conflict_markers  # noqa: E402,E501
 from record import record_id, title_line, NO_WINDOW  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock  # noqa: E402
 
@@ -461,8 +461,12 @@ def excerpt_fence(lines):
     Log` became text, and the next entry landed under it with exit 0 — reproduced
     2026-09-11 (ADR-045 T8). The one place a fence is written into a record is
     here, so the neutralising cannot be forgotten by one of two writers.
+
+    And each line goes through `record.visible` before that: a control byte in the quoted output
+    is written as `\\u{0}`, never raw, because a NUL makes git read the task file as binary and
+    every tool that edits text then refuses it (BACKLOG §320.2).
     """
-    return "\n".join(["  ```"] + ["  " + fence_safe(ln) for ln in lines] + ["  ```"])
+    return "\n".join(["  ```"] + ["  " + fence_safe(visible(ln)) for ln in lines] + ["  ```"])
 
 
 def collapse_repeats(lines):

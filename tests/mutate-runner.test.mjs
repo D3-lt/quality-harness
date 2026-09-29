@@ -1426,3 +1426,40 @@ test('a narrowed entry whose baseline runs fewer tests than it names is STALE, a
     assert.ok(handWritten.stdout.includes('1/1 mutations were noticed.'), handWritten.stdout)
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
+
+// ADR-073, found by its own first full campaign (run 36521596839 at d0d1e66). `leafTestsRun`
+// discounts every line whose name ends in a source extension, because a file wrapper from a
+// checkout the path filter cannot resolve looks like a name (BACKLOG §53). That discount used to
+// turn a pass into unrun, the safe direction. Under ADR-073 it made a narrowed entry whose killer
+// is named `… for .js` run "fewer tests than it names": a false STALE that failed the campaign.
+// A line whose exact name the pattern names is a leaf; a wrapper's name is never one of them.
+test('a narrowed killer whose name ends in a source extension is counted, and a wrapper still is not', () => {
+  const names = ['f is one', 'f is the same for .js']
+  const both = '✔ f is one (1ms)\n✔ f is the same for .js (1ms)\nℹ tests 2\nℹ pass 2\n'
+  assert.equal(leafTestsRun(both, [], names), 2, 'a named leaf ending in .js is a test that ran')
+  assert.equal(baselineOf({ status: 0, signal: null, stdout: both }, [], names).state, 'pass')
+  // The dirty twin: a run that matched nothing prints only the wrapper, and the names do not
+  // rescue it, so the narrowed entry is still short.
+  const wrapperOnly = '✔ tests/a.test.mjs (5.1ms)\nℹ tests 1\nℹ pass 1\n'
+  assert.equal(leafTestsRun(wrapperOnly, [], names), 0, 'the file wrapper is not a named test')
+  assert.equal(baselineOf({ status: 0, signal: null, stdout: wrapperOnly }, [], names).state, 'short')
+
+  // End to end: measured and RED through the campaign, where it was STALE.
+  const repo = mkdtempSync(join(tmpdir(), 'qh-short-extension-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const env = { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '' }
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\n')
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { f } from '../a.mjs'\n"
+      + "test('f is one', () => { assert.equal(f(), 1) })\ntest('f is the same for .js', () => { assert.equal(f(), 1) })\n")
+    writeFileSync(join(repo, 'tests', 'mutations.json'), `${JSON.stringify({ mutations: [
+      { label: 'narrowed', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2', only: '^(?:f is one|f is the same for \\.js)$' },
+    ] }, null, 2)}\n`)
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base', '--no-verify')
+    const campaign = spawnSync(process.execPath, [runner, '--root', repo, '--no-cache'], { cwd: repo, encoding: 'utf8', timeout: 180_000, env })
+    assert.equal(campaign.status, 0, `${campaign.stdout}\n${campaign.stderr}`)
+    assert.ok(campaign.stdout.includes('1/1 mutations were noticed.'), campaign.stdout)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})

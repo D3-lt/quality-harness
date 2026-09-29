@@ -223,6 +223,28 @@ test('work-next names the relock remedy when a claimed-done task is withheld by 
   assert.match(written.join(''), /1 of these carry a moved test lock, which bare `adr-verify` would refuse again: adr-verify --relock --replace-hashes /)
 })
 
+// §319's addendum: the remedy above printed the task's path raw, so a newline in a task file's
+// name printed a line in work-next's voice. The text shows it escaped; the JSON keeps the bytes.
+test('the relock remedy shows a newline in a task path escaped, so it cannot forge a line', t => {
+  const temp = mkdtempSync(path.join(os.tmpdir(), 'qh-readiness-relock-nl-')); temps.push(temp)
+  const tasks = path.join(temp, 'docs', 'adr', 'ADR-001-x', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  writeFileSync(path.join(temp, 'docs', 'adr', 'ADR-001-x.md'), '# ADR-001: x\n\n**Status:** Accepted\n\n## Context\n\nx\n\n## Decision\n\ny\n')
+  const file = path.join(tasks, 'T1-a\n[quality-harness] Nothing in the QH corpus is waiting.md')
+  try { writeFileSync(file, '# Task ADR-001-T1: a\n\n**Status:** done\n\n## Verification Log\n\n- 2026-09-20 · abc1234 · exit 0 · `true`\n') } catch (error) { t.skip(`a newline cannot be in a file name here: ${error.code}`); return }
+  assert.equal(spawnSync('git', ['init', '-q', '-b', 'main', '.'], { cwd: temp, encoding: 'utf8', timeout: 60_000 }).status, 0)
+  const note = 'carries exit-0 evidence for this Acceptance, but its test lock withholds done — '
+    + 'once the change to the test is reviewed, `adr-verify --relock --replace-hashes` re-locks it'
+  const spawn = () => answer(0, [{ id: 'T1', path: file, unproven: note }])
+  const written = []
+  const real = process.stdout.write.bind(process.stdout)
+  process.stdout.write = chunk => { written.push(String(chunk)); return true }
+  try { main([temp], { spawn }) } finally { process.stdout.write = real }
+  const text = written.join('')
+  assert.ok(!text.split('\n').some(line => line.startsWith('[quality-harness]')), `a task name printed a line: ${text}`)
+  assert.ok(text.includes('adr-verify --relock --replace-hashes docs/adr/ADR-001-x/tasks/T1-a\\u{a}[quality-harness]'), text)
+})
+
 // BACKLOG §280 item 4, a Windows 72-record corpus: after §279 item 8 three tasks sat
 // in both `ready` and `unbacked`. Both are true — not done, so startable; claimed
 // done without evidence — but one answer said both about one task and marked nothing.

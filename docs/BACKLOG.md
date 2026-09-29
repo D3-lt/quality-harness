@@ -16525,3 +16525,34 @@ The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date 
 - Both sites now read the value on its own line (`[ \t]*`). An empty Status line is now said to be empty, as advice.
 - A regression is in `tests/chaos-e016066.test.mjs`. Its controls: a real `Proposed` over a done task is still refused, and the no-tasks advice no longer quotes the next line. Three mutants, all RED.
 - The rest of §307 F-1 (invalid UTF-8, `Acceptable`, `**Statusas:**`) still lints PASS. That is silence, not a refusal, so it stays in the next batch.
+
+## 321. FIXED 2026-09-29 — The 3.1.5 batch: output that forges the tool, two readers that named the wrong thing, and ADR-073's first campaign
+
+**ADR-073's first campaign found one short entry, and it was false.** Run 36521596839 at d0d1e66 ran all 48 shards. One entry, `workflow-parse: --js refuses a file neither dialect parses`, said "its pattern names 8 tests and 7 ran". All 8 ran.
+- `leafTestsRun` discounts any leaf whose name ends in a source extension. That is §53's rule, for a file wrapper the path filter missed. One killer is named `… the Workflow fallback is for .js`.
+- The discount used to turn a pass into unrun, the safe direction. ADR-073 turned it into STALE, which fails a campaign. Now a line whose exact name the pattern names is counted as a leaf; a wrapper's name is never one of those names.
+- The class, enumerated by a script that runs `namesOf` over every `only` in the catalogue: 1 of 814 narrowed entries names a test ending in `.mjs`, `.js`, `.py` or `.cjs`. `killedBy` is not a member: it drops a name only when it has no whitespace AND an extension.
+- `baselineOf`'s third argument is now the names, not their count; ADR-073's Wiring said a count.
+- Every catalogue entry on `scripts/mutate.mjs` was run after the change (§18): 80 of 80 RED. Five were re-measured against the full catalogue, because a filtered scratch catalogue had made their baselines fail.
+
+**Output that forges the tool (§319's addendum, and item 6).** Each fix has a regression with a control beside it, and catalogue mutants, all RED.
+- **adr-verify's excerpt (§320.2).** `record.visible` writes each control, bidi override and invisible character as `\u{…}`, before `fence_safe`. A tab is kept.
+- **adr-lint's printer (A6).** The verdict, every finding, every advice line and the withheld-advice line go through `visible(…, keep="")`. Only the print changed: the ADR-037 history keeps each finding's own text.
+- **The check command (H1).** Every rendering goes through `checkInCode`, at 8 sites in lifecycle.mjs. Controls are escaped, and a `<` directly before a tag name is shown as `‹`. A redirection keeps its bytes, except `<name` written with no space.
+- **SessionStart's adr-next line (item 6).** It goes through `gateSaid`: the repository root becomes `.` and the home directory `~`, and the line is cleaned like corpus text (`corpusText`, split out of `quotedCorpusText`).
+- **work-next's relock remedy.** The text goes through `visiblePath`; the JSON keeps the bytes.
+- **A sibling, found with `mrw read --grep 'commandInCode\(' plugin/scripts/`.** SessionStart's "Prove it with `adr-verify <task>`" kept a newline in a task name. `commandInCode` now escapes controls; zero-width characters, bidi overrides and the BOM keep their bytes, with the note.
+
+**§307 F-1.** adr-lint now advises when a record's Status does not start with a word the readers act on: Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated. It also says when the Status holds bytes that are not UTF-8. `Accepted (partially)` reads as Accepted in every reader, so it draws no advice.
+- **`**Statusas:**` is not fixed, on purpose.** Six readers match the label without a word boundary: adr-lint:2207, adr-next:321 and :988, record.py:509, and lifecycle.mjs:1664 and :1669 (found with `mrw read --grep '0,2\}Status' plugin/`).
+- Adding `\b` would turn adr-next's stop on an unrecognised task status into ready. It would also make record.py stop counting such a file as a record. Both move toward silence (§16). The misquote (`**as:** …**`) is a wording problem, and it stays open.
+
+**D4.** Five sentences said "the session log could not be read whole" when only `checks.jsonl` had torn. `tornRecord(log, words)` makes each of them name `checks.jsonl` when that is what tore.
+- R3's "where that run began may be among what was lost" is now said only when the session log itself tore, since `checks.jsonl` records no start.
+- That narrowing has no test of its own: the review test tears the session log.
+
+**Still open from §319's addendum and §320:**
+- §320.1 (a name starting `adr<digit>` linted as a record).
+- `showsFailing`; the probe dropping advice; C2; X1.
+- Trailing-space task files; B9; Invalidates in a sibling archive; `[31m` residue.
+- §302's `Class::method`; `**Statusas:**`; adr-lint's other corpus reads and FIFOs.

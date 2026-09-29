@@ -16517,3 +16517,10 @@ The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date 
    - `excerpt_fence(failure_tail(...))` passes each line through `fence_safe`, which neutralises fence markers and nothing else. A NUL makes git treat the task file as binary, and mrw then refuses to edit it.
    - The reporter escaped the NULs by hand. The acceptance digest covers the fence, not the capture, so that edit left it unchanged.
    - The fix belongs in `excerpt_fence`, beside `fence_safe`: show control bytes as visible escapes, as `visiblePath` already does in the readers.
+
+**After the review, the one false refusal still open among these leads is fixed on main, for the next release.** go-cli-adr-corpus's C4 was listed under §307 F-1 in §319's addendum, but it is not only a silence.
+- Both of adr-lint's Status regexes, `^\*\*Status:\*\*\s*(.+?)\s*$`, let `\s*` cross the line break, so an empty `**Status:**` line was read from the line after it.
+- Reproduced in a scratch corpus: an empty Status followed by `**Proposed:** 2026-09-01 by Zy`, with a task marked done. The blocking done check then FAILed the record with "Status is 'Proposed:** 2026-09-01 by Zy' but T1 is marked done", quoting a status the record does not have.
+- Both sites now read the value on its own line (`[ \t]*`). An empty Status line is now said to be empty, as advice.
+- A regression is in `tests/chaos-e016066.test.mjs`. Its controls: a real `Proposed` over a done task is still refused, and the no-tasks advice no longer quotes the next line. Three mutants, all RED.
+- The rest of §307 F-1 (invalid UTF-8, `Acceptable`, `**Statusas:**`) still lints PASS. That is silence, not a refusal, so it stays in the next batch.

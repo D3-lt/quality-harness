@@ -155,13 +155,15 @@ test('adr-lint advises on a .quality-harness.json that is a FIFO, as on a direct
 // record.py's lock snapshot runs for a done task with a first-red lock, in check_test_lock,
 // BEFORE the Tests-row checks adr-lint refuses a FIFO in. So a FIFO there waited in record.py.
 const RECORD_PY = join(repoRoot, 'plugin', 'lib', 'record.py')
+// UTF-8 stdout: the minted suffix carries `·`, which a Windows runner's cp1252 stdout wrote as a
+// byte Node read as U+FFFD (CI e0348fb).
 const probe = (script, args, timeout = 60_000) => spawnSync('python3', ['-c', [
   'import importlib.util, json, sys',
   'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
   'record = importlib.util.module_from_spec(spec)',
   'spec.loader.exec_module(record)',
   script,
-].join('\n'), RECORD_PY, ...args], { encoding: 'utf8', timeout, windowsHide: true })
+].join('\n'), RECORD_PY, ...args], { encoding: 'utf8', timeout, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } })
 const snapshot = (repo, timeout) => {
   const run = probe('snap = record.snapshot_lock(sys.argv[2], [("adds_an_item", "src/cart.test.ts")])\n'
     + 'print(json.dumps({"bodies": [n for _r, n in snap["bodies"]], "unproven": [n for _r, n in snap["unproven"]]}))', [repo], timeout)

@@ -78,8 +78,10 @@ test('the probe carries what adr-lint advised, scrubbed, and a record the gate n
   write(repo, 'docs/adr/ADR-901-x.md', '# ADR-901: X\n\n**Status:** Acc\u0000epted\n\n## Context\n\nx\n')
   // A record the gate checks, passes, and does not advise on.
   write(repo, 'docs/adr/ADR-902-control.md', CONTROL)
-  // A record the gate reads and never checks: not-recognised, exit 2, "nothing here was checked".
-  cpSync(join(repoRoot, 'tests', 'fixtures', 'corpora', 'madr', 'docs', 'adr', '0001-use-postgres.md'), join(repo, 'docs', 'adr', '0001-use-postgres.md'))
+  // A file the corpus reader lists by its number and the gate never checks: not-recognised, exit
+  // 2, "nothing here was checked". Since ADR-074 a MADR record with a Status and a `## Context` is
+  // linted, so the file that stands for this arm is one with no record content at all.
+  write(repo, 'docs/adr/0005-notes.md', '# Notes\n\nNothing is decided here.\n')
   const report = probeJson(repo)
   const entry = file => report.adrLint.find(each => each.file === file)
   const scrub = scrubber({ root: repo, pluginRoot })
@@ -101,7 +103,7 @@ test('the probe carries what adr-lint advised, scrubbed, and a record the gate n
   // A record the gate never checked carries no advice key: "no advice" there would be an
   // observation nobody made (ADR-005). Not-recognised exits 2 before any check runs; an unread
   // record never reached the gate at all.
-  const unchecked = entry('docs/adr/0001-use-postgres.md')
+  const unchecked = entry('docs/adr/0005-notes.md')
   assert.equal(unchecked.verdict, 'not-recognised', JSON.stringify(report.adrLint))
   assert.ok(!('advice' in unchecked), JSON.stringify(unchecked))
   const unread = entry('docs/adr/ADR-901-x.md')
@@ -114,7 +116,7 @@ test('the probe carries what adr-lint advised, scrubbed, and a record the gate n
   const lines = text.stdout.split('\n')
   assert.ok(lines.includes(`adr-lint docs/adr/ADR-900-probe.md: FAIL · ${said.length} advice line(s)`), text.stdout)
   assert.ok(lines.includes('adr-lint docs/adr/ADR-902-control.md: PASS'), text.stdout)
-  assert.ok(lines.includes('adr-lint docs/adr/0001-use-postgres.md: not-recognised'), text.stdout)
+  assert.ok(lines.includes('adr-lint docs/adr/0005-notes.md: not-recognised'), text.stdout)
   assert.ok(lines.includes('adr-lint docs/adr/ADR-901-x.md: unread'), text.stdout)
 })
 

@@ -120,6 +120,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible  # noqa: E402
+from record import record_status, status_kind, status_word  # noqa: E402
 
 
 def one_line(value):
@@ -1027,10 +1028,6 @@ def check_permanent_disposition(inner, adr_path, errors, root, candidates):
             "exact lowercase text")
 
 
-# The record statuses the readers act on, by first word: Accepted governs, Proposed and Draft
-# are pending, and the rest are the graveyard (lifecycle.mjs statusKind, adr-state).
-RECORD_STATUS_WORDS = r"(?:accepted|proposed|draft|rejected|superseded|withdrawn|deprecated)\b"
-
 
 _ROOT_UNSET = object()
 
@@ -1093,36 +1090,29 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
             permanent_paths = tracked_or_unignored_paths(root)
         return permanent_paths
 
-    if not re.search(r"^\*\*Status:\*\*", text, re.M):
+    # ADR-074: the Status is read by record.py's one reader, as every other reader reads it.
+    # An EMPTY Status line used to be read from the line after it (BACKLOG §319, from a
+    # corpus-chaos run's C4); the shared reader reads the value on its own line, and an empty
+    # one is said.
+    status_value, _ = record_status(text)
+    if status_value is None:
         errors.advise(f"{adr_path.name}: no **Status:** line")
-    # An EMPTY Status line was read from the line after it: `\s*` crosses a line break, and a
-    # blocking check quoted a status the record does not have (BACKLOG §319, from a corpus-chaos
-    # run's C4). The value is read on its own line now, and an empty one is said.
-    elif re.search(r"^\*\*Status:\*\*[ \t]*\r?$", text, re.M):
+    elif not status_value.strip(": \t"):
         errors.advise(f"{adr_path.name}: the **Status:** line is empty, so no reader can tell "
                       f"whether this decision was taken")
-    # §307 F-1. A Status adr-lint does not recognise linted PASS in silence; it is said now, as
-    # advice. The FIRST WORD decides, so `Accepted (partially)` and `Superseded by ADR-7` are that
-    # word. The value is read with `*` and backticks trimmed from its EDGES only, as adr-lint's two
-    # other Status readers read it.
-    # ⚠ THE ADVICE SPEAKS FOR ADR-LINT AND FOR ADR-NEXT'S RULE, NEVER FOR "THE READERS": they do
-    # not agree (Codex on ffd4892, #5). lifecycle removes every `*`, `_` and backtick first, so it
-    # reads `_Accepted_` as Accepted where adr-next does not; and its JS `\b` is ASCII, so it reads
-    # `Acceptedé` as Accepted where Python does not. Removing the markup here too silenced
-    # `_Proposed_`, which the other readers do not read as Proposed (a review of that fix), so the
-    # advice names lifecycle's reading instead. U+FFFD is what bytes that are not UTF-8 are read as,
-    # and valid UTF-8 can hold it too, so the character is named, not its origin (#6).
-    else:
-        status_value = re.search(r"^\*\*Status:\*\*[ \t]*(.+?)[ \t]*$", text, re.M).group(1).strip().strip("`*")
-        if not re.match(RECORD_STATUS_WORDS, status_value, re.I):
-            errors.advise(f"{adr_path.name}: Status `{status_value}` starts with no status adr-lint recognises "
-                          f"(Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated); adr-next "
-                          f"calls a record undecided, a plan and not a work order, unless its Status starts with "
-                          f"the word Accepted"
-                          + ("; lifecycle.mjs reads it with `*`, `_` and backticks removed, and may read it otherwise"
-                             if re.search(r"[*_`]", status_value) else "")
-                          + ("; the value holds U+FFFD, which is what bytes that are not UTF-8 are read as"
-                             if chr(0xFFFD) in status_value else ""))
+    # §307 F-1. A Status no reader acts on linted PASS in silence; it is said now, as advice. The
+    # first run of letters decides, so `Accepted (partially)` and `Superseded by ADR-7` are that
+    # word, and markup anywhere in the value is removed first (ADR-074). Every reader now gives
+    # one reading, so the advice can state adr-next's rule as the rule. U+FFFD is what bytes
+    # that are not UTF-8 are read as, and valid UTF-8 can hold it too, so the character is
+    # named, not its origin (Codex on ffd4892, #6).
+    elif status_kind(status_value) is None:
+        errors.advise(f"{adr_path.name}: Status `{status_value}` starts with no status adr-lint recognises "
+                      f"(Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated); adr-next "
+                      f"calls a record undecided, a plan and not a work order, unless its Status starts with "
+                      f"the word Accepted"
+                      + ("; the value holds U+FFFD, which is what bytes that are not UTF-8 are read as"
+                         if chr(0xFFFD) in status_value else ""))
     secs = sections_of(text)
     # An ADR has no digest, so no repeat blocks here; every section below is read
     # last-wins, and the author is told so (ADR-045 T5).
@@ -2748,11 +2738,11 @@ def check_status_allows_execution(adr_path, readme_text, errors):
     if not done:
         return
     text = Path(adr_path).read_text(errors="replace", encoding="utf-8")
-    m = re.search(r"^\*\*Status:\*\*[ \t]*(.+?)[ \t]*$", text, re.M)
-    if not m:
+    status, _ = record_status(text)
+    if status is None:
         return  # the missing-Status line is already reported by check_adr
-    status = m.group(1).strip().strip("`*")
-    if re.match(r"^(proposed|draft|rejected)\b", status, re.I):
+    # ADR-074: the shared reading. Pending (Proposed, Draft) and Rejected were never executed.
+    if status_kind(status) == "pending" or status_word(status) == "rejected":
         errors.append(f"{adr_path.name}: Status is '{status}' but "
                       f"{', '.join(sorted(done))} {'is' if len(done) == 1 else 'are'} marked done "
                       f"— execution requires Accepted; either the decision was never taken or the "
@@ -6321,9 +6311,8 @@ def main():
         # tasks. The cheapest observation this gate CAN make: does every path the
         # record's own ## Implementation names already exist? Against git, never the
         # disk (CLAUDE.md §8). It says a coincidence is possible and concludes nothing.
-        status_m = re.search(r"^\*\*Status:\*\*[ \t]*(.+?)[ \t]*$", body, re.M)
-        status_text = status_m.group(1).strip().strip("`*") if status_m else ""
-        if re.match(r"^(proposed|draft)\b", status_text, re.I):
+        status_text = record_status(body)[0] or ""
+        if status_kind(status_text) == "pending":
             named = implementation_paths(body)
             tracked = tracked_or_unignored_paths(root) if named else None
             if named and tracked is None:

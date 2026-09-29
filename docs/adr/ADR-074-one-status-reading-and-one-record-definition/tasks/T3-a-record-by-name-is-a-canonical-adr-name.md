@@ -82,5 +82,11 @@ Stop and ask if one of this machine's corpora names its records `adr<digit>` wit
   # todo 0
   # duration_ms 553.515083
   ```
+- 2026-09-29 · cb39b90 · exit 0 · `set -o pipefail …` · acceptance-sha256:b62b7d219898cd731f536a334cdede03afd435eae3f2759008a200e51d948c52 · ms:611
+- 2026-09-29 · cb39b90* · exit 0 · `set -o pipefail …` · acceptance-sha256:b62b7d219898cd731f536a334cdede03afd435eae3f2759008a200e51d948c52 · ms:592
+- 2026-09-29 · cb39b90* · exit 0 · `set -o pipefail …` · acceptance-sha256:b62b7d219898cd731f536a334cdede03afd435eae3f2759008a200e51d948c52 · ms:566
 
 ## Mutation Log
+- 2026-09-29 · cb39b90 · mutant killed · exit 1 · `plugin/bin/adr-lint` · the old adr[-_]?\d name arm back: adr018-sweep.md and the Codex review are linted as records again · acceptance-sha256:b62b7d219898cd731f536a334cdede03afd435eae3f2759008a200e51d948c52 · covers:a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is
+- 2026-09-29 · cb39b90* · mutant killed · exit 1 · `plugin/bin/adr-lint` · the content arm dropped: adr012-x.md with a Status and ## Context is not-recognised · acceptance-sha256:b62b7d219898cd731f536a334cdede03afd435eae3f2759008a200e51d948c52
+- 2026-09-29 · cb39b90* · mutant killed · exit 1 · `plugin/bin/adr-lint` · the content arm admitting a Status alone: a backlog with a ## Status section is linted as a record (§141) · acceptance-sha256:b62b7d219898cd731f536a334cdede03afd435eae3f2759008a200e51d948c52

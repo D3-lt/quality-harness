@@ -510,6 +510,31 @@ test('a catalog this reader cannot read leaves a dated record unproven, not abse
   assert.ok(seen.some(file => file.endsWith(`${OLD}.md`) && file.includes('adr-archive')), 'the archived record is still listed')
 })
 
+// ADR-074 lists a record kept under `adr-archive/` by its directory name, so the dated corpus
+// above never reaches ADR-063's frozen-archive arm any more and two catalogue mutants on it went
+// GREEN (CI b866a0f). An archive under a name no record directory has is found only by that arm.
+const archiveElsewhere = () => {
+  const root = dateCorpus()
+  renameSync(join(root, 'adr-archive'), join(root, 'history'))
+  return root
+}
+
+test('a record under a frozen archive with no record-directory name is listed by its content', () => {
+  const root = archiveElsewhere()
+  const records = lifecycle.adrCorpus(root, { tracked: listing(root) })
+  const old = records.find(record => record.id === OLD)
+  assert.ok(old, `the archived dated record is listed at all: ${records.map(record => record.id)}`)
+  assert.ok(old.file.includes('history'), old.file)
+})
+
+test('a catalog this reader cannot read, under a non-record name, leaves the record listed', () => {
+  const root = archiveElsewhere()
+  renameSync(join(root, 'history', 'README.md'), join(root, 'history', 'readme.md'))
+  const records = lifecycle.adrCorpus(root, { tracked: listing(root) })
+  const seen = [...records, ...records.unreadable].map(entry => entry.file)
+  assert.ok(seen.some(file => file.endsWith(`${OLD}.md`) && file.includes('history')), seen.join('\n'))
+})
+
 test('a supersession that names no record is unproven, not a graveyard', () => {
   // F4: `superseded by banana` was an authoritative effect with no replacement.
   const root = dateCorpus({ effect: 'superseded by banana' })

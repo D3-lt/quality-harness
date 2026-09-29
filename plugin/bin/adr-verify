@@ -2001,6 +2001,12 @@ def strict_from_number(start):
     config = Path(root) / CONFIG_NAME
     if not config.exists():
         return None, None
+    if not config.is_file() and not config.is_dir():
+        # A FIFO here waited on the read below, as it did in adr-lint's copy (BACKLOG §319's
+        # addendum). It is never opened: not read, and strictFrom is not in effect. A directory
+        # keeps the except arm's own words.
+        return None, (f"{CONFIG_NAME} could not be read (not a regular file); "
+                      f"every record is checked in full")
     try:
         declared = json.loads(config.read_text(encoding="utf-8", errors="replace")).get("strictFrom")
     except Exception as exc:

@@ -53,7 +53,7 @@ Two roles. Run the one you are in.
    git lists a task the disk does not hold), `workNext.partialBecause` (which records made the
    look PARTIAL, and why), `workNext.specs` and `workNext.unprovenSpecs` (specs whose Status is
    not exactly one of Grilling, Draft, Ready-for-ADR or Superseded), every line of
-   `sessionStart.lines`, every `adrLint[].verdict` and its `reason`, every `adrNext[].ready[]`
+   `sessionStart.lines`, every `adrLint[].verdict` with its `reason` and its `advice`, every `adrNext[].ready[]`
    note. Two fields are SUBSETS, not contradictions of a count: `adrState.governingNothing` is the
    governing records whose code no `Governs:` header or task `Affected Files` points at, and
    `workNext.readyButClaimedDone` is the tasks in both `ready` and `unbacked` — a README calls them
@@ -112,10 +112,16 @@ faithful run, when the asker asks for chaos or says "go wild", do this as well.
    is not skipped silently: say which and why, and take the next code in the draw instead.
 3. **One perturbation, then the readers, then the next.** Apply one; run the probe into its
    own report (`--json > chaos-<seed>-<code>.json`, never over `new.json`) and whichever
-   reader the perturbation aims at by hand, each under `timeout 120` (stock macOS has no
-   `timeout`: use `perl -e 'alarm shift; exec @ARGV' 120 <command>`, which exits 142 when it
-   fires); read what came back; undo it or take a fresh copy; go on. Stacking six at once hides
-   which one did it.
+   reader the perturbation aims at by hand, each under `timeout 120`. Stock macOS has no
+   `timeout`: use GNU coreutils' `gtimeout -s KILL 120 <command>`, with `-s KILL` because the
+   TERM it sends by default is one a command may catch. Only where that is not installed, fall
+   back to
+   `perl -e '$t = shift; $p = fork or do { setpgrp; exec @ARGV }; $SIG{ALRM} = $SIG{TERM} = $SIG{INT} = $SIG{HUP} = sub { kill KILL => -$p }; alarm $t; waitpid $p, 0; exit($? & 127 ? 128 + ($? & 127) : $? >> 8)' 120 <command>`,
+   which kills the command's whole process group when the time is up, and also when the bound
+   is itself interrupted, terminated or hung up, so stopping a run does not leave the command
+   running unbounded. Each exits 137 when it fires. Not a bare `alarm` before `exec`: a Go
+   binary's runtime ignores SIGALRM, and the command runs on. Read what came back; undo it or
+   take a fresh copy; go on. Stacking six at once hides which one did it.
 4. **What counts as a finding.** Any of these, against the reader's own promise:
    - a crash, a stack trace, a non-JSON answer where JSON was promised;
    - a hang past the budget, or a process or lock left behind after it ended;

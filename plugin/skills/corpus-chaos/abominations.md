@@ -18,8 +18,9 @@ smallest input, with the seed and code, the same way as a perturbation finding.
 - Processes: no fork bombs, no unbounded recursion that spawns. A reader that forks
   endlessly on its own is a finding, and you kill it at the timeout.
 - Everything under `timeout 120` (`timeout 600` for the scale class; stock macOS has no
-  `timeout`, so use `perl -e 'alarm shift; exec @ARGV' 120 <command>`). No network, nothing
-  installed, nothing written outside the scratch directory.
+  `timeout`, so use the bound step 3 of [SKILL.md](SKILL.md)'s Chaos section gives, which a Go
+  binary cannot outlive). No network, nothing installed, nothing written outside the scratch
+  directory.
 - Delete the scratch directory afterwards and say that you did.
 
 ## X. Stacked — everything wrong at once

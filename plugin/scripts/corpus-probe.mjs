@@ -309,7 +309,11 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       note(`adr-lint ${rel(record.file)}`, failedToRun(run.error, timeoutMs))
       return { file: rel(record.file), exit: null, verdict: null, ...frozen(record) }
     }
-    const first = `${run.stdout ?? ''}${run.stderr ?? ''}`.split('\n').find(line => /^\[|not-recognised|NOT A DECISION RECORD/.test(line)) ?? ''
+    // The verdict line by name, never "the first line opening with `[`": on a record older than
+    // the corpus's strictFrom, adr-lint prints `[strictFrom] …` ABOVE its verdict, and a PASS read
+    // `exit 0` with nothing behind it. adr-lint's other bracketed line, `[adr-lint] could not run`,
+    // is stderr and exit 2, which the `exit N` arm below already names.
+    const first = `${run.stdout ?? ''}${run.stderr ?? ''}`.split('\n').find(line => /^\[(?:PASS|FAIL)\] |not-recognised|NOT A DECISION RECORD/.test(line)) ?? ''
     const verdict = /^\[PASS\]/.test(first) ? 'PASS' : /^\[FAIL\]/.test(first) ? 'FAIL' : /not-recognised/.test(first) ? 'not-recognised' : /NOT A DECISION RECORD/i.test(first) ? 'not-a-record' : `exit ${run.status}`
     // A FAIL carries its first finding. A runner who saw only the verdict had to
     // find and run adr-lint by hand, and one could not, and reported the FAIL
@@ -319,7 +323,16 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     const finding = verdict === 'FAIL'
       ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}\S/.test(line) && !/^ {2}advice:/.test(line))
       : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\n').find(line => line.trim()) : undefined
-    return { file: rel(record.file), exit: run.status, verdict, ...(finding ? { reason: scrub(finding.trim()) } : {}), ...frozen(record),
+    // Advice leaves with the verdict. Only the verdict did, so a PASS the gate had advised on
+    // read as a bare PASS and the advice a runner meant to report was invisible (a corpus-chaos
+    // run of cd7e6ab, BACKLOG §319's addendum). Every advice line the gate printed, a withheld
+    // count included, scrubbed like the reason. Only under a verdict the gate reached: it prints
+    // advice below its [PASS] or [FAIL] line and nowhere else, so a not-recognised record, a
+    // could-not-run and an unread one carry no list — an empty one would say the gate had
+    // nothing to add about a record it never checked (ADR-005).
+    const advice = `${run.stdout ?? ''}`.split('\n').filter(line => /^ {2}advice(?: withheld)?: /.test(line)).map(line => scrub(line.trim()))
+    return { file: rel(record.file), exit: run.status, verdict, ...(finding ? { reason: scrub(finding.trim()) } : {}),
+      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),
       ...(corpus.includes(record) ? {} : { undecided: true }) }
   })
   try { rmSync(lintState, { recursive: true, force: true }) } catch { /* scratch outlives us */ }
@@ -510,6 +523,9 @@ export function diffReports(before, after, scrub = text => String(text)) {
       // A FAIL that stays a FAIL for another reason — one defect fixed, another
       // exposed — is a change too (Codex review of 833ea52).
       else if ((old.reason ?? null) !== (entry.reason ?? null)) say(`adrLint ${file}: ${entry.verdict}, reason changed — ${entry.reason ?? '(none)'}`)
+      // Advice that came or went under a verdict that held is a change too: a PASS that gained
+      // advice compared as "nothing changed". A verdict that moved is its own line already.
+      if (old && old.verdict === entry.verdict) setChange(`adrLint ${file} advice`, old.advice, entry.advice)
     }
     for (const file of was.keys()) if (!now.has(file)) say(`adrLint ${file}: removed`)
   }
@@ -687,7 +703,7 @@ export function main(argv = process.argv.slice(2)) {
     report.workNext ? `work-next: ${report.workNext.records} record(s), ${report.workNext.accepted} accepted, ${report.workNext.tasks} task file(s); ready ${report.workNext.ready.length}, retirable ${report.workNext.retirable.length}` : 'work-next: could not run',
     report.adrState ? `adr-state: ${report.adrState.read} read, ${report.adrState.governing} governing` : 'adr-state: could not run',
     ...report.adrNext.map(entry => `adr-next ${entry.tasksDir}: ready ${entry.ready ? entry.ready.map(task => task.id).join(', ') || '(none)' : 'could not run'}`),
-    ...report.adrLint.map(entry => `adr-lint ${entry.file}: ${entry.verdict ?? 'could not run'}`),
+    ...report.adrLint.map(entry => `adr-lint ${entry.file}: ${entry.verdict ?? 'could not run'}${entry.advice?.length ? ` · ${entry.advice.length} advice line(s)` : ''}`),
     `SessionStart: ${report.sessionStart ? `${report.sessionStart.lines.length} line(s)` : 'could not run'}`,
     ...(report.sweep ?? []).map(entry => `sweep ${entry.root}: ${entry.claims ?? '?'} claim(s) — held ${entry.held ?? '?'}, false ${entry.false ?? '?'}, superseded ${entry.superseded ?? '?'}, unrunnable ${entry.unrunnable ?? '?'}`),
     ...(report.disagreements.length

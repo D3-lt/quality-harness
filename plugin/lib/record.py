@@ -2181,6 +2181,11 @@ def _legacy_digest(root, rel, name, **legacy):
 
 def _read_file(path):
     try:
+        # A FIFO where a Tests-row file belongs waited here, for adr-lint and adr-verify alike
+        # (BACKLOG §319's addendum). Anything but a regular file is None, the answer a missing
+        # file and a directory already got.
+        if not path.is_file():
+            return None
         return path.read_text(encoding="utf-8")
     except OSError:
         return None

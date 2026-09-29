@@ -645,7 +645,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    clean = \" \".join(_UNSAFE.sub(\" \", str(value or \"\")).split())",
+      "from": "    clean = \" \".join(_UNSAFE.sub(\" \", _SEQUENCE.sub(\"\", str(value or \"\"))).split())",
       "to": "    clean = str(value or \"\")",
       "only": "^(?:a hostile task heading is quoted and defanged in the human output|a quoted title carries no zero-width character, and a BOM does not keep the heading mark)$"
     },
@@ -5832,8 +5832,8 @@
       "tests": [
         "tests/trajectory-metrics.test.mjs"
       ],
-      "from": "    if (task.red > 0 || task.killed > 0) totals.showsFailing += 1",
-      "to": "    if (task.red > 0) totals.showsFailing += 1",
+      "from": "    if (task.red > 0 || task.killed > 0) totals.shownAbleToFail += 1",
+      "to": "    if (task.red > 0) totals.shownAbleToFail += 1",
       "only": "^(?:a task proves its trajectory with a red entry OR a killed mutant, and neither is silent|a mutation verdict is never parsed and then discarded, whichever verdict it is)$"
     },
     {
@@ -16609,6 +16609,723 @@
       "from": "f\"calls a record undecided, a plan and not a work order, unless its Status starts with \"",
       "to": "f\"and these readers treat it as not Accepted, unless its Status starts with \"",
       "only": "the Status advice claims what adr-lint read"
+    },
+    {
+      "label": "§321 x1: adr-state's JSON says why it did not read a record whose status it does not know",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "          : 'its status does not start with a word this reader knows (Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated), so it governs nothing')",
+      "to": "          : null)",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: a record the corpus reader never read says its own reason as its why",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "  const why = entry => entry.reason",
+      "to": "  const why = entry => ''",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: a Proposed record is pending in adr-state's JSON, not a status it does not know",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "        : isPending(entry) ? 'it is Proposed or Draft",
+      "to": "        : false ? 'it is Proposed or Draft",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: an UNPROVEN standing is not called a status adr-state does not know",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "    || (entry.unproven ? `whether it governs",
+      "to": "    || (false ? `whether it governs",
+      "only": "a record whose standing is UNPROVEN says what the reader could not tell"
+    },
+    {
+      "label": "§321 x1: adr-state's JSON keeps reason null for a record the corpus reader opened",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "status: entry.status ?? null, reason: entry.reason ?? null, why: why(entry) })),",
+      "to": "status: entry.status ?? null, reason: why(entry), why: why(entry) })),",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: a missing or empty Status line is not called a status adr-state does not know",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "      : !entry.status ? 'it has no **Status:** value",
+      "to": "      : false ? 'it has no **Status:** value",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: an UNPROVEN why says what the corpus reader could not tell, in its words",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "(UNPROVEN): ${entry.unproven}`",
+      "to": "(UNPROVEN)`",
+      "only": "a record whose standing is UNPROVEN says what the reader could not tell"
+    },
+    {
+      "label": "§321 x1: an UNPROVEN why does not call the record frozen",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "(UNPROVEN): ${entry.unproven}`",
+      "to": "(UNPROVEN): ${entry.unproven}; it is frozen`",
+      "only": "a record whose standing is UNPROVEN says what the reader could not tell"
+    },
+    {
+      "label": "§321 b9: a README row's width is never checked",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "            check_readme_row_widths(readme_text, errors)",
+      "to": "            pass"
+    },
+    {
+      "label": "§321 b9: a README row longer than its header is called short",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "        if header is not None and len(cells) < len(header):",
+      "to": "        if header is not None and len(cells) != len(header):"
+    },
+    {
+      "label": "§321 b9: a short README row blocks instead of advising",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "            errors.advise(f\"README.md: row `{line}` has {len(cells)} cell(s) under the \"",
+      "to": "            errors.append(f\"README.md: row `{line}` has {len(cells)} cell(s) under the \""
+    },
+    {
+      "label": "§321 b9: an empty cell written as || is not counted",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "        inner = line[1:-1] if len(line) > 1 and line.endswith(\"|\") and not line.endswith(\"\\\\|\") else line[1:]",
+      "to": "        inner = line.strip(\"|\")"
+    },
+    {
+      "label": "§321 b9: a README table's header outlives the table",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "            header = None",
+      "to": "            pass"
+    },
+    {
+      "label": "§321 b9: a table inside a fence is measured as a README table",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        lines.append(\"\" if was_fenced or fence_line else raw.strip())",
+      "to": "        lines.append(raw.strip())"
+    },
+    {
+      "label": "§321 b9: a <!-- anywhere on a line opens a README comment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        opening = None if fence is not None else re.match(r\"^ {0,3}<!--\", raw)",
+      "to": "        opening = None if fence is not None else re.search(r\"<!--\", raw)"
+    },
+    {
+      "label": "§321 b9: four spaces of indent open a README comment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        opening = None if fence is not None else re.match(r\"^ {0,3}<!--\", raw)",
+      "to": "        opening = None if fence is not None else re.match(r\"^\\s*<!--\", raw)"
+    },
+    {
+      "label": "§321 b9: a README comment ends by inline state, not at the line holding -->",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "            comment = \"-->\" not in raw[opening.end():]",
+      "to": "            comment = raw.rfind(\"<!--\") > raw.rfind(\"-->\")"
+    },
+    {
+      "label": "§321 b9: a backtick run with a backtick after it opens a README fence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        if was_fenced or not re.match(r\"^ {0,3}`{3,}(?!`)[^`]*`\", raw):",
+      "to": "        if True:"
+    },
+    {
+      "label": "§321 b9: a four-backtick README fence is read as inline code",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        if was_fenced or not re.match(r\"^ {0,3}`{3,}(?!`)[^`]*`\", raw):",
+      "to": "        if was_fenced or not re.match(r\"^ {0,3}`{3,}[^`]*`\", raw):"
+    },
+    {
+      "label": "§321 probe: the probe carries adr-lint's advice beside its verdict",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),",
+      "to": "      ...frozen(record),",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all|a PASS that carries advice is not reported as a bare PASS)$"
+    },
+    {
+      "label": "§321 probe: the advice the probe carries is scrubbed like the reason",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "advice(?: withheld)?: /.test(line)).map(line => scrub(line.trim()))",
+      "to": "advice(?: withheld)?: /.test(line)).map(line => line.trim())",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
+    },
+    {
+      "label": "§321 probe: a withheld-advice line travels with the advice",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "/^ {2}advice(?: withheld)?: /",
+      "to": "/^ {2}advice: /",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
+    },
+    {
+      "label": "§321 probe: a record nothing opened carries no advice list, not an empty one",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "verdict: 'unread', reason: scrub(record.reason), ...frozen(record), undecided: true }",
+      "to": "verdict: 'unread', reason: scrub(record.reason), advice: [], ...frozen(record), undecided: true }",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
+    },
+    {
+      "label": "§321 probe: the probe's text puts the advice count beside the verdict",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "${entry.verdict ?? 'could not run'}${entry.advice?.length ? ` · ${entry.advice.length} advice line(s)` : ''}`),",
+      "to": "${entry.verdict ?? 'could not run'}`),",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all|a PASS that carries advice is not reported as a bare PASS)$"
+    },
+    {
+      "label": "§321 probe: the matrix names the advice php-multi-root's PASS carries (§18)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),",
+      "to": "      ...frozen(record),",
+      "only": "^corpus php-multi-root: every reader answers as reviewed, through a symlink$"
+    },
+    {
+      "label": "§321 probe: a red-first row shows the fence able to fail",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "    if (task.red > 0 || task.killed > 0) totals.shownAbleToFail += 1",
+      "to": "    if (task.killed > 0) totals.shownAbleToFail += 1",
+      "only": "^(?:the count a pasted report publishes is named for what it counts: shown able to fail, a red-first row included)$"
+    },
+    {
+      "label": "§321 probe: corpus-report's text reads the renamed count",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "shown able to fail ${t.shownAbleToFail} (${pct(t.shownAbleToFail, t.evidenced)})",
+      "to": "shown able to fail ${t.showsFailing} (${pct(t.showsFailing, t.evidenced)})",
+      "only": "^(?:the count a pasted report publishes is named for what it counts: shown able to fail, a red-first row included)$"
+    },
+    {
+      "label": "§321 probe: trajectory-metrics' text reads the renamed count",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "`trajectory-metrics: ${totals.shownAbleToFail} / ${totals.evidenced} evidenced task(s) show their `",
+      "to": "`trajectory-metrics: ${totals.showsFailing} / ${totals.evidenced} evidenced task(s) show their `",
+      "only": "^(?:the count a pasted report publishes is named for what it counts: shown able to fail, a red-first row included)$"
+    },
+    {
+      "label": "§321 probe: advice rides only under a verdict the gate reached",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),",
+      "to": "      advice, ...frozen(record),",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
+    },
+    {
+      "label": "§321 probe: the matrix holds advice to the records the gate checked (§18)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),",
+      "to": "      advice, ...frozen(record),",
+      "only": "^corpus madr: every reader answers as reviewed, through a symlink$"
+    },
+    {
+      "label": "§321 probe: the verdict line is found by name, not by its bracket",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "/^\\[(?:PASS|FAIL)\\] |not-recognised|NOT A DECISION RECORD/",
+      "to": "/^\\[|not-recognised|NOT A DECISION RECORD/",
+      "only": "^(?:a record strictFrom demotes is read by its verdict line, not the demotion line above it)$"
+    },
+    {
+      "label": "§321 probe: --diff compares advice under a verdict that held",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "      if (old && old.verdict === entry.verdict) setChange(",
+      "to": "      if (false) setChange(",
+      "only": "^(?:corpus-probe --diff names advice that came or went on a verdict that held)$"
+    },
+    {
+      "label": "§321 probe: --diff leaves a verdict that moved to its own line",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "if (old && old.verdict === entry.verdict) setChange(",
+      "to": "if (old) setChange(",
+      "only": "^(?:corpus-probe --diff names advice that came or went on a verdict that held)$"
+    },
+    {
+      "label": "§321 fifo: a Spec: line naming a FIFO is refused, not waited on",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "    refuse_special(spec_path)\n",
+      "to": "",
+      "only": "refuses a Spec: line naming a FIFO"
+    },
+    {
+      "label": "§321 fifo: a tasks README that is a FIFO is refused, not waited on",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "            refuse_special(readme)\n",
+      "to": "",
+      "only": "refuses a tasks README that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a Tests-row file that is a FIFO is refused, not waited on",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "            if f is not None:\n                refuse_special(f)\n",
+      "to": "",
+      "only": "refuses a Tests-row file that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a directory keeps its site's own answer, never the FIFO refusal",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "    if not Path(path).is_dir():\n        refuse_irregular(path)",
+      "to": "    if True:\n        refuse_irregular(path)",
+      "only": "and a directory there keeps"
+    },
+    {
+      "label": "§321 fifo: record.py's lock snapshot reads only a regular Tests-row file",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "        if not path.is_file():\n            return None\n        return path.read_text(encoding=\"utf-8\")",
+      "to": "        return path.read_text(encoding=\"utf-8\")",
+      "only": "lock snapshot answers UNPROVEN for a Tests-row FIFO"
+    },
+    {
+      "label": "§321 fifo: a .quality-harness.json that is a FIFO is never opened",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "    if not config.is_file() and not config.is_dir():",
+      "to": "    if False:",
+      "only": "advises on a .quality-harness.json that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a FIFO config is said, never passed over in silence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "        errors.advise(f\"{CONFIG_NAME} could not be read (not a regular file); \"\n                      f\"strictFrom is not in effect and every record is checked in full\")\n        return None\n    try:",
+      "to": "        return None\n    try:",
+      "only": "advises on a .quality-harness.json that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a FIFO config loosens nothing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "        errors.advise(f\"{CONFIG_NAME} could not be read (not a regular file); \"",
+      "to": "        errors.demotion = 'unreadable config'; errors.advise(f\"{CONFIG_NAME} could not be read (not a regular file); \"",
+      "only": "advises on a .quality-harness.json that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a directory config keeps the except arm's own words",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "    if not config.is_file() and not config.is_dir():",
+      "to": "    if not config.is_file():",
+      "only": "advises on a .quality-harness.json that is a FIFO"
+    },
+    {
+      "label": "§321 mutate-catalogue: a catalogue that is not { mutations: [...] } is read as one when it holds anything",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "  if (!Array.isArray(catalogue?.mutations)) return 'it must be a JSON object whose \"mutations\" is an array'",
+      "to": "  if (!catalogue?.mutations) return 'it must be a JSON object whose \"mutations\" is an array'",
+      "only": "mutate refuses a catalogue that is not"
+    },
+    {
+      "label": "§321 mutate-catalogue: a malformed catalogue exits 1, a stale finding's status",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "is not a mutation catalogue: ${malformed}\\n`)\n    return 2",
+      "to": "is not a mutation catalogue: ${malformed}\\n`)\n    return 1",
+      "only": "mutate refuses a catalogue that is not"
+    },
+    {
+      "label": "§321 mutate-catalogue: the refusal does not name the catalogue file",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "process.stderr.write(`mutate: ${paths.catalogue} is not a mutation catalogue",
+      "to": "process.stderr.write(`mutate: the catalogue is not a mutation catalogue",
+      "only": "mutate refuses a catalogue that is not"
+    },
+    {
+      "label": "§321 mutate-catalogue: --stale leads a gone killer's line with the word undefined",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "console.log(`killer gone  ${entry.label}",
+      "to": "console.log(`undefined  ${entry.label}",
+      "only": "mutate --stale leads a gone killer"
+    },
+    {
+      "label": "§321 mutate-catalogue: an entry that is not an object is read as one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return `entry ${index} must be an object`",
+      "to": "    if (entry === null) return `entry ${index} must be an object`",
+      "only": "mutate refuses a catalogue entry that is not a mutation"
+    },
+    {
+      "label": "§321 mutate-catalogue: an entry whose tests are not strings is read as a mutation",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "value => Array.isArray(value) && value.every(test => typeof test === 'string')",
+      "to": "value => Array.isArray(value)",
+      "only": "mutate refuses a catalogue entry that is not a mutation"
+    },
+    {
+      "label": "§321 mutate-catalogue: an entry whose only is not a string is read as a mutation",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "['only', 'a string when present', value => value === undefined || typeof value === 'string']",
+      "to": "['only', 'a string when present', value => true]",
+      "only": "mutate refuses a catalogue entry that is not a mutation"
+    },
+    {
+      "label": "§321 mutate-catalogue: the refusal does not name the bad entry by its label",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "entry ${index}${typeof entry.label === 'string' ?",
+      "to": "entry ${index}${false ?",
+      "only": "mutate refuses a catalogue entry that is not a mutation"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint raises on a catalogue nested deeper than its parser goes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "    except (ValueError, OSError, RecursionError) as exc:",
+      "to": "    except (ValueError, OSError) as exc:",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint reads a catalogue that is not JSON as one holding no labels",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "        return None, f\"{type(exc).__name__}: {exc}\"",
+      "to": "        return set(), None",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint reads a \"mutations\" that is not a list as a catalogue",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "    if not isinstance(entries, list):",
+      "to": "    if entries is None:",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint raises on an entry whose label is not a string",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "        if not isinstance(entry, dict) or not isinstance(entry.get(\"label\"), str):",
+      "to": "        if not isinstance(entry, dict):",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint says a pointer is not a label of a catalogue it could not read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "            if unread:",
+      "to": "            if unread and False:",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "§321 mutate-catalogue: the skill's perl bound signals the command with ALRM, which Go ignores",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "$SIG{HUP} = sub { kill KILL => -$p }",
+      "to": "$SIG{HUP} = sub { kill ALRM => -$p }",
+      "only": "every perl bound the corpus-chaos skill offers"
+    },
+    {
+      "label": "§321 mutate-catalogue: the skill's perl bound kills only the command, not its process group",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "sub { kill KILL => -$p }",
+      "to": "sub { kill KILL => $p }",
+      "only": "ends the command's whole process group"
+    },
+    {
+      "label": "§321 mutate-catalogue: the skill's perl bound leaves the command running when it is sent TERM",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "$SIG{ALRM} = $SIG{TERM} = $SIG{INT} = $SIG{HUP}",
+      "to": "$SIG{ALRM} = $SIG{INT} = $SIG{HUP}",
+      "only": "a perl bound SKILL.md offers leaves nothing running"
+    },
+    {
+      "label": "§321 mutate-catalogue: the skill's perl bound leaves the command running when it is interrupted",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "$SIG{ALRM} = $SIG{TERM} = $SIG{INT} = $SIG{HUP}",
+      "to": "$SIG{ALRM} = $SIG{TERM} = $SIG{HUP}",
+      "only": "a perl bound SKILL.md offers leaves nothing running"
+    },
+    {
+      "label": "§321 mutate-catalogue: the skill prefers a gtimeout that sends a TERM a command may catch",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "`gtimeout -s KILL 120 <command>`",
+      "to": "`gtimeout 120 <command>`",
+      "only": "the gtimeout bound SKILL.md prefers"
+    },
+    {
+      "label": "§321 mutate-catalogue: abominations.md offers the alarm bound again",
+      "file": "plugin/skills/corpus-chaos/abominations.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "use the bound step 3 of [SKILL.md](SKILL.md)'s Chaos section gives",
+      "to": "use `perl -e 'alarm shift; exec @ARGV' 120 <command>`",
+      "only": "every perl bound the corpus-chaos skill offers"
+    },
+    {
+      "label": "§321 ansi: corpusText no longer removes a whole escape sequence",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "    .replace(ESCAPE_SEQUENCE, '')\n",
+      "to": ""
+    },
+    {
+      "label": "§321 ansi: corpusText ends an OSC at BEL only",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "(?:\\x07|\\x1b\\\\)/g",
+      "to": "(?:\\x07)/g",
+      "only": "adr-state quotes a record title"
+    },
+    {
+      "label": "§321 ansi: corpusText removes an unterminated OSC and the text after it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "(?:\\x07|\\x1b\\\\)/g",
+      "to": "(?:\\x07|\\x1b\\\\)?/g",
+      "only": "adr-state quotes a record title"
+    },
+    {
+      "label": "§321 ansi: adr-next shown no longer removes a whole escape sequence",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "_SEQUENCE.sub(\"\", str(value or \"\"))",
+      "to": "str(value or \"\")",
+      "only": "adr-next quotes a task heading"
+    },
+    {
+      "label": "§321 ansi: adr-next shown ends an OSC at BEL only",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "(?:\\x07|\\x1b\\\\)\")",
+      "to": "(?:\\x07)\")",
+      "only": "adr-next quotes a task heading"
+    },
+    {
+      "label": "§321 trailing-space: a name with whitespace after .md is never scanned",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "        if bare == path.name or not bare.lower().endswith(\".md\"):",
+      "to": "        if True:",
+      "only": "is named and stopped, never lost"
+    },
+    {
+      "label": "§321 trailing-space: a whitespace twin of a read task is skipped",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "        tid = m.group(0)\n        also =",
+      "to": "        tid = m.group(0)\n        if tid in infos:\n            continue\n        also =",
+      "only": "beside T1-a.md stops T1"
+    },
+    {
+      "label": "§321 trailing-space: the twin's reason does not name the other file",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "        also = f\"; {Path(infos[tid]['path']).name} names {tid} too\" if tid in infos else \"\"",
+      "to": "        also = \"\"",
+      "only": "beside T1-a.md stops T1"
+    },
+    {
+      "label": "§321 trailing-space: a git-listed absent task guesses a sparse checkout",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "            f\"it, so its state is UNPROVEN\"))",
+      "to": "            f\"it (a sparse or partial checkout?), so its state is UNPROVEN\"))",
+      "only": "an uncommitted rename"
+    },
+    {
+      "label": "§321 trailing-space: git's listing drops a tracked name ending in whitespace",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "                  if \"/\" not in name and name.rstrip().lower().endswith(\".md\")",
+      "to": "                  if \"/\" not in name and name.lower().endswith(\".md\")",
+      "only": "the disk does not hold is named as absent"
+    },
+    {
+      "label": "§321 fifo: adr-verify's strictFrom reader opens a FIFO config",
+      "file": "plugin/bin/adr-verify",
+      "tests": ["tests/chaos-315-fifo.test.mjs"],
+      "from": "    if not config.is_file() and not config.is_dir():\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
+      "to": "    if False:\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
+      "only": "strictFrom reader does not wait on a FIFO config"
     }
   ]
 }

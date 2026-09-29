@@ -188,7 +188,11 @@ export function measure(files, read = readRegularFile) {
     unreadable: 0,
     unevidenced: 0,
     evidenced: 0,
-    showsFailing: 0,
+    // SHOWN ABLE TO FAIL, not failing: a red entry (a red-first row among them, the TDD red every
+    // task is meant to carry) or a killed mutant. It was `showsFailing` until a pasted probe's
+    // "230 of 230, rate 1" read as a corpus in trouble (BACKLOG §319's addendum). The count was
+    // always this one; the name was what misled.
+    shownAbleToFail: 0,
     outcomeOnly: 0,
     entries: 0,
     unjudgedEntries: 0,
@@ -228,13 +232,13 @@ export function measure(files, read = readRegularFile) {
     totals.killed += task.killed
     totals.survived += task.survived
     totals.inconclusive += task.inconclusive
-    if (task.red > 0 || task.killed > 0) totals.showsFailing += 1
+    if (task.red > 0 || task.killed > 0) totals.shownAbleToFail += 1
     else {
       totals.outcomeOnly += 1
       totals.outcomeOnlyFiles.push(task.file)
     }
   }
-  totals.rate = totals.evidenced ? totals.showsFailing / totals.evidenced : null
+  totals.rate = totals.evidenced ? totals.shownAbleToFail / totals.evidenced : null
   return totals
 }
 
@@ -258,7 +262,7 @@ export function render(totals, root, { unreadableDirs = [] } = {}) {
   }
   const percent = (totals.rate * 100).toFixed(0)
   const lines = [
-    `trajectory-metrics: ${totals.showsFailing} / ${totals.evidenced} evidenced task(s) show their `
+    `trajectory-metrics: ${totals.shownAbleToFail} / ${totals.evidenced} evidenced task(s) show their `
       + `check COULD have failed here (${percent}%) — a red run, a killed mutant, or both.`,
     `  ${totals.redEntries} red of ${totals.entries} acceptance entries · ${totals.killed} killed `
       + `· ${totals.survived} survived · ${totals.inconclusive} inconclusive`,

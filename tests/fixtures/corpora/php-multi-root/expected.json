@@ -76,7 +76,8 @@
     },
     {
       "file": "docs/adr/ADR-001-notes-can-be-pinned.md",
-      "verdict": "PASS"
+      "verdict": "PASS",
+      "adviceMatches": "^advice: ADR-001-notes-can-be-pinned\\.md: no \\*\\*Spec:\\*\\* header"
     },
     {
       "file": "docs/adr/ADR-002-a-note-needs-a-title.md",

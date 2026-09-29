@@ -93,6 +93,25 @@ export function main(argv) {
     .filter(entry => entry.startsWith('governs:'))
 
   const unreadable = corpus.unreadable ?? []
+  // Proposed and Draft govern nothing yet BY DESIGN; the text and the JSON split on this one test.
+  const isPending = entry => /^(?:proposed|draft)\b/i.test(entry.status ?? '')
+  // Why an entry governs nothing, for the JSON: it gave a file and a status and no why for a
+  // record the corpus reader had opened, where the text said why (a corpus-chaos run's X1,
+  // BACKLOG §293 and §319). Each arm says only what this reader observed (ADR-005):
+  // - a file the corpus reader never read: its own `reason`, verbatim;
+  // - a standing the corpus reader could not establish: its words for what it could not tell.
+  //   Not "frozen", and not "its catalog": beside an unreadable README, or one of another
+  //   spelling, whether the directory is an archive at all is unknown (a review of this fix);
+  // - a status: the words statusKind and isPending act on, as recordStatus reads it. adr-lint
+  //   and adr-next read a status otherwise (adr-lint's Status advice), so this reader speaks
+  //   for itself. An empty Status line reads as none, so "value" covers both.
+  // The text still lists an UNPROVEN record among the statuses it does not know, with a
+  // spelling remedy that cannot apply to it; the JSON does not copy that.
+  const why = entry => entry.reason
+    || (entry.unproven ? `whether it governs could not be established, so it is not counted as governing (UNPROVEN): ${entry.unproven}`
+      : !entry.status ? 'it has no **Status:** value this reader can read, so it governs nothing'
+        : isPending(entry) ? 'it is Proposed or Draft, so it governs nothing yet, which is correct'
+          : 'its status does not start with a word this reader knows (Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated), so it governs nothing')
   if (json) {
     const look = corpus.look ?? ((corpus.unreadable ?? []).length ? 'PARTIAL' : 'ok')
   process.stdout.write(`${JSON.stringify({
@@ -102,8 +121,10 @@ export function main(argv) {
     touchedPaths: touched.size,
     // Named, as the human output names them: a record with a status this reader does
     // not act on, or that it could not open, made `read` 0 with `look` ok and said
-    // nothing else (a Windows chaos round of 626934a, F-1: `**Status：**`).
-    unread: unreadable.map(entry => ({ file: relative(entry), status: entry.status ?? null, reason: entry.reason ?? null })),
+    // nothing else (a Windows chaos round of 626934a, F-1: `**Status：**`). `reason` is
+    // the corpus reader's own, set only for a file it never read, so null still marks
+    // one it opened (lifecycle.mjs adrCorpus); `why` says why each one governs nothing.
+    unread: unreadable.map(entry => ({ file: relative(entry), status: entry.status ?? null, reason: entry.reason ?? null, why: why(entry) })),
     areas: [...areas].map(([declared, records]) => ({
       path: declared,
       governedBy: records.map(record => ({ id: label(record), file: relative(record), title: record.title })),
@@ -153,7 +174,7 @@ export function main(argv) {
   // ADR-050`, 1 with no status line.
   const unopened = unreadable.filter(entry => entry.reason)
   const read = unreadable.filter(entry => !entry.reason)
-  const pending = read.filter(entry => /^(?:proposed|draft)\b/i.test(entry.status ?? ''))
+  const pending = read.filter(isPending)
   const nameless = read.filter(entry => !entry.status)
   const strange = read.filter(entry => entry.status && !pending.includes(entry))
 

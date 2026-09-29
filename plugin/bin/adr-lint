@@ -120,7 +120,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible  # noqa: E402
-from record import record_status, status_kind, status_section, status_word, _NUMBERED_REF, _RECORD_SECTION  # noqa: E402
+from record import record_status, status_kind, status_section, status_word, unsigned_human_proof_steps, _NUMBERED_REF, _RECORD_SECTION  # noqa: E402
 
 
 def one_line(value):
@@ -2533,6 +2533,14 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
         if inf is None:
             continue
         where = "README.md" if tid in readme_done else inf["path"].name
+        # ADR-074 T4: a step that promised a human look, on a task done without a human sign-off.
+        # Advice only: `done` keeps its rule, so nothing below changes because of this.
+        unsigned = unsigned_human_proof_steps(inf.get("text") or "")
+        if unsigned:
+            errors.advise(f"{where}: {tid} is done, and its step {', '.join(unsigned)} names "
+                          f"[proof: human: …] with no '· human-observed ·' sign-off in its Verification Log; "
+                          f"record what a human observed with `adr-verify {inf['path'].name} --human \"…\"`. "
+                          f"This is advice: done is unchanged")
         if inf["human"]:
             if not any("· human-observed ·" in b for b in inf["vlog"]):
                 errors.append(f"{where}: {tid} marked done but its Verification Log has no "

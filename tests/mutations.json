@@ -14214,8 +14214,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "\"stopped_by\": why, \"blocked_on\": None, \"unreadable\": True}",
-      "to": "\"stopped_by\": why, \"blocked_on\": None}",
+      "from": "\"stopped_by\": why, \"blocked_on\": None, \"unreadable\": True,",
+      "to": "\"stopped_by\": why, \"blocked_on\": None,",
       "only": "an unreadable task is marked in the JSON, and the acceptance line is quoted corpus text"
     },
     {
@@ -16665,6 +16665,30 @@
       "from": "    content = record_status(text)[0] is not None and _RECORD_SECTION.search(text)",
       "to": "    content = record_status(text)[0] is not None",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
+    },
+    {
+      "label": "ADR-074 T4: adr-lint's unsigned human-proof advice is silent",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/human-proof-advice.test.mjs"],
+      "from": "        if unsigned:",
+      "to": "        if False:",
+      "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
+    },
+    {
+      "label": "ADR-074 T4: adr-next's unsigned human-proof note is silent",
+      "file": "plugin/bin/adr-next",
+      "tests": ["tests/human-proof-advice.test.mjs"],
+      "from": "            \"unsigned_human_proof\": unsigned_human_proof_steps(text) if done else [],",
+      "to": "            \"unsigned_human_proof\": [],",
+      "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
+    },
+    {
+      "label": "ADR-074 T4: a human-observed sign-off does not clear the advice",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/human-proof-advice.test.mjs"],
+      "from": "    if any(\"· human-observed ·\" in line for line in sections.get(\"Verification Log\", [])):",
+      "to": "    if False:",
+      "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
     },
     {
       "label": "§321 codex status: U+FFFD is called bytes that are not UTF-8",

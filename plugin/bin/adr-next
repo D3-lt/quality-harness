@@ -87,7 +87,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402
 from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW  # noqa: E402
-from record import record_status, status_kind  # noqa: E402
+from record import record_status, status_kind, unsigned_human_proof_steps  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -570,6 +570,16 @@ def unproven_note(inf):
     return f"  ({inf['unproven']})" if inf.get("unproven") else ""
 
 
+def human_proof_note(inf):
+    """The parenthetical a done line carries for an unsigned human-proof step, or the empty
+    string. One spelling for both render paths, as `unproven_note` is (ADR-074 T4)."""
+    steps = inf.get("unsigned_human_proof") or []
+    if not steps:
+        return ""
+    return (f"  ({', '.join(steps)} {'names' if len(steps) == 1 else 'name'} [proof: human: …] "
+            f"and no human-observed sign-off is recorded)")
+
+
 def human_stop(text):
     """The sign-off note that says STOP, or None when none does.
 
@@ -657,6 +667,9 @@ def load(tasks_dir):
             # 2026-09-23 from a Windows desktop). A done task's evidence IS the
             # evidence; a blocked or stopped task prints a reason of its own.
             "unproven": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first, root)),
+            # ADR-074 T4: a done task's steps that promised a human look nobody signed off. A note,
+            # never a stop: `done` above keeps its rule.
+            "unsigned_human_proof": unsigned_human_proof_steps(text) if done else [],
             # ADR-005 applied to routing. A sign-off that says STOP denies `done`
             # and used to fall straight through to `ready`, so the router offered
             # work the record forbids starting. Reported 2026-09-02 from another
@@ -729,7 +742,8 @@ def unreadable_task(tid, path, why):
     626934a, F-2 and F-3)."""
     return {"id": tid, "path": str(path), "goal": tid, "depends_on": "", "consumes": "",
             "produces": "", "acceptance": None, "human_observed": False, "done": False,
-            "unproven": None, "stopped_by": why, "blocked_on": None, "unreadable": True}
+            "unproven": None, "stopped_by": why, "blocked_on": None, "unreadable": True,
+            "unsigned_human_proof": []}
 
 QUALIFIED_DEP = re.compile(r"^ADR[-\s]?0*(?P<number>\d{1,4})[-/](?P<task>T\d+)$", re.I)
 
@@ -1201,7 +1215,7 @@ def report_corpus(records, unreadable, flags):
         if "--all" not in flags:
             continue
         for inf in answer["done"]:
-            print(f"{name}  done     {inf['id']}  {shown(inf['goal'])}")
+            print(f"{name}  done     {inf['id']}  {shown(inf['goal'])}{human_proof_note(inf)}")
         for inf in answer["blocked"]:
             print(f"{name}  blocked  {inf['id']}  {shown(inf['goal'])}  "
                   f"(waiting on {', '.join(inf['blocked_by'])})")
@@ -1373,7 +1387,7 @@ def main():
 
     if "--all" in flags:
         for inf in done:
-            print(f"done     {inf['id']}  {shown(inf['goal'])}")
+            print(f"done     {inf['id']}  {shown(inf['goal'])}{human_proof_note(inf)}")
         for inf in ready:
             print(f"READY    {inf['id']}  {shown(inf['goal'])}{unproven_note(inf)}")
         for inf in blocked:

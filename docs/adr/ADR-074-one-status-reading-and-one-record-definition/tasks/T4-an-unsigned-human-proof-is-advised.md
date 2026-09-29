@@ -59,5 +59,21 @@ Stop and ask if saying this needs anything adr-next's done rule does not already
 - Blocking `done` (permanent: boundary: ADR-074 Out of Scope)
 
 ## Verification Log
+- 2026-09-29 · f2f941d* · exit 1 · `set -o pipefail …` · acceptance-sha256:df414037dcb5e4e0778e3387e8c4bec52c26c0e261625ff2c3e5315be45ba8dd · ms:880 · test-lock-sha256:f1f7629f46b8d7143cb794ccb61203f57d0e4f2eae99e6c802b4bb250786a6c0 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2h1bWFuLXByb29mLWFkdmljZS50ZXN0Lm1qcwlhIGh1bWFuLXByb29mIHN0ZXAgd2l0aCBubyBzaWduLW9mZiBpcyBhZHZpc2VkIG9uLCBhbmQgZG9uZSBpcyB1bmNoYW5nZWQJYTIxZjk2MWUwZmIwNWZjNGM5MmM4NTZiOTY3OTI0ZGZkMzU5OGM1YWZmMDM5NDUwZWIwNzc1MjNhZTY4ZmI2MQ
+  ```
+  --- last 1 line(s) of stdout
+  0
+  --- last 10 line(s) of stderr (of 71 after folding 72 raw)
+    ...
+  1..1
+  # tests 1
+  # suites 0
+  # pass 0
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 775.087792
+  ```
 
 ## Mutation Log

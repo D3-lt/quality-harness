@@ -16612,3 +16612,10 @@ The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date 
 - **lifecycle's name rule** still lists `adr012`-style names adr-lint does not recognise (review #6; the sibling above).
 - **The Status is parsed several times per adr-lint run** (main, check_adr, the done check, the no-tasks advice), each a full fence-aware walk (review #10). Cost, not correctness.
 - **The C4 catalogue entry** ("an empty Status line read from the next line") is re-pointed at the fence walk: reading from the next line is impossible by construction now that the reader matches one line at a time.
+
+**Leads from the last outside runs at 084d925 and bbc522d (2026-09-29), for the next batch:**
+- **The task-status readers still take a label with no colon** (`adr-next` `task_status`, adr-lint `terminal_task_status`): the class the code review fixed in the record readers, outside ADR-074's scope. A palace fact records `task_status` false-matching `Statusline`.
+- **`corpus-probe --diff` compares nothing when both reports are PARTIAL** — it says `not compared`, honestly, and a peer then diffs the JSON by hand (the PHP/Laravel corpus).
+- **adr-lint's escaped advice shows a leading space before an invisible character**, "` {feff}Accepted`", where the value holds none (the React SPA corpus).
+- **A task index cell such as `✓ commit b96632f`** parses to an empty task status, so "the checks that run for an evidenced task did NOT run for it" (the Rust corpus). A task-index reader, not a record reader.
+- **Known open at the 3.1.6 tag, by the owner's decision:** a record with no readable Status whose tasks are marked done passes adr-lint with advice only while every other reader calls it undecided. Pre-existing; making it a refusal needs its own Accepted record and an opt-out (CLAUDE.md §3).

@@ -139,3 +139,49 @@ test('every reader gives one Status the same reading', t => {
     rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
 })
+
+// The /code-review of the ADR-074 batch (high, 2026-09-29): the inline reader took the first line
+// anywhere that began with `Status`, inside a code fence and with no colon, so a fenced example
+// overruled the real line — and made adr-lint REFUSE an Accepted record with done tasks — and a
+// prose line under `## Context` beat the `## Status` section. Python's `strip` and JS's `trim` and
+// the two regex engines' case folding also disagreed at the edges. Every reader reads each of
+// these alike, and as written here.
+const OUTSIDE = [
+  { name: 'a fenced example above the real line', status: '```md\nStatus: Proposed\n```\n\n**Status:** Accepted', governs: true },
+  { name: 'a prose line starting with Status, beside a section', status: '## Status\n\nAccepted', context: 'Status codes from the API are unstable.', governs: true },
+  { name: 'a byte-order mark before the word', status: '**Status:** ﻿Accepted', governs: false },
+  { name: 'a file separator before the word', status: '**Status:** \x1cAccepted', governs: false },
+  { name: 'a long s in the label', status: 'ſtatus: Accepted', governs: false },
+]
+
+test('a Status is read outside code fences and after a colon, with one idea of whitespace and case', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-status-outside-'))
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true })
+    const cases = OUTSIDE.map((row, i) => {
+      const number = String(i + 1).padStart(3, '0')
+      const dir = join(repo, 'docs', 'adr')
+      const tasks = join(dir, `ADR-${number}-x`, 'tasks')
+      mkdirSync(tasks, { recursive: true })
+      const record = join(dir, `ADR-${number}-x.md`)
+      writeFileSync(record, `# ADR-${number}: x\n\n${row.status}\n\n## Context\n\n${row.context ?? 'x'}\n\n## Decision\n\nx\n`)
+      writeFileSync(join(tasks, 'README.md'), `# ADR-${number} Tasks\n\n| Task | File | Status |\n|------|------|--------|\n| T1 | [T1-t.md](T1-t.md) | done |\n`)
+      writeFileSync(join(tasks, 'T1-t.md'), `# Task ADR-${number}-T1: do\n\n**Depends-on:** none\n**Consumes:** none\n**Produces:** none\n\n## Acceptance\n\n\`\`\`bash\nprintf T1\n\`\`\`\n\n## Verification Log\n`)
+      return { row, record, tasks }
+    })
+    const wrong = []
+    const records = adrCorpus(repo)
+    for (const c of cases) {
+      const governs = records.find(record => record.file === c.record)?.kind === 'governing'
+      if (governs !== c.row.governs) wrong.push(`lifecycle on ${c.row.name}: ${governs}`)
+      const next = run('python3', [join(bin, 'adr-next'), c.tasks, '--json'], repo)
+      const accepted = JSON.parse(next.stdout).undecided === false
+      if (accepted !== c.row.governs) wrong.push(`adr-next on ${c.row.name}: ${accepted}`)
+      const lint = run('python3', [join(bin, 'adr-lint'), c.record], repo)
+      if (/execution requires Accepted/.test(lint.stdout)) wrong.push(`adr-lint refused ${c.row.name}`)
+    }
+    assert.deepEqual(wrong, [])
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  }
+})

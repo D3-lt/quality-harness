@@ -1815,8 +1815,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const word = String(status ?? '').trim().match(/^[\\p{L}\\p{N}]+/u)?.[0].toLowerCase()",
-      "to": "  const word = String(status ?? '').trim().toLowerCase()",
+      "from": "  const word = edgeTrim(String(status ?? '')).match(/^[\\p{L}\\p{N}]+/u)?.[0].toLowerCase()",
+      "to": "  const word = edgeTrim(String(status ?? '')).toLowerCase()",
       "only": "^(?:reported: the layouts and scale a real corpus actually has)$"
     },
     {
@@ -3733,7 +3733,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if status is not None and not re.match(r\"accepted\\b\", status, re.I):",
+      "from": "    if status is not None and record_undecided(status):",
       "to": "    if False:",
       "only": "^(?:an undecided record is named as undecided, and its tasks are still answered)$"
     },
@@ -11365,8 +11365,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a supersession keeps the underscores",
-      "from": "  return inline ? inline[1].replace(/[*`]/g, '').trim() : recordStatus(text)",
-      "to": "  return inline ? inline[1].replace(/[*_`]/g, '').trim() : recordStatus(text)"
+      "from": "  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*`]/g, ''))",
+      "to": "  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*_`]/g, ''))"
     },
     {
       "label": "ADR-063: only a heading skips a dated token",
@@ -16041,12 +16041,12 @@
       "only": "corpus-report counts a FIFO task"
     },
     {
-      "label": "BACKLOG §319 C4: the shared Status reader reads an empty Status from the next line",
+      "label": "code-review of ADR-074: the Python Status reader reads inside a code fence (C4 next-line reading is now impossible by construction)",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status:?\\*{0,2}[ \\t]*:?[ \\t]*(.+)$\", re.M | re.I)",
-      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status:?\\*{0,2}\\s*:?\\s*(.+)$\", re.M | re.I)",
-      "only": "an empty Status line is not read"
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "    for line in unfenced_lines([line for line, _start, _end in split_lines(text)]):",
+      "to": "    for line in [line for line, _start, _end in split_lines(text)]:",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
     },
     {
       "label": "BACKLOG §319 C4: an empty Status line is not said",
@@ -16236,8 +16236,8 @@
       "label": "§307 F-1: a recognised Status with a qualifier is called unrecognised",
       "file": "plugin/lib/record.py",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "    run = _STATUS_RUN.match((value or \"\").strip())",
-      "to": "    run = _STATUS_RUN.fullmatch((value or \"\").strip())",
+      "from": "    run = _STATUS_RUN.match((value or \"\").strip(_EDGE_SPACE))",
+      "to": "    run = _STATUS_RUN.fullmatch((value or \"\").strip(_EDGE_SPACE))",
       "only": "Status is not one the readers recognise"
     },
     {
@@ -16566,16 +16566,16 @@
       "label": "ADR-074 T1: markup is kept in a record's Status value",
       "file": "plugin/lib/record.py",
       "tests": ["tests/status-reading.test.mjs"],
-      "from": "    return _STATUS_MARKUP.sub(\"\", found.group(1)).strip(), \"inline\"",
-      "to": "    return found.group(1).strip(), \"inline\"",
+      "from": "            return _STATUS_MARKUP.sub(\"\", found.group(1)).strip(_EDGE_SPACE), \"inline\"",
+      "to": "            return found.group(1).strip(_EDGE_SPACE), \"inline\"",
       "only": "^every reader gives one Status the same reading$"
     },
     {
       "label": "ADR-074 T1: an ASCII regex word end stands in for the lookup",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/status-reading.test.mjs"],
-      "from": "  const word = String(status ?? '').trim().match(/^[\\p{L}\\p{N}]+/u)?.[0].toLowerCase()",
-      "to": "  const word = String(status ?? '').trim().match(/^[a-z]+\\b/i)?.[0].toLowerCase()",
+      "from": "  const word = edgeTrim(String(status ?? '')).match(/^[\\p{L}\\p{N}]+/u)?.[0].toLowerCase()",
+      "to": "  const word = edgeTrim(String(status ?? '')).match(/^[a-z]+\\b/i)?.[0].toLowerCase()",
       "only": "^every reader gives one Status the same reading$"
     },
     {
@@ -16590,8 +16590,8 @@
       "label": "ADR-074 T1: the label forms are narrowed to **Status:**",
       "file": "plugin/lib/record.py",
       "tests": ["tests/status-reading.test.mjs"],
-      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status:?\\*{0,2}[ \\t]*:?[ \\t]*(.+)$\", re.M | re.I)",
-      "to": "_STATUS_LINE = re.compile(r\"^\\*\\*Status:\\*\\*[ \\t]*(.+)$\", re.M | re.I)",
+      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^\\*\\*Status:\\*\\*[ \\t]*([^\\r\\n]+)$\")",
       "only": "^every reader gives one Status the same reading$"
     },
     {
@@ -16606,8 +16606,8 @@
       "label": "ADR-074 T2: the section wins over an inline line",
       "file": "plugin/lib/record.py",
       "tests": ["tests/status-section.test.mjs"],
-      "from": "    found = _STATUS_LINE.search(text)",
-      "to": "    found = None if status_section(text) is not None else _STATUS_LINE.search(text)",
+      "from": "        found = _STATUS_LINE.match(line)",
+      "to": "        found = None if status_section(text) is not None else _STATUS_LINE.match(line)",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
     },
     {
@@ -16622,7 +16622,7 @@
       "label": "ADR-074 T2: lifecycle reads a ## Status inside a code fence",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/status-section.test.mjs"],
-      "from": "    const heading = fence === null ? line.match(/^## (.+?)\\s*$/) : null",
+      "from": "    const heading = fenced ? null : line.match(/^## (.+?)\\s*$/)",
       "to": "    const heading = line.match(/^## (.+?)\\s*$/)",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
     },
@@ -16630,16 +16630,16 @@
       "label": "ADR-074 T2: lifecycle reads a ### Status as the section",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/status-section.test.mjs"],
-      "from": "    const heading = fence === null ? line.match(/^## (.+?)\\s*$/) : null",
-      "to": "    const heading = fence === null ? line.match(/^#{2,6} (.+?)\\s*$/) : null",
+      "from": "    const heading = fenced ? null : line.match(/^## (.+?)\\s*$/)",
+      "to": "    const heading = fenced ? null : line.match(/^#{2,6} (.+?)\\s*$/)",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
     },
     {
       "label": "ADR-074 T2: lifecycle keeps the markup on a section's value",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/status-section.test.mjs"],
-      "from": "  return (statusSection(text) ?? '').replace(/[*_`]/g, '').trim()",
-      "to": "  return (statusSection(text) ?? '').trim()",
+      "from": "  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*_`]/g, ''))",
+      "to": "  return edgeTrim(inlineStatus(text)?.replace(/[*_`]/g, '') ?? statusSection(text) ?? '')",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
     },
     {
@@ -16670,7 +16670,7 @@
       "label": "ADR-074 T3 (owner, after): content admits a record in any directory",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/record-by-name.test.mjs"],
-      "from": "    kept_as_records = \"tasks\" not in directories and any(record_directory.match(part) for part in directories)",
+      "from": "    kept_as_records = \"tasks\" not in directories and any(_RECORD_DIRECTORY.match(part) for part in directories)",
       "to": "    kept_as_records = True",
       "only": "^a Status section makes a record only in a directory records are kept in$"
     },
@@ -16678,8 +16678,8 @@
       "label": "ADR-074 T3 (owner, after): a note under tasks/ reads as a record",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/record-by-name.test.mjs"],
-      "from": "    kept_as_records = \"tasks\" not in directories and any(record_directory.match(part) for part in directories)",
-      "to": "    kept_as_records = any(record_directory.match(part) for part in directories)",
+      "from": "    kept_as_records = \"tasks\" not in directories and any(_RECORD_DIRECTORY.match(part) for part in directories)",
+      "to": "    kept_as_records = any(_RECORD_DIRECTORY.match(part) for part in directories)",
       "only": "^a Status section makes a record only in a directory records are kept in$"
     },
     {
@@ -16710,15 +16710,15 @@
       "label": "559827d chaos: lifecycle's content test ignores a Status section",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/status-section.test.mjs"],
-      "from": "  return (/^[ \\t]*\\*{0,2}Status:?\\*{0,2}[ \\t]*:?[ \\t]*\\S/im.test(text) || statusSection(text) !== null)",
-      "to": "  return (/^[ \\t]*\\*{0,2}Status:?\\*{0,2}[ \\t]*:?[ \\t]*\\S/im.test(text))",
+      "from": "  return (inlineStatus(text) !== null || statusSection(text) !== null)",
+      "to": "  return (inlineStatus(text) !== null)",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
     },
     {
       "label": "559827d chaos: lifecycle reads content records under adr only, not decisions",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/status-section.test.mjs"],
-      "from": "  if (!/(^|[\\\\/])(?:adr|decisions)([\\\\/]|$)/i.test(directory)) return false",
+      "from": "  if (!directory.split(/[\\\\/]/).some(part => RECORD_DIRECTORY.test(part))) return false",
       "to": "  if (!/(^|[\\\\/])(?:adr)([\\\\/]|$)/i.test(directory)) return false",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
     },
@@ -16726,8 +16726,8 @@
       "label": "559827d chaos: record.py's content test ignores a Status section",
       "file": "plugin/lib/record.py",
       "tests": ["tests/status-section.test.mjs"],
-      "from": "    return bool((_RECORD_STATUS.search(text) or status_section(text) is not None)",
-      "to": "    return bool((_RECORD_STATUS.search(text))",
+      "from": "    return bool(record_status(text)[0] is not None and _RECORD_SECTION.search(text))",
+      "to": "    return bool(record_status(text)[1] == \"inline\" and _RECORD_SECTION.search(text))",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
     },
     {
@@ -16761,6 +16761,78 @@
       "from": "                         if not status_value[0].isalnum() else \"\")",
       "to": "                         if False else \"\")",
       "only": "^the Status advice names a leading character that is not a letter, and the section form when there is none$"
+    },
+    {
+      "label": "code-review of ADR-074: a Status label needs no colon",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss]:?\\*{0,2}[ \\t]*:?[ \\t]*([^\\r\\n]+)$\")",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "code-review of ADR-074: the Status label is folded by re.I",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\", re.I)",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "code-review of ADR-074: Python's strip decides a value's edges",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "    run = _STATUS_RUN.match((value or \"\").strip(_EDGE_SPACE))",
+      "to": "    run = _STATUS_RUN.match((value or \"\").strip())",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "code-review of ADR-074: JS trim decides a value's edges",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "const edgeTrim = value => value.replace(EDGE_SPACE, '')",
+      "to": "const edgeTrim = value => value.trim()",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "code-review of ADR-074: the JS Status reader reads inside a code fence",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/status-reading.test.mjs"],
+      "from": "    if (fenced) continue",
+      "to": "    if (false) continue",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "code-review of ADR-074: a human-observed task is told twice",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/human-proof-advice.test.mjs"],
+      "from": "        unsigned = [] if inf[\"human\"] else unsigned_human_proof_steps(inf.get(\"text\") or \"\")",
+      "to": "        unsigned = unsigned_human_proof_steps(inf.get(\"text\") or \"\")",
+      "only": "^a sub-item is not a step, a `1)` list is, and a human-observed task is told once$"
+    },
+    {
+      "label": "code-review of ADR-074: an indented sub-item is a step",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/human-proof-advice.test.mjs"],
+      "from": "_STEP_ID = re.compile(r\"^(?:(?P<ordinal>\\d+)[.)]|[-*])[ \\t]+(?:\\[S(?P<number>[1-9]\\d*)\\])?\")",
+      "to": "_STEP_ID = re.compile(r\"^\\s*(?:(?P<ordinal>\\d+)[.)]|[-*])[ \\t]+(?:\\[S(?P<number>[1-9]\\d*)\\])?\")",
+      "only": "^a sub-item is not a step, a `1)` list is, and a human-observed task is told once$"
+    },
+    {
+      "label": "code-review of ADR-074: an empty section is called a line",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-315-codex-status.test.mjs"],
+      "from": "        where = \"## Status section is\" if status_source == \"section\" else \"**Status:** line is\"",
+      "to": "        where = \"**Status:** line is\"",
+      "only": "^an empty Status section is called a section, not a line$"
+    },
+    {
+      "label": "code-review of ADR-074: a label colon that is not \":\" is not named",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-315-codex-status.test.mjs"],
+      "from": "                         f\"is not the colon `:`\" if near else \"\"))",
+      "to": "                         f\"is not the colon `:`\" if False else \"\"))",
+      "only": "^a Status label written with a fullwidth colon is named as not the colon$"
     },
     {
       "label": "§321 codex status: U+FFFD is called bytes that are not UTF-8",

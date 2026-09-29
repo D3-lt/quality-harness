@@ -120,7 +120,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible  # noqa: E402
-from record import record_status, status_kind, status_section, status_word, unsigned_human_proof_steps, _NUMBERED_REF, _RECORD_SECTION  # noqa: E402
+from record import record_status, status_kind, status_section, status_word, unsigned_human_proof_steps, _NUMBERED_REF, _RECORD_DIRECTORY, _RECORD_SECTION  # noqa: E402
 
 
 def one_line(value):
@@ -1103,10 +1103,17 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
                       f"says `{section_value}`; every reader reads the line, so the section is ignored. "
                       f"Make them agree, or remove one")
     if status_value is None:
+        # A line that starts like a label but whose colon is not `:` (a fullwidth `：`) is no
+        # label since the colon became required; the advice names the character, so the author
+        # sees why the line they wrote was not read (the /code-review of ADR-074).
+        near = re.search(r"^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss]\*{0,2}([^\w\s:*])", text, re.M)
         errors.advise(f"{adr_path.name}: no **Status:** line or `## Status` section (a `### Status` heading, "
-                      f"or one inside a code fence, is not read)")
+                      f"or one inside a code fence, is not read)"
+                      + (f"; a line starts like one, but its `{near.group(1)}` (U+{ord(near.group(1)):04X}) "
+                         f"is not the colon `:`" if near else ""))
     elif not status_value.strip(": \t"):
-        errors.advise(f"{adr_path.name}: the **Status:** line is empty, so no reader can tell "
+        where = "## Status section is" if status_source == "section" else "**Status:** line is"
+        errors.advise(f"{adr_path.name}: the {where} empty, so no reader can tell "
                       f"whether this decision was taken")
     # §307 F-1. A Status no reader acts on linted PASS in silence; it is said now, as advice. The
     # first run of letters decides, so `Accepted (partially)` and `Superseded by ADR-7` are that
@@ -2538,8 +2545,10 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
             continue
         where = "README.md" if tid in readme_done else inf["path"].name
         # ADR-074 T4: a step that promised a human look, on a task done without a human sign-off.
-        # Advice only: `done` keeps its rule, so nothing below changes because of this.
-        unsigned = unsigned_human_proof_steps(inf.get("text") or "")
+        # Advice only: `done` keeps its rule, so nothing below changes because of this. A task whose
+        # ACCEPTANCE is human-observed already gets the blocking error below for the same missing
+        # sign-off, so it is not told twice (the /code-review of ADR-074).
+        unsigned = [] if inf["human"] else unsigned_human_proof_steps(inf.get("text") or "")
         if unsigned:
             errors.advise(f"{inf['path'].name}: {tid} is done, and {', '.join(unsigned)} "
                           f"{'names' if len(unsigned) == 1 else 'name'} "
@@ -6243,9 +6252,10 @@ def main():
     # linted two corpora's REPORTS about records (`adr018-sweep.md`,
     # `adr004_review_notes_part1_20260101.md`) as records (BACKLOG §320.1). A `## Status`
     # section alone does not admit a file: a backlog carries one (BACKLOG §141). The exact
-    # `**Status:**` line this plugin's template writes — §141's discriminator — admits a record
-    # wherever it is: the ADR template is linted for its placeholders, and a record named on the
-    # command line outside a record directory is still read. Every other Status form ADR-074
+    # `**Status:**` line this plugin's template writes — §141's discriminator — admits a record in
+    # any directory, still with a `## Context` or `## Decision` heading beside it: the ADR template
+    # is linted for its placeholders, and a record named on the command line outside a record
+    # directory is still read. Every other Status form ADR-074
     # reads (`Status:`, `**Status**:`, a `## Status` section) admits one only where records are
     # kept: under a directory named `adr` or `decisions` (lifecycle's CORPUS_DIR_NAMES) or an
     # archive of one (`adr-archive`, `archive-adr`), never under `tasks/`. Reports, postmortems
@@ -6258,10 +6268,9 @@ def main():
     except (OSError, ValueError):
         placed = adr
     directories = [part.lower() for part in placed.parent.parts]
-    record_directory = re.compile(r"^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$")
     canonical = _NUMBERED_REF.match(adr.name)
-    kept_as_records = "tasks" not in directories and any(record_directory.match(part) for part in directories)
     spec = re.match(r"spec[-_]?\d", adr.name, re.I)
+    kept_as_records = "tasks" not in directories and any(_RECORD_DIRECTORY.match(part) for part in directories)
     status_value, _ = record_status(text)
     content = (status_value is not None and _RECORD_SECTION.search(text)
                and (re.search(r"^\*\*Status:\*\*", text, re.M) or kept_as_records))

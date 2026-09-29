@@ -506,7 +506,6 @@ _NUMBERED_REF = re.compile(r"(?<![A-Za-z0-9_])ADR-([0-9]+)(?![A-Za-z0-9_])", re.
 _REF_CHUNK = re.compile(r"[A-Za-z0-9._/\\-]+")
 _REF_SEPARATOR = re.compile(r"[/\\]")
 # lifecycle's `looksLikeRecord` content test (BACKLOG §55), in Python.
-_RECORD_STATUS = re.compile(r"^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S", re.M | re.I)
 _RECORD_SECTION = re.compile(r"^##\s+(?:Context|Decision)\b", re.M | re.I)
 
 # ADR-074: one reading of a record's Status, shared by every Python reader and pinned
@@ -518,7 +517,19 @@ _RECORD_SECTION = re.compile(r"^##\s+(?:Context|Decision)\b", re.M | re.I)
 # (`Wıthdrawn`, `Acceptedé`), and a lookup has no folding to differ in. The run must
 # start the value: `**Status：** Accepted` (a fullwidth colon, BACKLOG §293's X1) was
 # undecided in every reader before this rule, and skipping its colon made it govern.
-_STATUS_LINE = re.compile(r"^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$", re.M | re.I)
+# ONE label, here and in lifecycle.mjs alike (the /code-review of this batch, 2026-09-29): a colon
+# is required — `Status:`, `**Status:**`, `**Status**:` — so a prose line such as `Status codes
+# from the API …` is not a Status; the word is matched letter by letter, because Python's `re.I`
+# folds `ſtatus` to `status` and JS's `/i` does not; it is matched one line at a time, outside code
+# fences (`record_status`), so a fenced example never overrules the record's own line.
+_STATUS_LINE = re.compile(r"^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]+)$")
+# The only whitespace at a value's edges, in both languages: `str.strip()` and JS `trim()` disagree
+# (a byte-order mark, `\x1c`), and one record must get one reading.
+_EDGE_SPACE = " \t\r\n\f\v"
+# Where a record is kept, for a file admitted by its content (ADR-074 T3, the owner, 2026-09-29):
+# a directory named `adr`/`decisions`, or an archive of one. lifecycle.mjs's RECORD_DIRECTORY is
+# this pattern, so adr-lint and the corpus readers look in the same places.
+_RECORD_DIRECTORY = re.compile(r"^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$", re.I)
 _STATUS_MARKUP = re.compile(r"[*_`]")
 _STATUS_RUN = re.compile(r"[^\W_]+")
 _STATUS_KINDS = {
@@ -638,8 +649,7 @@ def looks_like_record(text):
     corpus-chaos runs of 559827d, a `## Status` section (ADR-074 T2) — and a `## Context` or
     `## Decision` section (lifecycle's `looksLikeRecord`). A section-only record was linted by
     adr-lint and silently absent from adr-retire-check's listing until then."""
-    return bool((_RECORD_STATUS.search(text) or status_section(text) is not None)
-                and _RECORD_SECTION.search(text))
+    return bool(record_status(text)[0] is not None and _RECORD_SECTION.search(text))
 
 
 def record_status(text):
@@ -650,9 +660,10 @@ def record_status(text):
     backtick removed; `source` says where it was read (`inline` or `section`). A caller
     reading WHICH record a supersession names reads the raw line itself: removing `_` is
     right for classifying and wrong for a name (lifecycle.mjs `rawStatus`)."""
-    found = _STATUS_LINE.search(text)
-    if found:
-        return _STATUS_MARKUP.sub("", found.group(1)).strip(), "inline"
+    for line in unfenced_lines([line for line, _start, _end in split_lines(text)]):
+        found = _STATUS_LINE.match(line)
+        if found:
+            return _STATUS_MARKUP.sub("", found.group(1)).strip(_EDGE_SPACE), "inline"
     section = status_section(text)
     return (section, "section") if section is not None else (None, None)
 
@@ -669,15 +680,17 @@ def status_section(text):
             lines = body
     if lines is None:
         return None
-    first = next((line.strip() for line in lines if line.strip()), "")
-    return _STATUS_MARKUP.sub("", first).strip()
+    first = next((line.strip(_EDGE_SPACE) for line in lines if line.strip(_EDGE_SPACE)), "")
+    return _STATUS_MARKUP.sub("", first).strip(_EDGE_SPACE)
 
 
 
 # ADR-074 T4: a step that names `[proof: human: <reason>]`, and the step identity it hangs off.
 _HUMAN_PROOF = re.compile(r"\[proof: human: (?P<reason>[^\]\r\n]*)\]")
-# A step's own identity: `[S<n>]` under Proof map v1, or its number in a corpus that gives none.
-_STEP_ID = re.compile(r"^\s*(?:(?P<ordinal>\d+)\.|[-*])\s+(?:\[S(?P<number>[1-9]\d*)\])?")
+# A step's own identity: `[S<n>]` under Proof map v1, or its number (`1.` or `1)`) in a corpus that
+# gives none. Only a top-level item is a step: an indented numbered line is a sub-item of the step
+# above it, not a new one (the /code-review of this batch).
+_STEP_ID = re.compile(r"^(?:(?P<ordinal>\d+)[.)]|[-*])[ \t]+(?:\[S(?P<number>[1-9]\d*)\])?")
 
 
 def unsigned_human_proof_steps(text):
@@ -711,7 +724,7 @@ def status_word(value):
     """The run of Unicode letters and digits a Status value starts with, lower-cased, or None.
     The value is `record_status`'s, whose markup is already removed: removing it once is what
     lets a mutant that keeps it be seen (ADR-074 T1)."""
-    run = _STATUS_RUN.match((value or "").strip())
+    run = _STATUS_RUN.match((value or "").strip(_EDGE_SPACE))
     return run.group(0).lower() if run else None
 
 

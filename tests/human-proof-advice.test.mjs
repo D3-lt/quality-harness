@@ -104,3 +104,36 @@ test('the human-proof advice names the task file, reads a step without an id, an
     rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
 })
+
+// The /code-review of the ADR-074 batch (high, 2026-09-29): an indented numbered sub-item was read
+// as a new step and a `1)` list as none; and a task whose Acceptance is human-observed, done with
+// no sign-off, was told twice — the blocking error and this advice — about one missing sign-off.
+test('a sub-item is not a step, a `1)` list is, and a human-observed task is told once', () => {
+  const steps = spawnSync('python3', ['-c', [
+    'import json, sys',
+    `sys.path.insert(0, ${JSON.stringify(join(repoRoot, 'plugin', 'lib'))})`,
+    'from record import unsigned_human_proof_steps as steps',
+    "a = '## Ordered Steps\\n\\n1. [S1] do\\n   1. sub [proof: human: look]\\n\\n## Verification Log\\n'",
+    "b = '## Ordered Steps\\n\\n1) first [proof: human: look]\\n\\n## Verification Log\\n'",
+    'print(json.dumps([steps(a), steps(b)]))',
+  ].join('\n')], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  assert.equal(steps.status, 0, steps.stderr)
+  assert.deepEqual(JSON.parse(steps.stdout), [['S1'], ['step 1']])
+  const repo = mkdtempSync(join(tmpdir(), 'qh-human-proof-once-'))
+  try {
+    const tasks = join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks')
+    mkdirSync(tasks, { recursive: true })
+    const record = join(repo, 'docs', 'adr', 'ADR-001-x.md')
+    writeFileSync(record, '# ADR-001: X\n\n**Status:** Accepted\n\n## Context\n\nx\n\n## Decision\n\nx\n')
+    writeFileSync(join(tasks, 'T1-look.md'), '# Task ADR-001-T1: look\n\n**Depends-on:** none\n**Consumes:** none\n**Produces:** none\n\n'
+      + '## Ordered Steps\n\n1. [S1] See it fail, then look. [proof: human: the page renders]\n\n'
+      + '## Acceptance\n\nAcceptance is human-observed: the owner opens the page.\n\n## Verification Log\n\n## Mutation Log\n')
+    writeFileSync(join(tasks, 'README.md'), '# ADR-001 Tasks\n\n| Task | File | Status |\n|------|------|--------|\n| T1 | [T1-look.md](T1-look.md) | done |\n')
+    run('git', ['init', '-q'], repo)
+    const lint = run('python3', [join(bin, 'adr-lint'), record, tasks], repo)
+    assert.match(lint.stdout, /T1 marked done but its Verification Log has no '· human-observed ·' sign-off entry/, lint.stdout)
+    assert.deepEqual(lint.stdout.split('\n').filter(line => line.includes('[proof: human')), [], lint.stdout)
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  }
+})

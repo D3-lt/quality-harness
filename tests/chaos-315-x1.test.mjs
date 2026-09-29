@@ -55,11 +55,12 @@ test('adr-state --json says why it did not read each record it opened, and keeps
   for (const [name, entry] of Object.entries(entries)) {
     assert.equal(entry.reason, null, `${name}: ${JSON.stringify(entry)}`)
   }
-  // X1's fullwidth colon, and a status spelled the corpus's own way: each said to start with no
-  // word this reader knows, with the words it does.
-  for (const name of ['ADR-001-fullwidth.md', 'ADR-002-implemented.md']) {
-    assert.match(entries[name].why ?? '', UNKNOWN_WORD, JSON.stringify(entries[name]))
-  }
+  // A status spelled the corpus's own way: said to start with no word this reader knows, with the
+  // words it does. X1's fullwidth colon is no label at all since the /code-review of ADR-074 made
+  // the colon required (a prose line such as `Status codes …` was being read as a Status), so that
+  // record has no Status value — adr-lint's advice names the colon that is not `:`.
+  assert.match(entries['ADR-002-implemented.md'].why ?? '', UNKNOWN_WORD, JSON.stringify(entries['ADR-002-implemented.md']))
+  assert.match(entries['ADR-001-fullwidth.md'].why ?? '', NO_STATUS, JSON.stringify(entries['ADR-001-fullwidth.md']))
   // The controls: a Proposed record is pending by design, and a missing or empty Status line has
   // no value. None of them is "a word this reader does not know".
   assert.match(entries['ADR-003-proposed.md'].why ?? '', /Proposed or Draft/, JSON.stringify(entries['ADR-003-proposed.md']))
@@ -84,7 +85,7 @@ test('adr-state --json says why it did not read each record it opened, and keeps
   assert.equal(withNul['ADR-006-nul.md']?.reason, NUL, JSON.stringify(partial.unread))
   assert.equal(withNul['ADR-006-nul.md']?.why, NUL, JSON.stringify(partial.unread))
   assert.equal(withNul['ADR-001-fullwidth.md'].reason, null, JSON.stringify(withNul['ADR-001-fullwidth.md']))
-  assert.match(withNul['ADR-001-fullwidth.md'].why ?? '', UNKNOWN_WORD)
+  assert.match(withNul['ADR-001-fullwidth.md'].why ?? '', NO_STATUS)
   // The text's dirty side: a file it never read IS said as could-not-open, while the fullwidth
   // record stays with the ones it opened.
   const partialText = state(repo).stdout

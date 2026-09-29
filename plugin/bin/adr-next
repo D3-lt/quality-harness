@@ -1354,7 +1354,7 @@ def main():
     # reported and the reader decides.
     owner_found, status = owning_record(tasks_dir)
     owner_unreadable = owner_found and status is None
-    if status is not None and not re.match(r"accepted\b", status, re.I):
+    if status is not None and record_undecided(status):
         print(f"adr-next: the record owning these tasks is **{status}**, not Accepted — "
               f"a record is a work order only once it is Accepted, so what follows is a "
               f"reading of its PLAN, not of work anyone has decided to do.", file=sys.stderr)

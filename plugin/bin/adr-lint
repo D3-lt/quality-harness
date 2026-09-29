@@ -6237,21 +6237,39 @@ def main():
     # not become the way to silence one. The name arm used to be `(?:adr|spec)[-_]?\d`, and it
     # linted two corpora's REPORTS about records (`adr018-chaos.md`,
     # `adr002_codex_review_round1_20260707.md`) as records (BACKLOG §320.1). A `## Status`
-    # section alone does not admit a file: a backlog carries one (BACKLOG §141). The `spec` arm
-    # admits a spec to its own checks, and is unchanged.
+    # section alone does not admit a file: a backlog carries one (BACKLOG §141). The exact
+    # `**Status:**` line this plugin's template writes — §141's discriminator — admits a record
+    # wherever it is: the ADR template is linted for its placeholders, and a record named on the
+    # command line outside a record directory is still read. Every other Status form ADR-074
+    # reads (`Status:`, `**Status**:`, a `## Status` section) admits one only where records are
+    # kept: under a directory named `adr` or `decisions` (lifecycle's CORPUS_DIR_NAMES) or an
+    # archive of one (`adr-archive`, `archive-adr`), never under `tasks/`. Reports, postmortems
+    # and feature notes written `**Status**: ✅ COMPLETE` beside a `## Context` are not records
+    # (the owner, 2026-09-29, after a comparison over this machine's checkouts).
     text = read_named(adr)
+    root = git_root(adr.parent)
+    try:
+        placed = adr.resolve().relative_to(root.resolve()) if root is not None else adr
+    except (OSError, ValueError):
+        placed = adr
+    directories = [part.lower() for part in placed.parent.parts]
+    record_directory = re.compile(r"^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$")
     canonical = _NUMBERED_REF.match(adr.name)
+    kept_as_records = "tasks" not in directories and any(record_directory.match(part) for part in directories)
     spec = re.match(r"spec[-_]?\d", adr.name, re.I)
-    content = record_status(text)[0] is not None and _RECORD_SECTION.search(text)
+    status_value, _ = record_status(text)
+    content = (status_value is not None and _RECORD_SECTION.search(text)
+               and (re.search(r"^\*\*Status:\*\*", text, re.M) or kept_as_records))
     if not (canonical or spec or content):
         print(f"not-recognised: {one_line(adr)} is not named ADR-<n> and does not read as a record "
-              f"(a Status, and a `## Context` or `## Decision` heading), so nothing here was checked. "
+              f"(a Status, and a `## Context` or `## Decision` heading; any Status but `**Status:**` only "
+              f"under an `adr` or `decisions` directory), so nothing here was checked. "
+              f"directory), so nothing here was checked. "
               f"This is not a finding about that file — `adr-lint` reads one record at a time, and a "
               f"backlog, a README, a report or a pre-registration kept beside the records is not one. "
               f"`adr-debt <corpus-dir>` reads a whole directory.")
         sys.exit(2)
     errors = Findings()
-    root = git_root(adr.parent)
     # Listed ONCE for the whole record. Three checks resolve pointers against the
     # corpus and every one of them used to glob the disk instead (CLAUDE.md §8).
     tracked = tracked_or_unignored_paths(root)

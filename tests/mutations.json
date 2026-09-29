@@ -16654,17 +16654,33 @@
       "label": "ADR-074 T3: the content arm is dropped",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/record-by-name.test.mjs"],
-      "from": "    content = record_status(text)[0] is not None and _RECORD_SECTION.search(text)",
-      "to": "    content = False",
+      "from": "    content = (status_value is not None and _RECORD_SECTION.search(text)",
+      "to": "    content = (False",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
     },
     {
       "label": "ADR-074 T3: a Status alone admits a file",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/record-by-name.test.mjs"],
-      "from": "    content = record_status(text)[0] is not None and _RECORD_SECTION.search(text)",
-      "to": "    content = record_status(text)[0] is not None",
+      "from": "    content = (status_value is not None and _RECORD_SECTION.search(text)",
+      "to": "    content = (status_value is not None",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
+    },
+    {
+      "label": "ADR-074 T3 (owner, after): content admits a record in any directory",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/record-by-name.test.mjs"],
+      "from": "    kept_as_records = \"tasks\" not in directories and any(record_directory.match(part) for part in directories)",
+      "to": "    kept_as_records = True",
+      "only": "^a Status section makes a record only in a directory records are kept in$"
+    },
+    {
+      "label": "ADR-074 T3 (owner, after): a note under tasks/ reads as a record",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/record-by-name.test.mjs"],
+      "from": "    kept_as_records = \"tasks\" not in directories and any(record_directory.match(part) for part in directories)",
+      "to": "    kept_as_records = any(record_directory.match(part) for part in directories)",
+      "only": "^a Status section makes a record only in a directory records are kept in$"
     },
     {
       "label": "ADR-074 T4: adr-lint's unsigned human-proof advice is silent",
@@ -16708,7 +16724,7 @@
       ],
       "from": "f\"calls a record undecided, a plan and not a work order, unless its Status starts with \"",
       "to": "f\"and these readers treat it as not Accepted, unless its Status starts with \"",
-      "only": "the Status advice claims what adr-lint read"
+      "only": "the Status advice states adr-next"
     },
     {
       "label": "§321 x1: adr-state's JSON says why it did not read a record whose status it does not know",

@@ -59,12 +59,17 @@ function record(files) {
   for (const [name, text] of Object.entries(files)) {
     try { writeFileSync(join(tasks, name), text) } catch {}
   }
-  git(repo, 'add', '-A')
-  return { repo, tasks }
+  // Node's long-path write keeps a trailing space that Git for Windows, opening through Win32,
+  // cannot index (CI e0348fb): the add fails whole, and `holds` then skips.
+  const add = spawnSync('git', ['add', '-A'], { cwd: repo, encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  const staged = add.status === 0
+  assert.ok(staged || (process.platform === 'win32' && /unable to index file/.test(add.stderr)), `git add -A: ${add.stderr}`)
+  return { repo, tasks, staged }
 }
 // Windows strips a trailing space or dot from a file name and refuses a tab in one, so
 // there the shape cannot be built: the test says so instead of passing.
-const holds = (t, dir, name) => {
+const holds = (t, { tasks: dir, staged }, name) => {
+  if (!staged) { t.skip(`git on this platform cannot index the name ${JSON.stringify(name)}`); return false }
   if (readdirSync(dir).includes(name)) return true
   t.skip(`this filesystem does not keep the name ${JSON.stringify(name)}`)
   return false
@@ -73,8 +78,9 @@ const holds = (t, dir, name) => {
 for (const [label, ws] of [['a space', ' '], ['a tab', '\t'], ['a no-break space', String.fromCharCode(0xa0)]]) {
   test(`a committed task file whose name ends in ${label} after .md is named and stopped, never lost`, t => {
     const name = `T1-a.md${ws}`
-    const { repo, tasks } = record({ [name]: task('T1'), 'T2-b.md': task('T2') })
-    if (!holds(t, tasks, name)) return
+    const rec = record({ [name]: task('T1'), 'T2-b.md': task('T2') })
+    const { repo, tasks } = rec
+    if (!holds(t, rec, name)) return
     const answer = json(tasks)
     const t1 = stoppedOf(answer, 'T1')
     assert.ok(t1, `T1 is in no bucket: ${JSON.stringify(answer)}`)
@@ -111,8 +117,9 @@ test('a space BEFORE the extension is still a task file, read as one', () => {
 })
 
 test('a record whose only task ends in whitespace after .md is stopped, not "no task files"', t => {
-  const { tasks } = record({ 'T1-a.md ': task('T1') })
-  if (!holds(t, tasks, 'T1-a.md ')) return
+  const rec = record({ 'T1-a.md ': task('T1') })
+  const { tasks } = rec
+  if (!holds(t, rec, 'T1-a.md ')) return
   const r = next(tasks, '--all', '--json')
   assert.equal(r.status, 3, r.stderr)
   assert.match(stoppedOf(JSON.parse(r.stdout), 'T1')?.stopped_by ?? '', /ends in whitespace after \.md/, r.stdout)
@@ -122,9 +129,10 @@ test('a record whose only task ends in whitespace after .md is stopped, not "no 
 })
 
 test('an uncommitted rename to "T1-a.md " names the whitespace, not a sparse checkout', t => {
-  const { tasks } = record({ 'T1-a.md': task('T1'), 'T2-b.md': task('T2') })
+  const rec = record({ 'T1-a.md': task('T1'), 'T2-b.md': task('T2') })
+  const { tasks } = rec
   try { renameSync(join(tasks, 'T1-a.md'), join(tasks, 'T1-a.md ')) } catch {}
-  if (!holds(t, tasks, 'T1-a.md ')) return
+  if (!holds(t, rec, 'T1-a.md ')) return
   const t1 = stoppedOf(json(tasks), 'T1')
   assert.equal(t1?.unreadable, true, JSON.stringify(t1))
   assert.match(t1.stopped_by, /ends in whitespace after \.md/, t1.stopped_by)
@@ -138,8 +146,9 @@ test('an uncommitted rename to "T1-a.md " names the whitespace, not a sparse che
 })
 
 test('a tracked "T1-a.md " the disk does not hold is named as absent, not lost', t => {
-  const { tasks } = record({ 'T1-a.md ': task('T1'), 'T2-b.md': task('T2') })
-  if (!holds(t, tasks, 'T1-a.md ')) return
+  const rec = record({ 'T1-a.md ': task('T1'), 'T2-b.md': task('T2') })
+  const { tasks } = rec
+  if (!holds(t, rec, 'T1-a.md ')) return
   rmSync(join(tasks, 'T1-a.md '))
   const answer = json(tasks)
   const t1 = stoppedOf(answer, 'T1')
@@ -153,8 +162,9 @@ test('a tracked "T1-a.md " the disk does not hold is named as absent, not lost',
 })
 
 test('"T1-a.md " beside T1-a.md stops T1 and names both files', t => {
-  const { tasks } = record({ 'T1-a.md': task('T1'), 'T1-a.md ': task('T1'), 'T2-b.md': task('T2') })
-  if (!holds(t, tasks, 'T1-a.md ')) return
+  const rec = record({ 'T1-a.md': task('T1'), 'T1-a.md ': task('T1'), 'T2-b.md': task('T2') })
+  const { tasks } = rec
+  if (!holds(t, rec, 'T1-a.md ')) return
   const answer = json(tasks)
   const t1 = stoppedOf(answer, 'T1')
   assert.equal(t1?.unreadable, true, JSON.stringify(answer))

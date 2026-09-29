@@ -642,14 +642,32 @@ def looks_like_record(text):
 def record_status(text):
     """ADR-074 Decisions 1-2: `(value, source)` for a record's Status, or `(None, None)`.
 
-    The value is what follows the first Status label, with every `*`, `_` and backtick
-    removed; `source` says where it was read (`inline`). A caller reading WHICH record a
-    supersession names reads the raw line itself: removing `_` is right for classifying
-    and wrong for a name (lifecycle.mjs `rawStatus`)."""
+    The value is what follows the first Status label or, when there is none, the first
+    non-empty line of the `## Status` section (ADR-074 T2), with every `*`, `_` and
+    backtick removed; `source` says where it was read (`inline` or `section`). A caller
+    reading WHICH record a supersession names reads the raw line itself: removing `_` is
+    right for classifying and wrong for a name (lifecycle.mjs `rawStatus`)."""
     found = _STATUS_LINE.search(text)
-    if not found:
-        return None, None
-    return _STATUS_MARKUP.sub("", found.group(1)).strip(), "inline"
+    if found:
+        return _STATUS_MARKUP.sub("", found.group(1)).strip(), "inline"
+    section = status_section(text)
+    return (section, "section") if section is not None else (None, None)
+
+
+def status_section(text):
+    """The first non-empty line of a record's `## Status` section, markup removed, or None
+    when it has none. The section is found by `_sections`, the one fence-aware walk, so a
+    `## Status` inside a code fence is text and a `### Status` is not the heading; a
+    repeated heading yields the last, as `sections_of` does. The heading is matched
+    case-insensitively, as lifecycle always matched it (ADR-074 T2)."""
+    lines = None
+    for heading, body, _start, _body_start, _end in _sections(text):
+        if heading.lower() == "status":
+            lines = body
+    if lines is None:
+        return None
+    first = next((line.strip() for line in lines if line.strip()), "")
+    return _STATUS_MARKUP.sub("", first).strip()
 
 
 def status_word(value):

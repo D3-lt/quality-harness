@@ -120,3 +120,31 @@ test('a record whose Status is a section, or that sits in docs/decisions, is lis
     rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
 })
+
+// The /code-review of the ADR-074 batch (high, 2026-09-29): with no inline line, lifecycle's
+// `rawStatus` fell back to `recordStatus`, which strips underscores, so a section's
+// `Superseded by 2026_07_15_new` lost the name `rawStatus` exists to keep (Codex rounds 4-5); and
+// lifecycle looked for content records only under `adr` and `decisions` while adr-lint also took
+// `adrs`, `decision` and their archives.
+test('a section names its successor as a line does, and lifecycle looks where adr-lint looks', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-section-successor-'))
+  try {
+    spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true })
+    const files = {
+      'docs/adr/ADR-001-line.md': '# ADR-001: line\n\n**Status:** Superseded by 2026_07_15_new\n\n## Context\n\nx\n',
+      'docs/adr/ADR-002-section.md': '# ADR-002: section\n\n## Status\n\nSuperseded by 2026_07_15_new\n\n## Context\n\nx\n',
+      'docs/adrs/foo.md': '# Foo\n\nStatus: Accepted\n\n## Context\n\nx\n',
+    }
+    for (const [rel, text] of Object.entries(files)) {
+      mkdirSync(dirname(join(repo, rel)), { recursive: true })
+      writeFileSync(join(repo, rel), text)
+    }
+    const records = adrCorpus(repo)
+    const entry = rel => records.find(record => record.file === join(repo, rel))
+    assert.ok(entry('docs/adr/ADR-001-line.md')?.supersededBy, JSON.stringify(entry('docs/adr/ADR-001-line.md')))
+    assert.equal(entry('docs/adr/ADR-002-section.md')?.supersededBy, entry('docs/adr/ADR-001-line.md').supersededBy)
+    assert.equal(entry('docs/adrs/foo.md')?.kind, 'governing', JSON.stringify(records.map(record => record.file)))
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  }
+})

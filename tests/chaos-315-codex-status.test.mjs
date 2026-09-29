@@ -118,3 +118,26 @@ test('the Status advice names a leading character that is not a letter, and the 
   const run = python('adr-lint', [record], repo)
   assert.ok(run.stdout.includes('advice: ADR-001-x.md: no **Status:** line or `## Status` section'), run.stdout)
 })
+
+// The /code-review of the ADR-074 batch (high, 2026-09-29): an empty `## Status` section was
+// reported as "the **Status:** line is empty", naming a line the record does not have.
+test('an empty Status section is called a section, not a line', () => {
+  const repo = scratch()
+  const record = join(repo, 'docs', 'adr', 'ADR-001-x.md')
+  mkdirSync(dirname(record), { recursive: true })
+  writeFileSync(record, '# ADR-001: X\n\n## Status\n\n## Context\n\nx\n')
+  const said = python('adr-lint', [record], repo).stdout
+  assert.ok(said.includes('advice: ADR-001-x.md: the ## Status section is empty'), said)
+  assert.doesNotMatch(said, /the \*\*Status:\*\* line is empty/)
+})
+
+// With the colon required, `**Status：** Accepted` (a fullwidth colon) is no label; the advice says
+// which character stopped it being one.
+test('a Status label written with a fullwidth colon is named as not the colon', () => {
+  const repo = scratch()
+  const record = join(repo, 'docs', 'adr', 'ADR-001-x.md')
+  mkdirSync(dirname(record), { recursive: true })
+  writeFileSync(record, '# ADR-001: X\n\n**Status：** Accepted\n\n## Context\n\nx\n')
+  const said = python('adr-lint', [record], repo).stdout
+  assert.ok(said.includes('a line starts like one, but its `：` (U+FF1A) is not the colon `:`'), said)
+})

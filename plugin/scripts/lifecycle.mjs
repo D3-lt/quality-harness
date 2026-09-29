@@ -1691,20 +1691,57 @@ function markdownSection(text, heading) {
   return body.join('\n')
 }
 
+// ONE label, as record.py's `_STATUS_LINE` (the /code-review of ADR-074's batch, 2026-09-29): a
+// colon is required, so a prose line such as `Status codes from the API …` is not a Status; the
+// word is matched letter by letter, since `/i` and Python's `re.I` fold `ſtatus` differently; a
+// line inside a code fence is text; and only these characters are whitespace at a value's edges,
+// since `trim` and Python's `strip` disagree (a byte-order mark, `\x1c`).
+const STATUS_LABEL = /^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]+)$/
+const EDGE_SPACE = /^[ \t\r\n\f\v]+|[ \t\r\n\f\v]+$/g
+const edgeTrim = value => value.replace(EDGE_SPACE, '')
+
+// Each line with whether it sits inside a code fence, by record.py's `_scan` rules: a line of
+// three or more ``` or ~~~ opens one (a ``` opener with a backtick after it does not), only a
+// closer of the same marker, at least as long, with nothing but spaces and tabs after it, ends it,
+// and the opener and closer count as fenced.
+function fencedLines(text) {
+  let fence = null
+  return text.split(/\r\n|\r|\n/).map(line => {
+    const marker = line.match(/^[ \t]*(`{3,}|~{3,})(.*)$/)
+    if (fence === null) {
+      if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) {
+        fence = marker[1]
+        return [line, true]
+      }
+      return [line, false]
+    }
+    if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && /^[ \t]*$/.test(marker[2])) fence = null
+    return [line, true]
+  })
+}
+
+// The value after the first Status label outside a code fence, as written, or null.
+function inlineStatus(text) {
+  for (const [line, fenced] of fencedLines(text)) {
+    if (fenced) continue
+    const found = line.match(STATUS_LABEL)
+    if (found) return found[1]
+  }
+  return null
+}
+
 // `**Status:** Accepted`, `Status: Accepted`, or a `## Status` section's first line.
 // The status line as written, for reading WHICH record it names. `recordStatus`
 // strips every underscore, which is right for classifying the status and wrong for
 // a record name inside it: `2026_07_15_new` named nothing, `…-new_` another record
-// (Codex, 2026-09-22, rounds 4 and 5). Only `*` and backticks are markup here.
+// (Codex, 2026-09-22, rounds 4 and 5). Only `*` and backticks are markup here — for a
+// section's line too, which went through `recordStatus` until the /code-review of ADR-074.
 function rawStatus(text) {
-  const inline = text.match(/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$/im)
-  return inline ? inline[1].replace(/[*`]/g, '').trim() : recordStatus(text)
+  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*`]/g, ''))
 }
 
 function recordStatus(text) {
-  const inline = text.match(/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$/im)
-  if (inline) return inline[1].replace(/[*_`]/g, '').trim()
-  return (statusSection(text) ?? '').replace(/[*_`]/g, '').trim()
+  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*_`]/g, ''))
 }
 
 // ADR-074 T2: the first non-empty line of a record's `## Status` section, or null when it has
@@ -1715,17 +1752,10 @@ function recordStatus(text) {
 // `markdownSection` matches any level and ignores fences, which is right for the sections it
 // still reads and was how a fenced example's `## Status` governed here and nowhere else.
 function statusSection(text) {
-  let fence = null
   let body = null
   let found = null
-  for (const line of text.split(/\r\n|\r|\n/)) {
-    const marker = line.match(/^[ \t]*(`{3,}|~{3,})(.*)$/)
-    if (fence === null) {
-      if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) fence = marker[1]
-    } else if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && /^[ \t]*$/.test(marker[2])) {
-      fence = null
-    }
-    const heading = fence === null ? line.match(/^## (.+?)\s*$/) : null
+  for (const [line, fenced] of fencedLines(text)) {
+    const heading = fenced ? null : line.match(/^## (.+?)\s*$/)
     if (heading) {
       body = heading[1].toLowerCase() === 'status' ? [] : null
       if (body) found = body
@@ -1733,7 +1763,7 @@ function statusSection(text) {
       body.push(line)
     }
   }
-  return found === null ? null : found.map(line => line.trim()).find(Boolean) ?? ''
+  return found === null ? null : found.map(edgeTrim).find(Boolean) ?? ''
 }
 
 // Accepted governs — including in the archive, where "an archived Accepted ADR
@@ -1753,7 +1783,7 @@ const STATUS_KINDS = new Map([
 
 // `status` is recordStatus's, whose markup is already removed (ADR-063), or an archive effect.
 export function recordStatusKind(status) {
-  const word = String(status ?? '').trim().match(/^[\p{L}\p{N}]+/u)?.[0].toLowerCase()
+  const word = edgeTrim(String(status ?? '')).match(/^[\p{L}\p{N}]+/u)?.[0].toLowerCase()
   return STATUS_KINDS.get(word) ?? null
 }
 
@@ -2117,10 +2147,12 @@ function taskFilesFor(file, text, reader = corpusReader()) {
  * `.queries.md` companion) self-excluded only by luck, which is exactly the
  * fragility a second condition removes.
  */
+const RECORD_DIRECTORY = /^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$/i
 function looksLikeRecord(file, directory, reader) {
-  // `decisions` beside `adr`: lifecycle's CORPUS_DIR_NAMES read docs/decisions, and adr-lint admits
-  // a record there by content, so a record kept there was linted and never listed (559827d chaos).
-  if (!/(^|[\\/])(?:adr|decisions)([\\/]|$)/i.test(directory)) return false
+  // Where a record is kept, as adr-lint decides it for a record admitted by content: a directory
+  // named `adr`/`decisions` or an archive of one (record.py's `_RECORD_DIRECTORY`), so a record
+  // adr-lint lints is one these readers list (559827d chaos; the /code-review of ADR-074).
+  if (!directory.split(/[\\/]/).some(part => RECORD_DIRECTORY.test(part))) return false
   if (/(^|[\\/])tasks([\\/]|$)/i.test(directory)) return false
   let text
   try { text = reader.text(file) } catch { return 'unreadable' }
@@ -2131,7 +2163,7 @@ function looksLikeRecord(file, directory, reader) {
 function readsAsRecord(text) {
   // A `## Status` section is a Status too (ADR-074 T2): a section-only record was linted by
   // adr-lint and absent from every corpus reader until the corpus-chaos runs of 559827d.
-  return (/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S/im.test(text) || statusSection(text) !== null)
+  return (inlineStatus(text) !== null || statusSection(text) !== null)
     && /^##\s+(Context|Decision)\b/im.test(text)
 }
 

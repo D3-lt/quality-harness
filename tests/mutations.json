@@ -16707,6 +16707,62 @@
       "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
     },
     {
+      "label": "559827d chaos: lifecycle's content test ignores a Status section",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/status-section.test.mjs"],
+      "from": "  return (/^[ \\t]*\\*{0,2}Status:?\\*{0,2}[ \\t]*:?[ \\t]*\\S/im.test(text) || statusSection(text) !== null)",
+      "to": "  return (/^[ \\t]*\\*{0,2}Status:?\\*{0,2}[ \\t]*:?[ \\t]*\\S/im.test(text))",
+      "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
+    },
+    {
+      "label": "559827d chaos: lifecycle reads content records under adr only, not decisions",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": ["tests/status-section.test.mjs"],
+      "from": "  if (!/(^|[\\\\/])(?:adr|decisions)([\\\\/]|$)/i.test(directory)) return false",
+      "to": "  if (!/(^|[\\\\/])(?:adr)([\\\\/]|$)/i.test(directory)) return false",
+      "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
+    },
+    {
+      "label": "559827d chaos: record.py's content test ignores a Status section",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/status-section.test.mjs"],
+      "from": "    return bool((_RECORD_STATUS.search(text) or status_section(text) is not None)",
+      "to": "    return bool((_RECORD_STATUS.search(text))",
+      "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
+    },
+    {
+      "label": "559827d chaos: a numbered step without an id is not read",
+      "file": "plugin/lib/record.py",
+      "tests": ["tests/human-proof-advice.test.mjs"],
+      "from": "        elif step and step.group(\"ordinal\"):",
+      "to": "        elif False:",
+      "only": "^the human-proof advice names the task file, reads a step without an id, and agrees in number$"
+    },
+    {
+      "label": "559827d chaos: the human-proof advice names README.md",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/human-proof-advice.test.mjs"],
+      "from": "            errors.advise(f\"{inf['path'].name}: {tid} is done, and {', '.join(unsigned)} \"",
+      "to": "            errors.advise(f\"README.md: {tid} is done, and {', '.join(unsigned)} \"",
+      "only": "^the human-proof advice names the task file, reads a step without an id, and agrees in number$"
+    },
+    {
+      "label": "559827d chaos: two steps read \"names\"",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/human-proof-advice.test.mjs"],
+      "from": "                          f\"{'names' if len(unsigned) == 1 else 'name'} \"",
+      "to": "                          f\"names \"",
+      "only": "^the human-proof advice names the task file, reads a step without an id, and agrees in number$"
+    },
+    {
+      "label": "559827d chaos: a leading character that is not a letter is not named",
+      "file": "plugin/bin/adr-lint",
+      "tests": ["tests/chaos-315-codex-status.test.mjs"],
+      "from": "                         if not status_value[0].isalnum() else \"\")",
+      "to": "                         if False else \"\")",
+      "only": "^the Status advice names a leading character that is not a letter, and the section form when there is none$"
+    },
+    {
       "label": "§321 codex status: U+FFFD is called bytes that are not UTF-8",
       "file": "plugin/bin/adr-lint",
       "tests": [

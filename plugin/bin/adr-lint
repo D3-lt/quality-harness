@@ -1103,7 +1103,8 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
                       f"says `{section_value}`; every reader reads the line, so the section is ignored. "
                       f"Make them agree, or remove one")
     if status_value is None:
-        errors.advise(f"{adr_path.name}: no **Status:** line")
+        errors.advise(f"{adr_path.name}: no **Status:** line or `## Status` section (a `### Status` heading, "
+                      f"or one inside a code fence, is not read)")
     elif not status_value.strip(": \t"):
         errors.advise(f"{adr_path.name}: the **Status:** line is empty, so no reader can tell "
                       f"whether this decision was taken")
@@ -1118,6 +1119,9 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
                       f"(Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated); adr-next "
                       f"calls a record undecided, a plan and not a work order, unless its Status starts with "
                       f"the word Accepted"
+                      + (f"; it starts with `{status_value[0]}` (U+{ord(status_value[0]):04X}), which is not a "
+                         f"letter — a label written with it, such as a fullwidth colon, leaves it in the value"
+                         if not status_value[0].isalnum() else "")
                       + ("; the value holds U+FFFD, which is what bytes that are not UTF-8 are read as"
                          if chr(0xFFFD) in status_value else ""))
     secs = sections_of(text)
@@ -2537,7 +2541,8 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
         # Advice only: `done` keeps its rule, so nothing below changes because of this.
         unsigned = unsigned_human_proof_steps(inf.get("text") or "")
         if unsigned:
-            errors.advise(f"{where}: {tid} is done, and its step {', '.join(unsigned)} names "
+            errors.advise(f"{inf['path'].name}: {tid} is done, and {', '.join(unsigned)} "
+                          f"{'names' if len(unsigned) == 1 else 'name'} "
                           f"[proof: human: …] with no '· human-observed ·' sign-off in its Verification Log; "
                           f"record what a human observed with `adr-verify {inf['path'].name} --human \"…\"`. "
                           f"This is advice: done is unchanged")
@@ -6264,7 +6269,6 @@ def main():
         print(f"not-recognised: {one_line(adr)} is not named ADR-<n> and does not read as a record "
               f"(a Status, and a `## Context` or `## Decision` heading; any Status but `**Status:**` only "
               f"under an `adr` or `decisions` directory), so nothing here was checked. "
-              f"directory), so nothing here was checked. "
               f"This is not a finding about that file — `adr-lint` reads one record at a time, and a "
               f"backlog, a README, a report or a pre-registration kept beside the records is not one. "
               f"`adr-debt <corpus-dir>` reads a whole directory.")

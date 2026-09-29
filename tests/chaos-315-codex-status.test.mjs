@@ -100,3 +100,21 @@ test('a Status holding U+FFFD is named as holding U+FFFD, not as bytes that are 
   assert.match(plain, UNRECOGNISED)
   assert.doesNotMatch(plain, /U\+FFFD/, plain)
 })
+
+// Corpus-chaos at 559827d (four runs): a fullwidth colon in the label is read into the value,
+// `： Accepted`, and the advice quoted it without saying the colon was why; and a record whose
+// only Status was a fenced or `### Status` heading was told "no **Status:** line", as if a
+// `## Status` section were not read either.
+test('the Status advice names a leading character that is not a letter, and the section form when there is none', () => {
+  const said = statusAdvice('： Accepted')
+  assert.match(said, UNRECOGNISED)
+  assert.ok(said.includes('it starts with `：` (U+FF1A), which is not a letter'), said)
+  // The control: a value that starts with a letter says nothing about its first character.
+  assert.doesNotMatch(statusAdvice('Implemented'), /which is not a letter/)
+  const repo = scratch()
+  const record = join(repo, 'docs', 'adr', 'ADR-001-x.md')
+  mkdirSync(dirname(record), { recursive: true })
+  writeFileSync(record, '# ADR-001: X\n\n### Status\n\nAccepted\n\n## Context\n\nx\n')
+  const run = python('adr-lint', [record], repo)
+  assert.ok(run.stdout.includes('advice: ADR-001-x.md: no **Status:** line or `## Status` section'), run.stdout)
+})

@@ -84,3 +84,23 @@ test('a Status section makes a record only in a directory records are kept in', 
     rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
 })
+
+// the TS generator corpus' corpus-chaos run at 559827d: the not-recognised line printed "directory), so
+// nothing here was checked." twice, from an f-string fragment two edits left behind. No test read
+// the sentence whole; this one does, on the same file shape.
+test('the not-recognised line says each part of its sentence once', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-record-sentence-'))
+  try {
+    const file = join(repo, 'docs', 'notes', 'no-number.md')
+    mkdirSync(dirname(file), { recursive: true })
+    writeFileSync(file, '# A note\n\n**Status**: Done\n\n## Context\n\nx\n')
+    // 60s: a Windows runner's first Python spawn can take 30 (tests/adr-next.test.mjs:29).
+    const run = spawnSync('python3', [adrLint, file], { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(run.status, 2, run.stdout + run.stderr)
+    const line = run.stdout.split('\n').find(each => each.startsWith('not-recognised: ')) ?? ''
+    assert.equal(line.split('nothing here was checked').length - 1, 1, line)
+    assert.equal(line.split('directory)').length - 1, 1, line)
+  } finally {
+    rmSync(repo, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  }
+})

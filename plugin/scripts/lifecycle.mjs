@@ -2118,7 +2118,9 @@ function taskFilesFor(file, text, reader = corpusReader()) {
  * fragility a second condition removes.
  */
 function looksLikeRecord(file, directory, reader) {
-  if (!/(^|[\\/])adr([\\/]|$)/i.test(directory)) return false
+  // `decisions` beside `adr`: lifecycle's CORPUS_DIR_NAMES read docs/decisions, and adr-lint admits
+  // a record there by content, so a record kept there was linted and never listed (559827d chaos).
+  if (!/(^|[\\/])(?:adr|decisions)([\\/]|$)/i.test(directory)) return false
   if (/(^|[\\/])tasks([\\/]|$)/i.test(directory)) return false
   let text
   try { text = reader.text(file) } catch { return 'unreadable' }
@@ -2127,7 +2129,9 @@ function looksLikeRecord(file, directory, reader) {
 
 // The content half of `looksLikeRecord`, shared with the frozen-archive arm below.
 function readsAsRecord(text) {
-  return /^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S/im.test(text)
+  // A `## Status` section is a Status too (ADR-074 T2): a section-only record was linted by
+  // adr-lint and absent from every corpus reader until the corpus-chaos runs of 559827d.
+  return (/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S/im.test(text) || statusSection(text) !== null)
     && /^##\s+(Context|Decision)\b/im.test(text)
 }
 

@@ -59,11 +59,14 @@ if command -v npx >/dev/null 2>&1; then
   # added is never scanned before the commit that adds it.
   git ls-files -z -m --others --exclude-standard | while IFS= read -r -d '' f; do mkdir -p "$scratch/$(dirname "$f")"; cp "$f" "$scratch/$f"; done
   printf '%s\n' '{ "name": "qh-dead-code-scan", "private": true, "type": "module" }' > "$scratch/package.json"
+  # ignoreBinaries: OS tools a test spawns, never npm packages — mkfifo (chaos-315-fifo) and perl
+  # (chaos-315-mutate-catalogue bounds a child's lifetime with it). knip reads an unlisted binary as a
+  # missing dependency; the repository has no package.json to list them in.
   printf '%s\n' '{
   "entry": ["scripts/*.mjs!", "plugin/scripts/*.mjs!", "plugin/workflows/*.js!", "tests/*.test.mjs", "tests/*.mjs"],
   "project": ["scripts/**/*.mjs!", "plugin/**/*.mjs!", "plugin/workflows/*.js!", "tests/*.mjs"],
   "ignoreExportsUsedInFile": true,
-  "ignoreBinaries": ["mkfifo"],
+  "ignoreBinaries": ["mkfifo", "perl"],
   "ignoreDependencies": ["internal"],
   "ignoreIssues": { "plugin/workflows/*.js": ["exports"] }
 }' > "$scratch/knip.json"

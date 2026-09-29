@@ -74,3 +74,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-070](ADR-070-a-peer-attestation-is-imported-and-checked-against-its-commit.md) | A peer's attestation is imported, and checked against its commit | Accepted |
 | [ADR-071](ADR-071-a-rewritten-line-is-reanchored-on-the-text-around-its-edit.md) | A rewritten line is re-anchored on the text around its edit | Accepted |
 | [ADR-072](ADR-072-a-mutant-runs-only-the-tests-that-kill-it.md) | A mutant runs only the tests that kill it | Accepted |
+| [ADR-073](ADR-073-a-narrowed-entry-runs-every-test-it-names.md) | A narrowed entry runs every test it names | Accepted |

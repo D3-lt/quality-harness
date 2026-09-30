@@ -506,7 +506,11 @@ _NUMBERED_REF = re.compile(r"(?<![A-Za-z0-9_])ADR-([0-9]+)(?![A-Za-z0-9_])", re.
 _REF_CHUNK = re.compile(r"[A-Za-z0-9._/\\-]+")
 _REF_SEPARATOR = re.compile(r"[/\\]")
 # lifecycle's `looksLikeRecord` content test (BACKLOG §55), in Python.
-_RECORD_SECTION = re.compile(r"^##\s+(?:Context|Decision)\b", re.M | re.I)
+# The two headings matched letter by letter, and the word's end as JS's `\b` ends it (an ASCII word
+# character may not follow): `re.I` let `## Decıſıon` make a record here and nowhere else, and
+# Unicode `\b` refused `## Decisioné` where lifecycle's `readsAsRecord` admits it (the Codex round of
+# 3.1.6, the class of finding 5). `re.A` is not used, because it would narrow `\s` as well.
+_RECORD_SECTION = re.compile(r"^##\s+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])", re.M)
 
 # ADR-074: one reading of a record's Status, shared by every Python reader and pinned
 # to lifecycle.mjs's by tests/status-reading.test.mjs. The label is any form lifecycle
@@ -522,7 +526,10 @@ _RECORD_SECTION = re.compile(r"^##\s+(?:Context|Decision)\b", re.M | re.I)
 # from the API …` is not a Status; the word is matched letter by letter, because Python's `re.I`
 # folds `ſtatus` to `status` and JS's `/i` does not; it is matched one line at a time, outside code
 # fences (`record_status`), so a fenced example never overrules the record's own line.
-_STATUS_LINE = re.compile(r"^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]+)$")
+# The value may be empty: a bare `Status:` is the record's first label, with nothing written after
+# it, so the record is undecided — not a line to skip so a later label or a `## Status` section can
+# govern instead (the Codex round of 3.1.6, finding 2). `Status: ` with a trailing space already read so.
+_STATUS_LINE = re.compile(r"^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$")
 # The only whitespace at a value's edges, in both languages: exactly what `str.strip()` and JS
 # `trim()` BOTH remove, so a no-break space after the label reads as it did at ebfaee0 (the React SPA corpus
 # at 084d925: leaving it out made a governing record undecided, invisibly), while the two they
@@ -533,7 +540,9 @@ _EDGE_SPACE = "".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680
 # Where a record is kept, for a file admitted by its content (ADR-074 T3, the owner, 2026-09-29):
 # a directory named `adr`/`decisions`, or an archive of one. lifecycle.mjs's RECORD_DIRECTORY is
 # this pattern, so adr-lint and the corpus readers look in the same places.
-_RECORD_DIRECTORY = re.compile(r"^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$", re.I)
+# ASCII case folding only: `re.I` alone folds `ı` and `ſ` into `i` and `s`, which JS's `/i` does not,
+# so `decıſıons/` was a record directory here and nowhere else (the Codex round of 3.1.6, finding 5).
+_RECORD_DIRECTORY = re.compile(r"^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$", re.I | re.A)
 _STATUS_MARKUP = re.compile(r"[*_`]")
 _STATUS_RUN = re.compile(r"[^\W_]+")
 _STATUS_KINDS = {

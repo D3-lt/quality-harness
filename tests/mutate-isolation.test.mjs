@@ -34,7 +34,7 @@ async function afterTheOrphan(dir) {
   }
 }
 
-test('a campaign leaves the working tree byte-identical and its mutants never appear there', { todo: RED }, () => {
+test('a campaign leaves the working tree byte-identical and its mutants never appear there', () => {
   const dir = campaignFixture()
   writeFileSync(path.join(dir, 'notes.md'), '# Notes\n\nAn uncommitted edit to a file no entry mutates.\n')
   const side = sidecar()
@@ -55,7 +55,7 @@ test('a campaign leaves the working tree byte-identical and its mutants never ap
   assert.equal(gitState(dir), state, 'the campaign wrote the index or the stash list')
 })
 
-test('a campaign that cannot isolate stops and names --in-place, writing nothing', { todo: RED }, () => {
+test('a campaign that cannot isolate stops and names --in-place, writing nothing', () => {
   const dir = campaignFixture({ commit: false })
   const before = snapshot(dir)
   const run = campaign(dir, ['--no-cache'])
@@ -65,7 +65,7 @@ test('a campaign that cannot isolate stops and names --in-place, writing nothing
   assert.deepEqual(snapshot(dir), before, 'a campaign that could not isolate wrote into the checkout')
 })
 
-test("a killed campaign's worktree is removed by the next run, and said", { todo: RED }, async () => {
+test("a killed campaign's worktree is removed by the next run, and said", async () => {
   const dir = campaignFixture()
   const side = sidecar()
   // Its temp directory is the sidecar's, which the fixture module removes: SIGKILL runs no
@@ -97,7 +97,7 @@ test("a killed campaign's worktree is removed by the next run, and said", { todo
   assert.deepEqual(worktrees(dir), [dir], 'git still lists the leftover worktree')
 })
 
-test("an isolated campaign reuses and returns the checkout's verdict cache", { todo: RED }, () => {
+test("an isolated campaign reuses and returns the checkout's verdict cache", () => {
   const dir = campaignFixture()
   const side = sidecar()
   const env = { FIXTURE_SIDECAR: side, FIXTURE_CHECKOUT: dir }
@@ -112,7 +112,7 @@ test("an isolated campaign reuses and returns the checkout's verdict cache", { t
   assert.match(second.stdout, /\b0 measured this run; 1 reused\b/)
 })
 
-test('a second campaign waits while an orphaned child of the first still runs', { todo: RED }, async () => {
+test('a second campaign waits while an orphaned child of the first still runs', async () => {
   const dir = campaignFixture()
   const side = sidecar()
   const scratch = path.dirname(side)
@@ -139,7 +139,7 @@ test('a second campaign waits while an orphaned child of the first still runs', 
   assert.deepEqual(worktrees(dir), [dir])
 })
 
-test('an isolated campaign runs exactly the entries an in-place one selects', { todo: RED }, () => {
+test('an isolated campaign runs exactly the entries an in-place one selects', () => {
   const dir = campaignFixture()
   // Timings for --shard: a first run writes them into the checkout's cache.
   const timed = campaign(dir, ['--in-place'])
@@ -148,16 +148,17 @@ test('an isolated campaign runs exactly the entries an in-place one selects', { 
   const shardIsolated = verdicts(campaign(dir, ['--shard', '1/2', '--no-cache']).stdout)
   assert.ok(Object.keys(shardInPlace).length > 0, 'the in-place shard selected nothing')
   assert.deepEqual(Object.keys(shardIsolated).sort(), Object.keys(shardInPlace).sort(), '--shard 1/2 --no-cache selected differently')
-  // An uncommitted change to one source: `--changed HEAD` selects its entries and not the other's.
+  // An uncommitted edit to both lines of one source: `--changed HEAD` selects the entries whose
+  // mutated line was added since HEAD, and not the other source's.
   // --force: the in-place run otherwise refuses the dirty target, as F-2 says.
-  writeFileSync(path.join(dir, 'lib.mjs'), `${FIXTURE_FILES['lib.mjs']}// an uncommitted edit\n`)
+  writeFileSync(path.join(dir, 'lib.mjs'), FIXTURE_FILES['lib.mjs'].replace(/\n/g, ' // edited\n'))
   const changedInPlace = verdicts(campaign(dir, ['--changed', 'HEAD', '--no-cache', '--in-place', '--force']).stdout)
   const changedIsolated = verdicts(campaign(dir, ['--changed', 'HEAD', '--no-cache']).stdout)
   assert.deepEqual(Object.keys(changedInPlace).sort(), ['answer', 'other'], `--changed HEAD in place selected ${Object.keys(changedInPlace)}`)
   assert.deepEqual(Object.keys(changedIsolated).sort(), ['answer', 'other'], '--changed HEAD selected differently in isolation')
 })
 
-test('an uncommitted test edit and an untracked test are graded as an in-place run grades them', { todo: RED }, () => {
+test('an uncommitted test edit and an untracked test are graded as an in-place run grades them', () => {
   const dir = campaignFixture()
   const full = FIXTURE_FILES['tests/lib.test.mjs']
   // HEAD's test does not kill `other`; the uncommitted one does. A worktree of HEAD would grade it GREEN.
@@ -180,7 +181,7 @@ test('an uncommitted test edit and an untracked test are graded as an in-place r
   assert.deepEqual(verdicts(isolated.stdout), expected)
 })
 
-test('a verdict cache that cannot be written back is left as it was, and said', { todo: RED }, async () => {
+test('a verdict cache that cannot be written back is left as it was, and said', async () => {
   const mutate = await import('../scripts/mutate.mjs')
   assert.equal(typeof mutate.writeBackCache, 'function', 'scripts/mutate.mjs exports no writeBackCache')
   const dir = path.dirname(sidecar())
@@ -210,7 +211,7 @@ test("an isolated campaign's written-back cache is one CI's merge job can read",
 // ADR-075 (F-9's signal clause): a campaign stopped by SIGTERM removes its own worktree. Windows
 // has no catchable SIGTERM — `kill` there ends the process at once — so on win32 the leftover is
 // the next run's to sweep, which is what this asserts there.
-test('a campaign stopped with SIGTERM removes its worktree', { todo: RED }, async () => {
+test('a campaign stopped with SIGTERM removes its worktree', async () => {
   const dir = campaignFixture()
   const side = sidecar()
   const scratch = path.dirname(side)
@@ -243,7 +244,7 @@ test('a campaign stopped with SIGTERM removes its worktree', { todo: RED }, asyn
   assert.deepEqual(worktrees(dir), [dir])
 })
 
-test('an isolated run and an in-place run of the same entries give the same verdicts', { todo: RED }, () => {
+test('an isolated run and an in-place run of the same entries give the same verdicts', () => {
   const dir = campaignFixture()
   const inPlace = campaign(dir, ['--no-cache', '--in-place'])
   assert.equal(inPlace.status, 0, inPlace.stdout + inPlace.stderr)
@@ -283,4 +284,16 @@ test('an in-place campaign names the processes running this checkout, and says w
   const blind = campaign(dir, ['--no-cache', '--in-place'], { QUALITY_HARNESS_PROCESS_LIST: path.join(dir, 'no-such-lister') })
   assert.equal(blind.status, 0, blind.stdout + blind.stderr)
   assert.match(blind.stderr, /could not look/)
+})
+
+// ADR-075: the load line is said once whichever way the campaign runs — the isolated child leaves
+// it to its parent — and an in-place run says it too (spec F-10).
+test('a campaign says its load line once, in place and isolated', () => {
+  const dir = campaignFixture()
+  for (const mode of [['--in-place'], []]) {
+    const run = campaign(dir, ['--no-cache', '--case', 'answer', ...mode])
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    const said = `${run.stdout}${run.stderr}`.split('\n').filter(line => line.startsWith('load: '))
+    assert.equal(said.length, 1, `${mode.join(' ') || 'an isolated run'} said the load ${said.length} times`)
+  }
 })

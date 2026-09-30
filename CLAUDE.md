@@ -32,7 +32,7 @@ Why: `.claude/rules/01-repository-vs-plugin.md`
 ```bash
 bash scripts/selftest.sh            # the repository-owned gate. Exit 0 or it did not pass.
 bash scripts/coverage.sh            # JS + Python floors; --report reads without enforcing
-node scripts/mutate.mjs             # the full campaign; --case '<substring>' for one
+node scripts/mutate.mjs             # the full campaign, in a worktree of the working tree (ADR-075); --case '<substring>' for one; --in-place runs it here
 python3 plugin/bin/adr-lint <adr>   # a record's own gate
 node scripts/flag-claim-sweep.mjs     # advisory sweeps: a place to look, never a verdict
 node scripts/backlog-claim-sweep.mjs
@@ -49,7 +49,7 @@ python3 scripts/test-locks.py <test-file> [name]    # before editing an existing
 - **Name the working-tree path for a gate** (`python3 plugin/bin/adr-lint`,
   `node plugin/scripts/…`). A bare name runs an INSTALLED copy, never your edit.
 - **Install the hooks once per clone:** `git config core.hooksPath .githooks`.
-- **Never run a mutation tool and edit the tree at the same time.**
+- **Never run a mutation tool in place and edit the tree at the same time** — `mutate.mjs --in-place`, its `--write` modes, and `adr-verify --mutant` rewrite the checkout; a default campaign does not.
 - **Before changing an existing test, ask which tasks lock it** (`scripts/test-locks.py`). A lock
   stores its test names base64-encoded, so grepping the corpus for a name finds nothing. A locked test
   stays byte-identical: add a test beside it, or change a helper it calls.

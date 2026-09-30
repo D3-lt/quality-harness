@@ -17,6 +17,7 @@ import test from 'node:test'
 import { parse } from '../plugin/scripts/verify.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runPython } from '../scripts/python-interpreter.mjs'
+import { campaignFixture } from './campaign-fixture.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -1331,6 +1332,12 @@ test('the mutation runner refuses to run over an editor, or beside another runne
   const call = (extraArgs, lock = isolated) => spawnSync(process.execPath,
     [runner, '--case', CHEAPEST, ...extraArgs],
     { cwd: root, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: lock }, encoding: 'utf8', timeout: 60_000 })
+  // ADR-075: an arm that PROCEEDS runs its campaign over a fixture repository, never over this
+  // one: isolation is the default, and a worktree of the repository under test is exactly what
+  // CLAUDE.md §9 forbids a test to make.
+  const fixture = campaignFixture()
+  const inFixture = lockFile => spawnSync(process.execPath, [runner, '--root', fixture, '--case', 'answer'],
+    { cwd: fixture, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: lockFile }, encoding: 'utf8', timeout: 60_000 })
 
   // A live owner is refused. `process.pid` is this test, which is certainly alive.
   const lock = isolated
@@ -1347,7 +1354,7 @@ test('the mutation runner refuses to run over an editor, or beside another runne
   // succeed, so an empty file read as a live run (BACKLOG §295 item 24).
   writeFileSync(lock, '')
   try {
-    const empty = call([])
+    const empty = inFixture(lock)
     assert.doesNotMatch(empty.stderr, /another run is in flight/, empty.stdout + empty.stderr)
   } finally {
     rmSync(lock, { force: true })
@@ -1360,7 +1367,8 @@ test('the mutation runner refuses to run over an editor, or beside another runne
   const pristine = readFileSync(target, 'utf8')
   try {
     writeFileSync(target, `${pristine}\n# scratch\n`)
-    const overAnEditor = call([])
+    // In place: an isolated run grades the uncommitted edit instead of refusing it (spec F-2).
+    const overAnEditor = call(['--in-place'])
     assert.equal(overAnEditor.status, 2, overAnEditor.stdout + overAnEditor.stderr)
     assert.match(overAnEditor.stderr, /uncommitted changes/)
     assert.match(overAnEditor.stderr, /silently rolled back/)
@@ -1398,7 +1406,7 @@ test('the mutation runner refuses to run over an editor, or beside another runne
   // next run reclaims it rather than wedging forever.
   writeFileSync(lock, '999999')
   try {
-    const reclaimed = call([])
+    const reclaimed = inFixture(lock)
     // Not a status assertion: the OTHER guard — uncommitted changes to the files
     // this run rewrites — legitimately also exits 2, and in a working tree it
     // usually does. What matters is that the stale lock is not the reason.

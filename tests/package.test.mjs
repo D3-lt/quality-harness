@@ -1485,9 +1485,14 @@ test('the README names every skill and gate this plugin ships', () => {
     .filter(entry => entry.isFile() && !entry.name.endsWith('.cmd'))
     .map(entry => entry.name)
 
-  const missing = [...shipped, ...gates].filter(name => !readme.includes(name))
+  // Named in backticks, as a list names it: a bare substring let `operating` pass
+  // unlisted for as long as "Efficient operating model" was a heading (2026-09-30).
+  const names = text => name => text.includes(`\`${name}\``)
+  const missing = [...shipped, ...gates].filter(name => !names(readme)(name))
   assert.deepEqual(missing, [],
     `these ship and the README never names them: ${missing.join(', ')}`)
+  assert.equal(names('an efficient operating model')('operating'), false,
+    'a word in prose is not a name in the list')
 
   // And the list must be shown able to be wrong, or it passes for any README that
   // happens to contain a lot of words (CLAUDE.md §4).

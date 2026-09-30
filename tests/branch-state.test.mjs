@@ -1221,3 +1221,39 @@ test('runs nothing can order are COULD NOT LOOK, and a snapshot from before name
     tag: null, shippedSinceTag: null, releaseBlocked: null })
   assert.match(before, /abc1234: every job concluded success\.$/m, before)
 })
+
+// `gh` served a page of runs weeks old three times on 2026-09-29 and -30, and the brief
+// raised the newest of them, an old commit's failure, as this branch's red CI. Where
+// the pushed tip is read, only HEAD's runs or the tip's answer.
+test('a listing with no run at HEAD or the pushed tip is COULD NOT LOOK, never an old commit\'s verdict', () => {
+  const tip = ['git rev-parse origin/main', ok('0a18d04ffffffffffffffffffffffffffffffff')]
+  const stale = render(collect(runner([...GIT_CLEAN, tip,
+    ['gh run list', ok(JSON.stringify([{ headSha: '24ce31b0', status: 'completed', conclusion: 'failure', databaseId: 9 }]))],
+  ])), { brief: true })
+  assert.match(stale, /⚠ CI COULD NOT LOOK — no run listed is at HEAD 0a18d04 or origin\/main; the 1 listed are at 24ce31b/, stale)
+  assert.doesNotMatch(stale, /FAILURE/, stale)
+
+  // HEAD ahead of the tip: the tip's run is the CI that is running, and it answers.
+  const ahead = render(collect(runner([
+    ['git rev-parse --abbrev-ref', ok('main')], ['git rev-parse --short', ok('beef123')],
+    ['git status --short', ok('')], ['git rev-list', ok('0\t1')],
+    ['git remote -v', ok('origin\tgit@github.com:D3-lt/quality-harness.git (fetch)')],
+    ['git describe', ok('v2.64.0')], ['git diff --name-only', ok('')],
+    tip,
+    ['gh run list', ok(JSON.stringify([
+      { headSha: '0a18d04f', status: 'completed', conclusion: 'failure', databaseId: 8 },
+      { headSha: '11111111', status: 'completed', conclusion: 'success', databaseId: 7 },
+    ]))],
+    ['gh run view', ok(JSON.stringify({ jobs: [{ name: 'windows', conclusion: 'failure' }] }))],
+  ])), { brief: true })
+  assert.match(ahead, /⚠ CI 0a18d04: FAILURE — windows: failure/, ahead)
+
+  // HEAD's own run answers over the tip's.
+  const own = render(collect(runner([...GIT_CLEAN, ['git rev-parse origin/main', ok('99999999')],
+    ['gh run list', ok(JSON.stringify([
+      { headSha: '0a18d04f', status: 'completed', conclusion: 'success', databaseId: 6 },
+      { headSha: '99999999', status: 'completed', conclusion: 'failure', databaseId: 5 },
+    ]))],
+  ])), { brief: true })
+  assert.match(own, /0a18d04: every job concluded success/, own)
+})

@@ -289,9 +289,9 @@ jobs:
           QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           if [ "$QUALITY_HARNESS_FULL_CAMPAIGN" = "true" ]; then
-            node scripts/mutate.mjs --shard ${{ matrix.shard }}/48 --no-cache
+            node scripts/mutate.mjs --shard ${{ matrix.shard }}/48 --no-cache --in-place
           else
-            node scripts/mutate.mjs --shard ${{ matrix.shard }}/48
+            node scripts/mutate.mjs --shard ${{ matrix.shard }}/48 --in-place
           fi
       - name: Keep this shard's verdicts for the merge
         # ALWAYS, so a shard that went RED still reports what it measured — the

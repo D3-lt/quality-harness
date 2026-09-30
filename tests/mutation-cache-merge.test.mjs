@@ -215,7 +215,7 @@ test('the runner records what it MEASURED, and records nothing when it reused', 
   const runner = join(dir, 'scripts', 'mutate.mjs')
   const cache = join(dir, 'cache.json')
   const call = () => spawnSync(process.execPath,
-    [runner, '--case', CHEAPEST, '--cache', cache, '--shard', '1/1'],
+    [runner, '--case', CHEAPEST, '--cache', cache, '--shard', '1/1', '--in-place'],
     { cwd: dir, env: { ...process.env, CLAUDE_PLUGIN_ROOT: join(dir, 'plugin'), QUALITY_HARNESS_MUTATE_LOCK: join(dir, 'lock') },
       encoding: 'utf8', timeout: 120_000 })
 

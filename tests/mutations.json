@@ -1895,7 +1895,7 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "    if (alive) {",
+      "from": "    if (pids.some(alive) || (pids.length > 1 && groupAlive(pids[1]))) {",
       "to": "    if (false) {",
       "only": "^(?:the mutation runner refuses to run over an editor, or beside another runner)$"
     },
@@ -14544,8 +14544,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow'])",
-      "to": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--reanchor', '--since', '--root', '--narrow'])",
+      "from": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected'])",
+      "to": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected'])",
       "only": "mutate --repoint reads a scratch repository"
     },
     {
@@ -15694,8 +15694,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "'--root', '--narrow'])",
-      "to": "'--root'])",
+      "from": "'--root', '--narrow', '--in-place', '--selected'])",
+      "to": "'--root', '--in-place', '--selected'])",
       "only": "mutate --narrow proposes"
     },
     {
@@ -17633,9 +17633,99 @@
       "tests": [
         "tests/qh-check.test.mjs"
       ],
-      "from": "  console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))",
-      "to": "  void loadAtEnd",
+      "from": "  console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))\n  if (stopped)",
+      "to": "  void loadAtEnd\n  if (stopped)",
       "only": "^a check run below the core count"
+    },
+    {
+      "label": "ADR-075 T2: an in-place campaign says its load line",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    const loadAtEnd = campaignLoad()\n    console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))",
+      "to": "    const loadAtEnd = campaignLoad()\n    void loadAtEnd",
+      "only": "^a campaign says its load line once, in place and isolated$"
+    },
+    {
+      "label": "ADR-075 T2: a campaign isolates by default",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  if (isolating) return isolate({ selected, argv, paths, loadAtStart })",
+      "to": "  if (false) return isolate({ selected, argv, paths, loadAtStart })",
+      "only": "^a campaign leaves the working tree byte-identical"
+    },
+    {
+      "label": "ADR-075 T2: the worktree holds the uncommitted content",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  let commit = stash.stdout.trim()",
+      "to": "  let commit = ''",
+      "only": "^an uncommitted test edit and an untracked test"
+    },
+    {
+      "label": "ADR-075 T2: the child runs the parent's selection",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  if (argv.includes('--selected')) {\n    let labels",
+      "to": "  if (false) {\n    let labels",
+      "only": "^an isolated campaign runs exactly the entries"
+    },
+    {
+      "label": "ADR-075 T2: could not isolate is exit 2",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "--in-place runs in this checkout`)\n    return 2",
+      "to": "--in-place runs in this checkout`)\n    return 0",
+      "only": "^a campaign that cannot isolate"
+    },
+    {
+      "label": "ADR-075 T2: the lock is live while the child lives",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    if (pids.some(alive) || (pids.length > 1 && groupAlive(pids[1]))) {",
+      "to": "    if (alive(pids[0])) {",
+      "only": "^a second campaign waits"
+    },
+    {
+      "label": "ADR-075 T2: SIGTERM ends the group and removes the worktree",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  process.on('SIGTERM', () => stop('SIGTERM'))",
+      "to": "  void stop",
+      "only": "^a campaign stopped with SIGTERM"
+    },
+    {
+      "label": "ADR-075 T2: the verdict cache comes back",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  if (caching && !stopped && !ended.error) writeBackCache(treeCache, paths.cache, { say })",
+      "to": "  void treeCache",
+      "only": "^an isolated campaign reuses and returns"
+    },
+    {
+      "label": "ADR-075 T2: untracked files reach the worktree",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "      if (own.has(file)) continue",
+      "to": "      continue",
+      "only": "^an uncommitted test edit and an untracked test"
     }
   ]
 }

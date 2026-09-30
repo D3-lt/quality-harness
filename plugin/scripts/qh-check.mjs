@@ -13,6 +13,7 @@ import { appendFileSync, mkdirSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 import { checkCommandOrigin, observe, stateDir, validationVerdict } from './lifecycle.mjs'
+import { admit, besideLines, leaseDir, mark, observe as observeLeases, release, take } from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
 
@@ -25,6 +26,17 @@ function checkTimeoutMs(env) {
   const seconds = Number(env.QUALITY_HARNESS_CHECK_TIMEOUT)
   return (Number.isFinite(seconds) && seconds > 0 ? seconds : CHECK_TIMEOUT_SECONDS) * 1_000
 }
+
+// How long a run asked to wait its turn waits before it runs anyway (ADR-077). Unset or invalid
+// is the default: a bound nobody can switch off.
+const WAIT_MAX_SECONDS = 1_800
+function waitMaxMs(env) {
+  const seconds = Number(env.QUALITY_HARNESS_WAIT_MAX_S)
+  return (Number.isFinite(seconds) && seconds > 0 ? seconds : WAIT_MAX_SECONDS) * 1_000
+}
+const inSeconds = ms => `${(ms / 1000).toFixed(1)}s`
+// A neighbour as the record keeps it: what its lease says, or that it could not be read.
+const recorded = seen => (seen ? [...seen.live, ...seen.unknown].map(({ file: _file, ...entry }) => entry) : null)
 // A spawn error or a missing status is not "this directory is not a repository".
 // That reading is the non-git exemption, and a pass then skips the tree comparison.
 export function repositoryDiscovery(spawnResult) {
@@ -87,7 +99,7 @@ async function runLaunched({ file, args, shell }, { root, env, platform, timeout
   return { ended, received }
 }
 
-export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores } = {}) {
+export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false } = {}) {
   const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
@@ -104,6 +116,52 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     stderr.write('qh-check: this project has no check to run. Declare one as `check` in .quality-harness.json.\n')
     return 2
   }
+  // ADR-077: a lease for the whole run, taken before the load is sampled, so the check's own
+  // numbers are taken after any wait. It names the heavy runs beside it and never changes the
+  // check's exit or verdict (CLAUDE.md §3); a directory it cannot use is said, and it runs unleased.
+  const waiting = wait || env.QUALITY_HARNESS_WAIT === '1'
+  const leases = leaseDir(env)
+  let held = take(leases, { command: `qh-check: ${command}`, root, state: waiting ? 'waiting' : 'running' })
+  if (held.error) {
+    stderr.write(`qh-check: could not use the lease: ${held.error}; running without one.\n`)
+    held = null
+  }
+  const look = () => {
+    if (!held) return null
+    try {
+      return observeLeases(leases, held)
+    } catch (failure) {
+      stderr.write(`qh-check: could not read the leases (${failure.code ?? failure.message}), so no neighbour is named.\n`)
+      return null
+    }
+  }
+  let waitedMs = 0
+  if (held && waiting) {
+    // A signal while waiting ends the wait, releases the lease and runs nothing.
+    let stopped = null
+    const stop = signal => { stopped = signal }
+    process.on('SIGINT', stop)
+    process.on('SIGTERM', stop)
+    let turn
+    try {
+      turn = await admit(leases, held, { maxMs: waitMaxMs(env), stopped: () => stopped })
+    } finally {
+      process.off('SIGINT', stop)
+      process.off('SIGTERM', stop)
+    }
+    waitedMs = turn.waitedMs
+    if (turn.stopped) {
+      release(held)
+      stderr.write(`qh-check: stopped by ${turn.stopped} while waiting its turn; the check did not run.\n`)
+      return turn.stopped === 'SIGINT' ? 130 : 143
+    }
+    stderr.write(turn.admitted
+      ? `qh-check: waited ${inSeconds(waitedMs)} for its turn.\n`
+      : `qh-check: stopped waiting after ${inSeconds(waitedMs)} (QUALITY_HARNESS_WAIT_MAX_S), and runs beside the rest.\n`)
+    mark(held, { state: 'running' })
+  }
+  const beside = look()
+  for (const line of beside ? besideLines(beside) : []) stderr.write(`qh-check: ${line}\n`)
   const startedAt = new Date().toISOString()
   // The load at both ends of the check (ADR-075 T1): a pass taken on a saturated machine is
   // not attributable, and the record says so without changing the exit or the verdict.
@@ -117,9 +175,19 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     if (kept.length > KEEP_BYTES) kept = kept.subarray(kept.length - KEEP_BYTES)
   }
   const launch = checkLaunch(command, platform, env)
-  const { ended, received } = launch
-    ? await runLaunched(launch, { root, env, platform, timeoutMs: checkTimeoutMs(env), stdout, stderr, keep })
-    : { ended: { code: null, signal: null, error: new Error(NO_BASH) }, received: null }
+  // Released after runLaunched returns, not on the signal: a check still closing keeps its lease.
+  let ran
+  let besideAtEnd = null
+  try {
+    ran = launch
+      ? await runLaunched(launch, { root, env, platform, timeoutMs: checkTimeoutMs(env), stdout, stderr, keep })
+      : { ended: { code: null, signal: null, error: new Error(NO_BASH) }, received: null }
+    besideAtEnd = look()
+  } finally {
+    if (held) release(held)
+  }
+  const { ended, received } = ran
+  for (const line of besideAtEnd ? besideLines(besideAtEnd) : []) stderr.write(`qh-check: at its end, ${line}\n`)
   const after = { ...observe(root), at: new Date().toISOString(), load: sampleLoad(load).load }
   const signal = received ?? ended.signal ?? null
   const exit = ended.error ? null : ended.code
@@ -131,7 +199,8 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
       ? 'interrupted'
       : validationVerdict({ exit_code: exit ?? 1, stdout: kept.toString('utf8') }, command, { anyCommand: true })
   const contended = contention(before.load, after.load, loadAtStart.cores)
-  const record = { id: randomUUID(), at: after.at, git, command, origin, before, after, exit, signal, verdict, cores: loadAtStart.cores, contended }
+  const record = { id: randomUUID(), at: after.at, git, command, origin, before, after, exit, signal, verdict, cores: loadAtStart.cores, contended,
+    beside: recorded(beside), besideAtEnd: recorded(besideAtEnd), waitedMs }
   try {
     const directory = stateDir(root)
     mkdirSync(directory, { recursive: true })
@@ -157,10 +226,11 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
 
 if (isMainModule(import.meta.url)) {
   const argv = process.argv.slice(2)
-  if (argv.length) {
-    process.stderr.write(`qh-check: unknown option: ${argv[0]}\nusage: qh-check\n`)
+  const unknown = argv.filter(word => word !== '--wait')
+  if (unknown.length) {
+    process.stderr.write(`qh-check: unknown option: ${unknown[0]}\nusage: qh-check [--wait]\n`)
     process.exitCode = 2
   } else {
-    process.exitCode = await runCheck()
+    process.exitCode = await runCheck({ wait: argv.includes('--wait') })
   }
 }

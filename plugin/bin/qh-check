@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """qh-check — run this project's check and record what it observed.
 
-Usage: qh-check
+Usage: qh-check [--wait]
 
 ADR-060 T2. Advisories count a check only when it was run through this gate: it
 runs the project's check at the repository root (the `check` declared in
@@ -19,6 +19,10 @@ Exit: 0 the check passed · otherwise the check's own exit code · 1 when a sign
 ended the check · 2 = the project has no check, or a usage error such as an
 argument this gate does not take · 4 = could not run: `node` is not on PATH or
 plugin/scripts/qh-check.mjs is not beside this gate's bin/.
+
+It holds a lease while the check runs and names the heavy runs it sees beside it
+(ADR-077). `--wait`, or QUALITY_HARNESS_WAIT=1, waits for its turn first, bounded by
+QUALITY_HARNESS_WAIT_MAX_S (default 1800).
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root (ADR-031).
@@ -79,18 +83,25 @@ def main(argv):
         # Replaced, not wrapped: a signal sent to qh-check reaches the process that
         # forwards it to the check and records it.
         os.execv(node, args)
-    # The script bounds the check itself; this bound only outlives it.
+    # The script bounds the check itself, and a wait for its turn; this bound only outlives both.
     try:
         seconds = float(os.environ.get("QUALITY_HARNESS_CHECK_TIMEOUT", "3600"))
     except ValueError:
         seconds = 3600.0
+    waited = 0.0
+    if "--wait" in argv or os.environ.get("QUALITY_HARNESS_WAIT") == "1":
+        try:
+            waited = float(os.environ.get("QUALITY_HARNESS_WAIT_MAX_S", "1800"))
+        except ValueError:
+            waited = 1800.0
+        waited = waited if waited > 0 else 1800.0
     # No CREATE_NO_WINDOW: node shares this gate's stdio, and a child started with
     # that flag and no handles passed gets a console of its own, so everything it
     # prints is lost (Windows CI at 2b036de: four tests read ''). It shares this
     # gate's console instead, which opens no window. libuv draws the same line for
     # Node's windowsHide: the flag only when no stdio is inherited.
     try:
-        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60)
+        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + waited + 60)
     except subprocess.TimeoutExpired:
         return 1
 

@@ -78,3 +78,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-074](ADR-074-one-status-reading-and-one-record-definition.md) | One Status reading and one record definition for every reader | Accepted |
 | [ADR-075](ADR-075-a-campaign-runs-in-a-worktree-and-says-its-load.md) | A campaign runs in a worktree, and every result says the load it ran under | Accepted |
 | [ADR-076](ADR-076-a-recorded-mutant-runs-in-a-worktree.md) | A recorded mutant runs in a worktree | Accepted |
+| [ADR-077](ADR-077-a-heavy-run-holds-a-lease-and-names-its-neighbours.md) | A heavy run holds a lease, and names the heavy runs beside it | Accepted |

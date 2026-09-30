@@ -1500,7 +1500,9 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         reason = "--in-place was given"
     elif root is None:
         reason = f"{cwd} is not inside a git checkout, so no worktree can be built"
-    elif (named := fence_names_checkout(cmd, list(dict.fromkeys([root[0], str(root[1])])))) is not None:
+    # The resolved, native spelling first, so the first line names the path as this platform
+    # writes it (git prints `C:/…` on Windows; Windows CI, 3.3.0 candidate).
+    elif (named := fence_names_checkout(cmd, list(dict.fromkeys([str(root[1]), root[0]])))) is not None:
         reason = f"the fence names this checkout's path {named}, which a worktree cannot redirect"
     else:
         try:

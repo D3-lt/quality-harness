@@ -1,49 +1,31 @@
 # quality-harness
 
-A development lifecycle whose claims are backed by executable evidence rather than
-by prose. Decisions get records, records get tasks, and a task is done when a tool
-ran its check and wrote down what happened — not when someone says so.
+A development lifecycle whose claims are backed by tool-written evidence. Decisions get records,
+records get tasks, and a task is done when a tool ran its check and wrote down what happened.
+It also breaks your code on purpose, to show that a passing test can fail.
 
-The point is narrow and worth stating plainly: **a passing test is not evidence
-that a test can fail.** This harness breaks your code on purpose to find out, and
-refuses to call a green suite proof of anything until something has been shown able
-to go red.
-
-## What is installed right now
-
-Ask, rather than trusting this page:
+## What is installed
 
     node "$(qh-root)/scripts/qh-doctor.mjs"
 
-`qh-root` is on `PATH` inside a Claude Code session. From any other terminal, name the
-installed copy: `node ~/.claude/plugins/cache/quality-harness/quality-harness/<version>/scripts/qh-doctor.mjs`.
-
-It reports the resolved root and version, what ships, whether each installed home
-gate is a forwarder or a stale copy, drift against this plugin, and how many lint
-findings actually fail versus only advise. Every figure is measured at call time.
-Nothing in this README counts anything, on purpose — a number written here would be
-wrong by the next release, which is the failure the harness exists to catch.
+`qh-root` is on `PATH` inside a Claude Code session. From another terminal, name the installed
+copy: `node ~/.claude/plugins/cache/quality-harness/quality-harness/<version>/scripts/qh-doctor.mjs`.
+It reports the root, the version, what ships, whether each home gate is a forwarder or a stale
+copy, and how many lint findings fail versus only advise, all measured when it runs.
 
 ## The status line
 
-The gates' reading of the current session, where you already look and with no prompt
-text spent on it: `QH ✓ checked`, `QH ✗ 3 unverified`, `QH · nothing edited` or
-`QH ? could not look`, each followed by how long ago it was observed, or
-`QH ? last observed 41m ago` when that observation is too old to speak for the tree.
-A `CI ✓`, `CI ✗`, `CI …` or `CI ?` tail says what CI reports for the branch.
-The plugin cannot set your `statusLine`.
-Keep that command (and any `refreshInterval`). Feed the same `$input` to this
-script and append its stdout — one line, or empty:
+It shows the gates' reading of the session: `QH ✓ checked`, `QH ✗ 3 unverified`,
+`QH · nothing edited` or `QH ? could not look`, with the observation's age, and a `CI ✓`, `CI ✗`,
+`CI …` or `CI ?` tail for the branch. The plugin cannot set your `statusLine`. Keep that command
+(and any `refreshInterval`), feed the same `$input` to this script, and append its stdout:
 
     qh=$(node "$(qh-root)/scripts/statusline.mjs" <<< "$input" 2>/dev/null)
     [ -n "$qh" ] && printf '%s\n' "$qh"
 
-It reads the JSON Claude Code pipes to the command and this session's event log, reads
-the log again only when it changed, starts at most one `git rev-parse` (cached, so most
-renders start nothing), and never writes an error — a status line is the one surface you
-cannot dismiss.
+It starts at most one cached `git rev-parse`, and never prints an error.
 
-## The stages, and what runs them
+## The stages
 
 | you want to | invoke |
 |---|---|
@@ -57,118 +39,60 @@ cannot dismiss.
 | retire or archive a record | `/quality-harness:adr-retire` |
 | let the lifecycle route the whole job | `/quality-harness:work` |
 | operate the harness itself | `/quality-harness:operating` |
-| run every reader over a corpus you do not own and report what it printed | `/quality-harness:corpus-chaos` |
+| run every reader over a corpus you do not own | `/quality-harness:corpus-chaos` |
 
-Not sure which stage you are at? `node "${CLAUDE_PLUGIN_ROOT}/scripts/work-next.mjs"`
-reads your corpus and says what is waiting, and why.
-
-`ls "${CLAUDE_PLUGIN_ROOT}/skills"` is the full list — this table names the common
-path, not the inventory.
+`node "${CLAUDE_PLUGIN_ROOT}/scripts/work-next.mjs"` says which stage is waiting, and why.
+`ls "${CLAUDE_PLUGIN_ROOT}/skills"` is the full list.
 
 ## The gates
 
-`${CLAUDE_PLUGIN_ROOT}/bin/` holds them. They **advise and do not halt the work**, with one exception below. A
-gate that stops an agent produces a user who cannot tell what to do next, which is
-worse than no gate — so a finding tells you what is wrong and lets you proceed.
+`${CLAUDE_PLUGIN_ROOT}/bin/` holds them. They advise and let the work continue, and they exit
+non-zero on a failing finding so CI can read it. `qh-doctor` shows which findings fail and which
+only advise.
 
-**They do still exit non-zero on a failing finding**, and that is not a contradiction:
-"not blocking" is about not seizing control of your session, not about pretending
-everything passed. The exit code is what a CI step or a stage precondition reads.
-`qh-doctor` prints how many findings fail versus how many only advise — and the
-difference between those two words is the thing to read, because "the gate
-complained" and "the gate refused" are not the same statement.
+Two refusals exist:
 
-**One exception, and it can be turned off.** Before a command that invokes `git commit` or
-`git push` runs — through `bash -c`, `pwsh -Command` or an argv list too — a working tree no
-`qh-check` has passed on is refused (ADR-061), when the session log was read whole, and the
-refusal names the invocation it saw. A torn log, an unordered check, or a check that could not
-look only warns. `"publish": "warn"` in `.quality-harness.json` makes the refusal a warning; any
-other value is ignored and said to be. A command that merely mentions either word — a grep, a
-heredoc, a file name — is warned about, never refused, and gets none of the publish-time artifact
-checks: only a proven invocation is refused (CLAUDE.md §16). The command is read as the shell
-splits it (ADR-067): quoted text, a heredoc body and a comment are data, while `git {-c,x=y} push`
-and text piped into a shell are the invocations the shell runs.
+- **An unchecked publish (ADR-061).** A `git commit` or `git push` on a working tree no `qh-check`
+  has passed on is refused, however it is launched (`bash -c`, `pwsh -Command`, an argv list).
+  - A command that only mentions either word is warned about, never refused.
+  - A torn session log, an unordered check, or a check that could not look only warns.
+  - `"publish": "warn"` in `.quality-harness.json` turns the refusal into a warning.
 
-**Where git runs config-based hooks (2.54 or later), git itself refuses it (ADR-066).** At
-SessionStart the plugin offers git a session-scoped hook through Claude Code's `CLAUDE_ENV_FILE`,
-on `prepare-commit-msg` and `pre-push`; nothing is written into any repository. Once that hook
-has run, an unchecked commit or push is refused at the event, in the repository it lands in — a
-linked worktree of the session's repository included (ADR-068) —
-whatever launched it — a script file and a commit with `--no-verify` included — and a plain
-invocation, or a mention in quoted data, is only advice before it runs. A form that could switch
-the hook off (`-c hook.*`, `GIT_CONFIG*`, `env`, `sudo`, `--no-verify` on a push) keeps the
-refusal above, and so do PowerShell sessions and older gits.
-The only other refusal is the reviewer guard (ADR-060): a role spawned read-only, such
-as `qh-scope-reviewer`, may not edit, commit or push. It has no opt-out, because it
-fences a role the workflow made read-only, not your own work.
+  Where git runs config-based hooks (2.54 or later), git refuses it at the event itself
+  (ADR-066). This holds in any repository or linked worktree the session commits into, and for
+  `--no-verify` commits too. The plugin offers the hook through `CLAUDE_ENV_FILE` and writes
+  nothing into your repository.
+- **The reviewer guard (ADR-060).** A role spawned read-only, such as `qh-scope-reviewer`, may not
+  edit, commit or push.
 
-Two of them carry the evidence chain and are worth knowing by name:
+The evidence chain rests on two gates:
 
-- `adr-lint` checks a record's shape and refuses a `done` row that has no
-  tool-written proof behind it.
-- `adr-verify` runs a task's acceptance command itself and appends what happened —
-  the date, the commit, the exit code, a digest of the command. Change the command
-  and every earlier entry stops matching, because it no longer proves what it
-  claimed. Its `--mutant` mode breaks your code, re-runs the check, and records
-  whether anything noticed.
+- `adr-lint` checks a record's shape and refuses a `done` row with no tool-written proof.
+- `adr-verify` runs a task's acceptance command and appends the date, commit, exit code and a
+  digest of the command; editing the command invalidates earlier entries. `--mutant` breaks the
+  code on purpose, re-runs the check, and records whether anything noticed.
 
-Nothing in those logs is written by a model. If a row says `exit 0`, a process
-exited 0.
+No model writes those logs. If a row says `exit 0`, a process exited 0.
 
-Automatic edit hooks keep source checks local to the edited file. Project-wide
-TypeScript, Rust and Go checks run when you explicitly invoke them or include them
-in a task's acceptance command. Commit and completion verification still report
-when the project's declared check has not run after the final edit.
+Run your project's check through `qh-check`. It runs the command declared as `check` in
+`.quality-harness.json` (or one inferred from a manifest), records the result with the machine load
+at start and end, and is what the commit and completion advisories read. A check run any other way
+is not recorded.
 
-Run that check through `qh-check`: it runs the command your project declared as
-`check` in `.quality-harness.json` (or the one inferred from a manifest), observes
-the tree before and after, and writes the result where the hooks read it. A check
-run any other way is not recorded, so the advisories cannot see it.
+Every gate answers `--version` with the version of the tree it was loaded from. Ask the gate whose
+output you are questioning.
 
-`.quality-harness.json` also takes `"publish": "warn"`, which turns the one refusal
-above back into a warning for projects that want the old contract.
-At an artifact-verification boundary, tasks that resolve to the same ADR command
-share that check within the pass. Findings are retained, and the next boundary
-checks again. The harness's own selftests run in its development repository and CI;
-they are not part of installed-user edit hooks.
+## Roles and templates
 
-**Every gate answers `--version`**, with the version of the tree IT was loaded
-from — not the newest copy on the machine:
-
-    $ adr-lint --version
-    adr-lint 2.63.0 (…/plugins/cache/quality-harness/quality-harness/2.63.0)
-
-Ask the gate whose output you are questioning. A resolver answers "which install is
-newest here", which on a machine where a bare name can resolve two different ways
-may not be the copy that just ran — so two gates disagreeing is a finding, not a
-glitch.
-
-## The roles you can address by name
-
-`${CLAUDE_PLUGIN_ROOT}/agents/` holds named agent definitions, so a role is spawned by
-name instead of described in prose and hoped to be reconstructed: a workflow passes
-`agentType: 'quality-harness:qh-synthesis'` to `agent()`, and a skill says
-`subagent_type: quality-harness:qh-correctness-reviewer`. Read the directory rather
-than a list here; each file's frontmatter states what the role is for and which
-capability CLASS it asks for — an alias the host binds, never a version-pinned model
-id, which would be a stored fact about a catalogue this plugin does not own.
-
-They are namespaced `qh-` so they cannot shadow a role you or your host defines.
-
-## Where the vocabulary lives
-
-`${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md` is the source of truth for record
-structure, dispositions and citation forms. Read the template rather than a summary
-of one — a summary is always narrower than the real thing, and forms nobody knows
-about are forms nobody uses.
+`${CLAUDE_PLUGIN_ROOT}/agents/` holds named roles (`qh-correctness-reviewer`, `qh-scope-reviewer`,
+`qh-synthesis`), spawned by name. `${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md` is the source of
+truth for record structure.
 
 ## Start here
 
-1. Install — `/plugin marketplace add D3-lt/quality-harness`, then
-   `/plugin install quality-harness@quality-harness`, restart — and run `qh-doctor` above.
-2. Load `/quality-harness:operating` once, for how to run the harness itself.
-3. Bring a real decision to `/quality-harness:adr-write`, or a real change to
-   `/quality-harness:work`.
+1. `/plugin marketplace add D3-lt/quality-harness`, `/plugin install quality-harness@quality-harness`,
+   restart, and run `qh-doctor`.
+2. Load `/quality-harness:operating` once.
+3. Bring a decision to `/quality-harness:adr-write`, or a change to `/quality-harness:work`.
 
-The repository holds the walkthroughs, the measured comparison against a no-plugin
-baseline, and the costs: <https://github.com/D3-lt/quality-harness>.
+Walkthroughs, benchmarks and costs: <https://github.com/D3-lt/quality-harness>.

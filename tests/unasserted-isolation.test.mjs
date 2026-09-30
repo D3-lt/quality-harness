@@ -91,3 +91,14 @@ test('an unasserted run that cannot isolate neuters nothing and names --in-place
   assert.deepEqual(readFileSync(path.join(dir, 'gate.py')), gate)
   assert.equal(existsSync(side), false, 'the suite ran, so something was neutered or measured in place')
 })
+
+// Codex's cold review of ADR-076: the stubs above strip NODE_TEST_CONTEXT themselves, so they
+// cannot show the tool strips it. This one hands the tool this runner's own environment.
+test('an unasserted run started inside a test runner still reads its suite\'s failures', TODO, () => {
+  const { dir } = fixture()
+  assert.ok(process.env.NODE_TEST_CONTEXT, 'this file is not running under node --test')
+  const run = spawnSync(process.execPath, [path.join(dir, 'scripts', 'unasserted.mjs'), 'gate.py', 'tests/gate.test.mjs'],
+    { cwd: dir, env: { ...process.env, PYTHONDONTWRITEBYTECODE: '1' }, encoding: 'utf8', timeout: 180_000, windowsHide: true })
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.match(run.stdout, /killed/, 'the inner suite\'s failure was not read')
+})

@@ -108,7 +108,10 @@ test("an isolated campaign reuses and returns the checkout's verdict cache", () 
   assert.match(second.stdout, /\b0 measured this run; 1 reused\b/)
 })
 
-test('a second campaign waits while an orphaned child of the first still runs', async () => {
+// On Windows no orphan survives to wait on: libuv puts every child it does not detach in a job
+// object that ends it with its parent, so killing the parent ends the child at once. Measured on
+// CI (run 36707652332, 2026-09-30): the next run found both owners gone and swept at once.
+test('a second campaign waits while an orphaned child of the first still runs', { skip: process.platform === 'win32' && 'Windows ends the child with its parent (a libuv job object), so no orphan survives' }, async () => {
   const dir = campaignFixture()
   const side = sidecar()
   const scratch = path.dirname(side)

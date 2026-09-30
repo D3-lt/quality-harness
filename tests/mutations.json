@@ -17756,6 +17756,26 @@
       "from": "    if (exposure.error) process.stderr.write(",
       "to": "    if (false) process.stderr.write(",
       "only": "^an in-place campaign names the processes running this checkout"
+    },
+    {
+      "label": "ADR-075 T4: a mismatch is reported",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "    if (a !== b) mismatches.push({ label, inPlace: a, isolated: b })",
+      "to": "    void label",
+      "only": "^compareRuns finds a mismatch"
+    },
+    {
+      "label": "ADR-075 T4: the overhead bound is enforced",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "    return mismatches.length || built > OVERHEAD_MS ? 1 : 0",
+      "to": "    return mismatches.length ? 1 : 0",
+      "only": "^a worktree slower than its budget fails the parity run$"
     }
   ]
 }

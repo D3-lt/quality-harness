@@ -78,13 +78,23 @@ const mutationLog = dir => readFileSync(path.join(dir, 'tasks', 'T1-fixture.md')
 
 test("a mutant run leaves the checkout unchanged but for the task file's logs", TODO, () => {
   const { dir, side } = corpus()
+  const git = args => spawnSync('git', args, { cwd: dir, encoding: 'utf8', timeout: 60_000, windowsHide: true }).stdout
+  // The index, the staged diff and the stash list as git reports them (ADR-075's comparison).
+  const gitState = () => ['ls-files -s', 'diff --cached', 'stash list'].map(args => git(args.split(' '))).join('\n---\n')
+  const task = path.join(dir, 'tasks', 'T1-fixture.md')
+  const outsideLogs = () => readFileSync(task, 'utf8').split('## Verification Log')[0]
   const before = snapshot(dir, new Set(['tasks/T1-fixture.md']))
+  const state = gitState()
+  const head = outsideLogs()
   const run = verify(dir, [], { FIXTURE_SIDECAR: side, FIXTURE_CHECKOUT: dir })
   assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.match(run.stdout.split('\n')[0], /isolated in/, run.stdout)
   assert.match(mutationLog(dir), /mutant killed/)
   assert.ok(existsSync(side), 'the fence never ran')
   assert.equal(exposed(side), false, 'the checkout held the mutant while the fence ran')
   assert.deepEqual(snapshot(dir, new Set(['tasks/T1-fixture.md'])), before)
+  assert.equal(gitState(), state, 'the run wrote the index or the stash list')
+  assert.equal(outsideLogs(), head, 'the task file changed outside its logs')
   assert.equal(worktrees(dir), 1, 'a worktree outlived the run')
 })
 
@@ -127,9 +137,17 @@ test('an isolated and an in-place run record the same verdict', TODO, () => {
   const verdict = dir => mutationLog(dir).match(/mutant (killed|survived|inconclusive)/)?.[1]
   assert.equal(verdict(isolated.dir), 'killed')
   assert.equal(verdict(inPlace.dir), verdict(isolated.dir))
-  // The entry's sha is the checkout's HEAD, dirty because the task file gained its logs.
+  // Both rows name the checkout's HEAD, taken before the run: clean here, and `*` once the
+  // checkout holds an uncommitted file.
   const head = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: isolated.dir, encoding: 'utf8', timeout: 60_000, windowsHide: true }).stdout.trim()
-  assert.ok(mutationLog(isolated.dir).includes(head), `the entry does not name the checkout's HEAD ${head}`)
+  const rows = readFileSync(path.join(isolated.dir, 'tasks', 'T1-fixture.md'), 'utf8').split('## Verification Log')[1]
+  assert.equal((rows.match(new RegExp(`· ${head} ·`, 'g')) ?? []).length, 2, `both rows should name ${head}:\n${rows}`)
+  const dirty = corpus()
+  writeFileSync(path.join(dirty.dir, 'untracked.txt'), 'x\n')
+  assert.equal(verify(dirty.dir).status, 0)
+  const dirtyHead = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: dirty.dir, encoding: 'utf8', timeout: 60_000, windowsHide: true }).stdout.trim()
+  const dirtyRows = readFileSync(path.join(dirty.dir, 'tasks', 'T1-fixture.md'), 'utf8').split('## Verification Log')[1]
+  assert.equal((dirtyRows.match(new RegExp(`· ${dirtyHead}\\* ·`, 'g')) ?? []).length, 2, `both rows should mark ${dirtyHead} dirty:\n${dirtyRows}`)
 })
 
 test('--in-place applies the mutant in the checkout and restores it', TODO, () => {
@@ -152,4 +170,30 @@ test('a stopped mutant run removes its worktree', { ...TODO, skip: process.platf
   child.kill('SIGTERM')
   await exited
   assert.equal(worktrees(dir), 1, 'the worktree outlived its run')
+})
+
+// Codex's cold review of ADR-076: a build-if-missing output of the clean fence must be reset
+// before the mutant fence, inside the worktree, or the mutant fence reads the clean build.
+test('a generated output left by the clean fence is reset before the mutant fence', TODO, () => {
+  const fence = FENCE.replace('if grep -q "## Decisiun" ADR-001-selftest.md;',
+    'if [ ! -f built.txt ]; then cp ADR-001-selftest.md built.txt; fi\nif grep -q "## Decisiun" built.txt;')
+  const { dir } = corpus({ fence })
+  const run = verify(dir, ['--also-restore', 'built.txt'])
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.match(run.stdout.split('\n')[0], /isolated in/, run.stdout)
+  assert.match(mutationLog(dir), /mutant killed/, 'the mutant fence read the clean build')
+  assert.equal(existsSync(path.join(dir, 'built.txt')), false, 'the build reached the checkout')
+})
+
+// Codex's cold review of ADR-076: a path that only shares the checkout's prefix is not the
+// checkout, so it must not force the run in place.
+test("a sibling path sharing the checkout's prefix does not force the run in place", TODO, () => {
+  const probe = corpus()
+  const fence = FENCE.replace('echo "1 passed in 0.01s"', `ls "${probe.dir}-sibling" >/dev/null 2>&1 || true\necho "1 passed in 0.01s"`)
+  const task = path.join(probe.dir, 'tasks', 'T1-fixture.md')
+  writeFileSync(task, readFileSync(task, 'utf8').replace(/```bash\n[\s\S]*?```/, fence))
+  spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', 'commit', '-qam', 'sibling'], { cwd: probe.dir, timeout: 60_000, windowsHide: true })
+  const run = verify(probe.dir)
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.match(run.stdout.split('\n')[0], /isolated in/, run.stdout)
 })

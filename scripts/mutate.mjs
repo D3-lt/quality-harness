@@ -159,6 +159,8 @@ function releaseTheRun() {
 // ADR-075: the isolated campaign. `QUALITY_HARNESS_CAMPAIGN_CHILD` marks the child, which runs
 // in the worktree over exactly the parent's selection.
 const CAMPAIGN_CHILD = 'QUALITY_HARNESS_CAMPAIGN_CHILD'
+// Where the child's `owner.json` is: the child waits until it names it (`ownedBy`).
+const CAMPAIGN_OWNER = 'QUALITY_HARNESS_CAMPAIGN_OWNER'
 const thisScript = fileURLToPath(import.meta.url)
 
 // git with a fixed identity: `git stash create` makes a commit, and a fixture or a CI runner may
@@ -280,6 +282,53 @@ export function exposedProcesses(dir, { env = process.env, platform = process.pl
   return { found }
 }
 
+// `git stash create` stores what git would commit, and for a path with a text attribute that is
+// the NORMALISED content: CRLF bytes in an `eol=lf` file check out as LF, so an in-place run and an
+// isolated one would read different bytes (Codex review of ADR-075; spec F-8). Every tracked
+// regular file whose bytes in the worktree are not the checkout's gets the checkout's; the count
+// comes back so the run can say so.
+function overlayTracked(from, to) {
+  const listed = gitIn(from, ['ls-files', '-s', '-z'])
+  if (listed.error || listed.status !== 0) throw new Error(gitSaid(listed))
+  let copied = 0
+  for (const record of listed.stdout.split('\0').filter(Boolean)) {
+    // A symlink (120000) or a submodule (160000) is git's to reproduce, and it does.
+    if (!record.startsWith('100')) continue
+    const file = record.slice(record.indexOf('\t') + 1)
+    let bytes
+    try { bytes = readFileSync(path.join(from, file)) } catch (error) {
+      // Deleted in the checkout, and so absent from the stash as well.
+      if (error.code === 'ENOENT') continue
+      throw error
+    }
+    const target = path.join(to, file)
+    let there = null
+    try { there = readFileSync(target) } catch {}
+    if (there && bytes.equals(there)) continue
+    mkdirSync(path.dirname(target), { recursive: true })
+    writeFileSync(target, bytes)
+    copied++
+  }
+  return copied
+}
+
+// The isolated child starts before its parent can write its pid down, so it waits until
+// `owner.json` names it: a parent killed in that window leaves nothing that says the child lives,
+// and a later run's sweep would remove the tree from under it (Codex review of ADR-075). It gives
+// up when the parent that file names has ended, or after half a minute.
+function ownedBy(file) {
+  const pause = new Int32Array(new SharedArrayBuffer(4))
+  const until = Date.now() + 30_000
+  while (Date.now() < until) {
+    let owner = null
+    try { owner = JSON.parse(readFileSync(file, 'utf8')) } catch {}
+    if (owner?.child === process.pid) return true
+    if (owner && !alive(owner.parent)) return false
+    Atomics.wait(pause, 0, 0, 20)
+  }
+  return false
+}
+
 async function isolate({ selected, argv, paths, loadAtStart }) {
   const say = line => process.stderr.write(`mutate: ${line}\n`)
   const refuse = reason => {
@@ -334,16 +383,32 @@ async function isolate({ selected, argv, paths, loadAtStart }) {
     drop()
     return refuse(`an untracked file could not be copied (${error.code ?? error.message})`)
   }
-  say(`worktree built in ${Date.now() - began} ms`)
-  // The selection is the parent's, handed over by label: re-evaluating `--changed` or `--shard`
-  // in the worktree compares against the snapshot and reads no timings (spec F-15).
-  const selectedFile = path.join(id, 'selected.json')
-  writeFileSync(selectedFile, JSON.stringify(selected.map(mutation => mutation.label)))
-  const caching = !argv.includes('--no-cache') && !argv.includes('--cache')
+  let caching = !argv.includes('--no-cache') && !argv.includes('--cache')
   const treeCache = path.join(tree, path.basename(paths.cache))
-  if (caching && existsSync(paths.cache)) copyFileSync(paths.cache, treeCache)
+  const selectedFile = path.join(id, 'selected.json')
+  // Every step after `worktree add` removes the worktree when it fails: a registered worktree
+  // nothing owns is one no later run can tell from a live one's for a minute.
+  try {
+    const copied = overlayTracked(root, tree)
+    if (copied) say(`${copied} tracked file(s) hold bytes git stores differently (line endings, most often); the worktree has the checkout's`)
+    say(`worktree built in ${Date.now() - began} ms`)
+    // The selection is the parent's, handed over by label: re-evaluating `--changed` or `--shard`
+    // in the worktree compares against the snapshot and reads no timings (spec F-15).
+    writeFileSync(selectedFile, JSON.stringify(selected.map(mutation => mutation.label)))
+  } catch (error) {
+    drop()
+    return refuse(`the worktree could not be prepared (${error.code ?? error.message})`)
+  }
+  if (caching && existsSync(paths.cache)) {
+    // A cache that cannot be read in is not reused, and so is not written back either: the
+    // child's would replace the checkout's without the verdicts it never saw.
+    try { copyFileSync(paths.cache, treeCache) } catch (error) {
+      say(`the verdict cache could not be read into the worktree (${error.code ?? error.message}); this run neither reuses nor returns it`)
+      caching = false
+    }
+  }
   const args = [thisScript, '--in-place', '--root', tree, '--selected', selectedFile]
-  if (argv.includes('--no-cache')) args.push('--no-cache')
+  if (argv.includes('--no-cache') || (!caching && !argv.includes('--cache'))) args.push('--no-cache')
   // The shard's label rides along for the cache file it writes; the child never re-slices.
   if (argv.includes('--shard')) args.push('--shard', argv[argv.indexOf('--shard') + 1])
   if (argv.includes('--cache')) args.push('--cache', path.resolve(argv[argv.indexOf('--cache') + 1]))
@@ -353,15 +418,21 @@ async function isolate({ selected, argv, paths, loadAtStart }) {
     // A hang guard for the whole campaign, not a budget: each test run inside it is bounded at
     // three minutes already, and the full catalogue takes hours on one machine.
     timeout: 12 * 60 * 60 * 1000,
-    env: { ...inherited, [CAMPAIGN_CHILD]: '1' },
+    env: { ...inherited, [CAMPAIGN_CHILD]: '1', [CAMPAIGN_OWNER]: ownerFile },
   })
+  // The child runs nothing until this names it (`ownedBy`).
   writeFileSync(ownerFile, JSON.stringify({ parent: process.pid, child: child.pid }))
   writeFileSync(lockPath, `${process.pid} ${child.pid}`)
   let stopped = null
+  let escalation = null
   const stop = signal => {
     if (stopped) return
     stopped = signal
     signalGroup(child.pid, 'SIGTERM')
+    // The child's campaign loop is synchronous, so its own handler cannot run until the loop ends:
+    // a SIGTERM ends the test run in flight and the next one starts (the header above, measured
+    // 2026-08-27). The grace runs from the signal, not from an exit that may be hours away.
+    escalation = setTimeout(() => signalGroup(child.pid, 'SIGKILL'), 2_000)
   }
   process.on('SIGINT', () => stop('SIGINT'))
   process.on('SIGTERM', () => stop('SIGTERM'))
@@ -369,13 +440,22 @@ async function isolate({ selected, argv, paths, loadAtStart }) {
     child.once('exit', (code, signal) => resolve({ code, signal }))
     child.once('error', error => resolve({ code: null, signal: null, error }))
   })
+  clearTimeout(escalation)
   // Nothing is removed while a process of the campaign lives: a grace for the group, then SIGKILL.
-  if (!(await groupEnded(child.pid, stopped ? 2_000 : 10_000))) {
+  let over = await groupEnded(child.pid, stopped ? 2_000 : 10_000)
+  if (!over) {
     signalGroup(child.pid, 'SIGKILL')
-    await groupEnded(child.pid, 10_000)
+    over = await groupEnded(child.pid, 10_000)
   }
-  if (caching && !stopped && !ended.error) writeBackCache(treeCache, paths.cache, { say })
-  drop()
+  if (over) {
+    if (caching && !stopped && !ended.error) writeBackCache(treeCache, paths.cache, { say })
+    drop()
+  } else {
+    // Spec F-16: a tree is never removed under a live process. The lock names the survivor, so no
+    // run starts beside it, and the next run's sweep removes the tree once it has ended.
+    writeFileSync(lockPath, String(child.pid))
+    say(`a process of the isolated campaign (group ${child.pid}) outlived SIGKILL; ${path.basename(id)} is left for the next run to remove`)
+  }
   const loadAtEnd = campaignLoad()
   console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))
   if (stopped) return stopped === 'SIGINT' ? 130 : 143
@@ -597,7 +677,9 @@ export function childEnv(base = process.env, scratch = mkdtempSync(path.join(tmp
   // what a child prints. Under it the spec reporter prefixes every `✔`/`✖` line
   // with an escape code, leafTestsRun finds none, and every baseline in a campaign
   // run from such a shell is `unrun` — nothing measured (BACKLOG §256).
-  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, ...rest } = base
+  // The isolated child's marker and owner file are its own: a test it runs — mutate's own tests,
+  // which run campaigns — would otherwise skip the in-place checks (Codex review of ADR-075).
+  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, [CAMPAIGN_CHILD]: _child, [CAMPAIGN_OWNER]: _owner, ...rest } = base
   const tokens = (rest.NODE_OPTIONS ?? '').split(/\s+/).filter(Boolean)
   const kept = tokens.filter((token, i, all) => !/^--test-reporter(?:-destination)?(?:=|$)/.test(token)
     && !(i > 0 && /^--test-reporter(?:-destination)?$/.test(all[i - 1])))
@@ -1247,6 +1329,11 @@ export function main(argv) {
   // ADR-075: `--selected` is the isolated child's, handed to it by its parent; nothing else passes it.
   if (argv.includes('--selected') && process.env[CAMPAIGN_CHILD] !== '1') {
     process.stderr.write('mutate: --selected is the isolated child\'s own option, not one to pass\n')
+    return 2
+  }
+  // ...and it runs nothing until its parent has recorded it (`ownedBy`).
+  if (process.env[CAMPAIGN_CHILD] === '1' && process.env[CAMPAIGN_OWNER] && !ownedBy(process.env[CAMPAIGN_OWNER])) {
+    process.stderr.write('mutate: the isolated campaign\'s parent ended before it recorded this run, so it does not start\n')
     return 2
   }
   // ADR-069: one root for the catalogue, the sources, the lock, the journal and the cache.

@@ -56,7 +56,7 @@ A campaign changes zero bytes of the checkout, adds under 2 s for its worktree (
 
 ## Scenarios
 
-### UC1-S1 [happy] A campaign leaves the checkout byte-identical [@spec] → `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there`
+### UC1-S1 [happy] A campaign leaves the checkout byte-identical [@implemented] → `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there`
 
 ```gherkin
 Given a checkout at a commit, with an uncommitted edit to an unrelated file
@@ -64,7 +64,7 @@ When a campaign runs over two catalogue entries
 Then every tracked and untracked file in the checkout has the bytes it had before
 ```
 
-### UC1-S2 [failure] A campaign that cannot isolate stops [@spec] → `tests/mutate-isolation.test.mjs::a campaign that cannot isolate stops and names --in-place, writing nothing`
+### UC1-S2 [failure] A campaign that cannot isolate stops [@implemented] → `tests/mutate-isolation.test.mjs::a campaign that cannot isolate stops and names --in-place, writing nothing`
 
 ```gherkin
 Given a repository whose HEAD is unborn
@@ -72,7 +72,7 @@ When a campaign starts
 Then it exits 2 with "could not isolate", names --in-place, and writes nothing
 ```
 
-### UC1-S3 [failure] A killed campaign's worktree is removed by the next run [@spec] → `tests/mutate-isolation.test.mjs::a killed campaign's worktree is removed by the next run, and said`
+### UC1-S3 [failure] A killed campaign's worktree is removed by the next run [@implemented] → `tests/mutate-isolation.test.mjs::a killed campaign's worktree is removed by the next run, and said`
 
 ```gherkin
 Given a campaign killed with SIGKILL, leaving its worktree
@@ -80,7 +80,7 @@ When the next campaign starts
 Then the old worktree is removed and pruned, and stderr says so
 ```
 
-### UC1-S4 [happy] An isolated run reuses the checkout's cache [@spec] → `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache`
+### UC1-S4 [happy] An isolated run reuses the checkout's cache [@implemented] → `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache`
 
 ```gherkin
 Given a checkout whose verdict cache holds a verdict for an entry
@@ -88,7 +88,7 @@ When an isolated campaign runs that entry, then a second one
 Then the second reuses it, and the checkout's cache holds the new verdicts
 ```
 
-### UC1-S5 [happy] Isolated and in-place runs agree [@spec] → `tests/mutate-isolation.test.mjs::an isolated run and an in-place run of the same entries give the same verdicts`
+### UC1-S5 [happy] Isolated and in-place runs agree [@implemented] → `tests/mutate-isolation.test.mjs::an isolated run and an in-place run of the same entries give the same verdicts`
 
 ```gherkin
 Given one commit and a fixed set of catalogue entries
@@ -96,7 +96,7 @@ When they run isolated and then in place
 Then every entry has the same verdict both times
 ```
 
-### UC1-S6 [happy] An uncommitted test edit is graded as an in-place run grades it [@spec] → `tests/mutate-isolation.test.mjs::an uncommitted test edit and an untracked test are graded as an in-place run grades them`
+### UC1-S6 [happy] An uncommitted test edit is graded as an in-place run grades it [@implemented] → `tests/mutate-isolation.test.mjs::an uncommitted test edit and an untracked test are graded as an in-place run grades them`
 
 ```gherkin
 Given a committed test that does not kill a mutant, and an uncommitted edit to it that does
@@ -104,7 +104,7 @@ When a campaign runs isolated and then in place
 Then both grade the mutant RED, and an untracked test named by an uncommitted catalogue entry is run by both
 ```
 
-### UC1-S7 [failure] A second campaign waits while the first one's child still runs [@spec] → `tests/mutate-isolation.test.mjs::a second campaign waits while an orphaned child of the first still runs`
+### UC1-S7 [failure] A second campaign waits while the first one's child still runs [@implemented] → `tests/mutate-isolation.test.mjs::a second campaign waits while an orphaned child of the first still runs`
 
 ```gherkin
 Given a campaign whose parent was killed while its child still runs
@@ -112,7 +112,7 @@ When a second campaign starts on the same root
 Then it exits 2 as another run in flight, and once the child has ended the next run removes the worktree
 ```
 
-### UC1-S8 [happy] The child runs exactly the parent's selection [@spec] → `tests/mutate-isolation.test.mjs::an isolated campaign runs exactly the entries an in-place one selects`
+### UC1-S8 [happy] The child runs exactly the parent's selection [@implemented] → `tests/mutate-isolation.test.mjs::an isolated campaign runs exactly the entries an in-place one selects`
 
 ```gherkin
 Given uncommitted changes and a verdict cache with timings
@@ -180,17 +180,17 @@ Then it says it could not look, and runs
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | `mutate.mjs --root <dir>` confines catalogue, lock, journal and verdict cache to `<dir>`. | `tests/mutate-runner.test.mjs::campaignPaths keeps every campaign file inside the root it is given` | @spec | |
-| F-2 | An `--in-place` campaign refuses entries whose files have uncommitted changes; one campaign runs per root, in either mode. | `tests/gate-rules.test.mjs::the mutation runner refuses to run over an editor, or beside another runner` | @spec | |
-| F-8 | A campaign runs by default in a throwaway worktree holding the checkout's working-tree content (`HEAD`, its uncommitted tracked changes, and its untracked files that are not ignored), so it grades exactly what an in-place run would; every tracked and untracked file of the checkout keeps its bytes except the verdict cache the run writes back (F-12), no mutant appears in it, and its index and stash list are unchanged; `--in-place` keeps today's behaviour. | `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there` | @spec | |
-| F-9 | The worktree lives in the repository's git directory (`<git-common-dir>/qh-campaigns/`), never under the OS temp root, so a test that tells scratch from project by the temp root grades alike in both modes. A campaign owns it from before it exists until the campaign's process group has ended: a SIGINT or SIGTERM to the parent ends the group and removes it; the next run removes one only when its owner record names no live process and, on POSIX, no live process group, and says so. On Windows the next run's sweep is the only cleanup. | `tests/mutate-isolation.test.mjs::a killed campaign's worktree is removed by the next run, and said` | @spec | |
+| F-1 | `mutate.mjs --root <dir>` confines catalogue, lock, journal and verdict cache to `<dir>`. | `tests/mutate-runner.test.mjs::campaignPaths keeps every campaign file inside the root it is given` | @implemented | |
+| F-2 | An `--in-place` campaign refuses entries whose files have uncommitted changes; one campaign runs per root, in either mode. | `tests/gate-rules.test.mjs::the mutation runner refuses to run over an editor, or beside another runner` | @implemented | |
+| F-8 | A campaign runs by default in a throwaway worktree holding the checkout's working-tree content (`HEAD`, its uncommitted tracked changes, and its untracked files that are not ignored), so it grades exactly what an in-place run would; every tracked and untracked file of the checkout keeps its bytes except the verdict cache the run writes back (F-12), no mutant appears in it, and its index and stash list are unchanged; `--in-place` keeps today's behaviour. | `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there` | @implemented | |
+| F-9 | The worktree lives in the repository's git directory (`<git-common-dir>/qh-campaigns/`), never under the OS temp root, so a test that tells scratch from project by the temp root grades alike in both modes. A campaign owns it from before it exists until the campaign's process group has ended: a SIGINT or SIGTERM to the parent ends the group and removes it; the next run removes one only when its owner record names no live process and, on POSIX, no live process group, and says so. On Windows the next run's sweep is the only cleanup. | `tests/mutate-isolation.test.mjs::a killed campaign's worktree is removed by the next run, and said` | @implemented | |
 | F-10 | qh-check and a campaign sample the 1-minute load and the core count at start and at end, and always report both samples (a campaign on every run, an interrupted one included); `contended` is true when either sample exceeds the core count, false when both are at or below it, null when either could not be read; the result calls it an endpoint observation, says "unattributable" when true, and never changes an exit or a verdict. | `tests/qh-check.test.mjs::a check run above the core count is recorded as contended and said, and its exit is unchanged` | @implemented | |
 | F-11 | Before an `--in-place` campaign, mutate names the other processes whose command line names this checkout, as advice, and runs; where it cannot list processes it says so. | `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look` | @spec | |
-| F-12 | An isolated campaign starts from the checkout's verdict cache and writes the run's cache back in its own shape, one CI's merge job reads; a write-back that fails leaves the cache as it was and says so. | `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache` | @spec | |
-| F-13 | A campaign that cannot create its worktree exits 2 with "could not isolate", names `--in-place`, and writes nothing; it never falls back silently. | `tests/mutate-isolation.test.mjs::a campaign that cannot isolate stops and names --in-place, writing nothing` | @spec | |
-| F-14 | At one commit, isolated and in-place runs of the same entries give the same verdict for each. | `tests/mutate-isolation.test.mjs::an isolated run and an in-place run of the same entries give the same verdicts` | @spec | |
-| F-15 | An isolated campaign runs exactly the entries the parent selected — the same entry identities an in-place run selects from the same arguments over the same content, `--changed <ref>` over uncommitted changes and `--shard i/n` with `--no-cache` included. | `tests/mutate-isolation.test.mjs::an isolated campaign runs exactly the entries an in-place one selects` | @spec | |
-| F-16 | While any process of a campaign lives, no second campaign runs on its root: the root's lock names the parent and the child's process group, and it is live while either is. | `tests/mutate-isolation.test.mjs::a second campaign waits while an orphaned child of the first still runs` | @spec | |
+| F-12 | An isolated campaign starts from the checkout's verdict cache and writes the run's cache back in its own shape, one CI's merge job reads; a write-back that fails leaves the cache as it was and says so. | `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache` | @implemented | |
+| F-13 | A campaign that cannot create its worktree exits 2 with "could not isolate", names `--in-place`, and writes nothing; it never falls back silently. | `tests/mutate-isolation.test.mjs::a campaign that cannot isolate stops and names --in-place, writing nothing` | @implemented | |
+| F-14 | At one commit, isolated and in-place runs of the same entries give the same verdict for each. | `tests/mutate-isolation.test.mjs::an isolated run and an in-place run of the same entries give the same verdicts` | @implemented | |
+| F-15 | An isolated campaign runs exactly the entries the parent selected — the same entry identities an in-place run selects from the same arguments over the same content, `--changed <ref>` over uncommitted changes and `--shard i/n` with `--no-cache` included. | `tests/mutate-isolation.test.mjs::an isolated campaign runs exactly the entries an in-place one selects` | @implemented | |
+| F-16 | While any process of a campaign lives, no second campaign runs on its root: the root's lock names the parent and the child's process group, and it is live while either is. | `tests/mutate-isolation.test.mjs::a second campaign waits while an orphaned child of the first still runs` | @implemented | |
 
 ## Domain
 

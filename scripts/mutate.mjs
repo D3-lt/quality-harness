@@ -29,9 +29,9 @@
 //
 // Exit: 0 = every mutation was noticed
 //       1 = a mutation left its suite GREEN, or no longer describes the code
-import { spawnSync } from 'node:child_process'
-import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { createHash, randomBytes } from 'node:crypto'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -116,16 +116,27 @@ function finish(file, original) {
 // dirty-tree guard untestable because the lock refused the inner run first.
 let lockPath = campaignPaths(root).lock
 
+// ADR-075 (spec F-16): the lock names the parent and, once one is spawned, the isolated child.
+// It is live while any pid it names lives or, on POSIX, while the child's process group does,
+// so no second campaign runs on a root whose first one's child is still working.
+function alive(pid) {
+  if (!Number.isInteger(pid) || pid <= 0) return false
+  try { process.kill(pid, 0); return true } catch (error) { return error.code === 'EPERM' }
+}
+function groupAlive(pid) {
+  if (process.platform === 'win32' || !Number.isInteger(pid) || pid <= 0) return false
+  try { process.kill(-pid, 0); return true } catch (error) { return error.code === 'EPERM' }
+}
+// An empty or unparsable lock names no process: `Number('')` is 0, and `kill(0, 0)` probes
+// THIS process group, which always answers — so a stale empty lock read as a live run and
+// refused every campaign (BACKLOG §295 item 24). Only positive integers count.
+const pidsOf = text => text.trim().split(/\s+/).map(Number).filter(pid => Number.isInteger(pid) && pid > 0)
+
 function claimTheRun() {
   if (existsSync(lockPath)) {
     const owner = readFileSync(lockPath, 'utf8').trim()
-    // An empty or unparsable lock names no process: `Number('')` is 0, and
-    // `kill(0, 0)` probes THIS process group, which always answers — so a stale empty
-    // lock read as a live run and refused every campaign (BACKLOG §295 item 24).
-    const pid = Number(owner)
-    let alive = Number.isInteger(pid) && pid > 0
-    if (alive) try { process.kill(pid, 0) } catch { alive = false }
-    if (alive) {
+    const pids = pidsOf(owner)
+    if (pids.some(alive) || (pids.length > 1 && groupAlive(pids[1]))) {
       process.stderr.write(`mutate: another run is in flight (pid ${owner}). `
         + 'Two runners restore each other\'s files and both report nonsense.\n')
       return false
@@ -139,10 +150,219 @@ function claimTheRun() {
 
 function releaseTheRun() {
   try {
-    if (readFileSync(lockPath, 'utf8').trim() === String(process.pid)) {
+    if (pidsOf(readFileSync(lockPath, 'utf8'))[0] === process.pid) {
       rmSync(lockPath, { force: true })
     }
   } catch {}
+}
+
+// ADR-075: the isolated campaign. `QUALITY_HARNESS_CAMPAIGN_CHILD` marks the child, which runs
+// in the worktree over exactly the parent's selection.
+const CAMPAIGN_CHILD = 'QUALITY_HARNESS_CAMPAIGN_CHILD'
+const thisScript = fileURLToPath(import.meta.url)
+
+// git with a fixed identity: `git stash create` makes a commit, and a fixture or a CI runner may
+// have no user configured.
+function gitIn(dir, args) {
+  const run = spawnSync('git', ['-C', dir, '-c', 'user.name=mutate', '-c', 'user.email=mutate@localhost', ...args],
+    { encoding: 'utf8', timeout: 120_000, maxBuffer: 256 * 1024 * 1024, windowsHide: true })
+  return Object.assign(run, { command: `git ${args.join(' ')}` })
+}
+// The command that failed and what it said, or its exit status when it said nothing.
+const gitSaid = run => `${run.command}: ${(run.error?.message ?? run.stderr?.trim()) || `exit ${run.status}`}`
+
+/**
+ * campaignHome is where a repository's campaign worktrees live: its git directory, never the OS
+ * temp root, because a test that tells scratch from project by the temp root
+ * (`plugin/scripts/lifecycle.mjs:347`) must grade alike in both modes (spec F-9).
+ */
+export function campaignHome(dir) {
+  const common = gitIn(dir, ['rev-parse', '--git-common-dir'])
+  if (common.error || common.status !== 0) return null
+  return path.join(path.resolve(dir, common.stdout.trim()), 'qh-campaigns')
+}
+
+/**
+ * sweepCampaigns removes every campaign worktree under `home` whose owners have all ended — the
+ * parent and child its `owner.json` names and, on POSIX, the child's process group — and says
+ * so (spec F-9, F-16). A directory with no `owner.json` belongs to a parent that died before
+ * writing it, or to one writing it now, so it is left for a minute.
+ */
+export function sweepCampaigns(dir, home, say) {
+  let ids = []
+  try { ids = readdirSync(home) } catch { return }
+  for (const id of ids) {
+    const at = path.join(home, id)
+    let owner = null
+    try { owner = JSON.parse(readFileSync(path.join(at, 'owner.json'), 'utf8')) } catch {}
+    if (owner) {
+      if (alive(owner.parent) || alive(owner.child) || groupAlive(owner.child)) continue
+    } else {
+      try { if (Date.now() - statSync(at).mtimeMs < 60_000) continue } catch { continue }
+    }
+    gitIn(dir, ['worktree', 'remove', '--force', path.join(at, 'tree')])
+    rmSync(at, { recursive: true, force: true })
+    gitIn(dir, ['worktree', 'prune'])
+    say(`removed a campaign worktree left by an earlier run: ${id}`)
+  }
+}
+
+/**
+ * writeBackCache puts the child's verdict cache over the checkout's through a temporary file and
+ * a rename, in the child's own shape, which is mutate's and what CI's merge job reads (spec F-12).
+ * A read, write or rename that fails leaves `to` byte-identical, and says so.
+ */
+export function writeBackCache(from, to, { fs: io = {}, say = line => process.stderr.write(`mutate: ${line}\n`) } = {}) {
+  const read = io.readFileSync ?? readFileSync
+  const write = io.writeFileSync ?? writeFileSync
+  const rename = io.renameSync ?? renameSync
+  let text
+  try { text = read(from, 'utf8') } catch (error) {
+    say(`the verdict cache was not updated: the run wrote none (${error.code ?? error.message})`)
+    return false
+  }
+  const temp = `${to}.${process.pid}.tmp`
+  try {
+    write(temp, text)
+    rename(temp, to)
+    return true
+  } catch (error) {
+    rmSync(temp, { force: true })
+    say(`the verdict cache was not updated: ${error.message}`)
+    return false
+  }
+}
+
+// Ends a process group, or on Windows a process tree: the child's synchronous loop does not
+// run its handlers while it works, and its own `node --test` must not outlive the worktree.
+function signalGroup(pid, signal) {
+  if (process.platform === 'win32') {
+    spawnSync('taskkill', ['/PID', String(pid), '/T', '/F'], { timeout: 30_000, windowsHide: true })
+    return
+  }
+  try { process.kill(-pid, signal) } catch {}
+}
+async function groupEnded(pid, ms) {
+  const until = Date.now() + ms
+  while (Date.now() < until) {
+    if (!(process.platform === 'win32' ? alive(pid) : groupAlive(pid))) return true
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  return false
+}
+
+/**
+ * isolate runs the campaign the parent selected in a worktree of the checkout's working-tree
+ * content, and returns its exit code (ADR-075 T2; spec F-8, F-9, F-12, F-13, F-15, F-16).
+ */
+async function isolate({ selected, argv, paths, loadAtStart }) {
+  const say = line => process.stderr.write(`mutate: ${line}\n`)
+  const refuse = reason => {
+    say(`could not isolate: ${reason}; --in-place runs in this checkout`)
+    return 2
+  }
+  const home = campaignHome(root)
+  if (!home) return refuse('this is not a git repository')
+  mkdirSync(home, { recursive: true })
+  sweepCampaigns(root, home, say)
+  const began = Date.now()
+  const id = path.join(home, `${process.pid}-${randomBytes(3).toString('hex')}`)
+  mkdirSync(id)
+  const ownerFile = path.join(id, 'owner.json')
+  writeFileSync(ownerFile, JSON.stringify({ parent: process.pid }))
+  const tree = path.join(id, 'tree')
+  const drop = () => {
+    gitIn(root, ['worktree', 'remove', '--force', tree])
+    rmSync(id, { recursive: true, force: true })
+    gitIn(root, ['worktree', 'prune'])
+  }
+  // The working-tree content: `git stash create` is HEAD plus the uncommitted tracked changes
+  // as a commit, and prints nothing when there are none; it writes no ref and no index.
+  const stash = gitIn(root, ['stash', 'create'])
+  // Exit 1 with nothing said is "no local changes": measured 2026-09-30 after an in-place run
+  // restored its files, leaving the index's stat information stale over unchanged content. An
+  // unborn HEAD also exits 1, and says why, so it is still refused. Refreshing the index first
+  // would write it, which an isolated run must never do (spec F-8).
+  const unchanged = stash.status === 1 && !stash.stdout.trim() && !stash.stderr.trim()
+  if (stash.error || (stash.status !== 0 && !unchanged)) { drop(); return refuse(gitSaid(stash)) }
+  let commit = stash.stdout.trim()
+  if (!commit) {
+    const head = gitIn(root, ['rev-parse', '--verify', 'HEAD'])
+    if (head.error || head.status !== 0) { drop(); return refuse(gitSaid(head)) }
+    commit = head.stdout.trim()
+  }
+  const added = gitIn(root, ['worktree', 'add', '--detach', tree, commit])
+  if (added.error || added.status !== 0) { drop(); return refuse(gitSaid(added)) }
+  const untracked = gitIn(root, ['ls-files', '--others', '--exclude-standard', '-z'])
+  if (untracked.error || untracked.status !== 0) { drop(); return refuse(gitSaid(untracked)) }
+  try {
+    // Never the campaign's own files: an untracked lock would name the parent, alive, and the
+    // child would refuse to run beside it.
+    const own = new Set([paths.lock, paths.journal, paths.cache].map(file => path.relative(root, file).split(path.sep).join('/')))
+    for (const file of untracked.stdout.split('\0').filter(Boolean)) {
+      if (own.has(file)) continue
+      const target = path.join(tree, file)
+      mkdirSync(path.dirname(target), { recursive: true })
+      copyFileSync(path.join(root, file), target)
+    }
+  } catch (error) {
+    drop()
+    return refuse(`an untracked file could not be copied (${error.code ?? error.message})`)
+  }
+  say(`worktree built in ${Date.now() - began} ms`)
+  // The selection is the parent's, handed over by label: re-evaluating `--changed` or `--shard`
+  // in the worktree compares against the snapshot and reads no timings (spec F-15).
+  const selectedFile = path.join(id, 'selected.json')
+  writeFileSync(selectedFile, JSON.stringify(selected.map(mutation => mutation.label)))
+  const caching = !argv.includes('--no-cache') && !argv.includes('--cache')
+  const treeCache = path.join(tree, path.basename(paths.cache))
+  if (caching && existsSync(paths.cache)) copyFileSync(paths.cache, treeCache)
+  const args = [thisScript, '--in-place', '--root', tree, '--selected', selectedFile]
+  if (argv.includes('--no-cache')) args.push('--no-cache')
+  // The shard's label rides along for the cache file it writes; the child never re-slices.
+  if (argv.includes('--shard')) args.push('--shard', argv[argv.indexOf('--shard') + 1])
+  if (argv.includes('--cache')) args.push('--cache', path.resolve(argv[argv.indexOf('--cache') + 1]))
+  const { QUALITY_HARNESS_MUTATE_LOCK: _moved, ...inherited } = process.env
+  const child = spawn(process.execPath, args, {
+    cwd: tree, stdio: 'inherit', detached: process.platform !== 'win32', windowsHide: true,
+    // A hang guard for the whole campaign, not a budget: each test run inside it is bounded at
+    // three minutes already, and the full catalogue takes hours on one machine.
+    timeout: 12 * 60 * 60 * 1000,
+    env: { ...inherited, [CAMPAIGN_CHILD]: '1' },
+  })
+  writeFileSync(ownerFile, JSON.stringify({ parent: process.pid, child: child.pid }))
+  writeFileSync(lockPath, `${process.pid} ${child.pid}`)
+  let stopped = null
+  const stop = signal => {
+    if (stopped) return
+    stopped = signal
+    signalGroup(child.pid, 'SIGTERM')
+  }
+  process.on('SIGINT', () => stop('SIGINT'))
+  process.on('SIGTERM', () => stop('SIGTERM'))
+  const ended = await new Promise(resolve => {
+    child.once('exit', (code, signal) => resolve({ code, signal }))
+    child.once('error', error => resolve({ code: null, signal: null, error }))
+  })
+  // Nothing is removed while a process of the campaign lives: a grace for the group, then SIGKILL.
+  if (!(await groupEnded(child.pid, stopped ? 2_000 : 10_000))) {
+    signalGroup(child.pid, 'SIGKILL')
+    await groupEnded(child.pid, 10_000)
+  }
+  if (caching && !stopped && !ended.error) writeBackCache(treeCache, paths.cache, { say })
+  drop()
+  const loadAtEnd = campaignLoad()
+  console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))
+  if (stopped) return stopped === 'SIGINT' ? 130 : 143
+  if (ended.error) {
+    say(`the isolated campaign could not start (${ended.error.code ?? ended.error.message})`)
+    return 2
+  }
+  if (ended.signal) {
+    say(`the isolated campaign was ended by ${ended.signal} before it finished`)
+    return 1
+  }
+  return ended.code ?? 1
 }
 
 /** Files this run will rewrite, so an edit in flight is refused rather than lost. */
@@ -992,11 +1212,16 @@ export function main(argv) {
   // `--filter 'sync:'` — the flag is `--case` — selected nothing, so the filter
   // stayed null and all 181 mutations ran for twenty minutes while the caller
   // waited on three. Every gate in this project names the offending option.
-  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow'])
+  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected'])
   const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
   if (unknown.length) {
     process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
-      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--repoint [--reanchor] [--since <ref>] [--write]] [--narrow [--write]] [--root <dir>] [--force] [--no-cache] [--cache <path>]\n')
+      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--repoint [--reanchor] [--since <ref>] [--write]] [--narrow [--write]] [--root <dir>] [--force] [--no-cache] [--cache <path>] [--in-place]\n')
+    return 2
+  }
+  // ADR-075: `--selected` is the isolated child's, handed to it by its parent; nothing else passes it.
+  if (argv.includes('--selected') && process.env[CAMPAIGN_CHILD] !== '1') {
+    process.stderr.write('mutate: --selected is the isolated child\'s own option, not one to pass\n')
     return 2
   }
   // ADR-069: one root for the catalogue, the sources, the lock, the journal and the cache.
@@ -1206,9 +1431,24 @@ export function main(argv) {
     : catalogue.mutations.filter(m => !filter || m.label.includes(filter))
   // ADR-072: `--narrow --write` measures exactly the entries it narrowed.
   if (narrowed) selected = catalogue.mutations.filter(m => narrowed.labels.has(m.label))
+  // ADR-075: the isolated child runs exactly the entries its parent selected (spec F-15).
+  if (argv.includes('--selected')) {
+    let labels
+    try { labels = JSON.parse(readFileSync(argv[argv.indexOf('--selected') + 1], 'utf8')) } catch (error) {
+      process.stderr.write(`mutate: the parent's selection could not be read: ${error.message}\n`)
+      return 2
+    }
+    const byLabel = new Map(catalogue.mutations.map(mutation => [mutation.label, mutation]))
+    const missing = labels.filter(label => !byLabel.has(label))
+    if (missing.length) {
+      process.stderr.write(`mutate: the worktree's catalogue holds none of: ${missing.join(', ')}\n`)
+      return 2
+    }
+    selected = labels.map(label => byLabel.get(label))
+  }
   // `--changed <ref>`: only the entries a change since <ref> could affect, so a fix
   // is checked by the mutants that name its files, not by labels picked by hand.
-  if (argv.includes('--changed')) {
+  if (argv.includes('--changed') && !argv.includes('--selected')) {
     const ref = argv[argv.indexOf('--changed') + 1] ?? ''
     const diff = ref && !ref.startsWith('--')
       ? spawnSync('git', changedDiffArgs(root, ref), { encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024 * 1024 })
@@ -1234,7 +1474,7 @@ export function main(argv) {
   // Sliced by INDEX, not grouped by test-set, so every shard carries a mix and
   // no single one inherits the slowest suite. Baselines are memoised per set
   // within a shard, so slicing costs a few extra baseline runs and nothing else.
-  if (argv.includes('--shard')) {
+  if (argv.includes('--shard') && !argv.includes('--selected')) {
     const spec = argv[argv.indexOf('--shard') + 1] ?? ''
     const [index, total] = spec.split('/').map(Number)
     if (!Number.isInteger(index) || !Number.isInteger(total) || total < 1
@@ -1270,9 +1510,15 @@ export function main(argv) {
     return 0
   }
 
+  // ADR-075: a run that applies mutants isolates by default; `--in-place`, and the `--write`
+  // modes that edit this checkout's catalogue, run here. The isolating parent stays in the
+  // event loop and ends its child on a signal, so it registers no handler that exits first.
+  const isolating = !argv.includes('--in-place') && !repointed && !narrowed
   process.on('exit', () => { releaseTheRun() })
-  process.on('SIGINT', () => { recover(); process.exit(130) })
-  process.on('SIGTERM', () => { recover(); process.exit(143) })
+  if (!isolating) {
+    process.on('SIGINT', () => { recover(); process.exit(130) })
+    process.on('SIGTERM', () => { recover(); process.exit(143) })
+  }
 
   // The lock BEFORE the repair, not after. recover() restores whatever the
   // journal names, so a second invocation was un-mutating a live campaign's file
@@ -1293,7 +1539,9 @@ export function main(argv) {
     process.stderr.write(`no mutation matches ${filter}\n`)
     return 1
   }
-  const dirty = dirtyTargets(selected)
+  // In place only (spec F-2): an isolated run grades the uncommitted content instead of losing
+  // it, and the isolated child's tree is private.
+  const dirty = isolating || process.env[CAMPAIGN_CHILD] === '1' ? [] : dirtyTargets(selected)
   if (dirty.length && !argv.includes('--force')) {
     process.stderr.write(`mutate: ${dirty.join(', ')} ${dirty.length === 1 ? 'has' : 'have'} `
       + 'uncommitted changes, and this run rewrites and restores exactly those files — an edit '
@@ -1303,6 +1551,7 @@ export function main(argv) {
   }
   // The load at the start, before the first baseline; the end sample is taken with the summary.
   const loadAtStart = campaignLoad()
+  if (isolating) return isolate({ selected, argv, paths, loadAtStart })
 
   // The baselines FIRST, on an unmutated tree, before begin() has anything to
   // journal — so this adds no window in which a crash could leave the tree
@@ -1441,8 +1690,11 @@ export function main(argv) {
       + 'so neither verdict is evidence. The line above each says whether that suite FAILED or '
       + 'never finished — they need different things done to them.')
   }
-  const loadAtEnd = campaignLoad()
-  console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))
+  // The isolated child leaves the line to its parent, which says it once.
+  if (process.env[CAMPAIGN_CHILD] !== '1') {
+    const loadAtEnd = campaignLoad()
+    console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))
+  }
   // ADR-072: nothing is left narrowed on a measurement it failed. An entry that is not RED
   // under its pattern loses the pattern again and is named, and the run exits 1. The
   // catalogue is written only here, after every narrowing was measured (T4).
@@ -1478,5 +1730,14 @@ export function main(argv) {
 }
 
 if (isMainModule(import.meta.url)) {
-  process.exitCode = main(process.argv.slice(2))
+  const code = main(process.argv.slice(2))
+  // ADR-075: an isolated campaign resolves its code; every other path returns it.
+  if (code && typeof code.then === 'function') {
+    code.then(value => { process.exitCode = value }, error => {
+      process.stderr.write(`mutate: ${error?.stack ?? error}\n`)
+      process.exitCode = 2
+    })
+  } else {
+    process.exitCode = code
+  }
 }

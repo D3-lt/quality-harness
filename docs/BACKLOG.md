@@ -16792,3 +16792,34 @@ ADR-077 (N3) executed on `spec/machine-lease`: T1 4535501, T2 4231a77, the revie
 - **v3.3.0 released** at eabf6a3046b0bb13a1e0643577b0e75bed409422 (release-evidence SUCCESS: 55 jobs,
   dispatched run 36786131988; outside runs php-laravel-monolith at eabf6a3, and react-spa and
   php-laravel-monolith at the two earlier candidates, all filed in `docs/corpus-reports/`).
+
+## 324. OPEN 2026-10-01 — After 3.3.0: the lock hasher's JavaScript scanner, and the coverage-only flake
+
+**1. The test-lock hasher cannot tell a string from code in JavaScript, and a local fix is not safe.**
+Reproduced: `extract_test_names` returns `a negative value is a finding` for
+`tests/unasserted-isolation.test.mjs`, a name that exists only inside the string constant `SUITE`.
+`_iter_bdd_calls` skips a `test(` only when its LINE starts with a comment. The obvious fix — skip a head that
+`_js_like_in_code` says is not in code — was written with a red test and its twin, and then made 12 active
+records fail their own adr-lint (ADR-052, -054, -055, -057, -067, -068, -069, -071, -072, -073, -075, -076):
+their locks name tests the hasher no longer sees. Some of those names are fixture strings (`other`, `f and g`,
+`a`), but others are real tests (`a brace-built publish is refused`, `after a compaction the session is told
+git's refusal is not yet armed`, `declaring a capability does not cost a role its schema`). The cause, measured:
+neither JavaScript scanner in `plugin/lib/record.py` knows a regex literal. In
+`tests/publish-command.test.mjs` the literal `/(["'])(.*?)\1/` flips `_js_like_code_positions` into
+"string" at offset 34425, and every test after it reads as data; `_mask_lock_noncode` blanks the same heads.
+**The same state machine is `_matching_js_brace`**, which decides where a locked test's body ends, so a regex
+literal holding a quote inside a test can already make a lock hash the wrong span — the latent twin of this lead.
+The change was reverted (both files back to their shas). A correct fix is a JavaScript lexer that knows regex
+literals (with the division ambiguity) and template interpolation, and a lock format that records which hasher
+took it, so existing evidence keeps its meaning. That is a decision record's work and the owner's to accept.
+
+**2. `the cached branch CLI reads a fresh answer without starting Git` is not reproduced outside GitHub's
+runner.** It failed the coverage job of both push runs at 35b36fa and eabf6a3 (the second after a 60 s wait, so the
+refresher never wrote) and passed the dispatched run at eabf6a3. In a `node:24` Linux container the test passed
+alone under `--experimental-test-coverage` (0.42 s, twice) and after every file that precedes it in
+`coverage.sh`'s serial order (0.45 s, twice). `waitForSnapshot` now prints, on a timeout, what the git directory
+holds, the snapshot and the refresher's lock with its age, so the next failure carries its own evidence.
+
+**3. For the owner:** `branch-state --cached` serves a stored snapshot labelled with its age, and has served one
+hours old naming a branch the checkout no longer holds (§322, §323). Whether a snapshot past some age — or one
+whose branch is not the checkout's — should be shown at all is a product judgement, not a defect.

@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -873,12 +873,22 @@ function waitForNoRefresher(gitDir, ms = 20_000) {
 // A hang guard, not a performance bound: the refresher is a detached process, and under the CI
 // coverage job's instrumentation it outlasted 15 s (the 3.3.0 candidate, 35b36fa). A healthy
 // refresher answers in well under a second, so a wider guard costs nothing when nothing is wrong.
+// At eabf6a3 it failed the full 60 s — the refresher never wrote — and a Linux container running the
+// same files under coverage passed it every time (BACKLOG §323). So on a timeout it says what it
+// found, on stderr: what the git directory holds, the snapshot, and the refresher's lock and its age.
 function waitForSnapshot(cache, done, ms = 60_000) {
   const until = Date.now() + ms
   while (Date.now() < until) {
     try { if (done(JSON.parse(readFileSync(cache, 'utf8')))) return true } catch { /* not yet written */ }
     pause(100)
   }
+  const directory = path.dirname(cache)
+  const said = what => { try { return what() } catch (error) { return `unreadable (${error.code ?? error.message})` } }
+  const lock = path.join(directory, 'qh-branch-state.lock')
+  process.stderr.write(`waitForSnapshot timed out after ${ms} ms in ${directory}\n`
+    + `  holds: ${said(() => readdirSync(directory).join(', '))}\n`
+    + `  snapshot: ${said(() => readFileSync(cache, 'utf8').slice(0, 600))}\n`
+    + `  lock: ${said(() => `${readFileSync(lock, 'utf8')} (${Math.round(Date.now() - statSync(lock).mtimeMs)} ms old)`)}\n`)
   return false
 }
 

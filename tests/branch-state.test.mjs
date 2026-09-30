@@ -870,7 +870,10 @@ function waitForNoRefresher(gitDir, ms = 20_000) {
   return false
 }
 
-function waitForSnapshot(cache, done, ms = 15_000) {
+// A hang guard, not a performance bound: the refresher is a detached process, and under the CI
+// coverage job's instrumentation it outlasted 15 s (the 3.3.0 candidate, 35b36fa). A healthy
+// refresher answers in well under a second, so a wider guard costs nothing when nothing is wrong.
+function waitForSnapshot(cache, done, ms = 60_000) {
   const until = Date.now() + ms
   while (Date.now() < until) {
     try { if (done(JSON.parse(readFileSync(cache, 'utf8')))) return true } catch { /* not yet written */ }

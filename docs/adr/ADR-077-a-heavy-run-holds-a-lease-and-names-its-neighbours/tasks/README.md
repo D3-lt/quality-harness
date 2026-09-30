@@ -18,7 +18,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | qh-check holds a lease, names its neighbours, and waits its turn when asked | done | F-1, F-2, F-3, F-4, F-5, F-6, F-7, F-8, F-9, F-10, F-12, UC1-S1, UC1-S2, UC1-S3, UC2-S1, UC2-S2, UC2-S3, UC2-S4 | `node --test tests/lease.test.mjs` (nine named tests pass, the signal test passes or is its named Windows skip, and the runner exits 0) |
-| T2 | A campaign holds the same lease, covering its child | pending | F-1, F-11, F-12, UC3-S1, UC3-S2 | `node --test tests/lease.test.mjs tests/mutate-isolation.test.mjs` (the campaign lease tests pass) |
+| T2 | A campaign holds the same lease, covering its child | done | F-1, F-11, F-12, UC3-S1, UC3-S2 | `node --test tests/lease.test.mjs tests/mutate-isolation.test.mjs` (the campaign lease tests pass) |
 
 ## Contract Coupling
 

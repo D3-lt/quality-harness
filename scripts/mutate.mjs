@@ -38,6 +38,7 @@ import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { loadLine, sampleLoad } from '../plugin/scripts/load.mjs'
 import { addOwned, alive, build, groupAlive, remove, sweep } from '../plugin/scripts/worktree.mjs'
+import { admitSync, besideLines, leaseDir, mark, observe as observeLeases, release, take, waitMaxMs } from '../plugin/scripts/lease.mjs'
 
 // The load a campaign ran under (ADR-075 T1). `QUALITY_HARNESS_LOADAVG` ("1.5 1 1") and
 // `QUALITY_HARNESS_CORES` are the tests' seams; without them the machine is asked.
@@ -47,6 +48,35 @@ export function campaignLoad(env = process.env) {
     ...(averages ? { loadavg: () => averages } : {}),
     ...(env.QUALITY_HARNESS_CORES ? { cores: Number(env.QUALITY_HARNESS_CORES) } : {}),
   })
+}
+
+/**
+ * campaignLease takes the same lease `qh-check` holds (ADR-077), in the parent, for the whole
+ * campaign, and names the heavy runs it sees. Asked to wait (`--wait`, QUALITY_HARNESS_WAIT=1), it
+ * takes its turn first, bounded. A directory it cannot use is said, and the campaign runs unleased.
+ */
+function campaignLease(argv) {
+  const say = line => process.stderr.write(`mutate: ${line}\n`)
+  const waiting = argv.includes('--wait') || process.env.QUALITY_HARNESS_WAIT === '1'
+  const dir = leaseDir(process.env)
+  const held = take(dir, { command: `mutate.mjs ${argv.join(' ')}`.trim(), root, state: waiting ? 'waiting' : 'running' })
+  if (held.error) {
+    say(`could not use the lease: ${held.error}; running without one`)
+    return null
+  }
+  if (waiting) {
+    const turn = admitSync(dir, held, { maxMs: waitMaxMs(process.env) })
+    say(turn.admitted
+      ? `waited ${(turn.waitedMs / 1000).toFixed(1)}s for its turn`
+      : `stopped waiting after ${(turn.waitedMs / 1000).toFixed(1)}s (QUALITY_HARNESS_WAIT_MAX_S), and runs beside the rest`)
+    mark(held, { state: 'running' })
+  }
+  try {
+    for (const line of besideLines(observeLeases(dir, held))) say(line)
+  } catch (failure) {
+    say(`could not read the leases (${failure.code ?? failure.message}), so no neighbour is named`)
+  }
+  return held
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -251,9 +281,10 @@ function ownedBy(file) {
   return false
 }
 
-async function isolate({ selected, argv, paths, loadAtStart }) {
+async function isolate({ selected, argv, paths, loadAtStart, held }) {
   const say = line => process.stderr.write(`mutate: ${line}\n`)
   const refuse = reason => {
+    if (held) release(held)
     say(`could not isolate: ${reason}; --in-place runs in this checkout`)
     return 2
   }
@@ -303,6 +334,9 @@ async function isolate({ selected, argv, paths, loadAtStart }) {
   })
   // The child runs nothing until this names it (`ownedBy`).
   addOwned(id, { child: child.pid })
+  // The lease covers the child, and on POSIX its group, so it stays live while any of them works:
+  // a parent killed outright leaves a lease the next observer keeps until the campaign has ended.
+  if (held) mark(held, { child: child.pid, ...(process.platform !== 'win32' ? { group: child.pid } : {}) })
   writeFileSync(lockPath, `${process.pid} ${child.pid}`)
   let stopped = null
   let escalation = null
@@ -331,6 +365,8 @@ async function isolate({ selected, argv, paths, loadAtStart }) {
   if (over) {
     if (caching && !stopped && !ended.error) writeBackCache(treeCache, paths.cache, { say })
     drop()
+    // Released only once the group has ended; a survivor keeps it, and so keeps being named.
+    if (held) release(held)
   } else {
     // Spec F-16: a tree is never removed under a live process. The lock names the survivor, so no
     // run starts beside it, and the next run's sweep removes the tree once it has ended.
@@ -560,7 +596,8 @@ export function childEnv(base = process.env, scratch = mkdtempSync(path.join(tmp
   // run from such a shell is `unrun` — nothing measured (BACKLOG §256).
   // The isolated child's marker and owner file are its own: a test it runs — mutate's own tests,
   // which run campaigns — would otherwise skip the in-place checks (Codex review of ADR-075).
-  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, [CAMPAIGN_CHILD]: _child, [CAMPAIGN_OWNER]: _owner, ...rest } = base
+  // Nor does a test the campaign runs read the machine's leases, or wait its turn (ADR-077).
+  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, [CAMPAIGN_CHILD]: _child, [CAMPAIGN_OWNER]: _owner, QUALITY_HARNESS_WAIT: _wait, ...rest } = base
   const tokens = (rest.NODE_OPTIONS ?? '').split(/\s+/).filter(Boolean)
   const kept = tokens.filter((token, i, all) => !/^--test-reporter(?:-destination)?(?:=|$)/.test(token)
     && !(i > 0 && /^--test-reporter(?:-destination)?$/.test(all[i - 1])))
@@ -584,6 +621,7 @@ export function childEnv(base = process.env, scratch = mkdtempSync(path.join(tmp
     TMPDIR: scratch,
     TMP: scratch,
     TEMP: scratch,
+    QUALITY_HARNESS_LEASE_DIR: path.join(scratch, 'leases'),
   }
 }
 
@@ -1200,11 +1238,11 @@ export function main(argv) {
   // `--filter 'sync:'` — the flag is `--case` — selected nothing, so the filter
   // stayed null and all 181 mutations ran for twenty minutes while the caller
   // waited on three. Every gate in this project names the offending option.
-  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected'])
+  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected', '--wait'])
   const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
   if (unknown.length) {
     process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
-      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--repoint [--reanchor] [--since <ref>] [--write]] [--narrow [--write]] [--root <dir>] [--force] [--no-cache] [--cache <path>] [--in-place]\n')
+      + 'usage: mutate.mjs [--case <substring>] [--changed <ref>] [--shard i/n] [--list] [--stale] [--repoint [--reanchor] [--since <ref>] [--write]] [--narrow [--write]] [--root <dir>] [--force] [--no-cache] [--cache <path>] [--in-place] [--wait]\n')
     return 2
   }
   // ADR-075: `--selected` is the isolated child's, handed to it by its parent; nothing else passes it.
@@ -1543,6 +1581,10 @@ export function main(argv) {
     return 2
   }
   // The load at the start, before the first baseline; the end sample is taken with the summary.
+  // ADR-077: the lease is the parent's, never the isolated child's, whose parent's lease names it.
+  // In place it is released when the process exits; isolated, once the child's group has ended.
+  const held = process.env[CAMPAIGN_CHILD] === '1' ? null : campaignLease(argv)
+  if (held && !isolating) process.on('exit', () => release(held))
   const loadAtStart = campaignLoad()
   // ADR-075 T3: a mutant applied in the checkout is live for every process running its code, so
   // a run in place — `--in-place` and the `--write` modes — names them first, as advice (spec
@@ -1554,7 +1596,7 @@ export function main(argv) {
       process.stderr.write(`mutate: an in-place mutant is live for pid ${pid} (${command.slice(0, 160)})\n`)
     }
   }
-  if (isolating) return isolate({ selected, argv, paths, loadAtStart })
+  if (isolating) return isolate({ selected, argv, paths, loadAtStart, held })
 
   // The baselines FIRST, on an unmutated tree, before begin() has anything to
   // journal — so this adds no window in which a crash could leave the tree

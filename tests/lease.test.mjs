@@ -18,7 +18,6 @@ import { campaignEnv, campaignFixture, mutateScript, sidecar, sidecarLines } fro
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const qhCheck = path.join(repoRoot, 'plugin', 'scripts', 'qh-check.mjs')
-const TODO = { todo: 'spec 2026-09-30 (N3): red until its ADR' }
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-lease-')))
 const holders = []
 after(() => {
@@ -213,7 +212,7 @@ test('a waiter never starts ahead of an earlier waiter\'s ticket', async () => {
   }
 })
 
-test('a campaign holds a lease that records its isolated child, and releases it at its end', TODO, async () => {
+test('a campaign holds a lease that records its isolated child, and releases it at its end', async () => {
   const fixture = campaignFixture()
   const side = sidecar()
   const leases = path.join(scratch, `campaign-leases-${made += 1}`)
@@ -229,7 +228,7 @@ test('a campaign holds a lease that records its isolated child, and releases it 
   assert.deepEqual(leaseFiles(leases), [], 'the campaign\'s lease outlived it')
 })
 
-test('a killed campaign parent\'s lease stays live while its child works', { ...TODO, skip: process.platform === 'win32' && 'Windows ends the child with its parent (ADR-075)' }, async () => {
+test('a killed campaign parent\'s lease stays live while its child works', { skip: process.platform === 'win32' && 'Windows ends the child with its parent (ADR-075)' }, async () => {
   const fixture = campaignFixture()
   const side = sidecar()
   const leases = path.join(scratch, `campaign-leases-${made += 1}`)
@@ -255,7 +254,7 @@ test('a killed campaign parent\'s lease stays live while its child works', { ...
   assert.deepEqual(leaseFiles(leases), [], 'the lease outlived the child')
 })
 
-test("a campaign's tests and the selftest use a private lease directory", TODO, async () => {
+test("a campaign's tests and the selftest use a private lease directory", async () => {
   const { childEnv } = await import('../scripts/mutate.mjs')
   const child = childEnv({ QUALITY_HARNESS_LEASE_DIR: '/machine-leases' }, path.join(scratch, 'child-scratch'))
   assert.ok(child.QUALITY_HARNESS_LEASE_DIR && child.QUALITY_HARNESS_LEASE_DIR !== '/machine-leases', 'a campaign\'s tests read the machine\'s leases')
@@ -263,7 +262,7 @@ test("a campaign's tests and the selftest use a private lease directory", TODO, 
   assert.match(readFileSync(path.join(repoRoot, 'scripts', 'selftest.sh'), 'utf8'), /QUALITY_HARNESS_LEASE_DIR=/)
 })
 
-test('a campaign asked to wait starts its suite only after the running lease is released', TODO, async () => {
+test('a campaign asked to wait starts its suite only after the running lease is released', async () => {
   const fixture = campaignFixture()
   const side = sidecar()
   const leases = path.join(scratch, `campaign-leases-${made += 1}`)

@@ -365,3 +365,37 @@ test('the worktree builder runs outside the process group of the gate that start
   assert.ok(pairs.length >= 2, 'the builder was never started through the shim')
   for (const [own, parent] of pairs) assert.notEqual(own, parent, `a worktree call ran in its gate's process group ${parent}`)
 })
+
+// The Codex review of the 3.3.0 candidate, finding 6: on Windows a fence is ended only when its
+// job was closed, not merely because a job existed. Asked through the seam, on every host.
+test('a Windows fence whose job could not be closed is not called ended', () => {
+  const probe = [
+    'import importlib.util, json, sys',
+    'spec = importlib.util.spec_from_file_location("fence_probe", sys.argv[1])',
+    'module = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(module)',
+    'print(json.dumps([module.settle_group(0, "nt", job_closed=False), module.settle_group(0, "nt", job_closed=True)]))',
+  ].join('\n')
+  const run = spawnSync('python3', ['-c', probe, path.join(repoRoot, 'plugin', 'lib', 'fence.py')], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  assert.equal(run.status, 0, run.stderr)
+  assert.deepEqual(JSON.parse(run.stdout), [false, true])
+})
+
+// The 3.3.0 candidate's campaign found the test above now signals, most runs, while the worktree is
+// still being built — which the build holds — so the fence never starts and the fence's own end is
+// never exercised. This one signals only once the fence is running.
+test('a mutant run stopped while its fence runs removes its worktree', { skip: process.platform === 'win32' && 'Windows ends the tree at once; the next run sweeps it' }, async () => {
+  const fence = FENCE.replace('if [ -n "$FIXTURE_SLOW" ]', 'if [ -n "$FIXTURE_RUNNING" ]; then echo running >> "$FIXTURE_RUNNING"; fi\nif [ -n "$FIXTURE_SLOW" ]')
+  const { dir } = corpus({ fence })
+  const running = path.join(path.dirname(dir), 'running.txt')
+  const argv = [path.join(bin, 'adr-verify'), ...MUTANT]
+  const child = spawn(argv[0], argv.slice(1), { cwd: dir, env: { ...process.env, FIXTURE_SLOW: '30', FIXTURE_RUNNING: running }, stdio: 'ignore', timeout: 90_000, windowsHide: true })
+  const exited = new Promise(resolve => child.once('exit', resolve))
+  const until = Date.now() + 30_000
+  while (!existsSync(running) && child.exitCode === null && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 50))
+  assert.ok(existsSync(running), 'the fence never started')
+  assert.equal(worktrees(dir), 2, 'the fence is not running in a worktree')
+  child.kill('SIGTERM')
+  await exited
+  assert.equal(worktrees(dir), 1, 'the worktree outlived its run')
+})

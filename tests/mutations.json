@@ -18225,7 +18225,7 @@
       ],
       "from": "        _, _, killed = drain_after_kill(proc, platform, job=job)",
       "to": "        _, _, killed = drain_after_kill(proc, platform, job=job); killed = False",
-      "only": "^a stopped mutant run removes its worktree$"
+      "only": "^(?:a stopped mutant run removes its worktree|a mutant run stopped while its fence runs removes its worktree)$"
     },
     {
       "label": "ADR-076 T2: a signal during the worktree build is held until the tree is known",
@@ -18283,7 +18283,7 @@
       "tests": [
         "tests/adr-verify-isolation.test.mjs"
       ],
-      "from": "        outcome[\"ended\"] = settle_group(proc.pid, platform) if job is not None or platform != \"nt\" else False",
+      "from": "        outcome[\"ended\"] = settle_group(proc.pid, platform, job_closed=job_closed) if job is not None or platform != \"nt\" else False",
       "to": "        outcome[\"ended\"] = True",
       "only": "^a process a fence leaves running is ended before its worktree goes$"
     },
@@ -18403,8 +18403,8 @@
       "tests": [
         "tests/lease.test.mjs"
       ],
-      "from": "      turn = await admit(leases, held, { maxMs: waitMaxMs(env), stopped: () => stopped })",
-      "to": "      turn = await admit(leases, held, { maxMs: waitMaxMs(env) * 10, stopped: () => stopped })",
+      "from": "      turn = await lease.admit(leases, held, { maxMs: lease.waitMaxMs(env), stopped: () => stopped })",
+      "to": "      turn = await lease.admit(leases, held, { maxMs: lease.waitMaxMs(env) * 10, stopped: () => stopped })",
       "only": "^a wait past its bound says so and runs, within the bound$"
     },
     {
@@ -18413,7 +18413,7 @@
       "tests": [
         "tests/lease.test.mjs"
       ],
-      "from": "      release(held)\n      stderr.write(`qh-check: stopped by",
+      "from": "      leaseStep('release', () => lease.release(held))\n      stderr.write(`qh-check: stopped by",
       "to": "      stderr.write(`qh-check: stopped by",
       "only": "^a signal while waiting releases the lease and runs nothing$"
     },
@@ -18433,8 +18433,8 @@
       "tests": [
         "tests/lease.test.mjs"
       ],
-      "from": "  if (held) mark(held, { child: child.pid, ...(process.platform !== 'win32' ? { group: child.pid } : {}) })",
-      "to": "  if (false) mark(held, { child: child.pid })",
+      "from": "  if (held) leaseStep('mark', () => mark(held, { child: child.pid, ...(process.platform !== 'win32' ? { group: child.pid } : {}) }))",
+      "to": "  if (false) leaseStep('mark', () => mark(held, { child: child.pid }))",
       "only": "^a campaign holds a lease that records its isolated child, and releases it at its end$"
     },
     {
@@ -18476,6 +18476,76 @@
       "from": "export QUALITY_HARNESS_LEASE_DIR=\"$QH_LEASES\"",
       "to": "export QH_UNUSED=\"$QH_LEASES\"",
       "only": "^a campaign's tests and the selftest use a private lease directory$"
+    },
+    {
+      "label": "Codex 3.3.0 #1: a symlinked lease directory is not used",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const found = lstatSync(dir)",
+      "to": "  const found = statSync(dir)",
+      "only": "^a lease directory that is a symlink is not used, and nothing is written through it$"
+    },
+    {
+      "label": "Codex 3.3.0 #2: deciding and marking running are one admission",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const lock = holdAdmission(dir)\n  if (!lock) return false",
+      "to": "  const lock = holdAdmission(dir) ?? path.join(dir, '.admission')",
+      "only": "^two waiters cannot both be admitted when one publishes while the other decides$"
+    },
+    {
+      "label": "Codex 3.3.0 #3: a campaign waits before any signal handler",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const held = process.env[CAMPAIGN_CHILD] === '1' ? null : campaignLease(argv)",
+      "to": "  process.on('SIGTERM', () => process.exit(143))\n  const held = process.env[CAMPAIGN_CHILD] === '1' ? null : campaignLease(argv)",
+      "only": "^a campaign signalled while waiting its turn runs nothing$"
+    },
+    {
+      "label": "Codex 3.3.0 #4: a failed release leaves the check's result",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    if (held) leaseStep('release', () => lease.release(held))",
+      "to": "    if (held) lease.release(held)",
+      "only": "^a lease that cannot be released leaves the check's own exit and record$"
+    },
+    {
+      "label": "Codex 3.3.0 #6: a Windows job that did not close is not an end",
+      "file": "plugin/lib/fence.py",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        return bool(job_closed)",
+      "to": "        return True",
+      "only": "^a Windows fence whose job could not be closed is not called ended$"
+    },
+    {
+      "label": "Codex 3.3.0 #7: a campaign names its neighbours at its end",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    for (const line of besideLines(observeLeases(path.dirname(held.file), held))) process.stderr.write(`mutate: at its end, ${line}\\n`)",
+      "to": "    void held",
+      "only": "^a campaign names at its end a run that began beside it after it started$"
+    },
+    {
+      "label": "Codex 3.3.0 #8: a bound that overflows is the default",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  return Number.isFinite(ms) && ms > 0 ? ms : WAIT_MAX_SECONDS * 1_000",
+      "to": "  return ms > 0 ? ms : WAIT_MAX_SECONDS * 1_000",
+      "only": "^a wait bound too large to be a number of milliseconds is the default$"
     }
   ]
 }

@@ -65,11 +65,18 @@ function campaignLease(argv) {
     return null
   }
   if (waiting) {
-    const turn = admitSync(dir, held, { maxMs: waitMaxMs(process.env) })
-    say(turn.admitted
-      ? `waited ${(turn.waitedMs / 1000).toFixed(1)}s for its turn`
-      : `stopped waiting after ${(turn.waitedMs / 1000).toFixed(1)}s (QUALITY_HARNESS_WAIT_MAX_S), and runs beside the rest`)
-    mark(held, { state: 'running' })
+    let turn
+    try {
+      turn = admitSync(dir, held, { maxMs: waitMaxMs(process.env) })
+      say(turn.admitted
+        ? `waited ${(turn.waitedMs / 1000).toFixed(1)}s for its turn`
+        : `stopped waiting after ${(turn.waitedMs / 1000).toFixed(1)}s (QUALITY_HARNESS_WAIT_MAX_S), and runs beside the rest`)
+    } catch (failure) {
+      say(`could not wait for its turn (${failure.code ?? failure.message}), so it runs now`)
+      turn = { admitted: false }
+    }
+    // An admitted lease is marked running under the admission lock; one that stopped waiting is not.
+    if (!turn.admitted) leaseStep('mark', () => mark(held, { state: 'running' }))
   }
   try {
     for (const line of besideLines(observeLeases(dir, held))) say(line)
@@ -77,6 +84,29 @@ function campaignLease(argv) {
     say(`could not read the leases (${failure.code ?? failure.message}), so no neighbour is named`)
   }
   return held
+}
+
+// A lease step that fails is said, and the campaign runs on: the lease is advice about the
+// machine, never a condition of the campaign (Codex review of the 3.3.0 candidate).
+function leaseStep(what, step) {
+  try {
+    return step()
+  } catch (failure) {
+    process.stderr.write(`mutate: could not ${what} the lease (${failure.code ?? failure.message}); the campaign runs on\n`)
+    return undefined
+  }
+}
+
+/** endLease names the runs still beside the campaign at its end, then releases its lease, once. */
+function endLease(held) {
+  if (!held || held.done) return
+  held.done = true
+  try {
+    for (const line of besideLines(observeLeases(path.dirname(held.file), held))) process.stderr.write(`mutate: at its end, ${line}\n`)
+  } catch (failure) {
+    process.stderr.write(`mutate: could not read the leases at its end (${failure.code ?? failure.message})\n`)
+  }
+  leaseStep('release', () => release(held))
 }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -284,7 +314,7 @@ function ownedBy(file) {
 async function isolate({ selected, argv, paths, loadAtStart, held }) {
   const say = line => process.stderr.write(`mutate: ${line}\n`)
   const refuse = reason => {
-    if (held) release(held)
+    endLease(held)
     say(`could not isolate: ${reason}; --in-place runs in this checkout`)
     return 2
   }
@@ -332,11 +362,13 @@ async function isolate({ selected, argv, paths, loadAtStart, held }) {
     timeout: 12 * 60 * 60 * 1000,
     env: { ...inherited, [CAMPAIGN_CHILD]: '1', [CAMPAIGN_OWNER]: ownerFile },
   })
-  // The child runs nothing until this names it (`ownedBy`).
-  addOwned(id, { child: child.pid })
   // The lease covers the child, and on POSIX its group, so it stays live while any of them works:
   // a parent killed outright leaves a lease the next observer keeps until the campaign has ended.
-  if (held) mark(held, { child: child.pid, ...(process.platform !== 'win32' ? { group: child.pid } : {}) })
+  // Named BEFORE the ownership record releases the child, or a parent killed between the two
+  // leaves a working child under a lease already dead (Codex review of the 3.3.0 candidate).
+  if (held) leaseStep('mark', () => mark(held, { child: child.pid, ...(process.platform !== 'win32' ? { group: child.pid } : {}) }))
+  // The child runs nothing until this names it (`ownedBy`).
+  addOwned(id, { child: child.pid })
   writeFileSync(lockPath, `${process.pid} ${child.pid}`)
   let stopped = null
   let escalation = null
@@ -366,11 +398,12 @@ async function isolate({ selected, argv, paths, loadAtStart, held }) {
     if (caching && !stopped && !ended.error) writeBackCache(treeCache, paths.cache, { say })
     drop()
     // Released only once the group has ended; a survivor keeps it, and so keeps being named.
-    if (held) release(held)
+    endLease(held)
   } else {
     // Spec F-16: a tree is never removed under a live process. The lock names the survivor, so no
     // run starts beside it, and the next run's sweep removes the tree once it has ended.
     writeFileSync(lockPath, String(child.pid))
+    if (held) held.kept = true
     say(`a process of the isolated campaign (group ${child.pid}) outlived SIGKILL; ${path.basename(id)} is left for the next run to remove`)
   }
   const loadAtEnd = campaignLoad()
@@ -1545,6 +1578,13 @@ export function main(argv) {
   // modes that edit this checkout's catalogue, run here. The isolating parent stays in the
   // event loop and ends its child on a signal, so it registers no handler that exits first.
   const isolating = !argv.includes('--in-place') && !repointed && !narrowed
+  // ADR-077: the lease is the parent's, never the isolated child's, whose parent's lease names it.
+  // Taken, and waited for, BEFORE any signal handler is installed: the wait is synchronous, so a
+  // handler would hold a signal until the campaign had started its work (Codex review of the 3.3.0
+  // candidate). With none, a signal while waiting ends the process before anything has run. It is
+  // released at the campaign's end, or on exit as a fallback, unless an isolated survivor keeps it.
+  const held = process.env[CAMPAIGN_CHILD] === '1' ? null : campaignLease(argv)
+  if (held) process.on('exit', () => { if (!held.kept && !held.done) leaseStep('release', () => release(held)) })
   process.on('exit', () => { releaseTheRun() })
   if (!isolating) {
     process.on('SIGINT', () => { recover(); process.exit(130) })
@@ -1581,10 +1621,6 @@ export function main(argv) {
     return 2
   }
   // The load at the start, before the first baseline; the end sample is taken with the summary.
-  // ADR-077: the lease is the parent's, never the isolated child's, whose parent's lease names it.
-  // In place it is released when the process exits; isolated, once the child's group has ended.
-  const held = process.env[CAMPAIGN_CHILD] === '1' ? null : campaignLease(argv)
-  if (held && !isolating) process.on('exit', () => release(held))
   const loadAtStart = campaignLoad()
   // ADR-075 T3: a mutant applied in the checkout is live for every process running its code, so
   // a run in place — `--in-place` and the `--write` modes — names them first, as advice (spec
@@ -1737,6 +1773,7 @@ export function main(argv) {
   }
   // The isolated child leaves the line to its parent, which says it once.
   if (process.env[CAMPAIGN_CHILD] !== '1') {
+    endLease(held)
     const loadAtEnd = campaignLoad()
     console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))
   }

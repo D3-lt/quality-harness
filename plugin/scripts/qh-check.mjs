@@ -13,7 +13,7 @@ import { appendFileSync, mkdirSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 import { checkCommandOrigin, observe, stateDir, validationVerdict } from './lifecycle.mjs'
-import { admit, besideLines, leaseDir, mark, observe as observeLeases, release, take, waitMaxMs } from './lease.mjs'
+import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
 
@@ -92,7 +92,7 @@ async function runLaunched({ file, args, shell }, { root, env, platform, timeout
   return { ended, received }
 }
 
-export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false } = {}) {
+export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false, lease = leaseModule } = {}) {
   const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
@@ -112,9 +112,20 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   // ADR-077: a lease for the whole run, taken before the load is sampled, so the check's own
   // numbers are taken after any wait. It names the heavy runs beside it and never changes the
   // check's exit or verdict (CLAUDE.md §3); a directory it cannot use is said, and it runs unleased.
+  // `lease` is the module, and a test's seam.
   const waiting = wait || env.QUALITY_HARNESS_WAIT === '1'
-  const leases = leaseDir(env)
-  let held = take(leases, { command: `qh-check: ${command}`, root, state: waiting ? 'waiting' : 'running' })
+  const leases = lease.leaseDir(env)
+  // A lease step that fails is said, and the check's own run and record stand (Codex review of the
+  // 3.3.0 candidate): the lease is advice about the machine, never a condition of the check.
+  const leaseStep = (what, step) => {
+    try {
+      return step()
+    } catch (failure) {
+      stderr.write(`qh-check: could not ${what} the lease (${failure.code ?? failure.message}); the check's own result stands.\n`)
+      return undefined
+    }
+  }
+  let held = lease.take(leases, { command: `qh-check: ${command}`, root, state: waiting ? 'waiting' : 'running' })
   if (held.error) {
     stderr.write(`qh-check: could not use the lease: ${held.error}; running without one.\n`)
     held = null
@@ -122,7 +133,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const look = () => {
     if (!held) return null
     try {
-      return observeLeases(leases, held)
+      return lease.observe(leases, held)
     } catch (failure) {
       stderr.write(`qh-check: could not read the leases (${failure.code ?? failure.message}), so no neighbour is named.\n`)
       return null
@@ -137,24 +148,30 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     process.on('SIGTERM', stop)
     let turn
     try {
-      turn = await admit(leases, held, { maxMs: waitMaxMs(env), stopped: () => stopped })
+      turn = await lease.admit(leases, held, { maxMs: lease.waitMaxMs(env), stopped: () => stopped })
+    } catch (failure) {
+      stderr.write(`qh-check: could not wait for its turn (${failure.code ?? failure.message}), so it runs now.\n`)
+      turn = { admitted: false, waitedMs: 0, stopped: null, failed: true }
     } finally {
       process.off('SIGINT', stop)
       process.off('SIGTERM', stop)
     }
     waitedMs = turn.waitedMs
     if (turn.stopped) {
-      release(held)
+      leaseStep('release', () => lease.release(held))
       stderr.write(`qh-check: stopped by ${turn.stopped} while waiting its turn; the check did not run.\n`)
       return turn.stopped === 'SIGINT' ? 130 : 143
     }
-    stderr.write(turn.admitted
-      ? `qh-check: waited ${inSeconds(waitedMs)} for its turn.\n`
-      : `qh-check: stopped waiting after ${inSeconds(waitedMs)} (QUALITY_HARNESS_WAIT_MAX_S), and runs beside the rest.\n`)
-    mark(held, { state: 'running' })
+    if (!turn.failed) {
+      stderr.write(turn.admitted
+        ? `qh-check: waited ${inSeconds(waitedMs)} for its turn.\n`
+        : `qh-check: stopped waiting after ${inSeconds(waitedMs)} (QUALITY_HARNESS_WAIT_MAX_S), and runs beside the rest.\n`)
+    }
+    // An admitted lease is marked running under the admission lock; one that stopped waiting is not.
+    if (!turn.admitted) leaseStep('mark', () => lease.mark(held, { state: 'running' }))
   }
   const beside = look()
-  for (const line of beside ? besideLines(beside) : []) stderr.write(`qh-check: ${line}\n`)
+  for (const line of beside ? lease.besideLines(beside) : []) stderr.write(`qh-check: ${line}\n`)
   const startedAt = new Date().toISOString()
   // The load at both ends of the check (ADR-075 T1): a pass taken on a saturated machine is
   // not attributable, and the record says so without changing the exit or the verdict.
@@ -177,10 +194,10 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
       : { ended: { code: null, signal: null, error: new Error(NO_BASH) }, received: null }
     besideAtEnd = look()
   } finally {
-    if (held) release(held)
+    if (held) leaseStep('release', () => lease.release(held))
   }
   const { ended, received } = ran
-  for (const line of besideAtEnd ? besideLines(besideAtEnd) : []) stderr.write(`qh-check: at its end, ${line}\n`)
+  for (const line of besideAtEnd ? lease.besideLines(besideAtEnd) : []) stderr.write(`qh-check: at its end, ${line}\n`)
   const after = { ...observe(root), at: new Date().toISOString(), load: sampleLoad(load).load }
   const signal = received ?? ended.signal ?? null
   const exit = ended.error ? null : ended.code

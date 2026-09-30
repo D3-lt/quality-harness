@@ -6,7 +6,7 @@
 // dead, unknown — and an unknown is never read as a dead one (ADR-005): its lease is kept, named,
 // and removed only once it is a day old.
 import { randomBytes } from 'node:crypto'
-import { mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -20,8 +20,10 @@ export const leaseDir = (env = process.env) => env.QUALITY_HARNESS_LEASE_DIR || 
 const WAIT_MAX_SECONDS = 1_800
 /** waitMaxMs is that bound, from `$QUALITY_HARNESS_WAIT_MAX_S`, in milliseconds. */
 export function waitMaxMs(env = process.env) {
-  const seconds = Number(env.QUALITY_HARNESS_WAIT_MAX_S)
-  return (Number.isFinite(seconds) && seconds > 0 ? seconds : WAIT_MAX_SECONDS) * 1_000
+  // Checked after the conversion: `1e308` seconds is finite, and Infinity milliseconds is no bound
+  // (Codex review of the 3.3.0 candidate).
+  const ms = Number(env.QUALITY_HARNESS_WAIT_MAX_S) * 1_000
+  return Number.isFinite(ms) && ms > 0 ? ms : WAIT_MAX_SECONDS * 1_000
 }
 
 /**
@@ -51,11 +53,29 @@ function probe(ask) {
 }
 
 // Written to a temporary name and renamed, so no reader ever sees half a lease. The temporary
-// name does not end in `.json`, so a reader never takes it for one.
+// name does not end in `.json`, so a reader never takes it for one, and it is created exclusively,
+// so nothing already at that name is written through.
 function publish(file, lease) {
-  const temp = `${file}.${process.pid}.tmp`
-  writeFileSync(temp, JSON.stringify(lease))
+  const temp = `${file}.${process.pid}.${randomBytes(3).toString('hex')}.tmp`
+  writeFileSync(temp, JSON.stringify(lease), { flag: 'wx', mode: 0o600 })
   renameSync(temp, file)
+}
+
+// The lease directory is trusted only as a directory of this user's that no one else can write:
+// on a shared /tmp another user could make the default first — a symlink to a directory the victim
+// can write, or a directory of their own — and a run would publish, and delete, there (Codex review
+// of the 3.3.0 candidate). Only the leaf is checked; a symlinked parent such as macOS's /var is the
+// system's. The answer is a reason to refuse, or null.
+function untrusted(dir, platform = process.platform) {
+  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  const found = lstatSync(dir)
+  if (found.isSymbolicLink()) return `${dir} is a symlink`
+  if (!found.isDirectory()) return `${dir} is not a directory`
+  if (platform !== 'win32' && typeof process.getuid === 'function') {
+    if (found.uid !== process.getuid()) return `${dir} belongs to another user`
+    if (found.mode & 0o022) return `${dir} can be written by other users`
+  }
+  return null
 }
 
 /**
@@ -64,7 +84,8 @@ function publish(file, lease) {
  */
 export function take(dir, { command, root, state = 'running' } = {}) {
   try {
-    mkdirSync(dir, { recursive: true })
+    const refused = untrusted(dir)
+    if (refused) return { error: refused }
     const start = new Date()
     const file = path.join(dir, `${process.pid}-${start.getTime()}-${randomBytes(3).toString('hex')}.json`)
     const lease = { pid: process.pid, command, root, start: start.toISOString(), state }
@@ -145,11 +166,6 @@ function before(a, b) {
 }
 
 /**
- * admit waits this run's turn: it may start when no other lease is running or unknown, and no
- * waiting one holds an earlier ticket. It observes once a second, until `maxMs`, and returns
- * `{ admitted, waitedMs, stopped }`; `stopped()` is asked each time, so a signal ends the wait.
- */
-/**
  * mayStart answers one observation: a waiting run may start when no other lease is running or
  * unknown, and no waiting one holds an earlier ticket.
  */
@@ -161,16 +177,59 @@ export function mayStart(dir, held) {
   return !blocked
 }
 
+// One admission at a time: deciding that a run may start and saying so are one step, or two
+// waiters deciding together each see the other still waiting and both start (Codex review of the
+// 3.3.0 candidate). The lock is a directory, made atomically, with its holder's pid inside; a holder
+// that died there, or one too old to be still deciding, is broken by the next caller, whose attempt
+// then waits for the following poll.
+const ADMISSION = '.admission'
+const ADMISSION_STALE_MS = 30_000
+function holdAdmission(dir) {
+  const lock = path.join(dir, ADMISSION)
+  try {
+    mkdirSync(lock)
+  } catch (error) {
+    if (error.code !== 'EEXIST') throw error
+    let holder = null
+    try { holder = Number(readFileSync(path.join(lock, 'pid'), 'utf8')) } catch { holder = null }
+    let age = 0
+    try { age = Date.now() - statSync(lock).mtimeMs } catch { age = 0 }
+    if ((holder && alive(holder) === 'dead') || age > ADMISSION_STALE_MS) rmSync(lock, { recursive: true, force: true })
+    return null
+  }
+  writeFileSync(path.join(lock, 'pid'), String(process.pid))
+  return lock
+}
+
 /**
- * admit waits this run's turn, observing once a second until `maxMs`, and returns
- * `{ admitted, waitedMs, stopped }`; `stopped()` is asked each time, so a signal ends the wait.
+ * tryAdmit is one admission attempt: under the admission lock, when `mayStart` says so, it marks
+ * this run's lease running and answers true. `beforeMark` is a test's seam into the one instant
+ * where two waiters could otherwise both decide to start.
+ */
+export function tryAdmit(dir, held, { beforeMark } = {}) {
+  const lock = holdAdmission(dir)
+  if (!lock) return false
+  try {
+    if (!mayStart(dir, held)) return false
+    beforeMark?.()
+    mark(held, { state: 'running' })
+    return true
+  } finally {
+    rmSync(lock, { recursive: true, force: true })
+  }
+}
+
+/**
+ * admit waits this run's turn, trying once a second until `maxMs`, and returns
+ * `{ admitted, waitedMs, stopped }`; `stopped()` is asked each time, so a signal ends the wait. An
+ * admitted lease is already marked running; one that stopped waiting is not.
  */
 export async function admit(dir, held, { maxMs, stopped = () => null, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
   const began = Date.now()
   for (;;) {
     const signal = stopped()
     if (signal) return { admitted: false, waitedMs: Date.now() - began, stopped: signal }
-    if (mayStart(dir, held)) return { admitted: true, waitedMs: Date.now() - began, stopped: null }
+    if (tryAdmit(dir, held)) return { admitted: true, waitedMs: Date.now() - began, stopped: null }
     const left = maxMs - (Date.now() - began)
     if (left <= 0) return { admitted: false, waitedMs: Date.now() - began, stopped: null }
     await sleep(Math.min(1000, left))
@@ -179,14 +238,15 @@ export async function admit(dir, held, { maxMs, stopped = () => null, sleep = ms
 
 /**
  * admitSync is `admit` for a caller with no event loop to wait on — a mutation campaign, whose run
- * is synchronous end to end. It sleeps with Atomics.wait, so it cannot notice a signal: one sent
- * while it waits ends the process, and the next observer removes the lease its pid left.
+ * is synchronous end to end. It sleeps with Atomics.wait and cannot notice a signal, so its caller
+ * waits before it installs any handler: a signal sent while it waits then ends the process under
+ * the default action, nothing has started, and the next observer removes the lease its pid left.
  */
 export function admitSync(dir, held, { maxMs }) {
   const began = Date.now()
   const pause = new Int32Array(new SharedArrayBuffer(4))
   for (;;) {
-    if (mayStart(dir, held)) return { admitted: true, waitedMs: Date.now() - began }
+    if (tryAdmit(dir, held)) return { admitted: true, waitedMs: Date.now() - began }
     const left = maxMs - (Date.now() - began)
     if (left <= 0) return { admitted: false, waitedMs: Date.now() - began }
     Atomics.wait(pause, 0, 0, Math.min(1000, left))

@@ -16725,3 +16725,40 @@ Left open, each a lead:
   `inconclusive`"): 022e9ce dropped "read and nothing was written — the same" from the middle of a sentence.
   Restored in the commit that files this entry (found by `git log -S`, not by any check: prose in help text has
   none).
+
+## 323. FIXED 2026-10-01 — ADR-077: a heavy run holds a lease, and the review of the 3.3.0 candidate
+
+ADR-077 (N3) executed on `spec/machine-lease`: T1 4535501, T2 4231a77, the review round after.
+
+- **T1:** `plugin/scripts/lease.mjs`, and `qh-check` takes a lease, names its neighbours at the check's start
+  and end (`beside`, `besideAtEnd`, `waitedMs`), waits its turn when asked, and releases after the check has
+  closed. **S6 found the ticket-order test blind**: its two waiters poll 50 ms apart, so a rule that ignored
+  tickets still passed; a test that asks `admit` directly now kills it (a survivor stays in T1's Mutation Log).
+- **T2:** a campaign holds the same lease in its parent, recording the isolated child and its group.
+  **S6's first killed-parent mutant survived** because child OR group keeps the lease live; the mutant that
+  removes both is killed. One `alive` now: `worktree.mjs` wraps the lease module's three-valued probe.
+- **ADR-076 T3 relocked** (weaker than first-red, and adr-lint says so): the test-lock hasher took
+  `test('a negative value is a finding', …)`, declared INSIDE the string constant `SUITE`, for a test of that
+  file, and its "body" ran on into the fixture helper T2 extended. **Open lead: the lock hasher reads tests
+  inside string literals.** Enumerated with `mrw read --grep "[\"'\`]test\('|\\\\ntest\(|\"test\(\"" tests/`:
+  ten files declare a test inside a string (campaign-fixture.mjs, chaos-315-mutate-catalogue.test.mjs,
+  gate-regressions.py, leftovers-after-adr053.test.mjs, mutate-isolation.test.mjs, mutate-runner.test.mjs,
+  relock-stress.py, test-lock-stress.py, test-lock.test.mjs, unasserted-isolation.test.mjs). Any lock over
+  one of them can move when an unrelated helper does.
+- **The review of the 3.3.0 candidate (Codex, xhigh, at 4231a77): eight findings, all held against source.**
+  Fixed with a test each, red first, and a catalogue entry each: (1) the default lease directory is trusted only
+  as this user's own, not a symlink, not writable by others, and temporary lease files are created exclusively;
+  (2) deciding that a waiter may start and marking it running are one step, under an atomic `mkdir` lock with a
+  dead or stale holder broken — Codex's interleaving admitted two waiters; (3) a campaign waits BEFORE any signal
+  handler is installed, since its wait is synchronous and a handler held the signal until the work had started;
+  (4) every lease step in `qh-check` and the campaign is a diagnostic, and the check's exit and record stand;
+  (6) on Windows a fence has ended only when its job was CLOSED, not because one existed; (7) a campaign names
+  its neighbours at its end too; (8) a wait bound that overflows to Infinity milliseconds is the default.
+  **(5), the isolated child released by `owner.json` before its lease named it, is fixed by order and has no
+  test**: the window lies between two adjacent statements and nothing can land in it from outside.
+- **The candidate's own campaign found two tests that stopped proving their mechanism** (47 entries re-run
+  uncached, 45 RED). `ADR-076 T2: a stopped run removes its tree` went GREEN: since the build holds its
+  signals, the test's SIGTERM, sent as soon as the worktree appears, mostly lands during the build, so the fence
+  never starts and the fence's own end is never exercised; a test that signals only once the fence runs now
+  kills it. `Codex 3.3.0 #1`'s first mutant only dropped the symlink check, and a symlink then failed the
+  next check ("not a directory") anyway; the mutant that FOLLOWS the link is the one that matters, and is RED.

@@ -7,7 +7,7 @@
 // must never be mistaken for a neighbour's (Codex's cold review of ADR-077).
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
@@ -275,4 +275,98 @@ test('a campaign asked to wait starts its suite only after the running lease is 
   neighbour.release()
   assert.equal(await exited, 0)
   assert.ok(sidecarLines(side).length > 0, 'the campaign never ran its suite')
+})
+
+// The Codex review of the 3.3.0 candidate (4231a77). Each test below is one finding, red before
+// its fix. Finding 5 — the child authorised before its lease named it — is an ordering between two
+// adjacent statements that no test can land between; its fix is the order.
+const leaseModule = () => import('../plugin/scripts/lease.mjs')
+const posixOnly = { skip: process.platform === 'win32' && 'POSIX modes, symlinks and signals' }
+
+// Finding 1: another user can pre-create the shared default as a symlink, and a run must not
+// publish, or delete, through it.
+test('a lease directory that is a symlink is not used, and nothing is written through it', posixOnly, async () => {
+  const { dir } = project('process.exit(3)')
+  const target = path.join(scratch, `elsewhere-${made}`)
+  mkdirSync(target)
+  const link = path.join(scratch, `linked-leases-${made}`)
+  symlinkSync(target, link)
+  const err = sink()
+  assert.equal(await runCheck({ cwd: dir, stdout: sink(), stderr: err, env: env(link) }), 3)
+  assert.match(err.text(), /could not use the lease/)
+  assert.deepEqual(readdirSync(target), [], 'a lease was written through the symlink')
+})
+
+// Finding 2: deciding to start and saying so are one step, so a waiter that publishes an earlier
+// ticket while another decides cannot be admitted beside it.
+test('two waiters cannot both be admitted when one publishes while the other decides', async () => {
+  const { release, take, tryAdmit } = await leaseModule()
+  const { leases } = project()
+  const late = take(leases, { command: 'a later waiter', root: '/y', state: 'waiting' })
+  const early = { file: path.join(leases, 'early.json'), lease: { pid: process.pid, command: 'an earlier waiter', root: '/x', start: new Date(Date.now() - 60_000).toISOString(), state: 'waiting' } }
+  let earlyAdmitted = null
+  const lateAdmitted = tryAdmit(leases, late, { beforeMark: () => {
+    writeFileSync(early.file, JSON.stringify(early.lease))
+    earlyAdmitted = tryAdmit(leases, early)
+  } })
+  try {
+    assert.equal(lateAdmitted, true, 'the later waiter, alone when it decided, was not admitted')
+    assert.equal(earlyAdmitted, false, 'both waiters were admitted: deciding and saying so were not one step')
+  } finally {
+    release(late)
+    rmSync(early.file, { force: true })
+  }
+})
+
+// Finding 3: a campaign in place installed its signal handlers before its synchronous wait, so a
+// SIGTERM during the wait was handled only after the campaign's work had started.
+test('a campaign signalled while waiting its turn runs nothing', posixOnly, async () => {
+  const fixture = campaignFixture()
+  const side = sidecar()
+  const leases = path.join(scratch, `campaign-leases-${made += 1}`)
+  mkdirSync(leases)
+  const neighbour = await holder(leases)
+  const parent = spawn(process.execPath, [mutateScript, '--root', fixture, '--no-cache', '--in-place', '--wait'], { cwd: fixture, env: campaignEnv({ QUALITY_HARNESS_LEASE_DIR: leases, FIXTURE_SIDECAR: side, FIXTURE_CHECKOUT: fixture }), stdio: 'ignore', timeout: 120_000, windowsHide: true })
+  const exited = new Promise(resolve => parent.once('exit', (code, signal) => resolve({ code, signal })))
+  await until(() => leaseFiles(leases).length === 2, 'the campaign\'s waiting lease')
+  parent.kill('SIGTERM')
+  await sleep(300)
+  neighbour.release()
+  const { code, signal } = await exited
+  assert.ok(signal === 'SIGTERM' || code === 143, `the campaign did not end on the signal: ${code} ${signal}`)
+  assert.equal(sidecarLines(side).length, 0, 'the campaign ran its suite after it was signalled')
+})
+
+// Finding 4: a lease operation that fails is a diagnostic; the check's exit and record stand.
+test('a lease that cannot be released leaves the check\'s own exit and record', async () => {
+  const real = await leaseModule()
+  const { dir, leases } = project('process.exit(3)')
+  const err = sink()
+  const lease = { ...real, release: () => { throw Object.assign(new Error('denied'), { code: 'EACCES' }) } }
+  assert.equal(await runCheck({ cwd: dir, stdout: sink(), stderr: err, env: env(leases), lease }), 3)
+  assert.equal(lastRecord(dir).exit, 3, 'the record was not written')
+  assert.match(err.text(), /could not release the lease/)
+})
+
+// Finding 7: a campaign observes its neighbours at its end as well as at its start.
+test('a campaign names at its end a run that began beside it after it started', posixOnly, async () => {
+  const fixture = campaignFixture()
+  const side = sidecar()
+  const leases = path.join(scratch, `campaign-leases-${made += 1}`)
+  mkdirSync(leases)
+  const parent = spawn(process.execPath, [mutateScript, '--root', fixture, '--no-cache'], { cwd: fixture, env: campaignEnv({ QUALITY_HARNESS_LEASE_DIR: leases, FIXTURE_SIDECAR: side, FIXTURE_CHECKOUT: fixture, FIXTURE_SLOW_MS: '1500' }), stdio: ['ignore', 'ignore', 'pipe'], timeout: 120_000, windowsHide: true })
+  let said = ''
+  parent.stderr.on('data', chunk => { said += chunk })
+  const exited = new Promise(resolve => parent.once('exit', resolve))
+  await until(() => sidecarLines(side).length > 0, 'the campaign\'s suite', 60_000)
+  const late = await holder(leases, { command: 'a later neighbour' })
+  await exited
+  assert.match(said, new RegExp(`at its end, running beside a later neighbour \\(pid ${late.pid}`))
+})
+
+// Finding 8: a bound too large to be a number of milliseconds is no bound at all.
+test('a wait bound too large to be a number of milliseconds is the default', async () => {
+  const { waitMaxMs } = await leaseModule()
+  assert.equal(waitMaxMs({ QUALITY_HARNESS_WAIT_MAX_S: '1e308' }), 1_800_000)
+  assert.equal(waitMaxMs({ QUALITY_HARNESS_WAIT_MAX_S: '2' }), 2_000)
 })

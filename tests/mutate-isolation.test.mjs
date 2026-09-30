@@ -5,8 +5,8 @@
 // Every campaign runs over a fixture repository in the OS temp directory, never over
 // this checkout (tests/campaign-fixture.mjs).
 import assert from 'node:assert/strict'
-import { spawn } from 'node:child_process'
-import { existsSync, readFileSync, writeFileSync } from 'node:fs'
+import { spawn, spawnSync } from 'node:child_process'
+import { existsSync, mkdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import {
@@ -231,7 +231,7 @@ test('a campaign stopped with SIGTERM removes its worktree', async () => {
   // An interrupted campaign still says the load it ran under, its end sample taken at the signal (F-10).
   if (process.platform !== 'win32') assert.match(output, /load: .* at start, .* at end/, 'an interrupted campaign said no load')
   if (process.platform === 'win32') {
-    const next = campaign(dir, ['--no-cache'])
+    const next = await afterTheOrphan(dir)
     assert.equal(next.status, 0, next.stdout + next.stderr)
   } else {
     assert.equal(code, 143, 'a campaign stopped by SIGTERM exits 143')
@@ -292,4 +292,113 @@ test('a campaign says its load line once, in place and isolated', () => {
     const said = `${run.stdout}${run.stderr}`.split('\n').filter(line => line.startsWith('load: '))
     assert.equal(said.length, 1, `${mode.join(' ') || 'an isolated run'} said the load ${said.length} times`)
   }
+})
+
+// Codex review of ADR-075: the child's marker exempts it from the in-place checks, so a test the
+// child runs — this file's own campaigns among them — must not inherit it.
+test('a campaign child does not hand its marker to the tests it runs', async () => {
+  const { childEnv } = await import('../scripts/mutate.mjs')
+  const env = childEnv({ QUALITY_HARNESS_CAMPAIGN_CHILD: '1', QUALITY_HARNESS_CAMPAIGN_OWNER: 'owner.json', KEPT: 'yes' }, path.dirname(sidecar()))
+  assert.equal(env.QUALITY_HARNESS_CAMPAIGN_CHILD, undefined, 'the marker reached the child\'s tests')
+  assert.equal(env.QUALITY_HARNESS_CAMPAIGN_OWNER, undefined, 'the owner file reached the child\'s tests')
+  assert.equal(env.KEPT, 'yes', 'childEnv dropped what it had no reason to')
+})
+
+// Codex review of ADR-075: a parent killed between spawning its child and recording it leaves
+// nothing that names the child, so the child waits to be recorded and gives up when it never is.
+test('an isolated child whose parent ended before recording it does not start', () => {
+  const dir = campaignFixture()
+  const side = sidecar()
+  const home = path.dirname(side)
+  const gone = spawnSync(process.execPath, ['-e', ''], { timeout: 20_000, windowsHide: true }).pid
+  const owner = path.join(home, 'owner.json')
+  writeFileSync(owner, JSON.stringify({ parent: gone }))
+  const selected = path.join(home, 'selected.json')
+  writeFileSync(selected, JSON.stringify(['answer']))
+  const began = Date.now()
+  const run = spawnSync(process.execPath, [mutateScript, '--in-place', '--root', dir, '--selected', selected, '--no-cache'], {
+    cwd: dir, encoding: 'utf8', timeout: 90_000, windowsHide: true,
+    env: campaignEnv({ QUALITY_HARNESS_CAMPAIGN_CHILD: '1', QUALITY_HARNESS_CAMPAIGN_OWNER: owner, FIXTURE_SIDECAR: side, FIXTURE_CHECKOUT: dir }),
+  })
+  assert.equal(run.status, 2, run.stdout + run.stderr)
+  assert.ok(Date.now() - began < 20_000, 'the child waited out its deadline instead of seeing its parent had ended')
+  assert.match(run.stderr, /parent ended before it recorded this run/)
+  assert.deepEqual(sidecarLines(side), [], 'the unrecorded child ran the suite')
+})
+
+// Codex review of ADR-075: the child's loop is synchronous, so a SIGTERM ends only the test run in
+// flight and the next starts. The parent ends the rest itself, from the signal. On Windows
+// `taskkill /T /F` ends the tree at once, so there is no grace to measure.
+test('a campaign stopped with SIGTERM ends within its grace, not after its remaining entries', { skip: process.platform === 'win32' && 'taskkill /T /F ends the whole tree at once on Windows' }, async () => {
+  const dir = campaignFixture()
+  const side = sidecar()
+  const scratch = path.dirname(side)
+  const child = spawn(process.execPath, [mutateScript, '--root', dir, '--no-cache'], {
+    cwd: dir,
+    env: campaignEnv({ FIXTURE_SIDECAR: side, FIXTURE_CHECKOUT: dir, FIXTURE_SLOW_MS: '9000', TMPDIR: scratch, TMP: scratch, TEMP: scratch }),
+    stdio: 'ignore', timeout: 120_000, windowsHide: true,
+  })
+  const exited = new Promise(resolve => child.once('exit', resolve))
+  // The slow test's first run is its baseline and its second the first mutant's, with the
+  // second mutant's still to come: the signal lands during the first mutant.
+  const until = Date.now() + 60_000
+  while (sidecarLines(side).length < 2 && child.exitCode === null && child.signalCode === null && Date.now() < until) {
+    await new Promise(resolve => setTimeout(resolve, 50))
+  }
+  assert.equal(sidecarLines(side).length, 2, 'the first mutant never reached its test')
+  const signalled = Date.now()
+  child.kill('SIGTERM')
+  await exited
+  const took = Date.now() - signalled
+  // The next mutant's run alone takes 9 s; the grace is 2 s.
+  assert.ok(took < 6_500, `the campaign ran on for ${took} ms after SIGTERM`)
+  assert.deepEqual(worktrees(dir), [dir])
+})
+
+// Codex review of ADR-075: git stores a text file's normalised bytes, so a file the checkout holds
+// with CRLF under `eol=lf` checks out as LF. The worktree holds the checkout's bytes (spec F-8).
+test('an isolated campaign runs over the bytes in the checkout, not the ones git normalises', () => {
+  const dir = campaignFixture()
+  writeFileSync(path.join(dir, '.gitattributes'), '*.mjs text eol=lf\n')
+  fixtureGit(dir, ['add', '.gitattributes'])
+  fixtureGit(dir, ['commit', '-qm', 'attributes'])
+  writeFileSync(path.join(dir, 'lib.mjs'), FIXTURE_FILES['lib.mjs'].replace(/\n/g, '\r\n'))
+  const side = sidecar()
+  // A relative FIXTURE_CHECKOUT is read from the directory the suite ran in: the worktree.
+  const run = campaign(dir, ['--no-cache', '--case', 'answer'], { FIXTURE_SIDECAR: side, FIXTURE_CHECKOUT: '.' })
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  const seen = sidecarLines(side)
+  assert.ok(seen.length > 0, 'the fixture suite never ran')
+  assert.ok(seen.every(entry => entry.cwd !== dir), 'the suite ran in the checkout')
+  assert.ok(seen.every(entry => entry.checkout.includes('\r\n')), 'the worktree held the normalised bytes')
+})
+
+// Codex review of ADR-075: every setup step after `worktree add` removes the worktree when it
+// fails, and a cache that cannot be read in is not written back over the checkout's.
+test('a verdict cache that cannot be read into the worktree is neither reused nor returned, and the worktree goes', () => {
+  const dir = campaignFixture()
+  // A directory where the cache file belongs: it exists, and it cannot be copied.
+  mkdirSync(path.join(dir, '.mutation-cache.json'))
+  const run = campaign(dir, ['--case', 'answer'])
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.match(run.stderr, /the verdict cache could not be read into the worktree/)
+  assert.ok(statSync(path.join(dir, '.mutation-cache.json')).isDirectory(), 'the checkout\'s cache was replaced')
+  assert.deepEqual(worktrees(dir), [dir])
+})
+
+// The overlay copies every tracked file's bytes, so what `git stash create` alone still carries
+// into the worktree is a tracked file deleted in the checkout (Codex review of ADR-075, #5).
+test('a tracked file deleted in the checkout is absent from the worktree too', () => {
+  const dir = campaignFixture()
+  rmSync(path.join(dir, 'notes.md'))
+  writeFileSync(path.join(dir, 'tests', 'gone.test.mjs'),
+    "import assert from 'node:assert/strict'\nimport { existsSync } from 'node:fs'\nimport test from 'node:test'\nimport { answer } from '../lib.mjs'\n"
+    + "test('notes are gone', () => { assert.equal(existsSync('notes.md'), false); assert.equal(answer(), 42) })\n")
+  const catalogue = JSON.parse(readFileSync(path.join(dir, 'tests', 'mutations.json'), 'utf8'))
+  catalogue.mutations = [{ label: 'gone', file: 'lib.mjs', tests: ['tests/gone.test.mjs'], from: '() => 42', to: '() => 41' }]
+  writeFileSync(path.join(dir, 'tests', 'mutations.json'), `${JSON.stringify(catalogue, null, 2)}\n`)
+  const inPlace = campaign(dir, ['--no-cache', '--in-place', '--force'])
+  assert.deepEqual(verdicts(inPlace.stdout), { gone: 'RED' }, `the in-place control:\n${inPlace.stdout}${inPlace.stderr}`)
+  const isolated = campaign(dir, ['--no-cache'])
+  assert.deepEqual(verdicts(isolated.stdout), { gone: 'RED' }, `the deleted file was back in the worktree:\n${isolated.stdout}${isolated.stderr}`)
 })

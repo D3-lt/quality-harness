@@ -6639,8 +6639,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, ...rest } = base",
-      "to": "  const { FORCE_COLOR: _colour, ...rest } = base",
+      "from": "  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, [CAMPAIGN_CHILD]",
+      "to": "  const { FORCE_COLOR: _colour, [CAMPAIGN_CHILD]",
       "only": "^(?:end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes|a checkout path with a space is still an unrun baseline when nothing matched|an inherited FORCE_COLOR is dropped, so a real run still counts its tests|mutate --stale over the real catalogue exits 0 and says every entry matches|mutate --repoint --write rewrites only what it proposed, measures it, and names what stayed refused|mutate --repoint --reanchor proposes what repointEntry refused, and --repoint alone is unchanged|a campaign leaves nothing in the temp directory, whatever its tests forget|the campaign cache records the tests that killed each RED entry|mutate --narrow proposes, writes only with --write, and undoes a narrowing that is not RED|the campaign cache records every test that killed an entry|mutate --narrow --write measures only what it narrowed, fresh, and refuses before any work|mutate --narrow --write leaves nothing narrowed when it is stopped mid-measurement|mutate --narrow --write leaves nothing narrowed when it is killed while a mutant runs)$"
     },
     {
@@ -6649,8 +6649,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, ...rest } = base",
-      "to": "  const { NODE_TEST_CONTEXT: _inherited, ...rest } = base",
+      "from": "NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, [CAMPAIGN_CHILD]",
+      "to": "NODE_TEST_CONTEXT: _inherited, [CAMPAIGN_CHILD]",
       "only": "inherited FORCE_COLOR is dropped"
     },
     {
@@ -17665,7 +17665,7 @@
       ],
       "from": "  let commit = stash.stdout.trim()",
       "to": "  let commit = ''",
-      "only": "^an uncommitted test edit and an untracked test"
+      "only": "^a tracked file deleted in the checkout is absent from the worktree"
     },
     {
       "label": "ADR-075 T2: the child runs the parent's selection",
@@ -17776,6 +17776,106 @@
       "from": "    return mismatches.length || built > OVERHEAD_MS ? 1 : 0",
       "to": "    return mismatches.length ? 1 : 0",
       "only": "^a worktree slower than its budget fails the parity run$"
+    },
+    {
+      "label": "Codex ADR-075 #1: the SIGKILL grace runs from the signal",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    escalation = setTimeout(() => signalGroup(child.pid, 'SIGKILL'), 2_000)",
+      "to": "    escalation = null",
+      "only": "^a campaign stopped with SIGTERM ends within its grace"
+    },
+    {
+      "label": "Codex ADR-075 #2: a child's tests do not inherit its marker",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "FORCE_COLOR: _colour, [CAMPAIGN_CHILD]: _child, [CAMPAIGN_OWNER]: _owner, ...rest",
+      "to": "FORCE_COLOR: _colour, ...rest",
+      "only": "^a campaign child does not hand its marker"
+    },
+    {
+      "label": "Codex ADR-075 #4: the child waits to be recorded",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "process.env[CAMPAIGN_OWNER] && !ownedBy(process.env[CAMPAIGN_OWNER])",
+      "to": "process.env[CAMPAIGN_OWNER] && false",
+      "only": "^an isolated child whose parent ended"
+    },
+    {
+      "label": "Codex ADR-075 #4: an unrecorded child sees its parent has ended",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    if (owner && !alive(owner.parent)) return false",
+      "to": "    if (false) return false",
+      "only": "^an isolated child whose parent ended"
+    },
+    {
+      "label": "Codex ADR-075 #5: the worktree holds the checkout's bytes",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    const copied = overlayTracked(root, tree)",
+      "to": "    const copied = 0",
+      "only": "^an isolated campaign runs over the bytes in the checkout"
+    },
+    {
+      "label": "Codex ADR-075 #6: a cache that cannot be read in is said, not thrown",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    try { copyFileSync(paths.cache, treeCache) } catch (error) {",
+      "to": "    try { copyFileSync(paths.cache, treeCache) } catch (error) { throw error",
+      "only": "^a verdict cache that cannot be read into the worktree"
+    },
+    {
+      "label": "Codex ADR-075 #3: parity refuses a run that did not finish",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "  if (run.error || run.signal || (run.status !== 0 && run.status !== 1)) {",
+      "to": "  if (false) {",
+      "only": "^a campaign that did not finish, or left a selected entry out"
+    },
+    {
+      "label": "Codex ADR-075 #3: parity wants every selected entry graded",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "  return missing.length ? ",
+      "to": "  return false ? ",
+      "only": "^a campaign that did not finish, or left a selected entry out"
+    },
+    {
+      "label": "Codex ADR-075 #3: parity reads a RED that names no killer",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "(?: +<-.*)? *$/gm",
+      "to": " +<-.*$/gm",
+      "only": "^a campaign that did not finish, or left a selected entry out"
+    },
+    {
+      "label": "Codex ADR-075 #3: parity compares against the listed selection",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "    const expected = listedLabels(list.stdout)",
+      "to": "    const expected = []",
+      "only": "^the parity script finds no mismatch"
     }
   ]
 }

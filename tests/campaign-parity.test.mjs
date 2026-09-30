@@ -40,3 +40,16 @@ test('a worktree slower than its budget fails the parity run', () => {
   assert.equal(run.status, 1, run.stdout + run.stderr)
   assert.match(run.stdout, /^parity: 1 entries, 0 mismatches; worktree built in \d+ ms$/m)
 })
+
+// Codex review of ADR-075: two campaigns ended by their timeout after the same first row agree on
+// every row they printed. A run is compared only when it finished and graded its whole selection.
+test('a campaign that did not finish, or left a selected entry out, cannot be compared', async () => {
+  const { incomplete, verdictsOf } = await import('../scripts/campaign-parity.mjs')
+  const whole = { status: 0, signal: null, stdout: 'RED      answer  <- killed by:\n       answer is 42\nRED      other\n\n2/2 mutations were noticed.\n' }
+  assert.deepEqual(verdictsOf(whole.stdout), { answer: 'RED', other: 'RED' }, 'a RED that names no killer was not read')
+  assert.equal(incomplete(whole, ['answer', 'other']), null)
+  const cut = { status: null, signal: 'SIGTERM', error: Object.assign(new Error('spawnSync node ETIMEDOUT'), { code: 'ETIMEDOUT' }), stdout: 'RED      answer  <- killed by:\n       answer is 42\n' }
+  assert.match(incomplete(cut, ['answer', 'other']), /did not finish \(ETIMEDOUT\)/)
+  assert.match(incomplete({ ...whole, stdout: 'RED      answer\n\n1/1 mutations were noticed.\n' }, ['answer', 'other']), /no verdict for 1 of the 2 selected entries, other first/)
+  assert.match(incomplete({ status: 0, signal: null, stdout: 'RED      answer\nRED      other\n' }, ['answer', 'other']), /no summary/)
+})

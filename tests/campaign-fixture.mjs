@@ -13,6 +13,7 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { verdictsOf } from '../scripts/campaign-parity.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -114,12 +115,11 @@ export function snapshot(dir) {
   return found
 }
 
-/** `{ label: verdict }` from a campaign's report lines (`RED      answer  <- killed by: …`). */
-export function verdicts(output) {
-  const found = {}
-  for (const [, verdict, label] of output.matchAll(/^([A-Z]+)\s{2,}(.+?)\s+<-/gm)) found[label] = verdict
-  return found
-}
+/**
+ * `{ label: verdict }` from a campaign's report lines (`RED      answer  <- killed by: …`): the parity
+ * script's reader, so a RED that names no killer is read here too (Codex review of ADR-075).
+ */
+export const verdicts = verdictsOf
 
 /** What the fixture's test wrote to a sidecar, one object per run. */
 export function sidecarLines(file) {

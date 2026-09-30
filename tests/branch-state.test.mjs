@@ -19,11 +19,29 @@ const ok = out => ({ ok: true, out })
 const no = note => ({ ok: false, out: '', note })
 
 // One fake process table. Anything not named here answers "not ok", which is
-// what an absent binary looks like.
+// what an absent binary looks like — except the pushed tip. A table that names no tip
+// describes a branch whose pushed tip is the newest commit its `gh run list` fake lists,
+// which is the world these fixtures were written for (the fallback to that commit was
+// removed on 2026-09-30, the owner's decision); a table that names a tip, even as "not
+// ok", keeps its own.
 function runner(table) {
+  const tipOf = () => {
+    const listing = table.find(([prefix]) => 'gh run list'.startsWith(prefix) || prefix.startsWith('gh run list'))?.[1]
+    if (!listing?.ok) return null
+    let rows = []
+    try { rows = JSON.parse(listing.out) } catch { return null }
+    const newest = rows.filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
+      .reduce((a, b) => (!a || b.databaseId > a.databaseId ? b : a), null)
+    return newest ? ok(String(newest.headSha)) : null
+  }
+  const namesTip = table.some(([prefix]) => /^git rev-parse (?:@\{upstream\}|origin\/)/.test(prefix))
   return argv => {
     for (const [prefix, answer] of table) {
       if (argv.join(' ').startsWith(prefix)) return answer
+    }
+    if (!namesTip && /^git rev-parse (?:@\{upstream\}|origin\/)/.test(argv.join(' '))) {
+      const tip = tipOf()
+      if (tip) return tip
     }
     return no(`no fake for: ${argv.join(' ')}`)
   }
@@ -600,6 +618,7 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
     '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-qm', 'fixture'],
   { encoding: 'utf8', timeout: 10_000 })
   assert.equal(commit.status, 0, commit.stderr)
+  const head = spawnSync('git', ['-C', project, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 10_000 }).stdout.trim()
   const remote = spawnSync('git', ['-C', project, 'remote', 'add', 'origin',
     'git@github.com:example/qh-brief-ttl.git'], { encoding: 'utf8', timeout: 10_000 })
   assert.equal(remote.status, 0, remote.stderr)
@@ -631,7 +650,7 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
       "if (!/^gh(\\.exe)?$/i.test(path.basename(process.argv[0]))) return",
       'const args = process.argv.slice(1)',
       "if (args.includes('list')) {",
-      "  process.stdout.write(JSON.stringify([{ headSha: 'aaaaaaaa', status: 'completed', conclusion: 'success', databaseId: 1 }]))",
+      `  process.stdout.write(JSON.stringify([{ headSha: '${head}', status: 'completed', conclusion: 'success', databaseId: 1 }]))`,
       '  process.exit(0)',
       '}',
       'process.exit(1)',
@@ -643,7 +662,7 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
     writeFileSync(ghJs, [
       'const args = process.argv.slice(2)',
       "if (args[0] === 'run' && args[1] === 'list') {",
-      "  process.stdout.write(JSON.stringify([{ headSha: 'aaaaaaaa', status: 'completed', conclusion: 'success', databaseId: 1 }]))",
+      `  process.stdout.write(JSON.stringify([{ headSha: '${head}', status: 'completed', conclusion: 'success', databaseId: 1 }]))`,
       '  process.exit(0)',
       '}',
       'process.exit(1)',
@@ -1233,6 +1252,15 @@ test('a listing with no run at HEAD or the pushed tip is COULD NOT LOOK, never a
   assert.match(stale, /⚠ CI COULD NOT LOOK — no run listed is at HEAD 0a18d04 or at the pushed tip; the 1 listed are at 24ce31b/, stale)
   assert.doesNotMatch(stale, /FAILURE/, stale)
 
+  // No tip can be read at all (no upstream, no origin/<branch>): still never an old commit's
+  // verdict (the fallback to the newest listed run was removed, the owner, 2026-09-30).
+  const unread = render(collect(runner([...GIT_CLEAN,
+    ['git rev-parse @{upstream}', no('no upstream configured')], ['git rev-parse origin/main', no('unknown revision')],
+    ['gh run list', ok(JSON.stringify([{ headSha: '24ce31b0', status: 'completed', conclusion: 'success', databaseId: 9 }]))],
+  ])), { brief: true })
+  assert.match(unread, /⚠ CI COULD NOT LOOK — no run listed is at HEAD 0a18d04, and no pushed tip could be read/, unread)
+  assert.doesNotMatch(unread, /every job concluded success/, 'an old commit\'s green was read as this branch\'s')
+
   // HEAD ahead of the tip: the tip's run is the CI that is running, and it answers.
   const ahead = render(collect(runner([
     ['git rev-parse --abbrev-ref', ok('main')], ['git rev-parse --short', ok('beef123')],
@@ -1246,7 +1274,7 @@ test('a listing with no run at HEAD or the pushed tip is COULD NOT LOOK, never a
     ]))],
     ['gh run view', ok(JSON.stringify({ jobs: [{ name: 'windows', conclusion: 'failure' }] }))],
   ])), { brief: true })
-  assert.match(ahead, /⚠ CI 0a18d04 \(the pushed tip as last fetched; HEAD has no run\): FAILURE — windows: failure/, ahead)
+  assert.match(ahead, /⚠ CI 0a18d04: FAILURE — windows: failure \(the pushed tip as last fetched; HEAD has no run\)/, ahead)
 
   // HEAD's own run answers over the tip's.
   const own = render(collect(runner([...GIT_CLEAN, ['git rev-parse origin/main', ok('99999999')],
@@ -1285,7 +1313,7 @@ test('a run answers for HEAD or the tip by whole identity, and the tip is read b
       { headSha: full('0a18d04a'), status: 'completed', conclusion: 'success', databaseId: 8 },
     ]))],
   ])), { brief: true })
-  assert.match(ambiguous, /0a18d04 \(the pushed tip as last fetched; HEAD has no run\): every job concluded success/, ambiguous)
+  assert.match(ambiguous, /0a18d04: every job concluded success\. \(the pushed tip as last fetched; HEAD has no run\)/, ambiguous)
 
   // A malformed identity names nothing: a one-letter sha is not HEAD.
   const malformed = render(collect(runner([...GIT_CLEAN, ['git rev-parse @{upstream}', ok(full('0a18d04a'))],
@@ -1305,5 +1333,5 @@ test('a run answers for HEAD or the tip by whole identity, and the tip is read b
       { headSha: full('c0ffee1'), status: 'completed', conclusion: 'success', databaseId: 8 },
     ]))],
   ])), { brief: true })
-  assert.match(configured, /c0ffee1 \(the pushed tip as last fetched; HEAD has no run\): every job concluded success/, configured)
+  assert.match(configured, /c0ffee1: every job concluded success\. \(the pushed tip as last fetched; HEAD has no run\)/, configured)
 })

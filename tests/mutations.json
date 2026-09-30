@@ -18013,8 +18013,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "upstream === null ? 'newest' : null",
-      "to": "'newest'",
+      "from": ": anchor === 'tip' ? at(upstream) : null",
+      "to": ": anchor === 'tip' ? at(upstream) : listed.reduce((a, b) => (b.databaseId > a.databaseId ? b : a)).headSha",
       "only": "never an old commit's verdict"
     },
     {
@@ -18073,8 +18073,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "const named = state.ci.anchor === 'tip' ?",
-      "to": "const named = false ?",
+      "from": "const tipNote = state.ci.looked && state.ci.anchor === 'tip' ?",
+      "to": "const tipNote = false ?",
       "only": "never an old commit's verdict"
     },
     {

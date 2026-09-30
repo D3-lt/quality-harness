@@ -89,7 +89,7 @@ When it receives SIGTERM
 Then its worktree is removed and git lists no worktree for it
 ```
 
-### UC2-S1 [happy] An unasserted run leaves the checkout byte-identical [@spec] → `tests/unasserted-isolation.test.mjs::an unasserted run leaves the checkout byte-identical` cmd:`node --test tests/unasserted-isolation.test.mjs`
+### UC2-S1 [happy] An unasserted run leaves the checkout byte-identical [@implemented] → `tests/unasserted-isolation.test.mjs::an unasserted run leaves the checkout byte-identical` cmd:`node --test tests/unasserted-isolation.test.mjs`
 
 ### UC1-S5 [failure] A generated output is reset between the clean and the mutant fence [@implemented] → `tests/adr-verify-isolation.test.mjs::a generated output left by the clean fence is reset before the mutant fence` cmd:`node --test tests/adr-verify-isolation.test.mjs`
 
@@ -113,7 +113,7 @@ When unasserted.mjs neuters each finding site and runs the suite
 Then it reports the same survivors as an in-place run, and the checkout is byte-identical
 ```
 
-### UC2-S2 [failure] An unasserted run that cannot isolate neuters nothing [@spec] → `tests/unasserted-isolation.test.mjs::an unasserted run that cannot isolate neuters nothing and names --in-place` cmd:`node --test tests/unasserted-isolation.test.mjs`
+### UC2-S2 [failure] An unasserted run that cannot isolate neuters nothing [@implemented] → `tests/unasserted-isolation.test.mjs::an unasserted run that cannot isolate neuters nothing and names --in-place` cmd:`node --test tests/unasserted-isolation.test.mjs`
 
 ```gherkin
 Given a directory where no worktree can be built
@@ -131,12 +131,12 @@ Then it exits 2, names --in-place, and the gate's bytes are unchanged
 | F-5 | The clean fence and the mutant fence run in the same worktree, so nothing either writes reaches the checkout. Between the two fences, the mutated file and every `--also-restore` output are reset inside the worktree as they are in the checkout today, so a build-if-missing output cannot carry the clean run into the mutant's. | `tests/adr-verify-isolation.test.mjs::a fence's generated output stays in the worktree` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
 | F-11 | A generated output left by the clean fence is reset before the mutant fence, inside the worktree, so the mutant fence rebuilds it from the mutated source. | `tests/adr-verify-isolation.test.mjs::a generated output left by the clean fence is reset before the mutant fence` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
 | F-12 | A path that only shares the checkout's prefix does not force the run in place. | `tests/adr-verify-isolation.test.mjs::a sibling path sharing the checkout's prefix does not force the run in place` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
-| F-13 | `scripts/unasserted.mjs` never hands its runner's `NODE_TEST_CONTEXT` to the suites it runs, so started inside a test runner it still reads a suite's failure. | `tests/unasserted-isolation.test.mjs::an unasserted run started inside a test runner still reads its suite's failures` | @spec | `node --test tests/unasserted-isolation.test.mjs` |
+| F-13 | `scripts/unasserted.mjs` never hands its runner's `NODE_TEST_CONTEXT` to the suites it runs, so started inside a test runner it still reads a suite's failure. | `tests/unasserted-isolation.test.mjs::an unasserted run started inside a test runner still reads its suite's failures` | @implemented | `node --test tests/unasserted-isolation.test.mjs` |
 | F-6 | An isolated and an in-place run of the same mutant record the same verdict, and each entry's sha is the checkout's HEAD, carrying `*` when the checkout is dirty. | `tests/adr-verify-isolation.test.mjs::an isolated and an in-place run record the same verdict` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
 | F-7 | `--in-place` applies the mutant in the checkout and restores it, as today. | `tests/adr-verify-isolation.test.mjs::--in-place applies the mutant in the checkout and restores it` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
 | F-8 | A run stopped by SIGINT or SIGTERM removes its worktree; the worktree of a killed run is removed by the next isolated run, of either tool, once no process of it lives. | `tests/adr-verify-isolation.test.mjs::a stopped mutant run removes its worktree` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
-| F-9 | `scripts/unasserted.mjs` neuters and runs its suites in a worktree by default, reports the same survivors as an in-place run, and leaves the checkout byte-identical; `--in-place` keeps today's behaviour. | `tests/unasserted-isolation.test.mjs::an unasserted run leaves the checkout byte-identical` | @spec | `node --test tests/unasserted-isolation.test.mjs` |
-| F-10 | An `unasserted.mjs` run that cannot build its worktree exits 2, names `--in-place`, and neuters nothing. | `tests/unasserted-isolation.test.mjs::an unasserted run that cannot isolate neuters nothing and names --in-place` | @spec | `node --test tests/unasserted-isolation.test.mjs` |
+| F-9 | `scripts/unasserted.mjs` neuters and runs its suites in a worktree by default, reports the same survivors as an in-place run, and leaves the checkout byte-identical; `--in-place` keeps today's behaviour. | `tests/unasserted-isolation.test.mjs::an unasserted run leaves the checkout byte-identical` | @implemented | `node --test tests/unasserted-isolation.test.mjs` |
+| F-10 | An `unasserted.mjs` run that cannot build its worktree exits 2, names `--in-place`, and neuters nothing. | `tests/unasserted-isolation.test.mjs::an unasserted run that cannot isolate neuters nothing and names --in-place` | @implemented | `node --test tests/unasserted-isolation.test.mjs` |
 
 ## Domain
 

@@ -59,6 +59,10 @@ node --test --test-reporter=tap tests/unasserted-isolation.test.mjs 2>&1 | tee "
 | 4 — it is used | maintainers auditing a gate |
 
 ## Mutation Log
+- 2026-09-30 · 26d099f* · mutant killed · exit 1 · `scripts/unasserted.mjs` · the gate is neutered in the checkout instead of the worktree · acceptance-sha256:6ffe5edb0073d39a67f1a70824af5cf75e2dfa0ba9a8d499078d5cbd0e6ad040 · covers:the gate is neutered in the worktree
+- 2026-09-30 · 26d099f* · mutant killed · exit 1 · `scripts/unasserted.mjs` · a run that could not isolate reports success · acceptance-sha256:6ffe5edb0073d39a67f1a70824af5cf75e2dfa0ba9a8d499078d5cbd0e6ad040 · covers:could not isolate is exit 2
+- 2026-09-30 · 26d099f* · mutant killed · exit 1 · `scripts/unasserted.mjs` · the worktree is never removed, on any exit · acceptance-sha256:6ffe5edb0073d39a67f1a70824af5cf75e2dfa0ba9a8d499078d5cbd0e6ad040 · covers:every exit removes the tree
+- 2026-09-30 · 26d099f* · mutant killed · exit 1 · `scripts/unasserted.mjs` · the suites inherit the runner's NODE_TEST_CONTEXT, so a failing suite reads as passing · acceptance-sha256:6ffe5edb0073d39a67f1a70824af5cf75e2dfa0ba9a8d499078d5cbd0e6ad040 · covers:suites do not inherit NODE_TEST_CONTEXT
 
 ## Invariants
 
@@ -77,3 +81,21 @@ Stop and ask if a suite needs the checkout's path.
 - None — the tool's other behaviour is unchanged
 
 ## Verification Log
+- 2026-09-30 · 26d099f* · exit 1 · `set -o pipefail …` · acceptance-sha256:6ffe5edb0073d39a67f1a70824af5cf75e2dfa0ba9a8d499078d5cbd0e6ad040 · ms:2491 · test-lock-sha256:26968efd25dfc2c12bdae99d2c008bd0e262b237bee80ef33c602e5df3f48443 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL3VuYXNzZXJ0ZWQtaXNvbGF0aW9uLnRlc3QubWpzCWEgZmFpbGluZyBiYXNlbGluZSByZW1vdmVzIHRoZSB3b3JrdHJlZQkyN2E4ZGM0MDFlM2YwOGY0MDhkMDMzNjYxMDhhMWU3NzA2YWJmMjZhODY0NDg0NjdlODQ3OTM2MTM5NzI3ODQ4CmJvZHkJdGVzdHMvdW5hc3NlcnRlZC1pc29sYXRpb24udGVzdC5tanMJYSBuZWdhdGl2ZSB2YWx1ZSBpcyBhIGZpbmRpbmcJODc1NzA5ZDkzNmJmMjRiMTBmMTYwZGVmYTNjMTFiNzYzMmVhNzRlNGQ0ZTdkMmU1ZDk3ZGNmMGRlZWE2NDdlNgpib2R5CXRlc3RzL3VuYXNzZXJ0ZWQtaXNvbGF0aW9uLnRlc3QubWpzCWFuIHVuYXNzZXJ0ZWQgcnVuIGxlYXZlcyB0aGUgY2hlY2tvdXQgYnl0ZS1pZGVudGljYWwJOWRkYjJlZjM3NGU5MzcyZTVhOTNkOTVjZDdmZTQ1OTEzN2Q2ZmFlOTc1MzY0NDZmOTdlZjU5OTRjM2MwNTllZgpib2R5CXRlc3RzL3VuYXNzZXJ0ZWQtaXNvbGF0aW9uLnRlc3QubWpzCWFuIHVuYXNzZXJ0ZWQgcnVuIHN0YXJ0ZWQgaW5zaWRlIGEgdGVzdCBydW5uZXIgc3RpbGwgcmVhZHMgaXRzIHN1aXRlJ3MgZmFpbHVyZXMJMTI2Yzg2YjVjYjU1YzE5ZjllY2M0ZDYyNDAzM2ZlMmY2ZDRjYjEwN2ZiY2E2MmExMWQxNzgzOGIxZDNkZTQ5NApib2R5CXRlc3RzL3VuYXNzZXJ0ZWQtaXNvbGF0aW9uLnRlc3QubWpzCWFuIHVuYXNzZXJ0ZWQgcnVuIHRoYXQgY2Fubm90IGlzb2xhdGUgbmV1dGVycyBub3RoaW5nIGFuZCBuYW1lcyAtLWluLXBsYWNlCTNiNGViYWUwNDkyYTJkN2UxZGZiOWJkMDliMjJlMzZjNWNkZDU3ODNmZWIyMDhlNGNlMzAwODUzODIzNjYwMjQKYm9keQl0ZXN0cy91bmFzc2VydGVkLWlzb2xhdGlvbi50ZXN0Lm1qcwlhbiB1bnJlYWNoYWJsZSBzdWl0ZSByZW1vdmVzIHRoZSB3b3JrdHJlZQk2MmFkMTUzZmRiZjZmMjlmZGI0NzBiN2QwMGRlNGFjMjI1OGZlMjJhMzA0MDU1YWZlMjkyZjNkNDhkMGU3M2Nj
+  ```
+  --- last 10 line(s) of stdout (of 96 after folding 97 raw)
+    ...
+  1..5
+  # tests 5
+  # suites 0
+  # pass 2
+  # fail 3
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 2382.139041
+  ```
+- 2026-09-30 · 26d099f* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ffe5edb0073d39a67f1a70824af5cf75e2dfa0ba9a8d499078d5cbd0e6ad040 · ms:3212
+- 2026-09-30 · 26d099f* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ffe5edb0073d39a67f1a70824af5cf75e2dfa0ba9a8d499078d5cbd0e6ad040 · ms:3106
+- 2026-09-30 · 26d099f* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ffe5edb0073d39a67f1a70824af5cf75e2dfa0ba9a8d499078d5cbd0e6ad040 · ms:3240
+- 2026-09-30 · 26d099f* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ffe5edb0073d39a67f1a70824af5cf75e2dfa0ba9a8d499078d5cbd0e6ad040 · ms:3200

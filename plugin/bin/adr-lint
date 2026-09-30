@@ -120,7 +120,10 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible  # noqa: E402
-from record import record_status, status_kind, status_section, status_word, unsigned_human_proof_steps, _NUMBERED_REF, _RECORD_DIRECTORY, _RECORD_SECTION  # noqa: E402
+# `status_word` is imported under another name: this file defines its own, the task-cell reader,
+# further down, and that definition shadowed the record reader at every call, so the execution
+# check read a record's Status with the task parser (the Codex round of 3.1.6, finding 1).
+from record import record_status, status_kind, status_section, status_word as record_status_word, unsigned_human_proof_steps, _NUMBERED_REF, _RECORD_DIRECTORY, _RECORD_SECTION  # noqa: E402
 
 
 def one_line(value):
@@ -2771,7 +2774,7 @@ def check_status_allows_execution(adr_path, readme_text, errors):
     if status is None:
         return  # the missing-Status line is already reported by check_adr
     # ADR-074: the shared reading. Pending (Proposed, Draft) and Rejected were never executed.
-    if status_kind(status) == "pending" or status_word(status) == "rejected":
+    if status_kind(status) == "pending" or record_status_word(status) == "rejected":
         errors.append(f"{adr_path.name}: Status is '{status}' but "
                       f"{', '.join(sorted(done))} {'is' if len(done) == 1 else 'are'} marked done "
                       f"— execution requires Accepted; either the decision was never taken or the "

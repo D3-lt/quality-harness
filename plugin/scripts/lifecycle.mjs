@@ -1697,12 +1697,19 @@ function markdownSection(text, heading) {
 // line inside a code fence is text; and only these characters are whitespace at a value's edges,
 // since `trim` and Python's `strip` disagree (a byte-order mark, `\x1c`), the set is exactly what
 // both remove — a no-break space included, which governed at ebfaee0 (the React SPA corpus at 084d925).
-const STATUS_LABEL = /^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]+)$/
+// The value may be empty, as in record.py: a bare `Status:` is an undecided first label, never a line
+// skipped so a later one governs (the Codex round of 3.1.6, finding 2).
+const STATUS_LABEL = /^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$/
 const EDGE_CODES = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,
   0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000]
-const EDGE_CLASS = `[${EDGE_CODES.map(code => String.fromCodePoint(code).replace(/[\\\]^-]/g, '\\$&')).join('')}]`
+const codeClass = codes => `[${codes.map(code => String.fromCodePoint(code).replace(/[\\\]^-]/g, '\\$&')).join('')}]`
+const EDGE_CLASS = codeClass(EDGE_CODES)
 const EDGE_SPACE = new RegExp(`^${EDGE_CLASS}+|${EDGE_CLASS}+$`, 'g')
 const edgeTrim = value => value.replace(EDGE_SPACE, '')
+// A `## ` heading's trailing whitespace is Python's `\s`, which record.py's `_HEADING` uses: the shared
+// edge set plus `\x1c`-`\x1f` and `\x85`, and never JS's U+FEFF. A heading's text runs to the end of
+// its line: JS's `.` stops at U+2028 and U+2029 where Python's does not (the Codex round of 3.1.6, 4).
+const STATUS_HEADING = new RegExp(`^## ([^\\r\\n]+?)${codeClass([...EDGE_CODES, 0x1C, 0x1D, 0x1E, 0x1F, 0x85])}*$`)
 
 // Each line with whether it sits inside a code fence, by record.py's `_scan` rules: a line of
 // three or more ``` or ~~~ opens one (a ``` opener with a backtick after it does not), only a
@@ -1711,7 +1718,9 @@ const edgeTrim = value => value.replace(EDGE_SPACE, '')
 function fencedLines(text) {
   let fence = null
   return text.split(/\r\n|\r|\n/).map(line => {
-    const marker = line.match(/^[ \t]*(`{3,}|~{3,})(.*)$/)
+    // `[^\r\n]`, not `.`: the rest of an opener is the rest of its line, U+2028 and U+2029 included,
+    // as `.` reads it in record.py's `_FENCE` (the Codex round of 3.1.6, finding 3).
+    const marker = line.match(/^[ \t]*(`{3,}|~{3,})([^\r\n]*)$/)
     if (fence === null) {
       if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) {
         fence = marker[1]
@@ -1759,7 +1768,7 @@ function statusSection(text) {
   let body = null
   let found = null
   for (const [line, fenced] of fencedLines(text)) {
-    const heading = fenced ? null : line.match(/^## (.+?)\s*$/)
+    const heading = fenced ? null : line.match(STATUS_HEADING)
     if (heading) {
       body = heading[1].toLowerCase() === 'status' ? [] : null
       if (body) found = body

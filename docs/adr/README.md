@@ -77,3 +77,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-073](ADR-073-a-narrowed-entry-runs-every-test-it-names.md) | A narrowed entry runs every test it names | Accepted |
 | [ADR-074](ADR-074-one-status-reading-and-one-record-definition.md) | One Status reading and one record definition for every reader | Accepted |
 | [ADR-075](ADR-075-a-campaign-runs-in-a-worktree-and-says-its-load.md) | A campaign runs in a worktree, and every result says the load it ran under | Accepted |
+| [ADR-076](ADR-076-a-recorded-mutant-runs-in-a-worktree.md) | A recorded mutant runs in a worktree | Accepted |

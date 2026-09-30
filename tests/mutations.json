@@ -1675,8 +1675,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        journal.write_text(json.dumps(journal_data), encoding=\"utf-8\")\n    except OSError as e:\n        try:",
-      "to": "        (lambda *a, **k: None)(json.dumps(journal_data), encoding=\"utf-8\")\n    except OSError as e:\n        try:",
+      "from": "            journal.write_text(json.dumps(journal_data), encoding=\"utf-8\")\n        except OSError as e:\n            try:",
+      "to": "            (lambda *a, **k: None)(json.dumps(journal_data), encoding=\"utf-8\")\n        except OSError as e:\n            try:",
       "only": "^(?:an interrupted clean baseline cannot silently lend its changed tree to a later run)$"
     },
     {
@@ -1685,8 +1685,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n              f\"until the fence finishes.\", flush=True)\n        print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n              f\"--cwd {cwd}`, or `git checkout -- {rel}`.\", flush=True)",
-      "to": "        print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n              f\"until the fence finishes.\")\n        print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n              f\"--cwd {cwd}`, or `git checkout -- {rel}`.\")",
+      "from": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\", flush=True)\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {rel}`.\", flush=True)",
+      "to": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\")\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {rel}`.\")",
       "only": "^(?:the warning that names the broken file survives the kill that hides it)$"
     },
     {
@@ -3214,8 +3214,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "            except OSError as exc:",
-      "to": "            except ValueError as exc:",
+      "from": "                continue\n            except OSError as exc:",
+      "to": "                continue\n            except ValueError as exc:",
       "only": "^(?:a corpus whose git probes cannot run is still reported)$"
     },
     {
@@ -3813,8 +3813,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout())",
-      "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None)",
+      "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout(), on_start=fence_start,",
+      "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None, on_start=fence_start,",
       "only": "^(?:adr-verify requires a clean fence before it mutates|a fence that never returns is UNRUN, and writes nothing)$"
     },
     {
@@ -5263,8 +5263,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                   covers=covers, steps=steps)",
-      "to": "                   covers=covers)",
+      "from": "                       covers=covers, steps=steps, in_place=in_place, placement=placement)",
+      "to": "                       covers=covers, in_place=in_place, placement=placement)",
       "only": "^(?:a mutation run's own clean entry carries the steps it was given|the UNPROVEN early return records the steps its run named)$"
     },
     {
@@ -5662,8 +5662,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "        drain_after_kill(proc, platform, job=job)\n        raise",
-      "to": "        raise",
+      "from": "        _, _, killed = drain_after_kill(proc, platform, job=job)\n        if outcome is not None:\n            outcome[\"ended\"] = killed\n        raise",
+      "to": "        killed = False\n        if outcome is not None:\n            outcome[\"ended\"] = killed\n        raise",
       "only": "^adr\\-verify: an interrupted fence run takes its tree with it$|^adr\\-verify: an interrupted run_bounded kills the tree$"
     },
     {
@@ -17659,7 +17659,7 @@
     },
     {
       "label": "ADR-075 T2: the worktree holds the uncommitted content",
-      "file": "scripts/mutate.mjs",
+      "file": "plugin/scripts/worktree.mjs",
       "tests": [
         "tests/mutate-isolation.test.mjs"
       ],
@@ -17719,11 +17719,11 @@
     },
     {
       "label": "ADR-075 T2: untracked files reach the worktree",
-      "file": "scripts/mutate.mjs",
+      "file": "plugin/scripts/worktree.mjs",
       "tests": [
         "tests/mutate-isolation.test.mjs"
       ],
-      "from": "      if (own.has(file)) continue",
+      "from": "      if (skipped.has(file)) continue",
       "to": "      continue",
       "only": "^an uncommitted test edit and an untracked test"
     },
@@ -17819,12 +17819,12 @@
     },
     {
       "label": "Codex ADR-075 #5: the worktree holds the checkout's bytes",
-      "file": "scripts/mutate.mjs",
+      "file": "plugin/scripts/worktree.mjs",
       "tests": [
         "tests/mutate-isolation.test.mjs"
       ],
-      "from": "    const copied = overlayTracked(root, tree)",
-      "to": "    const copied = 0",
+      "from": "  try { overlaid = overlayTracked(root, tree, write) } catch (error) {",
+      "to": "  try { overlaid = 0 } catch (error) {",
       "only": "^an isolated campaign runs over the bytes in the checkout"
     },
     {
@@ -18013,8 +18013,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "upstream === null ? 'newest' : null",
-      "to": "'newest'",
+      "from": ": anchor === 'tip' ? at(upstream) : null",
+      "to": ": anchor === 'tip' ? at(upstream) : listed.reduce((a, b) => (b.databaseId > a.databaseId ? b : a)).headSha",
       "only": "never an old commit's verdict"
     },
     {
@@ -18073,8 +18073,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "const named = state.ci.anchor === 'tip' ?",
-      "to": "const named = false ?",
+      "from": "const tipNote = state.ci.looked && state.ci.anchor === 'tip' ?",
+      "to": "const tipNote = false ?",
       "only": "never an old commit's verdict"
     },
     {
@@ -18086,6 +18086,276 @@
       "from": "const names = text => name => text.includes(`\\`${name}\\``)",
       "to": "const names = text => name => text.includes(name)",
       "only": "^the README names every skill and gate this plugin ships$"
+    },
+    {
+      "label": "ADR-076 T1: a leftover worktree is swept once its owners end",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "      if (liveOwner(owner)) continue",
+      "to": "      if (true) continue",
+      "only": "^a leftover worktree is swept once no owner lives$"
+    },
+    {
+      "label": "ADR-076 T1: a recorded group keeps its tree",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  || (owner.groups ?? []).some(groupAlive) || (owner.pids ?? []).some(alive)",
+      "to": "  || false",
+      "only": "^a recorded process group keeps its worktree from the sweep$"
+    },
+    {
+      "label": "ADR-076 T1: the CLI says it could not build",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "    return built.ok ? 0 : 2",
+      "to": "    return 0",
+      "only": "^the CLI builds and removes a worktree and says why it could not$"
+    },
+    {
+      "label": "ADR-076 T1: a setup failure removes the tree",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  const fail = error => { remove(id); return { ok: false, error } }",
+      "to": "  const fail = error => ({ ok: false, error })",
+      "only": "^a setup failure after worktree add removes the worktree$"
+    },
+    {
+      "label": "ADR-076 T1: excluded files are never copied",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  const skipped = new Set(exclude.map(file => path.relative(root, file).split(path.sep).join('/')))",
+      "to": "  const skipped = new Set()",
+      "only": "^the campaign's own files are never copied into its worktree$"
+    },
+    {
+      "label": "ADR-076 T2: the mutant is applied in the worktree",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        write_source(run_target, original.replace(frm, to, 1), target_newline)",
+      "to": "        write_source(target, original.replace(frm, to, 1), target_newline)",
+      "only": "^a mutant run leaves the checkout unchanged but for the task file's logs$"
+    },
+    {
+      "label": "ADR-076 T2: outside git the run is in place and says so",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        reason = f\"{cwd} is not inside a git checkout, so no worktree can be built\"",
+      "to": "        reason = \"no worktree\"",
+      "only": "^outside git the mutant runs in place and says why$"
+    },
+    {
+      "label": "ADR-076 T2: a fence naming the checkout runs in place",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "    elif (named := fence_names_checkout(cmd, list(dict.fromkeys([root[0], str(root[1])])))) is not None:",
+      "to": "    elif (named := None) is not None:",
+      "only": "^a fence naming the checkout runs in place and names the path$"
+    },
+    {
+      "label": "ADR-076 T2: a shared prefix is not the checkout",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                after = end == len(text) or text[end] in PATH_AFTER or text[end].isspace()",
+      "to": "                after = True",
+      "only": "^a sibling path sharing the checkout's prefix does not force the run in place$"
+    },
+    {
+      "label": "ADR-076 T2: the fences run in the worktree",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "            clean = run_bounded([bash_or_exit(), \"-c\", cmd], cwd=run_cwd, capture_output=True,",
+      "to": "            clean = run_bounded([bash_or_exit(), \"-c\", cmd], cwd=cwd, capture_output=True,",
+      "only": "^a fence's generated output stays in the worktree$"
+    },
+    {
+      "label": "ADR-076 T2: the clean build is reset before the mutant fence",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "    members.extend(secondary_members(run_cwd, run_target, also_restore))",
+      "to": "    members.extend(secondary_members(cwd, target, also_restore))",
+      "only": "^a generated output left by the clean fence is reset before the mutant fence$"
+    },
+    {
+      "label": "ADR-076 T2: evidence is read from the checkout",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "    sha = entry_sha if isolated else git_sha(cwd)",
+      "to": "    sha = git_sha(run_cwd) if isolated else git_sha(cwd)",
+      "only": "^a fence's leftover in the worktree does not mark the checkout's rows dirty$"
+    },
+    {
+      "label": "ADR-076 T2: --in-place is today",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "            in_place = True",
+      "to": "            in_place = False",
+      "only": "^--in-place applies the mutant in the checkout and restores it$"
+    },
+    {
+      "label": "ADR-076 T2: a stopped run removes its tree",
+      "file": "plugin/lib/fence.py",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        _, _, killed = drain_after_kill(proc, platform, job=job)",
+      "to": "        _, _, killed = drain_after_kill(proc, platform, job=job); killed = False",
+      "only": "^a stopped mutant run removes its worktree$"
+    },
+    {
+      "label": "ADR-076 T2: a signal during the worktree build is held until the tree is known",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "            before = hold_signals(pending)",
+      "to": "            before = {}",
+      "only": "^a SIGTERM during the worktree build still removes the worktree$"
+    },
+    {
+      "label": "ADR-076 T3: the gate is neutered in the worktree",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    return measure(built.tree, target, suites, false)",
+      "to": "    return measure(root, target, suites, false)",
+      "only": "^an unasserted run leaves the checkout byte-identical$"
+    },
+    {
+      "label": "ADR-076 T3: could not isolate is exit 2",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "      + 'Re-run with --in-place to neuter the checkout itself.\\n')\n    return 2",
+      "to": "      + 'Re-run with --in-place to neuter the checkout itself.\\n')\n    return 0",
+      "only": "^an unasserted run that cannot isolate neuters nothing and names --in-place$"
+    },
+    {
+      "label": "ADR-076 T3: every exit removes the tree",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    remove(built.id)",
+      "to": "    void built.id",
+      "only": "^(?:a failing baseline removes the worktree|an unreachable suite removes the worktree)$"
+    },
+    {
+      "label": "ADR-076 T3: suites do not inherit NODE_TEST_CONTEXT",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "const suiteEnv = { ...inherited, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' }",
+      "to": "const suiteEnv = { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' }",
+      "only": "^an unasserted run started inside a test runner still reads its suite's failures$"
+    },
+    {
+      "label": "Codex ADR-076 #1: a process a fence leaves running is ended before its tree goes",
+      "file": "plugin/lib/fence.py",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        outcome[\"ended\"] = settle_group(proc.pid, platform) if job is not None or platform != \"nt\" else False",
+      "to": "        outcome[\"ended\"] = True",
+      "only": "^a process a fence leaves running is ended before its worktree goes$"
+    },
+    {
+      "label": "Codex ADR-076 #2: a fence waits at its gate until it is recorded",
+      "file": "plugin/lib/fence.py",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        launch = [\"/bin/sh\", \"-c\", 'read _go || exit 125; exec \"$@\"', \"qh-fence\", *argv]",
+      "to": "        launch = argv",
+      "only": "^a fence is recorded in its worktree before it runs$"
+    },
+    {
+      "label": "Codex ADR-076 #3: unasserted records its process group before its suites run",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    if (group) addOwned(built.id, { group })",
+      "to": "    if (false) addOwned(built.id, { group })",
+      "only": "^an unasserted run records its process group before its suites run$"
+    },
+    {
+      "label": "Codex ADR-076 #4: a target resolving outside the worktree is not neutered",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    if (resolved !== home && !resolved.startsWith(home + path.sep)) {",
+      "to": "    if (false) {",
+      "only": "^a target that resolves outside the worktree is not neutered there$"
+    },
+    {
+      "label": "Codex ADR-076 #5: a path begins at a boundary too",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                before = at == 0 or text[at - 1] in PATH_BEFORE or text[at - 1].isspace()",
+      "to": "                before = True",
+      "only": "^the checkout's path is found at a shell boundary, and not inside another path$"
+    },
+    {
+      "label": "Codex ADR-076 #5: a path ends at a shell metacharacter",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "PATH_AFTER = \"/\\\"'`;&|()<>\"",
+      "to": "PATH_AFTER = \"/\\\"'\"",
+      "only": "^the checkout's path is found at a shell boundary, and not inside another path$"
+    },
+    {
+      "label": "Codex ADR-076 #6: the worktree builder is out of the terminal's group",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                           start_new_session=os.name != \"nt\")",
+      "to": "                           start_new_session=False)",
+      "only": "^(?:a Ctrl-C to the whole group during the worktree build still removes the worktree|the worktree builder runs outside the process group of the gate that started it)$"
+    },
+    {
+      "label": "Codex ADR-076 #7: a build that cannot prepare its directory says so",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "    return { ok: false, error: `could not prepare ${home}: ${error.message}` }",
+      "to": "    throw error",
+      "only": "^a git directory that cannot be written is a build error, not a throw$"
     }
   ]
 }

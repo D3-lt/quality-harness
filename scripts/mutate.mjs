@@ -30,13 +30,14 @@
 // Exit: 0 = every mutation was noticed
 //       1 = a mutation left its suite GREEN, or no longer describes the code
 import { spawn, spawnSync } from 'node:child_process'
-import { createHash, randomBytes } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
+import { copyFileSync, existsSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { loadLine, sampleLoad } from '../plugin/scripts/load.mjs'
+import { addOwned, alive, build, groupAlive, remove, sweep } from '../plugin/scripts/worktree.mjs'
 
 // The load a campaign ran under (ADR-075 T1). `QUALITY_HARNESS_LOADAVG` ("1.5 1 1") and
 // `QUALITY_HARNESS_CORES` are the tests' seams; without them the machine is asked.
@@ -118,15 +119,8 @@ let lockPath = campaignPaths(root).lock
 
 // ADR-075 (spec F-16): the lock names the parent and, once one is spawned, the isolated child.
 // It is live while any pid it names lives or, on POSIX, while the child's process group does,
-// so no second campaign runs on a root whose first one's child is still working.
-function alive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false
-  try { process.kill(pid, 0); return true } catch (error) { return error.code === 'EPERM' }
-}
-function groupAlive(pid) {
-  if (process.platform === 'win32' || !Number.isInteger(pid) || pid <= 0) return false
-  try { process.kill(-pid, 0); return true } catch (error) { return error.code === 'EPERM' }
-}
+// so no second campaign runs on a root whose first one's child is still working. `alive` and
+// `groupAlive` are the worktree module's (ADR-076), so the lock and the sweep agree.
 // An empty or unparsable lock names no process: `Number('')` is 0, and `kill(0, 0)` probes
 // THIS process group, which always answers — so a stale empty lock read as a live run and
 // refused every campaign (BACKLOG §295 item 24). Only positive integers count.
@@ -163,51 +157,9 @@ const CAMPAIGN_CHILD = 'QUALITY_HARNESS_CAMPAIGN_CHILD'
 const CAMPAIGN_OWNER = 'QUALITY_HARNESS_CAMPAIGN_OWNER'
 const thisScript = fileURLToPath(import.meta.url)
 
-// git with a fixed identity: `git stash create` makes a commit, and a fixture or a CI runner may
-// have no user configured.
-function gitIn(dir, args) {
-  const run = spawnSync('git', ['-C', dir, '-c', 'user.name=mutate', '-c', 'user.email=mutate@localhost', ...args],
-    { encoding: 'utf8', timeout: 120_000, maxBuffer: 256 * 1024 * 1024, windowsHide: true })
-  return Object.assign(run, { command: `git ${args.join(' ')}` })
-}
-// The command that failed and what it said, or its exit status when it said nothing.
-const gitSaid = run => `${run.command}: ${(run.error?.message ?? run.stderr?.trim()) || `exit ${run.status}`}`
-
-/**
- * campaignHome is where a repository's campaign worktrees live: its git directory, never the OS
- * temp root, because a test that tells scratch from project by the temp root
- * (`plugin/scripts/lifecycle.mjs:347`) must grade alike in both modes (spec F-9).
- */
-export function campaignHome(dir) {
-  const common = gitIn(dir, ['rev-parse', '--git-common-dir'])
-  if (common.error || common.status !== 0) return null
-  return path.join(path.resolve(dir, common.stdout.trim()), 'qh-campaigns')
-}
-
-/**
- * sweepCampaigns removes every campaign worktree under `home` whose owners have all ended — the
- * parent and child its `owner.json` names and, on POSIX, the child's process group — and says
- * so (spec F-9, F-16). A directory with no `owner.json` belongs to a parent that died before
- * writing it, or to one writing it now, so it is left for a minute.
- */
-export function sweepCampaigns(dir, home, say) {
-  let ids = []
-  try { ids = readdirSync(home) } catch { return }
-  for (const id of ids) {
-    const at = path.join(home, id)
-    let owner = null
-    try { owner = JSON.parse(readFileSync(path.join(at, 'owner.json'), 'utf8')) } catch {}
-    if (owner) {
-      if (alive(owner.parent) || alive(owner.child) || groupAlive(owner.child)) continue
-    } else {
-      try { if (Date.now() - statSync(at).mtimeMs < 60_000) continue } catch { continue }
-    }
-    gitIn(dir, ['worktree', 'remove', '--force', path.join(at, 'tree')])
-    rmSync(at, { recursive: true, force: true })
-    gitIn(dir, ['worktree', 'prune'])
-    say(`removed a campaign worktree left by an earlier run: ${id}`)
-  }
-}
+// The worktree itself — building it, its ownership record and the sweep — is
+// plugin/scripts/worktree.mjs (ADR-076 T1), shared with `adr-verify --mutant` and
+// scripts/unasserted.mjs.
 
 /**
  * writeBackCache puts the child's verdict cache over the checkout's through a temporary file and
@@ -282,36 +234,6 @@ export function exposedProcesses(dir, { env = process.env, platform = process.pl
   return { found }
 }
 
-// `git stash create` stores what git would commit, and for a path with a text attribute that is
-// the NORMALISED content: CRLF bytes in an `eol=lf` file check out as LF, so an in-place run and an
-// isolated one would read different bytes (Codex review of ADR-075; spec F-8). Every tracked
-// regular file whose bytes in the worktree are not the checkout's gets the checkout's; the count
-// comes back so the run can say so.
-function overlayTracked(from, to) {
-  const listed = gitIn(from, ['ls-files', '-s', '-z'])
-  if (listed.error || listed.status !== 0) throw new Error(gitSaid(listed))
-  let copied = 0
-  for (const record of listed.stdout.split('\0').filter(Boolean)) {
-    // A symlink (120000) or a submodule (160000) is git's to reproduce, and it does.
-    if (!record.startsWith('100')) continue
-    const file = record.slice(record.indexOf('\t') + 1)
-    let bytes
-    try { bytes = readFileSync(path.join(from, file)) } catch (error) {
-      // Deleted in the checkout, and so absent from the stash as well.
-      if (error.code === 'ENOENT') continue
-      throw error
-    }
-    const target = path.join(to, file)
-    let there = null
-    try { there = readFileSync(target) } catch {}
-    if (there && bytes.equals(there)) continue
-    mkdirSync(path.dirname(target), { recursive: true })
-    writeFileSync(target, bytes)
-    copied++
-  }
-  return copied
-}
-
 // The isolated child starts before its parent can write its pid down, so it waits until
 // `owner.json` names it: a parent killed in that window leaves nothing that says the child lives,
 // and a later run's sweep would remove the tree from under it (Codex review of ADR-075). It gives
@@ -335,63 +257,22 @@ async function isolate({ selected, argv, paths, loadAtStart }) {
     say(`could not isolate: ${reason}; --in-place runs in this checkout`)
     return 2
   }
-  const home = campaignHome(root)
-  if (!home) return refuse('this is not a git repository')
-  mkdirSync(home, { recursive: true })
-  sweepCampaigns(root, home, say)
-  const began = Date.now()
-  const id = path.join(home, `${process.pid}-${randomBytes(3).toString('hex')}`)
-  mkdirSync(id)
-  const ownerFile = path.join(id, 'owner.json')
-  writeFileSync(ownerFile, JSON.stringify({ parent: process.pid }))
-  const tree = path.join(id, 'tree')
-  const drop = () => {
-    gitIn(root, ['worktree', 'remove', '--force', tree])
-    rmSync(id, { recursive: true, force: true })
-    gitIn(root, ['worktree', 'prune'])
-  }
-  // The working-tree content: `git stash create` is HEAD plus the uncommitted tracked changes
-  // as a commit, and prints nothing when there are none; it writes no ref and no index.
-  const stash = gitIn(root, ['stash', 'create'])
-  // Exit 1 with nothing said is "no local changes": measured 2026-09-30 after an in-place run
-  // restored its files, leaving the index's stat information stale over unchanged content. An
-  // unborn HEAD also exits 1, and says why, so it is still refused. Refreshing the index first
-  // would write it, which an isolated run must never do (spec F-8).
-  const unchanged = stash.status === 1 && !stash.stdout.trim() && !stash.stderr.trim()
-  if (stash.error || (stash.status !== 0 && !unchanged)) { drop(); return refuse(gitSaid(stash)) }
-  let commit = stash.stdout.trim()
-  if (!commit) {
-    const head = gitIn(root, ['rev-parse', '--verify', 'HEAD'])
-    if (head.error || head.status !== 0) { drop(); return refuse(gitSaid(head)) }
-    commit = head.stdout.trim()
-  }
-  const added = gitIn(root, ['worktree', 'add', '--detach', tree, commit])
-  if (added.error || added.status !== 0) { drop(); return refuse(gitSaid(added)) }
-  const untracked = gitIn(root, ['ls-files', '--others', '--exclude-standard', '-z'])
-  if (untracked.error || untracked.status !== 0) { drop(); return refuse(gitSaid(untracked)) }
-  try {
-    // Never the campaign's own files: an untracked lock would name the parent, alive, and the
-    // child would refuse to run beside it.
-    const own = new Set([paths.lock, paths.journal, paths.cache].map(file => path.relative(root, file).split(path.sep).join('/')))
-    for (const file of untracked.stdout.split('\0').filter(Boolean)) {
-      if (own.has(file)) continue
-      const target = path.join(tree, file)
-      mkdirSync(path.dirname(target), { recursive: true })
-      copyFileSync(path.join(root, file), target)
-    }
-  } catch (error) {
-    drop()
-    return refuse(`an untracked file could not be copied (${error.code ?? error.message})`)
-  }
+  sweep(root, say)
+  // Never the campaign's own files: an untracked lock would name the parent, alive, and the child
+  // would refuse to run beside it.
+  const built = build(root, { owner: process.pid, exclude: [paths.lock, paths.journal, paths.cache] })
+  if (!built.ok) return refuse(built.error)
+  const { tree, id } = built
+  const drop = () => remove(id)
+  if (built.overlaid) say(`${built.overlaid} tracked file(s) hold bytes git stores differently (line endings, most often); the worktree has the checkout's`)
+  say(`worktree built in ${built.builtMs} ms`)
   let caching = !argv.includes('--no-cache') && !argv.includes('--cache')
   const treeCache = path.join(tree, path.basename(paths.cache))
   const selectedFile = path.join(id, 'selected.json')
-  // Every step after `worktree add` removes the worktree when it fails: a registered worktree
-  // nothing owns is one no later run can tell from a live one's for a minute.
+  const ownerFile = path.join(id, 'owner.json')
+  // Every step after the build removes the worktree when it fails: a registered worktree nothing
+  // owns is one no later run can tell from a live one's for a minute.
   try {
-    const copied = overlayTracked(root, tree)
-    if (copied) say(`${copied} tracked file(s) hold bytes git stores differently (line endings, most often); the worktree has the checkout's`)
-    say(`worktree built in ${Date.now() - began} ms`)
     // The selection is the parent's, handed over by label: re-evaluating `--changed` or `--shard`
     // in the worktree compares against the snapshot and reads no timings (spec F-15).
     writeFileSync(selectedFile, JSON.stringify(selected.map(mutation => mutation.label)))
@@ -421,7 +302,7 @@ async function isolate({ selected, argv, paths, loadAtStart }) {
     env: { ...inherited, [CAMPAIGN_CHILD]: '1', [CAMPAIGN_OWNER]: ownerFile },
   })
   // The child runs nothing until this names it (`ownedBy`).
-  writeFileSync(ownerFile, JSON.stringify({ parent: process.pid, child: child.pid }))
+  addOwned(id, { child: child.pid })
   writeFileSync(lockPath, `${process.pid} ${child.pid}`)
   let stopped = null
   let escalation = null

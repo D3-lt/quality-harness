@@ -689,6 +689,38 @@ def drain_after_kill(proc, platform, grace=10, started=None, job=None, processes
         return None, None, killed
 
 
+def settle_group(pid, platform=None, grace=5.0):
+    """Whether a fence that RETURNED has ended, ending what it left running (ADR-076).
+
+    A shell returning is not its group ending: `sleep 30 >/dev/null &` leaves a
+    member that holds no pipe, so `communicate` returns while it runs on in the
+    tree its caller is about to remove (Codex review of ADR-076, finding 1). On
+    POSIX the group is asked, killed if anything is left, and asked again until it
+    is gone; False means nothing here saw it end. On Windows the job, closed with
+    KILL_ON_JOB_CLOSE by the time this runs, is what ends the rest, so a job that
+    existed is the answer.
+    """
+    if (platform or os.name) == "nt":
+        return True
+    try:
+        os.killpg(pid, 0)
+    except ProcessLookupError:
+        return True
+    except OSError:
+        return False
+    kill_tree(pid, platform)
+    deadline = time.monotonic() + grace
+    while time.monotonic() < deadline:
+        try:
+            os.killpg(pid, 0)
+        except ProcessLookupError:
+            return True
+        except OSError:
+            return False
+        time.sleep(0.05)
+    return False
+
+
 def run_bounded(argv, *, timeout, platform=None, job_factory=None, on_start=None, outcome=None, **popen):
     """`subprocess.run(argv, timeout=…)` whose timeout reaches the whole tree.
 
@@ -705,14 +737,16 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, on_start=None
     `subprocess.run` leaves the raw BYTES it had buffered on a text-mode
     `TimeoutExpired` while this leaves decoded text; `decode_stream` accepts
     either, and the difference is stated here rather than claimed away.
-    ADR-076 T2: `on_start(proc)` runs once the child exists (and, on Windows, once
-    its job does), before this waits on it; a caller records the fence's process
-    group or pid there, where a sweep can see it. `outcome`, a dict, gets
-    `"ended"`: False while the child may run, True once it returned, and on a kill
-    `kill_tree`'s own answer, so a caller removes what the fence worked in only
-    when the fence is known to have stopped. On POSIX the child is already
-    running when `on_start` is called; its owner is alive then, so a sweep keeps
-    the tree through that window.
+    ADR-076 T2: `on_start(proc)` records the fence where a sweep can see it BEFORE
+    the fence runs anything (Codex review of ADR-076, finding 2). On POSIX the
+    child starts behind a gate — `sh` waiting on a line of stdin, then `exec` into
+    the fence, so its pid and group are the fence's — and the line is written only
+    once `on_start` returns; if this process dies first, the gate reads end of file
+    and the fence never starts. On Windows the child is still suspended when
+    `on_start` runs. `outcome`, a dict, gets `"ended"`: False while the child may
+    run; on a normal return whether its whole group has ended (`settle_group`);
+    on a kill `kill_tree`'s own answer. A caller removes what the fence worked in
+    only when that is True.
     """
     platform = platform or os.name
     if popen.pop("capture_output", False):
@@ -729,7 +763,11 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, on_start=None
         # Started SUSPENDED so the job exists before the fence can fork; see
         # WindowsJob. An injected factory (tests) gets a running child.
         popen["creationflags"] = popen.get("creationflags", 0) | 0x4
-    proc = subprocess.Popen(argv, **popen)
+    launch = argv
+    if on_start is not None and platform != "nt":
+        launch = ["/bin/sh", "-c", 'read _go || exit 125; exec "$@"', "qh-fence", *argv]
+        popen["stdin"] = subprocess.PIPE
+    proc = subprocess.Popen(launch, **popen)
     started = time.monotonic()
     job = None
     if outcome is not None:
@@ -739,9 +777,14 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, on_start=None
         # and it is created INSIDE this try, so a Ctrl-C between the spawn and
         # communicate still reaches the cleanup below instead of escaping with a
         # suspended fence behind it (Codex review of b019c42).
-        job = factory(proc, started) if platform == "nt" else None
-        if on_start is not None:
+        if on_start is not None and platform == "nt":
             on_start(proc)
+        job = factory(proc, started) if platform == "nt" else None
+        if on_start is not None and platform != "nt":
+            on_start(proc)
+            os.write(proc.stdin.fileno(), b"go\n")
+            proc.stdin.close()
+            proc.stdin = None
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         trace_timeout(f"fence timeout after {timeout}s", started)
@@ -770,5 +813,5 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, on_start=None
             except Exception:
                 pass
     if outcome is not None:
-        outcome["ended"] = True
+        outcome["ended"] = settle_group(proc.pid, platform) if job is not None or platform != "nt" else False
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)

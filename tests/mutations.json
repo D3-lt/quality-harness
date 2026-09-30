@@ -1675,8 +1675,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        journal.write_text(json.dumps(journal_data), encoding=\"utf-8\")\n    except OSError as e:\n        try:",
-      "to": "        (lambda *a, **k: None)(json.dumps(journal_data), encoding=\"utf-8\")\n    except OSError as e:\n        try:",
+      "from": "            journal.write_text(json.dumps(journal_data), encoding=\"utf-8\")\n        except OSError as e:\n            try:",
+      "to": "            (lambda *a, **k: None)(json.dumps(journal_data), encoding=\"utf-8\")\n        except OSError as e:\n            try:",
       "only": "^(?:an interrupted clean baseline cannot silently lend its changed tree to a later run)$"
     },
     {
@@ -1685,8 +1685,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n              f\"until the fence finishes.\", flush=True)\n        print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n              f\"--cwd {cwd}`, or `git checkout -- {rel}`.\", flush=True)",
-      "to": "        print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n              f\"until the fence finishes.\")\n        print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n              f\"--cwd {cwd}`, or `git checkout -- {rel}`.\")",
+      "from": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\", flush=True)\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {rel}`.\", flush=True)",
+      "to": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\")\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {rel}`.\")",
       "only": "^(?:the warning that names the broken file survives the kill that hides it)$"
     },
     {
@@ -3214,8 +3214,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "            except OSError as exc:",
-      "to": "            except ValueError as exc:",
+      "from": "                continue\n            except OSError as exc:",
+      "to": "                continue\n            except ValueError as exc:",
       "only": "^(?:a corpus whose git probes cannot run is still reported)$"
     },
     {
@@ -3813,8 +3813,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout())",
-      "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None)",
+      "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout(), on_start=fence_start, outcome=placement)",
+      "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None, on_start=fence_start, outcome=placement)",
       "only": "^(?:adr-verify requires a clean fence before it mutates|a fence that never returns is UNRUN, and writes nothing)$"
     },
     {
@@ -5263,8 +5263,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                   covers=covers, steps=steps)",
-      "to": "                   covers=covers)",
+      "from": "                       covers=covers, steps=steps, in_place=in_place, placement=placement)",
+      "to": "                       covers=covers, in_place=in_place, placement=placement)",
       "only": "^(?:a mutation run's own clean entry carries the steps it was given|the UNPROVEN early return records the steps its run named)$"
     },
     {
@@ -5662,8 +5662,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "        drain_after_kill(proc, platform, job=job)\n        raise",
-      "to": "        raise",
+      "from": "        _, _, killed = drain_after_kill(proc, platform, job=job)\n        if outcome is not None:\n            outcome[\"ended\"] = killed\n        raise",
+      "to": "        killed = False\n        if outcome is not None:\n            outcome[\"ended\"] = killed\n        raise",
       "only": "^adr\\-verify: an interrupted fence run takes its tree with it$|^adr\\-verify: an interrupted run_bounded kills the tree$"
     },
     {
@@ -18136,6 +18136,106 @@
       "from": "  const skipped = new Set(exclude.map(file => path.relative(root, file).split(path.sep).join('/')))",
       "to": "  const skipped = new Set()",
       "only": "^the campaign's own files are never copied into its worktree$"
+    },
+    {
+      "label": "ADR-076 T2: the mutant is applied in the worktree",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        write_source(run_target, original.replace(frm, to, 1), target_newline)",
+      "to": "        write_source(target, original.replace(frm, to, 1), target_newline)",
+      "only": "^a mutant run leaves the checkout unchanged but for the task file's logs$"
+    },
+    {
+      "label": "ADR-076 T2: outside git the run is in place and says so",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        reason = f\"{cwd} is not inside a git checkout, so no worktree can be built\"",
+      "to": "        reason = \"no worktree\"",
+      "only": "^outside git the mutant runs in place and says why$"
+    },
+    {
+      "label": "ADR-076 T2: a fence naming the checkout runs in place",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "    elif (named := fence_names_checkout(cmd, list(dict.fromkeys([root[0], str(root[1])])))) is not None:",
+      "to": "    elif (named := None) is not None:",
+      "only": "^a fence naming the checkout runs in place and names the path$"
+    },
+    {
+      "label": "ADR-076 T2: a shared prefix is not the checkout",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                if end == len(text) or text[end] in \"/\\\"'\" or text[end].isspace():",
+      "to": "                if True:",
+      "only": "^a sibling path sharing the checkout's prefix does not force the run in place$"
+    },
+    {
+      "label": "ADR-076 T2: the fences run in the worktree",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "            clean = run_bounded([bash_or_exit(), \"-c\", cmd], cwd=run_cwd, capture_output=True,",
+      "to": "            clean = run_bounded([bash_or_exit(), \"-c\", cmd], cwd=cwd, capture_output=True,",
+      "only": "^a fence's generated output stays in the worktree$"
+    },
+    {
+      "label": "ADR-076 T2: the clean build is reset before the mutant fence",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "    members.extend(secondary_members(run_cwd, run_target, also_restore))",
+      "to": "    members.extend(secondary_members(cwd, target, also_restore))",
+      "only": "^a generated output left by the clean fence is reset before the mutant fence$"
+    },
+    {
+      "label": "ADR-076 T2: evidence is read from the checkout",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "    sha = entry_sha if isolated else git_sha(cwd)",
+      "to": "    sha = git_sha(run_cwd) if isolated else git_sha(cwd)",
+      "only": "^a fence's leftover in the worktree does not mark the checkout's rows dirty$"
+    },
+    {
+      "label": "ADR-076 T2: --in-place is today",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "            in_place = True",
+      "to": "            in_place = False",
+      "only": "^--in-place applies the mutant in the checkout and restores it$"
+    },
+    {
+      "label": "ADR-076 T2: a stopped run removes its tree",
+      "file": "plugin/lib/fence.py",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        _, _, killed = drain_after_kill(proc, platform, job=job)",
+      "to": "        _, _, killed = drain_after_kill(proc, platform, job=job); killed = False",
+      "only": "^a stopped mutant run removes its worktree$"
+    },
+    {
+      "label": "ADR-076 T2: a signal during the worktree build is held until the tree is known",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "            before = hold_signals(pending)",
+      "to": "            before = {}",
+      "only": "^a SIGTERM during the worktree build still removes the worktree$"
     }
   ]
 }

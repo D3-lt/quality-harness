@@ -1,11 +1,11 @@
 # ADR-075: A campaign runs in a worktree, and every result says the load it ran under
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-30
 **Owner:** Zy
 **Spec:** docs/specs/2026-09-29-a-campaign-never-touches-the-checkout.md
 **Cross-references:** docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md, docs/adr/ADR-023-a-measured-verdict-may-be-reused.md, docs/adr/ADR-069-a-stale-mutant-is-repointed-by-its-own-edit.md, docs/adr/ADR-061-an-unchecked-publish-is-refused.md, docs/research/2026-09-26-model-out-of-the-loop.md, docs/research/2026-09-30-the-nervous-system-plan.md, docs/BACKLOG.md
-**Governs:** scripts/mutate.mjs, plugin/scripts/qh-check.mjs, tests/campaign-fixture.mjs
+**Governs:** scripts/mutate.mjs, plugin/scripts/qh-check.mjs, plugin/scripts/load.mjs, tests/campaign-fixture.mjs
 **Enforced-by:** `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there`
 **Invalidates:** none — checked. `adr-context` over `scripts/mutate.mjs` and `plugin/scripts/qh-check.mjs` (2026-09-30) names ADR-002, ADR-006, ADR-023, ADR-069, ADR-071, ADR-072, ADR-073, ADR-060 and ADR-061. ADR-002's journal still restores every mutant, in the worktree or, with `--in-place`, in the checkout. ADR-023's reuse keys are unchanged, and the cache crosses the boundary in its own shape. ADR-069's `--root` is how the isolated child is pointed at its worktree. ADR-061 reads `checks.jsonl`, and the new fields are additive.
 **Served-path change:** `qh-check` (shipped) writes both load samples into every record and says "unattributable" when either exceeds the core count; `node scripts/mutate.mjs` (repository tooling) runs its campaign in a worktree in the git directory holding the working-tree content, so no mutant ever appears in the checkout that peer sessions load.

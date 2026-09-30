@@ -16681,6 +16681,47 @@ The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date 
 - **A refusal of a commit in a scratch repository, classified as by design.** `D=$(mktemp -d …); cd $D && git init && … git commit` was refused as this repository's unchecked publish. ADR-066 T3's `leavesHookInPlace` fails closed on any `$` (plugin/scripts/lifecycle.mjs:4679), and the text refusal judges the session's working directory. So a command whose target directory is built at run time keeps ADR-061's refusal, because nothing in the text proves which repository it commits into. The work around it was legitimate: the commit was made from a Node script's own `spawnSync`, as the tests make theirs. **The candidate false refusal is its literal-path twin,** `cd /abs/other && git commit` or `git -C /abs/other commit`, where the text does name a repository that is not this one. It was not observed, and it needs §16's measured cases and "this is code again" twins (`cd .`, `cd "$(git rev-parse --show-toplevel)"`) before a sanctioned refusal changes.
 
 **branch-state's last fallback removed (the owner, 2026-09-30).** In 3.2.1, where no pushed tip could be read at all, the newest listed run still answered for the branch. A stale page could therefore still show an old commit's verdict, including a stale green, on a checkout with no upstream. Now only HEAD's runs or the tip's answer; otherwise COULD NOT LOOK, "and no pushed tip could be read". A tip's answer is noted after the verdict ("the pushed tip as last fetched; HEAD has no run"): inline in the brief, and on its own line in the full form, so the verdict and its runs still follow the sha.
-- §304's ten fixtures lister runs only at a commit other than HEAD. They are kept byte-identical: the tests' `runner` helper answers the tip with the newest commit its `gh run list` fake lists, the world those fixtures describe, unless the table names a tip itself.
+- §304's ten fixtures list runs only at a commit other than HEAD. They are kept byte-identical: the tests' `runner` helper answers the tip with the newest commit its `gh run list` fake lists, the world those fixtures describe, unless the table names a tip itself.
 - One locked test, "a refresh that still renders the same brief line is not reprinted", builds a real repository with no upstream. Its fake `gh` now reports that repository's HEAD. The test is about dedupe, not run selection. ADR-065 T1 and T2 were relocked (`--relock --replace-hashes`, weaker than first-red).
 - A mutant that restores the fallback is RED, and so are all 44 branch-state entries.
+
+## 322. FIXED 2026-09-30 — ADR-076: a recorded mutant runs in a worktree, and what its execution found
+
+ADR-076 (N4) executed on `spec/isolated-mutant`, fast-forwarded into `main` at e0e8376: T1 3e1b214,
+T2 26d099f, T3 176d7b0, the Codex round 4300b93, T4 e0e8376.
+
+- **One mechanism, shipped.** `plugin/scripts/worktree.mjs` builds, removes and sweeps; `scripts/mutate.mjs`,
+  `plugin/bin/adr-verify` and `scripts/unasserted.mjs` all use it. S6 re-ran every catalogue entry on the moved
+  code uncached (135/135 RED on `worktree.mjs` and `mutate.mjs`, 128/128 on `adr-verify` and `fence.py`).
+- **The move broke one fixture, and the class was one member.** `tests/mutation-cache-merge.test.mjs` copies
+  `mutate.mjs`'s plugin imports into a temporary directory and did not copy `worktree.mjs`. Found by S6 as an
+  UNPROVEN baseline, not by the unit tests. Enumerated with `mrw read --grep "load\.mjs'|main-module\.mjs'" tests/
+  scripts/ .github/`: the only copy list of that import closure.
+- **A SIGTERM during the worktree build left the tree behind**, 10 times in 10 when forced, and twice in the
+  suite under load. The build now holds SIGTERM and SIGINT and acts on them once the id is known.
+- **The Codex round: seven findings, all held against source, all fixed** (4300b93's message lists them): a fence's
+  group settled before its tree goes; a fence gated until it is recorded; `unasserted.mjs` records its process
+  group; a symlinked target is refused; F-4's boundary on both sides, shell metacharacters included (the spec is
+  amended); the builder in a session of its own; `build()`'s setup inside its error contract.
+- **T4, signed off by the owner:** three pinned replays — ADR-075 T1 (`plugin/scripts/load.mjs`, "a load at the
+  core count is not contended"), ADR-074 T1 (`plugin/bin/adr-retire-check`, "adr-retire-check bypasses the shared
+  rule"), ADR-072 T1 (`scripts/mutate.mjs`, "a RED record carries its killers") — each isolated and `--in-place` in
+  fresh clones, at 176d7b0 and again at 4300b93: 12/12 completed and killed, every isolated first line "isolated
+  in", zero mismatches. This closes the ADR's follow-up.
+- **One deliberate deviation, stated in 176d7b0:** `unasserted.mjs`'s dirty-target refusal applies in place only.
+  Isolated, the worktree's copy is what is neutered, so refusing there refused correct work.
+
+Left open, each a lead:
+
+- **The Windows ownership record names the leader pid, not the job's members** (Codex's residual risk), and
+  `unasserted.mjs` records no group on Windows at all. A killed owner there leaves a tree the sweep keeps only
+  while that pid lives. Nothing here can run Windows; the release's outside run is where it would show.
+- **The Ctrl-C test reaches the build window only by timing**; its mutant survived once. A deterministic twin now
+  asks the builder's process group through a PATH shim, and the catalogue entry names both.
+- **A `UserPromptSubmit` brief named `spec/machine-lease @ 8024144, 4 uncommitted`, read 15109s ago**, while no
+  checkout on this machine held that branch and both worktrees' caches read correctly. Not reproduced, cause
+  unknown: which directory the hook read from is the first question.
+- **`adr-verify --help`'s exit-code paragraph was garbled** ("… nothing was / could-not-look class as
+  `inconclusive`"): 022e9ce dropped "read and nothing was written — the same" from the middle of a sentence.
+  Restored in the commit that files this entry (found by `git log -S`, not by any check: prose in help text has
+  none).

@@ -16590,8 +16590,8 @@
       "label": "ADR-074 T1: the label forms are narrowed to **Status:**",
       "file": "plugin/lib/record.py",
       "tests": ["tests/status-reading.test.mjs"],
-      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
-      "to": "_STATUS_LINE = re.compile(r\"^\\*\\*Status:\\*\\*[ \\t]*([^\\r\\n]+)$\")",
+      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^\\*\\*Status:\\*\\*[ \\t]*([^\\r\\n]*)$\")",
       "only": "^every reader gives one Status the same reading$"
     },
     {
@@ -16622,16 +16622,16 @@
       "label": "ADR-074 T2: lifecycle reads a ## Status inside a code fence",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/status-section.test.mjs"],
-      "from": "    const heading = fenced ? null : line.match(/^## (.+?)\\s*$/)",
-      "to": "    const heading = line.match(/^## (.+?)\\s*$/)",
+      "from": "    const heading = fenced ? null : line.match(STATUS_HEADING)",
+      "to": "    const heading = line.match(STATUS_HEADING)",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
     },
     {
       "label": "ADR-074 T2: lifecycle reads a ### Status as the section",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/status-section.test.mjs"],
-      "from": "    const heading = fenced ? null : line.match(/^## (.+?)\\s*$/)",
-      "to": "    const heading = fenced ? null : line.match(/^#{2,6} (.+?)\\s*$/)",
+      "from": "const STATUS_HEADING = new RegExp(`^## ([^\\\\r\\\\n]+?)",
+      "to": "const STATUS_HEADING = new RegExp(`^#{2,6} ([^\\\\r\\\\n]+?)",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
     },
     {
@@ -16766,16 +16766,16 @@
       "label": "code-review of ADR-074: a Status label needs no colon",
       "file": "plugin/lib/record.py",
       "tests": ["tests/status-reading.test.mjs"],
-      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
-      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss]:?\\*{0,2}[ \\t]*:?[ \\t]*([^\\r\\n]+)$\")",
+      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss]:?\\*{0,2}[ \\t]*:?[ \\t]*([^\\r\\n]*)$\")",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
     },
     {
       "label": "code-review of ADR-074: the Status label is folded by re.I",
       "file": "plugin/lib/record.py",
       "tests": ["tests/status-reading.test.mjs"],
-      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
-      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\", re.I)",
+      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\", re.I)",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
     },
     {
@@ -17576,6 +17576,76 @@
       "from": "    if not config.is_file() and not config.is_dir():\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
       "to": "    if False:\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
       "only": "strictFrom reader does not wait on a FIFO config"
+    },
+    {
+      "label": "Codex 3.1.6 #1: the execution check reads a record Status with the record reader",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "status_kind(status) == \"pending\" or record_status_word(status) == \"rejected\"",
+      "to": "status_kind(status) == \"pending\" or status_word(status) == \"rejected\"",
+      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
+    },
+    {
+      "label": "Codex 3.1.6 #2: a bare Status label is the first label (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
+      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
+    },
+    {
+      "label": "Codex 3.1.6 #2: a bare Status label is the first label (lifecycle)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$/",
+      "to": "(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$/",
+      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
+    },
+    {
+      "label": "Codex 3.1.6 #3: a fence opener runs to the end of its line in lifecycle",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "const marker = line.match(/^[ \\t]*(`{3,}|~{3,})([^\\r\\n]*)$/)",
+      "to": "const marker = line.match(/^[ \\t]*(`{3,}|~{3,})(.*)$/)",
+      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
+    },
+    {
+      "label": "Codex 3.1.6 #4: a Status heading ends in Python whitespace in lifecycle",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "codeClass([...EDGE_CODES, 0x1C, 0x1D, 0x1E, 0x1F, 0x85])",
+      "to": "codeClass([...EDGE_CODES, 0xFEFF])",
+      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
+    },
+    {
+      "label": "Codex 3.1.6 #5: a record directory folds ASCII letters only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "|^archives?[-_](?:adrs?|decisions?|records?)$\", re.I | re.A)",
+      "to": "|^archives?[-_](?:adrs?|decisions?|records?)$\", re.I)",
+      "only": "^the Codex round of 3.1.6: a directory is a record directory by ASCII letters only"
+    },
+    {
+      "label": "Codex 3.1.6 #5: the record content test folds ASCII letters only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "_RECORD_SECTION = re.compile(r\"^##\\s+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])\", re.M)",
+      "to": "_RECORD_SECTION = re.compile(r\"^##\\s+(?:Context|Decision)\\b\", re.M | re.I)",
+      "only": "^the Codex round of 3.1.6: a directory is a record directory by ASCII letters only"
     }
   ]
 }

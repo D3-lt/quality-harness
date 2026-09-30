@@ -1,9 +1,6 @@
-// Spec 2026-09-29, "a campaign never touches the checkout": F-8, F-9, F-11 to F-14, and ADR-075's own tests.
-//
-// ⚠ EVERY TEST HERE IS `todo` UNTIL ITS ADR IS EXECUTED. Each is red today, for the
-// reason its fact names, and a todo failure does not fail the suite, so the gate stays
-// green on the spec branch. The ADR's first task removes `todo` before it records the
-// red run: a todo test passes the suite whatever it asserts, so it can never be a red.
+// Spec 2026-09-29, "a campaign never touches the checkout" (ADR-075 T2, T3): F-8, F-9, F-11 to
+// F-16, and ADR-075's own tests. They were committed as `todo` while the spec waited for its
+// ADR; each task's first step removed `todo` from its own before it recorded the red run.
 //
 // Every campaign runs over a fixture repository in the OS temp directory, never over
 // this checkout (tests/campaign-fixture.mjs).
@@ -17,7 +14,6 @@ import {
 } from './campaign-fixture.mjs'
 import { readReport } from '../scripts/mutation-cache-merge.mjs'
 
-const RED = 'spec 2026-09-29 (a campaign never touches the checkout): red until its ADR is executed'
 
 // The index, the staged diff and the stash list: what an isolated campaign may never write
 // (spec F-8). Compared as git reports them, not as the index's bytes, which a status refresh rewrites.
@@ -258,7 +254,7 @@ test('an isolated run and an in-place run of the same entries give the same verd
 // `QUALITY_HARNESS_PROCESS_LIST` is the seam the ADR adds for "the process list cannot
 // be read"; today nothing reads it. Windows lists processes differently, and the ADR
 // says which arm it takes there.
-test('an in-place campaign names the processes running this checkout, and says when it could not look', { todo: RED }, async () => {
+test('an in-place campaign names the processes running this checkout, and says when it could not look', async () => {
   if (process.platform === 'win32') {
     // No `ps` on Windows (ADR-075 Out of Scope): the run says it could not look, and runs.
     const dir = campaignFixture()

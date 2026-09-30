@@ -152,7 +152,7 @@ When qh-check runs a passing check
 Then it records contended true with both samples, and a load exactly at the core count is not contended
 ```
 
-### UC3-S1 [happy] An in-place campaign with no one exposed says nothing more [@spec] → `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look`
+### UC3-S1 [happy] An in-place campaign with no one exposed says nothing more [@implemented] → `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look`
 
 ```gherkin
 Given no other process names this checkout's path
@@ -160,7 +160,7 @@ When an in-place campaign runs
 Then it prints no exposure line
 ```
 
-### UC3-S2 [failure] Exposed processes are named [@spec] → `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look`
+### UC3-S2 [failure] Exposed processes are named [@implemented] → `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look`
 
 ```gherkin
 Given two other processes whose command lines name this checkout's path
@@ -168,7 +168,7 @@ When an in-place campaign runs
 Then it names both, says an in-place mutant is live for them, and runs
 ```
 
-### UC3-S3 [failure] An unreadable process list is said [@spec] → `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look`
+### UC3-S3 [failure] An unreadable process list is said [@implemented] → `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look`
 
 ```gherkin
 Given the process list cannot be read
@@ -185,7 +185,7 @@ Then it says it could not look, and runs
 | F-8 | A campaign runs by default in a throwaway worktree holding the checkout's working-tree content (`HEAD`, its uncommitted tracked changes, and its untracked files that are not ignored), so it grades exactly what an in-place run would; every tracked and untracked file of the checkout keeps its bytes except the verdict cache the run writes back (F-12), no mutant appears in it, and its index and stash list are unchanged; `--in-place` keeps today's behaviour. | `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there` | @implemented | |
 | F-9 | The worktree lives in the repository's git directory (`<git-common-dir>/qh-campaigns/`), never under the OS temp root, so a test that tells scratch from project by the temp root grades alike in both modes. A campaign owns it from before it exists until the campaign's process group has ended: a SIGINT or SIGTERM to the parent ends the group and removes it; the next run removes one only when its owner record names no live process and, on POSIX, no live process group, and says so. On Windows the next run's sweep is the only cleanup. | `tests/mutate-isolation.test.mjs::a killed campaign's worktree is removed by the next run, and said` | @implemented | |
 | F-10 | qh-check and a campaign sample the 1-minute load and the core count at start and at end, and always report both samples (a campaign on every run, an interrupted one included); `contended` is true when either sample exceeds the core count, false when both are at or below it, null when either could not be read; the result calls it an endpoint observation, says "unattributable" when true, and never changes an exit or a verdict. | `tests/qh-check.test.mjs::a check run above the core count is recorded as contended and said, and its exit is unchanged` | @implemented | |
-| F-11 | Before an `--in-place` campaign, mutate names the other processes whose command line names this checkout, as advice, and runs; where it cannot list processes it says so. | `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look` | @spec | |
+| F-11 | Before an `--in-place` campaign, mutate names the other processes whose command line names this checkout, as advice, and runs; where it cannot list processes it says so. | `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look` | @implemented | |
 | F-12 | An isolated campaign starts from the checkout's verdict cache and writes the run's cache back in its own shape, one CI's merge job reads; a write-back that fails leaves the cache as it was and says so. | `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache` | @implemented | |
 | F-13 | A campaign that cannot create its worktree exits 2 with "could not isolate", names `--in-place`, and writes nothing; it never falls back silently. | `tests/mutate-isolation.test.mjs::a campaign that cannot isolate stops and names --in-place, writing nothing` | @implemented | |
 | F-14 | At one commit, isolated and in-place runs of the same entries give the same verdict for each. | `tests/mutate-isolation.test.mjs::an isolated run and an in-place run of the same entries give the same verdicts` | @implemented | |

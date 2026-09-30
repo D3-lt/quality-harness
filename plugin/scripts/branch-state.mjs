@@ -192,8 +192,8 @@ export function collect(run = shell, checkpoint = () => {}) {
   if (runs.ok) {
     let rows = []
     try { rows = JSON.parse(runs.out) } catch { rows = [] }
-    // HEAD's runs, else the pushed tip's; else, only where no tip could be read, the
-    // newest listed run's (BACKLOG §304's design, kept for a checkout with no upstream).
+    // HEAD's runs, else the pushed tip's, and no other commit's: where neither has a run,
+    // or the tip cannot be read, the answer is COULD NOT LOOK (the owner, 2026-09-30).
     // `gh` has served a page of runs weeks old (2026-09-29 and -30, three times), and
     // the newest run on such a page is an old commit's, not this branch's CI.
     const answer = headRuns(rows, whole.ok ? whole.out : git.head, tip.ok ? tip.out : null)
@@ -230,7 +230,7 @@ export function collect(run = shell, checkpoint = () => {}) {
       const shas = [...new Set(rows.filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
         .map(r => String(r.headSha).slice(0, 7)))]
       ci = shas.length
-        ? { looked: false, note: `no run listed is at HEAD ${git.head}${tip.ok ? ' or at the pushed tip' : ''}; `
+        ? { looked: false, note: `no run listed is at HEAD ${git.head}${tip.ok ? ' or at the pushed tip' : ', and no pushed tip could be read'}; `
           + `the ${rows.length} listed are at ${shas.slice(0, 3).join(', ')}${shas.length > 3 ? ', …' : ''} — CI has not started here, or \`gh\` served an older page` }
         : { looked: false, note: '`gh` listed runs this reader could not order' }
     }
@@ -296,7 +296,7 @@ const RUN_WINDOW = 20
  * The runs that answer for a commit, as `{ sha, runs, complete }`, or null when
  * nothing can be ordered. The commit is HEAD when any listed run is at HEAD; else the
  * pushed tip `upstream`, whose CI is the one running for a branch with local commits
- * ahead; else, only when the tip could not be read (null), the newest listed run's.
+ * ahead. Never another commit's: a listing's newest run may be weeks old.
  *
  * ⚠ `--limit 1` READ ONE RUN, AND WHICH ONE WAS A COIN TOSS (BACKLOG §304). At
  * cdd3bda the push and the dispatched campaign were created in the same second
@@ -334,10 +334,8 @@ export function headRuns(rows, head = '', upstream = null) {
     const hits = shas.filter(s => (s.length === 40 && id.length === 40 ? s === id : s.startsWith(id) || id.startsWith(s)))
     return hits.length === 1 ? hits[0] : undefined
   }
-  const newest = listed.reduce((a, b) => (b.databaseId > a.databaseId ? b : a))
-  // A tip that was read and has no run means this listing does not speak for the branch.
-  const anchor = at(head) ? 'head' : at(upstream) ? 'tip' : upstream === null ? 'newest' : null
-  const sha = anchor === 'head' ? at(head) : anchor === 'tip' ? at(upstream) : anchor === 'newest' ? newest.headSha : null
+  const anchor = at(head) ? 'head' : at(upstream) ? 'tip' : null
+  const sha = anchor === 'head' ? at(head) : anchor === 'tip' ? at(upstream) : null
   if (!sha) return null
   const workflowOf = r => String(r.workflowDatabaseId ?? r.workflowName ?? '')
   const started = r => Date.parse(String(r.startedAt ?? ''))
@@ -378,7 +376,7 @@ export function render(state, { brief = false } = {}) {
     + `${state.ahead ? `, ${state.ahead} ahead of origin` : ''}`
 
   // A tip's answer is the pushed commit's as this clone last fetched it, not HEAD's.
-  const named = state.ci.anchor === 'tip' ? `${state.ci.sha} (the pushed tip as last fetched; HEAD has no run)` : state.ci.sha
+  const named = state.ci.sha
   let ci
   let alarm = false
   if (!state.ci.looked) {
@@ -393,6 +391,9 @@ export function render(state, { brief = false } = {}) {
       + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`
     alarm = true
   }
+  // A tip's answer is the pushed commit's as this clone last fetched it, not HEAD's: said at
+  // the end of the line, after the verdict and the runs, so both still follow its sha.
+  const tipNote = state.ci.looked && state.ci.anchor === 'tip' ? ' (the pushed tip as last fetched; HEAD has no run)' : ''
   // ⚠ THE ANCHOR IS NAMED AS WHAT IT IS, AND THE ADVICE POINTS RATHER THAN
   // CONCLUDES. `git describe --tags --abbrev=0` gives the newest tag REACHABLE
   // FROM HEAD in this clone — not the newest tag the clone holds, and nothing at
@@ -422,7 +423,7 @@ export function render(state, { brief = false } = {}) {
   const release = counted ?? unknown
 
   if (brief) {
-    return [`${head} · ${alarm ? '⚠ CI ' : 'CI '}${ci}${release ? ` · ${release}` : ''}`,
+    return [`${head} · ${alarm ? '⚠ CI ' : 'CI '}${ci}${tipNote}${release ? ` · ${release}` : ''}`,
       ...(alarm ? ['  A LOCAL GREEN GATE DOES NOT ANSWER THIS — the local check and the CI jobs are '
         + 'different checks.'] : [])].join('\n')
   }
@@ -438,6 +439,7 @@ export function render(state, { brief = false } = {}) {
     lines.push('           A LOCAL GREEN GATE DOES NOT ANSWER THIS. The local check and the CI '
       + 'jobs are different checks; read this one before planning anything on this branch.')
   }
+  if (tipNote) lines.push(`           that is the pushed tip as last fetched; HEAD has no run`)
   if (release) lines.push(`  release  ${release}`)
   lines.push('  This READS. It blocks nothing and judges nothing about your work.')
   return lines.join('\n')

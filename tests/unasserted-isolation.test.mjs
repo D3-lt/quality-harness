@@ -9,7 +9,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync, existsSync } from 'node:fs'
+import { copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, writeFileSync, existsSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -125,5 +125,53 @@ test('an unreachable suite removes the worktree', () => {
   const run = unasserted(dir)
   assert.equal(run.status, 2, run.stdout + run.stderr)
   assert.match(run.stderr, /do not exercise its findings/)
+  assert.equal(worktrees(dir), 1, 'the worktree outlived the run')
+})
+
+// The Codex round on ADR-076. Each test below is one finding, red before its fix.
+const posixOnly = { skip: process.platform === 'win32' && 'POSIX process groups and symlinks' }
+const commitAll = dir => {
+  for (const args of [['add', '.'], ['commit', '-qm', 'fixture']]) {
+    const run = spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', ...args], { cwd: dir, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(run.status, 0, run.stderr)
+  }
+}
+
+// Finding 3: the suites run in this tool's process group, so the group is recorded in the tree's
+// owner file before any suite starts; a killed owner then leaves a tree no sweep removes under a
+// suite still running in it.
+test('an unasserted run records its process group before its suites run', posixOnly, () => {
+  const suite = SUITE
+    .replace("import { appendFileSync, readFileSync } from 'node:fs'", "import { appendFileSync, readdirSync, readFileSync } from 'node:fs'")
+    .replace("test('a negative value is a finding', () => {", [
+      "test('a negative value is a finding', () => {",
+      "  if (process.env.FIXTURE_OWNED) {",
+      "    const home = path.join(spawnSync('git', ['rev-parse', '--git-common-dir'], { encoding: 'utf8' }).stdout.trim(), 'qh-campaigns')",
+      "    for (const id of readdirSync(home)) appendFileSync(process.env.FIXTURE_OWNED, readFileSync(path.join(home, id, 'owner.json'), 'utf8') + '\\n')",
+      '  }',
+    ].join('\n'))
+  const { dir } = fixture({ suite })
+  const owned = path.join(path.dirname(dir), 'owned.txt')
+  const run = unasserted(dir, [], { FIXTURE_OWNED: owned })
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  const records = readFileSync(owned, 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line))
+  assert.ok(records.length > 0, 'the suite never looked')
+  assert.ok(records.every(record => (record.groups ?? []).length > 0), `no process group was recorded: ${JSON.stringify(records)}`)
+})
+
+// Finding 4: a tracked symlink carried into the worktree can still point into the checkout, and
+// neutering through it would neuter the checkout's gate. Such a target is not neutered there.
+test('a target that resolves outside the worktree is not neutered there', posixOnly, () => {
+  const { dir } = fixture({ commit: false })
+  mkdirSync(path.join(dir, 'real'))
+  const real = path.join(dir, 'real', 'gate.py')
+  renameSync(path.join(dir, 'gate.py'), real)
+  symlinkSync(real, path.join(dir, 'gate.py'))
+  commitAll(dir)
+  const before = readFileSync(real)
+  const run = unasserted(dir)
+  assert.equal(run.status, 2, run.stdout + run.stderr)
+  assert.match(run.stderr, /--in-place/)
+  assert.deepEqual(readFileSync(real), before)
   assert.equal(worktrees(dir), 1, 'the worktree outlived the run')
 })

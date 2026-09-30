@@ -854,9 +854,16 @@ def worktree_cli(*argv, timeout=120):
     node = shutil.which("node")
     if node is None:
         return [], "node is not on PATH"
+    # Its own session (on Windows, its own process group): a Ctrl-C at a terminal reaches the
+    # whole foreground group, and a builder ended mid-build would leave a tree this process
+    # never learned the id of (Codex review of ADR-076, finding 6).
     try:
         r = subprocess.run([node, str(WORKTREE_CLI), *argv], capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=timeout, **NO_WINDOW)
+                           encoding="utf-8", errors="replace", timeout=timeout,
+                           creationflags=(NO_WINDOW.get("creationflags", 0)
+                                          | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200))
+                           if os.name == "nt" else 0,
+                           start_new_session=os.name != "nt")
     except (OSError, subprocess.TimeoutExpired) as exc:
         return [], str(exc)
     records = []
@@ -885,15 +892,24 @@ def checkout_root(cwd):
     return given, Path(given).resolve()
 
 
+# Where a path in a shell command can end, and where it can begin (spec F-4, amended after the
+# Codex review of ADR-076: `cd <checkout>; pwd` reached the checkout unmatched, and
+# `/other/work/repo` matched `/work/repo`).
+PATH_AFTER = "/\"'`;&|()<>"
+PATH_BEFORE = "\"'`;&|()<>=:"
+
+
 def fence_names_checkout(cmd, spellings, platform=None):
     """The spelling of the checkout's absolute path that the fence text names, or None.
 
-    Spec F-4: matched at a path boundary — followed by a separator, a quote,
-    whitespace or the end — so a sibling that only shares the prefix is not a match
-    (F-12). On Windows either separator, any case, and Git Bash's `/c/` form.
-    `platform` is the seam that lets every host test the Windows spellings. A path
-    reached through an environment variable or a symlink is not seen, and nothing
-    here claims it was.
+    Spec F-4: matched at a path boundary on both sides. It ends at a separator, a
+    quote, whitespace, a shell metacharacter or the end, so a sibling that only
+    shares the prefix is not a match (F-12); it begins at the start, whitespace, a
+    quote, `=`, `:` or a shell metacharacter, so a longer path that merely contains
+    it is not one either. On Windows either separator, any case, and Git Bash's `/c/`
+    form. `platform` is the seam that lets every host test the Windows spellings. A
+    path reached through an environment variable or a symlink is not seen, and
+    nothing here claims it was.
     """
     windows = (platform or os.name) == "nt"
     text = cmd.replace("\\", "/").lower() if windows else cmd
@@ -908,7 +924,9 @@ def fence_names_checkout(cmd, spellings, platform=None):
             at = text.find(form)
             while at != -1:
                 end = at + len(form)
-                if end == len(text) or text[end] in "/\"'" or text[end].isspace():
+                after = end == len(text) or text[end] in PATH_AFTER or text[end].isspace()
+                before = at == 0 or text[at - 1] in PATH_BEFORE or text[at - 1].isspace()
+                if after and before:
                     return spelling
                 at = text.find(form, at + 1)
     return None
@@ -1531,13 +1549,14 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             print(f"[adr-verify] {record['said']}")
 
     def own(proc):
-        # Recorded before this gate waits on the fence, so a sweep never removes the tree
-        # under a fence whose owner has died (ADR-076 Decision, "Ownership").
+        # Recorded before the fence runs anything — run_bounded holds it until this returns —
+        # so a sweep never removes the tree under a fence whose owner has died (ADR-076
+        # Decision, "Ownership"). A fence that cannot be recorded does not run.
         _, failure = worktree_cli("add-owned", placement["id"],
                                   "--pid" if os.name == "nt" else "--group", str(proc.pid))
         if failure is not None:
-            print(f"[adr-verify] the fence could not be recorded in the worktree's owner file "
-                  f"({failure}); the tree is kept while this process lives.", file=sys.stderr)
+            fail(f"[adr-verify] the fence could not be recorded in the worktree's owner file "
+                 f"({failure}), so it was not run: a sweep could remove the tree under it.")
     fence_start = own if isolated else None
 
     mutated_bytes = source_bytes(original.replace(frm, to, 1), target_newline)
@@ -1602,7 +1621,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         try:
             clean = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
                                 text=True, encoding="utf-8", errors="replace",
-                                timeout=fence_timeout(), on_start=fence_start, outcome=placement)
+                                timeout=fence_timeout(), on_start=fence_start,
+                                outcome=placement if isolated else None)
         except subprocess.TimeoutExpired as expired:
             partial = decode_stream(expired.stdout) + decode_stream(expired.stderr)
             print(f"[adr-verify] UNPROVEN: the clean acceptance fence did not finish within "
@@ -1708,7 +1728,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         try:
             r = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
                             text=True, encoding="utf-8", errors="replace",
-                            timeout=fence_timeout(), on_start=fence_start, outcome=placement)
+                            timeout=fence_timeout(), on_start=fence_start,
+                            outcome=placement if isolated else None)
         except subprocess.TimeoutExpired:
             # The mutant is still applied, so the restore below is what matters —
             # `finish()` runs it. UNRUN, not survived and not killed: a fence that

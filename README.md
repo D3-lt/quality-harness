@@ -1,598 +1,172 @@
 # Quality Harness
 
-**An AI coding agent will tell you it is finished. Sometimes it is not — and the
-message looks exactly the same either way.**
+A [Claude Code](https://claude.com/claude-code) plugin that records what actually ran when an
+agent says work is done.
 
-Quality Harness is a plugin for [Claude Code](https://claude.com/claude-code) that
-stops taking the agent's word for it. When work claims to be done, the plugin runs
-the check itself and writes down what actually happened — the command, its exit
-code, the commit it ran at — into a file in your repository. You read evidence
-instead of a summary.
+An agent's "all tests pass" reads the same whether it ran the right tests, the wrong ones, or
+none. Quality Harness runs the check itself and writes the command, its exit code, the commit and
+a digest of the command into a file in your repository.
 
-It is for people who already let an agent write real code and have started
-wondering how much of "done" they can trust. It brings no opinions about your
-language or test runner. It does have one about what a decision record looks
-like: `adr-lint` reports a MADR or Nygard file as not recognised and judges nothing in it
-(ADR-038), though `work-next` and `adr-state` still read its Status.
-
-## Start here
+## Install
 
 ```text
 /plugin marketplace add D3-lt/quality-harness
 /plugin install quality-harness@quality-harness
 ```
 
-Then, in your own repository:
+Then, in your repository, run `/quality-harness:work` and ask for work as usual.
 
-```text
-/quality-harness:work
-```
+- [docs/TUTORIALS.md](docs/TUTORIALS.md): ten minutes with a throwaway repo, a real test, and a
+  test that cannot fail being caught.
+- [docs/ONBOARDING.md](docs/ONBOARDING.md): the first week.
+- [docs/INSTALL.md](docs/INSTALL.md): requirements, Windows, Claude Desktop and other MCP
+  clients, CI-only use, uninstalling.
+- [docs/UPDATE.md](docs/UPDATE.md): updating, and what stays old when you do.
 
-That is the whole setup. Ask for substantive work as you normally would; when it
-claims to be done, the claim now has a recorded run behind it.
-
-**Ten minutes to see it work:** [docs/TUTORIALS.md](docs/TUTORIALS.md) — a
-throwaway repo, a real test, and the tool catching a test that cannot fail.
-**First week:** [docs/ONBOARDING.md](docs/ONBOARDING.md) — what to use, and what
-to ignore until you need it.
-**Everything the two lines do not say** — requirements, Windows, Claude Desktop,
-CI-only use, uninstall: [docs/INSTALL.md](docs/INSTALL.md). **Updating**, and the
-three things that silently stay old when you do: [docs/UPDATE.md](docs/UPDATE.md).
-
-### What "done" looks like afterwards
-
-One line, written by the tool, in a file in your repository:
+## A recorded run
 
 ```text
 - 2026-09-03 · 1d9381f* · exit 0 · `python3 -m unittest -v test_duration` · acceptance-sha256:b43e2374… · ms:75
 ```
 
-When it ran · which commit (`*` means the tree was dirty) · what the command
-actually returned · the command itself · a digest that invalidates this entry if
-the command is ever edited · how long it took. No model wrote any of it. If it
-says `exit 0`, a process exited 0.
+Date · commit (`*`: the tree was dirty) · exit code · command · digest of the command, so editing
+the command invalidates the entry · duration. The tool writes the line; a model does not.
 
-## The problem, in one example
+## What it does
 
-You ask an agent to fix a bug. It edits a few files and reports:
+- **Runs the check itself.** `adr-verify` runs a task's acceptance command and records the
+  result. `qh-check` runs your project's declared check and records it, with the machine load at
+  the start and end; a pass taken above the core count is marked unattributable.
+- **Checks that tests can fail.** A mutation campaign breaks one mechanism at a time and reports
+  every test that did not notice.
+- **Advises, with two refusals.** Every gate reports and lets work continue, except:
+  - a `git commit` or `git push` on a tree no `qh-check` has passed on is refused;
+    `"publish": "warn"` in `.quality-harness.json` turns this into a warning;
+  - a reviewer agent the plugin started read-only cannot edit, commit or push.
 
-> ✅ All tests pass. Task complete.
+  A failing check still exits non-zero, for CI.
+- **Says when it could not look.** A check that could not run reports `UNRUN`, `PARTIAL` or
+  `UNPROVEN`, never a result it did not observe.
+- **Keeps decisions next to the code.** Decision records (ADRs), one file per decision, with task
+  files whose readiness and evidence are computed from the files, not from a status someone typed.
 
-Any of these could be true:
+## What it costs
 
-- it ran the tests and they passed — good
-- it ran the wrong tests, and they passed because they never touched your bug
-- it ran nothing at all and typed the sentence
+- A task states how it will be checked before the code is written.
+- The full mutation campaign is for CI and releases, not every edit.
+- The model takes more turns: 2.33× in the 2026-08-28 eval, one run per arm. See
+  [docs/BENCHMARKS.md](docs/BENCHMARKS.md) for why that is the worst case for cost.
+- It runs the check you declare (`check` in `.quality-harness.json`) and has no opinion about your
+  language or test runner.
+- `adr-lint` judges decision records against its own template. A MADR or Nygard record under an
+  `adr/` or `decisions/` directory is linted against that template and fails on the sections it
+  lacks. `work-next` and `adr-state` read any record's Status.
 
-**You cannot tell which from the message.** Neither can another AI you ask to
-review it — that has been measured, and it grades how confident the writing sounds
-rather than whether anything happened.
+## Who it is for
 
-This is not a rare glitch. Among coding agents that report their own status, it is
-the *most common* way they fail.
+People who let agents write code they have to maintain. Not a linter or a formatter, and not worth
+it on a throwaway prototype.
 
-## What the plugin does about it
+## Supported tools
 
-Instead of asking the agent whether it finished, it makes saying "finished" hard
-to fake:
-
-- **It runs the check itself.** Not the agent — the tool. It records the command,
-  the exit code, the date and the commit, into the task file. If someone later
-  edits the command, every earlier record of it is marked invalid, because it no
-  longer proves what it claimed.
-- **It checks that your tests can actually fail.** A test that passes no matter
-  what is worse than no test, because it looks like safety. The plugin breaks each
-  piece of your code on purpose and reports any test that did not notice.
-- **It does not block your work, with one exception you can turn off.** Every check gives
-  advice and lets the work continue. The exception: a `git commit` or `git push` on a
-  tree no `qh-check` has passed on is refused, because a warning a model treats as
-  noise still publishes. `"publish": "warn"` in `.quality-harness.json` makes it a
-  warning again. (A reviewer agent the plugin starts read-only is also stopped from
-  editing, committing or pushing; that fences the reviewer, not you.) It does still exit
-  non-zero when a check fails — nothing seizes your session, and the exit code stays
-  honest for the CI step that reads it.
-- **It says "I do not know" when it does not know.** If a check could not run, it
-  says so, rather than reporting a clean result it never actually observed.
-- **It keeps decisions where you can find them.** Why something was built a
-  certain way lives in files next to the code, not in a chat log nobody can search
-  six months later.
-
-## What it costs you
-
-A page that only lists benefits is exactly the tone this project tells you not to
-trust, so:
-
-- The full "can your tests fail" run takes about **40 minutes**. It is for CI and
-  releases, not for every edit.
-- **It is real work.** Before code, a task has to say how it will be checked and
-  what would make you stop.
-- **It brings no opinions about your language or test command.** It adapts to your
-  repository, which also means it does not guess for you. The one shape it does
-  hold an opinion on is its own record format (ADR-038): `adr-lint` judges no other ADR
-  style, though the routers still read its Status.
-
-## Is it for you?
-
-**Probably yes if** you work with AI agents on code you have to maintain, and you
-have ever merged something an agent called done and later found it was not.
-
-**Probably not if** you want a linter or a formatter — this is not that — or if
-the project is a throwaway prototype where nobody will read the history.
-
-## It holds itself to the same standard
-
-This repository is the plugin's own first user: its own test suite and a mutation
-campaign run in CI on three operating systems, and a public record of every
-time its own checks turned out to be wrong — including one that shipped, was
-tested three times, and was never actually called by anything.
-
-That last part is the point. If the failures were missing from this page, the
-claims above would be exactly the confident writing the research warns you about.
-
-No count appears in that sentence on purpose. The numbers are printed by
-`bash scripts/selftest.sh` and `node scripts/corpus-metrics.mjs`; on 2026-09-04
-this page was found carrying five different sizes for the same mutation
-catalogue, none of them current.
-
----
-
-## Install, the longer way
-
-The two lines are at the top of this file. Everything they do not cover —
-requirements and what CI actually tests them on, checking the install took, what
-it adds to a session and what it costs in context, Windows, Claude Desktop and
-other MCP clients, Codex, CI-only use with no AI at all, developing the plugin,
-uninstalling — is [docs/INSTALL.md](docs/INSTALL.md). Updating is
-[docs/UPDATE.md](docs/UPDATE.md); the failures there are different ones.
-
-Then run `/quality-harness:work` once in the main session for substantive
-development, or a narrower skill when the task already names its stage
-(`/quality-harness:execution`, `/quality-harness:review`, `/quality-harness:adr-write`).
-
-The short version of the requirements: Claude Code 2.1.154+, Python 3.9+ (CI
-runs 3.12), Node.js (CI runs 24), Bash (Git Bash on Windows) and Git.
-
-## Which AI tools this works with
-
-Three tiers, and they are different because the parts are different. Only the
-first is what this project tests on every commit — the rest are stated as what the
-surface is, not as a measurement nobody took.
-
-| | What you get | Status |
+| | What you get | Tested |
 |---|---|---|
-| **Claude Code** | Everything: the lifecycle skills, the hooks, the workflows and every gate | Tested on Linux, macOS and Windows in CI on every push |
-| **Any MCP client** — Claude Desktop, and editors that speak MCP such as Cursor, Zed or Codex | The **read-only** gates over MCP stdio, via the bundled `qh-mcp` server. No shell needed | The server is tested here; those specific clients are not. Standard line-delimited JSON-RPC, so it should connect — tell us if it does not |
-| **Any shell, any CI, no AI at all** | Every gate in `bin/` is a plain `python3` or `node` program with a meaningful exit code. `adr-lint`, `adr-verify`, `spec-verify`, `arch-lint` and the rest run from a Makefile or a GitHub Action | Tested — this repository gates itself with them |
+| **Claude Code** | Skills, hooks, workflows and every gate | Linux, macOS and Windows in CI on every push |
+| **MCP clients** (Claude Desktop, Cursor, Zed, Codex) | The read-only gates, through the bundled `qh-mcp` server | The server is tested; those clients are not |
+| **Any shell or CI, no AI** | Every gate in `bin/`: a plain `python3` or `node` program with a meaningful exit code | This repository gates itself with them |
 
-**`qh-mcp` deliberately exposes only gates that READ.** The two that execute a
-task's acceptance fence are absent, and there is no registrar that could add one;
-a test asserts that against the source, so renaming a tool cannot smuggle one in.
-A client with no shell gets to read the corpus, never to run text the corpus
-supplies.
+`qh-mcp` exposes only gates that read; the two that run an acceptance command are not available
+over MCP. Codex is optional and used only as a reviewer from a different model lineage
+(`codex-review`, `codex-advise`).
 
-Install routes for each tier, and what an update changes for each, are in
-[docs/INSTALL.md](docs/INSTALL.md) and [docs/UPDATE.md](docs/UPDATE.md).
+## Measured results
 
-**Codex is a reviewer here, not a host.** `codex-review` and `codex-advise` shell
-out to the Codex CLI to get a verdict from a *different model lineage*, because a
-review by the family that wrote the code is worth less. That is optional and
-nothing else depends on it.
+With and without the plugin, five runs per arm, 2026-09-03:
 
-## How this is benchmarked
+| case | with | without | Δ |
+|---|---|---|---|
+| adr-write-consults-the-corpus | 1.00 | 0.00 | +1.00 |
+| done-needs-tool-written-evidence | 0.76 | 0.00 | +0.76 |
+| four general code-quality cases | | | −0.07 to +0.04 |
 
-Two different questions, measured two different ways.
+The plugin changes what the model does when the task is about verification, and not when it is
+ordinary good practice. Method, caveats, cost and this repository's own corpus figures:
+[docs/BENCHMARKS.md](docs/BENCHMARKS.md). The problem it addresses: among self-assessing coding
+agents, 75.8% of failures are false successes, and LLM judges do not exceed AUROC 0.65 at catching
+them ([sources](docs/research/2026-08-28-verification-is-the-bottleneck.md)).
 
-**Do the gates catch what they claim?** A mutation campaign breaks one mechanism
-at a time — every entry in `tests/mutations.json` — and reports every test that did not notice.
-`node scripts/mutate.mjs`. A gate with no mutation that can kill it is not
-evidence, and CI runs the whole catalogue on every push to `main` and every tag,
-with no reuse.
-
-**Do the written instructions change what a model does?** That is a separate
-claim and prose cannot support it, so there are behavioural evals under
-`plugin/evals/` — Trigger, Compliance and Boundary facets, graded
-deterministically wherever a deterministic grader can see the answer:
-
-```text
-CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval --runs 1 --allow-tools Bash .
-```
-
-**The number worth quoting is the Δ, not the score.** The runner defaults to
-`--ablation with-without`: every case also runs a no-plugin baseline. A score
-without a baseline cannot tell a skill that works from a model that would have
-answered well anyway. Cases come in given/omitted pairs for exactly this reason.
-
-### The numbers, and what they cost
-
-**Repeated 2026-09-03 at five runs per arm**, because one run per arm is not a
-measurement — this project's own `scripts/eval-deltas.mjs` says so, and refuses to
-derive a Δ where it cannot honestly be derived. The first published table was a
-single run per arm, and **four of its six figures did not survive repetition.**
-Seven cases, $17.77. Re-derive any of it with
-`node scripts/eval-compare.mjs <run>/aggregate-result.json`.
-
-| case | with | without | Δ (n=5) | was (n=1) |
-|---|---|---|---|---|
-| adr-write-consults-the-corpus | 1.00 | 0.00 | **+1.00** | +1.00 |
-| done-needs-tool-written-evidence | 0.76 | 0.00 | **+0.76** | +0.40 |
-| fence-warning-omitted | 0.84 | 0.32 | **+0.52** | +1.00 |
-| fence-warning-given | 0.84 | 0.80 | +0.04 | +0.60 |
-| complexity-instruction-omitted | 0.56 | 0.60 | −0.04 | +1.00 |
-| a-vacuous-test-is-not-a-review | 0.66 | 0.71 | −0.06 | not measured before |
-| complexity-instruction-given | 0.48 | 0.55 | −0.07 | +0.60 |
-
-**mean Δ +0.368 over the six comparable cases, against +0.575 published at n=1.**
-
-★ **The mean is the least interesting number here. The SPLIT is the finding.** The
-effect is large and consistent exactly where a case tests the harness's own
-evidence discipline — and the baseline scores **0.00** in both of those, across
-every run:
-
-- *does the model consult an existing decision corpus before writing a record* — **+1.00**
-- *does it refuse to mark a task done without tool-written evidence* — **+0.76**
-
-And it is **indistinguishable from zero** — between −0.07 and +0.04 — wherever the
-case tests generic code-quality instruction that a capable model already follows
-without being told. That is a real result and it is not flattering: **the plugin
-changes what a model does when the subject is verification, and does not when the
-subject is ordinary good practice.** A reader deciding whether to adopt this should
-weigh the first pair and discount the second.
-
-⚠ **Two cases are missing from that table and neither is a null result.**
-`gates-advise-never-block` is UNMEASURED at n=5: its own prompt records it as
-bimodal, and at five runs per arm the baseline produced no usable run at all
-(`n=1/0`). `adr-against-a-real-corpus` was not re-run — at `max_turns: 40` it does
-not fit the budget this table was taken under. Both previously reported `0.00`;
-that figure was a single run per arm and should not be read as a measured null.
-
-⚠ **A cap below what a case needs measures the cap, not the instruction.** Both
-`complexity-*` cases ran at `max_turns: 4` and **7 of 10 runs died there**, each
-ending `Reached maximum number of turns (4)` — silently shrinking n to two and one
-against a nominal five. Raised to 8 before the numbers above were taken, after
-which **0 of 19 runs exhausted**. An exhausted run is never scored 0; it is
-dropped, which is why this shows up as a small `n` rather than as a bad score.
-
-⚠ **Do not compare a run's reported `turns` against `max_turns` — they are not the
-same unit.** An earlier draft of this paragraph said the finishing runs "needed
-4–5", which was inferred from those two fields. It does not hold: measured
-2026-09-03, `adr-write-consults-the-corpus` declares `max_turns: 8`, and in one
-invocation four runs completed reporting `turns` of 9, 11, 11 and 14 while a fifth
-errored `Reached maximum number of turns (8)`. Whatever `turns` counts, it is not
-what the cap bounds. The claim above rests only on the error string and on
-exhaustion falling to zero after the change, both of which are outcomes rather than
-arithmetic across two fields.
-
-**turns 91 vs 39 — 2.33×** (from the 2026-08-28 single-run table; not re-measured
-here)
-
-**It roughly doubles the turns, and those turns are the MODEL's, not the tooling's.**
-Every gate here runs as a subprocess inside one Bash call inside one assistant
-turn; no gate ever gets a turn of its own. So the figure says the model takes more
-rounds — it reads the corpus, runs a check, reads the result — and never that the
-harness is spending your budget behind its own back.
-
-⚠ **A turn count is not a bill, and this table cannot tell you the bill.** In this
-run cost tracked turns almost exactly — 2.35× cost against 2.33× turns, cost per
-turn within 1% — which invites reading "2.33×" as what you will pay. It is not,
-because **eval cases are short, fresh sessions of 1–50 turns: exactly the regime
-where a prompt cache cannot help.** One real session profiled on 2026-09-03, 1,941
-assistant turns (`node scripts/session-profile.mjs <session.jsonl>`):
-
-    fresh input        3,908 tokens     0.0%
-    cache creation     8,139,149        0.8%
-    cache READ       985,287,168       99.2%
-
-Nearly every input token was a **cache read**, billed far below fresh input. An
-extra turn in long work is a re-read of a prompt already paid for, not a fresh
-one. **The 2.33× above is therefore the worst case for cost, not the typical one**
-— and what the typical one is remains unmeasured here, because that session has no
-without-plugin twin to compare against.
-
-If the trade is wrong for your work it is wrong, and no amount of the first number
-fixes it. But price it on your own sessions rather than on this ratio.
-
-**The two zeroes are the honest losses and they are the most useful rows here.**
-Both baselines already scored 1.00: the model did the right thing unprompted, and
-the plugin bought nothing except turns — 15 vs 3 in one case, 50 vs 20 in the
-other. A suite that reported only the six wins would be the benefits-only page
-this file warns you about two screens up.
-
-**What this run is not.** Five runs per arm, one model version, seven cases
-written by the same people who wrote the plugin, one of them (`gates-advise-never-block`)
-unmeasurable at that budget. Five per arm is enough to kill a figure that was one
-draw from a bimodal case — which it did, four times — and enough to trust the two
-large, unanimous effects where the baseline scored 0.00 in every single run. It is
-NOT enough to put a confidence interval on the small ones: at n=5 a Δ of −0.07 and
-a Δ of +0.04 are the same answer, namely "no effect this experiment can see". Do
-not read the ordering within that group as a ranking.
-
-⚠ **A failed run scores 0.00, and so does a real no-effect.** Measured 2026-09-03:
-every case on one machine reported `Δ 0.00` after failing to start — a Docker
-credential-store symlink blocks the sandbox — and the suite line still read
-`mean Δ 0.00`, which is indistinguishable from a measured null result.
-`scripts/eval-compare.mjs` separates them: an arm carrying an error prints `UNRUN`
-and is excluded from the mean, because "I could not look" is not "there was no
-difference".
-
-### What the corpus itself records
-
-`node scripts/corpus-metrics.mjs` — descriptive, no control arm, so it says what
-happened here rather than what the lifecycle caused. **Snapshot taken 2026-09-26** at
-`5af46f0`, just after v2.110.0; the command prints today's:
-
-- **58 decision records, 145 task files, 1204 catalogued mutations**
-- **526 verification entries**, every one written by the tool
-- **18 of 359 recorded mutants SURVIVED**: tests that did not notice their own
-  subject being broken, found at authoring time in a suite that was green. The
-  tool itself warns that its two ways of counting verdicts disagree (359 and
-  362), so read that figure as ±3 until the count is fixed.
-- **1204/1204 mutations noticed** in the full CI campaign at the released commit
-  (v2.110.0, run 36181631975, summed from its 48 shards)
-- **59 of 526 entries are red runs** across 145 tasks. That is a compliance figure
-  about this repository and it is not flattering: either the TDD red run is being
-  taken and not recorded, or it is being skipped. The evidence chain cannot tell
-  those apart, and says so.
-
-## The evidence behind those claims
-
-*Everything above in the terms a sceptical engineer would want. Skip it if the
-summary was enough.*
-
-**False success is the dominant agent failure mode.** Among self-assessing coding
-agents making explicit status claims, **75.8% of failures are false successes** —
-the work did not happen and the report says it did. Asking another model to catch
-it does not work: **LLM judges never exceed AUROC 0.65**, because they grade the
-confident closing language rather than the state change. Cheap deterministic
-detectors reach **0.83–0.95** on the same task. And a passing suite is weaker
-evidence than it looks: **one in five "solved" patches on SWE-bench Verified is
-semantically wrong**, passing only because the tests were too weak to expose it.
-
-Sources and effect sizes: [`docs/research/2026-08-28-verification-is-the-bottleneck.md`](docs/research/2026-08-28-verification-is-the-bottleneck.md).
-
-### Run the same numbers on your own corpus
-
-Everything this project claims about itself, it measures with tools that ship. One
-command puts your corpus's figures in front of you:
+Measure your own corpus. The report is read-only and never runs your acceptance commands:
 
 ```bash
 node "$(qh-root)/scripts/corpus-report.mjs" docs/adr
 ```
 
-It is **read-only and never runs your fences** — re-checking a recorded claim means
-executing that task's own acceptance command, and a reporting tool has no business
-doing that to your checkout. The half it cannot take without running something is
-reported as `UNRUN`, with the command that would take it (`adr-verify --sweep`).
-
-**And the numbers would be worth more from you than from here.** On mechanism this
-project appears to be alone among spec-driven tools — every comparable one decides
-"done" by model judgement and records it as prose. But it has been exercised on
-essentially one corpus, its own. *"The only tool that does X"* is a claim about a set
-of one until somebody else reports their buckets. If you run it, the output is shaped
-to paste straight into an issue.
-Its §10 is the narrower list — what this repository measured itself, including a
-null it will not promote to support, a retraction of its own published number, and
-a column for findings it negated, left empty because it has negated none.
-
-### The mechanisms, precisely
-
-| Instead of | You get |
-|---|---|
-| An agent writing "✅ all tests pass" into a task file | `adr-verify` **runs the fence itself** and writes the date, git sha, exit code, duration and a SHA-256 of the fence it ran. Edit the fence and every entry taken under the old one is invalidated. |
-| A green suite you hope means something | A **mutation campaign** that breaks each mechanism on purpose and fails if nothing notices. A test that cannot fail is found before you trust it. |
-| A gate that blocks you and cannot say why | Gates that **advise**, with one refusal that says why and can be turned off: an unchecked commit or push. A blocked agent that cannot tell what to do next is worse than not having the plugin, so the refusal names the command to run (`qh-check`). |
-| "I checked, it's fine" | A check that **cannot determine something says so** — `UNRUN`, `PARTIAL`, `UNPROVEN` — and never borrows the vocabulary of a verdict. A filter that matched nothing is "I could not look", not "the thing is absent". |
-| Decisions living in a chat log | An **executable ADR corpus** — Architecture Decision Records, one file per decision — whose readiness, coverage, dangling pointers and open debt are computed from the task files by `adr-next`, `adr-state.mjs` and `adr-debt`, not from a status column somebody typed. |
-
-**A note on the words.** An *ADR* is a short file recording one decision and why it
-was made. A *fence* is the exact command a task must pass. A *mutation* is a
-deliberate break introduced to see whether any test notices. If those three are
-clear, the rest of this page reads normally.
-
 ## What it includes
 
-### Lifecycle skills
+Skills, invoked as `/quality-harness:<name>`:
 
-- `work` — main-session coordinator for substantive development.
-- `spec-write` — facts-first requirements and executable scenarios.
-- `adr-write` — proposed, executable architecture decision records.
-- `adr-execute` — task-by-task execution of active Accepted ADRs.
-- `adr-retire` — archive records without erasing authority or obligations.
-- `arch-write` — current-state architecture mapping and audit.
-- `execution` — bounded implementation with fresh evidence.
-- `review` — evidence-backed code review with risk routing.
-- `mutation-audit` — break a mechanism on purpose and measure whether anything notices.
-- `corpus-chaos` — run every reader over a corpus you do not own, on a platform we cannot, and report what it printed; then break a scratch copy of it on purpose, by a replayable seed (`perturbations.md`, `abominations.md`).
-- `postmortem` — structured learning from material failures.
-- `codex-review` — fresh-context GPT-6 Astra verdict review.
-- `codex-advise` — fresh-context GPT-6 Astra technical advice.
-- `quality-policy` — the shared simplicity, evidence, and leaf-agent contract.
+- `work`: main-session coordinator for substantive development.
+- `spec-write`: requirements as facts bound to tests.
+- `adr-write`: a proposed, executable decision record.
+- `adr-execute`: execute an Accepted record task by task, with tool-written evidence.
+- `adr-retire`: archive records without losing their authority or open obligations.
+- `arch-write`: current-state architecture map and audit.
+- `execution`: a bounded change with fresh evidence.
+- `review`: code review with risk routing.
+- `mutation-audit`: break a mechanism and measure whether anything notices.
+- `corpus-chaos`: run every reader over a corpus you do not own, then break a scratch copy of it.
+- `postmortem`: structured learning from a material failure.
+- `codex-review`, `codex-advise`: a fresh-context Codex review or second opinion.
+- `quality-policy`: the shared scope, simplicity and evidence contract.
+- `operating`: what is installed, whether a gate is stale, how to read a finding's severity.
 
-Plugin skills are namespaced by Claude Code, for example
-`/quality-harness:work` and `/quality-harness:adr-write`.
+Gates, on `PATH` while the plugin is enabled:
 
-### Executable gates
+- `spec-verify`: every fact in a spec is bound to a test.
+- `adr-lint`: a record's grammar, coverage, evidence and dangling pointers.
+- `adr-verify`: runs a task's acceptance command and writes the evidence.
+- `adr-judge`: whether a record rests on anything observable. Advisory only.
+- `adr-next`: task readiness computed from the task files.
+- `adr-debt`: deferred items and open follow-ups.
+- `adr-retire-check`: a retirement keeps authority and obligations.
+- `arch-lint`: an architecture document against the code.
+- `postmortem-verify`: a postmortem's claims against its evidence.
+- `qh-check`: runs the project's check and records the result and the load.
+- `qh-mcp`: the reading gates over MCP.
+- `qh-root`: the installed plugin root.
 
-The plugin's `bin/` directory is added to the Bash tool's `PATH` while the
-plugin is enabled:
+Corpus readers, which report and exit 0: `work-next.mjs`, `adr-state.mjs`, `adr-context.mjs`,
+`corpus-report.mjs`, `corpus-probe.mjs`.
 
-- `spec-verify` — requirements carry falsifiable facts bound to tests.
-- `adr-lint` — a record's own gate: grammar, coverage, evidence, and dangling pointers.
-- `adr-verify` — runs a task's Acceptance fence and writes the evidence itself.
-- `adr-judge` — the two axes a schema cannot see: does the record rest on anything observable.
-- `adr-next` — readiness computed from the task files, not from a status column.
-- `adr-debt` — deferred items and open follow-ups, swept so they resurface.
-- `adr-retire-check` — retirement without erasing authority or obligations.
-- `arch-lint` — architecture documents against the code they describe.
-- `postmortem-verify` — a postmortem's claims against its evidence.
-- `qh-mcp` — the reading gates over MCP, for clients with no shell.
-- `qh-check` — runs this project's check and records what it observed, the evidence ADR-060's advisories count.
-- `qh-root` — resolves the installed plugin root for a caller that has no placeholder.
+Workflows, for costly cases only: `quality-cycle` (high-risk review), `consensus` (an open design
+decision that is costly to reverse), `review-ring` (one review, at most one fix, then
+revalidation).
 
-**Name the working-tree path when you are developing the plugin itself.** A bare
-gate name on `PATH` resolves to an installed release, which is not your edit.
-
-Corpus readers ship as scripts rather than gates, because they judge nothing
-and exit 0 whatever they find:
-
-- `work-next.mjs` — which lifecycle stage is waiting, and the files that put it there.
-- `adr-state.mjs` — what governs what, contested areas, dangling supersessions.
-- `adr-context.mjs` — which records govern these files, including the ones that were killed.
-- `corpus-report.mjs` — a corpus's evidence numbers in a form you can paste; it never runs a fence.
-- `corpus-probe.mjs` — every reader over one corpus, side by side, with their disagreements computed.
-
-Canonical templates live in `templates/`. Skills locate them through
-`${CLAUDE_PLUGIN_ROOT}`; no user home path or project name is embedded.
-
-### Standalone install maintenance
-
-Some machines keep unnamespaced compatibility copies under the user's home so
-`/adr-write` works beside `/quality-harness:adr-write`. Nothing updates those, so
-the plugin reports on them and never acts:
-
-- A session-start notice names a copy that has drifted, and measures which one a
-  bare gate name actually reaches rather than asserting it.
-- It also names a file a past installer left that this plugin no longer ships —
-  but only when a digest, a forwarder mark, or lineage against a cached release
-  proves the plugin wrote it. Anything it cannot prove is counted, never named,
-  because a file it cannot identify may well be another tool's.
-- `sync-standalone.mjs` reports the same set the notice does, writes only with
-  `--apply`, and `--link` replaces each gate with a forwarder that no release can
-  leave behind. Neither mode touches a file reported as no longer shipped.
-
-### Hooks and workflows
-
-- Protected-branch, leaf-agent, completion-evidence, and artifact gates.
-- Immediate facts-first checks after edits, repeated before completion.
-- `quality-cycle` for high-risk review on a machine where Codex is not installed.
-- `consensus` for genuinely unresolved, costly-to-reverse choices.
-- `review-ring` for one review, at most one minimal fix, then caller revalidation.
-
-These are native dynamic workflows, distributed from the plugin root and invoked as
-`/quality-harness:quality-cycle`, `/quality-harness:consensus`, and
-`/quality-harness:review-ring`. Use them only when the scripted orchestration earns its additional
-agents and token cost; routine changes stay in the main session or one bounded subagent.
+Hooks: protected branches, leaf agents, completion evidence, artifact gates, and the publish
+refusal above. A session-start notice reports standalone copies of the gates that have drifted
+from the plugin; `sync-standalone.mjs --link` replaces them with forwarders.
 
 ## Requirements
 
-- Claude Code 2.1.154 or newer — the build dynamic workflows shipped in; developed against 2.1.260. On Pro, enable dynamic workflows in `/config`.
-- Python 3.9 or newer by syntax; **3.12 is what CI tests**, on all three operating systems.
+- Claude Code 2.1.154 or newer. On Pro, enable dynamic workflows in `/config`.
+- Python 3.9 or newer; CI tests 3.12.
 - Node.js; CI runs 24.
-- Bash. On Windows, use Git for Windows (Git Bash).
-- Git.
-- Codex CLI only for `codex-review`, `codex-advise`, or Codex workflow nodes.
+- Bash (Git Bash on Windows) and Git.
+- Codex CLI, only for `codex-review` and `codex-advise`.
 
-On Windows, `jq` is recommended for advisory JSON syntax checks and general
-command-line use, but hook dispatch does not depend on it:
+## Developing the plugin
 
-```powershell
-winget install jqlang.jq
-```
+- `plugin/` is the only thing published: `.claude-plugin/marketplace.json` points at it.
+  `tests/`, `docs/` and `scripts/` never ship. A file under `plugin/` that is not part of the plugin
+  fails the suite (ADR-008).
+- Load the working tree with `claude --plugin-dir ./plugin`, and run the gate with
+  `bash scripts/selftest.sh`. The rules for working here are in [CLAUDE.md](CLAUDE.md).
+- A bare gate name on `PATH` runs the installed release. Name the working-tree path to test an edit.
+- A marketplace added from a local path also copies ignored files, so it is larger than a
+  published install.
 
-The plugin ships no project-specific ADR locations, test commands, repository
-allowlists, or business policy. It discovers and follows the active repository.
-
-## Efficient operating model
-
-- **Skills** carry reusable judgment and procedures. Only their compact descriptions are visible
-  until selected; the full body loads on demand. Plugin skills are available to main sessions and
-  discoverable by subagents under the `quality-harness:` namespace.
-- **Dynamic workflows** hold repeatable fan-out, critique, and synthesis in script variables so
-  intermediate agent output does not pollute the main context. Use them for the three explicitly
-  bounded cases above, not as a default for routine work.
-- **Subagents** are isolated leaves for narrow implementation, review, or research. Give them one
-  owned scope and the exact namespaced skill they need; do not preload the entire lifecycle.
-- **Command hooks** enforce deterministic policy and executable gates. The plugin intentionally
-  avoids experimental agent hooks for production-critical blocking behavior.
-- **Templates** stay centralized under `templates/` because several skills share the same schemas.
-  Skills resolve them with `${CLAUDE_PLUGIN_ROOT}` instead of copying instructions into every skill.
-
-This separation keeps context small, makes orchestration repeatable only where it earns its cost, and
-keeps correctness gates outside model discretion.
-
-## Repository layout
-
-The plugin is `plugin/`, and it is the only thing published: `.claude-plugin/marketplace.json`
-declares `"source": "./plugin"`, so an install carries only `plugin/`
-and none of the work that produces it. `tests/`, `docs/` and the three gates this repository runs on
-itself — `scripts/selftest.sh`, `scripts/coverage.sh`, `scripts/mutate.mjs` — stay above that
-boundary and are checked on every push without shipping. A file committed under `plugin/` that is
-not part of the plugin fails the suite (ADR-008).
-
-## Test locally
-
-From the repository's parent directory:
-
-```bash
-claude --plugin-dir ./quality-harness/plugin
-```
-
-Run the complete package verification, from the repository root:
-
-```bash
-./quality-harness/scripts/selftest.sh
-```
-
-The test suite validates the manifest, every skill's routing metadata, executable
-permissions and syntax, lifecycle behavior, positive gate fixtures, and negative
-controls proving the gates can reject invalid artifacts.
-
-The Node hook runner parses Claude Code payloads before the bundled Bash gates
-execute, so hook dispatch has no `jq` or Python dependency. On Windows it resolves
-Git Bash from `CLAUDE_CODE_GIT_BASH_PATH`, then PATH (excluding the System32 WSL
-stub), then per-user and system Git for Windows installs. It also normalizes
-drive-letter and UNC paths before invoking the gates.
-
-Normal `Stop` handling stays inside Node and checks only whether successful
-repository evidence followed the final mutation. Full artifact gates remain strict
-at `git commit`/`git push`, `TaskCompleted`, and `SubagentStop`, avoiding repeated
-Git Bash launches when a main session merely stops on macOS or Windows.
-
-The bundled Python gates explicitly read, write, and print UTF-8 so ADR evidence
-remains valid on Windows code pages. Lifecycle classification treats visible,
-read-only interpreter snippets as diagnostics while unknown scripts and unrecognized
-calls remain mutation-capable; a repository validation must still follow them.
-
-## Distribute
-
-This directory can be published as a standalone Git repository. It includes a
-single-plugin marketplace at `.claude-plugin/marketplace.json`.
-
-After publishing it, users can run:
-
-```text
-/plugin marketplace add OWNER/REPOSITORY
-/plugin install quality-harness@quality-harness
-```
-
-For local marketplace testing:
-
-```text
-/plugin marketplace add /absolute/path/to/quality-harness
-/plugin install quality-harness@quality-harness
-```
-
-A marketplace added from a local PATH copies the working tree, ignored files included, so an install
-made that way is larger than the published one and is not a measurement of what a user downloads.
-Adding it by `OWNER/REPOSITORY` clones, and a clone has only what is tracked.
-
-Run `/reload-plugins` if Claude Code asks for it after installation or update.
-Claude's current plugin structure and distribution behavior are documented in
-[Create plugins](https://code.claude.com/docs/en/plugins) and
-[Plugin marketplaces](https://code.claude.com/docs/en/plugin-marketplaces). Workflow behavior,
-cost, limits, and plugin distribution are documented in
-[Dynamic workflows](https://code.claude.com/docs/en/workflows).
-
-## ADR archive model
-
-How to update, what an update leaves behind, and how to check it took:
-[docs/UPDATE.md](docs/UPDATE.md).
-
-Physical location controls the active validation cohort. Decision effect controls
-authority. An archived exact-`Accepted` ADR can remain governing, so the active
-catalog must still link it. Unresolved archived obligations require active backlog
-receipts, and frozen decision-unit hashes detect silent historical edits.
-
-Archive is never a synonym for superseded.
+This repository gates itself with the same tools, and [docs/BACKLOG.md](docs/BACKLOG.md)
+records each time its own checks were wrong.
 
 ## License
 

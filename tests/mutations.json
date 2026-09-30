@@ -4574,7 +4574,7 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "- `mutation-audit` — break a mechanism on purpose and measure whether anything notices.\n",
+      "from": "- `mutation-audit`: break a mechanism and measure whether anything notices.\n",
       "to": "",
       "only": "^(?:every catalogue entry still matches the source it mutates, exactly once|the README names every skill and gate this plugin ships)$"
     },

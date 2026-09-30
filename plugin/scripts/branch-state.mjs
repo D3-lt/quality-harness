@@ -186,7 +186,12 @@ export function collect(run = shell, checkpoint = () => {}) {
   if (runs.ok) {
     let rows = []
     try { rows = JSON.parse(runs.out) } catch { rows = [] }
-    const answer = headRuns(rows, git.head)
+    // HEAD's runs, or the pushed tip's when HEAD has none yet. `gh` has served a page
+    // of runs weeks old (2026-09-29 and 2026-09-30, three times), and the newest run on
+    // such a page is an old commit's, which the brief then raised as this branch's red
+    // CI. Where the tip cannot be read, the newest listed run still answers, named.
+    const upstream = run(['git', 'rev-parse', `origin/${branch.out}`])
+    const answer = headRuns(rows, git.head, upstream.ok ? upstream.out : null)
     if (answer) {
       const answering = answer.runs
       const failing = answering.filter(r => r.status === 'completed' && r.conclusion !== 'success')
@@ -216,7 +221,12 @@ export function collect(run = shell, checkpoint = () => {}) {
         } catch { /* an unreadable job list names no job; the verdict stands */ }
       }
     } else if (rows.length) {
-      ci = { looked: false, note: '`gh` listed runs this reader could not order' }
+      const shas = [...new Set(rows.filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
+        .map(r => String(r.headSha).slice(0, 7)))]
+      ci = shas.length
+        ? { looked: false, note: `no run listed is at HEAD ${git.head}${upstream.ok ? ` or origin/${branch.out}` : ''}; `
+          + `the ${rows.length} listed are at ${shas.slice(0, 3).join(', ')}${shas.length > 3 ? ', …' : ''} — CI has not started here, or \`gh\` served an older page` }
+        : { looked: false, note: '`gh` listed runs this reader could not order' }
     }
   }
 
@@ -278,8 +288,9 @@ const RUN_WINDOW = 20
 
 /**
  * The runs that answer for a commit, as `{ sha, runs, complete }`, or null when
- * nothing can be ordered. The commit is HEAD when any listed run is at HEAD, and
- * otherwise the commit of the newest run, which the render names.
+ * nothing can be ordered. The commit is HEAD when any listed run is at HEAD; else the
+ * pushed tip `upstream`, whose CI is the one running for a branch with local commits
+ * ahead; else, only when the tip could not be read (null), the newest listed run's.
  *
  * ⚠ `--limit 1` READ ONE RUN, AND WHICH ONE WAS A COIN TOSS (BACKLOG §304). At
  * cdd3bda the push and the dispatched campaign were created in the same second
@@ -303,12 +314,17 @@ const RUN_WINDOW = 20
  * "Newest" is the latest START, because a re-run keeps its id and moves
  * `startedAt`; the id breaks what the one-second clock cannot.
  */
-export function headRuns(rows, head = '') {
+export function headRuns(rows, head = '', upstream = null) {
   const listed = (Array.isArray(rows) ? rows : [])
     .filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
   if (listed.length === 0) return null
+  // Either may be the shorter: HEAD is read abbreviated, the tip and `gh`'s shas whole.
+  const same = (sha, prefix) => sha.startsWith(prefix) || prefix.startsWith(sha)
+  const at = prefix => (prefix ? listed.find(r => same(String(r.headSha), prefix))?.headSha : undefined)
   const newest = listed.reduce((a, b) => (b.databaseId > a.databaseId ? b : a))
-  const sha = (head && listed.find(r => String(r.headSha).startsWith(head))?.headSha) || newest.headSha
+  // A tip that was read and has no run means this listing does not speak for the branch.
+  const sha = at(head) || at(upstream) || (upstream === null ? newest.headSha : null)
+  if (!sha) return null
   const workflowOf = r => String(r.workflowDatabaseId ?? r.workflowName ?? '')
   const started = r => Date.parse(String(r.startedAt ?? ''))
   const later = (a, b) => (started(b) - started(a)) || (b.databaseId - a.databaseId)

@@ -13195,8 +13195,8 @@
         "tests/branch-state.test.mjs"
       ],
       "only": "a run at an older commit does not colour the newest one",
-      "from": "  const sha = (head && listed.find(r => String(r.headSha).startsWith(head))?.headSha) || newest.headSha",
-      "to": "  const sha = newest.headSha"
+      "from": "  const sha = at(head) || at(upstream) || (upstream === null ? newest.headSha : null)",
+      "to": "  const sha = (upstream === null ? newest.headSha : null)"
     },
     {
       "label": "branch-state: every workflow at the commit answers (BACKLOG §304)",
@@ -18006,6 +18006,56 @@
       "from": "...(cores !== undefined ? { cores } : {})",
       "to": "...(cores ? { cores } : {})",
       "only": "^an invalid load or core count"
+    },
+    {
+      "label": "branch-state: a read tip with no run does not fall back to an old commit's run",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "at(upstream) || (upstream === null ? newest.headSha : null)",
+      "to": "at(upstream) || newest.headSha",
+      "only": "never an old commit's verdict"
+    },
+    {
+      "label": "branch-state: the pushed tip's run answers when HEAD has none",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const sha = at(head) || at(upstream) ||",
+      "to": "const sha = at(head) ||",
+      "only": "never an old commit's verdict"
+    },
+    {
+      "label": "branch-state: the tip is read and passed to the run choice",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "headRuns(rows, git.head, upstream.ok ? upstream.out : null)",
+      "to": "headRuns(rows, git.head, null)",
+      "only": "never an old commit's verdict"
+    },
+    {
+      "label": "branch-state: a whole sha matches an abbreviated one either way round",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "sha.startsWith(prefix) || prefix.startsWith(sha)",
+      "to": "sha.startsWith(prefix)",
+      "only": "never an old commit's verdict"
+    },
+    {
+      "label": "readme: a name counts only as the list names it, in backticks",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "const names = text => name => text.includes(`\\`${name}\\``)",
+      "to": "const names = text => name => text.includes(name)",
+      "only": "^the README names every skill and gate this plugin ships$"
     }
   ]
 }

@@ -44,8 +44,11 @@ Two roles. Run the one you are in.
    lists. It does not compare `partialBecause` or the spec fields, so read those in `new.json`.
    `--attest` prints the counts-only attestation, where `<label>` names the corpus's shape, never
    its real name; when `work-next` did not answer, it takes the counts from `corpus-report` and
-   says so in `countsFrom`. Send both. Keep `new.json` as next batch's `old.json`, and never send
-   the report itself: it holds the corpus's record ids and task names.
+   says so in `countsFrom`. Send both to the asker, and only by a direct reply: `--diff` prints
+   advice lines verbatim, with the corpus's record paths, task file names and test titles, so it
+   never goes anywhere public (an issue, a pull request, a commit). Only the `--attest` line is
+   ever filed. Keep `new.json` as next batch's `old.json`, and never send the report itself: it
+   holds the corpus's record ids and task names.
 3. **Read everything, not the summary.** In the JSON: `couldNotRun` (a reader that did not
    start, was killed, or printed no JSON — never a silent gap), `disagreements` (two readers
    about one task), `workNext.readinessUnproven` (task directories whose readiness nobody could
@@ -163,7 +166,9 @@ faithful run, when the asker asks for chaos or says "go wild", do this as well.
   JS SPA, a static site, and at least two Windows sessions.
 - **One request, the same for everyone:** "A reply IS the deliverable; 'could not run because X'
   is a useful answer. At `<sha>`, follow the Runner steps of `/quality-harness:corpus-chaos` over
-  your corpus and paste the `--diff` output and the `--attest` JSON whole."
+  your corpus and paste the `--diff` output and the `--attest` JSON whole, in this reply only."
+  Only the attestation is filed (`scripts/attest-import.mjs`); the rest of what a runner sends
+  names its corpus and never reaches a commit, an issue or a pull request.
 - **For chaos, append one sentence:** "Then run its Chaos section on a scratch copy: print
   your seed, take the six perturbations it draws plus one of your own, build two
   abominations, and paste every finding with its replay command and the list of what broke

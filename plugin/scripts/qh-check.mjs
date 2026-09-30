@@ -13,6 +13,7 @@ import { appendFileSync, mkdirSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 import { checkCommandOrigin, observe, stateDir, validationVerdict } from './lifecycle.mjs'
+import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
 
 const KEEP_BYTES = 64 * 1024
@@ -86,7 +87,7 @@ async function runLaunched({ file, args, shell }, { root, env, platform, timeout
   return { ended, received }
 }
 
-export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr } = {}) {
+export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores } = {}) {
   const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
@@ -104,7 +105,11 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     return 2
   }
   const startedAt = new Date().toISOString()
-  const before = { ...observe(root), at: startedAt }
+  // The load at both ends of the check (ADR-075 T1): a pass taken on a saturated machine is
+  // not attributable, and the record says so without changing the exit or the verdict.
+  const load = { ...(loadavg ? { loadavg } : {}), ...(cores ? { cores } : {}) }
+  const loadAtStart = sampleLoad(load)
+  const before = { ...observe(root), at: startedAt, load: loadAtStart.load }
   let kept = Buffer.alloc(0)
   const keep = chunk => {
     kept = Buffer.concat([kept, chunk])
@@ -114,7 +119,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const { ended, received } = launch
     ? await runLaunched(launch, { root, env, platform, timeoutMs: checkTimeoutMs(env), stdout, stderr, keep })
     : { ended: { code: null, signal: null, error: new Error(NO_BASH) }, received: null }
-  const after = { ...observe(root), at: new Date().toISOString() }
+  const after = { ...observe(root), at: new Date().toISOString(), load: sampleLoad(load).load }
   const signal = received ?? ended.signal ?? null
   const exit = ended.error ? null : ended.code
   // A check a signal ended did not finish, so it has no verdict: "failed" said it had
@@ -124,7 +129,8 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     : signal
       ? 'interrupted'
       : validationVerdict({ exit_code: exit ?? 1, stdout: kept.toString('utf8') }, command, { anyCommand: true })
-  const record = { id: randomUUID(), at: after.at, git, command, origin, before, after, exit, signal, verdict }
+  const contended = contention(before.load, after.load, loadAtStart.cores)
+  const record = { id: randomUUID(), at: after.at, git, command, origin, before, after, exit, signal, verdict, cores: loadAtStart.cores, contended }
   try {
     const directory = stateDir(root)
     mkdirSync(directory, { recursive: true })
@@ -140,6 +146,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   } catch (failure) {
     stderr.write(`qh-check: the check ran, but its record could not be written (${failure.code ?? failure.message}).\n`)
   }
+  stderr.write(`qh-check: ${loadLine(before.load, after.load, loadAtStart.cores)}\n`)
   if (ended.error) {
     stderr.write(`qh-check: the check could not start (${ended.error.code ?? ended.error.message}).\n`)
     return 127

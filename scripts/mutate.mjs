@@ -36,6 +36,17 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
+import { loadLine, sampleLoad } from '../plugin/scripts/load.mjs'
+
+// The load a campaign ran under (ADR-075 T1). `QUALITY_HARNESS_LOADAVG` ("1.5 1 1") and
+// `QUALITY_HARNESS_CORES` are the tests' seams; without them the machine is asked.
+export function campaignLoad(env = process.env) {
+  const averages = env.QUALITY_HARNESS_LOADAVG ? env.QUALITY_HARNESS_LOADAVG.trim().split(/\s+/).map(Number) : null
+  return sampleLoad({
+    ...(averages ? { loadavg: () => averages } : {}),
+    ...(env.QUALITY_HARNESS_CORES ? { cores: Number(env.QUALITY_HARNESS_CORES) } : {}),
+  })
+}
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 // The repository a run reads and writes: this one, or `--root <dir>` (ADR-069). `main`
@@ -1290,6 +1301,8 @@ export function main(argv) {
       + 'you accept losing them.\n')
     return 2
   }
+  // The load at the start, before the first baseline; the end sample is taken with the summary.
+  const loadAtStart = campaignLoad()
 
   // The baselines FIRST, on an unmutated tree, before begin() has anything to
   // journal — so this adds no window in which a crash could leave the tree
@@ -1428,6 +1441,8 @@ export function main(argv) {
       + 'so neither verdict is evidence. The line above each says whether that suite FAILED or '
       + 'never finished — they need different things done to them.')
   }
+  const loadAtEnd = campaignLoad()
+  console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))
   // ADR-072: nothing is left narrowed on a measurement it failed. An entry that is not RED
   // under its pattern loses the pattern again and is named, and the run exits 1. The
   // catalogue is written only here, after every narrowing was measured (T4).

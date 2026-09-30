@@ -120,7 +120,7 @@ When `--changed HEAD` and `--shard 1/2 --no-cache` run isolated and in place
 Then each pair names the same entries
 ```
 
-### UC2-S1 [happy] A quiet check is recorded as not contended [@spec] → `tests/qh-check.test.mjs::a check run below the core count is recorded as not contended`
+### UC2-S1 [happy] A quiet check is recorded as not contended [@implemented] → `tests/qh-check.test.mjs::a check run below the core count is recorded as not contended`
 
 ```gherkin
 Given a load below the core count
@@ -128,7 +128,7 @@ When qh-check runs a passing check
 Then the record carries the load, the cores and contended false
 ```
 
-### UC2-S2 [failure] A loaded check is said as unattributable [@spec] → `tests/qh-check.test.mjs::a check run above the core count is recorded as contended and said, and its exit is unchanged`
+### UC2-S2 [failure] A loaded check is said as unattributable [@implemented] → `tests/qh-check.test.mjs::a check run above the core count is recorded as contended and said, and its exit is unchanged`
 
 ```gherkin
 Given a load above the core count
@@ -136,7 +136,7 @@ When qh-check runs a passing check
 Then it exits 0, records contended true, and prints "unattributable: load N on M cores"
 ```
 
-### UC2-S3 [failure] No load average is said, never read as quiet [@spec] → `tests/qh-check.test.mjs::a check with no load average records contended null and says the load could not be read`
+### UC2-S3 [failure] No load average is said, never read as quiet [@implemented] → `tests/qh-check.test.mjs::a check with no load average records contended null and says the load could not be read`
 
 ```gherkin
 Given a platform whose load average reads 0 0 0
@@ -144,7 +144,7 @@ When qh-check runs
 Then contended is null and the line says the load could not be read
 ```
 
-### UC2-S4 [failure] A load that crosses the core count between samples is contended [@spec] → `tests/qh-check.test.mjs::a check whose load crosses the core count between its samples is contended, and one at the count is not`
+### UC2-S4 [failure] A load that crosses the core count between samples is contended [@implemented] → `tests/qh-check.test.mjs::a check whose load crosses the core count between its samples is contended, and one at the count is not`
 
 ```gherkin
 Given a load below the core count at the start and above it at the end
@@ -184,7 +184,7 @@ Then it says it could not look, and runs
 | F-2 | An `--in-place` campaign refuses entries whose files have uncommitted changes; one campaign runs per root, in either mode. | `tests/gate-rules.test.mjs::the mutation runner refuses to run over an editor, or beside another runner` | @spec | |
 | F-8 | A campaign runs by default in a throwaway worktree holding the checkout's working-tree content (`HEAD`, its uncommitted tracked changes, and its untracked files that are not ignored), so it grades exactly what an in-place run would; every tracked and untracked file of the checkout keeps its bytes except the verdict cache the run writes back (F-12), no mutant appears in it, and its index and stash list are unchanged; `--in-place` keeps today's behaviour. | `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there` | @spec | |
 | F-9 | The worktree lives in the repository's git directory (`<git-common-dir>/qh-campaigns/`), never under the OS temp root, so a test that tells scratch from project by the temp root grades alike in both modes. A campaign owns it from before it exists until the campaign's process group has ended: a SIGINT or SIGTERM to the parent ends the group and removes it; the next run removes one only when its owner record names no live process and, on POSIX, no live process group, and says so. On Windows the next run's sweep is the only cleanup. | `tests/mutate-isolation.test.mjs::a killed campaign's worktree is removed by the next run, and said` | @spec | |
-| F-10 | qh-check and a campaign sample the 1-minute load and the core count at start and at end, and always report both samples (a campaign on every run, an interrupted one included); `contended` is true when either sample exceeds the core count, false when both are at or below it, null when either could not be read; the result calls it an endpoint observation, says "unattributable" when true, and never changes an exit or a verdict. | `tests/qh-check.test.mjs::a check run above the core count is recorded as contended and said, and its exit is unchanged` | @spec | |
+| F-10 | qh-check and a campaign sample the 1-minute load and the core count at start and at end, and always report both samples (a campaign on every run, an interrupted one included); `contended` is true when either sample exceeds the core count, false when both are at or below it, null when either could not be read; the result calls it an endpoint observation, says "unattributable" when true, and never changes an exit or a verdict. | `tests/qh-check.test.mjs::a check run above the core count is recorded as contended and said, and its exit is unchanged` | @implemented | |
 | F-11 | Before an `--in-place` campaign, mutate names the other processes whose command line names this checkout, as advice, and runs; where it cannot list processes it says so. | `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look` | @spec | |
 | F-12 | An isolated campaign starts from the checkout's verdict cache and writes the run's cache back in its own shape, one CI's merge job reads; a write-back that fails leaves the cache as it was and says so. | `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache` | @spec | |
 | F-13 | A campaign that cannot create its worktree exits 2 with "could not isolate", names `--in-place`, and writes nothing; it never falls back silently. | `tests/mutate-isolation.test.mjs::a campaign that cannot isolate stops and names --in-place, writing nothing` | @spec | |

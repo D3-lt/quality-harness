@@ -17576,6 +17576,66 @@
       "from": "    if not config.is_file() and not config.is_dir():\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
       "to": "    if False:\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
       "only": "strictFrom reader does not wait on a FIFO config"
+    },
+    {
+      "label": "ADR-075 T1: contended reads either sample",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "return start > cores || end > cores",
+      "to": "return start > cores",
+      "only": "^a check whose load crosses the core count"
+    },
+    {
+      "label": "ADR-075 T1: a load at the core count is not contended",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "return start > cores || end > cores",
+      "to": "return start >= cores || end >= cores",
+      "only": "^a check whose load crosses the core count"
+    },
+    {
+      "label": "ADR-075 T1: no load average is could-not-read, never quiet",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "averages.some(value => value > 0)",
+      "to": "true",
+      "only": "^a check with no load average"
+    },
+    {
+      "label": "ADR-075 T1: a quiet result still says both samples",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "  return said\n}",
+      "to": "  return ''\n}",
+      "only": "^a check run below the core count"
+    },
+    {
+      "label": "ADR-075 T1: qh-check says the load line",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "  stderr.write(`qh-check: ${loadLine(before.load, after.load, loadAtStart.cores)}\\n`)",
+      "to": "  void loadAtStart",
+      "only": "^a check run below the core count"
+    },
+    {
+      "label": "ADR-075 T1: a campaign says the load line",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "  console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))",
+      "to": "  void loadAtEnd",
+      "only": "^a check run below the core count"
     }
   ]
 }

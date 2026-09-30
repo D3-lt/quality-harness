@@ -60,12 +60,18 @@ The runner's own exit status is carried by `pipefail` and `&&`, never discarded 
 | 4 — it is used | every `qh-check` run and campaign; nothing acts on `contended` yet (the nervous-system plan, N2) |
 
 ## Mutation Log
+- 2026-09-30 · 31349a2* · mutant killed · exit 1 · `scripts/mutate.mjs` · the campaign samples its load and never says it · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff
+- 2026-09-30 · 31349a2* · mutant killed · exit 1 · `plugin/scripts/load.mjs` · the end sample is ignored, so a load that crosses the core count while the check runs reads as not contended · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · covers:contended when either sample exceeds the core count
+- 2026-09-30 · 31349a2* · mutant killed · exit 1 · `plugin/scripts/load.mjs` · a load exactly at the core count reads as contended · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · covers:not contended at or below it
+- 2026-09-30 · 31349a2* · mutant killed · exit 1 · `plugin/scripts/load.mjs` · a platform with no load average reads as a quiet machine, not as could-not-read · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · covers:null with no load average
+- 2026-09-30 · 31349a2* · mutant killed · exit 1 · `plugin/scripts/load.mjs` · a quiet result says no samples at all · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · covers:both samples always said
 
 ## Invariants
 
 - A contended check's exit code and `verdict` are exactly what an uncontended one's would be (CLAUDE.md §3).
 - ADR-061's publish refusal reads the same `verdict` it read before.
 - Two samples say nothing about the time between them, and no line says otherwise.
+- Class sweep, 2026-09-30: `git grep -lE 'loadavg|load average' -- scripts plugin` returns `plugin/scripts/load.mjs`, `plugin/scripts/qh-check.mjs` and `scripts/mutate.mjs`: the one sampler and its two callers. It returned nothing before this task. The results left without a load are ADR-075's deferrals (a fence `adr-verify` records).
 
 ## Risks
 
@@ -81,3 +87,22 @@ Stop and ask if the load average is not `0 0 0` on Windows CI: the could-not-rea
 - A reader that acts on `contended` (deferred: docs/research/2026-09-30-the-nervous-system-plan.md)
 
 ## Verification Log
+- 2026-09-30 · 31349a2* · exit 1 · `set -o pipefail …` · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · ms:1393 · test-lock-sha256:dde5720a667a7f884d89021b97fc4d9c121240f5b077876deba1203c54602abe · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL3FoLWNoZWNrLnRlc3QubWpzCWEgY2hlY2sgcnVuIGFib3ZlIHRoZSBjb3JlIGNvdW50IGlzIHJlY29yZGVkIGFzIGNvbnRlbmRlZCBhbmQgc2FpZCwgYW5kIGl0cyBleGl0IGlzIHVuY2hhbmdlZAljM2ViYmE4MzIyNzFiOThiN2UzOTQzYTNkMGNlMTQwZjJlMWMwMDBkODI1NWZhMTE1NGVmNjRiM2JmMDViMzhhCmJvZHkJdGVzdHMvcWgtY2hlY2sudGVzdC5tanMJYSBjaGVjayBydW4gYmVsb3cgdGhlIGNvcmUgY291bnQgaXMgcmVjb3JkZWQgYXMgbm90IGNvbnRlbmRlZAlkODhmNzQzYjYzNDlhMDZjY2IxNWI4YmU0NmM1MjcwZDVmMjQwNjg5NjFhMDk5NzliNWRiNjI2ZGMyNGI0YTA4CmJvZHkJdGVzdHMvcWgtY2hlY2sudGVzdC5tanMJYSBjaGVjayB3aG9zZSBsb2FkIGNyb3NzZXMgdGhlIGNvcmUgY291bnQgYmV0d2VlbiBpdHMgc2FtcGxlcyBpcyBjb250ZW5kZWQsIGFuZCBvbmUgYXQgdGhlIGNvdW50IGlzIG5vdAlkMzUxZmI2NzQ1MTA0ZTVkOTlkODA4YzNlNGZmMzUxOTQwN2ZiY2YzMzYwNWE5OWUwMmU5NGIxNDM1ZjkxY2Y1CmJvZHkJdGVzdHMvcWgtY2hlY2sudGVzdC5tanMJYSBjaGVjayB3aXRoIG5vIGxvYWQgYXZlcmFnZSByZWNvcmRzIGNvbnRlbmRlZCBudWxsIGFuZCBzYXlzIHRoZSBsb2FkIGNvdWxkIG5vdCBiZSByZWFkCTBhNTZhNmFiYzI1OTM4MzMyMmQ3M2JiOWUyYmVhZTQ0MzdmNGRkOTc3NjBkNzQ0NGQxNWUzMmM3MTY2MzU5YjQ
+  ```
+  --- last 10 line(s) of stdout (of 102 after folding 102 raw)
+    ...
+  1..4
+  # tests 4
+  # suites 0
+  # pass 0
+  # fail 4
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 1230.525125
+  ```
+- 2026-09-30 · 31349a2* · exit 0 · `set -o pipefail …` · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · ms:20930
+- 2026-09-30 · 31349a2* · exit 0 · `set -o pipefail …` · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · ms:20473
+- 2026-09-30 · 31349a2* · exit 0 · `set -o pipefail …` · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · ms:20369
+- 2026-09-30 · 31349a2* · exit 0 · `set -o pipefail …` · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · ms:19761
+- 2026-09-30 · 31349a2* · exit 0 · `set -o pipefail …` · acceptance-sha256:73fce96e1d97d4ed681c5fcc2d5404408367dc03a0acc7819b0247263bc3bdff · ms:19812

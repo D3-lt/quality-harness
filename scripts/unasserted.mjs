@@ -23,10 +23,10 @@
 //
 //   node scripts/unasserted.mjs plugin/bin/adr-retire-check [suite.test.mjs ...] [--in-place]
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { build, remove, sweep } from '../plugin/scripts/worktree.mjs'
+import { addOwned, build, remove, sweep } from '../plugin/scripts/worktree.mjs'
 import { runPython } from './python-interpreter.mjs'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
@@ -68,6 +68,18 @@ const suiteEnv = { ...inherited, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' }
 function measure(base, target, suites, inPlace) {
   const journalPath = path.join(base, JOURNAL)
   const file = path.join(base, target)
+  // A tracked symlink is carried into the worktree as a link, and one pointing back into the
+  // checkout would be neutered THERE (Codex review of ADR-076, finding 4).
+  if (!inPlace && existsSync(file)) {
+    const resolved = realpathSync(file)
+    const home = realpathSync(base)
+    if (resolved !== home && !resolved.startsWith(home + path.sep)) {
+      process.stderr.write(`unasserted: ${target} resolves outside the worktree, to ${resolved}, so `
+        + 'neutering it here would neuter that file. Nothing was neutered. Re-run with --in-place '
+        + 'to neuter the checkout itself.\n')
+      return 2
+    }
+  }
   const original = readFileSync(file, 'utf8')
 
   // REFUSE OVER A DIRTY TARGET, IN PLACE. The restore below writes `original` back
@@ -204,10 +216,28 @@ function main(argv) {
   // each (ADR-076). A signal still ends this synchronous loop at once; the next isolated run
   // of any tool sweeps what it leaves.
   try {
+    // The suites join this process's group (spawnSync does not detach them), so the group is
+    // recorded before any starts: a killed owner then leaves a tree no sweep removes under a
+    // suite still running in it (Codex review of ADR-076, finding 3).
+    const group = processGroup()
+    if (group) addOwned(built.id, { group })
+    else if (process.platform !== 'win32') {
+      process.stderr.write('unasserted: could not read this process\'s group, so the worktree is kept '
+        + 'only while this process lives\n')
+    }
     return measure(built.tree, target, suites, false)
   } finally {
     remove(built.id)
   }
+}
+
+// This process's group, which the suites it runs join. POSIX only: Windows has no process group
+// for a sweep to ask about, so there the owner alone is recorded.
+function processGroup() {
+  if (process.platform === 'win32') return null
+  const asked = spawnSync('ps', ['-o', 'pgid=', '-p', String(process.pid)], { encoding: 'utf8', timeout: 30_000 })
+  const group = Number((asked.stdout ?? '').trim())
+  return asked.status === 0 && Number.isInteger(group) && group > 0 ? group : null
 }
 
 process.exit(main(process.argv.slice(2)))

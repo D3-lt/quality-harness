@@ -4,7 +4,7 @@
 // never this checkout (CLAUDE.md §9).
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -119,4 +119,22 @@ test("the campaign's own files are never copied into its worktree", async () => 
     assert.equal(existsSync(path.join(built.tree, 'lockish')), false, 'an excluded file was copied')
     assert.equal(existsSync(path.join(built.tree, 'keep.txt')), true)
   } finally { remove(built.id) }
+})
+
+// Codex round on ADR-076, finding 7: the first directory and the owner record are part of the
+// build's contract, so a git directory that cannot be written is `{ ok: false }`, not a throw a
+// caller outside its cleanup boundary cannot answer.
+test('a git directory that cannot be written is a build error, not a throw', { skip: (process.platform === 'win32' || process.getuid?.() === 0) && 'permission bits do not bind here' }, async () => {
+  const { build } = await load()
+  const dir = campaignFixture()
+  const git = path.join(dir, '.git')
+  chmodSync(git, 0o555)
+  try {
+    let built
+    assert.doesNotThrow(() => { built = build(dir, { owner: process.pid }) })
+    assert.equal(built.ok, false)
+    assert.match(built.error, /qh-campaigns/)
+  } finally {
+    chmodSync(git, 0o755)
+  }
 })

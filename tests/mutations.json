@@ -3813,8 +3813,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout(), on_start=fence_start, outcome=placement)",
-      "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None, on_start=fence_start, outcome=placement)",
+      "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout(), on_start=fence_start,",
+      "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None, on_start=fence_start,",
       "only": "^(?:adr-verify requires a clean fence before it mutates|a fence that never returns is UNRUN, and writes nothing)$"
     },
     {
@@ -18173,8 +18173,8 @@
       "tests": [
         "tests/adr-verify-isolation.test.mjs"
       ],
-      "from": "                if end == len(text) or text[end] in \"/\\\"'\" or text[end].isspace():",
-      "to": "                if True:",
+      "from": "                after = end == len(text) or text[end] in PATH_AFTER or text[end].isspace()",
+      "to": "                after = True",
       "only": "^a sibling path sharing the checkout's prefix does not force the run in place$"
     },
     {
@@ -18276,6 +18276,86 @@
       "from": "const suiteEnv = { ...inherited, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' }",
       "to": "const suiteEnv = { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' }",
       "only": "^an unasserted run started inside a test runner still reads its suite's failures$"
+    },
+    {
+      "label": "Codex ADR-076 #1: a process a fence leaves running is ended before its tree goes",
+      "file": "plugin/lib/fence.py",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        outcome[\"ended\"] = settle_group(proc.pid, platform) if job is not None or platform != \"nt\" else False",
+      "to": "        outcome[\"ended\"] = True",
+      "only": "^a process a fence leaves running is ended before its worktree goes$"
+    },
+    {
+      "label": "Codex ADR-076 #2: a fence waits at its gate until it is recorded",
+      "file": "plugin/lib/fence.py",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        launch = [\"/bin/sh\", \"-c\", 'read _go || exit 125; exec \"$@\"', \"qh-fence\", *argv]",
+      "to": "        launch = argv",
+      "only": "^a fence is recorded in its worktree before it runs$"
+    },
+    {
+      "label": "Codex ADR-076 #3: unasserted records its process group before its suites run",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    if (group) addOwned(built.id, { group })",
+      "to": "    if (false) addOwned(built.id, { group })",
+      "only": "^an unasserted run records its process group before its suites run$"
+    },
+    {
+      "label": "Codex ADR-076 #4: a target resolving outside the worktree is not neutered",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    if (resolved !== home && !resolved.startsWith(home + path.sep)) {",
+      "to": "    if (false) {",
+      "only": "^a target that resolves outside the worktree is not neutered there$"
+    },
+    {
+      "label": "Codex ADR-076 #5: a path begins at a boundary too",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                before = at == 0 or text[at - 1] in PATH_BEFORE or text[at - 1].isspace()",
+      "to": "                before = True",
+      "only": "^the checkout's path is found at a shell boundary, and not inside another path$"
+    },
+    {
+      "label": "Codex ADR-076 #5: a path ends at a shell metacharacter",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "PATH_AFTER = \"/\\\"'`;&|()<>\"",
+      "to": "PATH_AFTER = \"/\\\"'\"",
+      "only": "^the checkout's path is found at a shell boundary, and not inside another path$"
+    },
+    {
+      "label": "Codex ADR-076 #6: the worktree builder is out of the terminal's group",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                           start_new_session=os.name != \"nt\")",
+      "to": "                           start_new_session=False)",
+      "only": "^(?:a Ctrl-C to the whole group during the worktree build still removes the worktree|the worktree builder runs outside the process group of the gate that started it)$"
+    },
+    {
+      "label": "Codex ADR-076 #7: a build that cannot prepare its directory says so",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "    return { ok: false, error: `could not prepare ${home}: ${error.message}` }",
+      "to": "    throw error",
+      "only": "^a git directory that cannot be written is a build error, not a throw$"
     }
   ]
 }

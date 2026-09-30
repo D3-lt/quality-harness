@@ -120,11 +120,19 @@ export function build(root, { owner = process.pid, exclude = [], io = {} } = {})
   const home = campaignHome(root)
   if (!home) return { ok: false, error: 'this is not a git repository' }
   const began = Date.now()
-  mkdirSync(home, { recursive: true })
-  const id = path.join(home, `${owner}-${randomBytes(3).toString('hex')}`)
-  mkdirSync(id)
-  // The owner is written before `worktree add`, so no instant exists in which a tree has no owner.
-  writeOwner(id, { parent: owner, root: path.resolve(root) })
+  // Inside the build's contract, not a throw: a git directory that cannot be written is a
+  // build that could not be made, which every caller answers (Codex review of ADR-076).
+  let id
+  try {
+    mkdirSync(home, { recursive: true })
+    id = path.join(home, `${owner}-${randomBytes(3).toString('hex')}`)
+    mkdirSync(id)
+    // The owner is written before `worktree add`, so no instant exists in which a tree has no owner.
+    writeOwner(id, { parent: owner, root: path.resolve(root) })
+  } catch (error) {
+    if (id) rmSync(id, { recursive: true, force: true })
+    return { ok: false, error: `could not prepare ${home}: ${error.message}` }
+  }
   const tree = path.join(id, 'tree')
   const fail = error => { remove(id); return { ok: false, error } }
   // `git stash create` is HEAD plus the uncommitted tracked changes as a commit, and prints

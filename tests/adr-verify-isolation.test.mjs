@@ -7,7 +7,7 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { cpSync, existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -257,4 +257,111 @@ test('a SIGTERM during the worktree build still removes the worktree', { skip: p
   child.kill('SIGTERM')
   await exited
   assert.equal(worktrees(dir), 1, 'the worktree outlived its run')
+})
+
+// The Codex round on ADR-076. Each test below is one finding, red before its fix.
+const posixOnly = { skip: process.platform === 'win32' && 'POSIX process groups; Windows uses a job object' }
+const aliveOf = pids => pids.filter(pid => { try { process.kill(pid, 0); return true } catch { return false } })
+
+// Finding 1: a fence's shell returning is not its group ending. A process it left running would
+// work on in a tree about to be removed, so it is ended first, and only then is the tree removed.
+test('a process a fence leaves running is ended before its worktree goes', posixOnly, () => {
+  const fence = FENCE.replace('if [ -n "$FIXTURE_GENERATE" ]',
+    'if [ -n "$FIXTURE_LEFTOVER" ]; then sleep 30 >/dev/null 2>&1 & echo $! >> "$FIXTURE_LEFTOVER"; fi\nif [ -n "$FIXTURE_GENERATE" ]')
+  const { dir } = corpus({ fence })
+  const left = path.join(path.dirname(dir), 'left.txt')
+  let pids = []
+  try {
+    const run = verify(dir, [], { FIXTURE_LEFTOVER: left })
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    pids = readFileSync(left, 'utf8').split('\n').filter(Boolean).map(Number)
+    assert.equal(pids.length, 2, 'each fence should have left one process')
+    assert.deepEqual(aliveOf(pids), [], 'a process a fence left is still running')
+    assert.equal(worktrees(dir), 1, 'the worktree outlived the run')
+  } finally {
+    for (const pid of aliveOf(pids)) process.kill(pid, 'SIGKILL')
+  }
+})
+
+// Finding 2: the fence is recorded in the tree's owner file before it runs, so a sweep never
+// removes a tree under a fence whose owner died between spawning and recording it.
+test('a fence is recorded in its worktree before it runs', posixOnly, () => {
+  // The fence's process group, read with ps: `$$` would not survive corpus()'s String.replace
+  // (there `$$` is `$`), and macOS's bash 3.2 has no $BASHPID.
+  const fence = FENCE.replace('if [ -n "$FIXTURE_GENERATE" ]',
+    'if [ -n "$FIXTURE_OWNED" ]; then { echo "pid $(sh -c \'ps -o pgid= -p $PPID\')"; cat "$(git rev-parse --git-common-dir)"/qh-campaigns/*/owner.json; echo; } >> "$FIXTURE_OWNED"; fi\nif [ -n "$FIXTURE_GENERATE" ]')
+  const { dir } = corpus({ fence })
+  const owned = path.join(path.dirname(dir), 'owned.txt')
+  const run = verify(dir, [], { FIXTURE_OWNED: owned })
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  const seen = readFileSync(owned, 'utf8').split('pid ').filter(Boolean).map(block => {
+    const [pid, ...rest] = block.split('\n')
+    return { pid: Number(pid), groups: JSON.parse(rest.join('\n').trim()).groups ?? [] }
+  })
+  assert.equal(seen.length, 2, 'both fences should have looked')
+  for (const { pid, groups } of seen) assert.ok(groups.includes(pid), `fence ${pid} ran before it was recorded: ${JSON.stringify(groups)}`)
+})
+
+// Finding 5: a shell command ends a path at a metacharacter as well as at a separator, and a
+// path only names the checkout where it starts at a boundary too.
+test("the checkout's path is found at a shell boundary, and not inside another path", () => {
+  const probe = [
+    'import importlib.machinery, importlib.util, json, sys',
+    'loader = importlib.machinery.SourceFileLoader("adr_verify_probe", sys.argv[1])',
+    'module = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))',
+    'loader.exec_module(module)',
+    'spellings, cases, platform = json.loads(sys.argv[2]), json.loads(sys.argv[3]), sys.argv[4]',
+    'print(json.dumps([module.fence_names_checkout(cmd, spellings, platform=platform) for cmd in cases]))',
+  ].join('\n')
+  const ask = (spellings, cases, platform) => {
+    const run = spawnSync('python3', ['-c', probe, path.join(bin, 'adr-verify'), JSON.stringify(spellings), JSON.stringify(cases), platform],
+      { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+    assert.equal(run.status, 0, run.stderr)
+    return JSON.parse(run.stdout)
+  }
+  const repo = '/work/repo'
+  assert.deepEqual(ask([repo], [
+    'cd /work/repo; pwd',
+    'cd /work/repo&& pwd',
+    'x=$(ls /work/repo)',
+    'run --root=/work/repo',
+    'PATH=/bin:/work/repo/bin',
+    'cat /other/work/repo/file',
+    'cat /work/repo-sibling',
+  ], 'posix'), [repo, repo, repo, repo, repo, null, null])
+  assert.deepEqual(ask(['C:\\Work\\repo'], ['cd C:\\Work\\repo& dir', 'dir X:\\Work\\repo'], 'nt'), ['C:\\Work\\repo', null])
+})
+
+// Finding 6: a Ctrl-C reaches the whole foreground group, the worktree builder included. The
+// builder runs in a session of its own, so the build finishes and the tree is removed.
+test('a Ctrl-C to the whole group during the worktree build still removes the worktree', posixOnly, async () => {
+  const { dir } = corpus()
+  const argv = [path.join(bin, 'adr-verify'), ...MUTANT]
+  const child = spawn(argv[0], argv.slice(1), { cwd: dir, env: { ...process.env, FIXTURE_SLOW: '30' }, stdio: 'ignore', detached: true, timeout: 90_000 })
+  const exited = new Promise(resolve => child.once('exit', resolve))
+  const until = Date.now() + 30_000
+  while (worktrees(dir) < 2 && child.exitCode === null && Date.now() < until) await new Promise(resolve => setTimeout(resolve, 5))
+  assert.equal(worktrees(dir), 2, 'the run built no worktree')
+  process.kill(-child.pid, 'SIGINT')
+  await exited
+  assert.equal(worktrees(dir), 1, 'the worktree outlived its run')
+})
+
+// Finding 6, deterministically: the Ctrl-C test above reaches the build window only when its
+// poll lands in it. What makes the window safe is that the builder is in a process group of its
+// own, so this asks exactly that: a `node` shim first on PATH writes its group and its parent's.
+test('the worktree builder runs outside the process group of the gate that started it', posixOnly, () => {
+  const { dir } = corpus()
+  const shims = path.join(path.dirname(dir), 'shims')
+  const groups = path.join(path.dirname(dir), 'groups.txt')
+  mkdirSync(shims)
+  const node = path.join(shims, 'node')
+  writeFileSync(node, `#!/bin/sh\necho "$(ps -o pgid= -p $$) $(ps -o pgid= -p $PPID)" >> "${groups}"\nexec "${process.execPath}" "$@"\n`)
+  chmodSync(node, 0o755)
+  const run = verify(dir, [], { PATH: `${shims}${path.delimiter}${process.env.PATH}` })
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.match(run.stdout.split('\n')[0], /isolated in/, run.stdout)
+  const pairs = readFileSync(groups, 'utf8').split('\n').filter(Boolean).map(line => line.trim().split(/\s+/).map(Number))
+  assert.ok(pairs.length >= 2, 'the builder was never started through the shim')
+  for (const [own, parent] of pairs) assert.notEqual(own, parent, `a worktree call ran in its gate's process group ${parent}`)
 })

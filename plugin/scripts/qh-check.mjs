@@ -107,7 +107,8 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const startedAt = new Date().toISOString()
   // The load at both ends of the check (ADR-075 T1): a pass taken on a saturated machine is
   // not attributable, and the record says so without changing the exit or the verdict.
-  const load = { ...(loadavg ? { loadavg } : {}), ...(cores ? { cores } : {}) }
+  // An option passed is used as given, so a 0 or a NaN is read as invalid, not replaced by the host's.
+  const load = { ...(loadavg !== undefined ? { loadavg } : {}), ...(cores !== undefined ? { cores } : {}) }
   const loadAtStart = sampleLoad(load)
   const before = { ...observe(root), at: startedAt, load: loadAtStart.load }
   let kept = Buffer.alloc(0)

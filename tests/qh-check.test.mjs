@@ -107,3 +107,55 @@ test('a check whose load crosses the core count between its samples is contended
   assert.equal(lastRecord(atCount).contended, false)
   assert.doesNotMatch(quiet.text(), /unattributable/)
 })
+
+// Codex review of 3.2.0: the load is kept as read, so a sample just above the count is contended.
+test('a load just above the core count is contended, and said as read', async () => {
+  const dir = project()
+  const err = sink()
+  assert.equal(await runCheck({ cwd: dir, stdout: sink(), stderr: err, loadavg: () => [4.001, 4, 4], cores: 4 }), 0)
+  const record = lastRecord(dir)
+  assert.equal(record.before.load, 4.001)
+  assert.equal(record.contended, true)
+  assert.match(err.text(), /unattributable: load 4\.001 on 4 cores/)
+})
+
+// Codex review of 3.2.0: a sampler that throws at either end is a load nobody read. The check
+// still runs, its record is still written, and its exit is its own.
+test('a load sampler that throws leaves the check, its record and its exit alone', async () => {
+  for (const samples of [[], [[1, 1, 1]]]) {
+    const dir = project()
+    const out = sink()
+    const err = sink()
+    const loadavg = () => {
+      const next = samples.shift()
+      if (!next) throw new Error('no load sampler here')
+      return next
+    }
+    assert.equal(await runCheck({ cwd: dir, stdout: out, stderr: err, loadavg, cores: 4 }), 0)
+    assert.match(out.text(), /ran-the-declared-check/)
+    const record = lastRecord(dir)
+    assert.equal(record.verdict, 'passed')
+    assert.equal(record.after.load, null)
+    assert.equal(record.contended, null)
+    assert.match(err.text(), /could not read the load/)
+  }
+})
+
+// Codex review of 3.2.0: a negative, non-finite or absent value is not a measured quiet machine,
+// and a core count passed as 0 is not replaced by the host's.
+test('an invalid load or core count is recorded as unread, not as uncontended', async () => {
+  const { contention } = await import('../plugin/scripts/load.mjs')
+  assert.equal(contention(Number.NaN, 1, 4), null)
+  assert.equal(contention(1, 1, Number.POSITIVE_INFINITY), null)
+  assert.equal(contention(1, 5, 4), true, 'the clean arm: a valid pair above the count')
+  const negative = project()
+  assert.equal(await runCheck({ cwd: negative, stdout: sink(), stderr: sink(), loadavg: () => [-1, 1, 1], cores: 4 }), 0)
+  assert.equal(lastRecord(negative).before.load, null)
+  assert.equal(lastRecord(negative).contended, null)
+  const noCores = project()
+  const err = sink()
+  assert.equal(await runCheck({ cwd: noCores, stdout: sink(), stderr: err, loadavg: () => [1, 1, 1], cores: 0 }), 0)
+  assert.equal(lastRecord(noCores).cores, null)
+  assert.equal(lastRecord(noCores).contended, null)
+  assert.match(err.text(), /could not read the load/)
+})

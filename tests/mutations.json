@@ -17726,6 +17726,36 @@
       "from": "      if (own.has(file)) continue",
       "to": "      continue",
       "only": "^an uncommitted test edit and an untracked test"
+    },
+    {
+      "label": "ADR-075 T3: exposed processes are named",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    if (match && !self.has(Number(match[1])) && names.test(match[2])) found.push(",
+      "to": "    if (false) found.push(",
+      "only": "^an in-place campaign names the processes running this checkout"
+    },
+    {
+      "label": "ADR-075 T3: the campaign never names itself",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  const self = new Set([process.pid, process.ppid])",
+      "to": "  const self = new Set([])",
+      "only": "^an in-place campaign names the processes running this checkout"
+    },
+    {
+      "label": "ADR-075 T3: an unreadable process list is said",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    if (exposure.error) process.stderr.write(",
+      "to": "    if (false) process.stderr.write(",
+      "only": "^an in-place campaign names the processes running this checkout"
     }
   ]
 }

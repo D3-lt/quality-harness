@@ -53,6 +53,12 @@ test('a check run below the core count is recorded as not contended', { todo: RE
   assert.equal(record.cores, 4)
   assert.equal(record.contended, false)
   assert.doesNotMatch(err.text(), /unattributable/)
+  // Both samples are always said, contended or not, and a campaign says them on every run (F-10).
+  assert.match(err.text(), /load: 1\.5 at start, 1\.5 at end, on 4 cores/)
+  const fixture = campaignFixture()
+  const run = campaign(fixture, ['--no-cache', '--case', 'answer'], { QUALITY_HARNESS_LOADAVG: '1.5 1 1', QUALITY_HARNESS_CORES: '4' })
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.match(run.stdout + run.stderr, /load: 1\.5 at start, 1\.5 at end, on 4 cores/)
 })
 
 test('a check run above the core count is recorded as contended and said, and its exit is unchanged', { todo: RED }, async () => {
@@ -85,4 +91,22 @@ test('a check with no load average records contended null and says the load coul
   const run = campaign(fixture, ['--no-cache', '--case', 'answer'], { QUALITY_HARNESS_LOADAVG: '0 0 0', QUALITY_HARNESS_CORES: '4' })
   assert.equal(run.status, 0, run.stdout + run.stderr)
   assert.match(run.stdout + run.stderr, /could not read the load/)
+})
+
+test('a check whose load crosses the core count between its samples is contended, and one at the count is not', { todo: RED }, async () => {
+  const crossing = project()
+  const err = sink()
+  const samples = [[2, 2, 2], [9, 9, 9]]
+  assert.equal(await runCheck({ cwd: crossing, stdout: sink(), stderr: err, loadavg: () => samples.shift() ?? [9, 9, 9], cores: 4 }), 0)
+  const record = lastRecord(crossing)
+  assert.equal(record.before.load, 2)
+  assert.equal(record.after.load, 9)
+  assert.equal(record.contended, true)
+  assert.match(err.text(), /load: 2 at start, 9 at end, on 4 cores/)
+  assert.match(err.text(), /unattributable/)
+  const atCount = project()
+  const quiet = sink()
+  assert.equal(await runCheck({ cwd: atCount, stdout: sink(), stderr: quiet, loadavg: () => [4, 4, 4], cores: 4 }), 0)
+  assert.equal(lastRecord(atCount).contended, false)
+  assert.doesNotMatch(quiet.text(), /unattributable/)
 })

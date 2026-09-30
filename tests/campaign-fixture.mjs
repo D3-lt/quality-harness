@@ -27,9 +27,13 @@ process.once('exit', () => {
 /** The campaign runner under test. */
 export const mutateScript = path.join(repoRoot, 'scripts', 'mutate.mjs')
 
-const FILES = {
+// Three entries over two sources, so a `--changed` or `--shard` selection has something to tell
+// apart (ADR-075, the Codex review of the plan: the child's selection must equal the parent's).
+export const FIXTURE_FILES = {
   'lib.mjs': "export const answer = () => 42\nexport const other = () => 'x'\n",
   'notes.md': '# Notes\n',
+  'lib2.mjs': 'export const third = () => 3\n',
+  'tests/lib2.test.mjs': "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { third } from '../lib2.mjs'\ntest('third is 3', () => { assert.equal(third(), 3) })\n",
   'tests/lib.test.mjs': [
     "import assert from 'node:assert/strict'",
     "import { appendFileSync, readFileSync } from 'node:fs'",
@@ -53,12 +57,14 @@ const FILES = {
     mutations: [
       { label: 'answer', file: 'lib.mjs', tests: ['tests/lib.test.mjs'], from: '() => 42', to: '() => 43' },
       { label: 'other', file: 'lib.mjs', tests: ['tests/lib.test.mjs'], from: "() => 'x'", to: "() => 'y'" },
+      { label: 'third', file: 'lib2.mjs', tests: ['tests/lib2.test.mjs'], from: '() => 3', to: '() => 4' },
     ],
   }, null, 2)}\n`,
   '.gitignore': '.mutate-lock\n.mutate-inflight.json\n.mutation-cache.json\n',
 }
 
-function git(dir, args) {
+/** git in a fixture repository, as the fixture's author. */
+export function fixtureGit(dir, args) {
   const run = spawnSync('git', ['-C', dir, '-c', 'user.name=Fixture', '-c', 'user.email=fixture@example.invalid', ...args],
     { encoding: 'utf8', timeout: 20_000, windowsHide: true })
   assert.equal(run.status, 0, run.stderr)
@@ -69,14 +75,14 @@ function git(dir, args) {
 export function campaignFixture({ commit = true } = {}) {
   const dir = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-campaign-fixture-')))
   made.push(dir)
-  git(dir, ['init', '-q'])
-  for (const [rel, body] of Object.entries(FILES)) {
+  fixtureGit(dir, ['init', '-q'])
+  for (const [rel, body] of Object.entries(FIXTURE_FILES)) {
     mkdirSync(path.dirname(path.join(dir, rel)), { recursive: true })
     writeFileSync(path.join(dir, rel), body)
   }
   if (commit) {
-    git(dir, ['add', '-A'])
-    git(dir, ['commit', '-qm', 'fixture'])
+    fixtureGit(dir, ['add', '-A'])
+    fixtureGit(dir, ['commit', '-qm', 'fixture'])
   }
   return dir
 }
@@ -130,6 +136,6 @@ export function sidecar() {
 /** The worktrees git knows for `dir`, by real path where the directory still exists. */
 export function worktrees(dir) {
   const real = file => { try { return realpathSync.native(file) } catch { return file } }
-  return git(dir, ['worktree', 'list', '--porcelain']).split('\n')
+  return fixtureGit(dir, ['worktree', 'list', '--porcelain']).split('\n')
     .filter(line => line.startsWith('worktree ')).map(line => real(line.slice('worktree '.length)))
 }

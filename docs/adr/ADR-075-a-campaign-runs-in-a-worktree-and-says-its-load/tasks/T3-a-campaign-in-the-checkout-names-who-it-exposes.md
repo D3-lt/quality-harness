@@ -32,7 +32,8 @@ Before a run applies its first mutant in the checkout — `--in-place`, `--repoi
 
 ```bash
 set -o pipefail
-test "$(node --test --test-reporter=tap tests/mutate-isolation.test.mjs 2>&1 | tee /dev/stderr | grep -cxE 'ok [0-9]+ - (an in-place campaign names the processes running this checkout, and says when it could not look)')" -eq 1
+T=$(mktemp)
+node --test --test-reporter=tap tests/mutate-isolation.test.mjs 2>&1 | tee "$T" && test "$(grep -cxE 'ok [0-9]+ - (an in-place campaign names the processes running this checkout, and says when it could not look)' "$T")" -eq 1
 ```
 
 ## Tests

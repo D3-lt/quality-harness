@@ -16,6 +16,7 @@ import { randomBytes } from 'node:crypto'
 import { copyFileSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
+import { alive as aliveness, groupAlive as groupAliveness } from './lease.mjs'
 
 // git with a fixed identity: `git stash create` makes a commit, and a fixture or a CI runner may
 // have no user configured.
@@ -28,18 +29,17 @@ function gitIn(dir, args) {
 const gitSaid = run => `${run.command}: ${(run.error?.message ?? run.stderr?.trim()) || `exit ${run.status}`}`
 
 /**
- * alive is true while `pid` may still run. `EPERM` is a process another user owns, and any probe
- * error other than "no such process" is one this cannot rule out, so both count as alive: a sweep
- * that guessed "ended" would remove a tree from under a live process (ADR-076 Decision).
+ * alive is true while `pid` may still run. It asks the lease module's probe (ADR-077), and reads
+ * its `unknown` as alive: `EPERM` is a process another user owns, and any other probe error is one
+ * this cannot rule out, so a sweep that guessed "ended" would remove a tree from under a live
+ * process (ADR-076 Decision). No pid at all is no process.
  */
 export function alive(pid) {
-  if (!Number.isInteger(pid) || pid <= 0) return false
-  try { process.kill(pid, 0); return true } catch (error) { return error.code !== 'ESRCH' }
+  return Number.isInteger(pid) && pid > 0 && aliveness(pid) !== 'dead'
 }
 /** groupAlive is `alive` for a POSIX process group; Windows has none to probe. */
 export function groupAlive(pid) {
-  if (process.platform === 'win32' || !Number.isInteger(pid) || pid <= 0) return false
-  try { process.kill(-pid, 0); return true } catch (error) { return error.code !== 'ESRCH' }
+  return process.platform !== 'win32' && Number.isInteger(pid) && pid > 0 && groupAliveness(pid) !== 'dead'
 }
 
 /** campaignHome is where a repository's worktrees live: its git directory, or null outside git. */

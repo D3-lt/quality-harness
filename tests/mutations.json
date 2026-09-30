@@ -17659,7 +17659,7 @@
     },
     {
       "label": "ADR-075 T2: the worktree holds the uncommitted content",
-      "file": "scripts/mutate.mjs",
+      "file": "plugin/scripts/worktree.mjs",
       "tests": [
         "tests/mutate-isolation.test.mjs"
       ],
@@ -17719,11 +17719,11 @@
     },
     {
       "label": "ADR-075 T2: untracked files reach the worktree",
-      "file": "scripts/mutate.mjs",
+      "file": "plugin/scripts/worktree.mjs",
       "tests": [
         "tests/mutate-isolation.test.mjs"
       ],
-      "from": "      if (own.has(file)) continue",
+      "from": "      if (skipped.has(file)) continue",
       "to": "      continue",
       "only": "^an uncommitted test edit and an untracked test"
     },
@@ -17819,12 +17819,12 @@
     },
     {
       "label": "Codex ADR-075 #5: the worktree holds the checkout's bytes",
-      "file": "scripts/mutate.mjs",
+      "file": "plugin/scripts/worktree.mjs",
       "tests": [
         "tests/mutate-isolation.test.mjs"
       ],
-      "from": "    const copied = overlayTracked(root, tree)",
-      "to": "    const copied = 0",
+      "from": "  try { overlaid = overlayTracked(root, tree, write) } catch (error) {",
+      "to": "  try { overlaid = 0 } catch (error) {",
       "only": "^an isolated campaign runs over the bytes in the checkout"
     },
     {
@@ -18086,6 +18086,56 @@
       "from": "const names = text => name => text.includes(`\\`${name}\\``)",
       "to": "const names = text => name => text.includes(name)",
       "only": "^the README names every skill and gate this plugin ships$"
+    },
+    {
+      "label": "ADR-076 T1: a leftover worktree is swept once its owners end",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "      if (liveOwner(owner)) continue",
+      "to": "      if (true) continue",
+      "only": "^a leftover worktree is swept once no owner lives$"
+    },
+    {
+      "label": "ADR-076 T1: a recorded group keeps its tree",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  || (owner.groups ?? []).some(groupAlive) || (owner.pids ?? []).some(alive)",
+      "to": "  || false",
+      "only": "^a recorded process group keeps its worktree from the sweep$"
+    },
+    {
+      "label": "ADR-076 T1: the CLI says it could not build",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "    return built.ok ? 0 : 2",
+      "to": "    return 0",
+      "only": "^the CLI builds and removes a worktree and says why it could not$"
+    },
+    {
+      "label": "ADR-076 T1: a setup failure removes the tree",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  const fail = error => { remove(id); return { ok: false, error } }",
+      "to": "  const fail = error => ({ ok: false, error })",
+      "only": "^a setup failure after worktree add removes the worktree$"
+    },
+    {
+      "label": "ADR-076 T1: excluded files are never copied",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  const skipped = new Set(exclude.map(file => path.relative(root, file).split(path.sep).join('/')))",
+      "to": "  const skipped = new Set()",
+      "only": "^the campaign's own files are never copied into its worktree$"
     }
   ]
 }

@@ -1,11 +1,11 @@
 # ADR-076: A recorded mutant runs in a worktree
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-30
 **Owner:** Zy
 **Spec:** docs/specs/2026-09-30-a-mutant-never-touches-the-checkout.md
 **Cross-references:** docs/adr/ADR-075-a-campaign-runs-in-a-worktree-and-says-its-load.md, docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md, docs/adr/ADR-016-a-mutant-earns-its-verdict.md, docs/adr/ADR-025-a-clean-run-is-evidence-of-itself.md, docs/research/2026-09-30-the-nervous-system-plan.md
-**Governs:** plugin/bin/adr-verify, plugin/lib/fence.py, scripts/unasserted.mjs, scripts/mutate.mjs
+**Governs:** plugin/scripts/worktree.mjs, plugin/bin/adr-verify, plugin/lib/fence.py, scripts/unasserted.mjs, scripts/mutate.mjs
 **Enforced-by:** `tests/adr-verify-isolation.test.mjs::a mutant run leaves the checkout unchanged but for the task file's logs`
 **Invalidates:** none — checked. `adr-context` over `plugin/bin/adr-verify`, `scripts/unasserted.mjs` and `scripts/mutate.mjs` (2026-09-30) names ADR-002, ADR-003, ADR-006, ADR-010, ADR-013, ADR-016, ADR-020, ADR-022, ADR-023, ADR-025, ADR-028, ADR-031, ADR-045, ADR-049, ADR-050, ADR-052, ADR-063, ADR-069, ADR-071, ADR-072, ADR-073 and ADR-075. ADR-002's journal and ADR-016's `--also-restore` stand for `--in-place`, and have nothing to restore in a worktree; ADR-025's clean run is taken in the same worktree as the mutant's and recorded as before.
 **Served-path change:** `adr-verify --mutant` (shipped) builds a worktree of the checkout's working-tree content and runs both fences there by default, and says where it ran on its first line; `--in-place` is today's behaviour.

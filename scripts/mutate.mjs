@@ -31,7 +31,7 @@
 //       1 = a mutation left its suite GREEN, or no longer describes the code
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash, randomBytes } from 'node:crypto'
-import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -255,6 +255,31 @@ async function groupEnded(pid, ms) {
  * isolate runs the campaign the parent selected in a worktree of the checkout's working-tree
  * content, and returns its exit code (ADR-075 T2; spec F-8, F-9, F-12, F-13, F-15, F-16).
  */
+/**
+ * exposedProcesses lists the other processes whose command line names `dir`: the ones a mutant
+ * applied in `dir` is live for (ADR-075 T3, spec F-11). `QUALITY_HARNESS_PROCESS_LIST` names
+ * another lister, the tests' seam. Where no lister can run — Windows has no `ps` — it returns why,
+ * and names nobody: could-not-look, never "nobody was exposed".
+ */
+export function exposedProcesses(dir, { env = process.env, platform = process.platform } = {}) {
+  const lister = env.QUALITY_HARNESS_PROCESS_LIST || (platform === 'win32' ? null : 'ps')
+  if (!lister) return { error: 'this platform has no ps' }
+  const run = spawnSync(lister, ['-Ao', 'pid=,args='], { encoding: 'utf8', timeout: 10_000, maxBuffer: 16 * 1024 * 1024, windowsHide: true })
+  if (run.error || run.status !== 0) return { error: run.error?.code ?? `${lister} exited ${run.status}` }
+  let real = dir
+  try { real = realpathSync(dir) } catch {}
+  // At a path boundary, so `/tmp/a` never matches a process working in `/tmp/ab`.
+  const escape = text => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const names = new RegExp(`(?:${escape(real)}|${escape(dir)})(?=[/\\\\\\s]|$)`)
+  const self = new Set([process.pid, process.ppid])
+  const found = []
+  for (const line of run.stdout.split('\n')) {
+    const match = line.match(/^\s*(\d+)\s+(.+)$/)
+    if (match && !self.has(Number(match[1])) && names.test(match[2])) found.push({ pid: Number(match[1]), command: match[2].trim() })
+  }
+  return { found }
+}
+
 async function isolate({ selected, argv, paths, loadAtStart }) {
   const say = line => process.stderr.write(`mutate: ${line}\n`)
   const refuse = reason => {
@@ -1551,6 +1576,16 @@ export function main(argv) {
   }
   // The load at the start, before the first baseline; the end sample is taken with the summary.
   const loadAtStart = campaignLoad()
+  // ADR-075 T3: a mutant applied in the checkout is live for every process running its code, so
+  // a run in place — `--in-place` and the `--write` modes — names them first, as advice (spec
+  // F-11). The isolated child's tree is private.
+  if (!isolating && process.env[CAMPAIGN_CHILD] !== '1') {
+    const exposure = exposedProcesses(root)
+    if (exposure.error) process.stderr.write(`mutate: could not look for processes running this checkout (${exposure.error})\n`)
+    for (const { pid, command } of exposure.found ?? []) {
+      process.stderr.write(`mutate: an in-place mutant is live for pid ${pid} (${command.slice(0, 160)})\n`)
+    }
+  }
   if (isolating) return isolate({ selected, argv, paths, loadAtStart })
 
   // The baselines FIRST, on an unmutated tree, before begin() has anything to

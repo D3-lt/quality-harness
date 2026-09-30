@@ -16770,3 +16770,10 @@ ADR-077 (N3) executed on `spec/machine-lease`: T1 4535501, T2 4231a77, the revie
   names no private lease directory; a run now removes a lease directory it MADE once its last lease goes
   (rmdir, so anything else in it keeps it), and never one a caller named. Both lease fixes change a reader,
   so the attestations at 10a0c96 no longer cover the release and were asked for again.
+- **CI at the second candidate (35b36fa): Windows passed; two more findings.** macOS CI left a worktree
+  behind in `a process a fence leaves running is ended before its worktree goes` because `settle_group`
+  read `EPERM` — which macOS answers for a group whose killed members are zombies not yet reaped — as
+  "not ended" and stopped at once; only ESRCH now proves the end, and anything else is asked again until the
+  grace runs out. And the coverage job's instrumentation made a detached branch-state refresher outlast a
+  15 s wait in `the cached branch CLI reads a fresh answer without starting Git`; that wait is a hang guard,
+  now 60 s, since a healthy refresher answers in well under a second. Neither reproduced on this Mac.

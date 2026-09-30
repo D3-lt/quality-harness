@@ -710,21 +710,28 @@ def settle_group(pid, platform=None, grace=5.0, job_closed=True):
     """
     if (platform or os.name) == "nt":
         return bool(job_closed)
-    try:
-        os.killpg(pid, 0)
-    except ProcessLookupError:
-        return True
-    except OSError:
-        return False
-    kill_tree(pid, platform)
-    deadline = time.monotonic() + grace
-    while time.monotonic() < deadline:
+
+    # Only ESRCH proves the group gone. Anything else is asked again until the grace
+    # runs out: the group still alive, or EPERM, which macOS answers for a group whose
+    # killed members are zombies not yet reaped — answered as "not ended" at once, it
+    # left a tree behind that the next poll would have seen go (macOS CI, 3.3.0
+    # candidate).
+    def gone():
         try:
             os.killpg(pid, 0)
         except ProcessLookupError:
             return True
         except OSError:
             return False
+        return False
+
+    if gone():
+        return True
+    kill_tree(pid, platform)
+    deadline = time.monotonic() + grace
+    while time.monotonic() < deadline:
+        if gone():
+            return True
         time.sleep(0.05)
     return False
 

@@ -55,6 +55,8 @@ S3's real-catalogue runs are the completion criterion, and they are too long for
 | 4 — it is used | once per change to the campaign's isolation; nothing schedules it |
 
 ## Mutation Log
+- 2026-09-30 · 5426e53* · mutant killed · exit 1 · `scripts/campaign-parity.mjs` · no mismatch is ever reported, so every paired run reads as parity · acceptance-sha256:cb42d1e9652b84dbc147e0ae8bc9b456128898361e7bd28455b5c12abda9d3a5 · covers:a mismatch is reported
+- 2026-09-30 · 5426e53* · mutant killed · exit 1 · `scripts/campaign-parity.mjs` · a worktree slower than the budget passes · acceptance-sha256:cb42d1e9652b84dbc147e0ae8bc9b456128898361e7bd28455b5c12abda9d3a5 · covers:the overhead bound is enforced
 
 ## Invariants
 
@@ -74,3 +76,19 @@ Stop and ask on any mismatch or any worktree over 2000 ms: isolation must not be
 - Parity for the whole catalogue in one run (deferred: docs/research/2026-09-30-the-nervous-system-plan.md)
 
 ## Verification Log
+- 2026-09-30 · 5426e53* · exit 1 · `set -o pipefail …` · acceptance-sha256:cb42d1e9652b84dbc147e0ae8bc9b456128898361e7bd28455b5c12abda9d3a5 · ms:177 · test-lock-sha256:3f81420b1058e8bbcee3262d7cd2c7b38aa5579e7212721e063249745084f414 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2NhbXBhaWduLXBhcml0eS50ZXN0Lm1qcwljb21wYXJlUnVucyBmaW5kcyBhIG1pc21hdGNoIGluIGEgdmVyZGljdCwgYSBiYXNlbGluZSBvciB0aGUgZW50cmllcywgYW5kIG5vbmUgaW4gZXF1YWwgcnVucwlmYzMxZWJkMjA4MTJkMTRlY2EwZTZjNjQ5NTIwM2MyZWFjMGE3ODllNjVmM2Q5Yjg2NGJmNGVmOWRiN2JmMDBiCmJvZHkJdGVzdHMvY2FtcGFpZ24tcGFyaXR5LnRlc3QubWpzCXRoZSBwYXJpdHkgc2NyaXB0IGZpbmRzIG5vIG1pc21hdGNoIG92ZXIgdGhlIGZpeHR1cmUgcmVwb3NpdG9yeSwgYW5kIGJ1aWxkcyBlYWNoIHdvcmt0cmVlIGluIHVuZGVyIDIgcwljZDA4NjU0YjA2ZDhiMGM3M2RmMTZjMWU3Y2Q0ZjU3ZTliNjU1NDNkZDA5M2Y4YTU2ODdhYzFiNjUzNzE5ZjQ1
+  ```
+  --- last 10 line(s) of stdout (of 40 after folding 40 raw)
+    ...
+  1..1
+  # tests 1
+  # suites 0
+  # pass 0
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 76.923625
+  ```
+- 2026-09-30 · 5426e53* · exit 0 · `set -o pipefail …` · acceptance-sha256:cb42d1e9652b84dbc147e0ae8bc9b456128898361e7bd28455b5c12abda9d3a5 · ms:3375
+- 2026-09-30 · 5426e53* · exit 0 · `set -o pipefail …` · acceptance-sha256:cb42d1e9652b84dbc147e0ae8bc9b456128898361e7bd28455b5c12abda9d3a5 · ms:3398

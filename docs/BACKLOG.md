@@ -16777,3 +16777,18 @@ ADR-077 (N3) executed on `spec/machine-lease`: T1 4535501, T2 4231a77, the revie
   grace runs out. And the coverage job's instrumentation made a detached branch-state refresher outlast a
   15 s wait in `the cached branch CLI reads a fresh answer without starting Git`; that wait is a hang guard,
   now 60 s, since a healthy refresher answers in well under a second. Neither reproduced on this Mac.
+- **Correction to the line above: widening that wait did not fix it.** At eabf6a3 the push run's coverage job
+  failed the same test after 61 s, so the refresher never wrote its snapshot in that environment at all — not
+  slowness. The dispatched run at the same sha passed it, and `--experimental-test-coverage` on Linux CI is the
+  only place it has failed (2 of 3 coverage runs since 10a0c96; never under the plain selftest on any platform,
+  never locally, including under `coverage.sh`). **Open lead, cause unknown**: the test writes its stale
+  snapshot without a `key` and an earlier step runs with a nonexistent `GIT_DIR`; the next useful move is to
+  make `waitForSnapshot` report what it found on timeout (the lock, the snapshot, the trace) rather than guess.
+- **§322's unexplained brief, explained.** `branch-state --cached` serves the stored snapshot first and
+  labels its age, and this machine's main checkout had been on `spec/machine-lease` hours earlier; the same
+  shape recurred at 5627 s ("main @ e0e8376") and was then replaced by a fresh answer on the next prompt. The
+  reader said what it had and how old it was. What remains is a judgement, not a defect: whether a snapshot
+  hours old, naming a branch the checkout no longer holds, should be shown at all.
+- **v3.3.0 released** at eabf6a3046b0bb13a1e0643577b0e75bed409422 (release-evidence SUCCESS: 55 jobs,
+  dispatched run 36786131988; outside runs php-laravel-monolith at eabf6a3, and react-spa and
+  php-laravel-monolith at the two earlier candidates, all filed in `docs/corpus-reports/`).

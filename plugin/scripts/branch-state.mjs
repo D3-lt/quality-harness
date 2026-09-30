@@ -131,6 +131,12 @@ export function collect(run = shell, checkpoint = () => {}) {
   const dirty = run(['git', 'status', '--short'])
   const counts = run(['git', 'rev-list', '--left-right', '--count', `origin/${branch.out}...HEAD`])
   const [behind, ahead] = counts.ok ? counts.out.split(/\s+/).map(Number) : [null, null]
+  // The pushed tip, resolved as `snapshotKey` resolves it (the configured upstream, else
+  // origin/<branch>), and HEAD whole. Read here, before `gh`, so a spent budget costs the
+  // network half rather than these (Codex review of 3.2.1).
+  const configured = run(['git', 'rev-parse', '@{upstream}'])
+  const tip = configured.ok ? configured : run(['git', 'rev-parse', `origin/${branch.out}`])
+  const whole = run(['git', 'rev-parse', 'HEAD'])
   const git = {
     looked: true,
     branch: branch.out,
@@ -186,12 +192,11 @@ export function collect(run = shell, checkpoint = () => {}) {
   if (runs.ok) {
     let rows = []
     try { rows = JSON.parse(runs.out) } catch { rows = [] }
-    // HEAD's runs, or the pushed tip's when HEAD has none yet. `gh` has served a page
-    // of runs weeks old (2026-09-29 and 2026-09-30, three times), and the newest run on
-    // such a page is an old commit's, which the brief then raised as this branch's red
-    // CI. Where the tip cannot be read, the newest listed run still answers, named.
-    const upstream = run(['git', 'rev-parse', `origin/${branch.out}`])
-    const answer = headRuns(rows, git.head, upstream.ok ? upstream.out : null)
+    // HEAD's runs, else the pushed tip's; else, only where no tip could be read, the
+    // newest listed run's (BACKLOG §304's design, kept for a checkout with no upstream).
+    // `gh` has served a page of runs weeks old (2026-09-29 and -30, three times), and
+    // the newest run on such a page is an old commit's, not this branch's CI.
+    const answer = headRuns(rows, whole.ok ? whole.out : git.head, tip.ok ? tip.out : null)
     if (answer) {
       const answering = answer.runs
       const failing = answering.filter(r => r.status === 'completed' && r.conclusion !== 'success')
@@ -201,6 +206,7 @@ export function collect(run = shell, checkpoint = () => {}) {
         looked: true, sha: String(verdict.headSha).slice(0, 7),
         status: verdict.status, conclusion: verdict.conclusion, failed: [],
         runs: answering.map(r => r.databaseId),
+        ...(answer.anchor === 'tip' ? { anchor: 'tip' } : {}),
       }
       // A red run is red however many were not read; a green answer is only as
       // complete as the listing, and a window holding nothing but this commit may
@@ -224,7 +230,7 @@ export function collect(run = shell, checkpoint = () => {}) {
       const shas = [...new Set(rows.filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
         .map(r => String(r.headSha).slice(0, 7)))]
       ci = shas.length
-        ? { looked: false, note: `no run listed is at HEAD ${git.head}${upstream.ok ? ` or origin/${branch.out}` : ''}; `
+        ? { looked: false, note: `no run listed is at HEAD ${git.head}${tip.ok ? ' or at the pushed tip' : ''}; `
           + `the ${rows.length} listed are at ${shas.slice(0, 3).join(', ')}${shas.length > 3 ? ', …' : ''} — CI has not started here, or \`gh\` served an older page` }
         : { looked: false, note: '`gh` listed runs this reader could not order' }
     }
@@ -318,12 +324,20 @@ export function headRuns(rows, head = '', upstream = null) {
   const listed = (Array.isArray(rows) ? rows : [])
     .filter(r => r && r.headSha && Number.isSafeInteger(r.databaseId))
   if (listed.length === 0) return null
-  // Either may be the shorter: HEAD is read abbreviated, the tip and `gh`'s shas whole.
-  const same = (sha, prefix) => sha.startsWith(prefix) || prefix.startsWith(sha)
-  const at = prefix => (prefix ? listed.find(r => same(String(r.headSha), prefix))?.headSha : undefined)
+  // Whole shas are compared whole. An abbreviated one (HEAD where only `--short` could
+  // be read) matches by prefix only when it is 7 to 40 hex digits and names exactly one
+  // listed commit; an ambiguous or malformed identity names none (Codex review of 3.2.1).
+  const HEX = /^[0-9a-f]{7,40}$/i
+  const shas = [...new Set(listed.map(r => String(r.headSha)).filter(s => HEX.test(s)))]
+  const at = id => {
+    if (!id || !HEX.test(id)) return undefined
+    const hits = shas.filter(s => (s.length === 40 && id.length === 40 ? s === id : s.startsWith(id) || id.startsWith(s)))
+    return hits.length === 1 ? hits[0] : undefined
+  }
   const newest = listed.reduce((a, b) => (b.databaseId > a.databaseId ? b : a))
   // A tip that was read and has no run means this listing does not speak for the branch.
-  const sha = at(head) || at(upstream) || (upstream === null ? newest.headSha : null)
+  const anchor = at(head) ? 'head' : at(upstream) ? 'tip' : upstream === null ? 'newest' : null
+  const sha = anchor === 'head' ? at(head) : anchor === 'tip' ? at(upstream) : anchor === 'newest' ? newest.headSha : null
   if (!sha) return null
   const workflowOf = r => String(r.workflowDatabaseId ?? r.workflowName ?? '')
   const started = r => Date.parse(String(r.startedAt ?? ''))
@@ -337,7 +351,7 @@ export function headRuns(rows, head = '', upstream = null) {
   const judged = new Set(chosen.filter(r => r.status === 'completed' && r.conclusion !== 'cancelled').map(workflowOf))
   const oldest = Math.min(...listed.filter(r => r.headSha === sha).map(r => r.databaseId))
   return {
-    sha,
+    sha, anchor,
     runs: chosen.filter(r => !(r.conclusion === 'cancelled' && judged.has(workflowOf(r)))),
     // Complete when the listing is the branch's whole history, or reaches a run at
     // another commit older than every run at this one.
@@ -363,17 +377,19 @@ export function render(state, { brief = false } = {}) {
       : state.dirty ? `, ${state.dirty} uncommitted path(s)` : ', clean'}`
     + `${state.ahead ? `, ${state.ahead} ahead of origin` : ''}`
 
+  // A tip's answer is the pushed commit's as this clone last fetched it, not HEAD's.
+  const named = state.ci.anchor === 'tip' ? `${state.ci.sha} (the pushed tip as last fetched; HEAD has no run)` : state.ci.sha
   let ci
   let alarm = false
   if (!state.ci.looked) {
     ci = `COULD NOT LOOK — ${state.ci.note}. NOT a green branch; an unknown one.`
     alarm = true
   } else if (state.ci.status !== 'completed') {
-    ci = `${state.ci.sha}: still running. Not finished is not green (§13).`
+    ci = `${named}: still running. Not finished is not green (§13).`
   } else if (state.ci.conclusion === 'success') {
-    ci = `${state.ci.sha}: every job concluded success.`
+    ci = `${named}: every job concluded success.`
   } else {
-    ci = `${state.ci.sha}: ${String(state.ci.conclusion).toUpperCase()}`
+    ci = `${named}: ${String(state.ci.conclusion).toUpperCase()}`
       + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`
     alarm = true
   }

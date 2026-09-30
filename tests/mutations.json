@@ -13195,8 +13195,8 @@
         "tests/branch-state.test.mjs"
       ],
       "only": "a run at an older commit does not colour the newest one",
-      "from": "  const sha = at(head) || at(upstream) || (upstream === null ? newest.headSha : null)",
-      "to": "  const sha = (upstream === null ? newest.headSha : null)"
+      "from": "const anchor = at(head) ? 'head' :",
+      "to": "const anchor = false ? 'head' :"
     },
     {
       "label": "branch-state: every workflow at the commit answers (BACKLOG §304)",
@@ -18013,8 +18013,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "at(upstream) || (upstream === null ? newest.headSha : null)",
-      "to": "at(upstream) || newest.headSha",
+      "from": "upstream === null ? 'newest' : null",
+      "to": "'newest'",
       "only": "never an old commit's verdict"
     },
     {
@@ -18023,8 +18023,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "const sha = at(head) || at(upstream) ||",
-      "to": "const sha = at(head) ||",
+      "from": ": at(upstream) ? 'tip' :",
+      "to": ": false ? 'tip' :",
       "only": "never an old commit's verdict"
     },
     {
@@ -18033,18 +18033,48 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "headRuns(rows, git.head, upstream.ok ? upstream.out : null)",
-      "to": "headRuns(rows, git.head, null)",
+      "from": "tip.ok ? tip.out : null)",
+      "to": "null)",
       "only": "never an old commit's verdict"
     },
     {
-      "label": "branch-state: a whole sha matches an abbreviated one either way round",
+      "label": "branch-state: an ambiguous prefix names no commit",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "sha.startsWith(prefix) || prefix.startsWith(sha)",
-      "to": "sha.startsWith(prefix)",
+      "from": "return hits.length === 1 ? hits[0] : undefined",
+      "to": "return hits[0]",
+      "only": "by whole identity"
+    },
+    {
+      "label": "branch-state: a malformed sha names no commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const HEX = /^[0-9a-f]{7,40}$/i",
+      "to": "const HEX = /^[0-9a-f]{1,40}$/i",
+      "only": "by whole identity"
+    },
+    {
+      "label": "branch-state: the configured upstream is the tip, read before gh",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const configured = run(['git', 'rev-parse', '@{upstream}'])",
+      "to": "const configured = { ok: false }",
+      "only": "by whole identity"
+    },
+    {
+      "label": "branch-state: a tip's answer is labelled as the pushed tip",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const named = state.ci.anchor === 'tip' ?",
+      "to": "const named = false ?",
       "only": "never an old commit's verdict"
     },
     {

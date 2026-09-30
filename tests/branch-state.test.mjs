@@ -1230,7 +1230,7 @@ test('a listing with no run at HEAD or the pushed tip is COULD NOT LOOK, never a
   const stale = render(collect(runner([...GIT_CLEAN, tip,
     ['gh run list', ok(JSON.stringify([{ headSha: '24ce31b0', status: 'completed', conclusion: 'failure', databaseId: 9 }]))],
   ])), { brief: true })
-  assert.match(stale, /⚠ CI COULD NOT LOOK — no run listed is at HEAD 0a18d04 or origin\/main; the 1 listed are at 24ce31b/, stale)
+  assert.match(stale, /⚠ CI COULD NOT LOOK — no run listed is at HEAD 0a18d04 or at the pushed tip; the 1 listed are at 24ce31b/, stale)
   assert.doesNotMatch(stale, /FAILURE/, stale)
 
   // HEAD ahead of the tip: the tip's run is the CI that is running, and it answers.
@@ -1246,7 +1246,7 @@ test('a listing with no run at HEAD or the pushed tip is COULD NOT LOOK, never a
     ]))],
     ['gh run view', ok(JSON.stringify({ jobs: [{ name: 'windows', conclusion: 'failure' }] }))],
   ])), { brief: true })
-  assert.match(ahead, /⚠ CI 0a18d04: FAILURE — windows: failure/, ahead)
+  assert.match(ahead, /⚠ CI 0a18d04 \(the pushed tip as last fetched; HEAD has no run\): FAILURE — windows: failure/, ahead)
 
   // HEAD's own run answers over the tip's.
   const own = render(collect(runner([...GIT_CLEAN, ['git rev-parse origin/main', ok('99999999')],
@@ -1256,4 +1256,54 @@ test('a listing with no run at HEAD or the pushed tip is COULD NOT LOOK, never a
     ]))],
   ])), { brief: true })
   assert.match(own, /0a18d04: every job concluded success/, own)
+})
+
+// Codex review of 3.2.1: identity is a whole sha where one was read, an ambiguous or
+// malformed prefix names nothing, the tip is the configured upstream first, and it is
+// read before `gh`, so a spent budget costs the network half rather than the tip.
+test('a run answers for HEAD or the tip by whole identity, and the tip is read before gh', () => {
+  const full = sha => sha.padEnd(40, '0')
+  const calls = []
+  const recording = table => { const inner = runner(table); return argv => { calls.push(argv.join(' ')); return inner(argv) } }
+  const twin = render(collect(recording([...GIT_CLEAN,
+    ['git rev-parse HEAD', ok(full('0a18d04a'))], ['git rev-parse @{upstream}', ok(full('0a18d04a'))],
+    ['gh run list', ok(JSON.stringify([
+      { headSha: full('0a18d04b'), status: 'completed', conclusion: 'failure', databaseId: 9 },
+      { headSha: full('0a18d04a'), status: 'completed', conclusion: 'success', databaseId: 8 },
+    ]))],
+  ])), { brief: true })
+  assert.match(twin, /0a18d04: every job concluded success/, 'a commit sharing HEAD\'s prefix answered for it')
+  const tipAt = calls.findIndex(call => call.startsWith('git rev-parse @{upstream}'))
+  const ghAt = calls.findIndex(call => call.startsWith('gh run list'))
+  assert.ok(tipAt >= 0 && ghAt > tipAt, `the tip was read after gh: ${calls.join(' | ')}`)
+
+  // HEAD read only abbreviated, and two listed commits share that prefix: it names
+  // neither, so the tip answers, not whichever of the two gh listed first.
+  const ambiguous = render(collect(runner([...GIT_CLEAN, ['git rev-parse @{upstream}', ok(full('0a18d04a'))],
+    ['gh run list', ok(JSON.stringify([
+      { headSha: full('0a18d04b'), status: 'completed', conclusion: 'failure', databaseId: 9 },
+      { headSha: full('0a18d04a'), status: 'completed', conclusion: 'success', databaseId: 8 },
+    ]))],
+  ])), { brief: true })
+  assert.match(ambiguous, /0a18d04 \(the pushed tip as last fetched; HEAD has no run\): every job concluded success/, ambiguous)
+
+  // A malformed identity names nothing: a one-letter sha is not HEAD.
+  const malformed = render(collect(runner([...GIT_CLEAN, ['git rev-parse @{upstream}', ok(full('0a18d04a'))],
+    ['gh run list', ok(JSON.stringify([{ headSha: '0', status: 'completed', conclusion: 'failure', databaseId: 9 }]))],
+  ])), { brief: true })
+  assert.match(malformed, /COULD NOT LOOK/, malformed)
+
+  // The configured upstream is the tip, before origin/<branch>.
+  const configured = render(collect(runner([
+    ['git rev-parse --abbrev-ref', ok('main')], ['git rev-parse --short', ok('beef123')],
+    ['git status --short', ok('')], ['git rev-list', ok('0\t1')],
+    ['git remote -v', ok('origin\tgit@github.com:D3-lt/quality-harness.git (fetch)')],
+    ['git describe', ok('v2.64.0')], ['git diff --name-only', ok('')],
+    ['git rev-parse @{upstream}', ok(full('c0ffee1'))], ['git rev-parse origin/main', ok(full('dead0001'))],
+    ['gh run list', ok(JSON.stringify([
+      { headSha: full('dead0001'), status: 'completed', conclusion: 'failure', databaseId: 9 },
+      { headSha: full('c0ffee1'), status: 'completed', conclusion: 'success', databaseId: 8 },
+    ]))],
+  ])), { brief: true })
+  assert.match(configured, /c0ffee1 \(the pushed tip as last fetched; HEAD has no run\): every job concluded success/, configured)
 })

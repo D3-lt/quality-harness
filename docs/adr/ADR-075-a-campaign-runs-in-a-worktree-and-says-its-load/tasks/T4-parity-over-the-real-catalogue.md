@@ -92,3 +92,4 @@ Stop and ask on any mismatch or any worktree over 2000 ms: isolation must not be
   ```
 - 2026-09-30 · 5426e53* · exit 0 · `set -o pipefail …` · acceptance-sha256:cb42d1e9652b84dbc147e0ae8bc9b456128898361e7bd28455b5c12abda9d3a5 · ms:3375
 - 2026-09-30 · 5426e53* · exit 0 · `set -o pipefail …` · acceptance-sha256:cb42d1e9652b84dbc147e0ae8bc9b456128898361e7bd28455b5c12abda9d3a5 · ms:3398
+- 2026-09-30 · human-observed · Zy (owner) signed off 2026-09-30: S3 — parity counts approved: 122 lifecycle entries 0 mismatches (worktree 193 ms) and --shard 1/48 38 entries 0 mismatches (116 ms), measured at 5426e53

@@ -16762,3 +16762,11 @@ ADR-077 (N3) executed on `spec/machine-lease`: T1 4535501, T2 4231a77, the revie
   never starts and the fence's own end is never exercised; a test that signals only once the fence runs now
   kills it. `Codex 3.3.0 #1`'s first mutant only dropped the symlink check, and a symlink then failed the
   next check ("not a directory") anyway; the mutant that FOLLOWS the link is the one that matters, and is RED.
+- **CI at the first candidate (10a0c96) failed two jobs, three findings, none reachable on this Mac.**
+  Windows: `adr-verify` named the checkout in git's `C:/…` spelling where the native one was expected
+  (the resolved spelling is now tried first), and a lease recorded `root` the same way (`take` records
+  `path.resolve(root)`). Coverage floor: `a campaign leaves nothing in the temp directory` found the
+  default lease directory left in a TMPDIR the test chose, because `coverage.sh`, unlike `selftest.sh`,
+  names no private lease directory; a run now removes a lease directory it MADE once its last lease goes
+  (rmdir, so anything else in it keeps it), and never one a caller named. Both lease fixes change a reader,
+  so the attestations at 10a0c96 no longer cover the release and were asked for again.

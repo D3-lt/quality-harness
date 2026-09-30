@@ -6,7 +6,7 @@
 // dead, unknown — and an unknown is never read as a dead one (ADR-005): its lease is kept, named,
 // and removed only once it is a day old.
 import { randomBytes } from 'node:crypto'
-import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 
@@ -67,15 +67,16 @@ function publish(file, lease) {
 // of the 3.3.0 candidate). Only the leaf is checked; a symlinked parent such as macOS's /var is the
 // system's. The answer is a reason to refuse, or null.
 function untrusted(dir, platform = process.platform) {
-  mkdirSync(dir, { recursive: true, mode: 0o700 })
+  // `made`: whether this call created the directory, the only case in which its run removes it.
+  const made = mkdirSync(dir, { recursive: true, mode: 0o700 }) !== undefined
   const found = lstatSync(dir)
-  if (found.isSymbolicLink()) return `${dir} is a symlink`
-  if (!found.isDirectory()) return `${dir} is not a directory`
+  if (found.isSymbolicLink()) return { refused: `${dir} is a symlink`, made }
+  if (!found.isDirectory()) return { refused: `${dir} is not a directory`, made }
   if (platform !== 'win32' && typeof process.getuid === 'function') {
-    if (found.uid !== process.getuid()) return `${dir} belongs to another user`
-    if (found.mode & 0o022) return `${dir} can be written by other users`
+    if (found.uid !== process.getuid()) return { refused: `${dir} belongs to another user`, made }
+    if (found.mode & 0o022) return { refused: `${dir} can be written by other users`, made }
   }
-  return null
+  return { refused: null, made }
 }
 
 /**
@@ -83,16 +84,23 @@ function untrusted(dir, platform = process.platform) {
  * cannot be used, which the caller says and then runs without one.
  */
 export function take(dir, { command, root, state = 'running' } = {}) {
-  try {
-    const refused = untrusted(dir)
-    if (refused) return { error: refused }
-    const start = new Date()
-    const file = path.join(dir, `${process.pid}-${start.getTime()}-${randomBytes(3).toString('hex')}.json`)
-    const lease = { pid: process.pid, command, root, start: start.toISOString(), state }
-    publish(file, lease)
-    return { file, lease }
-  } catch (error) {
-    return { error: error.code ? `${error.code} on ${dir}` : error.message }
+  // Twice at most: a run releasing the last lease removes an empty directory it made (below), and
+  // one taking a lease in that instant finds it gone between its mkdir and its write.
+  for (let attempt = 1; ; attempt += 1) {
+    try {
+      const { refused, made } = untrusted(dir)
+      if (refused) return { error: refused }
+      const start = new Date()
+      const file = path.join(dir, `${process.pid}-${start.getTime()}-${randomBytes(3).toString('hex')}.json`)
+      // The root as this platform spells it: git prints `C:/…` on Windows, and a reader compares
+      // it with the native path (Windows CI, 3.3.0 candidate).
+      const lease = { pid: process.pid, command, root: typeof root === 'string' ? path.resolve(root) : root, start: start.toISOString(), state }
+      publish(file, lease)
+      return { file, lease, made }
+    } catch (error) {
+      if (error.code === 'ENOENT' && attempt < 2) continue
+      return { error: error.code ? `${error.code} on ${dir}` : error.message }
+    }
   }
 }
 
@@ -105,6 +113,13 @@ export function mark(held, changes) {
 /** release removes this run's own lease, and nothing else. */
 export function release(held) {
   rmSync(held.file, { force: true })
+  // A directory this run made goes with its last lease, so a run leaves nothing in the temp
+  // directory (ADR-075's promise, which ADR-077 broke under a test that set TMPDIR). rmdir refuses
+  // a directory that is not empty, so another run's lease, or the admission lock, keeps it; and a
+  // directory the caller named, or one another run made, is never this run's to remove.
+  if (held.made) {
+    try { rmdirSync(path.dirname(held.file)) } catch { /* not empty */ }
+  }
 }
 
 /** Whether a lease's processes live: alive when any does, dead only when every one is proven ended. */

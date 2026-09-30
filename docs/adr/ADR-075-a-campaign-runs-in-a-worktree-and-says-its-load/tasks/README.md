@@ -22,7 +22,7 @@ README must be regenerated.
 | T1 | qh-check and a campaign say the load at their ends | done | F-10, UC2-S1, UC2-S2, UC2-S3, UC2-S4 | `node --test tests/qh-check.test.mjs` (four named tests pass, and the runner exits 0) |
 | T2 | A campaign runs in a worktree of the working-tree content, in the git directory | done | F-1, F-2, F-8, F-9, F-12, F-13, F-14, F-15, F-16, UC1-S1, UC1-S2, UC1-S3, UC1-S4, UC1-S5, UC1-S6, UC1-S7, UC1-S8 | `node --test tests/mutate-isolation.test.mjs` (eleven named tests pass, and the runner exits 0) |
 | T3 | A campaign in the checkout names who it exposes | done | F-11, UC3-S1, UC3-S2, UC3-S3 | `node --test tests/mutate-isolation.test.mjs` (the exposure test passes, and the runner exits 0) |
-| T4 | An isolated campaign grades the real catalogue as an in-place one does | pending | F-14, F-15 | `node --test tests/campaign-parity.test.mjs`, and the signed-off real-catalogue runs |
+| T4 | An isolated campaign grades the real catalogue as an in-place one does | done | F-14, F-15 | `node --test tests/campaign-parity.test.mjs`, and the signed-off real-catalogue runs |
 
 ## Contract Coupling
 

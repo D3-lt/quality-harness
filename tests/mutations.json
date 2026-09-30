@@ -17946,6 +17946,66 @@
       "from": "_RECORD_SECTION = re.compile(r\"^##\\s+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])\", re.M)",
       "to": "_RECORD_SECTION = re.compile(r\"^##\\s+(?:Context|Decision)\\b\", re.M | re.I)",
       "only": "^the Codex round of 3.1.6: a directory is a record directory by ASCII letters only"
+    },
+    {
+      "label": "Codex 3.2.0 #1: a load is kept as read, not rounded onto the count",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "return { load: known ? first : null,",
+      "to": "return { load: known ? Math.round(first * 100) / 100 : null,",
+      "only": "^a load just above the core count is contended"
+    },
+    {
+      "label": "Codex 3.2.0 #1: the line shows a load just above the count as read",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "    return String(value > cores && rounded <= cores ? value : rounded)",
+      "to": "    return String(rounded)",
+      "only": "^a load just above the core count is contended"
+    },
+    {
+      "label": "Codex 3.2.0 #2: a sampler that throws is an unread load",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "  try { averages = loadavg() } catch {}",
+      "to": "  averages = loadavg()",
+      "only": "^a load sampler that throws"
+    },
+    {
+      "label": "Codex 3.2.0 #3: a negative load is not read",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "Number.isFinite(first) && first >= 0 && averages",
+      "to": "Number.isFinite(first) && averages",
+      "only": "^an invalid load or core count"
+    },
+    {
+      "label": "Codex 3.2.0 #3: contention reads only finite samples",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "const read = value => typeof value === 'number' && Number.isFinite(value) && value >= 0",
+      "to": "const read = value => value != null",
+      "only": "^an invalid load or core count"
+    },
+    {
+      "label": "Codex 3.2.0 #3: a core count passed is used as given",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "...(cores !== undefined ? { cores } : {})",
+      "to": "...(cores ? { cores } : {})",
+      "only": "^an invalid load or core count"
     }
   ]
 }

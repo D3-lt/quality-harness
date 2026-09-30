@@ -63,3 +63,4 @@ Stop and ask if any pair disagrees, or if an isolated arm ran in place.
 - Pairing the whole corpus's Mutation Logs (deferred: docs/BACKLOG.md ADR-076 entry)
 
 ## Verification Log
+- 2026-09-30 · human-observed · Zy signed off 2026-09-30: three pinned replays at 4300b93 in fresh clones (ADR-075 T1 load.mjs, ADR-074 T1 adr-retire-check, ADR-072 T1 mutate.mjs; --from/--to from their catalogue entries), each isolated and --in-place: 6/6 completed, all mutant killed, every isolated first line 'isolated in', 0 mismatches, no target left dirty, no worktree left; the same held at 176d7b0 before the Codex round

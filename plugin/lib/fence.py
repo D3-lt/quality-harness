@@ -322,10 +322,17 @@ class WindowsJob:
         return [int(info.ProcessIdList[index]) for index in range(int(info.NumberOfProcessIdsInList))]
 
     def close(self):
-        """Release the job handle. With KILL_ON_JOB_CLOSE this is also the last kill."""
+        """Release the job handle. With KILL_ON_JOB_CLOSE this is also the last kill.
+
+        Returns whether CloseHandle succeeded: a job whose handle could not be closed
+        may not have ended its members, and a caller that removes their working
+        directory must know (Codex review of the 3.3.0 candidate).
+        """
         if self.handle:
-            self.k32.CloseHandle(self.handle)
+            closed = bool(self.k32.CloseHandle(self.handle))
             self.handle = None
+            return closed
+        return True
 
 
 def resume_suspended(proc, k32=None):
@@ -689,7 +696,7 @@ def drain_after_kill(proc, platform, grace=10, started=None, job=None, processes
         return None, None, killed
 
 
-def settle_group(pid, platform=None, grace=5.0):
+def settle_group(pid, platform=None, grace=5.0, job_closed=True):
     """Whether a fence that RETURNED has ended, ending what it left running (ADR-076).
 
     A shell returning is not its group ending: `sleep 30 >/dev/null &` leaves a
@@ -697,11 +704,12 @@ def settle_group(pid, platform=None, grace=5.0):
     tree its caller is about to remove (Codex review of ADR-076, finding 1). On
     POSIX the group is asked, killed if anything is left, and asked again until it
     is gone; False means nothing here saw it end. On Windows the job, closed with
-    KILL_ON_JOB_CLOSE by the time this runs, is what ends the rest, so a job that
-    existed is the answer.
+    KILL_ON_JOB_CLOSE by the time this runs, is what ends the rest, so the answer
+    is whether that close SUCCEEDED (`job_closed`), never merely that a job existed
+    (Codex review of the 3.3.0 candidate).
     """
     if (platform or os.name) == "nt":
-        return True
+        return bool(job_closed)
     try:
         os.killpg(pid, 0)
     except ProcessLookupError:
@@ -770,6 +778,7 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, on_start=None
     proc = subprocess.Popen(launch, **popen)
     started = time.monotonic()
     job = None
+    job_closed = True
     if outcome is not None:
         outcome["ended"] = False
     try:
@@ -809,9 +818,9 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, on_start=None
         # keys on, and a long-lived qh-mcp would otherwise keep one per fence.
         if job is not None:
             try:
-                job.close()
+                job_closed = job.close() is not False
             except Exception:
-                pass
+                job_closed = False
     if outcome is not None:
-        outcome["ended"] = settle_group(proc.pid, platform) if job is not None or platform != "nt" else False
+        outcome["ended"] = settle_group(proc.pid, platform, job_closed=job_closed) if job is not None or platform != "nt" else False
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)

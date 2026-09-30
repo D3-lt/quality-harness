@@ -54,6 +54,9 @@ node --test --test-reporter=tap tests/adr-verify-isolation.test.mjs 2>&1 | tee "
 | `an isolated and an in-place run record the same verdict` | `tests/adr-verify-isolation.test.mjs` | equal verdicts; both rows name HEAD, clean and then dirty (`*`) | F-6 | S5 |
 | `--in-place applies the mutant in the checkout and restores it` | `tests/adr-verify-isolation.test.mjs` | exposure seen, file restored | F-7 | S2, S3 |
 | `a stopped mutant run removes its worktree` | `tests/adr-verify-isolation.test.mjs` | SIGTERM ends the fence and removes the tree (POSIX) | F-8, UC1-S4 | S6 |
+| `the checkout's path is found in its Windows spellings on any host` | `tests/adr-verify-isolation.test.mjs` | F-4's Windows spellings and POSIX case through the platform seam | F-4 | S3 |
+| `a fence's leftover in the worktree does not mark the checkout's rows dirty` | `tests/adr-verify-isolation.test.mjs` | both rows name the checkout's clean HEAD while the tree is dirty | F-6 | S5 |
+| `a SIGTERM during the worktree build still removes the worktree` | `tests/adr-verify-isolation.test.mjs` | a signal held across the build is acted on once the tree's id is known (POSIX) | F-8 | S6 |
 
 ## Reachability
 
@@ -65,6 +68,16 @@ node --test --test-reporter=tap tests/adr-verify-isolation.test.mjs 2>&1 | tee "
 | 4 — it is used | `adr-execute`'s mutation step |
 
 ## Mutation Log
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the mutant lands in the checkout instead of the worktree · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:the mutant is applied in the worktree
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the in-place line no longer says the run is outside git · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:outside git the run is in place and says so
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a fence reading the checkout by its absolute path is isolated and judges the unmutated checkout · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:a fence naming the checkout runs in place
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/bin/adr-verify` · any path sharing the checkout prefix forces the run in place · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:a shared prefix is not the checkout
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the clean fence runs in the checkout, so its outputs land there · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:the fences run in the worktree
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the between-fence reset targets the checkout, so the tree keeps the clean build · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:the clean build is reset before the mutant fence
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the Mutation Log sha is read from the worktree, which a fence left dirty · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:evidence is read from the checkout
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/bin/adr-verify` · --in-place is parsed and ignored, so the run isolates · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:--in-place is today
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/lib/fence.py` · an interrupted fence is never reported ended, so its tree outlives the stopped run · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:a stopped run removes its tree
+- 2026-09-30 · 3e1b214* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a SIGTERM during the worktree build ends the process before it knows the tree, so the tree outlives the run · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · covers:a stopped run removes its tree
 
 ## Invariants
 
@@ -85,3 +98,27 @@ Stop and ask if the verdict grading has to change to run in another directory.
 - Isolating `adr-verify` without `--mutant` (permanent: boundary: spec Non-Goals)
 
 ## Verification Log
+- 2026-09-30 · 3e1b214* · exit 1 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:61717 · test-lock-sha256:f0486a8570280c80b411bb1c2e06289cb49f9ac6f816034eaa6921e5d7b5f4b8 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2Fkci12ZXJpZnktaXNvbGF0aW9uLnRlc3QubWpzCS0taW4tcGxhY2UgYXBwbGllcyB0aGUgbXV0YW50IGluIHRoZSBjaGVja291dCBhbmQgcmVzdG9yZXMgaXQJNWRiMTQxYWI1MzBjZWIxNDU3NDdlNWY5NzkyMDM0YWIzZGQ5YTRmZjVmNDNkODU1ODNlM2U3YTdlMWM0ZDk5Mwpib2R5CXRlc3RzL2Fkci12ZXJpZnktaXNvbGF0aW9uLnRlc3QubWpzCWEgZmVuY2UgbmFtaW5nIHRoZSBjaGVja291dCBydW5zIGluIHBsYWNlIGFuZCBuYW1lcyB0aGUgcGF0aAllMjVlZDQ0MGVlNzJkZTA1ZTM2OTgyZjZiODJmODExMGJmZWRiMWUyMzI1ODYyNjNlOGNkNWI0OWM1NmJkOWJiCmJvZHkJdGVzdHMvYWRyLXZlcmlmeS1pc29sYXRpb24udGVzdC5tanMJYSBmZW5jZSdzIGdlbmVyYXRlZCBvdXRwdXQgc3RheXMgaW4gdGhlIHdvcmt0cmVlCTIyMjkwM2ZhNTk1ODdkZTBiZDBhYTlkMTczZTYxYmY1OGEzMWViYmVhZWJkNGQzYWU0NWY2YzE3YjE3OGZlZTgKYm9keQl0ZXN0cy9hZHItdmVyaWZ5LWlzb2xhdGlvbi50ZXN0Lm1qcwlhIGdlbmVyYXRlZCBvdXRwdXQgbGVmdCBieSB0aGUgY2xlYW4gZmVuY2UgaXMgcmVzZXQgYmVmb3JlIHRoZSBtdXRhbnQgZmVuY2UJZTQ2YzlmZDA0YmU2ZTIzMDM4YmYzMmJhODY2OWQ5MWZmNGVmNjVlNGZkYzU2NzMyOGZiYmEwYTY4ZjBkMWU4ZApib2R5CXRlc3RzL2Fkci12ZXJpZnktaXNvbGF0aW9uLnRlc3QubWpzCWEgbXV0YW50IHJ1biBsZWF2ZXMgdGhlIGNoZWNrb3V0IHVuY2hhbmdlZCBidXQgZm9yIHRoZSB0YXNrIGZpbGUncyBsb2dzCTdhOGFhNjJjNTVlYzdjZGNmMjBiZmU5Y2JiYjY0OTkzYjQ0NTM5OWY5ZTExYmE5NTE5ZTRkNDBhM2JlMTM2NGQKYm9keQl0ZXN0cy9hZHItdmVyaWZ5LWlzb2xhdGlvbi50ZXN0Lm1qcwlhIHNpYmxpbmcgcGF0aCBzaGFyaW5nIHRoZSBjaGVja291dCdzIHByZWZpeCBkb2VzIG5vdCBmb3JjZSB0aGUgcnVuIGluIHBsYWNlCWY5NTFhOTg4NThjNDA4YjZiZTE1MDIxMzMzYmQ1MWY5YzdmOTk1NWY0NTE5Njk2MDVmY2M2ZmMzODY4NGYzNDYKYm9keQl0ZXN0cy9hZHItdmVyaWZ5LWlzb2xhdGlvbi50ZXN0Lm1qcwlhIHN0b3BwZWQgbXV0YW50IHJ1biByZW1vdmVzIGl0cyB3b3JrdHJlZQllYWJlOGFkY2ViMmViZTRhZjVlNzNlMGUwMmFmZmZhYzVkYjA1NDIwYjgwY2M5YTBhMzM5NGI1NDJkZDliZWY4CmJvZHkJdGVzdHMvYWRyLXZlcmlmeS1pc29sYXRpb24udGVzdC5tanMJYW4gaXNvbGF0ZWQgYW5kIGFuIGluLXBsYWNlIHJ1biByZWNvcmQgdGhlIHNhbWUgdmVyZGljdAllYTE0YWQ0MTQ2MDg1NGRiNzY0NjgzZTkzZTQ2N2NlYjY2ZDQwNzA1YzU3MTUwYjIxZDk3MGNkZjlhOTM1MjJlCmJvZHkJdGVzdHMvYWRyLXZlcmlmeS1pc29sYXRpb24udGVzdC5tanMJb3V0c2lkZSBnaXQgdGhlIG11dGFudCBydW5zIGluIHBsYWNlIGFuZCBzYXlzIHdoeQllYTlhOGQyZjdkZWFlYmVkZGVhYzkzMWQzMzY4Y2I1Njk1YzE0YWExMThhMDcxZWUyYzQ3YTRmMmYwODg1OWQ3CmJvZHkJdGVzdHMvYWRyLXZlcmlmeS1pc29sYXRpb24udGVzdC5tanMJdGhlIGNoZWNrb3V0J3MgcGF0aCBpcyBmb3VuZCBpbiBpdHMgV2luZG93cyBzcGVsbGluZ3Mgb24gYW55IGhvc3QJOGNhNDY4MGFlYjNhZDFmZjU4ZWI1ZGM5MzBlNDdiZTBhOTE5Y2RiNWQ2OGY2NWFhMGIxNDU5MTI0YTRmN2U2NA
+  ```
+  --- last 10 line(s) of stdout (of 279 after folding 282 raw)
+    ...
+  1..10
+  # tests 10
+  # suites 0
+  # pass 0
+  # fail 10
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 61612.118625
+  ```
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:7265
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:7196
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:7223
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:7223
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:7246
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:7608
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:6358
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:6478
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:6380
+- 2026-09-30 · 3e1b214* · exit 0 · `set -o pipefail …` · acceptance-sha256:73a65ffe02c9da0e449ab7db333773107693a0ffc38107c9322d12afc6bb0a99 · ms:6672

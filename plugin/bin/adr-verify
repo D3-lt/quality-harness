@@ -4,7 +4,7 @@
 Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify <task.md> --human "<who observed what>"
        adr-verify <task.md> --mutant <file> [--also-restore <file> ...]
-                  --from <text> --to <text> --why <text> [--covers <mechanism>]
+                  --from <text> --to <text> --why <text> [--covers <mechanism>] [--in-place]
         adr-verify <task.md> [--steps S1,S3]
         adr-verify <task.md> --relock [--replace-hashes] [--cwd DIR]
         adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
@@ -95,6 +95,15 @@ Declaring a path grants this live run authority to overwrite its bytes or delete
 it during cleanup, including over a concurrent edit; declare only disposable
 generated outputs whose command-entry state is the state to restore.
 
+--mutant runs in a worktree of this checkout's working-tree content by default
+(ADR-076): both fences and the mutant run there, under the git directory, and
+only the task file's Verification and Mutation Logs are written here. The run's
+first line says where it went. It runs in place, as before, with --in-place,
+outside a git checkout, when the fence names this checkout's absolute path, when
+the target lies outside the checkout, and when no worktree can be built; the
+first line says which. A fence that reaches the checkout through an environment
+variable or a symlink is not detected.
+
 Exit: the Acceptance command's exit code (0 for --human; 0 for --restore) · for
 --mutant the code is the VERDICT, not the fence: 0 `killed` · 1 `survived`, a
 finding about the test · 4 `inconclusive`, could-not-look — the fence failed for
@@ -123,6 +132,7 @@ import json
 import ntpath
 import os
 import re
+import shutil
 import signal
 import stat
 import subprocess
@@ -789,6 +799,33 @@ def _restore_and_exit(signum, _frame):
     raise SystemExit(128 + signum)
 
 
+def hold_signals(pending):
+    """Hold SIGTERM and SIGINT in `pending` until `release_signals`; return what to restore."""
+    before = {}
+    for sig in (signal.SIGTERM, signal.SIGINT):
+        try:
+            before[sig] = signal.signal(sig, lambda signum, _frame: pending.append(signum))
+        except (OSError, ValueError, AttributeError):
+            pass
+    return before
+
+
+def release_signals(before, pending, unwind):
+    """Restore the handlers `hold_signals` replaced, then act on a signal it held.
+
+    With `unwind`, SIGTERM becomes an unwind from here on rather than the default
+    termination, so a caller's `finally` still runs on it (ADR-076: the worktree
+    this process owns is removed there).
+    """
+    for sig, handler in before.items():
+        try:
+            signal.signal(sig, _restore_and_exit if unwind and sig == signal.SIGTERM else handler)
+        except (OSError, ValueError):
+            pass
+    if pending:
+        raise SystemExit(128 + pending[0])
+
+
 def mutant_journal(cwd):
     """Where an in-flight mutant is recorded, OUTSIDE the repository it edits.
 
@@ -799,6 +836,101 @@ def mutant_journal(cwd):
     key = hashlib.sha256(str(Path(cwd).resolve()).encode("utf-8")).hexdigest()[:16]
     base = os.environ.get("CLAUDE_PLUGIN_DATA") or tempfile.gettempdir()
     return Path(base) / f"adr-verify-mutant-{key}.json"
+
+
+# ADR-076: the worktree module ships beside this gate. One mechanism serves this gate and the
+# repository's JavaScript tools, so what ADR-075 paid for — git's normalised bytes, a setup
+# failure after `worktree add`, ownership before a child exists — is paid once.
+WORKTREE_CLI = Path(__file__).resolve().parent.parent / "scripts" / "worktree.mjs"
+
+
+def worktree_cli(*argv, timeout=120):
+    """Run plugin/scripts/worktree.mjs once: `(records, error)`.
+
+    `records` is every JSON line it printed; `error` is None on exit 0, else what it
+    said. Node is looked for on PATH, and its absence is a build failure like any
+    other: the caller runs in place and says so (ADR-076 Risks).
+    """
+    node = shutil.which("node")
+    if node is None:
+        return [], "node is not on PATH"
+    try:
+        r = subprocess.run([node, str(WORKTREE_CLI), *argv], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=timeout, **NO_WINDOW)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return [], str(exc)
+    records = []
+    for line in (r.stdout or "").splitlines():
+        try:
+            records.append(json.loads(line))
+        except json.JSONDecodeError:
+            pass
+    if r.returncode == 0:
+        return records, None
+    said = next((rec["error"] for rec in records if isinstance(rec, dict) and rec.get("error")), None)
+    return records, said or (r.stderr or "").strip() or f"exit {r.returncode}"
+
+
+def checkout_root(cwd):
+    """The checkout holding `cwd`, as git prints it and as it resolves; None outside git."""
+    try:
+        r = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--show-toplevel"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace",
+                           timeout=30, **NO_WINDOW)
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    given = r.stdout.strip()
+    if r.returncode != 0 or not given:
+        return None
+    return given, Path(given).resolve()
+
+
+def fence_names_checkout(cmd, spellings, platform=None):
+    """The spelling of the checkout's absolute path that the fence text names, or None.
+
+    Spec F-4: matched at a path boundary — followed by a separator, a quote,
+    whitespace or the end — so a sibling that only shares the prefix is not a match
+    (F-12). On Windows either separator, any case, and Git Bash's `/c/` form.
+    `platform` is the seam that lets every host test the Windows spellings. A path
+    reached through an environment variable or a symlink is not seen, and nothing
+    here claims it was.
+    """
+    windows = (platform or os.name) == "nt"
+    text = cmd.replace("\\", "/").lower() if windows else cmd
+    for spelling in spellings:
+        bare = (spelling.replace("\\", "/").lower() if windows else spelling).rstrip("/")
+        forms = [bare]
+        if windows and re.match(r"^[a-z]:/", bare):
+            forms.append(f"/{bare[0]}{bare[2:]}")
+        for form in forms:
+            if not form:
+                continue
+            at = text.find(form)
+            while at != -1:
+                end = at + len(form)
+                if end == len(text) or text[end] in "/\"'" or text[end].isspace():
+                    return spelling
+                at = text.find(form, at + 1)
+    return None
+
+
+def dispose_worktree(placement):
+    """Remove a run's worktree once every fence it started has ended (ADR-076).
+
+    A fence not confirmed ended keeps its tree: a later isolated run, of any tool,
+    sweeps it once no process recorded in it lives.
+    """
+    worktree = placement.pop("id", None)
+    if worktree is None:
+        return
+    if not placement.get("ended", True):
+        print(f"[adr-verify] the worktree {worktree} is left for a later sweep: a fence in it "
+              f"was not confirmed ended.", file=sys.stderr)
+        return
+    _, error = worktree_cli("remove", worktree)
+    if error is not None:
+        print(f"[adr-verify] could not remove the worktree {worktree} ({error}); a later "
+              f"isolated run sweeps it.", file=sys.stderr)
 
 
 JOURNAL_VERSION = 2
@@ -956,7 +1088,9 @@ def report_unresolved(journal, unresolved, context):
     print(f"[adr-verify] UNRESOLVED {context}: the transaction could not safely restore:")
     for item in unresolved:
         print(f"  - {item}")
-    fail(f"[adr-verify] nothing uncertain was overwritten; the journal remains at {journal}. "
+    where = (f"the journal remains at {journal}" if journal is not None
+             else "the run was isolated, so this checkout holds none of it")
+    fail(f"[adr-verify] nothing uncertain was overwritten; {where}. "
          f"Reconcile the named paths before verifying again.")
 
 
@@ -1230,7 +1364,7 @@ def recover_mutant(cwd):
 
 
 def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
-               covers=None, steps=None):
+               covers=None, steps=None, in_place=False, placement=None):
     # ADR-025: taken HERE, before this function writes anything at all. The
     # journal below and the verification entry this run records both modify the
     # tree, so a sha read later would carry the dirty marker `*` earned by our
@@ -1336,24 +1470,96 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
              f"be expected to notice it, and a 'survived' verdict here would be "
              f"about the mutant, not the test.")
 
+    # ADR-076 T2: where the run goes, decided after the preflight and said on the first line.
+    # Evidence stays this checkout's: the task file, `entry_sha` above, record_run's test-body
+    # locks. Execution — both fences, the mutant and the reset between them — moves to a
+    # worktree of the checkout's working-tree content unless an arm below keeps it in place.
+    placement = {} if placement is None else placement
+    run_cwd, run_target, reason, swept = cwd, target, None, []
+    root = None if in_place else checkout_root(cwd)
+    if in_place:
+        reason = "--in-place was given"
+    elif root is None:
+        reason = f"{cwd} is not inside a git checkout, so no worktree can be built"
+    elif (named := fence_names_checkout(cmd, list(dict.fromkeys([root[0], str(root[1])])))) is not None:
+        reason = f"the fence names this checkout's path {named}, which a worktree cannot redirect"
+    else:
+        try:
+            inside = target.resolve().relative_to(root[1])
+        except ValueError:
+            inside = None
+        if inside is None:
+            reason = f"the mutant target {target} is outside the checkout {root[1]}"
+        else:
+            # A signal that lands while the tree is built would end this process before
+            # it knew the tree's id, and the tree would wait for a later sweep: forced
+            # there, a SIGTERM left it behind 10 times in 10. So one arriving during the
+            # build is held, and acted on once the id is known and `main` can remove it.
+            pending = []
+            before = hold_signals(pending)
+            try:
+                swept, _ = worktree_cli("sweep", str(root[1]))
+                built, error = worktree_cli("build", str(root[1]), "--owner", str(os.getpid()))
+                if error is not None or not built or "tree" not in built[-1]:
+                    reason = f"no worktree could be built ({error or 'the build printed no tree'})"
+                else:
+                    placement["id"] = built[-1]["id"]
+                    tree = Path(built[-1]["tree"])
+                    run_cwd, run_target = tree / cwd.relative_to(root[1]), tree / inside
+                    try:
+                        held = run_target.read_bytes() == original_bytes
+                    except OSError:
+                        held = False
+                    if not held:
+                        # An ignored file is not carried into a worktree, and a target the
+                        # tree does not hold byte for byte would make it a different mutant.
+                        dispose_worktree(placement)
+                        run_cwd, run_target = cwd, target
+                        reason = (f"the worktree does not hold {rel} as this checkout does "
+                                  f"(an ignored file is not carried into one)")
+            finally:
+                release_signals(before, pending, unwind=placement.get("id") is not None)
+    isolated = placement.get("id") is not None
+    if isolated:
+        print(f"[adr-verify] isolated in {Path(placement['id']).name}: both fences and the mutant "
+              f"run in a worktree of this checkout, at {run_cwd}; the checkout is not touched.",
+              flush=True)
+    else:
+        print(f"[adr-verify] in place: {reason}.", flush=True)
+    for record in swept:
+        if isinstance(record, dict) and record.get("said"):
+            print(f"[adr-verify] {record['said']}")
+
+    def own(proc):
+        # Recorded before this gate waits on the fence, so a sweep never removes the tree
+        # under a fence whose owner has died (ADR-076 Decision, "Ownership").
+        _, failure = worktree_cli("add-owned", placement["id"],
+                                  "--pid" if os.name == "nt" else "--group", str(proc.pid))
+        if failure is not None:
+            print(f"[adr-verify] the fence could not be recorded in the worktree's owner file "
+                  f"({failure}); the tree is kept while this process lives.", file=sys.stderr)
+    fence_start = own if isolated else None
+
     mutated_bytes = source_bytes(original.replace(frm, to, 1), target_newline)
     members = [{
         "role": "target",
-        "path": str(target),
+        "path": str(run_target),
         "existed": True,
         "original": base64.b64encode(original_bytes).decode("ascii"),
         "mutated": base64.b64encode(mutated_bytes).decode("ascii"),
     }]
-    members.extend(secondary_members(cwd, target, also_restore))
+    members.extend(secondary_members(run_cwd, run_target, also_restore))
 
     verdict, code, detail = "inconclusive", 2, ""
-    journal = mutant_journal(cwd)
+    # Isolated, nothing is applied to this checkout, so there is nothing for a later run
+    # to restore here; a killed isolated run's tree is the sweep's.
+    journal = None if isolated else mutant_journal(cwd)
     previous = None
     cleanup_failure = None
     journal_data = {
         "version": JOURNAL_VERSION,
         "phase": "baseline",
-        "cwd": str(cwd),
+        "cwd": str(run_cwd),
         "members": members,
         "from": frm, "to": to, "why": why.strip(), "cmd": cmd,
     }
@@ -1362,16 +1568,17 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     # rewrite the target before a mutant is ever applied. If this write cannot be
     # made, no fence is allowed to start. Continuing would knowingly open a
     # side-effect window with no recovery record.
-    try:
-        journal.parent.mkdir(parents=True, exist_ok=True)
-        journal.write_text(json.dumps(journal_data), encoding="utf-8")
-    except OSError as e:
+    if journal is not None:
         try:
-            journal.unlink(missing_ok=True)
-        except OSError:
-            pass
-        fail(f"[adr-verify] could not arm the mutant journal ({e}); refusing before the "
-             f"clean fence. No mutation was applied and no evidence was written.")
+            journal.parent.mkdir(parents=True, exist_ok=True)
+            journal.write_text(json.dumps(journal_data), encoding="utf-8")
+        except OSError as e:
+            try:
+                journal.unlink(missing_ok=True)
+            except OSError:
+                pass
+            fail(f"[adr-verify] could not arm the mutant journal ({e}); refusing before the "
+                 f"clean fence. No mutation was applied and no evidence was written.")
 
     try:
         # Python default-terminates on SIGTERM without unwinding, so `finally`
@@ -1393,9 +1600,9 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # backwards turns a finding about NTP into a finding about the work.
         clean_started = time.monotonic()
         try:
-            clean = run_bounded([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
+            clean = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
                                 text=True, encoding="utf-8", errors="replace",
-                                timeout=fence_timeout())
+                                timeout=fence_timeout(), on_start=fence_start, outcome=placement)
         except subprocess.TimeoutExpired as expired:
             partial = decode_stream(expired.stdout) + decode_stream(expired.stderr)
             print(f"[adr-verify] UNPROVEN: the clean acceptance fence did not finish within "
@@ -1460,18 +1667,19 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # The baseline itself may have materialized outputs. Re-establish the
         # complete command-entry state, then advance the durable phase BEFORE
         # changing the source. The mutant fence must generate its own outputs.
-        cleanup_failure = restore_live_transaction(journal_data, cwd)
+        cleanup_failure = restore_live_transaction(journal_data, run_cwd)
         if cleanup_failure:
             report_unresolved(journal, cleanup_failure, "cleanup after the clean fence")
         cleanup_failure = None
         journal_data["phase"] = "mutant"
-        try:
-            journal.write_text(json.dumps(journal_data), encoding="utf-8")
-        except OSError as e:
-            fail(f"[adr-verify] could not advance the mutant journal ({e}); refusing before "
-                 f"mutation. The clean fence ran, but no evidence was written.")
+        if journal is not None:
+            try:
+                journal.write_text(json.dumps(journal_data), encoding="utf-8")
+            except OSError as e:
+                fail(f"[adr-verify] could not advance the mutant journal ({e}); refusing before "
+                     f"mutation. The clean fence ran, but no evidence was written.")
 
-        write_source(target, original.replace(frm, to, 1), target_newline)
+        write_source(run_target, original.replace(frm, to, 1), target_newline)
 
         # Said BEFORE the fence runs, because the fence is the part that gets
         # killed. Whatever else is lost, the transcript then names the file that
@@ -1481,12 +1689,16 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # with the process — measured 2026-08-27, both kill probes produced an
         # EMPTY log. A notice that survives only when nothing goes wrong is not a
         # notice.
-        print(f"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken "
-              f"until the fence finishes.", flush=True)
-        print(f"[adr-verify] if this run is killed, restore it with `adr-verify --restore "
-              f"--cwd {cwd}`, or `git checkout -- {rel}`.", flush=True)
+        if isolated:
+            print(f"[adr-verify] MUTANT APPLIED to {rel} in the worktree; this checkout's copy "
+                  f"is untouched.", flush=True)
+        else:
+            print(f"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken "
+                  f"until the fence finishes.", flush=True)
+            print(f"[adr-verify] if this run is killed, restore it with `adr-verify --restore "
+                  f"--cwd {cwd}`, or `git checkout -- {rel}`.", flush=True)
 
-        ok, why_not = syntax_ok(target)
+        ok, why_not = syntax_ok(run_target)
         if not ok:
             print(f"[adr-verify] the mutant does not parse: {why_not}")
             print("[adr-verify] a mutant that does not build has NOT been tested — it has "
@@ -1494,9 +1706,9 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             sys.exit(2)
 
         try:
-            r = run_bounded([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
+            r = run_bounded([bash_or_exit(), "-c", cmd], cwd=run_cwd, capture_output=True,
                             text=True, encoding="utf-8", errors="replace",
-                            timeout=fence_timeout())
+                            timeout=fence_timeout(), on_start=fence_start, outcome=placement)
         except subprocess.TimeoutExpired:
             # The mutant is still applied, so the restore below is what matters —
             # `finish()` runs it. UNRUN, not survived and not killed: a fence that
@@ -1537,7 +1749,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             verdict, detail = "killed", "a test went red"
     finally:
         if cleanup_failure is None:
-            cleanup_failure = restore_live_transaction(journal_data, cwd)
+            cleanup_failure = restore_live_transaction(journal_data, run_cwd)
         if previous is not None:
             try:
                 signal.signal(signal.SIGTERM, previous)
@@ -1545,14 +1757,16 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                 pass
         if cleanup_failure:
             report_unresolved(journal, cleanup_failure, "live cleanup")
-        try:
-            journal.unlink(missing_ok=True)
-        except OSError as exc:
-            fail(f"[adr-verify] restored every transaction member but could not remove the "
-                 f"journal ({exc}); no Mutation Log row was written and {journal} remains.")
+        if journal is not None:
+            try:
+                journal.unlink(missing_ok=True)
+            except OSError as exc:
+                fail(f"[adr-verify] restored every transaction member but could not remove the "
+                     f"journal ({exc}); no Mutation Log row was written and {journal} remains.")
 
     digest = acceptance_digest(cmd)
-    sha = git_sha(cwd)
+    # ADR-076: isolated, both rows name the checkout as it stood before the run (F-6).
+    sha = entry_sha if isolated else git_sha(cwd)
     entry = (f"- {today} · {sha} · mutant {verdict} · exit {code} · "
              f"`{rel}` · {why.strip()} · acceptance-sha256:{digest}")
     if covers is not None:
@@ -2526,6 +2740,7 @@ def main():
     covers = None
     steps = None
     as_json = False
+    in_place = False
     saw_timeout = False
     i = 0
     while i < len(args):
@@ -2595,6 +2810,8 @@ def main():
                 fail(f"--timeout must be a positive number of seconds, not {timeout}")
         elif args[i] == "--json":
             as_json = True
+        elif args[i] == "--in-place":
+            in_place = True
         elif args[i] == "--restore":
             restore = True
         elif args[i] == "--relock":
@@ -2622,6 +2839,9 @@ def main():
         fail("--relock cannot be combined with --restore")
     if relock and human is not None:
         fail("--relock cannot be combined with --human")
+    if in_place and mutant is None:
+        fail("--in-place is valid only with the tool-run --mutant mode; without --mutant "
+             "adr-verify changes no source, so there is nothing to place")
     # Recovery needs no task file: the run that needs recovering is the one that
     # did not get far enough to finish, and asking for its paperwork first would
     # make the repair harder than the damage.
@@ -2830,8 +3050,13 @@ def main():
                  f"a step the task already names.")
 
     if mutant is not None:
-        run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore,
-                   covers=covers, steps=steps)
+        placement = {}
+        try:
+            run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore,
+                       covers=covers, steps=steps, in_place=in_place, placement=placement)
+        finally:
+            # ADR-076: after every row is written, and on every way out of the run.
+            dispose_worktree(placement)
 
     # Reported 2026-09-08 (BACKLOG §174): "re-run adr-verify" is the migration this
     # gate's own refusal names for pre-digest evidence, and on a done task whose

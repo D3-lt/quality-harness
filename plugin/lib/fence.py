@@ -689,7 +689,7 @@ def drain_after_kill(proc, platform, grace=10, started=None, job=None, processes
         return None, None, killed
 
 
-def run_bounded(argv, *, timeout, platform=None, job_factory=None, **popen):
+def run_bounded(argv, *, timeout, platform=None, job_factory=None, on_start=None, outcome=None, **popen):
     """`subprocess.run(argv, timeout=…)` whose timeout reaches the whole tree.
 
     The child starts in its own session (POSIX) or process group (Windows) so
@@ -705,6 +705,14 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, **popen):
     `subprocess.run` leaves the raw BYTES it had buffered on a text-mode
     `TimeoutExpired` while this leaves decoded text; `decode_stream` accepts
     either, and the difference is stated here rather than claimed away.
+    ADR-076 T2: `on_start(proc)` runs once the child exists (and, on Windows, once
+    its job does), before this waits on it; a caller records the fence's process
+    group or pid there, where a sweep can see it. `outcome`, a dict, gets
+    `"ended"`: False while the child may run, True once it returned, and on a kill
+    `kill_tree`'s own answer, so a caller removes what the fence worked in only
+    when the fence is known to have stopped. On POSIX the child is already
+    running when `on_start` is called; its owner is alive then, so a sweep keeps
+    the tree through that window.
     """
     platform = platform or os.name
     if popen.pop("capture_output", False):
@@ -724,16 +732,22 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, **popen):
     proc = subprocess.Popen(argv, **popen)
     started = time.monotonic()
     job = None
+    if outcome is not None:
+        outcome["ended"] = False
     try:
         # The job is membership; it has to exist before the fence forks anything —
         # and it is created INSIDE this try, so a Ctrl-C between the spawn and
         # communicate still reaches the cleanup below instead of escaping with a
         # suspended fence behind it (Codex review of b019c42).
         job = factory(proc, started) if platform == "nt" else None
+        if on_start is not None:
+            on_start(proc)
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         trace_timeout(f"fence timeout after {timeout}s", started)
         out, err, killed = drain_after_kill(proc, platform, started=started, job=job)
+        if outcome is not None:
+            outcome["ended"] = killed
         expired = subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err)
         # The cleanup's own answer travels ON the exception because the code
         # that prints the verdict is nowhere near the code that did the killing.
@@ -743,7 +757,9 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, **popen):
         # subprocess.run kills its child on ANY exception — a Ctrl-C turned
         # into KeyboardInterrupt, a SystemExit — so that a gate being stopped
         # does not leave its fence behind.
-        drain_after_kill(proc, platform, job=job)
+        _, _, killed = drain_after_kill(proc, platform, job=job)
+        if outcome is not None:
+            outcome["ended"] = killed
         raise
     finally:
         # A job handle is a kernel object. Closing it is what KILL_ON_JOB_CLOSE
@@ -753,4 +769,6 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, **popen):
                 job.close()
             except Exception:
                 pass
+    if outcome is not None:
+        outcome["ended"] = True
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)

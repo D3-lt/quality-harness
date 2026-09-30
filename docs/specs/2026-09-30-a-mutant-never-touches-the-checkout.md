@@ -56,7 +56,7 @@ the task file's Verification Log and Mutation Log, and grades every mutant as an
 
 ## Scenarios
 
-### UC1-S1 [happy] A mutant run leaves the checkout unchanged but for the task file's logs [@spec] → `tests/adr-verify-isolation.test.mjs::a mutant run leaves the checkout unchanged but for the task file's logs` cmd:`node --test tests/adr-verify-isolation.test.mjs`
+### UC1-S1 [happy] A mutant run leaves the checkout unchanged but for the task file's logs [@implemented] → `tests/adr-verify-isolation.test.mjs::a mutant run leaves the checkout unchanged but for the task file's logs` cmd:`node --test tests/adr-verify-isolation.test.mjs`
 
 ```gherkin
 Given a git repository with a task whose fence runs a test of lib.mjs
@@ -65,7 +65,7 @@ Then the Mutation Log gains a killed entry, and no process reading the checkout 
 And every other byte of the checkout, its index and its stash list are unchanged
 ```
 
-### UC1-S2 [failure] Outside git the mutant runs in place and says why [@spec] → `tests/adr-verify-isolation.test.mjs::outside git the mutant runs in place and says why` cmd:`node --test tests/adr-verify-isolation.test.mjs`
+### UC1-S2 [failure] Outside git the mutant runs in place and says why [@implemented] → `tests/adr-verify-isolation.test.mjs::outside git the mutant runs in place and says why` cmd:`node --test tests/adr-verify-isolation.test.mjs`
 
 ```gherkin
 Given a task directory that is not in a git repository
@@ -73,7 +73,7 @@ When adr-verify records a mutant
 Then its first line says it ran in place because no worktree could be built, and the mutant is recorded
 ```
 
-### UC1-S3 [failure] A fence naming the checkout's absolute path runs in place and names it [@spec] → `tests/adr-verify-isolation.test.mjs::a fence naming the checkout runs in place and names the path` cmd:`node --test tests/adr-verify-isolation.test.mjs`
+### UC1-S3 [failure] A fence naming the checkout's absolute path runs in place and names it [@implemented] → `tests/adr-verify-isolation.test.mjs::a fence naming the checkout runs in place and names the path` cmd:`node --test tests/adr-verify-isolation.test.mjs`
 
 ```gherkin
 Given a task whose fence contains the checkout's absolute path
@@ -81,7 +81,7 @@ When adr-verify records a mutant
 Then the run goes in place, and its first line names the path it found
 ```
 
-### UC1-S4 [failure] A stopped run removes its worktree [@spec] → `tests/adr-verify-isolation.test.mjs::a stopped mutant run removes its worktree` cmd:`node --test tests/adr-verify-isolation.test.mjs`
+### UC1-S4 [failure] A stopped run removes its worktree [@implemented] → `tests/adr-verify-isolation.test.mjs::a stopped mutant run removes its worktree` cmd:`node --test tests/adr-verify-isolation.test.mjs`
 
 ```gherkin
 Given an isolated mutant run whose fence is still running
@@ -91,7 +91,7 @@ Then its worktree is removed and git lists no worktree for it
 
 ### UC2-S1 [happy] An unasserted run leaves the checkout byte-identical [@spec] → `tests/unasserted-isolation.test.mjs::an unasserted run leaves the checkout byte-identical` cmd:`node --test tests/unasserted-isolation.test.mjs`
 
-### UC1-S5 [failure] A generated output is reset between the clean and the mutant fence [@spec] → `tests/adr-verify-isolation.test.mjs::a generated output left by the clean fence is reset before the mutant fence` cmd:`node --test tests/adr-verify-isolation.test.mjs`
+### UC1-S5 [failure] A generated output is reset between the clean and the mutant fence [@implemented] → `tests/adr-verify-isolation.test.mjs::a generated output left by the clean fence is reset before the mutant fence` cmd:`node --test tests/adr-verify-isolation.test.mjs`
 
 ```gherkin
 Given a fence that builds an artifact only when it is missing, and reads the record through it
@@ -99,7 +99,7 @@ When adr-verify records a mutant with --also-restore naming the artifact
 Then the mutant fence rebuilds the artifact from the mutated record, and the mutant is killed
 ```
 
-### UC1-S6 [happy] A sibling path that shares the checkout's prefix does not force the run in place [@spec] → `tests/adr-verify-isolation.test.mjs::a sibling path sharing the checkout's prefix does not force the run in place` cmd:`node --test tests/adr-verify-isolation.test.mjs`
+### UC1-S6 [happy] A sibling path that shares the checkout's prefix does not force the run in place [@implemented] → `tests/adr-verify-isolation.test.mjs::a sibling path sharing the checkout's prefix does not force the run in place` cmd:`node --test tests/adr-verify-isolation.test.mjs`
 
 ```gherkin
 Given a fence that names a directory whose path begins with the checkout's path but is not inside it
@@ -125,16 +125,16 @@ Then it exits 2, names --in-place, and the gate's bytes are unchanged
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-2 | By default `adr-verify --mutant` builds a worktree of the checkout's working-tree content (HEAD, uncommitted tracked changes, untracked files not ignored, and the checkout's own bytes where git would normalise them) under the git directory, applies the mutant there and runs both fences there. No mutant appears in the checkout, and the checkout's bytes, index and stash list are unchanged except the task file's Verification Log and Mutation Log. | `tests/adr-verify-isolation.test.mjs::a mutant run leaves the checkout unchanged but for the task file's logs` | @spec | `node --test tests/adr-verify-isolation.test.mjs` |
-| F-3 | Where no worktree can be built (no git repository, or git fails), `adr-verify --mutant` runs in place as today, and its first line says so and why. | `tests/adr-verify-isolation.test.mjs::outside git the mutant runs in place and says why` | @spec | `node --test tests/adr-verify-isolation.test.mjs` |
-| F-4 | A fence whose text names the checkout's absolute path runs in place, and the first line names the path it found. The path is matched as given and as resolved, with or without a trailing separator, at a path boundary (followed by a separator, a quote, whitespace or the end), and on Windows with either separator, in any case, and in Git Bash's `/c/` form. A path that only shares the checkout's prefix is not a match. An environment variable or a symlink that leads to the checkout is not detected, and the first line never claims it was. | `tests/adr-verify-isolation.test.mjs::a fence naming the checkout runs in place and names the path` | @spec | `node --test tests/adr-verify-isolation.test.mjs` |
-| F-5 | The clean fence and the mutant fence run in the same worktree, so nothing either writes reaches the checkout. Between the two fences, the mutated file and every `--also-restore` output are reset inside the worktree as they are in the checkout today, so a build-if-missing output cannot carry the clean run into the mutant's. | `tests/adr-verify-isolation.test.mjs::a fence's generated output stays in the worktree` | @spec | `node --test tests/adr-verify-isolation.test.mjs` |
-| F-11 | A generated output left by the clean fence is reset before the mutant fence, inside the worktree, so the mutant fence rebuilds it from the mutated source. | `tests/adr-verify-isolation.test.mjs::a generated output left by the clean fence is reset before the mutant fence` | @spec | `node --test tests/adr-verify-isolation.test.mjs` |
-| F-12 | A path that only shares the checkout's prefix does not force the run in place. | `tests/adr-verify-isolation.test.mjs::a sibling path sharing the checkout's prefix does not force the run in place` | @spec | `node --test tests/adr-verify-isolation.test.mjs` |
+| F-2 | By default `adr-verify --mutant` builds a worktree of the checkout's working-tree content (HEAD, uncommitted tracked changes, untracked files not ignored, and the checkout's own bytes where git would normalise them) under the git directory, applies the mutant there and runs both fences there. No mutant appears in the checkout, and the checkout's bytes, index and stash list are unchanged except the task file's Verification Log and Mutation Log. | `tests/adr-verify-isolation.test.mjs::a mutant run leaves the checkout unchanged but for the task file's logs` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
+| F-3 | Where no worktree can be built (no git repository, or git fails), `adr-verify --mutant` runs in place as today, and its first line says so and why. | `tests/adr-verify-isolation.test.mjs::outside git the mutant runs in place and says why` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
+| F-4 | A fence whose text names the checkout's absolute path runs in place, and the first line names the path it found. The path is matched as given and as resolved, with or without a trailing separator, at a path boundary (followed by a separator, a quote, whitespace or the end), and on Windows with either separator, in any case, and in Git Bash's `/c/` form. A path that only shares the checkout's prefix is not a match. An environment variable or a symlink that leads to the checkout is not detected, and the first line never claims it was. | `tests/adr-verify-isolation.test.mjs::a fence naming the checkout runs in place and names the path` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
+| F-5 | The clean fence and the mutant fence run in the same worktree, so nothing either writes reaches the checkout. Between the two fences, the mutated file and every `--also-restore` output are reset inside the worktree as they are in the checkout today, so a build-if-missing output cannot carry the clean run into the mutant's. | `tests/adr-verify-isolation.test.mjs::a fence's generated output stays in the worktree` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
+| F-11 | A generated output left by the clean fence is reset before the mutant fence, inside the worktree, so the mutant fence rebuilds it from the mutated source. | `tests/adr-verify-isolation.test.mjs::a generated output left by the clean fence is reset before the mutant fence` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
+| F-12 | A path that only shares the checkout's prefix does not force the run in place. | `tests/adr-verify-isolation.test.mjs::a sibling path sharing the checkout's prefix does not force the run in place` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
 | F-13 | `scripts/unasserted.mjs` never hands its runner's `NODE_TEST_CONTEXT` to the suites it runs, so started inside a test runner it still reads a suite's failure. | `tests/unasserted-isolation.test.mjs::an unasserted run started inside a test runner still reads its suite's failures` | @spec | `node --test tests/unasserted-isolation.test.mjs` |
-| F-6 | An isolated and an in-place run of the same mutant record the same verdict, and each entry's sha is the checkout's HEAD, carrying `*` when the checkout is dirty. | `tests/adr-verify-isolation.test.mjs::an isolated and an in-place run record the same verdict` | @spec | `node --test tests/adr-verify-isolation.test.mjs` |
-| F-7 | `--in-place` applies the mutant in the checkout and restores it, as today. | `tests/adr-verify-isolation.test.mjs::--in-place applies the mutant in the checkout and restores it` | @spec | `node --test tests/adr-verify-isolation.test.mjs` |
-| F-8 | A run stopped by SIGINT or SIGTERM removes its worktree; the worktree of a killed run is removed by the next isolated run, of either tool, once no process of it lives. | `tests/adr-verify-isolation.test.mjs::a stopped mutant run removes its worktree` | @spec | `node --test tests/adr-verify-isolation.test.mjs` |
+| F-6 | An isolated and an in-place run of the same mutant record the same verdict, and each entry's sha is the checkout's HEAD, carrying `*` when the checkout is dirty. | `tests/adr-verify-isolation.test.mjs::an isolated and an in-place run record the same verdict` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
+| F-7 | `--in-place` applies the mutant in the checkout and restores it, as today. | `tests/adr-verify-isolation.test.mjs::--in-place applies the mutant in the checkout and restores it` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
+| F-8 | A run stopped by SIGINT or SIGTERM removes its worktree; the worktree of a killed run is removed by the next isolated run, of either tool, once no process of it lives. | `tests/adr-verify-isolation.test.mjs::a stopped mutant run removes its worktree` | @implemented | `node --test tests/adr-verify-isolation.test.mjs` |
 | F-9 | `scripts/unasserted.mjs` neuters and runs its suites in a worktree by default, reports the same survivors as an in-place run, and leaves the checkout byte-identical; `--in-place` keeps today's behaviour. | `tests/unasserted-isolation.test.mjs::an unasserted run leaves the checkout byte-identical` | @spec | `node --test tests/unasserted-isolation.test.mjs` |
 | F-10 | An `unasserted.mjs` run that cannot build its worktree exits 2, names `--in-place`, and neuters nothing. | `tests/unasserted-isolation.test.mjs::an unasserted run that cannot isolate neuters nothing and names --in-place` | @spec | `node --test tests/unasserted-isolation.test.mjs` |
 

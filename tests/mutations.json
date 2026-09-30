@@ -14544,8 +14544,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected'])",
-      "to": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected'])",
+      "from": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected', '--wait'])",
+      "to": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected', '--wait'])",
       "only": "mutate --repoint reads a scratch repository"
     },
     {
@@ -15694,8 +15694,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "'--root', '--narrow', '--in-place', '--selected'])",
-      "to": "'--root', '--in-place', '--selected'])",
+      "from": "'--root', '--narrow', '--in-place', '--selected', '--wait'])",
+      "to": "'--root', '--in-place', '--selected', '--wait'])",
       "only": "mutate --narrow proposes"
     },
     {
@@ -17653,8 +17653,8 @@
       "tests": [
         "tests/mutate-isolation.test.mjs"
       ],
-      "from": "  if (isolating) return isolate({ selected, argv, paths, loadAtStart })",
-      "to": "  if (false) return isolate({ selected, argv, paths, loadAtStart })",
+      "from": "  if (isolating) return isolate({ selected, argv, paths, loadAtStart, held })",
+      "to": "  if (false) return isolate({ selected, argv, paths, loadAtStart, held })",
       "only": "^a campaign leaves the working tree byte-identical"
     },
     {
@@ -17793,8 +17793,8 @@
       "tests": [
         "tests/mutate-isolation.test.mjs"
       ],
-      "from": "FORCE_COLOR: _colour, [CAMPAIGN_CHILD]: _child, [CAMPAIGN_OWNER]: _owner, ...rest",
-      "to": "FORCE_COLOR: _colour, ...rest",
+      "from": "FORCE_COLOR: _colour, [CAMPAIGN_CHILD]: _child, [CAMPAIGN_OWNER]: _owner, QUALITY_HARNESS_WAIT: _wait, ...rest",
+      "to": "FORCE_COLOR: _colour, QUALITY_HARNESS_WAIT: _wait, ...rest",
       "only": "^a campaign child does not hand its marker"
     },
     {
@@ -18426,6 +18426,56 @@
       "from": "    stderr.write(`qh-check: could not use the lease: ${held.error}; running without one.\\n`)",
       "to": "    void held.error",
       "only": "^a lease directory that cannot be used is said, and the run proceeds$"
+    },
+    {
+      "label": "ADR-077 T2: a campaign holds a lease with its child",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  if (held) mark(held, { child: child.pid, ...(process.platform !== 'win32' ? { group: child.pid } : {}) })",
+      "to": "  if (false) mark(held, { child: child.pid })",
+      "only": "^a campaign holds a lease that records its isolated child, and releases it at its end$"
+    },
+    {
+      "label": "ADR-077 T2: a killed parent's lease stays while its child works",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const answers = [lease.pid, lease.child].filter(pid => pid !== undefined).map(alive)\n  if (lease.group !== undefined) answers.push(groupAlive(lease.group, platform))",
+      "to": "  const answers = [lease.pid].filter(pid => pid !== undefined).map(alive)",
+      "only": "^a killed campaign parent's lease stays live while its child works$"
+    },
+    {
+      "label": "ADR-077 T2: a campaign waits when asked",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const waiting = argv.includes('--wait') || process.env.QUALITY_HARNESS_WAIT === '1'",
+      "to": "  const waiting = false",
+      "only": "^a campaign asked to wait starts its suite only after the running lease is released$"
+    },
+    {
+      "label": "ADR-077 T2: a campaign's tests have a private lease directory",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    QUALITY_HARNESS_LEASE_DIR: path.join(scratch, 'leases'),\n",
+      "to": "",
+      "only": "^a campaign's tests and the selftest use a private lease directory$"
+    },
+    {
+      "label": "ADR-077 T2: the suite has a private lease directory",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "export QUALITY_HARNESS_LEASE_DIR=\"$QH_LEASES\"",
+      "to": "export QH_UNUSED=\"$QH_LEASES\"",
+      "only": "^a campaign's tests and the selftest use a private lease directory$"
     }
   ]
 }

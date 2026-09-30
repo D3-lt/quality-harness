@@ -15,6 +15,15 @@ const DAY_MS = 24 * 60 * 60 * 1000
 /** leaseDir is where leases live: `$QUALITY_HARNESS_LEASE_DIR`, else one under the OS temp directory. */
 export const leaseDir = (env = process.env) => env.QUALITY_HARNESS_LEASE_DIR || path.join(os.tmpdir(), 'quality-harness-leases')
 
+// How long a run asked to wait its turn waits before it runs anyway. Unset or invalid is the
+// default: a bound nobody can switch off.
+const WAIT_MAX_SECONDS = 1_800
+/** waitMaxMs is that bound, from `$QUALITY_HARNESS_WAIT_MAX_S`, in milliseconds. */
+export function waitMaxMs(env = process.env) {
+  const seconds = Number(env.QUALITY_HARNESS_WAIT_MAX_S)
+  return (Number.isFinite(seconds) && seconds > 0 ? seconds : WAIT_MAX_SECONDS) * 1_000
+}
+
 /**
  * alive answers for one pid: 'alive', 'dead' or 'unknown'. ESRCH is the only proof of an end;
  * EPERM is a live process this user cannot signal; anything else could not be told.
@@ -24,8 +33,8 @@ export function alive(pid) {
   return probe(() => process.kill(pid, 0))
 }
 
-// A POSIX process group, by the same three answers. Windows has none to ask.
-function groupAlive(group, platform = process.platform) {
+/** groupAlive answers for a POSIX process group by the same three answers; Windows has none. */
+export function groupAlive(group, platform = process.platform) {
   if (platform === 'win32' || !Number.isInteger(group) || group <= 0) return 'unknown'
   return probe(() => process.kill(-group, 0))
 }
@@ -140,18 +149,46 @@ function before(a, b) {
  * waiting one holds an earlier ticket. It observes once a second, until `maxMs`, and returns
  * `{ admitted, waitedMs, stopped }`; `stopped()` is asked each time, so a signal ends the wait.
  */
+/**
+ * mayStart answers one observation: a waiting run may start when no other lease is running or
+ * unknown, and no waiting one holds an earlier ticket.
+ */
+export function mayStart(dir, held) {
+  const mine = ticket(held.lease.start, held.lease.pid, path.basename(held.file))
+  const seen = observe(dir, held)
+  const blocked = seen.unknown.length > 0 || seen.live.some(other => other.state !== 'waiting'
+      || before(ticket(other.start, other.pid, other.file), mine))
+  return !blocked
+}
+
+/**
+ * admit waits this run's turn, observing once a second until `maxMs`, and returns
+ * `{ admitted, waitedMs, stopped }`; `stopped()` is asked each time, so a signal ends the wait.
+ */
 export async function admit(dir, held, { maxMs, stopped = () => null, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
   const began = Date.now()
-  const mine = ticket(held.lease.start, held.lease.pid, path.basename(held.file))
   for (;;) {
     const signal = stopped()
     if (signal) return { admitted: false, waitedMs: Date.now() - began, stopped: signal }
-    const seen = observe(dir, held)
-    const blocked = seen.unknown.length > 0 || seen.live.some(other => other.state !== 'waiting'
-      || before(ticket(other.start, other.pid, other.file), mine))
-    if (!blocked) return { admitted: true, waitedMs: Date.now() - began, stopped: null }
+    if (mayStart(dir, held)) return { admitted: true, waitedMs: Date.now() - began, stopped: null }
     const left = maxMs - (Date.now() - began)
     if (left <= 0) return { admitted: false, waitedMs: Date.now() - began, stopped: null }
     await sleep(Math.min(1000, left))
+  }
+}
+
+/**
+ * admitSync is `admit` for a caller with no event loop to wait on — a mutation campaign, whose run
+ * is synchronous end to end. It sleeps with Atomics.wait, so it cannot notice a signal: one sent
+ * while it waits ends the process, and the next observer removes the lease its pid left.
+ */
+export function admitSync(dir, held, { maxMs }) {
+  const began = Date.now()
+  const pause = new Int32Array(new SharedArrayBuffer(4))
+  for (;;) {
+    if (mayStart(dir, held)) return { admitted: true, waitedMs: Date.now() - began }
+    const left = maxMs - (Date.now() - began)
+    if (left <= 0) return { admitted: false, waitedMs: Date.now() - began }
+    Atomics.wait(pause, 0, 0, Math.min(1000, left))
   }
 }

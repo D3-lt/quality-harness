@@ -13,7 +13,7 @@ import { appendFileSync, mkdirSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 import { checkCommandOrigin, observe, stateDir, validationVerdict } from './lifecycle.mjs'
-import { admit, besideLines, leaseDir, mark, observe as observeLeases, release, take } from './lease.mjs'
+import { admit, besideLines, leaseDir, mark, observe as observeLeases, release, take, waitMaxMs } from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
 
@@ -27,13 +27,6 @@ function checkTimeoutMs(env) {
   return (Number.isFinite(seconds) && seconds > 0 ? seconds : CHECK_TIMEOUT_SECONDS) * 1_000
 }
 
-// How long a run asked to wait its turn waits before it runs anyway (ADR-077). Unset or invalid
-// is the default: a bound nobody can switch off.
-const WAIT_MAX_SECONDS = 1_800
-function waitMaxMs(env) {
-  const seconds = Number(env.QUALITY_HARNESS_WAIT_MAX_S)
-  return (Number.isFinite(seconds) && seconds > 0 ? seconds : WAIT_MAX_SECONDS) * 1_000
-}
 const inSeconds = ms => `${(ms / 1000).toFixed(1)}s`
 // A neighbour as the record keeps it: what its lease says, or that it could not be read.
 const recorded = seen => (seen ? [...seen.live, ...seen.unknown].map(({ file: _file, ...entry }) => entry) : null)

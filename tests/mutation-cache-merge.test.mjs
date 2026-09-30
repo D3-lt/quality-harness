@@ -205,10 +205,10 @@ test('the runner records what it MEASURED, and records nothing when it reused', 
   t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5 }))
   for (const file of ['scripts/mutate.mjs', 'tests/mutations.json',
     'tests/post-edit-check.test.mjs', 'plugin/scripts/post-edit-check.sh',
-    // mutate.mjs imports its entry guard (BACKLOG §264), its load sampler (ADR-075 T1) and its
-    // worktree module (ADR-076 T1) from the plugin.
+    // mutate.mjs imports its entry guard (BACKLOG §264), its load sampler (ADR-075 T1), its
+    // worktree module (ADR-076 T1) and its lease (ADR-077 T2) from the plugin.
     'plugin/scripts/workflow-parse.mjs', 'plugin/scripts/main-module.mjs', 'plugin/scripts/load.mjs',
-    'plugin/scripts/worktree.mjs']) {
+    'plugin/scripts/worktree.mjs', 'plugin/scripts/lease.mjs']) {
     const target = join(dir, file)
     mkdirSync(dirname(target), { recursive: true })
     cpSync(join(repoRoot, file), target)

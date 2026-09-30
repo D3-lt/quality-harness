@@ -88,10 +88,16 @@ export function campaignFixture({ commit = true } = {}) {
   return dir
 }
 
-/** The environment a campaign child gets: this one, minus what would steer it elsewhere. */
+/**
+ * The environment a campaign child gets: this one, minus what would steer it elsewhere. Each call
+ * has a lease directory of its own and never waits its turn (ADR-077), so a fixture campaign
+ * neither reads the machine's leases nor queues behind them; `extra` may name its own.
+ */
 export function campaignEnv(extra = {}) {
-  const { QUALITY_HARNESS_MUTATE_LOCK: _lock, NODE_TEST_CONTEXT: _context, ...rest } = process.env
-  return { ...rest, ...extra }
+  const { QUALITY_HARNESS_MUTATE_LOCK: _lock, NODE_TEST_CONTEXT: _context, QUALITY_HARNESS_WAIT: _wait, ...rest } = process.env
+  const leases = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-campaign-leases-')))
+  made.push(leases)
+  return { ...rest, QUALITY_HARNESS_LEASE_DIR: leases, ...extra }
 }
 
 /** Run a campaign over `dir`, and only `dir`. */

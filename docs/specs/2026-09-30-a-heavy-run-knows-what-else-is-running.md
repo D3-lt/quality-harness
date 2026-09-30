@@ -113,7 +113,7 @@ When the running lease is released
 Then the waiter with the earlier ticket starts first, and the other starts only after it has ended
 ```
 
-### UC3-S1 [happy] A campaign's lease names its child and is released at its end [@spec] → `tests/lease.test.mjs::a campaign holds a lease that records its isolated child, and releases it at its end` cmd:`node --test tests/lease.test.mjs`
+### UC3-S1 [happy] A campaign's lease names its child and is released at its end [@implemented] → `tests/lease.test.mjs::a campaign holds a lease that records its isolated child, and releases it at its end` cmd:`node --test tests/lease.test.mjs`
 
 ```gherkin
 Given a campaign running in isolation over a fixture
@@ -121,7 +121,7 @@ When a qh-check starts during it
 Then the qh-check names the campaign, the campaign's lease records its child, and no lease remains after it
 ```
 
-### UC3-S2 [failure] A killed parent's lease stays while its child works [@spec] → `tests/lease.test.mjs::a killed campaign parent's lease stays live while its child works` cmd:`node --test tests/lease.test.mjs`
+### UC3-S2 [failure] A killed parent's lease stays while its child works [@implemented] → `tests/lease.test.mjs::a killed campaign parent's lease stays live while its child works` cmd:`node --test tests/lease.test.mjs`
 
 ```gherkin
 Given an isolated campaign whose parent is killed while its child still runs
@@ -143,8 +143,8 @@ Then the campaign's lease is live, and it is removed only once the child has end
 | F-8 | A lease is published under a name unique to the run, written in full before it is visible, and a run removes only its own lease. | `tests/lease.test.mjs::a run holds a lease while it runs and releases it at its end` | @implemented | `node --test tests/lease.test.mjs` |
 | F-9 | A run stopped by SIGINT or SIGTERM while waiting releases its lease, says so, and exits 130 or 143 without starting its work. | `tests/lease.test.mjs::a signal while waiting releases the lease and runs nothing` | @implemented | `node --test tests/lease.test.mjs` |
 | F-10 | Two waiters are admitted one at a time, in ticket order. | `tests/lease.test.mjs::two waiters are admitted in ticket order, one at a time` | @implemented | `node --test tests/lease.test.mjs` |
-| F-11 | A campaign's lease records its isolated child's pid and group, and stays live while any of them lives, including after the parent is killed. | `tests/lease.test.mjs::a killed campaign parent's lease stays live while its child works` | @spec | `node --test tests/lease.test.mjs` |
-| F-12 | A campaign's own test runs, and this repository's selftest, use a private lease directory, so a test never reads or writes the machine's leases. | `tests/lease.test.mjs::a campaign's tests and the selftest use a private lease directory` | @spec | `node --test tests/lease.test.mjs` |
+| F-11 | A campaign's lease records its isolated child's pid and group, and stays live while any of them lives, including after the parent is killed. | `tests/lease.test.mjs::a killed campaign parent's lease stays live while its child works` | @implemented | `node --test tests/lease.test.mjs` |
+| F-12 | A campaign's own test runs, and this repository's selftest, use a private lease directory, so a test never reads or writes the machine's leases. | `tests/lease.test.mjs::a campaign's tests and the selftest use a private lease directory` | @implemented | `node --test tests/lease.test.mjs` |
 
 ## Domain
 

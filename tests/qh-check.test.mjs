@@ -80,4 +80,9 @@ test('a check with no load average records contended null and says the load coul
   const record = lastRecord(dir)
   assert.equal(record.contended, null)
   assert.match(err.text(), /could not read the load/)
+  // A campaign with no load average says so too.
+  const fixture = campaignFixture()
+  const run = campaign(fixture, ['--no-cache', '--case', 'answer'], { QUALITY_HARNESS_LOADAVG: '0 0 0', QUALITY_HARNESS_CORES: '4' })
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.match(run.stdout + run.stderr, /could not read the load/)
 })

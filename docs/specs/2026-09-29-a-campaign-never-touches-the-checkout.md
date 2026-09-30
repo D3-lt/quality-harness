@@ -1,6 +1,6 @@
 # Spec: A mutation campaign never touches the checkout, and every result says how loaded the machine was
 
-> **Date:** 2026-09-29 · **Status:** Draft
+> **Date:** 2026-09-29 · **Status:** Ready-for-ADR
 > **Owner:** Zy · **Becomes:** ADR (not yet written)
 > **Gate:** Status may become Ready-for-ADR only after `spec-verify --spec <this file>` exits 0.
 > **Cross-references:** docs/research/2026-09-26-model-out-of-the-loop.md (Stage 4, the interoception and homeostasis rows), docs/adr/ADR-069-a-stale-mutant-is-repointed-by-its-own-edit.md (`--root`), BACKLOG §272
@@ -21,7 +21,7 @@ A campaign changes zero bytes of the checkout, adds under 2 s for its worktree (
 |-------|------|------|
 | Maintainer session | human role | run a campaign or the gate and trust its verdict |
 | Peer session | system | keep running this checkout's code without meeting a mutant |
-| CI campaign | scheduled job | unchanged: runs in its own runner |
+| CI campaign | scheduled job | unchanged: runs in its own runner, and says `--in-place` |
 
 ## Use Cases
 
@@ -29,7 +29,7 @@ A campaign changes zero bytes of the checkout, adds under 2 s for its worktree (
 
 - **Trigger:** `node scripts/mutate.mjs [--case …]` · **Preconditions:** a git repository with a commit at `HEAD`
 - **Main flow:**
-  1. A worktree of `HEAD` is created under the OS temp directory.
+  1. A worktree holding the checkout's working-tree content — `HEAD`, its uncommitted tracked changes, and its untracked files that are not ignored — is created under the OS temp directory.
   2. The checkout's verdict cache is read into it.
   3. The campaign runs there, and its verdicts are merged back into the checkout's cache.
   4. The worktree is removed.
@@ -149,18 +149,18 @@ Then it says it could not look, and runs
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
 | F-1 | `mutate.mjs --root <dir>` confines catalogue, lock, journal and verdict cache to `<dir>`. | `tests/mutate-runner.test.mjs::campaignPaths keeps every campaign file inside the root it is given` | @spec | |
-| F-2 | mutate refuses entries whose files have uncommitted changes, and runs one campaign per root. | `tests/gate-rules.test.mjs::the mutation runner refuses to run over an editor, or beside another runner` | @spec | |
-| F-8 | A campaign runs in a throwaway worktree of HEAD by default; the checkout is byte-identical before and after and no mutant appears in it; `--in-place` keeps today's behaviour. | `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there` | @spec | |
+| F-2 | An `--in-place` campaign refuses entries whose files have uncommitted changes; one campaign runs per root, in either mode. | `tests/gate-rules.test.mjs::the mutation runner refuses to run over an editor, or beside another runner` | @spec | |
+| F-8 | A campaign runs by default in a throwaway worktree holding the checkout's working-tree content (`HEAD`, its uncommitted tracked changes, and its untracked files that are not ignored), so it grades exactly what an in-place run would; the checkout is byte-identical before and after and no mutant appears in it; `--in-place` keeps today's behaviour. | `tests/mutate-isolation.test.mjs::a campaign leaves the working tree byte-identical and its mutants never appear there` | @spec | |
 | F-9 | The worktree lives under the OS temp directory, is removed on any exit including SIGINT and SIGTERM, and one left by SIGKILL is removed and pruned by the next run, which says so. | `tests/mutate-isolation.test.mjs::a killed campaign's worktree is removed by the next run, and said` | @spec | |
 | F-10 | qh-check and mutate record the 1-minute load and core count at start and end; above the core count the record is `contended: true` and the result says unattributable, exit and verdict unchanged; with no load average `contended` is null and said as could-not-read. | `tests/qh-check.test.mjs::a check run above the core count is recorded as contended and said, and its exit is unchanged` | @spec | |
 | F-11 | Before an `--in-place` campaign, mutate names the other processes whose command line names this checkout, as advice, and runs; where it cannot list processes it says so. | `tests/mutate-isolation.test.mjs::an in-place campaign names the processes running this checkout, and says when it could not look` | @spec | |
-| F-12 | An isolated campaign reads the checkout's verdict cache and merges its verdicts back with the existing merge; a failed merge leaves the cache as it was and says so. | `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache` | @spec | |
+| F-12 | An isolated campaign starts from the checkout's verdict cache and writes the run's cache back in its own shape, one CI's merge job reads; a write-back that fails leaves the cache as it was and says so. | `tests/mutate-isolation.test.mjs::an isolated campaign reuses and returns the checkout's verdict cache` | @spec | |
 | F-13 | A campaign that cannot create its worktree exits 2 with "could not isolate", names `--in-place`, and writes nothing; it never falls back silently. | `tests/mutate-isolation.test.mjs::a campaign that cannot isolate stops and names --in-place, writing nothing` | @spec | |
 | F-14 | At one commit, isolated and in-place runs of the same entries give the same verdict for each. | `tests/mutate-isolation.test.mjs::an isolated run and an in-place run of the same entries give the same verdicts` | @spec | |
 
 ## Domain
 
-A **campaign** runs catalogue **entries** (mutants) against a **root**. An **isolated** campaign's root is a throwaway **worktree** of `HEAD`; an **in-place** campaign's root is the checkout. A **result** (a `qh-check` record or a campaign's verdicts) is **contended** when the load exceeded the core count while it ran.
+A **campaign** runs catalogue **entries** (mutants) against a **root**. An **isolated** campaign's root is a throwaway **worktree** holding the checkout's working-tree content; an **in-place** campaign's root is the checkout. A **result** (a `qh-check` record or a campaign's verdicts) is **contended** when the load exceeded the core count while it ran.
 
 ## Contracts Touched
 
@@ -172,7 +172,7 @@ A **campaign** runs catalogue **entries** (mutants) against a **root**. An **iso
 
 ## Non-Goals
 
-- The CI campaign: it already runs in its own runner.
+- The CI campaign: it already runs in its own runner, where nobody else loads its checkout, so it passes `--in-place` and pays no worktree.
 - Refusing or delaying a run for load: advice only (CLAUDE.md §3); a scheduler or job lease is Stage 7.
 - A gate cache: that is its own spec.
 
@@ -205,3 +205,4 @@ python3 plugin/bin/spec-verify --spec docs/specs/2026-09-29-a-campaign-never-tou
 | 5 | The verdict cache under isolation | F-12 | accepted |
 | 6 | What happens when isolation fails | F-13 | accepted |
 | 7 | The success criterion | F-14 | accepted |
+| 8 | What the isolated worktree holds (re-opened by ADR-075's cold review: a worktree of `HEAD` re-grades a committed test after an uncommitted edit to it) | F-8, F-2 | working-tree content; the uncommitted-file refusal becomes in-place only (owner, 2026-09-30) |

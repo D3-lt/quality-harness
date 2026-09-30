@@ -57,7 +57,7 @@ queued earlier is waiting, within a bound. Nothing is refused.
 
 ## Scenarios
 
-### UC1-S1 [happy] A run beside others names them and records them, and its outcome is its own [@spec] → `tests/lease.test.mjs::a run beside others names and records them, and its exit and verdict are its own` cmd:`node --test tests/lease.test.mjs`
+### UC1-S1 [happy] A run beside others names them and records them, and its outcome is its own [@implemented] → `tests/lease.test.mjs::a run beside others names and records them, and its exit and verdict are its own` cmd:`node --test tests/lease.test.mjs`
 
 ```gherkin
 Given two live leases held by other processes
@@ -65,7 +65,7 @@ When qh-check runs a failing check
 Then it names both with their command, pid and root, records both as beside, and exits with the check's own code and verdict
 ```
 
-### UC1-S2 [failure] A dead lease is removed, and an unreadable one is named as unknown [@spec] → `tests/lease.test.mjs::a dead lease is removed, and an unreadable one is named as unknown and kept` cmd:`node --test tests/lease.test.mjs`
+### UC1-S2 [failure] A dead lease is removed, and an unreadable one is named as unknown [@implemented] → `tests/lease.test.mjs::a dead lease is removed, and an unreadable one is named as unknown and kept` cmd:`node --test tests/lease.test.mjs`
 
 ```gherkin
 Given a lease whose process has ended, and a lease file that is not valid JSON
@@ -73,7 +73,7 @@ When a run starts
 Then the first is gone and not named, and the second is named as unknown and kept
 ```
 
-### UC1-S3 [failure] An unusable lease directory is said, and the run proceeds [@spec] → `tests/lease.test.mjs::a lease directory that cannot be used is said, and the run proceeds` cmd:`node --test tests/lease.test.mjs`
+### UC1-S3 [failure] An unusable lease directory is said, and the run proceeds [@implemented] → `tests/lease.test.mjs::a lease directory that cannot be used is said, and the run proceeds` cmd:`node --test tests/lease.test.mjs`
 
 ```gherkin
 Given a lease directory that is a file
@@ -81,7 +81,7 @@ When qh-check runs a check that exits 3
 Then it says it could not use the lease, runs the check, and exits 3
 ```
 
-### UC2-S1 [happy] A run asked to wait starts only after the other releases [@spec] → `tests/lease.test.mjs::a waiting run starts its check only after the running lease is released, and says how long it waited` cmd:`node --test tests/lease.test.mjs`
+### UC2-S1 [happy] A run asked to wait starts only after the other releases [@implemented] → `tests/lease.test.mjs::a waiting run starts its check only after the running lease is released, and says how long it waited` cmd:`node --test tests/lease.test.mjs`
 
 ```gherkin
 Given a running lease that its holder releases after one second, recording when
@@ -89,7 +89,7 @@ When qh-check runs with QUALITY_HARNESS_WAIT=1
 Then the check's start is after the release, and the run says how long it waited
 ```
 
-### UC2-S2 [failure] A wait past its bound stops waiting and runs [@spec] → `tests/lease.test.mjs::a wait past its bound says so and runs, within the bound` cmd:`node --test tests/lease.test.mjs`
+### UC2-S2 [failure] A wait past its bound stops waiting and runs [@implemented] → `tests/lease.test.mjs::a wait past its bound says so and runs, within the bound` cmd:`node --test tests/lease.test.mjs`
 
 ```gherkin
 Given a running lease that is never released
@@ -97,7 +97,7 @@ When qh-check runs with QUALITY_HARNESS_WAIT=1 and a one-second bound
 Then it says it stopped waiting, names the lease, runs the check, and finishes within the bound plus the check
 ```
 
-### UC2-S3 [failure] A signal while waiting releases the lease and runs nothing [@spec] → `tests/lease.test.mjs::a signal while waiting releases the lease and runs nothing` cmd:`node --test tests/lease.test.mjs`
+### UC2-S3 [failure] A signal while waiting releases the lease and runs nothing [@implemented] → `tests/lease.test.mjs::a signal while waiting releases the lease and runs nothing` cmd:`node --test tests/lease.test.mjs`
 
 ```gherkin
 Given qh-check waiting behind a running lease
@@ -105,7 +105,7 @@ When it receives SIGTERM
 Then it exits 143, its lease is gone, and the check never started
 ```
 
-### UC2-S4 [happy] Two waiters are admitted in ticket order [@spec] → `tests/lease.test.mjs::two waiters are admitted in ticket order, one at a time` cmd:`node --test tests/lease.test.mjs`
+### UC2-S4 [happy] Two waiters are admitted in ticket order [@implemented] → `tests/lease.test.mjs::two waiters are admitted in ticket order, one at a time` cmd:`node --test tests/lease.test.mjs`
 
 ```gherkin
 Given a running lease, and two qh-check runs waiting behind it
@@ -133,16 +133,16 @@ Then the campaign's lease is live, and it is removed only once the child has end
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | While `qh-check` runs its check, and while a campaign runs, it holds a lease naming its pid, command, root, start and state. It is released only once its work has ended, after `qh-check`'s check has closed, or after a campaign's child group has ended. | `tests/lease.test.mjs::a run holds a lease while it runs and releases it at its end` | @spec | `node --test tests/lease.test.mjs` |
-| F-2 | A run names, and `qh-check` records as `beside` and `besideAtEnd`, the other leases live or of unknown liveness when its work started and when it ended. The claim is those two observations, not every overlap. The exit code and verdict are unchanged. | `tests/lease.test.mjs::a run beside others names and records them, and its exit and verdict are its own` | @spec | `node --test tests/lease.test.mjs` |
-| F-3 | A lease whose processes have all ended is removed and not named. A lease that cannot be read, or whose liveness cannot be probed (a probe error other than "no such process" or "not permitted"), is named as unknown and kept, unless it is over a day old. | `tests/lease.test.mjs::a dead lease is removed, and an unreadable one is named as unknown and kept` | @spec | `node --test tests/lease.test.mjs` |
-| F-4 | With `QUALITY_HARNESS_WAIT=1` or `--wait`, a run publishes its lease as waiting, with the ticket (start, pid, lease name). It waits while any other lease is running, or waiting with an earlier ticket. It marks itself running before its work starts, and says how long it waited. | `tests/lease.test.mjs::a waiting run starts its check only after the running lease is released, and says how long it waited` | @spec | `node --test tests/lease.test.mjs` |
-| F-5 | A wait is bounded by `QUALITY_HARNESS_WAIT_MAX_S` (default 1800). Past it, the run says it stopped waiting, names what it runs beside, and runs. On Windows, `qh-check`'s launcher timeout includes the bound. | `tests/lease.test.mjs::a wait past its bound says so and runs, within the bound` | @spec | `node --test tests/lease.test.mjs` |
-| F-6 | A lease directory that cannot be read or written is said ("could not use the lease: <reason>"), and the run proceeds unleased with its own exit. | `tests/lease.test.mjs::a lease directory that cannot be used is said, and the run proceeds` | @spec | `node --test tests/lease.test.mjs` |
-| F-7 | The lease directory is `$QUALITY_HARNESS_LEASE_DIR`, else `quality-harness-leases` under the OS temp directory. | `tests/lease.test.mjs::the lease directory is the environment's, else one under the temp directory` | @spec | `node --test tests/lease.test.mjs` |
-| F-8 | A lease is published under a name unique to the run, written in full before it is visible, and a run removes only its own lease. | `tests/lease.test.mjs::a run holds a lease while it runs and releases it at its end` | @spec | `node --test tests/lease.test.mjs` |
-| F-9 | A run stopped by SIGINT or SIGTERM while waiting releases its lease, says so, and exits 130 or 143 without starting its work. | `tests/lease.test.mjs::a signal while waiting releases the lease and runs nothing` | @spec | `node --test tests/lease.test.mjs` |
-| F-10 | Two waiters are admitted one at a time, in ticket order. | `tests/lease.test.mjs::two waiters are admitted in ticket order, one at a time` | @spec | `node --test tests/lease.test.mjs` |
+| F-1 | While `qh-check` runs its check, and while a campaign runs, it holds a lease naming its pid, command, root, start and state. It is released only once its work has ended, after `qh-check`'s check has closed, or after a campaign's child group has ended. | `tests/lease.test.mjs::a run holds a lease while it runs and releases it at its end` | @implemented | `node --test tests/lease.test.mjs` |
+| F-2 | A run names, and `qh-check` records as `beside` and `besideAtEnd`, the other leases live or of unknown liveness when its work started and when it ended. The claim is those two observations, not every overlap. The exit code and verdict are unchanged. | `tests/lease.test.mjs::a run beside others names and records them, and its exit and verdict are its own` | @implemented | `node --test tests/lease.test.mjs` |
+| F-3 | A lease whose processes have all ended is removed and not named. A lease that cannot be read, or whose liveness cannot be probed (a probe error other than "no such process" or "not permitted"), is named as unknown and kept, unless it is over a day old. | `tests/lease.test.mjs::a dead lease is removed, and an unreadable one is named as unknown and kept` | @implemented | `node --test tests/lease.test.mjs` |
+| F-4 | With `QUALITY_HARNESS_WAIT=1` or `--wait`, a run publishes its lease as waiting, with the ticket (start, pid, lease name). It waits while any other lease is running, or waiting with an earlier ticket. It marks itself running before its work starts, and says how long it waited. | `tests/lease.test.mjs::a waiting run starts its check only after the running lease is released, and says how long it waited` | @implemented | `node --test tests/lease.test.mjs` |
+| F-5 | A wait is bounded by `QUALITY_HARNESS_WAIT_MAX_S` (default 1800). Past it, the run says it stopped waiting, names what it runs beside, and runs. On Windows, `qh-check`'s launcher timeout includes the bound. | `tests/lease.test.mjs::a wait past its bound says so and runs, within the bound` | @implemented | `node --test tests/lease.test.mjs` |
+| F-6 | A lease directory that cannot be read or written is said ("could not use the lease: <reason>"), and the run proceeds unleased with its own exit. | `tests/lease.test.mjs::a lease directory that cannot be used is said, and the run proceeds` | @implemented | `node --test tests/lease.test.mjs` |
+| F-7 | The lease directory is `$QUALITY_HARNESS_LEASE_DIR`, else `quality-harness-leases` under the OS temp directory. | `tests/lease.test.mjs::the lease directory is the environment's, else one under the temp directory` | @implemented | `node --test tests/lease.test.mjs` |
+| F-8 | A lease is published under a name unique to the run, written in full before it is visible, and a run removes only its own lease. | `tests/lease.test.mjs::a run holds a lease while it runs and releases it at its end` | @implemented | `node --test tests/lease.test.mjs` |
+| F-9 | A run stopped by SIGINT or SIGTERM while waiting releases its lease, says so, and exits 130 or 143 without starting its work. | `tests/lease.test.mjs::a signal while waiting releases the lease and runs nothing` | @implemented | `node --test tests/lease.test.mjs` |
+| F-10 | Two waiters are admitted one at a time, in ticket order. | `tests/lease.test.mjs::two waiters are admitted in ticket order, one at a time` | @implemented | `node --test tests/lease.test.mjs` |
 | F-11 | A campaign's lease records its isolated child's pid and group, and stays live while any of them lives, including after the parent is killed. | `tests/lease.test.mjs::a killed campaign parent's lease stays live while its child works` | @spec | `node --test tests/lease.test.mjs` |
 | F-12 | A campaign's own test runs, and this repository's selftest, use a private lease directory, so a test never reads or writes the machine's leases. | `tests/lease.test.mjs::a campaign's tests and the selftest use a private lease directory` | @spec | `node --test tests/lease.test.mjs` |
 

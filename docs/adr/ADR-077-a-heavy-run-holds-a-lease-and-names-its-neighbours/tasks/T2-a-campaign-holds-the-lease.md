@@ -8,7 +8,7 @@
 **Consumes:** `take`, `mark`, `observe`, `release`, `leaseDir` and `alive` in `plugin/scripts/lease.mjs` (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `a campaign holds a lease with its child`, `a killed parent's lease stays while its child works`, `a campaign waits when asked`, `a campaign's tests have a private lease directory`
+**Rests-on:** `a campaign holds a lease with its child`, `a killed parent's lease stays while its child works`, `a campaign waits when asked`, `a campaign's tests have a private lease directory`, `the suite has a private lease directory`
 
 ## Goal
 

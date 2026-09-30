@@ -1,5 +1,5 @@
-// Spec 2026-09-30, "a heavy run knows what else heavy is running" (N3): F-1 to F-12. Bound as
-// `todo` while the spec waits for its ADR; each is red today for its fact's reason.
+// Spec 2026-09-30, "a heavy run knows what else heavy is running" (N3): F-1 to F-12. Each was
+// committed as `todo`, red for its fact's reason; ADR-077 T1 and T2 turn their own tests on.
 //
 // Every run uses a scratch lease directory through `QUALITY_HARNESS_LEASE_DIR`, so no lease is read
 // from or left in the machine's. A neighbour is always a SEPARATE holder process that publishes its
@@ -84,7 +84,7 @@ async function holder(leases, { command = 'node scripts/mutate.mjs --case x', ro
 }
 const leaseFiles = leases => readdirSync(leases).filter(name => name.endsWith('.json'))
 
-test('a run holds a lease while it runs and releases it at its end', TODO, async () => {
+test('a run holds a lease while it runs and releases it at its end', async () => {
   const { dir, leases } = project("import { readdirSync, readFileSync } from 'node:fs'; import path from 'node:path'; const d = process.env.QUALITY_HARNESS_LEASE_DIR; console.log('LEASES' + JSON.stringify(readdirSync(d).filter(n => n.endsWith('.json')).map(n => JSON.parse(readFileSync(path.join(d, n), 'utf8')))))")
   const out = sink()
   assert.equal(await runCheck({ cwd: dir, stdout: out, stderr: sink(), env: env(leases) }), 0)
@@ -98,7 +98,7 @@ test('a run holds a lease while it runs and releases it at its end', TODO, async
   assert.deepEqual(readdirSync(leases), [], 'the lease, or its temporary file, outlived the run')
 })
 
-test('a run beside others names and records them, and its exit and verdict are its own', TODO, async () => {
+test('a run beside others names and records them, and its exit and verdict are its own', async () => {
   const { dir, leases } = project('process.exit(3)')
   const first = await holder(leases)
   const second = await holder(leases, { command: 'node plugin/scripts/qh-check.mjs', root: '/other' })
@@ -112,7 +112,7 @@ test('a run beside others names and records them, and its exit and verdict are i
   assert.equal(record.verdict, 'failed')
 })
 
-test('a dead lease is removed, and an unreadable one is named as unknown and kept', TODO, async () => {
+test('a dead lease is removed, and an unreadable one is named as unknown and kept', async () => {
   const { dir, leases } = project()
   const gone = spawnSync(process.execPath, ['-e', ''], { timeout: 20_000, windowsHide: true }).pid
   writeFileSync(path.join(leases, `${gone}-gone.json`), JSON.stringify({ pid: gone, command: 'gone', root: '/x', start: new Date().toISOString(), state: 'running' }))
@@ -125,7 +125,7 @@ test('a dead lease is removed, and an unreadable one is named as unknown and kep
   assert.equal(existsSync(path.join(leases, 'broken.json')), true, 'an unreadable lease was removed')
 })
 
-test('a waiting run starts its check only after the running lease is released, and says how long it waited', TODO, async () => {
+test('a waiting run starts its check only after the running lease is released, and says how long it waited', async () => {
   const { dir, leases } = project("import { writeFileSync } from 'node:fs'; writeFileSync(process.env.FIXTURE_STARTED, String(Date.now()))")
   const started = path.join(scratch, `started-${made}`)
   const neighbour = await holder(leases)
@@ -137,7 +137,7 @@ test('a waiting run starts its check only after the running lease is released, a
   assert.match(err.text(), /waited \d/)
 })
 
-test('a wait past its bound says so and runs, within the bound', TODO, async () => {
+test('a wait past its bound says so and runs, within the bound', async () => {
   const { dir, leases } = project()
   await holder(leases)
   const err = sink()
@@ -148,7 +148,7 @@ test('a wait past its bound says so and runs, within the bound', TODO, async () 
   assert.match(err.text(), /running beside/)
 })
 
-test('a lease directory that cannot be used is said, and the run proceeds', TODO, async () => {
+test('a lease directory that cannot be used is said, and the run proceeds', async () => {
   const { dir } = project('process.exit(3)')
   const file = path.join(scratch, `not-a-directory-${made}`)
   writeFileSync(file, '')
@@ -157,13 +157,13 @@ test('a lease directory that cannot be used is said, and the run proceeds', TODO
   assert.match(err.text(), /could not use the lease/)
 })
 
-test('the lease directory is the environment\'s, else one under the temp directory', TODO, async () => {
+test('the lease directory is the environment\'s, else one under the temp directory', async () => {
   const { leaseDir } = await import('../plugin/scripts/lease.mjs')
   assert.equal(leaseDir({ QUALITY_HARNESS_LEASE_DIR: '/x/y' }), '/x/y')
   assert.equal(leaseDir({}), path.join(os.tmpdir(), 'quality-harness-leases'))
 })
 
-test('a signal while waiting releases the lease and runs nothing', { ...TODO, skip: process.platform === 'win32' && 'Windows has no catchable SIGTERM' }, async () => {
+test('a signal while waiting releases the lease and runs nothing', { skip: process.platform === 'win32' && 'Windows has no catchable SIGTERM' }, async () => {
   const { dir, leases } = project("import { writeFileSync } from 'node:fs'; writeFileSync(process.env.FIXTURE_STARTED, 'x')")
   const started = path.join(scratch, `started-${made}`)
   const neighbour = await holder(leases)
@@ -176,7 +176,7 @@ test('a signal while waiting releases the lease and runs nothing', { ...TODO, sk
   assert.equal(existsSync(started), false, 'the check started while waiting')
 })
 
-test('two waiters are admitted in ticket order, one at a time', TODO, async () => {
+test('two waiters are admitted in ticket order, one at a time', async () => {
   const { dir, leases } = project("import { appendFileSync } from 'node:fs'; appendFileSync(process.env.FIXTURE_LOG, process.env.WHO + ' start ' + Date.now() + '\\n'); await new Promise(r => setTimeout(r, 500)); appendFileSync(process.env.FIXTURE_LOG, process.env.WHO + ' end ' + Date.now() + '\\n')")
   const log = path.join(scratch, `order-${made}`)
   const neighbour = await holder(leases)
@@ -190,6 +190,27 @@ test('two waiters are admitted in ticket order, one at a time', TODO, async () =
   await Promise.all([early, late])
   const events = readFileSync(log, 'utf8').trim().split('\n').map(line => line.split(' '))
   assert.deepEqual(events.map(([who, what]) => `${who} ${what}`), ['early start', 'early end', 'late start', 'late end'])
+})
+
+// ADR-077 T1 S6 found the test above blind to the ticket: its two waiters poll 50 ms apart, so the
+// first is admitted and marks itself running before the second looks, and a rule that ignored
+// tickets still passed. This one asks `admit` directly, with an earlier waiter's lease present.
+test('a waiter never starts ahead of an earlier waiter\'s ticket', async () => {
+  const { admit, release, take } = await import('../plugin/scripts/lease.mjs')
+  const { leases } = project()
+  const earlier = path.join(leases, 'earlier.json')
+  writeFileSync(earlier, JSON.stringify({ pid: process.pid, command: 'an earlier waiter', root: '/x', start: new Date(Date.now() - 60_000).toISOString(), state: 'waiting' }))
+  const held = take(leases, { command: 'a later waiter', root: '/y', state: 'waiting' })
+  assert.equal(held.error, undefined, held.error)
+  try {
+    const blocked = await admit(leases, held, { maxMs: 1_200 })
+    assert.equal(blocked.admitted, false, 'a later ticket started ahead of an earlier waiter')
+    rmSync(earlier)
+    const turn = await admit(leases, held, { maxMs: 1_200 })
+    assert.equal(turn.admitted, true, 'the later waiter was not admitted once the earlier one had gone')
+  } finally {
+    release(held)
+  }
 })
 
 test('a campaign holds a lease that records its isolated child, and releases it at its end', TODO, async () => {

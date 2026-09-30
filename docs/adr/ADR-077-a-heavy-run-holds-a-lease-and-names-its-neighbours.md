@@ -1,6 +1,6 @@
 # ADR-077: A heavy run holds a lease, and names the heavy runs beside it
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-30
 **Owner:** Zy
 **Spec:** docs/specs/2026-09-30-a-heavy-run-knows-what-else-is-running.md

@@ -15294,8 +15294,8 @@
       "tests": [
         "tests/untimed-children.test.mjs"
       ],
-      "from": "        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60)",
-      "to": "        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + 60, creationflags=0x08000000)",
+      "from": "        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + waited + 60)",
+      "to": "        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + waited + 60, creationflags=0x08000000)",
       "only": "no window"
     },
     {
@@ -18356,6 +18356,76 @@
       "from": "    return { ok: false, error: `could not prepare ${home}: ${error.message}` }",
       "to": "    throw error",
       "only": "^a git directory that cannot be written is a build error, not a throw$"
+    },
+    {
+      "label": "ADR-077 T1: a run holds a lease while it runs",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    publish(file, lease)\n    return { file, lease }",
+      "to": "    return { file, lease }",
+      "only": "^a run holds a lease while it runs and releases it at its end$"
+    },
+    {
+      "label": "ADR-077 T1: neighbours are named at start and end",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    besideAtEnd = look()",
+      "to": "    besideAtEnd = null",
+      "only": "^a run beside others names and records them, and its exit and verdict are its own$"
+    },
+    {
+      "label": "ADR-077 T1: a dead lease is removed",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    if (state === 'dead') {",
+      "to": "    if (state === 'never') {",
+      "only": "^a dead lease is removed, and an unreadable one is named as unknown and kept$"
+    },
+    {
+      "label": "ADR-077 T1: a waiter is admitted in ticket order",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "      || before(ticket(other.start, other.pid, other.file), mine))",
+      "to": "      || false)",
+      "only": "^a waiter never starts ahead of an earlier waiter's ticket$"
+    },
+    {
+      "label": "ADR-077 T1: a wait is bounded",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "      turn = await admit(leases, held, { maxMs: waitMaxMs(env), stopped: () => stopped })",
+      "to": "      turn = await admit(leases, held, { maxMs: waitMaxMs(env) * 10, stopped: () => stopped })",
+      "only": "^a wait past its bound says so and runs, within the bound$"
+    },
+    {
+      "label": "ADR-077 T1: a signal while waiting releases",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "      release(held)\n      stderr.write(`qh-check: stopped by",
+      "to": "      stderr.write(`qh-check: stopped by",
+      "only": "^a signal while waiting releases the lease and runs nothing$"
+    },
+    {
+      "label": "ADR-077 T1: an unusable directory is said",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    stderr.write(`qh-check: could not use the lease: ${held.error}; running without one.\\n`)",
+      "to": "    void held.error",
+      "only": "^a lease directory that cannot be used is said, and the run proceeds$"
     }
   ]
 }

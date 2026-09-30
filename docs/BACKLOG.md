@@ -16634,3 +16634,5 @@ The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date 
 - **`plugin/bin/adr-verify --mutant` and `scripts/unasserted.mjs` rewrite source in the checkout too**, found by the class command in ADR-075's Context. Same exposure, one mutant at a time.
 - **A fence `adr-verify` records does not say its load**, so a Verification Log entry taken under contention reads like any other.
 - **ADR-071's other two deferrals to this file** — an entry whose `from` spans lines, and an entry whose edit only inserts — are the Stage 4 line of 2026-09-27 above, which predates ADR-071 and so never named it; they stay open there.
+
+**§301, 2026-09-30: the roadmap has a plan with contracts.** `docs/research/2026-09-30-the-nervous-system-plan.md` turns §301's stages into N1 to N5, each naming its producer, reader, permitted action, unknown arm, owner, dataset and numeric criteria. A Codex review of the plan found the roadmap had none. N1 is ADR-075 (Proposed, amended for the same review's four blocking findings). The machine lease is split out of Stage 7 as N3.

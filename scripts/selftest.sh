@@ -13,9 +13,11 @@ set -euo pipefail
 # Not on Windows: a CI runner there is discarded after the job, and a longer temp
 # prefix eats into MAX_PATH under fixtures that are measured against it.
 QH_RUN_TMP=''
+QH_LEASES=''
 cleanup() {
   if command -v pkill >/dev/null 2>&1; then pkill -P $$ 2>/dev/null || true; fi
   if [ -n "$QH_RUN_TMP" ]; then rm -rf "${QH_RUN_TMP:?}"; fi
+  if [ -n "$QH_LEASES" ]; then rm -rf "${QH_LEASES:?}"; fi
 }
 trap cleanup EXIT
 case "$(uname -s)" in
@@ -25,6 +27,10 @@ case "$(uname -s)" in
     export TMPDIR="$QH_RUN_TMP" TMP="$QH_RUN_TMP" TEMP="$QH_RUN_TMP"
     ;;
 esac
+# ADR-077: the tests never read or leave the machine's leases, and nothing in them waits its turn.
+QH_LEASES=$(mktemp -d "${TMPDIR:-/tmp}/qh-leases.XXXXXX")
+export QUALITY_HARNESS_LEASE_DIR="$QH_LEASES"
+unset QUALITY_HARNESS_WAIT
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # ADR-008 split the two: the tests live in the repository, the thing they

@@ -314,3 +314,18 @@ already thought of; it cannot read the whole output over a shape it has never se
   count, then run the gate as its own job with its whole budget.
 
 Why: `.claude/rules/18-somebody-else-runs-it.md`
+
+## 19. Judge cost from the adopter's session, not from this repository's
+
+- **What the plugin costs is what an installed copy puts into someone else's session.** That is the
+  skill and agent listing on every start and every compaction, each hook's output on each event, and
+  a skill's body each time it is invoked — sent again after every compaction. Measure that, on a fresh
+  repository and on a corpus, before deciding what to shorten or to speed up.
+- **A session in this repository is not an adopter's session.** It also carries the owner's instruction
+  files, other plugins and this repository's own hooks. A share measured here is not the plugin's share.
+- **A line a hook re-sends is paid on every event where its text differs.** Keep volatile text, such as
+  an age in seconds, out of the text a reader compares; otherwise unchanged-suppression never fires.
+- **An always-on cost needs an always-on reason.** The listing and the per-prompt brief are paid by
+  every adopter in every session. A skill body is paid only by the sessions that call that skill.
+
+Why: `.claude/rules/19-adopter-footprint.md`

@@ -13,7 +13,7 @@ import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileS
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { budgeted, cached, collect, gitDir, refreshBehind, render, shell, snapshotKey, usableCache } from '../plugin/scripts/branch-state.mjs'
+import { budgeted, cached, collect, gitDir, pastShowCap, refreshBehind, render, shell, snapshotKey, usableCache } from '../plugin/scripts/branch-state.mjs'
 
 const ok = out => ({ ok: true, out })
 const no = note => ({ ok: false, out: '', note })
@@ -940,17 +940,21 @@ test('a brief snapshot past the age cap is not shown, and a refresh starts', t =
 // `--cached 3600` showed a 30-minute-old answer; and the age was rounded first, so
 // 600.4 s passed a 600 s cap. The cap holds for every brief, whatever --cached says.
 test('a brief never shows a snapshot past the cap, whatever --cached allows', t => {
-  const { project, gitDir } = keyedRepository(t, 'qh-capped-long-')
-  const cache = path.join(gitDir, 'qh-branch-state.json')
-  const brief = cached => spawnSync(process.execPath, [branchScript, '--brief', '--cached', cached],
-    { cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000 })
+  // One repository per case: a case's refresher writes its snapshot behind the prompt,
+  // and in a shared repository that write could land after the next case's.
   for (const [ageMs, cached] of [[1_800_000, '3600'], [600_400, '3600']]) {
+    const { project, gitDir } = keyedRepository(t, `qh-capped-${ageMs}-`)
+    const cache = path.join(gitDir, 'qh-branch-state.json')
     writeFileSync(cache, JSON.stringify({ at: Date.now() - ageMs, key: snapshotKey(gitDir), state: { ...greenState, branch: 'an-old-branch' } }))
-    const served = brief(cached)
+    const served = spawnSync(process.execPath, [branchScript, '--brief', '--cached', cached],
+      { cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000 })
     assert.equal(served.status, 0, served.stderr)
     assert.doesNotMatch(served.stdout, /an-old-branch|every job concluded success/, `${ageMs} ms old: ${served.stdout}`)
     assert.match(served.stdout, /past the 10-minute cap/, served.stdout)
   }
+  // The comparison itself, where a clock cannot make the case: 0.4 s past the cap is past it.
+  assert.equal(pastShowCap(600_400), true)
+  assert.equal(pastShowCap(600_000), false)
 })
 
 test('the full report and a brief with no snapshot are collected in the foreground', t => {

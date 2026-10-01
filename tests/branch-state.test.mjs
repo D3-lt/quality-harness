@@ -980,6 +980,11 @@ test('an unchanged unknown is said once, and only a red CI repeats', t => {
   writeFileSync(cache, JSON.stringify({ at: Date.now() - 1_800_000, key: snapshotKey(gitDir), state: greenState }))
   assert.match(brief().stdout, /past the 10-minute cap/)
   assert.equal(brief().stdout, '', 'a withheld snapshot is said once')
+  // Codex on f79d84d: the cache writer keeps `said` across a refresh, so a stamp that
+  // named no snapshot silenced the NEXT snapshot's expiry. A replacement is said again.
+  const kept = JSON.parse(readFileSync(cache, 'utf8'))
+  writeFileSync(cache, JSON.stringify({ ...kept, at: Date.now() - 1_200_000, state: { ...greenState, head: 'def5678' } }))
+  assert.match(brief().stdout, /past the 10-minute cap/, 'a replaced snapshot that expired is said again')
 })
 
 test('the full report and a brief with no snapshot are collected in the foreground', t => {

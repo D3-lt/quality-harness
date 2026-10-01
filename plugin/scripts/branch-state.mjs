@@ -611,8 +611,10 @@ export function ciRed(state) {
 
 // What a brief stamps when it withheld a snapshot past the cap, so the next prompt
 // that would withhold it again says nothing: the age in the message changes on every
-// prompt, and an unchanged unknown is said once (CLAUDE.md §15).
-const WITHHELD = 'withheld: past the cap'
+// prompt, and an unchanged unknown is said once (CLAUDE.md §15). The stamp names the
+// snapshot by its `at`: the cache writer keeps `said` across a refresh, and a stamp that
+// named none silenced the next snapshot's expiry too (Codex review of f79d84d).
+const withheldStamp = snapshot => `withheld: past the cap @${snapshot?.at}`
 
 function stampBriefSaid(store, said) {
   if (!store) return
@@ -776,14 +778,14 @@ function main(argv = process.argv.slice(2)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const refreshing = refreshBehind({ gitDir: hint })
     if (pastShowCap(now - previous.at)) {
-      if (previous.said === WITHHELD) {
+      if (previous.said === withheldStamp(previous)) {
         finish('withheld-stale-again', { status: 0 })
         return 0
       }
       process.stdout.write(`branch-state: the last answer is ${Math.round(age / 60)} min old, past the `
         + `${SHOW_AT_MOST_SECONDS / 60}-minute cap, so it is not shown; `
         + `${refreshing ? 'refreshing' : 'a refresh could not be started'}.\n`)
-      stampBriefSaid(join(hint, 'qh-branch-state.json'), WITHHELD)
+      stampBriefSaid(join(hint, 'qh-branch-state.json'), withheldStamp(previous))
       finish('withheld-stale', { status: 0 })
       return 0
     }

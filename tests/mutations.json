@@ -146,8 +146,8 @@
         "tests/branch-state.test.mjs"
       ],
       "only": "branch, HEAD or upstream moved",
-      "from": "  if (freshSnapshot(previous, now, maxAgeSeconds, hint ? snapshotKey(hint) : null)) {",
-      "to": "  if (freshSnapshot(previous, now, maxAgeSeconds, previous?.key)) {"
+      "from": "  if (freshSnapshot(previous, now, servedFor, hint ? snapshotKey(hint) : null)) {",
+      "to": "  if (freshSnapshot(previous, now, servedFor, previous?.key)) {"
     },
     {
       "label": "branch-state: cached serves only a snapshot keyed to now",
@@ -9262,7 +9262,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if check is None:\n        return None\n    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven, \"hasher\": hasher}",
+      "from": "    if checks != 1:\n        return None\n    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven, \"hasher\": hasher}",
       "to": "    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven, \"hasher\": hasher}",
       "only": "a lock map with no check record is unreadable"
     },
@@ -18553,7 +18553,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "    if (age > SHOW_AT_MOST_SECONDS) {",
+      "from": "    if (now - previous.at > SHOW_AT_MOST_SECONDS * 1000) {",
       "to": "    if (false) {",
       "only": "^a brief snapshot past the age cap is not shown, and a refresh starts$"
     },
@@ -18573,8 +18573,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        return label or word in _H2_REGEX_WORDS",
-      "to": "        return word in _H2_REGEX_WORDS",
+      "from": "        if label:\n            return True\n        if word in _H2_CONTEXTUAL:",
+      "to": "        if word in _H2_CONTEXTUAL:",
       "only": "^hasher 2 reads a regex literal as a regex and a division as a division$"
     },
     {
@@ -18676,6 +18676,136 @@
       "from": "    snap = snapshot_lock(cwd, tests)",
       "to": "    snap = snapshot_lock(cwd, tests, hasher=1)",
       "only": "^relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1$"
+    },
+    {
+      "label": "Codex 01443dd: a literal is masked as white space before an arrow's expression body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        ch if kinds[j] == 0 or ch == \"\\n\" else \"\\0\" if kinds[j] == 1 else \" \"",
+      "to": "        ch if kinds[j] == 0 or ch == \"\\n\" else \" \"",
+      "only": "^a literal opening an arrow expression body is inside its lock$"
+    },
+    {
+      "label": "Codex 01443dd: a property name is told only across white space, not a comment",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                dot = prev == (\"op\", \".\")",
+      "to": "                dot = text[i - 1:i] == \".\"",
+      "only": "^a division is never read as a regex that swallows a block$"
+    },
+    {
+      "label": "Codex 01443dd: TypeScript's non-null assertion is an operator",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif c == \"!\" and ts and _h2_is_value(prev) and not text.startswith(\"!=\", i):",
+      "to": "        elif False:",
+      "only": "^a division is never read as a regex that swallows a block$"
+    },
+    {
+      "label": "Codex 01443dd: a slash after of, yield or await is guessed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if word in _H2_CONTEXTUAL:\n            return None\n",
+      "to": "",
+      "only": "^a slash after of, yield or await is never guessed$"
+    },
+    {
+      "label": "Codex 01443dd: a slash after a reserved word divides",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        return word in _H2_RESERVED and word not in _H2_VALUE_WORDS",
+      "to": "        return False",
+      "only": "^a regex after debugger or a for-await header is data, never a test$"
+    },
+    {
+      "label": "Codex 01443dd: a for-await header is not a for header",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if header == \"await\" and prev[4] == \"for\":",
+      "to": "            if False:",
+      "only": "^a regex after debugger or a for-await header is data, never a test$"
+    },
+    {
+      "label": "Codex 01443dd: Unicode white space is an identifier",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if _h2_space(c):",
+      "to": "        if c in \" \\t\\r\\n\":",
+      "only": "^a Unicode line terminator or space is read as JavaScript reads it$"
+    },
+    {
+      "label": "Codex 01443dd: a line comment ends only at a line feed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            end = _h2_line_end(text, i)\n            mark(i, end, 2)",
+      "to": "            end = text.find(\"\\n\", i)\n            end = len(text) if end < 0 else end\n            mark(i, end, 2)",
+      "only": "^a Unicode line terminator or space is read as JavaScript reads it$"
+    },
+    {
+      "label": "Codex 01443dd: a file ending inside an interpolation is read whole",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if stop is None and interp:",
+      "to": "    if False:",
+      "only": "^an interpolation still open at the end of the file leaves its tests unproven$"
+    },
+    {
+      "label": "Codex 01443dd: an unreadable recorded lock is hasher 1 to a relock",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if recorded is not None and recorded.get(\"map\") is None:\n        return None\n",
+      "to": "",
+      "only": "^a versioned lock that cannot be read, or reads two ways, is never read as hasher 1$"
+    },
+    {
+      "label": "Codex 01443dd: a relock of an unreadable lock is not said as one",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if hasher is None:",
+      "to": "        if False:",
+      "only": "^a versioned lock that cannot be read, or reads two ways, is never read as hasher 1$"
+    },
+    {
+      "label": "Codex 01443dd: a brief's cache hit is not capped",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const servedFor = brief ? Math.min(maxAgeSeconds, SHOW_AT_MOST_SECONDS) : maxAgeSeconds",
+      "to": "  const servedFor = maxAgeSeconds",
+      "only": "^a brief never shows a snapshot past the cap, whatever --cached allows$"
+    },
+    {
+      "label": "Codex 01443dd: the cap reads a rounded age",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "    if (now - previous.at > SHOW_AT_MOST_SECONDS * 1000) {",
+      "to": "    if (Math.round((now - previous.at) / 1000) > SHOW_AT_MOST_SECONDS) {",
+      "only": "^a brief never shows a snapshot past the cap, whatever --cached allows$"
     }
   ]
 }

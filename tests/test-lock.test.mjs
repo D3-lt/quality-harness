@@ -3568,3 +3568,99 @@ test('a lock naming a hasher this reader does not know is unproven', async () =>
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// The Codex round on 01443dd (2026-10-01). Every input here is one where hasher 2
+// hashed a PREFIX of a test or named data as a test — a fail-open. Each edit changes
+// what node runs; the lock must say so, as a moved hash or as UNPROVEN, never clean.
+const VICTIM = 'lexer fixture victim'
+function editIsSeen(file, before, after, name = VICTIM) {
+  const dir = tmpRepo()
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, file), before)
+    const tests = [[name, file]]
+    const lock = takeLock(dir, tests)
+    writeFileSync(join(dir, file), after)
+    const got = findings(dir, [lock.row], tests)
+    assert.ok(got.blocks.some(b => b.includes(name)),
+      `${file}: an edit that changes what node runs left the lock clean\n${before}\n---\n${after}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+function namesNoGhost(file, src) {
+  const dir = tmpRepo()
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, file), src)
+    const got = takeLock(dir, [['lexer fixture ghost', file]])
+    assert.deepEqual(got.bodies, [], `data was locked as a test:\n${src}`)
+    assert.deepEqual(got.unproven, ['lexer fixture ghost'])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+const HEAD = "import test from 'node:test'\n"
+
+test('a literal opening an arrow expression body is inside its lock', () => {
+  const string = e => `${HEAD}test('${VICTIM}', () => '${e}' && assert.equal(1, 2))\n`
+  editIsSeen(LEXER_SUBJECT, string('enabled'), string(''))
+  const template = e => `${HEAD}test('${VICTIM}', () => \`prefix\${ {a:1}.a }\${assert.equal(1, ${e})}\`)\n`
+  editIsSeen(LEXER_SUBJECT, template(1), template(2))
+})
+
+test('a division is never read as a regex that swallows a block', () => {
+  const tail = e => `; if (true) { /x/.test('x'); }\n  assert.equal(1, ${e})\n})\n`
+  const body = (lead, e) => `${HEAD}test('${VICTIM}', () => {\n${lead}${tail(e)}`
+  editIsSeen(LEXER_SUBJECT, body('  const n = obj./* gap */in / 2', 1), body('  const n = obj./* gap */in / 2', 2))
+  editIsSeen(LEXER_SUBJECT, `const of = 4\n${body('  const n = of / 2', 1)}`, `const of = 4\n${body('  const n = of / 2', 2)}`)
+  editIsSeen('tests/lexer-subject.test.ts', body('  const n = m! / 2', 1), body('  const n = m! / 2', 2))
+})
+
+test('a regex after debugger or a for-await header is data, never a test', () => {
+  namesNoGhost(LEXER_SUBJECT, `${HEAD}debugger\n/test('lexer fixture ghost', () => {})/;\n`)
+  namesNoGhost(LEXER_SUBJECT, `${HEAD}for await (const x of [1]) /test('lexer fixture ghost', () => {})/;\n`)
+})
+
+test('a Unicode line terminator or space is read as JavaScript reads it', () => {
+  const after = e => `${HEAD}test('${VICTIM}', () => {\n  // a comment   assert.equal(1, ${e})\n})\n`
+  editIsSeen(LEXER_SUBJECT, after(1), after(2))
+  const space = e => `${HEAD}test('${VICTIM}', () => {\n  return /}/.test('x') || assert.equal(1, ${e})\n})\n`
+  editIsSeen(LEXER_SUBJECT, space(1), space(2))
+})
+
+test('a slash after of, yield or await is never guessed', () => {
+  // `of` is a keyword in a for-of header and a name elsewhere: read as a name, the
+  // regex below divides, its `}` closes the body early and the assertion falls out.
+  const body = e => `${HEAD}test('${VICTIM}', () => {\n  for (const m of /}/.exec('}') ?? []) { void m }\n  assert.equal(1, ${e})\n})\n`
+  editIsSeen(LEXER_SUBJECT, body(1), body(2))
+})
+
+test('an interpolation still open at the end of the file leaves its tests unproven', () => {
+  namesNoGhost(LEXER_SUBJECT, `${HEAD}const broken = \`\${ test('lexer fixture ghost', () => {})\n`)
+})
+
+test('a versioned lock that cannot be read, or reads two ways, is never read as hasher 1', async () => {
+  const { createHash } = await import('node:crypto')
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const row = payload => `- 2026-10-01 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12 · test-lock-sha256:${createHash('sha256').update(payload).digest('hex')} · test-lock-b64:${Buffer.from(payload, 'utf8').toString('base64url')}`
+    const body = `body\ttests/lock-subject.test.mjs\tlocked dirty\t${'0'.repeat(64)}`
+    const twoWays = findings(dir, [row(`check@9\tabsent\ncheck@2\tabsent\n${body}`)])
+    assert.ok(twoWays.blocks.some(b => b.includes('UNPROVEN')), twoWays.blocks.join('\n'))
+    assert.ok(!twoWays.blocks.some(b => b.includes('moved')), twoWays.blocks.join('\n'))
+    const task = writeRelockTask(dir, [row(`check@1000000\tabsent\n${body}`)])
+    const before = readFileSync(task, 'utf8')
+    const run = verifyRelock(dir, task)
+    assert.equal(run.status, 2, `an unreadable lock must not be relocked unasked\n${run.stdout}\n${run.stderr}`)
+    assert.match(run.stdout + run.stderr, /UNPROVEN/)
+    assert.equal(readFileSync(task, 'utf8'), before)
+    const unread = writeRelockTask(dir, [row(`check@9\tabsent\ncheck@2\tabsent\n${body}`)])
+    const refused = verifyRelock(dir, unread)
+    assert.equal(refused.status, 2, refused.stdout + refused.stderr)
+    assert.match(refused.stdout + refused.stderr, /could not be read/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

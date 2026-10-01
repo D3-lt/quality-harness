@@ -18823,7 +18823,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "      if (previous.said === WITHHELD) {",
+      "from": "      if (previous.said === withheldStamp(previous)) {",
       "to": "      if (false) {",
       "only": "^an unchanged unknown is said once, and only a red CI repeats$"
     },
@@ -18886,6 +18886,16 @@
       "from": "@lru_cache(maxsize=32)\ndef _file_lock_digests(",
       "to": "def _file_lock_digests(",
       "only": "^a test file named by several tasks is read once, on its text$"
+    },
+    {
+      "label": "branch-state: a withheld stamp names no snapshot",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const withheldStamp = snapshot => `withheld: past the cap @${snapshot?.at}`",
+      "to": "const withheldStamp = snapshot => 'withheld: past the cap'",
+      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
     }
   ]
 }

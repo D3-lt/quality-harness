@@ -609,8 +609,11 @@ export async function runArtifactBatch(raw) {
   }
   const finish = startPerformanceTrace('artifact-batch', raw, process.env, batch.paths)
   // The per-path result the caller records as `artifact.gated` (ADR-060 T6).
-  // stdout, because the findings themselves own stderr.
-  const report = (filePath, complete) => process.stdout.write(`${JSON.stringify({ gated: filePath, complete })}\n`)
+  // stdout, because the findings themselves own stderr. `said` is what this
+  // path's gate wrote there, so a pass behind the boundary can keep a verdict
+  // and its findings on one line (ADR-080).
+  // Only a caller that asked for it gets `said`: the others read stdout as before.
+  const report = (filePath, complete, said = '') => process.stdout.write(`${JSON.stringify({ gated: filePath, complete, ...(said && batch.said === true ? { said } : {}) })}\n`)
   const history = archiveHistory(batch.paths, batch.deadline)
   for (const [index, filePath] of batch.paths.entries()) {
     const remaining = batch.deadline - Date.now()
@@ -624,18 +627,34 @@ export async function runArtifactBatch(raw) {
       break
     }
     const verdict = {}
-    const status = await runShellHook('facts-gate-dispatch.sh',
-      JSON.stringify({ tool_input: { file_path: filePath } }), {
-        timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT,
-        windowMs: batch.windowMs,
-        archiveCatalog: history.get(filePath),
-        verdict,
-      })
-    report(filePath, verdict.complete === true)
+    // Captured while still written through: stderr stays what it was, and the
+    // capture is undone before the next path, whatever the gate did.
+    const said = []
+    const write = process.stderr.write
+    process.stderr.write = (chunk, ...rest) => {
+      said.push(String(chunk))
+      return write.call(process.stderr, chunk, ...rest)
+    }
+    let status
+    try {
+      status = await runShellHook('facts-gate-dispatch.sh',
+        JSON.stringify({ tool_input: { file_path: filePath } }), {
+          timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT,
+          windowMs: batch.windowMs,
+          archiveCatalog: history.get(filePath),
+          verdict,
+        })
+    } finally {
+      process.stderr.write = write
+    }
+    report(filePath, verdict.complete === true, said.join(''))
     if (status !== 0) {
       process.stderr.write('The batch stopped after unconfirmed process cleanup. UNRUN artifacts:\n'
         + batch.paths.slice(index + 1).join('\n') + '\n')
       for (const unchecked of batch.paths.slice(index + 1)) report(unchecked, false)
+      // A pass gating in chunks must stop too, or its next chunk starts gates
+      // beside children nobody confirmed ended (Codex review of ADR-080).
+      if (batch.said === true) process.stdout.write(`${JSON.stringify({ stopped: 'cleanup-unconfirmed' })}\n`)
       finish('cleanup-unconfirmed', { status, cleanupConfirmed: false })
       break
     }

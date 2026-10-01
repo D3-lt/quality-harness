@@ -1,6 +1,6 @@
 # ADR-080: No hook waits on the artifact pass
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-01
 **Owner:** Zy
 **Spec:** docs/specs/2026-10-01-no-hook-waits-on-the-artifact-pass.md
@@ -52,6 +52,8 @@ The pass writes one file, `passes/<session>.jsonl`:
 The pass takes the machine lease. It stops its batch at its own deadline and deletes the lock only while the lock still holds its token.
 
 Every lifecycle hook except a read-only reviewer's PreToolUse imports new `pass.gated` lines into the session log as `artifact.gated`, naming the pass. It queues each finding as rule A keyed by path and identity, so it is said once whether or not the pass has ended. The session log keeps its writers. This fails if any boundary hook still gates in line: the first test blocks the runner and asserts the hook returns and the session log holds no verdict.
+
+**Revised after the code review (2026-10-01).** A stale lock is reclaimed through a successor file named for its token and created exclusively, never by moving it aside. A pass releases its lock only before its deadline, and it stops gating by that deadline less its grace. A finding is said once per path, content, completeness and words. A batch stopped on unconfirmed cleanup stops the pass. A pass that leaves no end in its ledger is said UNRUN, because the hook records each pass it starts in the session log. Details and what is left: docs/BACKLOG.md §331.
 
 ## Alternatives Considered
 

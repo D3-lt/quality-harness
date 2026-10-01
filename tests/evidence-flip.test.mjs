@@ -210,6 +210,12 @@ const READERS = {
   // an artifact, so nothing runs rule A against a torn log. The claim — a lost
   // `artifact.gated` re-gates, a lost `action.emitted` re-fires — is still prose.
   artifactRule: { unexecuted: 'docs/audits/2026-09-18-adr-060.md — needs a fixture with a gated artifact' },
+  // ADR-080. NOT executed. Both read the log only to say a thing once: a lost
+  // `artifact.gated` is imported again from the pass's ledger, a lost
+  // `action.emitted` says a finding or an UNRUN again. A torn log can add a line
+  // to what is said, never remove one, and neither builds a verdict.
+  importPassVerdicts: { unexecuted: 'ADR-080 T1 — needs a fixture that tears the log beside a pass ledger' },
+  startArtifactPass: { unexecuted: 'ADR-080 T1 — needs a fixture that tears the log when a pass cannot start' },
 }
 
 test('every reader of the session log is driven above, or says why a lost line cannot flatter it', () => {

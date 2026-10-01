@@ -16973,3 +16973,34 @@ targets took 43.3 s. ADR-080 takes the pass off every hook's critical path, whic
 not the work. Gating a batch in one shell would cut the work too, but it gives up the dispatcher's
 per-path isolation, so it is its own decision. Measure the pass's wall time after ADR-080 ships before
 deciding.
+
+## 331. OPEN 2026-10-01 — ADR-080 shipped behind the boundary; what its code review changed, and what is left
+
+ADR-080 is executed: no boundary gates artifacts in line. Replayed on a local clone of an adopter's real 422 KB
+session log, a commit's PreToolUse took 44287 ms at 9ed651c and 164 ms after; the detached pass then gated all
+217 targets in 93 s, in one pass.
+
+A cold Codex round on the code (gpt-6-astra, xhigh) asked for changes. Each finding was confirmed against
+source, fixed, and given a test and a catalogue mutant:
+1. A finding's key was only path and content, so a timeout said first silenced a later real finding about the
+   same bytes. The key now also carries whether the verdict was complete, and a hash of what it said.
+2. Reclaiming a stale lock could leave two owners, and a late release could delete a successor's lock.
+   Reclaim now goes through a successor file named for the stale lock's token, created exclusively. A pass
+   releases only before its deadline, and it stops gating by the lock's deadline less its grace.
+3. A batch that stopped on unconfirmed cleanup stopped only its chunk. It now says so on the batch protocol,
+   and the pass stops; the rest is said UNRUN.
+4. A pass that failed, or could not write its ledger, could stay silent. The hook records each pass it starts
+   in the session log, and the next hook says UNRUN for a pass that left no end.
+5. A failed spawn's `error` was attached after an early return. It is attached first.
+
+Left, named rather than fixed:
+- **No test produces a real failed spawn** (`child.pid` undefined); the fix is the listener's order only.
+- **Windows job objects:** a host that kills its hook's job may take a detached child with it. Unverified;
+  a pass that dies leaves its lock to lapse, and the next boundary resumes it.
+- **The import reads the ledger and the session log on every hook.** Its cost at adopter scale is not
+  measured.
+- **The one-second race left by item 2:** an owner releasing at the exact instant of its deadline can still
+  remove a successor's lock. The cost is duplicate gating, never a lost verdict.
+- **branch-state said `CI COULD NOT LOOK` twice on 9ed651c**, naming runs at shas from an older page
+  (3ecf036, then c11a507), while `gh run list` listed 9ed651c's run first and green. Reproduce the query the
+  brief makes before deciding whether it is `gh` paging or the reader's selection.

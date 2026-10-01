@@ -12246,8 +12246,8 @@
       "tests": [
         "tests/late-baseline.test.mjs"
       ],
-      "from": "    if (recorded?.event === 'publish.requested') artifactRule(input, recorded)",
-      "to": "    artifactRule(input, recorded)",
+      "from": "    if (recorded?.event === 'publish.requested') await artifactRule(input, recorded)",
+      "to": "    await artifactRule(input, recorded)",
       "only": "^(?:a mention runs no artifact gate; a publish request does|a read-only reviewer is decided by the guard alone: no warning, no log write)$"
     },
     {
@@ -18896,6 +18896,116 @@
       "from": "const withheldStamp = snapshot => `withheld: past the cap @${snapshot?.at}`",
       "to": "const withheldStamp = snapshot => 'withheld: past the cap'",
       "only": "^an unchanged unknown is said once, and only a red CI repeats$"
+    },
+    {
+      "label": "ADR-080 T1: every artifact pass is forced in-process, so the boundary waits on it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (setting === 'inline') {",
+      "to": "if (setting === 'inline' || true) {",
+      "only": "^no boundary waits for the artifact pass$"
+    },
+    {
+      "label": "ADR-080 T1: a held pass lock is reclaimed before its deadline",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (now <= heldDeadline) return null",
+      "to": "if (false) return null",
+      "only": "^one artifact pass runs per session at a time$"
+    },
+    {
+      "label": "ADR-080 T1: a pass's verdict line drops its findings",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "findings: said.get(file) ?? null })",
+      "to": "findings: null })",
+      "only": "^the pass writes only its own ledger$"
+    },
+    {
+      "label": "ADR-080 T1: a pass whose runner is missing is released in silence",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "return unrun(`its runner ${path.basename(runner)} does not exist`)",
+      "to": "return (`its runner ${path.basename(runner)} does not exist`)",
+      "only": "^a pass that cannot start is said, not silent$"
+    },
+    {
+      "label": "ADR-080 T2: no hook but a boundary imports the pass ledger",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (!guardAlone && typeof input.session_id === 'string' && input.session_id) {",
+      "to": "if (false) {",
+      "only": "^a pass's findings reach the next hook once, while the pass still runs$"
+    },
+    {
+      "label": "ADR-080 T2: a reviewer's PreToolUse imports the parent's pass ledger",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (!guardAlone && typeof input.session_id === 'string' && input.session_id) {",
+      "to": "if (typeof input.session_id === 'string' && input.session_id) {",
+      "only": "^a read-only reviewer neither imports nor delivers a pass finding$"
+    },
+    {
+      "label": "ADR-080 review: a finding's key ignores whether the verdict was complete and what it said",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "? `${entry.path}:${entry.blob ?? `unknown-${entry.pass}`}:${entry.complete === true ? 'complete' : 'incomplete'}:${said}`",
+      "to": "? `${entry.path}:${entry.blob ?? `unknown-${entry.pass}`}`",
+      "only": "^a timeout said first does not silence a later finding about the same bytes$"
+    },
+    {
+      "label": "ADR-080 review: a stale lock's successor replaces a lock another claimant already holds",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (held ? current?.token !== held.token : current !== null) {",
+      "to": "if (false) {",
+      "only": "^two claimants of one stale lock: exactly one holds it$"
+    },
+    {
+      "label": "ADR-080 review: a pass releases its lock after its deadline",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (held.token === token && now <= Number(held.deadline)) rmSync(lock, { force: true })",
+      "to": "if (held.token === token) rmSync(lock, { force: true })",
+      "only": "^a pass releases its lock before its deadline, and never after$"
+    },
+    {
+      "label": "ADR-080 review: a pass gates its next chunk after a batch stopped on unconfirmed cleanup",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "    if (stopped.stopped) {",
+      "to": "    if (false) {",
+      "only": "^a batch that stopped on unconfirmed cleanup stops the whole pass$"
+    },
+    {
+      "label": "ADR-080 review: a pass with no end in its ledger is never said",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "    if (ended.has(pass.token)) continue",
+      "to": "    continue",
+      "only": "^a pass that leaves no end in its ledger is said UNRUN$"
     }
   ]
 }

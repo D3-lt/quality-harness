@@ -11,18 +11,18 @@
 // driven by FAKE_PASS_MODE, so a test controls when a pass gates, stops and ends.
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { claimPassLock, passTargets, releasePassLock } from '../plugin/scripts/lifecycle.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = join(repoRoot, 'plugin')
 const lifecycle = join(plugin, 'scripts', 'lifecycle.mjs')
 const qhCheck = join(plugin, 'scripts', 'qh-check.mjs')
 const { NODE_TEST_CONTEXT: _nested, ...baseEnv } = process.env
-const todo = 'ADR-080'
 
 const FAKE_RUNNER = `import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
 const request = JSON.parse(readFileSync(process.argv[process.argv.indexOf('--artifact-pass') + 1], 'utf8'))
@@ -30,6 +30,7 @@ const mode = process.env.FAKE_PASS_MODE ?? 'block'
 const dir = process.env.FAKE_PASS_DIR
 const write = entry => appendFileSync(request.ledger, JSON.stringify({ at: new Date().toISOString(), pass: request.token, ...entry }) + '\\n')
 appendFileSync(dir + '/fake-starts.log', JSON.stringify({ session: request.session, targets: request.targets.map(t => t.path) }) + '\\n')
+if (mode === 'vanish') { rmSync(request.lock, { force: true }); process.exit(0) } // as if killed and its lock lapsed, with no line written
 write({ event: 'pass.started', pid: process.pid, targets: request.targets.map(t => t.path) })
 if (mode.startsWith('stop-after:')) {
   for (const t of request.targets.slice(0, Number(mode.split(':')[1]))) write({ event: 'pass.gated', path: t.path, blob: t.blob, complete: true, findings: null })
@@ -125,7 +126,7 @@ const BOUNDARIES = [
   ['PreCompact', session => ({ hook_event_name: 'PreCompact', session_id: session, trigger: 'auto' })],
 ]
 
-test('no boundary waits for the artifact pass', { todo }, async () => {
+test('no boundary waits for the artifact pass', async () => {
   for (const [name, payload] of BOUNDARIES) {
     const { dir } = repository(3)
     const session = `behind-${name.replace(/\W/g, '')}`
@@ -138,7 +139,7 @@ test('no boundary waits for the artifact pass', { todo }, async () => {
   }
 })
 
-test('one artifact pass runs per session at a time', { todo }, async () => {
+test('one artifact pass runs per session at a time', async () => {
   const { dir } = repository(3)
   const session = 'behind-one'
   try {
@@ -157,14 +158,14 @@ test('one artifact pass runs per session at a time', { todo }, async () => {
   } finally { await cleanup(dir, session) }
 })
 
-test('a stopped pass resumes with exactly the paths it did not reach', { todo }, async () => {
+test('a stopped pass resumes with exactly the paths it did not reach', async () => {
   const { dir, paths } = repository(8)
   const session = 'behind-resume'
   try {
     hook(dir, stop(session), { ...fake(dir, 'stop-after:3'), QUALITY_HARNESS_ARTIFACT_PASS_BUDGET_MS: '500' })
     assert.ok(await until(() => ledger(dir, session).filter(entry => entry.event === 'pass.gated').length === 3, 10_000), 'the first pass gated three and stopped')
     assert.ok(existsSync(lockFile(dir, session)), 'a stopped pass leaves its lock')
-    await settle(1_500)
+    await settle(Math.max(0, JSON.parse(readFileSync(lockFile(dir, session), 'utf8')).deadline - Date.now()) + 300)
     const reached = new Set(ledger(dir, session).filter(entry => entry.event === 'pass.gated').map(entry => rel(entry.path)))
     hook(dir, stop(session), fake(dir, 'block'))
     assert.ok(await until(() => starts(dir).length === 2, 10_000), 'the next boundary reclaimed the lock and started a pass')
@@ -173,7 +174,7 @@ test('a stopped pass resumes with exactly the paths it did not reach', { todo },
   } finally { await cleanup(dir, session) }
 })
 
-test('a pass that cannot start is said, not silent', { todo }, () => {
+test('a pass that cannot start is said, not silent', () => {
   const { dir } = repository(3)
   const session = 'behind-unrun'
   try {
@@ -183,7 +184,7 @@ test('a pass that cannot start is said, not silent', { todo }, () => {
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-test("a pass's findings reach the next hook once, while the pass still runs", { todo }, async () => {
+test("a pass's findings reach the next hook once, while the pass still runs", async () => {
   const { dir } = repository(1)
   const session = 'behind-finding'
   try {
@@ -197,7 +198,7 @@ test("a pass's findings reach the next hook once, while the pass still runs", { 
   } finally { await cleanup(dir, session) }
 })
 
-test('a read-only reviewer neither imports nor delivers a pass finding', { todo }, async () => {
+test('a read-only reviewer neither imports nor delivers a pass finding', async () => {
   const { dir } = repository(1)
   const session = 'behind-reviewer'
   try {
@@ -211,7 +212,7 @@ test('a read-only reviewer neither imports nor delivers a pass finding', { todo 
   } finally { await cleanup(dir, session) }
 })
 
-test('the pass writes only its own ledger', { todo }, async () => {
+test('the pass writes only its own ledger', async () => {
   const { dir, paths } = repository(5)
   const session = 'behind-ledger'
   try {
@@ -222,10 +223,13 @@ test('the pass writes only its own ledger', { todo }, async () => {
     const gated = ledger(dir, session).filter(entry => entry.event === 'pass.gated')
     assert.deepEqual(gated.map(entry => rel(entry.path)).sort(), paths.map(rel).sort(), 'each path is gated exactly once')
     assert.ok(gated.every(entry => entry.complete === true), 'and each verdict is complete')
+    // Each fixture record fails adr-lint, and its finding rides on its own line.
+    assert.ok(gated.every(entry => typeof entry.findings === 'string' && entry.findings.includes(rel(entry.path))),
+      'each verdict carries its own findings on the same line')
   } finally { await cleanup(dir, session) }
 })
 
-test('the unchecked advisory is said once per tree and check state', { todo }, () => {
+test('the unchecked advisory is said once per tree and check state', () => {
   const { dir } = repository(0, '{"check": "exit 1"}')
   writeFileSync(join(dir, 'notes.txt'), 'the session changed something\n')
   try {
@@ -239,7 +243,7 @@ test('the unchecked advisory is said once per tree and check state', { todo }, (
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-test('a refused publish is denied every time', { todo }, () => {
+test('a refused publish is denied every time', () => {
   const { dir } = repository(0)
   writeFileSync(join(dir, 'notes.txt'), 'the session changed something\n')
   try {
@@ -247,5 +251,81 @@ test('a refused publish is denied every time', { todo }, () => {
       const run = hook(dir, commit('behind-refusal'))
       assert.equal(JSON.parse(run.stdout).hookSpecificOutput?.permissionDecision, 'deny', `attempt ${attempt} is refused`)
     }
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// The Codex round on ADR-080's code: each finding gets the regression it asked for.
+
+test('two claimants of one stale lock: exactly one holds it', () => {
+  const dir = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-pass-lock-')))
+  try {
+    const lock = join(dir, 'session.lock')
+    writeFileSync(lock, JSON.stringify({ token: 'stale', pid: process.pid, deadline: Date.now() - 1_000 }))
+    let second = null
+    // The second claimant reads, succeeds and holds the lock between the first one's read and its own move.
+    const first = claimPassLock(lock, 1_000, Date.now(), { afterStaleRead: () => { second = claimPassLock(lock, 1_000) } })
+    const winners = [first, second].filter(claim => claim?.token)
+    assert.equal(winners.length, 1, `one claimant holds it: ${JSON.stringify([first, second])}`)
+    assert.equal(JSON.parse(readFileSync(lock, 'utf8')).token, winners[0].token, 'and the lock is the winner\'s')
+    assert.deepEqual(readdirSync(dir).filter(name => name !== 'session.lock'), [], 'no successor is left behind')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('a pass releases its lock before its deadline, and never after', () => {
+  const dir = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-pass-release-')))
+  try {
+    const lock = join(dir, 'session.lock')
+    writeFileSync(lock, JSON.stringify({ token: 'mine', pid: process.pid, deadline: Date.now() - 1 }))
+    releasePassLock(lock, 'mine')
+    assert.ok(existsSync(lock), 'past its deadline the lock may be another pass\'s to reclaim')
+    writeFileSync(lock, JSON.stringify({ token: 'mine', pid: process.pid, deadline: Date.now() + 60_000 }))
+    releasePassLock(lock, 'theirs')
+    assert.ok(existsSync(lock), 'another token releases nothing')
+    releasePassLock(lock, 'mine')
+    assert.equal(existsSync(lock), false, 'its own, in time, is released')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('a batch that stopped on unconfirmed cleanup stops the whole pass', () => {
+  const paths = Array.from({ length: 9 }, (_, n) => `/repo/docs/adr/ADR-${n}.md`)
+  const lines = []
+  let calls = 0
+  const reason = passTargets({
+    paths, deadline: Date.now() + 60_000, budgetMs: 60_000, write: entry => lines.push(entry),
+    verdict: () => ({ blob: 'b', steady: true }),
+    gate: (chunk, _remaining, gated, _said, stopped) => {
+      calls += 1
+      gated.set(chunk[0], true)
+      stopped.stopped = 'cleanup-unconfirmed'
+      return null
+    },
+  })
+  assert.equal(calls, 1, 'no second chunk starts beside children nobody confirmed ended')
+  assert.equal(reason, 'stopped: cleanup-unconfirmed')
+  assert.ok(lines.some(entry => entry.event === 'pass.finding' && /UNRUN/.test(entry.findings) && entry.findings.includes(paths[8])),
+    'the paths it did not reach are said UNRUN')
+})
+
+test('a timeout said first does not silence a later finding about the same bytes', () => {
+  const { dir, paths } = repository(1)
+  const session = 'behind-key'
+  try {
+    mkdirSync(join(state(dir), 'passes'), { recursive: true })
+    const ledgerFile = join(state(dir), 'passes', `${session}.jsonl`)
+    const line = entry => writeFileSync(ledgerFile, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, { flag: 'a' })
+    line({ pass: 'p1', event: 'pass.gated', path: paths[0], blob: 'b', complete: false, findings: 'FAKE-TIMEOUT before a verdict' })
+    assert.match(hook(dir, prompt(session)).stdout, /FAKE-TIMEOUT/, 'the timeout is said')
+    line({ pass: 'p2', event: 'pass.gated', path: paths[0], blob: 'b', complete: true, findings: 'FAKE-DEFECT in the record' })
+    assert.match(hook(dir, prompt(session)).stdout, /FAKE-DEFECT/, 'and so is the real finding that followed')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('a pass that leaves no end in its ledger is said UNRUN', async () => {
+  const { dir } = repository(1)
+  const session = 'behind-lost'
+  try {
+    hook(dir, stop(session), fake(dir, 'vanish'))
+    assert.ok(await until(() => starts(dir).length === 1 && !existsSync(lockFile(dir, session)), 10_000), 'the pass started and vanished')
+    assert.match(hook(dir, prompt(session)).stdout, /left no end/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

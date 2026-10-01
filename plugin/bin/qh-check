@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """qh-check — run this project's check and record what it observed.
 
-Usage: qh-check [--wait]
+Usage: qh-check [--wait] [--again] [--fast]
 
 ADR-060 T2. Advisories count a check only when it was run through this gate: it
 runs the project's check at the repository root (the `check` declared in
@@ -23,6 +23,16 @@ plugin/scripts/qh-check.mjs is not beside this gate's bin/.
 It holds a lease while the check runs and names the heavy runs it sees beside it
 (ADR-077). `--wait`, or QUALITY_HARNESS_WAIT=1, waits for its turn first, bounded by
 QUALITY_HARNESS_WAIT_MAX_S (default 1800).
+
+When the latest run of the same check on the tree as it is now passed, it is not run
+again: the gate says when that pass was taken and how long it took, and exits 0
+(ADR-081). A tree hash covers no ignored file, environment or service, so `--again`
+runs it anyway.
+
+`--fast` runs the `fastCheck` declared in `.quality-harness.json` and records it in
+`fast-checks.jsonl`, where no reader of a full pass looks. A pass there lets a command
+that is one commit and nothing else through, with a warning; a push still needs the
+full check (ADR-081). With no `fastCheck` declared it says so and exits 2.
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root (ADR-031).

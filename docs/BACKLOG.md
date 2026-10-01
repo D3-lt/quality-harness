@@ -16965,6 +16965,10 @@ with eight findings, each reproduced by the reviewer.
 
 Next: rework the spec and ADR against these, then run one more review.
 
+**A second review, pasted by the owner (2026-10-01), agrees with every finding above.** Its citations were spot-checked against source: `plugin/bin/adr-lint:3801` and `:5402`. It adds two things for the rework:
+- Narrow the consequence that "the three gates agree on which tests exist". The registration vocabularies still differ (`test.skip`, `describe`, `t.Run`, interpolated titles), and the spec's non-goals freeze that.
+- Make the corpus bar a diff of a baseline captured BEFORE the edit against the after run, with an explicit exception list, empty meaning no difference is allowed.
+
 ## 330. DEFERRED 2026-10-01 — the artifact batch gates each path in its own shell
 
 `runArtifactBatch` (`plugin/scripts/run-shell-hook.mjs:600`) starts one bash per path through
@@ -17008,3 +17012,21 @@ Left, named rather than fixed:
   that touches nothing the check reads. It cannot be measured yet: those adopters edit through Bash and mrw, which
   log no `file.written`, so "only non-code changed since the last pass" has no ground truth in their logs. Revisit
   once a source of truth for edits made outside the file tools exists.
+
+## 332. OPEN 2026-10-01 — Windows: a campaign's parent cannot rename onto `owner.json` while its child reads it
+
+Seen once, on the dispatched release campaign of ab59864 (run 36867526703, job `windows`). The test
+`a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured`
+(tests/mutate-runner.test.mjs) failed with exit 2:
+
+```
+mutate: Error: EPERM: operation not permitted, rename '…\.git\qh-campaigns\4908-242f29\owner.json.4908.tmp' -> '…'
+mutate: the isolated campaign's parent ended before it recorded this run, so it does not start
+```
+
+Neither `scripts/mutate.mjs` nor this test changed in 3.5.0. The likely mechanism, not yet reproduced: the parent
+publishes `owner.json` with a write to a temp file and a rename onto it (`scripts/mutate.mjs:333`), while the child
+polls the same file (`ownedBy`, `:216`). Windows refuses a rename onto a file another process holds open, where POSIX
+replaces it. The child then ends without its run, which is correct, but the campaign said nothing a person can act on.
+Next: reproduce with a reader holding the target open, then retry the rename a few times with a short delay, as
+`rmSync`'s `maxRetries` does, and say so if it still fails.

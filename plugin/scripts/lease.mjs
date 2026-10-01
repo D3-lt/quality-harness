@@ -238,6 +238,9 @@ export function tryAdmit(dir, held, { beforeMark } = {}) {
  * admit waits this run's turn, trying once a second until `maxMs`, and returns
  * `{ admitted, waitedMs, stopped }`; `stopped()` is asked each time, so a signal ends the wait. An
  * admitted lease is already marked running; one that stopped waiting is not.
+ *
+ * @public `qh-check.mjs` calls it as `lease.admit`, through a module seam it takes as a
+ * parameter, which knip cannot follow (dead-code scan, 2026-10-01).
  */
 export async function admit(dir, held, { maxMs, stopped = () => null, sleep = ms => new Promise(resolve => setTimeout(resolve, ms)) } = {}) {
   const began = Date.now()

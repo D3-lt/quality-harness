@@ -16836,3 +16836,59 @@ whose branch is not the checkout's — should be shown at all is a product judge
   the last answer is and that a refresh is running, and the refresher still starts (`SHOW_AT_MOST_SECONDS`,
   `a brief snapshot past the age cap is not shown, and a refresh starts`, catalogue entry RED). The full report
   and a fresh cache hit are unchanged; a snapshot under the cap is served as before (ADR-065 T2).
+  **Decided 2026-10-01: item 1 goes to ADR-078** (Proposed, spec `docs/specs/2026-10-01-a-lock-reads-javascript-as-javascript.md`).
+  Measured while writing it: hasher 1's body masker also misreads — 14 real tests in `tests/mutate-propose.test.mjs`
+  and `tests/evidence-chain.test.mjs` would be dropped by gating discovery on it, and it hashes a prefix for a test
+  holding `` `${ cond ? `x ${y} }` : '' }` ``. ADR-078 leaves three things here, each deferred from its Out of Scope:
+  `spec-verify`'s check that a bound JavaScript test exists (`plugin/bin/spec-verify:636`) and `adr-lint`'s can-fail
+  check (`plugin/bin/adr-lint:4900`) still read with hasher 1's masker; and the records whose locks hasher 2 reads
+  differently are relocked one by one, as each maintainer chooses.
+
+## 325. OPEN 2026-10-01 — A session start spends its time starting processes, and reads the six oldest records
+
+Reported by the owner from Windows on 2026-10-01: SessionStart hooks take long to complete. Measured the
+same day on macOS with a `startup` payload, tracing every child process:
+
+- `lifecycle.mjs` took 0.91s: 4 `git` calls, then 6 `adr-next` Python spawns in series (83–110ms each).
+  The cap `TASK_DIRECTORY_READ_CAP` (`plugin/scripts/lifecycle.mjs:1205`) reads six directories in
+  listing order. In this repository those are ADR-001 to ADR-006, every one done. So the hook pays six
+  interpreter starts to report nothing, and every record that could be in flight goes into
+  "+62 more: UNPROVEN — not read".
+- `branch-state.mjs --cached 120` took 0.11s with a fresh cache and 1.56s without one. 637ms of that
+  was one `gh run list`. At session start the 120s cache is usually stale.
+
+A Python start and a `gh` call each cost far more on Windows than here; no Windows timing is recorded
+yet. **Lead:** one `adr-next` process reading every task directory removes five interpreter starts and
+the cap together. `branch-state` at SessionStart could serve its git half and refresh `gh` in the
+background, as the brief already does. Both change what a shipped reader prints, so each needs a measured
+target first (a Windows timing), then a spec and an outside run (§18).
+
+## 326. FIXED 2026-10-01 — The Codex round on ADR-078 (01443dd): seven findings, four of them fail-opens
+
+gpt-6-astra at xhigh, read-only, over `d93da62..01443dd` (record.py, adr-verify) and `v3.3.0..01443dd`
+(branch-state.mjs): REQUEST CHANGES. The reviewer ran each input through node v26.10.0, so each P1 below is an
+edit that changes node's exit while the lock stayed clean. Each finding has a red regression in
+`tests/test-lock.test.mjs` or `tests/branch-state.test.mjs`, and a catalogue entry `Codex 01443dd: …`; all 13
+are RED.
+
+1. **A literal at the start of an arrow's expression body was masked as white space.** The body began after it
+   (`() => 'enabled' && …` hashed `&& …`), and a template's interpolation could become the "block". Literals
+   now mask as NUL.
+2. **Divisions read as regexes.** The property test looked back over white space only (`obj./* gap */in / 2`),
+   `of / 2` was read by the keyword table, and TypeScript's `n! / 2` read `!` as an operator. A property is now
+   the previous token being `.`; `of`, `yield` and `await` are UNPROVEN; `!` after a value in TypeScript is
+   postfix.
+3. **Regex data named as a test.** `debugger` then `/test('ghost', …)/`, and the same after `for await (…)`.
+   Every reserved word that cannot end a value now opens a regex, and `for await (` is a for header.
+4. **Unicode white space and line terminators.** U+2028 did not end a line comment, and U+00A0 was read as part
+   of an identifier. Both are now JavaScript's own sets (ECMA-262 §12.2-3).
+5. **A file ending inside `${…}` read as complete.** It is now UNPROVEN from the template's start (F-7).
+6. **A lock that cannot be read was read as hasher 1 by `--relock`, and a payload with two check records chose
+   one.** Two check records make a lock unreadable; `--relock` refuses an unreadable lock unless
+   `--replace-hashes`; any `check@<n>` is read, and an unknown n is UNPROVEN.
+7. **The brief's ten-minute cap was skipped on a fresh cache hit** (`--cached 3600` showed a 30-minute-old
+   answer), and it compared a rounded age (600.4 s passed). The cap now bounds every brief and compares
+   milliseconds.
+
+Re-run after the fixes, over every `.mjs` under `tests/`, `plugin/` and `scripts/`: hasher 2 loses no body
+hasher 1 bounds, drops no top-level test, and stops early on no file.

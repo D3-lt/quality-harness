@@ -738,7 +738,10 @@ function main(argv = process.argv.slice(2)) {
   const hint = overridden ? null : findGitDir(process.cwd())
   const previous = read(hint && join(hint, 'qh-branch-state.json'))
   const now = Date.now()
-  if (freshSnapshot(previous, now, maxAgeSeconds, hint ? snapshotKey(hint) : null)) {
+  // A brief never shows an answer past the cap, however long --cached allows: a fresh
+  // hit returned before the cap was asked (Codex review of 01443dd).
+  const servedFor = brief ? Math.min(maxAgeSeconds, SHOW_AT_MOST_SECONDS) : maxAgeSeconds
+  if (freshSnapshot(previous, now, servedFor, hint ? snapshotKey(hint) : null)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const store = hint ? join(hint, 'qh-branch-state.json') : null
     emitCachedBranchState(previous.state, { brief, age, previous, store })
@@ -751,7 +754,7 @@ function main(argv = process.argv.slice(2)) {
   if (brief && hint && usableCache(previous, now)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const refreshing = refreshBehind({ gitDir: hint })
-    if (age > SHOW_AT_MOST_SECONDS) {
+    if (now - previous.at > SHOW_AT_MOST_SECONDS * 1000) {
       process.stdout.write(`branch-state: the last answer is ${Math.round(age / 60)} min old, past the `
         + `${SHOW_AT_MOST_SECONDS / 60}-minute cap, so it is not shown; `
         + `${refreshing ? 'refreshing' : 'a refresh could not be started'}.\n`)
@@ -764,7 +767,7 @@ function main(argv = process.argv.slice(2)) {
   }
   const home = gitDir(run)
   const store = home ? join(home, 'qh-branch-state.json') : null
-  const { state, fromCache, ageSeconds } = cached(maxAgeSeconds, {
+  const { state, fromCache, ageSeconds } = cached(servedFor, {
     read: () => read(store),
     write: writer(store),
     gather: checkpoint => collect(run, checkpoint),

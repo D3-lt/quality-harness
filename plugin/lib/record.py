@@ -38,6 +38,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
@@ -76,6 +77,8 @@ __all__ = [
     "lock_suffix_for_run",
     "lock_snapshot_suffix",
     "moved_lock_bodies",
+    "lock_hasher",
+    "LOCK_HASHERS",
     "lock_findings",
     "lock_blocks_done",
     "vlog_row_is_lock_snapshot",
@@ -985,9 +988,16 @@ def _code_normalize(text, python=False, php=False, shell=False, rust=False,
     return "".join(out).strip()
 
 def body_digest(body, python=False, php=False, shell=False, rust=False,
-                swift=False, go=False):
-    """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept."""
+                swift=False, go=False, hasher=1, ts=False):
+    """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept.
+
+    `hasher=2` reads a JavaScript-family body with `_js_lex` (ADR-078 F-10): a
+    template is kept whole, so a `//` inside a nested one is not a comment. Every
+    other language, and hasher 1, digest exactly as before.
+    """
     text = body.replace("\r\n", "\n").replace("\r", "\n")
+    if hasher == 2 and not (python or php or shell or rust or swift or go):
+        return hashlib.sha256(_h2_js_digest_text(text, ts).encode("utf-8")).hexdigest()
     if python:
         text = re.sub(r'"""(?:.|\n)*?"""', " ", text)
         text = re.sub(r"'''(?:.|\n)*?'''", " ", text)
@@ -1135,7 +1145,7 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
 
 
 def extract_test_names(text, python=False, go=False, php=False, rust=False,
-                       shell=False, swift=False):
+                       shell=False, swift=False, hasher=1, ts=False):
     """Names this hasher can see in `text`."""
     if python:
         try:
@@ -1177,7 +1187,7 @@ def extract_test_names(text, python=False, go=False, php=False, rust=False,
             if name not in seen:
                 seen.add(name)
                 names.append(name)
-    for name in _iter_bdd_names(text, php=php):
+    for name in _iter_bdd_names(text, php=php, in_code=_h2_in_code(text, ts) if hasher == 2 and not php else None):
         if name not in seen:
             seen.add(name)
             names.append(name)
@@ -1510,6 +1520,331 @@ def js_regex_end(text, i):
     return None
 
 
+# Hasher 2's JavaScript lexer (ADR-078). Every reader above is hasher 1 and stays
+# byte-identical, because the locks recorded before it were taken with it (F-1).
+_H2_JUMP_WORDS = {"break", "continue"}
+# Reserved words. After one that cannot end a value a `/` opens a regex: `debugger`
+# and `return` end a statement or begin an expression, never a value (Codex review of
+# 01443dd). `this`, `super`, `null`, `true` and `false` are values.
+_H2_RESERVED = {
+    "break", "case", "catch", "class", "const", "continue", "debugger", "default",
+    "delete", "do", "else", "enum", "export", "extends", "finally", "for", "function",
+    "if", "import", "in", "instanceof", "new", "return", "switch", "throw", "try",
+    "typeof", "var", "void", "while", "with",
+}
+_H2_VALUE_WORDS = {"this", "super", "null", "true", "false"}
+# Contextual keywords that can precede a regex as a keyword (`for (x of /a/)`,
+# `yield /a/`, `await /a/`) and a division as an identifier (`of / 2`). Which one
+# needs a parser, so a `/` after one is not placed (F-7).
+_H2_CONTEXTUAL = {"of", "yield", "await"}
+# JavaScript's line terminators and its white space beyond ASCII (ECMA-262 §12.2-3).
+_H2_LINE_END = "\n\r  "
+
+
+def _h2_space(c):
+    """Whether `c` is JavaScript white space or a line terminator."""
+    return c in " \t\n\r\v\f ﻿  " or (
+        ord(c) > 127 and unicodedata.category(c) == "Zs")
+
+
+def _h2_line_end(text, i):
+    """Index of the first line terminator at or after `i`, or len(text)."""
+    ends = [k for k in (text.find(c, i) for c in _H2_LINE_END) if k >= 0]
+    return min(ends) if ends else len(text)
+
+
+def _h2_regex_end(text, i):
+    """End of the regex literal opening at `i`, or None when it never closes.
+
+    `js_regex_end`, with every JavaScript line terminator ending the search.
+    """
+    end, in_class, n = i + 1, False, len(text)
+    while end < n and text[end] not in _H2_LINE_END:
+        char = text[end]
+        if char == "\\":
+            end += 2
+            continue
+        if char == "[":
+            in_class = True
+        elif char == "]":
+            in_class = False
+        elif char == "/" and not in_class:
+            return end + 1
+        end += 1
+    return None
+
+
+def _h2_is_value(prev):
+    """Whether the token `prev` ends a value, so a `++`/`--` after it is postfix."""
+    kind = prev[0]
+    if kind == "value":
+        return True
+    if kind == "word":
+        word, dot = prev[1], prev[2]
+        return dot or word in _H2_VALUE_WORDS or word not in _H2_RESERVED | _H2_CONTEXTUAL
+    return kind == "close_paren" and prev[1] not in CONTROL_HEADER
+
+
+def _h2_slash_opens_regex(prev, ts):
+    """True for a regex, False for a division, None when the context cannot say (F-5).
+
+    After `}` the brace may close a block (regex) or an object literal (division),
+    after a lone `>` in TypeScript it may close a type argument (`f<number> / 3`),
+    and after `of`, `yield` or `await` the word may be a keyword or a name. Telling
+    any of these apart needs a parser, so none is guessed (F-7). A word after `.` —
+    across comments too — is a property name, and a word after `break`/`continue` is
+    a label, after which a new statement may open a regex.
+    """
+    kind = prev[0]
+    if kind == "start":
+        return True
+    if kind == "value":
+        return False
+    if kind == "word":
+        word, dot, label = prev[1], prev[2], prev[3]
+        if dot:
+            return False
+        if label:
+            return True
+        if word in _H2_CONTEXTUAL:
+            return None
+        return word in _H2_RESERVED and word not in _H2_VALUE_WORDS
+    if kind == "close_paren":
+        return prev[1] in CONTROL_HEADER
+    if kind == "close_brace":
+        return None
+    if prev[1] == ">" and ts:
+        return None
+    return True
+
+
+@lru_cache(maxsize=32)
+def _js_lex(text, ts=False):
+    """(masked, kinds, stop, templates) for a JavaScript-family text, read as JavaScript reads it.
+
+    `kinds` marks each position code (0), literal — string, template text or
+    regex — (1), comment (2), or unknown (3). `masked` keeps code and newlines,
+    turns a comment or anything unknown into spaces, and a literal into NUL, so a
+    brace matcher sees only code (a template's `${…}` is code, its text and
+    delimiters are not, F-6) and a literal is never mistaken for the white space
+    before an arrow's expression body (Codex review of 01443dd). `stop` is the first
+    position whose literal, comment or `/` could not be established, and everything
+    from it is unknown (F-7): nothing after it is named and no body reaching it is
+    bounded — UNPROVEN, never a guess or a prefix. `templates` holds each outermost
+    template's span, which the digest keeps whole (F-10).
+    """
+    n = len(text)
+    kinds = bytearray(n)
+    stop = None
+    interp = []      # brace depth inside each open `${…}`, innermost last
+    parens = []      # for each open `(`, the word before it
+    templates = []
+    regexes = []     # a regex literal right after `=>`: its `/` stays in `masked`
+    outer = None
+    prev = ("start",)
+    i = 0
+
+    def mark(start, end, kind):
+        for j in range(start, end):
+            kinds[j] = kind
+
+    def template_text(j):
+        """End of the template text from `j`, and whether it opened a `${`."""
+        while j < n:
+            c = text[j]
+            if c == "\\":
+                j += 2
+                continue
+            if c == "`":
+                return j + 1, False
+            if c == "$" and j + 1 < n and text[j + 1] == "{":
+                return j + 2, True
+            j += 1
+        return None, False
+
+    if text.startswith("#!"):
+        end = _h2_line_end(text, 0)
+        mark(0, end, 2)
+        i = end
+    while i < n:
+        c = text[i]
+        if _h2_space(c):
+            i += 1
+            continue
+        if text.startswith("//", i):
+            end = _h2_line_end(text, i)
+            mark(i, end, 2)
+            i = end
+            continue
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            if end < 0:
+                stop = i
+                break
+            mark(i, end + 2, 2)
+            i = end + 2
+            continue
+        if c in "'\"":
+            j = i + 1
+            while j < n and text[j] != c and text[j] not in "\n\r":
+                j += 2 if text[j] == "\\" else 1
+            if j >= n or text[j] != c:
+                stop = i
+                break
+            mark(i, j + 1, 1)
+            prev = ("value",)
+            i = j + 1
+            continue
+        if c == "`" or (c == "}" and interp and interp[-1] == 0):
+            if c == "`" and not interp:
+                outer = i
+            if c == "}":
+                interp.pop()
+            end, opened = template_text(i + 1)
+            if end is None:
+                stop = outer if outer is not None else i
+                break
+            mark(i, end, 1)
+            if opened:
+                interp.append(0)
+                prev = ("start",)
+            else:
+                prev = ("value",)
+                if not interp:
+                    templates.append((outer, end))
+                    outer = None
+            i = end
+            continue
+        if c == "/":
+            regex = _h2_slash_opens_regex(prev, ts)
+            if regex is None:
+                stop = i
+                break
+            if regex:
+                end = _h2_regex_end(text, i)
+                if end is None:
+                    stop = i
+                    break
+                while end < n and (text[end].isalnum() or text[end] in "_$"):
+                    end += 1
+                mark(i, end, 1)
+                if prev == ("op", "=>"):
+                    regexes.append(i)
+                prev = ("value",)
+                i = end
+                continue
+            prev = ("op", "/")
+            i += 1
+            continue
+        if c.isalnum() or c in "_$#\\" or ord(c) > 127:
+            j = i
+            while j < n and (text[j].isalnum() or text[j] in "_$#\\"
+                             or (ord(text[j]) > 127 and not _h2_space(text[j]))):
+                j += 1
+            if c.isdigit():
+                prev = ("value",)
+            else:
+                dot = prev == ("op", ".")
+                label = prev[0] == "word" and not prev[2] and prev[1] in _H2_JUMP_WORDS
+                before = prev[1] if prev[0] == "word" and not prev[2] else None
+                prev = ("word", text[i:j], dot, label, before)
+            i = j
+            continue
+        if c == "(":
+            header = prev[1] if prev[0] == "word" and not prev[2] else None
+            if header == "await" and prev[4] == "for":
+                header = "for"   # `for await (…)` is a for header (Codex review of 01443dd)
+            parens.append(header)
+            prev = ("op", "(")
+        elif c == ")":
+            prev = ("close_paren", parens.pop() if parens else None)
+        elif c == "]":
+            prev = ("value",)
+        elif c == "{":
+            if interp:
+                interp[-1] += 1
+            prev = ("op", "{")
+        elif c == "}":
+            if interp:
+                interp[-1] -= 1
+            prev = ("close_brace",)
+        elif text.startswith("=>", i):
+            prev = ("op", "=>")
+            i += 2
+            continue
+        elif text.startswith("++", i) or text.startswith("--", i):
+            prev = ("value",) if _h2_is_value(prev) else ("op", c)
+            i += 2
+            continue
+        elif c == "!" and ts and _h2_is_value(prev) and not text.startswith("!=", i):
+            prev = ("value",)   # TypeScript's non-null assertion ends a value: `n! / 2`
+        else:
+            prev = ("op", c)
+        i += 1
+    if stop is None and interp:
+        # The file ended inside a `${…}`: the template never closed (F-7).
+        stop = outer
+    if stop is not None:
+        mark(stop, n, 3)
+    masked = "".join(
+        ch if kinds[j] == 0 or ch == "\n" else "\0" if kinds[j] == 1 else " "
+        for j, ch in enumerate(text))
+    # A regex literal that OPENS an arrow's expression body leaves its `/` in the
+    # masked view, so `bdd_callback_body` still refuses that body, as under hasher 1
+    # — held by the locked `a regex literal that closes the call is UNPROVEN, not a
+    # truncated hash`. A regex anywhere else is masked, as hasher 1's masker blanked
+    # it (`a quote or a paren inside a JS regex literal does not cost a test its
+    # locked body`), and a block body is bounded by braces, which a `/` does not touch.
+    if regexes:
+        masked = list(masked)
+        for j in regexes:
+            masked[j] = "/"
+        masked = "".join(masked)
+    return masked, bytes(kinds), stop, tuple(templates)
+
+
+def _h2_in_code(text, ts=False):
+    """A predicate: is position `p` of `text` code to hasher 2 (F-4)."""
+    kinds = _js_lex(text, ts)[1]
+    return lambda p: 0 <= p < len(kinds) and kinds[p] == 0
+
+
+def _h2_js_digest_text(text, ts=False):
+    """Hasher 2's digest text: comments out, code collapsed, every literal kept.
+
+    The same normalisation hasher 1 applies, from the lexer's spans, so a body
+    both read alike digests alike, and a template is kept whole (F-10).
+    """
+    _masked, kinds, _stop, templates = _js_lex(text, ts)
+    verbatim = bytearray(len(text))
+    for start, end in templates:
+        for j in range(start, end):
+            verbatim[j] = 1
+    out, buf, i, n = [], [], 0, len(text)
+
+    def flush():
+        chunk = re.sub(r"[ \t]+", " ", "".join(buf))
+        out.append(re.sub(r" ?\n[ \n]*", "\n", chunk))
+        buf.clear()
+
+    while i < n:
+        keep = verbatim[i] or kinds[i] in (1, 3)
+        j = i
+        while j < n and (verbatim[j] or kinds[j] in (1, 3)) == keep and (keep or kinds[j] == kinds[i]):
+            j += 1
+        chunk = text[i:j]
+        if keep:
+            flush()
+            out.append(chunk)
+        elif kinds[i] == 2:
+            buf.append("\n" * chunk.count("\n"))
+        else:
+            buf.append(chunk)
+        i = j
+    flush()
+    return "".join(out).strip()
+
+
 # Pure, so memoised: the lock hashes every named test of a file by masking that
 # file, and one record's tests can name hundreds in one large test file. Unshared,
 # that was 226 JS-aware masks of one 137 KB file — about 17 s, enough to have
@@ -1774,9 +2109,15 @@ def _parse_bdd_string(text, start, php=False):
     return None
 
 
-def _iter_bdd_calls(text, php=False):
-    """Yield `(decoded_name, after_comma)` for each non-interpolated it()/test()."""
+def _iter_bdd_calls(text, php=False, in_code=None):
+    """Yield `(decoded_name, after_comma)` for each non-interpolated it()/test().
+
+    `in_code`, hasher 2's, skips a head that is not code (ADR-078 F-4); without it
+    a head inside a string is a test, which is hasher 1's reading.
+    """
     for head in _BDD_CALL_HEAD.finditer(text):
+        if in_code is not None and not in_code(head.start()):
+            continue
         line = text.rfind("\n", 0, head.start()) + 1
         if re.match(r"\s*(?://|#)", text[line:head.start()]):
             continue
@@ -1800,10 +2141,10 @@ def _iter_bdd_calls(text, php=False):
         yield name, j + 1
 
 
-def _iter_bdd_names(text, php=False):
+def _iter_bdd_names(text, php=False, in_code=None):
     """Quoted names passed to bare test()/it(."""
     seen = set()
-    for name, _after in _iter_bdd_calls(text, php=php):
+    for name, _after in _iter_bdd_calls(text, php=php, in_code=in_code):
         if name in seen:
             continue
         seen.add(name)
@@ -2131,7 +2472,8 @@ def _iter_swift_tests(text):
         yield name, after_paren
 
 def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
-                      shell=False, swift=False, before_regex_masking=False, options_as_body=False):
+                      shell=False, swift=False, before_regex_masking=False, options_as_body=False,
+                      hasher=1, ts=False):
     """Best-effort body of `name`, or None.
 
     `before_regex_masking` reproduces the JavaScript extraction as it was before
@@ -2204,6 +2546,14 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
             if found != name:
                 continue
             return _span_from_paren(text, masked, after_paren)
+    if hasher == 2 and not php:
+        # Hasher 2 (ADR-078): only a head in code, bounded on the lexer's view.
+        masked = _js_lex(text, ts)[0]
+        for found, after in _iter_bdd_calls(text, in_code=_h2_in_code(text, ts)):
+            if found != name:
+                continue
+            return bdd_callback_body(text, after, masked=masked)
+        return None
     for found, after in _iter_bdd_calls(text, php=php):
         if found != name:
             continue
@@ -2212,7 +2562,7 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
     return None
 
 
-def bdd_callback_body(text, after, php=False, js=True, options=True):
+def bdd_callback_body(text, after, php=False, js=True, options=True, masked=None):
     """Body of the callback that follows a BDD test's `name,` at `after`, or None.
 
     Bounded to that call. An unbounded find("{") lands in the NEXT test's block
@@ -2241,7 +2591,8 @@ def bdd_callback_body(text, after, php=False, js=True, options=True):
     truncated expression must not get a proven hash, so such a slice is still
     refused — UNPROVEN, never a prefix.
     """
-    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=js and not php)
+    if masked is None:
+        masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=js and not php)
     n = len(masked)
     depth, i, brace = 0, after, None
     while i < n and brace is None:
@@ -2321,8 +2672,20 @@ def _read_file(path):
         return None
 
 
-def snapshot_lock(root, tests_rows):
-    """Canonical lock map: check value plus every extractable name in Tests files."""
+# The files hasher 2 reads with `_js_lex` (ADR-078 F-3); every other file it reads as
+# hasher 1 did. TypeScript is flagged, because a `/` after `>` is ambiguous there.
+_H2_JS_SUFFIXES = {".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts", ".cts"}
+_H2_TS_SUFFIXES = {".ts", ".tsx", ".mts", ".cts"}
+# The hashers a lock may name. A lock naming any other is UNPROVEN (ADR-078 F-9).
+LOCK_HASHERS = (1, 2)
+
+
+def snapshot_lock(root, tests_rows, hasher=2):
+    """Canonical lock map: check value plus every extractable name in Tests files.
+
+    `hasher` is the reading the map is taken with: 2 for every new lock, 1 to
+    read a lock recorded before hasher 2 the way it was taken (ADR-078 F-1).
+    """
     check = declared_check(root)
     bodies = {}
     unproven = set()
@@ -2345,35 +2708,46 @@ def snapshot_lock(root, tests_rows):
         rust = path.suffix.lower() == ".rs"
         shell = path.suffix.lower() in (".sh", ".bash")
         swift = path.suffix.lower() == ".swift"
+        suffix = path.suffix.lower()
+        reading = {"hasher": hasher if suffix in _H2_JS_SUFFIXES else 1,
+                   "ts": suffix in _H2_TS_SUFFIXES}
         for name in extract_test_names(
                 source, python=python, go=go, php=php, rust=rust, shell=shell,
-                swift=swift):
+                swift=swift, **reading):
             body = extract_test_body(
                 source, name, python=python, go=go, php=php, rust=rust,
-                shell=shell, swift=swift)
+                shell=shell, swift=swift, **reading)
             if body is None:
                 if (rel, name) in named:
                     unproven.add((rel, name))
                 continue
             bodies[(rel, name)] = body_digest(
                 body, python=python, php=php, shell=shell, rust=rust,
-                swift=swift, go=go)
+                swift=swift, go=go, **reading)
         for n, r in tests_rows:
             if r == rel and (rel, n) not in bodies:
                 unproven.add((rel, n))
-    return {"check": check, "bodies": bodies, "unproven": unproven}
+    return {"check": check, "bodies": bodies, "unproven": unproven, "hasher": hasher}
 
 
 def encode_lock(snap):
-    """Canonical payload + sha256 of it."""
+    """Canonical payload + sha256 of it.
+
+    A hasher-1 map encodes byte for byte as every lock before hasher 2 did. Any
+    other names its hasher in its check record (`check@2`), which a reader that
+    predates it cannot read — and so refuses as a lock it could not read, rather
+    than comparing it under hasher 1 (ADR-078 F-11).
+    """
     lines = []
+    hasher = snap.get("hasher", 1)
+    key = "check" if hasher == 1 else f"check@{hasher}"
     check = snap["check"]
     if check is None:
-        lines.append("check\tabsent")
+        lines.append(f"{key}\tabsent")
     elif check == "unproven":
-        lines.append("check\tunproven")
+        lines.append(f"{key}\tunproven")
     else:
-        lines.append("check\t" + hashlib.sha256(check.encode("utf-8")).hexdigest())
+        lines.append(f"{key}\t" + hashlib.sha256(check.encode("utf-8")).hexdigest())
     for (rel, name), digest in sorted(snap["bodies"].items()):
         lines.append(f"body\t{rel}\t{name}\t{digest}")
     for rel, name in sorted(snap["unproven"]):
@@ -2391,21 +2765,25 @@ def decode_lock(token):
         text = raw.decode("utf-8")
     except (ValueError, UnicodeError):
         return None
-    check, bodies, unproven = None, {}, set()
+    check, bodies, unproven, hasher, checks = None, {}, set(), 1, 0
     for line in text.split("\n"):
         parts = line.split("\t")
         if not parts:
             continue
+        keyed = re.fullmatch(r"check@([0-9]+)", parts[0])
         if parts[0] == "check" and len(parts) == 2:
-            check = parts[1]
+            check, checks = parts[1], checks + 1
+        elif keyed and len(parts) == 2:
+            check, hasher, checks = parts[1], int(keyed.group(1)), checks + 1
         elif parts[0] == "body" and len(parts) == 4:
             bodies[(parts[1], parts[2])] = parts[3]
         elif parts[0] == "unproven" and len(parts) == 3:
             unproven.add((parts[1], parts[2]))
-    # A UTF-8 payload with no check record is not a lock (Codex: `eA` → `x`).
-    if check is None:
+    # A UTF-8 payload with no check record is not a lock (Codex: `eA` → `x`), and one
+    # with two says two things about which hasher took it (Codex review of 01443dd).
+    if checks != 1:
         return None
-    return {"check": check, "bodies": bodies, "unproven": unproven}
+    return {"check": check, "bodies": bodies, "unproven": unproven, "hasher": hasher}
 
 
 def first_red_lock_suffix(text, root):
@@ -2443,6 +2821,20 @@ def moved_lock_bodies(vlog, *, current):
         if now is None or now != digest:
             moved.append((rel, name))
     return moved
+
+
+def lock_hasher(vlog):
+    """The hasher that took the log's recorded lock; 1 when it names none (ADR-078).
+
+    None when a lock is recorded and cannot be read: `--relock` then refuses rather
+    than read it as hasher 1 and replace it unchecked (Codex review of 01443dd). It
+    compares the recorded bodies under this hasher, so a lock taken before hasher 2
+    is checked the way it was taken before a hasher-2 lock replaces it (F-8).
+    """
+    _date, recorded = _recorded_lock(vlog)
+    if recorded is not None and recorded.get("map") is None:
+        return None
+    return ((recorded or {}).get("map") or {}).get("hasher", 1)
 
 
 def _vlog_machine_rows(vlog):
@@ -2587,10 +2979,23 @@ def lock_findings(vlog, *, root, tests, label=""):
     if recorded["map"] is None:
         return [f"{prefix}first-red test-lock-sha256 is present but the lock map "
                 "could not be read — UNPROVEN"], []
-    current = snapshot_lock(root, tests)
+    hasher = recorded["map"].get("hasher", 1)
+    if hasher not in LOCK_HASHERS:
+        return [f"{prefix}the lock map was taken by hasher {hasher}, which this reader "
+                "does not know — UNPROVEN; no body is compared under another hasher"], []
+    # Compared under the reading that took it, so no recorded lock changes meaning
+    # because the reader changed (ADR-078 F-1).
+    current = snapshot_lock(root, tests, hasher=hasher)
     recorded_map = recorded["map"]
     blocks = []
     advice = []
+    if hasher == 1 and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):
+        newer = snapshot_lock(root, tests, hasher=2)
+        if (newer["bodies"], newer["unproven"]) != (current["bodies"], current["unproven"]):
+            advice.append(
+                f"{prefix}this lock was taken by hasher 1, and hasher 2 reads its "
+                "JavaScript test files differently (ADR-078) — `adr-verify --relock` "
+                "takes a hasher-2 lock once nothing has moved")
     if recorded.get("kind"):
         cmd = ("adr-verify --relock --replace-hashes"
                if recorded["kind"] == "replace" else "adr-verify --relock")
@@ -2646,7 +3051,7 @@ def lock_findings(vlog, *, root, tests, label=""):
             # body, so for such a test both reproduce the digest, and only this one
             # names why. A test with no options object cannot match here — its
             # options-as-body digest IS the current one, which already differs.
-            if _legacy_digest(root, rel, name, options_as_body=True) == digest:
+            if hasher == 1 and _legacy_digest(root, rel, name, options_as_body=True) == digest:
                 # The same class as §212 and the same answer: the lock hashed the
                 # options object before the callback, so it never covered the test
                 # and an edit to the test was invisible to it (BACKLOG §305).
@@ -2655,7 +3060,7 @@ def lock_findings(vlog, *, root, tests, label=""):
                     "object (`test(name, {…}, fn)`), never its body (BACKLOG §305): an edit "
                     "to the test was invisible to that lock — UNPROVEN, done is refused "
                     "until `adr-verify --relock --replace-hashes` locks the body")
-            elif _legacy_digest(root, rel, name, before_regex_masking=True) == digest:
+            elif hasher == 1 and _legacy_digest(root, rel, name, before_regex_masking=True) == digest:
                 blocks.append(
                     f"{prefix}locked test `{rel}`::{name} was locked before regex literals "
                     "were masked, over a span that stopped inside one (BACKLOG §212): that "

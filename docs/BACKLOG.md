@@ -16969,6 +16969,13 @@ Next: rework the spec and ADR against these, then run one more review.
 - Narrow the consequence that "the three gates agree on which tests exist". The registration vocabularies still differ (`test.skip`, `describe`, `t.Run`, interpolated titles), and the spec's non-goals freeze that.
 - Make the corpus bar a diff of a baseline captured BEFORE the edit against the after run, with an explicit exception list, empty meaning no difference is allowed.
 
+
+**Reworked and accepted, 2026-10-01.** A read-only scout mapped every JavaScript-reading site, and the record was
+rewritten from that map. A third review (a cold Codex round on the rework) found seven more gaps. The owner chose
+to fold them in and accept without a fourth review of the record; the implementation gets its own Codex round and
+outside corpus runs. The new rule: a test not found in a file the lexer did not read to its end, or found with a
+body that cannot be bounded, is UNPROVEN. ADR-079 lists the full class, the residuals it does not claim to fix,
+and the comparator its T4 runs against `plugin/` at cd8f95f.
 ## 330. DEFERRED 2026-10-01 — the artifact batch gates each path in its own shell
 
 `runArtifactBatch` (`plugin/scripts/run-shell-hook.mjs:600`) starts one bash per path through

@@ -17013,7 +17013,7 @@ Left, named rather than fixed:
   log no `file.written`, so "only non-code changed since the last pass" has no ground truth in their logs. Revisit
   once a source of truth for edits made outside the file tools exists.
 
-## 332. OPEN 2026-10-01 — Windows: a campaign's parent cannot rename onto `owner.json` while its child reads it
+## 332. CLOSED 2026-10-01 (fixed for 3.6.1; unproven on Windows) — Windows: a campaign's parent cannot rename onto `owner.json` while its child reads it
 
 Seen once, on the dispatched release campaign of ab59864 (run 36867526703, job `windows`). The test
 `a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured`
@@ -17030,3 +17030,18 @@ polls the same file (`ownedBy`, `:216`). Windows refuses a rename onto a file an
 replaces it. The child then ends without its run, which is correct, but the campaign said nothing a person can act on.
 Next: reproduce with a reader holding the target open, then retry the rename a few times with a short delay, as
 `rmSync`'s `maxRetries` does, and say so if it still fails.
+
+**Fixed for 3.6.1, without a Windows reproduction.** `plugin/scripts/replace-file.mjs` retries a rename that
+Windows answers EPERM, EACCES or EBUSY up to 8 times, waiting about 0.7 s in all, and still throws any other
+error, or the last one. The class, enumerated with `git grep -n "renameSync(" -- plugin/scripts scripts plugin/bin`,
+plus the aliased rename a cold Codex review found that grep could not:
+- `worktree.mjs:61`, the owner record: this failure. It now uses the helper.
+- `lease.mjs:61`: a failure there said "could not use the lease". It now uses the helper.
+- `lifecycle.mjs`, the pass lock's successor: a failure starts no pass this time.
+- `branch-state.mjs`, both renames: a failure counts the lock as held.
+- `scripts/mutate.mjs:241`, `writeBackCache` (renameSync aliased as `rename`): a failure keeps the old cache and
+  says so.
+The last three were already safe, so they stay as they are. The tests drive the helper through its `rename` and
+`sleep` seams, and run both callers through it (tests/replace-file.test.mjs); no macOS test can make a real
+rename busy. The diagnosis is likely, not proven: libuv opens files to allow deletion, so "another process reads
+it" alone may not be the cause. A later Windows campaign is what would show that the race is gone.

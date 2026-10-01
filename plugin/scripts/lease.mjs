@@ -6,9 +6,10 @@
 // dead, unknown — and an unknown is never read as a dead one (ADR-005): its lease is kept, named,
 // and removed only once it is a day old.
 import { randomBytes } from 'node:crypto'
-import { lstatSync, mkdirSync, readdirSync, readFileSync, renameSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, readdirSync, readFileSync, rmdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { replaceFile } from './replace-file.mjs'
 
 const DAY_MS = 24 * 60 * 60 * 1000
 
@@ -55,10 +56,10 @@ function probe(ask) {
 // Written to a temporary name and renamed, so no reader ever sees half a lease. The temporary
 // name does not end in `.json`, so a reader never takes it for one, and it is created exclusively,
 // so nothing already at that name is written through.
-function publish(file, lease) {
+function publish(file, lease, rename) {
   const temp = `${file}.${process.pid}.${randomBytes(3).toString('hex')}.tmp`
   writeFileSync(temp, JSON.stringify(lease), { flag: 'wx', mode: 0o600 })
-  renameSync(temp, file)
+  replaceFile(temp, file, rename ? { rename } : undefined)
 }
 
 // The lease directory is trusted only as a directory of this user's that no one else can write:
@@ -83,7 +84,7 @@ function untrusted(dir, platform = process.platform) {
  * take publishes this run's lease in `dir`: `{ file, lease }`, or `{ error }` when the directory
  * cannot be used, which the caller says and then runs without one.
  */
-export function take(dir, { command, root, state = 'running' } = {}) {
+export function take(dir, { command, root, state = 'running', rename } = {}) {
   // Twice at most: a run releasing the last lease removes an empty directory it made (below), and
   // one taking a lease in that instant finds it gone between its mkdir and its write.
   for (let attempt = 1; ; attempt += 1) {
@@ -95,7 +96,7 @@ export function take(dir, { command, root, state = 'running' } = {}) {
       // The root as this platform spells it: git prints `C:/…` on Windows, and a reader compares
       // it with the native path (Windows CI, 3.3.0 candidate).
       const lease = { pid: process.pid, command, root: typeof root === 'string' ? path.resolve(root) : root, start: start.toISOString(), state }
-      publish(file, lease)
+      publish(file, lease, rename)
       return { file, lease, made }
     } catch (error) {
       if (error.code === 'ENOENT' && attempt < 2) continue

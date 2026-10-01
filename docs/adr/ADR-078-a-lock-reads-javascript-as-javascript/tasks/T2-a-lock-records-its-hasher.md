@@ -109,3 +109,4 @@ Stop and ask if `adr-lint` over `docs/adr` takes more than 25% longer after this
 - 2026-10-01 · f3a61ca* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8cccf76bdde32ca69cc1760b35f0c6ff5baf880ae3bb360a1a340def25ce849 · ms:37454
 - 2026-10-01 · f3a61ca* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8cccf76bdde32ca69cc1760b35f0c6ff5baf880ae3bb360a1a340def25ce849 · ms:40702
 - 2026-10-01 · f3a61ca* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8cccf76bdde32ca69cc1760b35f0c6ff5baf880ae3bb360a1a340def25ce849 · ms:35416
+- 2026-10-01 · human-observed · observed and signed off: adr-lint over the 78 active records took 31.8s at f3a61ca (before T2) and 34.4s with T2 (+8%, under the Stop Condition's 25%); every record's verdict identical, 12 records gain the hasher-2 relock advice

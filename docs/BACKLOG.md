@@ -16843,3 +16843,22 @@ whose branch is not the checkout's — should be shown at all is a product judge
   `spec-verify`'s check that a bound JavaScript test exists (`plugin/bin/spec-verify:636`) and `adr-lint`'s can-fail
   check (`plugin/bin/adr-lint:4900`) still read with hasher 1's masker; and the records whose locks hasher 2 reads
   differently are relocked one by one, as each maintainer chooses.
+
+## 325. OPEN 2026-10-01 — A session start spends its time starting processes, and reads the six oldest records
+
+Reported by the owner from Windows on 2026-10-01: SessionStart hooks take long to complete. Measured the
+same day on macOS with a `startup` payload, tracing every child process:
+
+- `lifecycle.mjs` took 0.91s: 4 `git` calls, then 6 `adr-next` Python spawns in series (83–110ms each).
+  The cap `TASK_DIRECTORY_READ_CAP` (`plugin/scripts/lifecycle.mjs:1205`) reads six directories in
+  listing order. In this repository those are ADR-001 to ADR-006, every one done. So the hook pays six
+  interpreter starts to report nothing, and every record that could be in flight goes into
+  "+62 more: UNPROVEN — not read".
+- `branch-state.mjs --cached 120` took 0.11s with a fresh cache and 1.56s without one. 637ms of that
+  was one `gh run list`. At session start the 120s cache is usually stale.
+
+A Python start and a `gh` call each cost far more on Windows than here; no Windows timing is recorded
+yet. **Lead:** one `adr-next` process reading every task directory removes five interpreter starts and
+the cap together. `branch-state` at SessionStart could serve its git half and refresh `gh` in the
+background, as the brief already does. Both change what a shipped reader prints, so each needs a measured
+target first (a Windows timing), then a spec and an outside run (§18).

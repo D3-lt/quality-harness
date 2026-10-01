@@ -9622,8 +9622,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if not replace_hashes:\n        moved = moved_lock_bodies(vlog, current=snap)\n",
-      "to": "    if False:\n        moved = moved_lock_bodies(vlog, current=snap)\n",
+      "from": "        moved = moved_lock_bodies(vlog, current=recorded_reading)\n        if moved:\n",
+      "to": "        moved = moved_lock_bodies(vlog, current=recorded_reading)\n        if False:\n",
       "only": "refuses when a hashed body moved"
     },
     {
@@ -18656,6 +18656,26 @@
       "from": "                   \"ts\": suffix in _H2_TS_SUFFIXES}",
       "to": "                   \"ts\": False}",
       "only": "^a slash hasher 2 cannot place leaves the tests it reaches unproven$"
+    },
+    {
+      "label": "ADR-078 T3: a relock compares a hasher-1 lock under hasher 2",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        recorded_reading = snap if hasher == 2 else snapshot_lock(cwd, tests, hasher=hasher)",
+      "to": "        recorded_reading = snap",
+      "only": "^relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1$"
+    },
+    {
+      "label": "ADR-078 T3: the appended relock is taken by hasher 1",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    snap = snapshot_lock(cwd, tests)",
+      "to": "    snap = snapshot_lock(cwd, tests, hasher=1)",
+      "only": "^relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1$"
     }
   ]
 }

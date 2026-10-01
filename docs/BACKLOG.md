@@ -17089,3 +17089,25 @@ moved lock only on a frozen record. It runs inside `errors.protected()` and rais
 `evidence=True`, so below `strictFrom` a moved lock still blocks. The behaviour asked for is
 unambiguous; the comparison it is justified by is not true of the code. Which one should change is
 the owner's call: the spec's sentence, or the lock's handling below `strictFrom`.
+
+## 336. OPEN 2026-10-01 — ADR-079's Codex round on efd7cdf: four findings fixed, residuals named
+
+One round (gpt-6-astra, xhigh, read-only, REQUEST CHANGES). Each finding was reproduced against
+source before it was fixed, and each fix has a regression with an adverse twin in
+`tests/js-reading.test.mjs` and a catalogue mutant run RED:
+
+1. P1: a Tests row naming its own file (`probe` in `probe.mjs`) skipped the existence check, and
+   the can-fail check said UNPROVEN only for spaced titles, so an unbounded body there was silence.
+   `names_its_own_file` is now one predicate read by both checks.
+2. P2: `const checkIt = helper` was followed as a helper, bounded from the binding, and borrowed the
+   next function's assertion. Only a binding whose value is a function or an arrow is followed now.
+3. P2: `test('x' /* why */, …)` read as missing, because the lookup skipped only whitespace between
+   the title and its comma. It now also skips a comment the lexer placed, and nothing it could not.
+4. P2: `verdict-diff.sh` erased any `/tmp/…` word, so two findings differing only there compared
+   equal. It now takes out only the version stamp and the side's own plugin path. Its control
+   wraps BOTH sides, differing only in such a word, so a normalisation that erases one fails it.
+
+Residuals the reviewer named and nothing here changes: a named callback (`test('x', helper)`) named
+by an identifier blocks `done` as UNPROVEN, which is the ADR's rule for a body that cannot be
+bounded; `test.each(table)(…)`, generic callbacks and escape decoding keep their earlier limits.
+Not rerun by the reviewer: the CLI fixtures and the corpus comparison (rerun here: no verdict changed).

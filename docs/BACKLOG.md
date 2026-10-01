@@ -16941,3 +16941,35 @@ say why.
   spec-verify is `test_definition_exists` (`plugin/bin/spec-verify:348-360`): its own `mask_noncode` with
   `regex_literals`, plus `registered_test_names`, and a JavaScript suffix list without `.mts` or `.cts`. The
   record is history and stays as written; this line is the correction.
+
+## 329. OPEN 2026-10-01 — ADR-079 (every gate reads JavaScript one way) is parked on its review
+
+A cold Codex review (gpt-6-astra, xhigh) of the Proposed ADR-079, its spec and its stubs asked for changes,
+with eight findings, each reproduced by the reviewer.
+1. The rule "UNPROVEN when the name occurs past the lexer's stop" misfires both ways: an escaped title is
+   decoded, so it never occurs verbatim; a substring of other data (`ghostly`) triggers it; and a head
+   before the stop with its body past it reads as missing.
+2. `js_title_exists` (adr-lint:4613) is a second existence path. It searches the raw source, and spaced
+   titles take it before `test_body` is reached.
+3. The can-fail check re-scans the extracted body with `code_only`. An assertion inside `${…}` reads as
+   "asserts nothing", and `/assert/` reads as an assertion.
+4. Three registration vocabularies still disagree: `test.skip`, `test/* */(`, `helper.test`,
+   `describe`, `t.Run`, and an interpolated title.
+5. The class audit missed `commented_out`, the Ruby and declaration fallbacks, `resolve_enforcement`, and
+   `.mts`/`.cts` at adr-lint:3772.
+6. The stubs pass a deliberately wrong implementation, T1 asserts no CLI exit 4, and T2's CLI fixture never
+   runs its checks, because no task is evidenced.
+7. Both fences count matching lines, so a duplicate passing title satisfies them.
+8. The corpus bar has no defined comparison, its baseline is taken after the change, and its exceptions
+   are inconsistent.
+
+Next: rework the spec and ADR against these, then run one more review.
+
+## 330. DEFERRED 2026-10-01 — the artifact batch gates each path in its own shell
+
+`runArtifactBatch` (`plugin/scripts/run-shell-hook.mjs:600`) starts one bash per path through
+`facts-gate-dispatch.sh`, about 200 ms each. Replayed on a local clone of an adopter's session log, 217
+targets took 43.3 s. ADR-080 takes the pass off every hook's critical path, which removes the wait but
+not the work. Gating a batch in one shell would cut the work too, but it gives up the dispatcher's
+per-path isolation, so it is its own decision. Measure the pass's wall time after ADR-080 ships before
+deciding.

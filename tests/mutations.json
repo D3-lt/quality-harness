@@ -2745,9 +2745,39 @@
       "tests": [
         "tests/js-reading.test.mjs"
       ],
-      "from": "                if status == \"unproven\" and spaced and js_title_exists(raw, name, f.suffix) == \"found\":",
-      "to": "                if False:",
+      "from": "                if status == \"unproven\" and (spaced or names_its_own_file(f, name, raw)) \\",
+      "to": "                if False \\",
       "only": "^adr-lint says UNPROVEN for a spaced JavaScript title it found but whose body it cannot bound$"
+    },
+    {
+      "label": "ADR-079 Codex: a row naming its own file never has its unbounded body said",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                if status == \"unproven\" and (spaced or names_its_own_file(f, name, raw)) \\",
+      "to": "                if status == \"unproven\" and (spaced) \\",
+      "only": "^adr-lint says UNPROVEN for a test named by its own file whose body it cannot bound$"
+    },
+    {
+      "label": "ADR-079 Codex: a binding to anything is followed as a helper",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                       + re.escape(name) + r\"\\s*=\\s*(?:async\\s+)?(?:function\\b|\\([^()]*\\)\\s*=>|\"",
+      "to": "                       + re.escape(name) + r\"\\s*=\\s*(?:async\\s+)?(?:|function\\b|\\([^()]*\\)\\s*=>|\"",
+      "only": "^adr-lint follows a helper only into its own function$"
+    },
+    {
+      "label": "ADR-079 Codex: a comment between a title and its comma loses the test",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        while j < n and (text[j] in \" \\t\\n\\r\" or kinds[j] == 2):",
+      "to": "        while j < n and text[j] in \" \\t\\n\\r\":",
+      "only": "^adr-lint finds a JavaScript test with a comment beside its title, and never one inside a comment$"
     },
     {
       "label": "verify: importing the wrapper spawns nothing",
@@ -7670,8 +7700,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if name in (f.stem, f.name):\n                source = f.read_text(errors=\"replace\", encoding=\"utf-8\")\n",
-      "to": "            if name in (f.stem, f.name):\n                continue\n                source = f.read_text(errors=\"replace\", encoding=\"utf-8\")\n",
+      "from": "            if names_its_own_file(f, name, f.read_text(errors=\"replace\", encoding=\"utf-8\")):\n                continue\n",
+      "to": "            if name in (f.stem, f.name):\n                continue\n",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -9722,8 +9752,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+(?:Test|Fuzz)\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", view, re.M):\n",
-      "to": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+Test\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", view, re.M):\n",
+      "from": "    return re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+(?:Test|Fuzz)\\w*\\s*\\(|\"",
+      "to": "    return re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+Test\\w*\\s*\\(|\"",
       "only": "focused false-green"
     },
     {

@@ -4607,9 +4607,26 @@ def js_code_body(text, name, suffix):
 
 def js_helper_heads(masked, name):
     """Where a same-file helper named `name` is defined in the code view: a function
-    declaration, or a binding whose value is one."""
+    declaration, or a binding whose value is a function or an arrow. A binding to
+    anything else (`const checkIt = helper`) is not followed: bounded from there, the
+    next `{` belongs to whatever is defined after it (Codex round on efd7cdf)."""
     return re.finditer(r"\bfunction\s*\*?\s*" + re.escape(name) + r"\s*\(|\b(?:const|let|var)\s+"
-                       + re.escape(name) + r"\s*=", masked)
+                       + re.escape(name) + r"\s*=\s*(?:async\s+)?(?:function\b|\([^()]*\)\s*=>|"
+                       r"[A-Za-z_$][\w$]*\s*=>)", masked)
+
+
+def names_its_own_file(f, name, source):
+    """Whether a Tests row naming `name` in `f` names the FILE, which holds a test.
+
+    BACKLOG §174: under pytest and go test a filter on the module's name selects its
+    tests, so such a row claims the file's tests ran. A JavaScript-family file is
+    searched on the lexer's code view (ADR-079), so a `test(` inside a string is not
+    the file's test."""
+    if name not in (f.stem, f.name):
+        return False
+    view = js_reading(source, f.suffix)[0] if f.suffix.lower() in JS_FAMILY_SUFFIXES else source
+    return re.search(r"^\s*(?:async\s+)?def\s+test_\w+\s*\(|^\s*func\s+(?:Test|Fuzz)\w*\s*\(|"
+                     r"^\s*(?:it|test)\s*\(", view, re.M) is not None
 
 
 def js_body_can_fail(text, name, suffix):
@@ -4764,14 +4781,8 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=Non
             # the claim the row makes is that the file's tests ran — which holds when
             # the file holds at least one. A same-named file with no test in it is
             # still the identity finding below.
-            if name in (f.stem, f.name):
-                source = f.read_text(errors="replace", encoding="utf-8")
-                # A JavaScript-family file is searched on the lexer's code view (ADR-079), so a
-                # `test(` inside a string is not the file's test.
-                view = js_reading(source, f.suffix)[0] if f.suffix.lower() in JS_FAMILY_SUFFIXES else source
-                if re.search(r"^\s*(?:async\s+)?def\s+test_\w+\s*\(|^\s*func\s+(?:Test|Fuzz)\w*\s*\(|"
-                             r"^\s*(?:it|test)\s*\(", view, re.M):
-                    continue
+            if names_its_own_file(f, name, f.read_text(errors="replace", encoding="utf-8")):
+                continue
             # RAW source: `test_body` strips per branch, because a BDD test's name
             # is a string literal and stripping strings here deleted the thing
             # being searched for (docs/BACKLOG.md §57).
@@ -5492,7 +5503,10 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=
                 # report. A spaced title it accepted on its call alone (`it('x', helper)`),
                 # whose body cannot be bounded, is said here, or it would be silence.
                 status, can = js_body_can_fail(raw, name, f.suffix)
-                if status == "unproven" and spaced and js_title_exists(raw, name, f.suffix) == "found":
+                # A row the existence check did not read the body of: a spaced title, found on
+                # its call alone, or one naming its own file (Codex round on efd7cdf).
+                if status == "unproven" and (spaced or names_its_own_file(f, name, raw)) \
+                        and js_title_exists(raw, name, f.suffix) == "found":
                     unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
                 if status != "found" or can:
                     continue

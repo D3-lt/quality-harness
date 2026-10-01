@@ -5,7 +5,7 @@
 // counted without the run changing the tree it checked.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -16,8 +16,7 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = join(repoRoot, 'plugin')
 const qhCheck = join(plugin, 'scripts', 'qh-check.mjs')
 const lifecycle = join(plugin, 'scripts', 'lifecycle.mjs')
-const { NODE_TEST_CONTEXT: _nested, CLAUDE_CODE_SESSION_ID: _session, ...baseEnv } = process.env
-const todo = 'ADR-081'
+const { NODE_TEST_CONTEXT: _nested, CLAUDE_CODE_SESSION_ID: _session, QUALITY_HARNESS_CHECK_AGAIN: _again, ...baseEnv } = process.env
 const FULL = 'echo full >> "$QH_RUNS"'
 const FAST = 'echo fast >> "$QH_RUNS"'
 
@@ -50,7 +49,7 @@ const fastPassed = fixture => {
 }
 const done = fixture => rmSync(fixture.top, { recursive: true, force: true })
 
-test('a tree whose latest check passed is not checked again, and says when and how long', { todo }, () => {
+test('a tree whose latest check passed is not checked again, and says when and how long', () => {
   const fixture = repository()
   try {
     assert.equal(check(fixture).status, 0)
@@ -62,7 +61,7 @@ test('a tree whose latest check passed is not checked again, and says when and h
   } finally { done(fixture) }
 })
 
-test('--again runs a tree that already passed', { todo }, () => {
+test('--again runs a tree that already passed', () => {
   const fixture = repository()
   try {
     check(fixture)
@@ -71,7 +70,7 @@ test('--again runs a tree that already passed', { todo }, () => {
   } finally { done(fixture) }
 })
 
-test('a changed tree, a torn ledger or a failed run checks again', { todo }, () => {
+test('a changed tree, a torn ledger or a failed run checks again', () => {
   const fixture = repository()
   try {
     check(fixture)
@@ -90,7 +89,7 @@ test('a changed tree, a torn ledger or a failed run checks again', { todo }, () 
   } finally { done(failing) }
 })
 
-test('a pass followed by a failure on the same tree checks again', { todo }, () => {
+test('a pass followed by a failure on the same tree checks again', () => {
   const fixture = repository({ check: `${FULL}; test "$QH_MODE" != broken` })
   try {
     assert.equal(check(fixture).status, 0)
@@ -100,7 +99,7 @@ test('a pass followed by a failure on the same tree checks again', { todo }, () 
   } finally { done(fixture) }
 })
 
-test('a write git cannot see, after the pass, checks again', { todo }, () => {
+test('a write git cannot see, after the pass, checks again', () => {
   const fixture = repository()
   const session = 'ledger-unseen'
   try {
@@ -113,7 +112,7 @@ test('a write git cannot see, after the pass, checks again', { todo }, () => {
   } finally { done(fixture) }
 })
 
-test('a skip waits for no lease', { todo }, () => {
+test('a skip waits for no lease', () => {
   const fixture = repository()
   try {
     check(fixture)
@@ -130,14 +129,14 @@ test('a skip waits for no lease', { todo }, () => {
   } finally { done(fixture) }
 })
 
-test('every run says how long it took', { todo }, () => {
+test('every run says how long it took', () => {
   const fixture = repository()
   try {
     assert.match(check(fixture).stderr, /passed in \d+(?:\.\d+)?s/)
   } finally { done(fixture) }
 })
 
-test('a fast check is recorded apart, where no full-check reader looks', { todo }, () => {
+test('a fast check is recorded apart, where no full-check reader looks', () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     fastPassed(fixture)
@@ -147,7 +146,7 @@ test('a fast check is recorded apart, where no full-check reader looks', { todo 
   } finally { done(fixture) }
 })
 
-test('a commit-only command on a fast-passed tree is told, not refused', { todo }, () => {
+test('a commit-only command on a fast-passed tree is told, not refused', () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -158,7 +157,7 @@ test('a commit-only command on a fast-passed tree is told, not refused', { todo 
   } finally { done(fixture) }
 })
 
-test('a commit with no fast pass, or a failed one, is still refused', { todo }, () => {
+test('a commit with no fast pass, or a failed one, is still refused', () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -172,7 +171,7 @@ test('a commit with no fast pass, or a failed one, is still refused', { todo }, 
   } finally { done(failing) }
 })
 
-test('a push, or a commit that also pushes, is refused on a fast-passed tree', { todo }, () => {
+test('a push, or a commit that also pushes, is refused on a fast-passed tree', () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   try {
     changed(fixture)
@@ -182,12 +181,16 @@ test('a push, or a commit that also pushes, is refused on a fast-passed tree', {
   } finally { done(fixture) }
 })
 
-test("git's own hooks let a commit through with the warning and refuse a push", { todo }, () => {
+test("git's own hooks let a commit through with the warning and refuse a push", () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   const session = 'ledger-git-hook'
   try {
+    // The session begins before the change, so its log exists and the change is the session's.
+    spawnSync(process.execPath, [lifecycle], {
+      cwd: fixture.dir, env: fixture.env, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+      input: JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: fixture.dir }),
+    })
     changed(fixture)
-    hook(fixture, 'ls', session)
     fastPassed(fixture)
     const env = { ...fixture.env, CLAUDE_CODE_SESSION_ID: session }
     const commit = runPublishHook({ event: 'prepare-commit-msg', cwd: fixture.dir, env })
@@ -197,7 +200,7 @@ test("git's own hooks let a commit through with the warning and refuse a push", 
   } finally { done(fixture) }
 })
 
-test('a commit refused before a fast pass is told after it', { todo }, () => {
+test('a commit refused before a fast pass is told after it', () => {
   const fixture = repository({ check: FULL, fastCheck: FAST })
   const session = 'ledger-key'
   try {
@@ -210,7 +213,7 @@ test('a commit refused before a fast pass is told after it', { todo }, () => {
   } finally { done(fixture) }
 })
 
-test('--fast with no fastCheck declared is said, and runs nothing', { todo }, () => {
+test('--fast with no fastCheck declared is said, and runs nothing', () => {
   const fixture = repository()
   try {
     const run = check(fixture, ['--fast'])
@@ -218,4 +221,76 @@ test('--fast with no fastCheck declared is said, and runs nothing', { todo }, ()
     assert.match(run.stderr, /fastCheck/)
     assert.equal(runs(fixture).length, 0)
   } finally { done(fixture) }
+})
+
+// The Codex round on ADR-081's code: each finding gets its regression, through the boundary it reported.
+
+test('a git command that runs other commands is not a commit, whatever it names', () => {
+  const fixture = repository({ check: FULL, fastCheck: FAST })
+  try {
+    changed(fixture)
+    fastPassed(fixture)
+    for (const command of [
+      "git -c alias.x='!git push' x",
+      "git rebase --exec 'git commit -m y; git push' HEAD~1",
+      'git --exec-path=/tmp commit -m x',
+      'GIT_EDITOR=true git commit -m x',
+    ]) assert.equal(decision(hook(fixture, command, 'ledger-nested')), 'deny', command)
+    assert.notEqual(decision(hook(fixture, 'git -C . commit -m x', 'ledger-nested-control')), 'deny', 'git -C is still a commit')
+  } finally { done(fixture) }
+})
+
+test('a commit fed by an expanding here-document is refused, and a quoted one is told', () => {
+  const fixture = repository({ check: FULL, fastCheck: FAST })
+  try {
+    changed(fixture)
+    fastPassed(fixture)
+    assert.equal(decision(hook(fixture, 'git commit -F - <<EOF\n$(git push)\nEOF', 'ledger-heredoc')), 'deny', 'its body runs a push')
+    assert.notEqual(decision(hook(fixture, "git commit -F - <<'EOF'\nplain\nEOF", 'ledger-heredoc-quoted')), 'deny', 'a quoted body is data')
+  } finally { done(fixture) }
+})
+
+test('a write the ledger counts after the pass is seen, even when the clock went back', () => {
+  const fixture = repository()
+  try {
+    check(fixture)
+    mkdirSync(join(state(fixture), 'sessions'), { recursive: true })
+    // Stamped before the pass started, but the ledger held the pass when it was recorded.
+    appendFileSync(join(state(fixture), 'sessions', 'ledger-clock.jsonl'),
+      `${JSON.stringify({ at: '2000-01-01T00:00:00.000Z', event: 'file.written', observable: false, path: join(fixture.dir, 'ignored.bin'), checksSeen: 1 })}\n`)
+    check(fixture)
+    assert.equal(runs(fixture).length, 2)
+  } finally { done(fixture) }
+})
+
+test('a sessions directory that cannot be listed runs the check', { skip: (process.platform === 'win32' || process.getuid?.() === 0) && 'permissions cannot hide a directory here' }, () => {
+  const fixture = repository()
+  const sessions = join(state(fixture), 'sessions')
+  try {
+    check(fixture)
+    mkdirSync(sessions, { recursive: true })
+    chmodSync(sessions, 0o000)
+    check(fixture)
+    assert.equal(runs(fixture).length, 2, 'what could not be listed may hold a write git cannot see')
+  } finally {
+    try { chmodSync(sessions, 0o700) } catch { /* not made */ }
+    done(fixture)
+  }
+})
+
+test('a row that is not a record proves nothing, in either ledger', () => {
+  const fixture = repository()
+  try {
+    check(fixture)
+    appendFileSync(join(state(fixture), 'checks.jsonl'), '{}\n')
+    check(fixture)
+    assert.equal(runs(fixture).length, 2, 'the skip reads the ledger as the importer does')
+  } finally { done(fixture) }
+  const fast = repository({ check: FULL, fastCheck: FAST })
+  try {
+    changed(fast)
+    fastPassed(fast)
+    appendFileSync(join(state(fast), 'fast-checks.jsonl'), '{}\n')
+    assert.equal(decision(hook(fast, 'git commit -m x', 'ledger-row')), 'deny', 'nor does the fast ledger')
+  } finally { done(fast) }
 })

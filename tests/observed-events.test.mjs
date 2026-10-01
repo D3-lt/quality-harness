@@ -40,6 +40,9 @@ const HOOK_ENV = {
   QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000',
   // ADR-080's `inline` seam: the artifact pass runs in the hook, so its verdict is read on return.
   QUALITY_HARNESS_ARTIFACT_PASS_RUNNER: 'inline',
+  // ADR-081's opt-out: these tests change what the probe check does without changing the
+  // tree (QH_PROBE_MODE), which is exactly what the same-tree skip cannot see.
+  QUALITY_HARNESS_CHECK_AGAIN: '1',
 }
 const RULE_ONE_TEXT = 'first finding for the probe'
 const RULE_TWO_TEXT = 'second finding for the probe'

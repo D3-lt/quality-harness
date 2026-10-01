@@ -67,7 +67,9 @@ Why: `.claude/rules/02-running-the-checks.md`
   commit or push on a tree no `qh-check` has passed on, when the session log was read whole — and,
   where the session's git hook has run (ADR-066), the commit or push refused by git at the event
   itself, whatever launched it; a
-  project turns it back into a warning with `"publish": "warn"` in `.quality-harness.json`. And
+  project turns it back into a warning with `"publish": "warn"` in `.quality-harness.json`. A command
+  proven to be one commit, on a tree whose latest declared fast check passed, is advised instead
+  (ADR-081); a push still needs the full check. And
   ADR-060's reviewer guard: a role spawned read-only may not edit, commit or push. A new refusal
   needs an Accepted record, and an opt-out unless it only fences a role the caller made read-only.
 - **A gate never reports an observation it did not make.** Could-not-look is `UNRUN`, `PARTIAL`,

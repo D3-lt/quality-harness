@@ -39,7 +39,7 @@ The spec's Problem and Goal are inherited (docs/specs/2026-10-01-qh-check-reads-
 `qh-check` without `--again` decides whether to skip BEFORE it takes the machine lease, from an observation of its own:
 - **It skips** when the latest record in `checks.jsonl`, by position, for the same command and that observation's tree grades `check.passed`. It then names that pass's time and duration, says a tree hash does not cover ignored files or the environment, points at `--again`, writes nothing, and exits 0.
 - **It runs** in every case it could not establish: a ledger not read whole, an observation that failed, a directory outside git, or a latest record that is not a pass.
-- **It also runs** when the session (`CLAUDE_CODE_SESSION_ID`) holds a write git cannot see that no pass has cleared.
+- **It also runs** when any session's log of this repository holds a write git cannot see, recorded after the pass started. It looks at every session because a check run by hand carries no session id; a log last changed before the pass cannot hold such a write. `QUALITY_HARNESS_CHECK_AGAIN=1` is `--again` for every run: the opt-out for a project whose check depends on something outside the tree, and the seam the tests that vary such a thing select (revised during execution, 2026-10-01).
 - **A run that misses observes the tree again after its wait**, as today. Every result line names its duration.
 
 `qh-check --fast` resolves `fastCheck` from `.quality-harness.json`:
@@ -53,6 +53,12 @@ The spec's Problem and Goal are inherited (docs/specs/2026-10-01-qh-check-reads-
 - `runPublishHook` returns the advisory's text with code 0. Anything that pushes, and any form not proven, is refused as today.
 
 This fails if a torn ledger ever skips; the third test tears it and asserts the check ran.
+
+**Revised after the code review (2026-10-01).** A cold Codex round on the code found five defects. Each is fixed and has a regression through the boundary it was reported at:
+- The commit-only proof now requires the git subcommand itself to be `commit`. Before it, only `-C <dir>` and `--no-pager` are allowed, with no variable assignment and no unquoted here-document. An alias, `rebase --exec`, `-c`, `--exec-path` and an expanding here-document had each let a push ride the exemption.
+- An unseen write counts unless the ledger's count AND its clock both place it before the pass, the rule `unobservableWrites` keeps. A clock that went back no longer hides one.
+- A sessions directory that cannot be listed runs the check.
+- A row without a record id stops the skip and the exemption, as the importer reads it.
 
 ## Alternatives Considered
 

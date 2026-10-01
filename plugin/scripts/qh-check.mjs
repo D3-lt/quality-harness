@@ -9,10 +9,10 @@
 // it would have cleared stays open.
 import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, realpathSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
-import { checkCommandOrigin, observe, stateDir, validationVerdict } from './lifecycle.mjs'
+import { checkCommandOrigin, checkEventName, fastCheckCommand, observe, stateDir, validationVerdict } from './lifecycle.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
@@ -64,6 +64,65 @@ export function checkLaunch(command, platform = process.platform, env = process.
   return bash ? { file: bash, args: ['-c', command], shell: false } : null
 }
 
+
+/**
+ * passedAlready answers whether the ledger already proves this tree (ADR-081): the
+ * LATEST record, by position, for the same command on the tree as it is now must
+ * grade `check.passed`. Anything it cannot establish answers null, and the check
+ * runs (ADR-005):
+ * - a ledger line it cannot read;
+ * - a tree it cannot observe;
+ * - a directory outside git;
+ * - a write git cannot see, recorded in ANY session's log after the pass started,
+ *   since a tree hash cannot speak for it. Every session, because a check run by
+ *   hand carries no session id; a log last changed before the pass cannot hold one.
+ * `observeTree` is the seam a test replaces.
+ */
+export function passedAlready({ root, git, command, env = process.env, observeTree = observe }) {
+  if (git !== true) return null
+  const now = observeTree(root)
+  if (now?.ok !== true) return null
+  let text
+  try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
+  let latest = null
+  let seq = 0
+  let latestSeq = 0
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    let record
+    try { record = JSON.parse(line) } catch { return null }
+    // A row that is not a record proves nothing, as the importer reads it.
+    if (typeof record?.id !== 'string') return null
+    seq += 1
+    if (record?.command === command && record?.after?.tree === now.tree) latest = record
+    if (latest === record) latestSeq = seq
+  }
+  if (!latest || checkEventName(latest) !== 'check.passed') return null
+  const started = Date.parse(latest.before?.at)
+  const sessions = path.join(stateDir(root), 'sessions')
+  let names = []
+  try { names = readdirSync(sessions).filter(name => name.endsWith('.jsonl')) } catch (error) {
+    // Absent is no session; a directory that cannot be listed hides what it holds.
+    if (error?.code !== 'ENOENT') return null
+  }
+  for (const name of names) {
+    let log
+    try { log = readFileSync(path.join(sessions, name), 'utf8') } catch { return null }
+    for (const line of log.split('\n')) {
+      if (!line.trim()) continue
+      let entry
+      try { entry = JSON.parse(line) } catch { return null }
+      if (entry?.event !== 'file.written' || entry.observable !== false) continue
+      // Cleared only when recorded before this pass AND started before it, the rule
+      // `unobservableWrites` keeps: a clock that went back cannot hide a write the
+      // ledger's count says came after (Codex review of ADR-081).
+      const recordedBefore = entry.checksSeen === undefined || (Number.isInteger(entry.checksSeen) && entry.checksSeen < latestSeq)
+      if (!(recordedBefore && Date.parse(entry.at) < started)) return null
+    }
+  }
+  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)
+  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null }
+}
 // Runs a launched check to its end, forwarding SIGINT/SIGTERM and enforcing the
 // timeout. `received` is the signal this process forwarded, if any.
 async function runLaunched({ file, args, shell }, { root, env, platform, timeoutMs, stdout, stderr, keep }) {
@@ -92,11 +151,18 @@ async function runLaunched({ file, args, shell }, { root, env, platform, timeout
   return { ended, received }
 }
 
-export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false, lease = leaseModule } = {}) {
+export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false, again = false, fast = false, lease = leaseModule } = {}) {
   const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
-  const { command, origin } = checkCommandOrigin(root)
+  // ADR-081: `--fast` runs the declared `fastCheck`, records it apart and never skips.
+  const fastCommand = fast ? fastCheckCommand(root) : null
+  if (fast && !fastCommand) {
+    stderr.write('qh-check: no `fastCheck` that can fail is declared in .quality-harness.json, so `--fast` has nothing to run.\n')
+    return 2
+  }
+  if (fast) again = true
+  const { command, origin } = fast ? { command: fastCommand, origin: 'fast' } : checkCommandOrigin(root)
   if (origin === 'refused') {
     stderr.write('qh-check: the check declared in .quality-harness.json is a constant success and was refused.\n')
     return 2
@@ -108,6 +174,17 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   if (!command) {
     stderr.write('qh-check: this project has no check to run. Declare one as `check` in .quality-harness.json.\n')
     return 2
+  }
+  // ADR-081: the ledger answers before the lease is taken, so a skip never waits its
+  // turn. A run that misses observes the tree again after its wait, below.
+  // QUALITY_HARNESS_CHECK_AGAIN=1 is `--again` for every run: a project, or a test,
+  // whose check depends on something outside the tree opts out of the skip.
+  const already = again || env.QUALITY_HARNESS_CHECK_AGAIN === '1' ? null : passedAlready({ root, git, command, env })
+  if (already) {
+    const took = already.ms === null ? '' : `, in ${inSeconds(already.ms)}`
+    stderr.write(`qh-check: already passed on this tree at ${already.at}${took} (\`${command}\`) — not run again. `
+      + 'A tree hash covers no ignored file, environment or service; `qh-check --again` runs it.\n')
+    return 0
   }
   // ADR-077: a lease for the whole run, taken before the load is sampled, so the check's own
   // numbers are taken after any wait. It names the heavy runs beside it and never changes the
@@ -214,14 +291,16 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   try {
     const directory = stateDir(root)
     mkdirSync(directory, { recursive: true })
-    const file = path.join(directory, 'checks.jsonl')
+    // A fast record goes where no reader of a full pass looks, in any version (ADR-081).
+    const file = path.join(directory, fast ? 'fast-checks.jsonl' : 'checks.jsonl')
     appendFileSync(file, `${JSON.stringify(record)}\n`, 'utf8')
     // Said on STDERR, once, after the record exists: a check run by hand showed only
     // its own output, so nobody could tell what ran, whether it was declared or
     // inferred, or that a record was written (BACKLOG §280 item 1). Stdout stays
     // the check's own.
     const shown = path.relative(root, file)
-    const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : verdict
+    const took = inSeconds(Date.parse(after.at) - Date.parse(startedAt))
+    const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : `${verdict} in ${took}`
     stderr.write(`qh-check: ran \`${command}\` (${origin}) — ${said}; recorded in ${shown.startsWith('..') || path.isAbsolute(shown) ? file : shown}\n`)
   } catch (failure) {
     stderr.write(`qh-check: the check ran, but its record could not be written (${failure.code ?? failure.message}).\n`)
@@ -236,11 +315,11 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
 
 if (isMainModule(import.meta.url)) {
   const argv = process.argv.slice(2)
-  const unknown = argv.filter(word => word !== '--wait')
+  const unknown = argv.filter(word => !['--wait', '--again', '--fast'].includes(word))
   if (unknown.length) {
-    process.stderr.write(`qh-check: unknown option: ${unknown[0]}\nusage: qh-check [--wait]\n`)
+    process.stderr.write(`qh-check: unknown option: ${unknown[0]}\nusage: qh-check [--wait] [--again] [--fast]\n`)
     process.exitCode = 2
   } else {
-    process.exitCode = await runCheck({ wait: argv.includes('--wait') })
+    process.exitCode = await runCheck({ wait: argv.includes('--wait'), again: argv.includes('--again'), fast: argv.includes('--fast') })
   }
 }

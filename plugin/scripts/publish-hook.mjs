@@ -82,10 +82,12 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
   // has no such boundary, and refused the tree that check had just passed (ADR-066
   // review, P2). One import per caller: a second one in the verdict hid the first.
   importCheckRecords(cwd, session)
-  const verdict = publishVerdict({ cwd, session, observation: observe(cwd, observeBudgetMs(env)), invoked })
+  // `prepare-commit-msg` is one commit by construction; `pre-push` never is (ADR-081).
+  const verdict = publishVerdict({ cwd, session, observation: observe(cwd, observeBudgetMs(env)), invoked, commitOnly: event === 'prepare-commit-msg' })
   // An unreadable tree is said at the event too; a refusal is only ever code 1.
   if (verdict?.unobserved) return { code: 0, message: verdict.text }
-  if (!verdict?.deny) return { code: 0 }
+  // A commit let through on a fast check is told so at the event; other advice stays the hook's.
+  if (!verdict?.deny) return verdict?.fast ? { code: 0, message: verdict.text } : { code: 0 }
   return { code: 1, message: `${verdict.text}\n(refused by git's ${event} hook — ADR-066)` }
 }
 

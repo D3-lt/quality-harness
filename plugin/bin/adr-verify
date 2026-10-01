@@ -2661,6 +2661,9 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
     snap = snapshot_lock(cwd, tests)
     if not replace_hashes:
         hasher = lock_hasher(vlog)
+        if hasher is None:
+            fail("the recorded lock could not be read — UNPROVEN; default --relock compares "
+                 "before it replaces, so pass --replace-hashes to replace it unread")
         if hasher not in LOCK_HASHERS:
             fail(f"the recorded lock was taken by hasher {hasher}, which this adr-verify "
                  "does not know — UNPROVEN; it is never compared under another hasher")

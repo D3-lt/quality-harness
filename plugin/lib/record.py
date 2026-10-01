@@ -38,6 +38,7 @@ import hashlib
 import json
 import os
 import re
+import unicodedata
 from functools import lru_cache
 from pathlib import Path
 
@@ -1522,7 +1523,55 @@ def js_regex_end(text, i):
 # Hasher 2's JavaScript lexer (ADR-078). Every reader above is hasher 1 and stays
 # byte-identical, because the locks recorded before it were taken with it (F-1).
 _H2_JUMP_WORDS = {"break", "continue"}
-_H2_REGEX_WORDS = REGEX_MAY_FOLLOW_WORD | _H2_JUMP_WORDS | {"new", "throw"}
+# Reserved words. After one that cannot end a value a `/` opens a regex: `debugger`
+# and `return` end a statement or begin an expression, never a value (Codex review of
+# 01443dd). `this`, `super`, `null`, `true` and `false` are values.
+_H2_RESERVED = {
+    "break", "case", "catch", "class", "const", "continue", "debugger", "default",
+    "delete", "do", "else", "enum", "export", "extends", "finally", "for", "function",
+    "if", "import", "in", "instanceof", "new", "return", "switch", "throw", "try",
+    "typeof", "var", "void", "while", "with",
+}
+_H2_VALUE_WORDS = {"this", "super", "null", "true", "false"}
+# Contextual keywords that can precede a regex as a keyword (`for (x of /a/)`,
+# `yield /a/`, `await /a/`) and a division as an identifier (`of / 2`). Which one
+# needs a parser, so a `/` after one is not placed (F-7).
+_H2_CONTEXTUAL = {"of", "yield", "await"}
+# JavaScript's line terminators and its white space beyond ASCII (ECMA-262 §12.2-3).
+_H2_LINE_END = "\n\r  "
+
+
+def _h2_space(c):
+    """Whether `c` is JavaScript white space or a line terminator."""
+    return c in " \t\n\r\v\f ﻿  " or (
+        ord(c) > 127 and unicodedata.category(c) == "Zs")
+
+
+def _h2_line_end(text, i):
+    """Index of the first line terminator at or after `i`, or len(text)."""
+    ends = [k for k in (text.find(c, i) for c in _H2_LINE_END) if k >= 0]
+    return min(ends) if ends else len(text)
+
+
+def _h2_regex_end(text, i):
+    """End of the regex literal opening at `i`, or None when it never closes.
+
+    `js_regex_end`, with every JavaScript line terminator ending the search.
+    """
+    end, in_class, n = i + 1, False, len(text)
+    while end < n and text[end] not in _H2_LINE_END:
+        char = text[end]
+        if char == "\\":
+            end += 2
+            continue
+        if char == "[":
+            in_class = True
+        elif char == "]":
+            in_class = False
+        elif char == "/" and not in_class:
+            return end + 1
+        end += 1
+    return None
 
 
 def _h2_is_value(prev):
@@ -1531,7 +1580,8 @@ def _h2_is_value(prev):
     if kind == "value":
         return True
     if kind == "word":
-        return prev[2] or prev[1] not in _H2_REGEX_WORDS
+        word, dot = prev[1], prev[2]
+        return dot or word in _H2_VALUE_WORDS or word not in _H2_RESERVED | _H2_CONTEXTUAL
     return kind == "close_paren" and prev[1] not in CONTROL_HEADER
 
 
@@ -1539,10 +1589,11 @@ def _h2_slash_opens_regex(prev, ts):
     """True for a regex, False for a division, None when the context cannot say (F-5).
 
     After `}` the brace may close a block (regex) or an object literal (division),
-    and after a lone `>` in TypeScript it may close a type argument (`f<number> /
-    3`). Telling either apart needs a parser, so neither is guessed (F-7). An
-    operator keyword spelled after `.` is a property name, and a word after
-    `break`/`continue` is a label, after which a new statement may open a regex.
+    after a lone `>` in TypeScript it may close a type argument (`f<number> / 3`),
+    and after `of`, `yield` or `await` the word may be a keyword or a name. Telling
+    any of these apart needs a parser, so none is guessed (F-7). A word after `.` —
+    across comments too — is a property name, and a word after `break`/`continue` is
+    a label, after which a new statement may open a regex.
     """
     kind = prev[0]
     if kind == "start":
@@ -1550,10 +1601,14 @@ def _h2_slash_opens_regex(prev, ts):
     if kind == "value":
         return False
     if kind == "word":
-        _kind, word, dot, label = prev
+        word, dot, label = prev[1], prev[2], prev[3]
         if dot:
             return False
-        return label or word in _H2_REGEX_WORDS
+        if label:
+            return True
+        if word in _H2_CONTEXTUAL:
+            return None
+        return word in _H2_RESERVED and word not in _H2_VALUE_WORDS
     if kind == "close_paren":
         return prev[1] in CONTROL_HEADER
     if kind == "close_brace":
@@ -1568,13 +1623,15 @@ def _js_lex(text, ts=False):
     """(masked, kinds, stop, templates) for a JavaScript-family text, read as JavaScript reads it.
 
     `kinds` marks each position code (0), literal — string, template text or
-    regex — (1), comment (2), or unknown (3). `masked` is `text` with every
-    character but code and newlines blanked, so a brace matcher sees only code: a
-    template's `${…}` is code, its text and delimiters are not (F-6). `stop` is the
-    first position whose literal, comment or `/` could not be established, and
-    everything from it is unknown (F-7): nothing after it is named and no body
-    reaching it is bounded — UNPROVEN, never a guess or a prefix. `templates` holds
-    each outermost template's span, which the digest keeps whole (F-10).
+    regex — (1), comment (2), or unknown (3). `masked` keeps code and newlines,
+    turns a comment or anything unknown into spaces, and a literal into NUL, so a
+    brace matcher sees only code (a template's `${…}` is code, its text and
+    delimiters are not, F-6) and a literal is never mistaken for the white space
+    before an arrow's expression body (Codex review of 01443dd). `stop` is the first
+    position whose literal, comment or `/` could not be established, and everything
+    from it is unknown (F-7): nothing after it is named and no body reaching it is
+    bounded — UNPROVEN, never a guess or a prefix. `templates` holds each outermost
+    template's span, which the digest keeps whole (F-10).
     """
     n = len(text)
     kinds = bytearray(n)
@@ -1606,18 +1663,16 @@ def _js_lex(text, ts=False):
         return None, False
 
     if text.startswith("#!"):
-        end = text.find("\n")
-        end = n if end < 0 else end
+        end = _h2_line_end(text, 0)
         mark(0, end, 2)
         i = end
     while i < n:
         c = text[i]
-        if c in " \t\r\n":
+        if _h2_space(c):
             i += 1
             continue
         if text.startswith("//", i):
-            end = text.find("\n", i)
-            end = n if end < 0 else end
+            end = _h2_line_end(text, i)
             mark(i, end, 2)
             i = end
             continue
@@ -1631,7 +1686,7 @@ def _js_lex(text, ts=False):
             continue
         if c in "'\"":
             j = i + 1
-            while j < n and text[j] != c and text[j] != "\n":
+            while j < n and text[j] != c and text[j] not in "\n\r":
                 j += 2 if text[j] == "\\" else 1
             if j >= n or text[j] != c:
                 stop = i
@@ -1666,7 +1721,7 @@ def _js_lex(text, ts=False):
                 stop = i
                 break
             if regex:
-                end = js_regex_end(text, i)
+                end = _h2_regex_end(text, i)
                 if end is None:
                     stop = i
                     break
@@ -1683,21 +1738,23 @@ def _js_lex(text, ts=False):
             continue
         if c.isalnum() or c in "_$#\\" or ord(c) > 127:
             j = i
-            while j < n and (text[j].isalnum() or text[j] in "_$#\\" or ord(text[j]) > 127):
+            while j < n and (text[j].isalnum() or text[j] in "_$#\\"
+                             or (ord(text[j]) > 127 and not _h2_space(text[j]))):
                 j += 1
             if c.isdigit():
                 prev = ("value",)
             else:
-                k = i - 1
-                while k >= 0 and text[k] in " \t\r\n":
-                    k -= 1
-                dot = k >= 0 and text[k] == "."
+                dot = prev == ("op", ".")
                 label = prev[0] == "word" and not prev[2] and prev[1] in _H2_JUMP_WORDS
-                prev = ("word", text[i:j], dot, label)
+                before = prev[1] if prev[0] == "word" and not prev[2] else None
+                prev = ("word", text[i:j], dot, label, before)
             i = j
             continue
         if c == "(":
-            parens.append(prev[1] if prev[0] == "word" and not prev[2] else None)
+            header = prev[1] if prev[0] == "word" and not prev[2] else None
+            if header == "await" and prev[4] == "for":
+                header = "for"   # `for await (…)` is a for header (Codex review of 01443dd)
+            parens.append(header)
             prev = ("op", "(")
         elif c == ")":
             prev = ("close_paren", parens.pop() if parens else None)
@@ -1719,16 +1776,23 @@ def _js_lex(text, ts=False):
             prev = ("value",) if _h2_is_value(prev) else ("op", c)
             i += 2
             continue
+        elif c == "!" and ts and _h2_is_value(prev) and not text.startswith("!=", i):
+            prev = ("value",)   # TypeScript's non-null assertion ends a value: `n! / 2`
         else:
             prev = ("op", c)
         i += 1
+    if stop is None and interp:
+        # The file ended inside a `${…}`: the template never closed (F-7).
+        stop = outer
     if stop is not None:
         mark(stop, n, 3)
-    masked = "".join(ch if kinds[j] == 0 or ch == "\n" else " " for j, ch in enumerate(text))
+    masked = "".join(
+        ch if kinds[j] == 0 or ch == "\n" else "\0" if kinds[j] == 1 else " "
+        for j, ch in enumerate(text))
     # A regex literal that OPENS an arrow's expression body leaves its `/` in the
     # masked view, so `bdd_callback_body` still refuses that body, as under hasher 1
     # — held by the locked `a regex literal that closes the call is UNPROVEN, not a
-    # truncated hash`. A regex anywhere else is blanked, as hasher 1's masker blanked
+    # truncated hash`. A regex anywhere else is masked, as hasher 1's masker blanked
     # it (`a quote or a paren inside a JS regex literal does not cost a test its
     # locked body`), and a block body is bounded by braces, which a `/` does not touch.
     if regexes:
@@ -2701,22 +2765,23 @@ def decode_lock(token):
         text = raw.decode("utf-8")
     except (ValueError, UnicodeError):
         return None
-    check, bodies, unproven, hasher = None, {}, set(), 1
+    check, bodies, unproven, hasher, checks = None, {}, set(), 1, 0
     for line in text.split("\n"):
         parts = line.split("\t")
         if not parts:
             continue
-        keyed = re.fullmatch(r"check@([0-9]{1,6})", parts[0])
+        keyed = re.fullmatch(r"check@([0-9]+)", parts[0])
         if parts[0] == "check" and len(parts) == 2:
-            check = parts[1]
+            check, checks = parts[1], checks + 1
         elif keyed and len(parts) == 2:
-            check, hasher = parts[1], int(keyed.group(1))
+            check, hasher, checks = parts[1], int(keyed.group(1)), checks + 1
         elif parts[0] == "body" and len(parts) == 4:
             bodies[(parts[1], parts[2])] = parts[3]
         elif parts[0] == "unproven" and len(parts) == 3:
             unproven.add((parts[1], parts[2]))
-    # A UTF-8 payload with no check record is not a lock (Codex: `eA` → `x`).
-    if check is None:
+    # A UTF-8 payload with no check record is not a lock (Codex: `eA` → `x`), and one
+    # with two says two things about which hasher took it (Codex review of 01443dd).
+    if checks != 1:
         return None
     return {"check": check, "bodies": bodies, "unproven": unproven, "hasher": hasher}
 
@@ -2761,11 +2826,14 @@ def moved_lock_bodies(vlog, *, current):
 def lock_hasher(vlog):
     """The hasher that took the log's recorded lock; 1 when it names none (ADR-078).
 
-    `--relock` compares the recorded bodies under this hasher, so a lock taken
-    before hasher 2 is checked the way it was taken before a hasher-2 lock
-    replaces it (F-8).
+    None when a lock is recorded and cannot be read: `--relock` then refuses rather
+    than read it as hasher 1 and replace it unchecked (Codex review of 01443dd). It
+    compares the recorded bodies under this hasher, so a lock taken before hasher 2
+    is checked the way it was taken before a hasher-2 lock replaces it (F-8).
     """
     _date, recorded = _recorded_lock(vlog)
+    if recorded is not None and recorded.get("map") is None:
+        return None
     return ((recorded or {}).get("map") or {}).get("hasher", 1)
 
 

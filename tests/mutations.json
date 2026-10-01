@@ -18806,6 +18806,36 @@
       "from": "  return ageMs > SHOW_AT_MOST_SECONDS * 1000",
       "to": "  return Math.round(ageMs / 1000) > SHOW_AT_MOST_SECONDS",
       "only": "^a brief never shows a snapshot past the cap, whatever --cached allows$"
+    },
+    {
+      "label": "branch-state: an unchanged could-not-look repeats",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (!state.ci || typeof state.ci !== 'object' || !state.ci.looked) return false",
+      "to": "  if (!state.ci || typeof state.ci !== 'object' || !state.ci.looked) return true",
+      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
+    },
+    {
+      "label": "branch-state: a withheld snapshot is said on every prompt",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "      if (previous.said === WITHHELD) {",
+      "to": "      if (false) {",
+      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
+    },
+    {
+      "label": "branch-state: a red CI is said once",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (brief && !ciRed(state) && previous && previous.said === text) return false",
+      "to": "  if (brief && previous && previous.said === text) return false",
+      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
     }
   ]
 }

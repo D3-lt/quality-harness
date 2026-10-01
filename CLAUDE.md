@@ -246,8 +246,10 @@ Why: `.claude/rules/14-mrw-and-team-memory.md`
   running, and so is one you could not look at because `gh` is absent.
 - `plugin/scripts/branch-state.mjs` says it unprompted, the way the memory bootstrap does — **once at
   `SessionStart` in full, and briefly on every `UserPromptSubmit` only when that brief line changed or
-  CI is in alarm** (a red CI keeps its ⚠ and its failing job names). An unchanged brief reprint is unread;
-  suppress it. It reads, blocks nothing, and exits 0 whatever it finds. Run it by hand any time.
+  CI is red** (a completed failed run keeps its ⚠ and its failing job names on every prompt). An unknown —
+  COULD NOT LOOK, a run in progress, a snapshot withheld past its cap — is said once per change, not on
+  every prompt. An unchanged brief reprint is unread; suppress it. It reads, blocks nothing, and exits 0
+  whatever it finds. Run it by hand any time.
 - It reports state, never permission. **`node scripts/release-evidence.mjs <sha>` remains the only
   answer to "may this be released"** (§13.4).
 

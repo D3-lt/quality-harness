@@ -3130,3 +3130,537 @@ print(json.dumps({"found": sum(b is not None and "throw" in b for b in bodies), 
   assert.equal(got.found, 20, r.stdout)
   assert.ok(got.misses <= 2 && got.hits >= 18, `the file was re-masked per test: ${r.stdout}`)
 })
+
+// ADR-078 (docs/specs/2026-10-01-a-lock-reads-javascript-as-javascript.md): bound red,
+// `todo` until its tasks turn them green. Every fixture test name starts `lexer
+// fixture`, so hasher 1 — which counts a test( inside a string — cannot mistake one
+// for a test of THIS file, and a lock on this file cannot pick a fixture's head.
+function hasherRead(src, opts = {}) {
+  const r = python(`
+import json, sys, record
+req = json.load(sys.stdin)
+out = {}
+for h in (1, 2):
+    names = record.extract_test_names(req["src"], hasher=h, **req["opts"])
+    out[str(h)] = {"names": names, "bodies": {
+        n: record.extract_test_body(req["src"], n, hasher=h, **req["opts"]) for n in names}}
+print(json.dumps(out))
+`, JSON.stringify({ src, opts }))
+  assert.equal(r.status, 0, r.stderr)
+  return JSON.parse(r.stdout)
+}
+
+const LEXER_SUBJECT = 'tests/lexer-subject.test.mjs'
+const LEXER_TESTS = [['lexer fixture in a string', LEXER_SUBJECT], ['lexer fixture real', LEXER_SUBJECT]]
+
+// The shape BACKLOG §324 found in tests/unasserted-isolation.test.mjs: a test( inside
+// a string constant, whose hasher-1 "body" is the helper after it.
+function writeLexerSubject(dir, assertion = '  assert.ok(SUITE)') {
+  mkdirSync(join(dir, 'tests'), { recursive: true })
+  writeFileSync(join(dir, LEXER_SUBJECT), [
+    "import test from 'node:test'",
+    "import assert from 'node:assert/strict'",
+    `const SUITE = "test('lexer fixture in a string', () => { helper() })"`,
+    "test('lexer fixture real', () => {",
+    assertion,
+    '})',
+    'function helper() { return 1 }',
+    '',
+  ].join('\n'))
+}
+
+// FROZEN 2026-10-01: the lock the 3.3.0 reading (hasher 1) took over writeLexerSubject's
+// file for LEXER_TESTS. A historical fixture, never regenerated: it is what a recorded
+// lock looks like, so a serialisation that changes and reads itself back cannot pass.
+const FROZEN_DIGEST = '3f3444d8c85c178ac6c61ba28307c26066cfa31ba18092dd062db828e69c4c3c'
+const FROZEN_TOKEN = 'Y2hlY2sJYWJzZW50CmJvZHkJdGVzdHMvbGV4ZXItc3ViamVjdC50ZXN0Lm1qcwlsZXhlciBmaXh0dXJlIGluIGEgc3RyaW5nCWJhMmZmNzI1N2Q4YmU4OGZjMThlOTU3MmViNjA0MTUxMzU1M2Q1YWM4MGMzNzY5NDcxZGQyZDhhZmM4ZjVjZDkKYm9keQl0ZXN0cy9sZXhlci1zdWJqZWN0LnRlc3QubWpzCWxleGVyIGZpeHR1cmUgcmVhbAliNjIyNmZjMTk3YWUxNjJjMjk3NTZjMTIyM2NmYjIzMjFkNmNmM2QyMjJmNWJhN2NmMDc0NDlkZDUzNjk4ODRi'
+const FROZEN_ROW = `- 2026-10-01 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12 · test-lock-sha256:${FROZEN_DIGEST} · test-lock-b64:${FROZEN_TOKEN}`
+const LEXER_ROWS = LEXER_TESTS.map(([name, file]) => `| \`${name}\` | \`${file}\` | lock | F-1 |`)
+
+// A lock snapshot of `tests` under `dir`, encoded: { digest, token, payload, bodies, unproven }.
+function takeLock(dir, tests, hasher) {
+  const r = python(`
+import json, sys, base64, record
+from pathlib import Path
+req = json.load(sys.stdin)
+kw = {} if req["hasher"] is None else {"hasher": req["hasher"]}
+snap = record.snapshot_lock(Path(req["root"]), [tuple(t) for t in req["tests"]], **kw)
+digest, token = record.encode_lock(snap)
+payload = base64.urlsafe_b64decode(token + "=" * (-len(token) % 4)).decode("utf-8")
+print(json.dumps({"digest": digest, "token": token, "payload": payload,
+                  "bodies": sorted(n for (_r, n) in snap["bodies"]),
+                  "unproven": sorted(n for (_r, n) in snap["unproven"])}))
+`, JSON.stringify({ root: dir, tests, hasher: hasher ?? null }))
+  assert.equal(r.status, 0, r.stderr)
+  const got = JSON.parse(r.stdout)
+  got.row = `- 2026-10-01 · no-git · exit 2 · \`node --test ${tests[0][1]}\` · acceptance-sha256:${'0'.repeat(64)} · ms:12 · test-lock-sha256:${got.digest} · test-lock-b64:${got.token}`
+  return got
+}
+
+test('a lock taken before the lexer is read as it was taken', () => {
+  const dir = tmpRepo()
+  try {
+    writeLexerSubject(dir)
+    const old = takeLock(dir, LEXER_TESTS, 1)
+    assert.equal(old.token, FROZEN_TOKEN, 'hasher 1 must encode exactly the bytes it encoded on 2026-10-01')
+    assert.equal(old.digest, FROZEN_DIGEST)
+    const got = findings(dir, [FROZEN_ROW], LEXER_TESTS)
+    assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
+    const text = taskMarkdown(LEXER_ROWS, [FROZEN_ROW])
+    assert.equal(recordOp({ op: 'blocks_done', root: dir, text }).blocks, false)
+
+    const now = takeLock(dir, LEXER_TESTS)
+    assert.match(now.payload, /^check@2\t/m, 'a new lock is taken by hasher 2 and says so')
+    assert.doesNotMatch(now.payload, /^check\t/m, 'a hasher-2 lock carries no record a 3.3.0 reader takes for its check')
+    assert.deepEqual(now.unproven, ['lexer fixture in a string'])
+    const fresh = findings(dir, [now.row], LEXER_TESTS)
+    assert.ok(!fresh.blocks.some(b => b.includes('lexer fixture real')), fresh.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a hasher-1 lock that hasher 2 reads differently is advised, naming the relock', () => {
+  const dir = tmpRepo()
+  try {
+    writeLexerSubject(dir)
+    const got = findings(dir, [FROZEN_ROW], LEXER_TESTS)
+    assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
+    assert.ok(got.advice.some(a => a.includes('hasher 2') && a.includes('adr-verify --relock')),
+      `expected advice naming the relock:\n${got.advice.join('\n')}`)
+    // Control: where both readings agree there is nothing to migrate, and no advice.
+    const same = tmpRepo()
+    try {
+      writeSubject(same)
+      const agreed = findings(same, [takeLock(same, NAMED, 1).row])
+      assert.ok(!agreed.advice.some(a => a.includes('--relock')), agreed.advice.join('\n'))
+    } finally {
+      rmSync(same, { recursive: true, force: true })
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a moved body under a frozen hasher-1 lock refuses done', () => {
+  const dir = tmpRepo()
+  try {
+    writeLexerSubject(dir, '  assert.ok(!SUITE)')
+    const got = findings(dir, [FROZEN_ROW], LEXER_TESTS)
+    assert.ok(got.blocks.some(b => b.includes('lexer fixture real') && b.includes('hash moved')),
+      got.blocks.join('\n'))
+    const text = taskMarkdown(LEXER_ROWS, [FROZEN_ROW])
+    assert.equal(recordOp({ op: 'blocks_done', root: dir, text }).blocks, true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a lock taken by hasher 2 cannot be read by the 3.3.0 reader', () => {
+  const dir = tmpRepo()
+  try {
+    writeLexerSubject(dir)
+    const now = takeLock(dir, LEXER_TESTS)
+    // decode_lock exactly as plugin/lib/record.py shipped it in 3.3.0. An older
+    // install that reads a hasher-2 lock must say it could not read it — UNPROVEN —
+    // never compare it under hasher 1, which can pass a test that has vanished.
+    const r = python(`
+import base64, json, sys
+def decode_lock(token):
+    pad = "=" * ((4 - len(token) % 4) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(token + pad)
+        text = raw.decode("utf-8")
+    except (ValueError, UnicodeError):
+        return None
+    check, bodies, unproven = None, {}, set()
+    for line in text.split("\\n"):
+        parts = line.split("\\t")
+        if not parts:
+            continue
+        if parts[0] == "check" and len(parts) == 2:
+            check = parts[1]
+        elif parts[0] == "body" and len(parts) == 4:
+            bodies[(parts[1], parts[2])] = parts[3]
+        elif parts[0] == "unproven" and len(parts) == 3:
+            unproven.add((parts[1], parts[2]))
+    if check is None:
+        return None
+    return {"check": check, "bodies": bodies, "unproven": unproven}
+print(json.dumps({"old": decode_lock(sys.stdin.read().strip()) is None}))
+`, now.token)
+    assert.equal(r.status, 0, r.stderr)
+    assert.equal(JSON.parse(r.stdout).old, true, `a 3.3.0 reader decoded a hasher-2 lock: ${now.payload}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('hasher 2 reads a non-JavaScript test file exactly as hasher 1 does', () => {
+  const cases = [
+    [{ python: true }, "def test_lexer_fixture():\n    assert 'test(\"x\", () => {})'\n"],
+    [{ go: true }, 'package p\nimport "testing"\nfunc TestLexerFixture(t *testing.T) {\n\tt.Log("test(`x`, () => {})")\n}\n'],
+    [{ php: true }, "<?php\n$s = \"test('lexer fixture in a php string', function () {})\";\ntest('lexer fixture pest', function () {\n    expect(1)->toBe(1);\n});\n"],
+    [{ rust: true }, '#[test]\nfn lexer_fixture() {\n    assert!(true);\n}\n'],
+    [{ shell: true }, 'test_lexer_fixture() {\n  [ 1 = 1 ]\n}\n'],
+    [{ swift: true }, 'func testLexerFixture() {\n  XCTAssert(true)\n}\n'],
+  ]
+  for (const [opts, src] of cases) {
+    const got = hasherRead(src, opts)
+    assert.deepEqual(got['2'], got['1'], `${JSON.stringify(opts)} must read the same under both hashers`)
+  }
+  const php = hasherRead(cases[2][1], cases[2][0])
+  assert.ok(php['2'].names.includes('lexer fixture pest'), JSON.stringify(php))
+})
+
+test('hasher 2 counts a test only where its call is code', () => {
+  const src = [
+    "import test from 'node:test'",
+    `const SUITE = "test('lexer fixture in a string', () => { helper() })"`,
+    "// test('lexer fixture in a comment', () => {})",
+    "/* test('lexer fixture in a block comment', () => {}) */",
+    "const re = /test('lexer fixture in a regex', () => {})/",
+    "const tpl = `test('lexer fixture in template text', () => {})`",
+    "const run = `${test('lexer fixture in an interpolation', () => { assert.ok(1) })}`",
+    `const SAME = "test('lexer fixture same', () => { wrong() })"`,
+    "test('lexer fixture in code', () => {",
+    '  assert.ok(true)',
+    '})',
+    "test('lexer fixture same', () => {",
+    '  right()',
+    '})',
+    'function helper() { return 1 }',
+    '',
+  ].join('\n')
+  const got = hasherRead(src)['2']
+  assert.deepEqual([...got.names].sort(),
+    ['lexer fixture in an interpolation', 'lexer fixture in code', 'lexer fixture same'])
+  assert.equal(got.bodies['lexer fixture in an interpolation'], '{ assert.ok(1) }')
+  assert.match(got.bodies['lexer fixture in code'], /assert\.ok\(true\)/)
+  assert.doesNotMatch(got.bodies['lexer fixture in code'], /return 1/)
+  assert.equal(got.bodies['lexer fixture same'], '{\n  right()\n}', 'the real declaration, not the string before it')
+})
+
+test('hasher 2 reads a regex literal as a regex and a division as a division', () => {
+  // tests/mutate-propose.test.mjs:50 is the first shape: `=>` before `/`, and a
+  // backtick in the class, which the masker read as a division opening a template.
+  // The property keyword and the label are the Codex review's (2026-10-01).
+  const src = [
+    "import test from 'node:test'",
+    "const n = obj.in / (test('lexer fixture via a property', () => { assert.ok(n) }), 2) / 3",
+    "test('lexer fixture after an arrow regex', () => {",
+    "  assert.ok(!['a'].some(c => /^[`/.]/.test(c)))",
+    '})',
+    "test('lexer fixture after a quote regex', () => {",
+    `  const m = "'x'".match(/(["'])(.*?)\\1/)`,
+    '  assert.ok(m)',
+    '})',
+    "test('lexer fixture after a division', () => {",
+    '  const half = total / 2 / count',
+    '  assert.equal(half, 1)',
+    '})',
+    "test('lexer fixture after a label', () => {",
+    '  outer: while (true) { break outer',
+    "    /[}]/.test('}')",
+    '  }',
+    '  assert.equal(1, 1)',
+    '})',
+    "test('lexer fixture last', () => {",
+    '  assert.equal(1, 1)',
+    '})',
+    '',
+  ].join('\n')
+  const both = hasherRead(src)
+  assert.ok(Object.values(both['1'].bodies).some(b => b === null),
+    `the fixture must be one hasher 1 misreads: ${JSON.stringify(both['1'])}`)
+  const got = both['2']
+  const order = ['lexer fixture via a property', 'lexer fixture after an arrow regex',
+    'lexer fixture after a quote regex', 'lexer fixture after a division', 'lexer fixture after a label',
+    'lexer fixture last']
+  assert.deepEqual(got.names, order)
+  const own = [/assert\.ok\(n\)/, /\.test\(c\)/, /\.match\(/, /total \/ 2 \/ count/,
+    /\}\n {2}assert\.equal\(1, 1\)\n\}$/, /assert\.equal\(1, 1\)/]
+  order.forEach((name, i) => {
+    const body = got.bodies[name]
+    assert.ok(body, `${name} has no body`)
+    assert.match(body, own[i], `${name}: ${body}`)
+    assert.ok(body.trimEnd().endsWith('}'), `${name}: ${body}`)
+    assert.doesNotMatch(body, /lexer fixture/, `${name} ran into the next test: ${body}`)
+  })
+})
+
+test("hasher 2 reads a template's interpolation as code", () => {
+  const src = [
+    "import test from 'node:test'",
+    "test('lexer fixture with a nested template', () => {",
+    "  const s = `${list.map(x => `<${x}>`).join('')}}`",
+    "  const o = `${ { a: '}' }.a }`",
+    "  const q = `a ${ '`' } b`",
+    "  const t = `${ cond ? `x ${y} }` : '' }`",
+    '  write(`${read(copy).trimEnd()}\\n${row}\\n`)',
+    "  assert.equal(s, '}')",
+    '})',
+    "test('lexer fixture after the nested template', () => {",
+    '  assert.ok(true)',
+    '})',
+    '',
+  ].join('\n')
+  const both = hasherRead(src)
+  // Measured 2026-10-01: hasher 1 hashed `{ … const t = \`${ cond ? \`x ${y} }` —
+  // a prefix, not a refusal — and found no body for the test after a '`'.
+  assert.notDeepEqual(both['1'], both['2'], 'the fixture must be one hasher 1 misreads')
+  const got = both['2']
+  assert.deepEqual(got.names, ['lexer fixture with a nested template', 'lexer fixture after the nested template'])
+  const lines = src.split('\n')
+  assert.equal(got.bodies['lexer fixture with a nested template'], `{\n${lines.slice(2, 8).join('\n')}\n}`)
+  assert.equal(got.bodies['lexer fixture after the nested template'], '{\n  assert.ok(true)\n}')
+})
+
+test('under hasher 2 a change after a nested template moves the lock', () => {
+  // The Codex review's pair (2026-10-01): hasher 1's digest stripper reads `//one`
+  // inside a nested template as a comment, so both bodies hashed the same while
+  // node passed the first and failed the second.
+  const body = (assertion, text) => `{ const s = \`\${true ? \`//one\` : ''}\`; const w = \`\${\`${text}\`}\`; ${assertion} }`
+  const one = body('assert.equal(1, 1)', 'a  b')
+  const r = python(`
+import json, sys, record
+a, b, c = json.load(sys.stdin)
+print(json.dumps({"same": record.body_digest(a) == record.body_digest(b) == record.body_digest(c)}))
+`, JSON.stringify([one, body('assert.equal(1, 2)', 'a  b'), body('assert.equal(1, 1)', 'a b')]))
+  assert.equal(r.status, 0, r.stderr)
+  assert.equal(JSON.parse(r.stdout).same, true, 'the fixture must be one hasher 1 cannot tell apart')
+
+  const dir = tmpRepo()
+  try {
+    const write = b => {
+      mkdirSync(join(dir, 'tests'), { recursive: true })
+      writeFileSync(join(dir, LEXER_SUBJECT), `import test from 'node:test'\ntest('lexer fixture nested', () => ${b})\n`)
+    }
+    const tests = [['lexer fixture nested', LEXER_SUBJECT]]
+    write(one)
+    const lock = takeLock(dir, tests)
+    assert.deepEqual(lock.bodies, ['lexer fixture nested'])
+    for (const moved of [body('assert.equal(1, 2)', 'a  b'), body('assert.equal(1, 1)', 'a b')]) {
+      write(moved)
+      const got = findings(dir, [lock.row], tests)
+      assert.ok(got.blocks.some(b => b.includes('lexer fixture nested') && b.includes('hash moved')),
+        `${moved}\n${got.blocks.join('\n')}`)
+    }
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('an unterminated literal leaves the tests after it unproven under hasher 2', () => {
+  const dir = tmpRepo()
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, LEXER_SUBJECT), [
+      "import test from 'node:test'",
+      "test('lexer fixture before', () => {",
+      '  assert.ok(1)',
+      '})',
+      "test('lexer fixture open', () => {",
+      '  const broken = `never closed',
+      '  assert.ok(2)',
+      '})',
+      "test('lexer fixture after', () => {",
+      '  assert.ok(3)',
+      '})',
+      '',
+    ].join('\n'))
+    const got = takeLock(dir, ['before', 'open', 'after'].map(n => [`lexer fixture ${n}`, LEXER_SUBJECT]))
+    assert.deepEqual(got.bodies, ['lexer fixture before'])
+    assert.deepEqual(got.unproven, ['lexer fixture after', 'lexer fixture open'])
+    assert.match(got.payload, /^check@2\t/m, 'taken by hasher 2')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a slash hasher 2 cannot place leaves the tests it reaches unproven', () => {
+  const dir = tmpRepo()
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    // After `}` a `/` divides an object literal or opens a regex after a block; after
+    // a lone `>` in TypeScript it may close a type argument (`f<number> / 3`). Node
+    // registers the test behind the brace (Codex review, 2026-10-01): guessing either
+    // way can hide it or hash a prefix, so neither is guessed.
+    writeFileSync(join(dir, LEXER_SUBJECT), [
+      "import test from 'node:test'",
+      "test('lexer fixture before the brace', () => {",
+      '  assert.ok(1)',
+      '})',
+      "const n = {} / (test('lexer fixture behind the brace', () => {}), 2) / 3",
+      "test('lexer fixture after the brace', () => {",
+      '  assert.ok(2)',
+      '})',
+      '',
+    ].join('\n'))
+    writeFileSync(join(dir, 'tests', 'lexer-subject.test.ts'), [
+      "import test from 'node:test'",
+      "test('lexer fixture typed before', () => {",
+      '  assert.ok(1)',
+      '})',
+      'const m = f<number> / 2 / 3',
+      "test('lexer fixture typed after', () => {",
+      '  assert.ok(2)',
+      '})',
+      '',
+    ].join('\n'))
+    const tests = [
+      ...['before the brace', 'behind the brace', 'after the brace'].map(n => [`lexer fixture ${n}`, LEXER_SUBJECT]),
+      ...['typed before', 'typed after'].map(n => [`lexer fixture ${n}`, 'tests/lexer-subject.test.ts']),
+    ]
+    const got = takeLock(dir, tests)
+    assert.deepEqual(got.bodies, ['lexer fixture before the brace', 'lexer fixture typed before'])
+    assert.deepEqual(got.unproven,
+      ['lexer fixture after the brace', 'lexer fixture behind the brace', 'lexer fixture typed after'])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1', () => {
+  const dir = tmpRepo()
+  try {
+    writeLexerSubject(dir)
+    const task = writeRelockTask(dir, [FROZEN_ROW], LEXER_ROWS)
+    const run = verifyRelock(dir, task)
+    assert.equal(run.status, 0, `relock must exit 0\n${run.stdout}\n${run.stderr}`)
+    const logged = readFileSync(task, 'utf8')
+    assert.ok(logged.includes(FROZEN_ROW), 'the hasher-1 row must stay')
+    assert.match(decodeLock(lastLockB64(logged)), /^check@2\t/m)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a relock of a frozen hasher-1 lock refuses a moved body', () => {
+  const dir = tmpRepo()
+  try {
+    writeLexerSubject(dir, '  assert.ok(!SUITE)')
+    const task = writeRelockTask(dir, [FROZEN_ROW], LEXER_ROWS)
+    const before = readFileSync(task, 'utf8')
+    const run = verifyRelock(dir, task)
+    assert.equal(run.status, 2, `a moved body must be refused\n${run.stdout}\n${run.stderr}`)
+    assert.match(run.stdout + run.stderr, /lexer fixture real/)
+    assert.match(run.stdout + run.stderr, /--replace-hashes/)
+    assert.equal(readFileSync(task, 'utf8'), before, 'the log must not be edited')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a lock naming a hasher this reader does not know is unproven', async () => {
+  const { createHash } = await import('node:crypto')
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const payload = `check@9\tabsent\nbody\ttests/lock-subject.test.mjs\tlocked dirty\t${'0'.repeat(64)}`
+    const token = Buffer.from(payload, 'utf8').toString('base64url')
+    const row = `- 2026-10-01 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12 · test-lock-sha256:${createHash('sha256').update(payload).digest('hex')} · test-lock-b64:${token}`
+    const got = findings(dir, [row])
+    assert.ok(got.blocks.some(b => b.includes('UNPROVEN') && b.includes('hasher 9')),
+      `an unknown hasher must be UNPROVEN, not compared:\n${got.blocks.join('\n')}`)
+    assert.ok(!got.blocks.some(b => b.includes('moved')), got.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// The Codex round on 01443dd (2026-10-01). Every input here is one where hasher 2
+// hashed a PREFIX of a test or named data as a test — a fail-open. Each edit changes
+// what node runs; the lock must say so, as a moved hash or as UNPROVEN, never clean.
+const VICTIM = 'lexer fixture victim'
+function editIsSeen(file, before, after, name = VICTIM) {
+  const dir = tmpRepo()
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, file), before)
+    const tests = [[name, file]]
+    const lock = takeLock(dir, tests)
+    writeFileSync(join(dir, file), after)
+    const got = findings(dir, [lock.row], tests)
+    assert.ok(got.blocks.some(b => b.includes(name)),
+      `${file}: an edit that changes what node runs left the lock clean\n${before}\n---\n${after}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+function namesNoGhost(file, src) {
+  const dir = tmpRepo()
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, file), src)
+    const got = takeLock(dir, [['lexer fixture ghost', file]])
+    assert.deepEqual(got.bodies, [], `data was locked as a test:\n${src}`)
+    assert.deepEqual(got.unproven, ['lexer fixture ghost'])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+const HEAD = "import test from 'node:test'\n"
+
+test('a literal opening an arrow expression body is inside its lock', () => {
+  const string = e => `${HEAD}test('${VICTIM}', () => '${e}' && assert.equal(1, 2))\n`
+  editIsSeen(LEXER_SUBJECT, string('enabled'), string(''))
+  const template = e => `${HEAD}test('${VICTIM}', () => \`prefix\${ {a:1}.a }\${assert.equal(1, ${e})}\`)\n`
+  editIsSeen(LEXER_SUBJECT, template(1), template(2))
+})
+
+test('a division is never read as a regex that swallows a block', () => {
+  const tail = e => `; if (true) { /x/.test('x'); }\n  assert.equal(1, ${e})\n})\n`
+  const body = (lead, e) => `${HEAD}test('${VICTIM}', () => {\n${lead}${tail(e)}`
+  editIsSeen(LEXER_SUBJECT, body('  const n = obj./* gap */in / 2', 1), body('  const n = obj./* gap */in / 2', 2))
+  editIsSeen(LEXER_SUBJECT, `const of = 4\n${body('  const n = of / 2', 1)}`, `const of = 4\n${body('  const n = of / 2', 2)}`)
+  editIsSeen('tests/lexer-subject.test.ts', body('  const n = m! / 2', 1), body('  const n = m! / 2', 2))
+})
+
+test('a regex after debugger or a for-await header is data, never a test', () => {
+  namesNoGhost(LEXER_SUBJECT, `${HEAD}debugger\n/test('lexer fixture ghost', () => {})/;\n`)
+  namesNoGhost(LEXER_SUBJECT, `${HEAD}for await (const x of [1]) /test('lexer fixture ghost', () => {})/;\n`)
+})
+
+test('a Unicode line terminator or space is read as JavaScript reads it', () => {
+  const after = e => `${HEAD}test('${VICTIM}', () => {\n  // a comment   assert.equal(1, ${e})\n})\n`
+  editIsSeen(LEXER_SUBJECT, after(1), after(2))
+  const space = e => `${HEAD}test('${VICTIM}', () => {\n  return /}/.test('x') || assert.equal(1, ${e})\n})\n`
+  editIsSeen(LEXER_SUBJECT, space(1), space(2))
+})
+
+test('a slash after of, yield or await is never guessed', () => {
+  // `of` is a keyword in a for-of header and a name elsewhere: read as a name, the
+  // regex below divides, its `}` closes the body early and the assertion falls out.
+  const body = e => `${HEAD}test('${VICTIM}', () => {\n  for (const m of /}/.exec('}') ?? []) { void m }\n  assert.equal(1, ${e})\n})\n`
+  editIsSeen(LEXER_SUBJECT, body(1), body(2))
+})
+
+test('an interpolation still open at the end of the file leaves its tests unproven', () => {
+  namesNoGhost(LEXER_SUBJECT, `${HEAD}const broken = \`\${ test('lexer fixture ghost', () => {})\n`)
+})
+
+test('a versioned lock that cannot be read, or reads two ways, is never read as hasher 1', async () => {
+  const { createHash } = await import('node:crypto')
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const row = payload => `- 2026-10-01 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12 · test-lock-sha256:${createHash('sha256').update(payload).digest('hex')} · test-lock-b64:${Buffer.from(payload, 'utf8').toString('base64url')}`
+    const body = `body\ttests/lock-subject.test.mjs\tlocked dirty\t${'0'.repeat(64)}`
+    const twoWays = findings(dir, [row(`check@9\tabsent\ncheck@2\tabsent\n${body}`)])
+    assert.ok(twoWays.blocks.some(b => b.includes('UNPROVEN')), twoWays.blocks.join('\n'))
+    assert.ok(!twoWays.blocks.some(b => b.includes('moved')), twoWays.blocks.join('\n'))
+    const task = writeRelockTask(dir, [row(`check@1000000\tabsent\n${body}`)])
+    const before = readFileSync(task, 'utf8')
+    const run = verifyRelock(dir, task)
+    assert.equal(run.status, 2, `an unreadable lock must not be relocked unasked\n${run.stdout}\n${run.stderr}`)
+    assert.match(run.stdout + run.stderr, /UNPROVEN/)
+    assert.equal(readFileSync(task, 'utf8'), before)
+    const unread = writeRelockTask(dir, [row(`check@9\tabsent\ncheck@2\tabsent\n${body}`)])
+    const refused = verifyRelock(dir, unread)
+    assert.equal(refused.status, 2, refused.stdout + refused.stderr)
+    assert.match(refused.stdout + refused.stderr, /could not be read/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

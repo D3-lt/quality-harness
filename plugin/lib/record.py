@@ -1580,6 +1580,7 @@ def _js_lex(text, ts=False):
     interp = []      # brace depth inside each open `${…}`, innermost last
     parens = []      # for each open `(`, the word before it
     templates = []
+    regexes = []     # a regex literal right after `=>`: its `/` stays in `masked`
     outer = None
     prev = ("start",)
     i = 0
@@ -1670,6 +1671,8 @@ def _js_lex(text, ts=False):
                 while end < n and (text[end].isalnum() or text[end] in "_$"):
                     end += 1
                 mark(i, end, 1)
+                if prev == ("op", "=>"):
+                    regexes.append(i)
                 prev = ("value",)
                 i = end
                 continue
@@ -1720,6 +1723,17 @@ def _js_lex(text, ts=False):
     if stop is not None:
         mark(stop, n, 3)
     masked = "".join(ch if kinds[j] == 0 or ch == "\n" else " " for j, ch in enumerate(text))
+    # A regex literal that OPENS an arrow's expression body leaves its `/` in the
+    # masked view, so `bdd_callback_body` still refuses that body, as under hasher 1
+    # — held by the locked `a regex literal that closes the call is UNPROVEN, not a
+    # truncated hash`. A regex anywhere else is blanked, as hasher 1's masker blanked
+    # it (`a quote or a paren inside a JS regex literal does not cost a test its
+    # locked body`), and a block body is bounded by braces, which a `/` does not touch.
+    if regexes:
+        masked = list(masked)
+        for j in regexes:
+            masked[j] = "/"
+        masked = "".join(masked)
     return masked, bytes(kinds), stop, tuple(templates)
 
 
@@ -2592,8 +2606,20 @@ def _read_file(path):
         return None
 
 
-def snapshot_lock(root, tests_rows):
-    """Canonical lock map: check value plus every extractable name in Tests files."""
+# The files hasher 2 reads with `_js_lex` (ADR-078 F-3); every other file it reads as
+# hasher 1 did. TypeScript is flagged, because a `/` after `>` is ambiguous there.
+_H2_JS_SUFFIXES = {".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts", ".cts"}
+_H2_TS_SUFFIXES = {".ts", ".tsx", ".mts", ".cts"}
+# The hashers a lock may name. A lock naming any other is UNPROVEN (ADR-078 F-9).
+LOCK_HASHERS = (1, 2)
+
+
+def snapshot_lock(root, tests_rows, hasher=2):
+    """Canonical lock map: check value plus every extractable name in Tests files.
+
+    `hasher` is the reading the map is taken with: 2 for every new lock, 1 to
+    read a lock recorded before hasher 2 the way it was taken (ADR-078 F-1).
+    """
     check = declared_check(root)
     bodies = {}
     unproven = set()
@@ -2616,35 +2642,46 @@ def snapshot_lock(root, tests_rows):
         rust = path.suffix.lower() == ".rs"
         shell = path.suffix.lower() in (".sh", ".bash")
         swift = path.suffix.lower() == ".swift"
+        suffix = path.suffix.lower()
+        reading = {"hasher": hasher if suffix in _H2_JS_SUFFIXES else 1,
+                   "ts": suffix in _H2_TS_SUFFIXES}
         for name in extract_test_names(
                 source, python=python, go=go, php=php, rust=rust, shell=shell,
-                swift=swift):
+                swift=swift, **reading):
             body = extract_test_body(
                 source, name, python=python, go=go, php=php, rust=rust,
-                shell=shell, swift=swift)
+                shell=shell, swift=swift, **reading)
             if body is None:
                 if (rel, name) in named:
                     unproven.add((rel, name))
                 continue
             bodies[(rel, name)] = body_digest(
                 body, python=python, php=php, shell=shell, rust=rust,
-                swift=swift, go=go)
+                swift=swift, go=go, **reading)
         for n, r in tests_rows:
             if r == rel and (rel, n) not in bodies:
                 unproven.add((rel, n))
-    return {"check": check, "bodies": bodies, "unproven": unproven}
+    return {"check": check, "bodies": bodies, "unproven": unproven, "hasher": hasher}
 
 
 def encode_lock(snap):
-    """Canonical payload + sha256 of it."""
+    """Canonical payload + sha256 of it.
+
+    A hasher-1 map encodes byte for byte as every lock before hasher 2 did. Any
+    other names its hasher in its check record (`check@2`), which a reader that
+    predates it cannot read — and so refuses as a lock it could not read, rather
+    than comparing it under hasher 1 (ADR-078 F-11).
+    """
     lines = []
+    hasher = snap.get("hasher", 1)
+    key = "check" if hasher == 1 else f"check@{hasher}"
     check = snap["check"]
     if check is None:
-        lines.append("check\tabsent")
+        lines.append(f"{key}\tabsent")
     elif check == "unproven":
-        lines.append("check\tunproven")
+        lines.append(f"{key}\tunproven")
     else:
-        lines.append("check\t" + hashlib.sha256(check.encode("utf-8")).hexdigest())
+        lines.append(f"{key}\t" + hashlib.sha256(check.encode("utf-8")).hexdigest())
     for (rel, name), digest in sorted(snap["bodies"].items()):
         lines.append(f"body\t{rel}\t{name}\t{digest}")
     for rel, name in sorted(snap["unproven"]):
@@ -2662,13 +2699,16 @@ def decode_lock(token):
         text = raw.decode("utf-8")
     except (ValueError, UnicodeError):
         return None
-    check, bodies, unproven = None, {}, set()
+    check, bodies, unproven, hasher = None, {}, set(), 1
     for line in text.split("\n"):
         parts = line.split("\t")
         if not parts:
             continue
+        keyed = re.fullmatch(r"check@([0-9]{1,6})", parts[0])
         if parts[0] == "check" and len(parts) == 2:
             check = parts[1]
+        elif keyed and len(parts) == 2:
+            check, hasher = parts[1], int(keyed.group(1))
         elif parts[0] == "body" and len(parts) == 4:
             bodies[(parts[1], parts[2])] = parts[3]
         elif parts[0] == "unproven" and len(parts) == 3:
@@ -2676,7 +2716,7 @@ def decode_lock(token):
     # A UTF-8 payload with no check record is not a lock (Codex: `eA` → `x`).
     if check is None:
         return None
-    return {"check": check, "bodies": bodies, "unproven": unproven}
+    return {"check": check, "bodies": bodies, "unproven": unproven, "hasher": hasher}
 
 
 def first_red_lock_suffix(text, root):
@@ -2858,10 +2898,23 @@ def lock_findings(vlog, *, root, tests, label=""):
     if recorded["map"] is None:
         return [f"{prefix}first-red test-lock-sha256 is present but the lock map "
                 "could not be read — UNPROVEN"], []
-    current = snapshot_lock(root, tests)
+    hasher = recorded["map"].get("hasher", 1)
+    if hasher not in LOCK_HASHERS:
+        return [f"{prefix}the lock map was taken by hasher {hasher}, which this reader "
+                "does not know — UNPROVEN; no body is compared under another hasher"], []
+    # Compared under the reading that took it, so no recorded lock changes meaning
+    # because the reader changed (ADR-078 F-1).
+    current = snapshot_lock(root, tests, hasher=hasher)
     recorded_map = recorded["map"]
     blocks = []
     advice = []
+    if hasher == 1 and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):
+        newer = snapshot_lock(root, tests, hasher=2)
+        if (newer["bodies"], newer["unproven"]) != (current["bodies"], current["unproven"]):
+            advice.append(
+                f"{prefix}this lock was taken by hasher 1, and hasher 2 reads its "
+                "JavaScript test files differently (ADR-078) — `adr-verify --relock` "
+                "takes a hasher-2 lock once nothing has moved")
     if recorded.get("kind"):
         cmd = ("adr-verify --relock --replace-hashes"
                if recorded["kind"] == "replace" else "adr-verify --relock")
@@ -2917,7 +2970,7 @@ def lock_findings(vlog, *, root, tests, label=""):
             # body, so for such a test both reproduce the digest, and only this one
             # names why. A test with no options object cannot match here — its
             # options-as-body digest IS the current one, which already differs.
-            if _legacy_digest(root, rel, name, options_as_body=True) == digest:
+            if hasher == 1 and _legacy_digest(root, rel, name, options_as_body=True) == digest:
                 # The same class as §212 and the same answer: the lock hashed the
                 # options object before the callback, so it never covered the test
                 # and an edit to the test was invisible to it (BACKLOG §305).
@@ -2926,7 +2979,7 @@ def lock_findings(vlog, *, root, tests, label=""):
                     "object (`test(name, {…}, fn)`), never its body (BACKLOG §305): an edit "
                     "to the test was invisible to that lock — UNPROVEN, done is refused "
                     "until `adr-verify --relock --replace-hashes` locks the body")
-            elif _legacy_digest(root, rel, name, before_regex_masking=True) == digest:
+            elif hasher == 1 and _legacy_digest(root, rel, name, before_regex_masking=True) == digest:
                 blocks.append(
                     f"{prefix}locked test `{rel}`::{name} was locked before regex literals "
                     "were masked, over a span that stopped inside one (BACKLOG §212): that "

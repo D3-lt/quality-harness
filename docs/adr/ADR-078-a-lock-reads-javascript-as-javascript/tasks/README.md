@@ -19,7 +19,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | Hasher 2 reads, bounds and digests a JavaScript test with a lexer | done | F-3, F-4, F-5, F-6, UC1-S1, UC1-S2, UC1-S3 | `node --test tests/test-lock.test.mjs` (four named tests pass, the runner exits 0) |
-| T2 | A lock records its hasher, is read by it, and is unreadable to older readers | pending | F-1, F-2, F-7, F-9, F-10, F-11, UC1-S4, UC1-S5, UC1-S6, UC1-S7, UC2-S1, UC2-S2, UC2-S3, UC2-S4, UC2-S5 | `node --test tests/test-lock.test.mjs tests/corpus-lint.test.mjs` (eight named tests pass, the runners exit 0) |
+| T2 | A lock records its hasher, is read by it, and is unreadable to older readers | done | F-1, F-2, F-7, F-9, F-10, F-11, UC1-S4, UC1-S5, UC1-S6, UC1-S7, UC2-S1, UC2-S2, UC2-S3, UC2-S4, UC2-S5 | `node --test tests/test-lock.test.mjs tests/corpus-lint.test.mjs` (eight named tests pass, the runners exit 0) |
 | T3 | A relock compares under the recorded hasher and writes hasher 2 | pending | F-8, UC3-S1, UC3-S2 | `node --test tests/test-lock.test.mjs` (two named tests pass, the runner exits 0) |
 
 ## Contract Coupling

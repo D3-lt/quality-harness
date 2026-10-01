@@ -3197,7 +3197,7 @@ print(json.dumps({"digest": digest, "token": token, "payload": payload,
   return got
 }
 
-test('a lock taken before the lexer is read as it was taken', { todo: 'ADR-078' }, () => {
+test('a lock taken before the lexer is read as it was taken', () => {
   const dir = tmpRepo()
   try {
     writeLexerSubject(dir)
@@ -3220,7 +3220,7 @@ test('a lock taken before the lexer is read as it was taken', { todo: 'ADR-078' 
   }
 })
 
-test('a hasher-1 lock that hasher 2 reads differently is advised, naming the relock', { todo: 'ADR-078' }, () => {
+test('a hasher-1 lock that hasher 2 reads differently is advised, naming the relock', () => {
   const dir = tmpRepo()
   try {
     writeLexerSubject(dir)
@@ -3242,7 +3242,7 @@ test('a hasher-1 lock that hasher 2 reads differently is advised, naming the rel
   }
 })
 
-test('a moved body under a frozen hasher-1 lock refuses done', { todo: 'ADR-078' }, () => {
+test('a moved body under a frozen hasher-1 lock refuses done', () => {
   const dir = tmpRepo()
   try {
     writeLexerSubject(dir, '  assert.ok(!SUITE)')
@@ -3256,7 +3256,7 @@ test('a moved body under a frozen hasher-1 lock refuses done', { todo: 'ADR-078'
   }
 })
 
-test('a lock taken by hasher 2 cannot be read by the 3.3.0 reader', { todo: 'ADR-078' }, () => {
+test('a lock taken by hasher 2 cannot be read by the 3.3.0 reader', () => {
   const dir = tmpRepo()
   try {
     writeLexerSubject(dir)
@@ -3416,7 +3416,7 @@ test("hasher 2 reads a template's interpolation as code", () => {
   assert.equal(got.bodies['lexer fixture after the nested template'], '{\n  assert.ok(true)\n}')
 })
 
-test('under hasher 2 a change after a nested template moves the lock', { todo: 'ADR-078' }, () => {
+test('under hasher 2 a change after a nested template moves the lock', () => {
   // The Codex review's pair (2026-10-01): hasher 1's digest stripper reads `//one`
   // inside a nested template as a comment, so both bodies hashed the same while
   // node passed the first and failed the second.
@@ -3451,7 +3451,7 @@ print(json.dumps({"same": record.body_digest(a) == record.body_digest(b) == reco
   }
 })
 
-test('an unterminated literal leaves the tests after it unproven under hasher 2', { todo: 'ADR-078' }, () => {
+test('an unterminated literal leaves the tests after it unproven under hasher 2', () => {
   const dir = tmpRepo()
   try {
     mkdirSync(join(dir, 'tests'), { recursive: true })
@@ -3478,7 +3478,7 @@ test('an unterminated literal leaves the tests after it unproven under hasher 2'
   }
 })
 
-test('a slash hasher 2 cannot place leaves the tests it reaches unproven', { todo: 'ADR-078' }, () => {
+test('a slash hasher 2 cannot place leaves the tests it reaches unproven', () => {
   const dir = tmpRepo()
   try {
     mkdirSync(join(dir, 'tests'), { recursive: true })
@@ -3552,7 +3552,7 @@ test('a relock of a frozen hasher-1 lock refuses a moved body', { todo: 'ADR-078
   }
 })
 
-test('a lock naming a hasher this reader does not know is unproven', { todo: 'ADR-078' }, async () => {
+test('a lock naming a hasher this reader does not know is unproven', async () => {
   const { createHash } = await import('node:crypto')
   const dir = tmpRepo()
   try {

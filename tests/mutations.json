@@ -8542,8 +8542,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        swift = path.suffix.lower() == \".swift\"\n        for name in extract_test_names(",
-      "to": "        swift = False\n        for name in extract_test_names(",
+      "from": "        swift = path.suffix.lower() == \".swift\"\n        suffix = path.suffix.lower()",
+      "to": "        swift = False\n        suffix = path.suffix.lower()",
       "only": "a Swift Testing @Test func is hashed"
     },
     {
@@ -8852,8 +8852,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell, rust=rust,\n                swift=swift, go=go)",
-      "to": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell,\n                swift=swift, go=go)",
+      "from": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell, rust=rust,\n                swift=swift, go=go, **reading)",
+      "to": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell,\n                swift=swift, go=go, **reading)",
       "only": "a Rust raw string does not swallow a same-line assertion"
     },
     {
@@ -8862,8 +8862,8 @@
       "tests": [
         "tests/leftovers-after-adr053.test.mjs"
       ],
-      "from": "                swift=swift, go=go)",
-      "to": "                swift=swift)",
+      "from": "                swift=swift, go=go, **reading)",
+      "to": "                swift=swift, **reading)",
       "only": "does not keep the hash after the assertion moves"
     },
     {
@@ -9262,8 +9262,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if check is None:\n        return None\n    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven}",
-      "to": "    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven}",
+      "from": "    if check is None:\n        return None\n    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven, \"hasher\": hasher}",
+      "to": "    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven, \"hasher\": hasher}",
       "only": "a lock map with no check record is unreadable"
     },
     {
@@ -9412,7 +9412,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            elif _legacy_digest(root, rel, name, before_regex_masking=True) == digest:",
+      "from": "            elif hasher == 1 and _legacy_digest(root, rel, name, before_regex_masking=True) == digest:",
       "to": "            elif False:",
       "only": "taken before regex masking is told apart"
     },
@@ -13495,7 +13495,7 @@
         "tests/test-lock.test.mjs"
       ],
       "only": "options object before the callback",
-      "from": "            if _legacy_digest(root, rel, name, options_as_body=True) == digest:",
+      "from": "            if hasher == 1 and _legacy_digest(root, rel, name, options_as_body=True) == digest:",
       "to": "            if False:"
     },
     {
@@ -18596,6 +18596,66 @@
       "from": "in_code=_h2_in_code(text, ts) if hasher == 2 and not php else None",
       "to": "in_code=_h2_in_code(text, ts) if hasher == 2 else None",
       "only": "^hasher 2 reads a non-JavaScript test file exactly as hasher 1 does$"
+    },
+    {
+      "label": "ADR-078 T2: a new lock is taken by hasher 1",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "def snapshot_lock(root, tests_rows, hasher=2):",
+      "to": "def snapshot_lock(root, tests_rows, hasher=1):",
+      "only": "^a lock taken before the lexer is read as it was taken$"
+    },
+    {
+      "label": "ADR-078 T2: a lock is compared under hasher 2 whatever took it",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    current = snapshot_lock(root, tests, hasher=hasher)",
+      "to": "    current = snapshot_lock(root, tests)",
+      "only": "^a lock taken before the lexer is read as it was taken$"
+    },
+    {
+      "label": "ADR-078 T2: an unknown hasher is compared",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if hasher not in LOCK_HASHERS:",
+      "to": "    if False:",
+      "only": "^a lock naming a hasher this reader does not know is unproven$"
+    },
+    {
+      "label": "ADR-078 T2: a differing hasher-1 lock is not advised",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if (newer[\"bodies\"], newer[\"unproven\"]) != (current[\"bodies\"], current[\"unproven\"]):",
+      "to": "        if False:",
+      "only": "^a hasher-1 lock that hasher 2 reads differently is advised, naming the relock$"
+    },
+    {
+      "label": "ADR-078 T2: a hasher-2 lock is readable to 3.3.0",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    key = \"check\" if hasher == 1 else f\"check@{hasher}\"",
+      "to": "    key = \"check\"",
+      "only": "^a lock taken by hasher 2 cannot be read by the 3.3.0 reader$"
+    },
+    {
+      "label": "ADR-078 T2: a TypeScript file is read as JavaScript",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                   \"ts\": suffix in _H2_TS_SUFFIXES}",
+      "to": "                   \"ts\": False}",
+      "only": "^a slash hasher 2 cannot place leaves the tests it reaches unproven$"
     }
   ]
 }

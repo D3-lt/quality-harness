@@ -151,7 +151,14 @@ CFG
     node --test "$REPO"/tests/*.test.mjs > "$WORK/py-suite.log" 2>&1
 ) || {
   printf 'FAIL — the suite did not pass while measuring the gates.\n'
-  tail -20 "$WORK/py-suite.log"
+  # The whole failing-tests block, not a fixed tail: twenty lines cut a failing test's own output
+  # off above its assertion, so a failure that appears only here could not be diagnosed from CI
+  # (BACKLOG §324). The block is the reporter's last section, so from its header to the end.
+  if grep -q '^✖ failing tests:' "$WORK/py-suite.log"; then
+    sed -n '/^✖ failing tests:/,$p' "$WORK/py-suite.log" | head -400
+  else
+    tail -60 "$WORK/py-suite.log"
+  fi
   exit 1
 }
 

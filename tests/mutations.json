@@ -8444,7 +8444,7 @@
       ],
       "from": "    return hashlib.sha256(_code_normalize(\n        text, python=python, php=php, shell=shell, rust=rust, go=go).encode(\"utf-8\")).hexdigest()",
       "to": "    collapsed = []\n    for line in text.split(\"\\n\"):\n        collapsed.append(re.sub(r\"[ \\t]+\", \" \", line).strip())\n    return hashlib.sha256(\"\\n\".join(collapsed).strip().encode(\"utf-8\")).hexdigest()",
-      "only": "whitespace inside a JS string literal"
+      "only": "^hasher 1 still keeps the whitespace inside a string in its digest$"
     },
     {
       "label": "lock: a fenced excerpt is not a later red",
@@ -9084,7 +9084,7 @@
       ],
       "from": "            regex_end = _js_regex_span_end(text, i)\n            if regex_end is not None:\n                out.append(code(text[start:i]))",
       "to": "            regex_end = None\n            if regex_end is not None:\n                out.append(code(text[start:i]))",
-      "only": "a quote inside a JS regex does not keep"
+      "only": "^hasher 1 still reads a quote inside a regex without keeping a proven hash$"
     },
     {
       "label": "lock: the comment stripper keeps a JS regex before it looks for quotes",
@@ -9094,7 +9094,7 @@
       ],
       "from": "            regex_end = _js_regex_span_end(text, i)\n            if regex_end is not None:\n                out.append(text[i:regex_end])",
       "to": "            regex_end = None\n            if regex_end is not None:\n                out.append(text[i:regex_end])",
-      "only": "a quote inside a JS regex does not keep"
+      "only": "^hasher 1 still reads a quote inside a regex without keeping a proven hash$"
     },
     {
       "label": "lock: a JS regex candidate with a leftover quote is not trusted",
@@ -9104,7 +9104,7 @@
       ],
       "from": "    if inner.startswith(\"[\") and \"]\" in inner:\n        return end\n    return None",
       "to": "    if inner.startswith(\"[\") and \"]\" in inner:\n        return end\n    return end",
-      "only": "a quote inside a JS regex does not keep"
+      "only": "^hasher 1 still reads a quote inside a regex without keeping a proven hash$"
     },
     {
       "label": "lock: a comment on a heredoc opener line is still a comment",
@@ -9394,7 +9394,7 @@
       ],
       "from": "        elif js and text[i] == \"/\" and starts_regex(\"\".join(view[:i]), i) and js_regex_end(text, i) is not None:",
       "to": "        elif False:",
-      "only": "inside a JS regex literal does not cost"
+      "only": "^hasher 1 still masks a regex literal holding a quote or a paren$"
     },
     {
       "label": "lock: bdd_callback_body masks JavaScript regex literals",
@@ -9404,7 +9404,7 @@
       ],
       "from": "    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=js and not php)",
       "to": "    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php)",
-      "only": "inside a JS regex literal does not cost"
+      "only": "^hasher 1 still masks a regex literal holding a quote or a paren$"
     },
     {
       "label": "lock: a lock taken before regex masking is told apart from a moved hash",
@@ -9474,7 +9474,7 @@
       ],
       "from": "    if text[j] in \"+-\" and j > 0 and text[j - 1] == text[j]:\n        return False\n",
       "to": "",
-      "only": "division after a postfix increment"
+      "only": "^hasher 1 still reads a division after a postfix increment, a comment or a regex literal$"
     },
     {
       "label": "spec: an XCTest pass must name the bound class, not any suite",
@@ -9524,7 +9524,7 @@
       ],
       "from": "starts_regex(\"\".join(view[:i]), i)",
       "to": "starts_regex(text, i)",
-      "only": "a comment before a division"
+      "only": "^hasher 1 still reads a division after a postfix increment, a comment or a regex literal$"
     },
     {
       "label": "spec: two same-named Swift declarations are not narrowed to the first",
@@ -12338,7 +12338,7 @@
       ],
       "from": "            view[end - 1] = \"0\"  # the literal is a value, so a `/` after it divides\n",
       "to": "",
-      "only": "after a regex literal is not a regex"
+      "only": "^hasher 1 still reads a division after a postfix increment, a comment or a regex literal$"
     },
     {
       "label": "spec: a Swift type name is read with its whole qualification",

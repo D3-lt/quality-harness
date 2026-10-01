@@ -3664,3 +3664,80 @@ test('a versioned lock that cannot be read, or reads two ways, is never read as 
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// ADR-078 made hasher 2 every new lock's reading, so the tests above that take a lock
+// through the default now exercise hasher 2, and seven catalogue entries over hasher
+// 1's masker and digest went GREEN in CI at 57f3998 (CLAUDE.md §18: a refactor that
+// moves an observable turns the old site's tests vacuous). Hasher 1 still reads every
+// lock recorded before 3.4.0, so each of those shapes is replayed here under it.
+function hasherOneSees(file, before, after, name, { moves = true } = {}) {
+  const dir = tmpRepo()
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, file), before)
+    const tests = [[name, file]]
+    const lock = takeLock(dir, tests, 1)
+    assert.doesNotMatch(lock.payload, /^check@/m, 'a hasher-1 lock')
+    writeFileSync(join(dir, file), after)
+    const got = findings(dir, [lock.row], tests)
+    if (moves) {
+      assert.ok(got.blocks.some(b => b.includes(name) && /hash moved|could not be hashed/.test(b)),
+        `hasher 1 missed an edit:\n${before}\n---\n${after}\n${got.blocks.join('\n')}`)
+    } else {
+      assert.deepEqual(got.blocks, [], `hasher 1 refused a format-only edit:\n${got.blocks.join('\n')}`)
+    }
+    return lock
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+const H1_HEAD = "import test from 'node:test'\nimport assert from 'node:assert/strict'\n"
+const H1_SUBJECT = 'tests/lock-subject.test.mjs'
+
+test('hasher 1 still keeps the whitespace inside a string in its digest', () => {
+  const arrow = e => `${H1_HEAD}test('locked dirty', () => assert.equal('${e}', 'a b'))\n`
+  const block = e => `${H1_HEAD}test('locked dirty', () => {\n  assert.equal('${e}', 'a b')\n})\n`
+  hasherOneSees(H1_SUBJECT, arrow('a  b'), `${H1_HEAD}test('locked dirty', () => assert.equal('a  b',  'a b'))\n`, 'locked dirty', { moves: false })
+  hasherOneSees(H1_SUBJECT, arrow('a  b'), arrow('a b'), 'locked dirty')
+  hasherOneSees(H1_SUBJECT, block('a  b'), block('a b'), 'locked dirty')
+})
+
+test('hasher 1 still reads a quote inside a regex without keeping a proven hash', () => {
+  const body = e => `${H1_HEAD}test('locked dirty', () => { const left = /"/; assert.equal("${e}", "a b"); const right = /"/; })\n`
+  const url = e => `${H1_HEAD}test('locked dirty', () => {\n  const left = /"/;\n  assert.equal("${e}", "a b");\n})\n`
+  const div = e => `${H1_HEAD}test('locked dirty', () => {\n  const ratio = 8/"1/2".length;\n  assert.equal("${e}", "https://a b");\n})\n`
+  hasherOneSees(H1_SUBJECT, body('a  b'), body('a b'), 'locked dirty')
+  hasherOneSees(H1_SUBJECT, url('https://a  b'), url('https://a b'), 'locked dirty')
+  hasherOneSees(H1_SUBJECT, div('https://a  b'), div('https://a b'), 'locked dirty')
+})
+
+test('hasher 1 still masks a regex literal holding a quote or a paren', () => {
+  const dir = tmpRepo()
+  const rel = 'tests/regex-subject.test.mjs'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), `${H1_HEAD}test('reads an apostrophe', () => {\n  assert.ok(/it's/.test('its'.replace('s', "'s")))\n})\n`
+      + "test('reads a paren class', () => assert.ok(/[)]/.test(')')))\n"
+      + "test('after both', () => {\n  assert.equal(1, 1)\n})\n")
+    const lock = takeLock(dir, ['reads an apostrophe', 'reads a paren class', 'after both'].map(n => [n, rel]), 1)
+    assert.deepEqual(lock.unproven, [], lock.payload)
+    assert.deepEqual(lock.bodies, ['after both', 'reads a paren class', 'reads an apostrophe'])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('hasher 1 still reads a division after a postfix increment, a comment or a regex literal', () => {
+  const tail = e => `; if (true) { /x/.test('x'); }\n  assert.equal(1, ${e});\n})\n`
+  const shapes = [
+    ['division', '  let n = 2;\n  n++ / 2'],
+    ['plus comment', '  let n = 2;\n  n++ // increment +\n    / 2'],
+    ['keyword comment', '  let n = 2;\n  n++ // then return\n    / 2'],
+    ['regex operand', '  const n = /x/ / 2'],
+    ['string operand', "  const n = 'x' / 2"],
+  ]
+  for (const [name, lead] of shapes) {
+    const source = e => `${H1_HEAD}test('${name}', () => {\n${lead}${tail(e)}`
+    hasherOneSees('tests/division-subject.test.mjs', source(2), source(1), name)
+  }
+})

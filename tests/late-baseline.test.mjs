@@ -32,7 +32,8 @@ const IDENTITY = { GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid'
 
 function fixture(top, label) {
   const repo = join(top, label)
-  const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top }
+  // ADR-080's `inline` seam: the artifact pass runs in the hook, so its verdict is read on return.
+  const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_ARTIFACT_PASS_RUNNER: 'inline' }
   const run = (command, args, options = {}) => {
     const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
     assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)

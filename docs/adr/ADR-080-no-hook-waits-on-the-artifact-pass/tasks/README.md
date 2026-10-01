@@ -17,8 +17,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The artifact pass runs behind the boundary, writes its own ledger, and resumes | pending | F-1, F-2, F-3, F-4, F-7, F-8, UC1-S1, UC1-S2, UC1-S3, UC1-S4, UC3-S1, UC3-S2 | `node --test tests/artifact-pass-behind.test.mjs` (seven named tests pass) |
-| T2 | Every hook but a reviewer's imports the pass's verdicts and says each finding once | pending | F-5, F-6, UC2-S1, UC2-S2 | `node --test tests/artifact-pass-behind.test.mjs` (two named tests pass) |
+| T1 | The artifact pass runs behind the boundary, writes its own ledger, and resumes | done | F-1, F-2, F-3, F-4, F-7, F-8, UC1-S1, UC1-S2, UC1-S3, UC1-S4, UC3-S1, UC3-S2 | `node --test tests/artifact-pass-behind.test.mjs` (seven named tests pass) |
+| T2 | Every hook but a reviewer's imports the pass's verdicts and says each finding once | done | F-5, F-6, UC2-S1, UC2-S2 | `node --test tests/artifact-pass-behind.test.mjs` (two named tests pass) |
 
 ## Contract Coupling
 

@@ -75,7 +75,8 @@ test('no hook names, or tries to gate, a path spelled in octal escapes', () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-status-hooks-')))
   try {
     const repo = join(top, 'repo')
-    const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top }
+    // ADR-080's `inline` seam: the artifact pass runs in the hook, so its findings are read on return.
+    const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top, QUALITY_HARNESS_ARTIFACT_PASS_RUNNER: 'inline' }
     const run = (command, args, options = {}) => {
       const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
       assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)

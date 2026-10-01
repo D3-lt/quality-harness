@@ -53,6 +53,8 @@ node --test --test-reporter=tap tests/artifact-pass-behind.test.mjs 2>&1 | tee "
 | 4 — it is used | every adopter session after a pass with findings |
 
 ## Mutation Log
+- 2026-10-01 · 9ed651c* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a finding is said by the next hook: no hook but a boundary imports the ledger · acceptance-sha256:faf1ef9263717c733b8e2d7d9588dd2d9b7be7436f7e7a2c72bbd6bbc044a57d · covers:a finding is said by the next hook
+- 2026-10-01 · 9ed651c* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a reviewer's PreToolUse does not import: the reviewer guard no longer fences the import · acceptance-sha256:faf1ef9263717c733b8e2d7d9588dd2d9b7be7436f7e7a2c72bbd6bbc044a57d · covers:a reviewer's PreToolUse does not import
 
 ## Invariants
 
@@ -72,3 +74,19 @@ Stop and ask if delivering needs the pass to write the session log.
 - The pass itself — T1.
 
 ## Verification Log
+- 2026-10-01 · 9ed651c* · exit 1 · `set -o pipefail …` · acceptance-sha256:faf1ef9263717c733b8e2d7d9588dd2d9b7be7436f7e7a2c72bbd6bbc044a57d · ms:18807 · test-lock-sha256:27b607ac4b10ebe97db2504e203b5a6e9ab2e770ac5f6cb44f7b5247df348064 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYXJ0aWZhY3QtcGFzcy1iZWhpbmQudGVzdC5tanMJYSBwYXNzIHRoYXQgY2Fubm90IHN0YXJ0IGlzIHNhaWQsIG5vdCBzaWxlbnQJNzI4MmI2MTQ5MGRhMGU5M2Y4NjAzYWFiNjllODczYWQzNzg4Mjg1MWI3NjA2ZWIyNTI2ZjI5YjQzMjZjZTBjMgpib2R5CXRlc3RzL2FydGlmYWN0LXBhc3MtYmVoaW5kLnRlc3QubWpzCWEgcGFzcydzIGZpbmRpbmdzIHJlYWNoIHRoZSBuZXh0IGhvb2sgb25jZSwgd2hpbGUgdGhlIHBhc3Mgc3RpbGwgcnVucwk4ZDIzNDVjODFmNTY4YmM3ZmNmOTEyNTliYjVhZGViNDhmNGEyMGE1YjA0ZTQ3NmVhN2ExNDU3MDcxYjdkYmZkCmJvZHkJdGVzdHMvYXJ0aWZhY3QtcGFzcy1iZWhpbmQudGVzdC5tanMJYSByZWFkLW9ubHkgcmV2aWV3ZXIgbmVpdGhlciBpbXBvcnRzIG5vciBkZWxpdmVycyBhIHBhc3MgZmluZGluZwk1YmViYzQxYzhlNzUzNzkxNDY1MDNjM2U2MDkwYzE1ZmRjOGY2MzE4YmQ4YTEyOTE5YTM3YzZlZTU2OTEwMWQyCmJvZHkJdGVzdHMvYXJ0aWZhY3QtcGFzcy1iZWhpbmQudGVzdC5tanMJYSByZWZ1c2VkIHB1Ymxpc2ggaXMgZGVuaWVkIGV2ZXJ5IHRpbWUJMzc3N2Y5NDU0NTAyMGJiYTE3MjMzYjk2ODA3YTJlYWU3MDdlMzcxZTIxMjBmMjExNjQzZWRlY2E0ZGJlYjRlNwpib2R5CXRlc3RzL2FydGlmYWN0LXBhc3MtYmVoaW5kLnRlc3QubWpzCWEgc3RvcHBlZCBwYXNzIHJlc3VtZXMgd2l0aCBleGFjdGx5IHRoZSBwYXRocyBpdCBkaWQgbm90IHJlYWNoCThkMzUyNTBlYjRiZjdjNGVhYzExZjZkN2E2OWIwODgyZGUxMjdjNWU0Y2M5NDYxNGJjNjA2ZGJhZDI4ZmVlMjUKYm9keQl0ZXN0cy9hcnRpZmFjdC1wYXNzLWJlaGluZC50ZXN0Lm1qcwlubyBib3VuZGFyeSB3YWl0cyBmb3IgdGhlIGFydGlmYWN0IHBhc3MJNzgzMjQ1ODQ1MzBiYTQ1ZThkNDRmNzg3NzM2YTUzNGQyNzcyOGI2YWViNDJlYWI0MzM5OTgwYzcwMmZlYzc4Mwpib2R5CXRlc3RzL2FydGlmYWN0LXBhc3MtYmVoaW5kLnRlc3QubWpzCW9uZSBhcnRpZmFjdCBwYXNzIHJ1bnMgcGVyIHNlc3Npb24gYXQgYSB0aW1lCTkzYWRjNjFhMDRiMjA1OTgyOTJjMTJlMzc1YzQ0YmYyZTIwYTYzMjdiNWQ4MWQ3N2Q2MDNlYzlmYWIwMzgzYmEKYm9keQl0ZXN0cy9hcnRpZmFjdC1wYXNzLWJlaGluZC50ZXN0Lm1qcwl0aGUgcGFzcyB3cml0ZXMgb25seSBpdHMgb3duIGxlZGdlcgk1ZWZmNzk3OWFmYTMwZGIxNGMyMGNlZDI2MGM2ODBiNzk0Y2NhZmExZTk2YTJkYWI5ZTJjYjMwM2EyODk0ZDg0CmJvZHkJdGVzdHMvYXJ0aWZhY3QtcGFzcy1iZWhpbmQudGVzdC5tanMJdGhlIHVuY2hlY2tlZCBhZHZpc29yeSBpcyBzYWlkIG9uY2UgcGVyIHRyZWUgYW5kIGNoZWNrIHN0YXRlCTJhMmVjODBjNmZiNGIyNTA0M2VkZGI4Mjc1NWQzZWRhMTBlYTBmYzc1OGQyZmRmMzZiYzA2NTZhNTNjYjBlMTY
+  ```
+  --- last 10 line(s) of stdout (of 88 after folding 88 raw)
+    ...
+  1..9
+  # tests 9
+  # suites 0
+  # pass 7
+  # fail 2
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 18665.676834
+  ```
+- 2026-10-01 · 9ed651c* · exit 0 · `set -o pipefail …` · acceptance-sha256:faf1ef9263717c733b8e2d7d9588dd2d9b7be7436f7e7a2c72bbd6bbc044a57d · ms:19053
+- 2026-10-01 · 9ed651c* · exit 0 · `set -o pipefail …` · acceptance-sha256:faf1ef9263717c733b8e2d7d9588dd2d9b7be7436f7e7a2c72bbd6bbc044a57d · ms:18607

@@ -1203,11 +1203,24 @@ export function unmarkedArchives(root, listing) {
 // while the thirteen unread ones held every READY task — an all-clear this hook
 // never observed (ADR-005). The unread count travels back with the read set.
 const TASK_DIRECTORY_READ_CAP = 6
+// ⚠ AND THE SIX ARE THE MOST RECENTLY CHANGED, NOT THE FIRST LISTED. Listing order put
+// a corpus's oldest records first, so this repository's session start read ADR-001 to
+// ADR-006, all done, and called every record that could be in flight "not read"
+// (BACKLOG §325, Codex architecture review 2026-10-01). A directory's rank is the newest
+// modification time among its listed task files: no process start, and an uncommitted
+// task file — the most in flight of all — ranks first. This orders a reading; it decides
+// nothing, and the unread are still said UNPROVEN.
+function newestTaskChange(root, files) {
+  let newest = 0
+  for (const rel of files) {
+    try { newest = Math.max(newest, statSync(listedAbsolute(root, rel)).mtimeMs) } catch { /* unreadable: ranks last */ }
+  }
+  return newest
+}
 function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP) {
   if (listing == null) return { read: [], unread: 0 }
   const found = []
-  let unread = 0
-  const seen = new Set()
+  const seen = new Map()
   const frozen = new Map()
   const listed = new Set(listing.map(rel => posixListed(rel)))
   for (const rel of listing) {
@@ -1227,13 +1240,20 @@ function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP) {
     const archived = underFrozenArchive(root, dirParts, frozen, listed)
     if (archived === true) continue
     const key = dirParts.join('/')
-    if (seen.has(key)) continue
-    seen.add(key)
-    if (found.length >= cap) { unread += 1; continue }
+    if (seen.has(key)) {
+      seen.get(key).files.push(norm)
+      continue
+    }
     // `archive: 'unknown'` travels WITH the directory, as a field on the entry.
-    found.push({ directory: listedAbsolute(root, key), archive: archived === 'unknown' ? 'unknown' : 'no' })
+    const entry = { directory: listedAbsolute(root, key), archive: archived === 'unknown' ? 'unknown' : 'no', files: [norm] }
+    seen.set(key, entry)
+    found.push(entry)
   }
-  return { read: found, unread }
+  const ranked = found
+    .map((entry, order) => ({ entry, order, newest: newestTaskChange(root, entry.files) }))
+    .sort((a, b) => b.newest - a.newest || a.order - b.order)
+    .map(({ entry: { files: _files, ...entry } }) => entry)
+  return { read: ranked.slice(0, cap), unread: Math.max(0, ranked.length - cap) }
 }
 
 // The gates in bin/ are `#!/usr/bin/env python3` scripts. Windows cannot exec a
@@ -1561,8 +1581,8 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
   if (unread > 0) {
     // Not a verdict about those directories — this hook did not look. Carries
     // UNPROVEN so surfaceReadyLines never hides it behind the render cap.
-    lines.push(`  (+${unread} more task director${unread === 1 ? 'y' : 'ies'}: UNPROVEN — not read; this hook reads `
-      + `${TASK_DIRECTORY_READ_CAP} per session start. Ready tasks there are not known; \`work-next\` reads them all.)`)
+    lines.push(`  (+${unread} more task director${unread === 1 ? 'y' : 'ies'}: UNPROVEN — not read; this hook reads the `
+      + `${TASK_DIRECTORY_READ_CAP} most recently changed per session start. Ready tasks there are not known; \`work-next\` reads them all.)`)
   }
   return { look: 'ok', lines }
 }

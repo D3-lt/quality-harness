@@ -1,6 +1,6 @@
 // ADR-079 (docs/specs/2026-10-01-every-gate-reads-javascript-one-way.md): spec-verify
 // and adr-lint read a JavaScript-family test file with ADR-078's lexer, as the lock
-// does. Bound red, `todo` until its tasks turn them green.
+// does. Bound red as node:test `todo`; each task removed `todo` from its own tests.
 //
 // The interface these tests fix:
 // - `spec-verify`'s `test_definition_exists` answers `None` for could-not-check, and
@@ -25,7 +25,6 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const bin = join(repoRoot, 'plugin', 'bin')
 const { NODE_TEST_CONTEXT: _nested, ...env } = process.env
 const pyEnv = { ...env, PYTHONPATH: join(repoRoot, 'plugin', 'lib'), PYTHONUTF8: '1', PYTHONDONTWRITEBYTECODE: '1' }
-const todo = 'ADR-079'
 
 // Runs `body` in Python with the gate `gate` loaded as `mod`; returns the parsed JSON it prints.
 function withGate(gate, body, input) {
@@ -66,7 +65,7 @@ ok, why = mod.test_definition_exists(Path(req["path"]), req["name"], None)
 print(json.dumps({"ok": ok, "why": why}))
 `, { path: join(dir, rel), name })
 
-test('spec-verify finds a JavaScript test only where its registration is code, in every family suffix', { todo }, () => {
+test('spec-verify finds a JavaScript test only where its registration is code, in every family suffix', () => {
   const dir = files({ 'a.test.mjs': HEAD + STRING_ONLY + REAL, 'b.test.mts': HEAD + REAL, 'c.test.cts': HEAD + REAL })
   try {
     assert.equal(existsIn(dir, 'a.test.mjs', 'reading fixture real').ok, true)
@@ -76,7 +75,7 @@ test('spec-verify finds a JavaScript test only where its registration is code, i
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-test('spec-verify says could-not-check, exit 4, for a JavaScript test it could not read to', { todo }, () => {
+test('spec-verify says could-not-check, exit 4, for a JavaScript test it could not read to', () => {
   const dir = files({ 'tests/a.test.mjs': HEAD + REAL + STOP })
   try {
     const got = existsIn(dir, 'tests/a.test.mjs', 'reading fixture past the stop')
@@ -97,7 +96,7 @@ test('spec-verify says could-not-check, exit 4, for a JavaScript test it could n
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-test('spec-verify matches a decoded title, and never a substring', { todo }, () => {
+test('spec-verify matches a decoded title, and never a substring', () => {
   const dir = files({ 'a.test.mjs': HEAD + "test('reading \\'quoted\\' fixture', () => {\n  assert.ok(1)\n})\ntest('ghostly', () => {\n  assert.ok(1)\n})\n" })
   try {
     assert.equal(existsIn(dir, 'a.test.mjs', "reading 'quoted' fixture").ok, true, 'the title as the literal reads')
@@ -110,14 +109,14 @@ status, body = mod.js_test_body(req["text"], req["name"], req["suffix"])
 print(json.dumps({"status": status, "body": body}))
 `, { text, name, suffix })
 
-test('adr-lint reads a JavaScript test where its call is code, bounded as the lock bounds it', { todo }, () => {
+test('adr-lint reads a JavaScript test where its call is code, bounded as the lock bounds it', () => {
   const text = HEAD + `const SAME = "test('reading fixture real', () => { /* nothing */ })"\n` + REAL
   assert.deepEqual(bodyOf(text, 'reading fixture real'), { status: 'found', body: '{\n  assert.equal(1, 1)\n}' })
   assert.equal(bodyOf(HEAD + "test('it\\'s escaped', () => {\n  assert.ok(1)\n})\n", "it's escaped").status, 'found', 'the title is compared decoded')
   assert.equal(bodyOf(HEAD + REAL + STOP, 'reading fixture real').status, 'found', 'a complete body before a later stop is found')
 })
 
-test('adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound', { todo }, () => {
+test('adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound', () => {
   assert.equal(bodyOf(HEAD + "test('reading fixture arrow', () => /assert/)\n", 'reading fixture arrow').status, 'unproven', 'a / left in an expression body')
   assert.equal(bodyOf(HEAD + "test('reading fixture cut', () => {\n  const n = {} / (2) / 3\n})\n", 'reading fixture cut').status, 'unproven', 'a stop inside the body')
 })
@@ -153,7 +152,7 @@ const linesAbout = (said, name) => said.split('\n').filter(line => line.includes
 const blocking = lines => lines.some(line => !/^\s*advice:/.test(line))
 const MISSING = /not found|no .*definition|carries that exact title/i
 
-test('adr-lint does not find a JavaScript test that exists only inside a string', { todo }, () => {
+test('adr-lint does not find a JavaScript test that exists only inside a string', () => {
   assert.deepEqual(bodyOf(HEAD + STRING_ONLY + REAL, 'reading fixture in a string'), { status: 'missing', body: null })
   // Through the CLI, beside a control that is found.
   const { said } = lint({ 'tests/a.test.mjs': HEAD + STRING_ONLY + REAL },
@@ -162,7 +161,7 @@ test('adr-lint does not find a JavaScript test that exists only inside a string'
   assert.ok(!linesAbout(said, 'reading fixture real').some(line => MISSING.test(line)), `the control is found: ${said}`)
 })
 
-test('adr-lint says UNPROVEN, and withholds done, for a JavaScript test it could not read to', { todo }, () => {
+test('adr-lint says UNPROVEN, and withholds done, for a JavaScript test it could not read to', () => {
   assert.equal(bodyOf(HEAD + STOP, 'reading fixture past the stop').status, 'unproven')
   for (const status of ['done', 'pending']) {
     const { said, status: code } = lint({ 'tests/a.test.mjs': HEAD + REAL + STOP, 'tests/b.test.mjs': HEAD + REAL }, {
@@ -182,7 +181,7 @@ test('adr-lint says UNPROVEN, and withholds done, for a JavaScript test it could
   }
 })
 
-test('UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is', { todo }, () => {
+test('UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is', () => {
   const map = { 'tests/a.test.mjs': HEAD + REAL + STOP }
   const tests = [['reading fixture past the stop', 'tests/a.test.mjs']]
   for (const options of [{ archive: true }, { strictFrom: 'ADR-002' }]) {
@@ -198,7 +197,7 @@ status, can = mod.js_body_can_fail(req["text"], req["name"], ".mjs")
 print(json.dumps({"status": status, "can": can}))
 `, { text, name })
 
-test('adr-lint judges a JavaScript body and its helpers on the code view', { todo }, () => {
+test('adr-lint judges a JavaScript body and its helpers on the code view', () => {
   assert.deepEqual(canFail(HEAD + TEMPLATE, 'reading fixture template'), { status: 'found', can: true }, 'an assertion inside ${} is code')
   assert.deepEqual(canFail(HEAD + REGEX, 'reading fixture regex'), { status: 'found', can: false }, 'a regex literal asserts nothing')
   assert.deepEqual(canFail(HEAD + HELPED, 'reading fixture helped'), { status: 'found', can: true }, 'a same-file helper that asserts')
@@ -211,7 +210,21 @@ test('adr-lint judges a JavaScript body and its helpers on the code view', { tod
   assert.ok(!linesAbout(said, 'reading fixture helped').some(line => nothing.test(line)), `the helped test can fail: ${said}`)
 })
 
-test('an enforcement pointer to a JavaScript test is resolved on the lexer', { todo }, () => {
+// A spaced title is found on its call alone, so the existence check says nothing about its
+// body; the can-fail check is where an unbounded one is said (ADR-079 T3 S2).
+test('adr-lint says UNPROVEN for a spaced JavaScript title it found but whose body it cannot bound', () => {
+  const map = { 'tests/a.test.mjs': HEAD + "test('reading fixture unbounded', () => /assert/)\n" + REAL }
+  for (const status of ['done', 'pending']) {
+    const { said } = lint(map, { status, tests: [['reading fixture unbounded', 'tests/a.test.mjs'], ['reading fixture real', 'tests/a.test.mjs']] })
+    const lines = linesAbout(said, 'reading fixture unbounded')
+    assert.ok(lines.length && lines.every(line => /UNPROVEN/.test(line)), `${status}: ${said}`)
+    if (status === 'done') assert.ok(blocking(lines), `a done task is refused: ${said}`)
+    else assert.ok(!blocking(lines), `a pending task is advised: ${said}`)
+    assert.equal(linesAbout(said, 'reading fixture real').length, 0, `the bounded twin is silent: ${said}`)
+  }
+})
+
+test('an enforcement pointer to a JavaScript test is resolved on the lexer', () => {
   const map = { 'tests/a.test.mjs': HEAD + STRING_ONLY + REAL + STOP }
   const tests = [['reading fixture real', 'tests/a.test.mjs']]
   const pointing = name => lint(map, { tests, enforcedBy: `tests/a.test.mjs::${name}` }).said
@@ -221,7 +234,7 @@ test('an enforcement pointer to a JavaScript test is resolved on the lexer', { t
   assert.ok(linesAbout(stopped, 'reading fixture past the stop').some(line => /UNPROVEN/.test(line)), `past the stop it is UNPROVEN: ${stopped}`)
 })
 
-test('the other languages read as they did', { todo }, () => {
+test('the other languages read as they did', () => {
   const dir = files({ 'test_a.py': 'def test_reading_fixture():\n    assert 1\n', 'a_test.go': 'package p\nimport "testing"\nfunc TestReadingFixture(t *testing.T) {}\n' })
   try {
     assert.equal(existsIn(dir, 'test_a.py', 'test_reading_fixture').ok, true)

@@ -1809,6 +1809,55 @@ def _h2_in_code(text, ts=False):
     return lambda p: 0 <= p < len(kinds) and kinds[p] == 0
 
 
+
+# ADR-079: the suffixes every gate's JavaScript arm reads with `_js_lex` — one set, so no
+# reader keeps a list that leaves `.mts` or `.cts` to a different reading.
+JS_FAMILY_SUFFIXES = (".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts", ".cts")
+_JS_TS_SUFFIXES = (".ts", ".tsx", ".mts", ".cts")
+
+
+def js_reading(text, suffix):
+    """`(masked, kinds, complete)` of a JavaScript-family text, read as the lock reads it.
+
+    ADR-079. `complete` is False when the lexer stopped before the end of the file: a name
+    it did not find may lie past the stop, so such a name is UNPROVEN, never missing.
+    """
+    masked, kinds, stop, _ = _js_lex(text, ts=suffix.lower() in _JS_TS_SUFFIXES)
+    return masked, kinds, stop is None
+
+
+# adr-lint's registration vocabulary, kept as it was (ADR-079 Residuals): receivers,
+# modifiers (`test.skip`, `it.only`) and `describe` count, as its title, body and
+# enforcement readers counted them before they shared this one.
+_JS_LOOKUP_HEAD = re.compile(
+    r"\b(?:(?:it|test|describe|context|specify|scenario)(?:\.\w+)*|t\.Run)\s*\(")
+
+
+def js_test_lookup(text, name, suffix):
+    """`(status, after_comma, masked)` for the call that registers `name` (ADR-079).
+
+    `found` when a call head at a code offset carries that title, decoded as the lock
+    decodes it; then `after_comma` is where its callback starts. `missing` when none does
+    in a file the lexer read to its end, and `unproven` when none does in a file it did not.
+    """
+    masked, kinds, complete = js_reading(text, suffix)
+    n = len(text)
+    for head in _JS_LOOKUP_HEAD.finditer(text):
+        if kinds[head.start()] != 0:
+            continue
+        i = head.end()
+        while i < n and text[i] in " \t\n\r":
+            i += 1
+        parsed = _parse_bdd_string(text, i)
+        if parsed is None or parsed[2] or parsed[0] != name:
+            continue
+        j = parsed[1]
+        while j < n and text[j] in " \t\n\r":
+            j += 1
+        if j < n and text[j] == ",":
+            return "found", j + 1, masked
+    return ("missing" if complete else "unproven"), None, masked
+
 def _h2_js_digest_text(text, ts=False):
     """Hasher 2's digest text: comments out, code collapsed, every literal kept.
 

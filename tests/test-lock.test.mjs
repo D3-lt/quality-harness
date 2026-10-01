@@ -3296,7 +3296,7 @@ print(json.dumps({"old": decode_lock(sys.stdin.read().strip()) is None}))
   }
 })
 
-test('hasher 2 reads a non-JavaScript test file exactly as hasher 1 does', { todo: 'ADR-078' }, () => {
+test('hasher 2 reads a non-JavaScript test file exactly as hasher 1 does', () => {
   const cases = [
     [{ python: true }, "def test_lexer_fixture():\n    assert 'test(\"x\", () => {})'\n"],
     [{ go: true }, 'package p\nimport "testing"\nfunc TestLexerFixture(t *testing.T) {\n\tt.Log("test(`x`, () => {})")\n}\n'],
@@ -3313,7 +3313,7 @@ test('hasher 2 reads a non-JavaScript test file exactly as hasher 1 does', { tod
   assert.ok(php['2'].names.includes('lexer fixture pest'), JSON.stringify(php))
 })
 
-test('hasher 2 counts a test only where its call is code', { todo: 'ADR-078' }, () => {
+test('hasher 2 counts a test only where its call is code', () => {
   const src = [
     "import test from 'node:test'",
     `const SUITE = "test('lexer fixture in a string', () => { helper() })"`,
@@ -3341,7 +3341,7 @@ test('hasher 2 counts a test only where its call is code', { todo: 'ADR-078' }, 
   assert.equal(got.bodies['lexer fixture same'], '{\n  right()\n}', 'the real declaration, not the string before it')
 })
 
-test('hasher 2 reads a regex literal as a regex and a division as a division', { todo: 'ADR-078' }, () => {
+test('hasher 2 reads a regex literal as a regex and a division as a division', () => {
   // tests/mutate-propose.test.mjs:50 is the first shape: `=>` before `/`, and a
   // backtick in the class, which the masker read as a division opening a template.
   // The property keyword and the label are the Codex review's (2026-10-01).
@@ -3389,7 +3389,7 @@ test('hasher 2 reads a regex literal as a regex and a division as a division', {
   })
 })
 
-test("hasher 2 reads a template's interpolation as code", { todo: 'ADR-078' }, () => {
+test("hasher 2 reads a template's interpolation as code", () => {
   const src = [
     "import test from 'node:test'",
     "test('lexer fixture with a nested template', () => {",

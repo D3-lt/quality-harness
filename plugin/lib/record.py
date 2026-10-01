@@ -985,9 +985,16 @@ def _code_normalize(text, python=False, php=False, shell=False, rust=False,
     return "".join(out).strip()
 
 def body_digest(body, python=False, php=False, shell=False, rust=False,
-                swift=False, go=False):
-    """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept."""
+                swift=False, go=False, hasher=1, ts=False):
+    """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept.
+
+    `hasher=2` reads a JavaScript-family body with `_js_lex` (ADR-078 F-10): a
+    template is kept whole, so a `//` inside a nested one is not a comment. Every
+    other language, and hasher 1, digest exactly as before.
+    """
     text = body.replace("\r\n", "\n").replace("\r", "\n")
+    if hasher == 2 and not (python or php or shell or rust or swift or go):
+        return hashlib.sha256(_h2_js_digest_text(text, ts).encode("utf-8")).hexdigest()
     if python:
         text = re.sub(r'"""(?:.|\n)*?"""', " ", text)
         text = re.sub(r"'''(?:.|\n)*?'''", " ", text)
@@ -1135,7 +1142,7 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
 
 
 def extract_test_names(text, python=False, go=False, php=False, rust=False,
-                       shell=False, swift=False):
+                       shell=False, swift=False, hasher=1, ts=False):
     """Names this hasher can see in `text`."""
     if python:
         try:
@@ -1177,7 +1184,7 @@ def extract_test_names(text, python=False, go=False, php=False, rust=False,
             if name not in seen:
                 seen.add(name)
                 names.append(name)
-    for name in _iter_bdd_names(text, php=php):
+    for name in _iter_bdd_names(text, php=php, in_code=_h2_in_code(text, ts) if hasher == 2 and not php else None):
         if name not in seen:
             seen.add(name)
             names.append(name)
@@ -1510,6 +1517,254 @@ def js_regex_end(text, i):
     return None
 
 
+# Hasher 2's JavaScript lexer (ADR-078). Every reader above is hasher 1 and stays
+# byte-identical, because the locks recorded before it were taken with it (F-1).
+_H2_JUMP_WORDS = {"break", "continue"}
+_H2_REGEX_WORDS = REGEX_MAY_FOLLOW_WORD | _H2_JUMP_WORDS | {"new", "throw"}
+
+
+def _h2_is_value(prev):
+    """Whether the token `prev` ends a value, so a `++`/`--` after it is postfix."""
+    kind = prev[0]
+    if kind == "value":
+        return True
+    if kind == "word":
+        return prev[2] or prev[1] not in _H2_REGEX_WORDS
+    return kind == "close_paren" and prev[1] not in CONTROL_HEADER
+
+
+def _h2_slash_opens_regex(prev, ts):
+    """True for a regex, False for a division, None when the context cannot say (F-5).
+
+    After `}` the brace may close a block (regex) or an object literal (division),
+    and after a lone `>` in TypeScript it may close a type argument (`f<number> /
+    3`). Telling either apart needs a parser, so neither is guessed (F-7). An
+    operator keyword spelled after `.` is a property name, and a word after
+    `break`/`continue` is a label, after which a new statement may open a regex.
+    """
+    kind = prev[0]
+    if kind == "start":
+        return True
+    if kind == "value":
+        return False
+    if kind == "word":
+        _kind, word, dot, label = prev
+        if dot:
+            return False
+        return label or word in _H2_REGEX_WORDS
+    if kind == "close_paren":
+        return prev[1] in CONTROL_HEADER
+    if kind == "close_brace":
+        return None
+    if prev[1] == ">" and ts:
+        return None
+    return True
+
+
+@lru_cache(maxsize=32)
+def _js_lex(text, ts=False):
+    """(masked, kinds, stop, templates) for a JavaScript-family text, read as JavaScript reads it.
+
+    `kinds` marks each position code (0), literal — string, template text or
+    regex — (1), comment (2), or unknown (3). `masked` is `text` with every
+    character but code and newlines blanked, so a brace matcher sees only code: a
+    template's `${…}` is code, its text and delimiters are not (F-6). `stop` is the
+    first position whose literal, comment or `/` could not be established, and
+    everything from it is unknown (F-7): nothing after it is named and no body
+    reaching it is bounded — UNPROVEN, never a guess or a prefix. `templates` holds
+    each outermost template's span, which the digest keeps whole (F-10).
+    """
+    n = len(text)
+    kinds = bytearray(n)
+    stop = None
+    interp = []      # brace depth inside each open `${…}`, innermost last
+    parens = []      # for each open `(`, the word before it
+    templates = []
+    outer = None
+    prev = ("start",)
+    i = 0
+
+    def mark(start, end, kind):
+        for j in range(start, end):
+            kinds[j] = kind
+
+    def template_text(j):
+        """End of the template text from `j`, and whether it opened a `${`."""
+        while j < n:
+            c = text[j]
+            if c == "\\":
+                j += 2
+                continue
+            if c == "`":
+                return j + 1, False
+            if c == "$" and j + 1 < n and text[j + 1] == "{":
+                return j + 2, True
+            j += 1
+        return None, False
+
+    if text.startswith("#!"):
+        end = text.find("\n")
+        end = n if end < 0 else end
+        mark(0, end, 2)
+        i = end
+    while i < n:
+        c = text[i]
+        if c in " \t\r\n":
+            i += 1
+            continue
+        if text.startswith("//", i):
+            end = text.find("\n", i)
+            end = n if end < 0 else end
+            mark(i, end, 2)
+            i = end
+            continue
+        if text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            if end < 0:
+                stop = i
+                break
+            mark(i, end + 2, 2)
+            i = end + 2
+            continue
+        if c in "'\"":
+            j = i + 1
+            while j < n and text[j] != c and text[j] != "\n":
+                j += 2 if text[j] == "\\" else 1
+            if j >= n or text[j] != c:
+                stop = i
+                break
+            mark(i, j + 1, 1)
+            prev = ("value",)
+            i = j + 1
+            continue
+        if c == "`" or (c == "}" and interp and interp[-1] == 0):
+            if c == "`" and not interp:
+                outer = i
+            if c == "}":
+                interp.pop()
+            end, opened = template_text(i + 1)
+            if end is None:
+                stop = outer if outer is not None else i
+                break
+            mark(i, end, 1)
+            if opened:
+                interp.append(0)
+                prev = ("start",)
+            else:
+                prev = ("value",)
+                if not interp:
+                    templates.append((outer, end))
+                    outer = None
+            i = end
+            continue
+        if c == "/":
+            regex = _h2_slash_opens_regex(prev, ts)
+            if regex is None:
+                stop = i
+                break
+            if regex:
+                end = js_regex_end(text, i)
+                if end is None:
+                    stop = i
+                    break
+                while end < n and (text[end].isalnum() or text[end] in "_$"):
+                    end += 1
+                mark(i, end, 1)
+                prev = ("value",)
+                i = end
+                continue
+            prev = ("op", "/")
+            i += 1
+            continue
+        if c.isalnum() or c in "_$#\\" or ord(c) > 127:
+            j = i
+            while j < n and (text[j].isalnum() or text[j] in "_$#\\" or ord(text[j]) > 127):
+                j += 1
+            if c.isdigit():
+                prev = ("value",)
+            else:
+                k = i - 1
+                while k >= 0 and text[k] in " \t\r\n":
+                    k -= 1
+                dot = k >= 0 and text[k] == "."
+                label = prev[0] == "word" and not prev[2] and prev[1] in _H2_JUMP_WORDS
+                prev = ("word", text[i:j], dot, label)
+            i = j
+            continue
+        if c == "(":
+            parens.append(prev[1] if prev[0] == "word" and not prev[2] else None)
+            prev = ("op", "(")
+        elif c == ")":
+            prev = ("close_paren", parens.pop() if parens else None)
+        elif c == "]":
+            prev = ("value",)
+        elif c == "{":
+            if interp:
+                interp[-1] += 1
+            prev = ("op", "{")
+        elif c == "}":
+            if interp:
+                interp[-1] -= 1
+            prev = ("close_brace",)
+        elif text.startswith("=>", i):
+            prev = ("op", "=>")
+            i += 2
+            continue
+        elif text.startswith("++", i) or text.startswith("--", i):
+            prev = ("value",) if _h2_is_value(prev) else ("op", c)
+            i += 2
+            continue
+        else:
+            prev = ("op", c)
+        i += 1
+    if stop is not None:
+        mark(stop, n, 3)
+    masked = "".join(ch if kinds[j] == 0 or ch == "\n" else " " for j, ch in enumerate(text))
+    return masked, bytes(kinds), stop, tuple(templates)
+
+
+def _h2_in_code(text, ts=False):
+    """A predicate: is position `p` of `text` code to hasher 2 (F-4)."""
+    kinds = _js_lex(text, ts)[1]
+    return lambda p: 0 <= p < len(kinds) and kinds[p] == 0
+
+
+def _h2_js_digest_text(text, ts=False):
+    """Hasher 2's digest text: comments out, code collapsed, every literal kept.
+
+    The same normalisation hasher 1 applies, from the lexer's spans, so a body
+    both read alike digests alike, and a template is kept whole (F-10).
+    """
+    _masked, kinds, _stop, templates = _js_lex(text, ts)
+    verbatim = bytearray(len(text))
+    for start, end in templates:
+        for j in range(start, end):
+            verbatim[j] = 1
+    out, buf, i, n = [], [], 0, len(text)
+
+    def flush():
+        chunk = re.sub(r"[ \t]+", " ", "".join(buf))
+        out.append(re.sub(r" ?\n[ \n]*", "\n", chunk))
+        buf.clear()
+
+    while i < n:
+        keep = verbatim[i] or kinds[i] in (1, 3)
+        j = i
+        while j < n and (verbatim[j] or kinds[j] in (1, 3)) == keep and (keep or kinds[j] == kinds[i]):
+            j += 1
+        chunk = text[i:j]
+        if keep:
+            flush()
+            out.append(chunk)
+        elif kinds[i] == 2:
+            buf.append("\n" * chunk.count("\n"))
+        else:
+            buf.append(chunk)
+        i = j
+    flush()
+    return "".join(out).strip()
+
+
 # Pure, so memoised: the lock hashes every named test of a file by masking that
 # file, and one record's tests can name hundreds in one large test file. Unshared,
 # that was 226 JS-aware masks of one 137 KB file — about 17 s, enough to have
@@ -1774,9 +2029,15 @@ def _parse_bdd_string(text, start, php=False):
     return None
 
 
-def _iter_bdd_calls(text, php=False):
-    """Yield `(decoded_name, after_comma)` for each non-interpolated it()/test()."""
+def _iter_bdd_calls(text, php=False, in_code=None):
+    """Yield `(decoded_name, after_comma)` for each non-interpolated it()/test().
+
+    `in_code`, hasher 2's, skips a head that is not code (ADR-078 F-4); without it
+    a head inside a string is a test, which is hasher 1's reading.
+    """
     for head in _BDD_CALL_HEAD.finditer(text):
+        if in_code is not None and not in_code(head.start()):
+            continue
         line = text.rfind("\n", 0, head.start()) + 1
         if re.match(r"\s*(?://|#)", text[line:head.start()]):
             continue
@@ -1800,10 +2061,10 @@ def _iter_bdd_calls(text, php=False):
         yield name, j + 1
 
 
-def _iter_bdd_names(text, php=False):
+def _iter_bdd_names(text, php=False, in_code=None):
     """Quoted names passed to bare test()/it(."""
     seen = set()
-    for name, _after in _iter_bdd_calls(text, php=php):
+    for name, _after in _iter_bdd_calls(text, php=php, in_code=in_code):
         if name in seen:
             continue
         seen.add(name)
@@ -2131,7 +2392,8 @@ def _iter_swift_tests(text):
         yield name, after_paren
 
 def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
-                      shell=False, swift=False, before_regex_masking=False, options_as_body=False):
+                      shell=False, swift=False, before_regex_masking=False, options_as_body=False,
+                      hasher=1, ts=False):
     """Best-effort body of `name`, or None.
 
     `before_regex_masking` reproduces the JavaScript extraction as it was before
@@ -2204,6 +2466,14 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
             if found != name:
                 continue
             return _span_from_paren(text, masked, after_paren)
+    if hasher == 2 and not php:
+        # Hasher 2 (ADR-078): only a head in code, bounded on the lexer's view.
+        masked = _js_lex(text, ts)[0]
+        for found, after in _iter_bdd_calls(text, in_code=_h2_in_code(text, ts)):
+            if found != name:
+                continue
+            return bdd_callback_body(text, after, masked=masked)
+        return None
     for found, after in _iter_bdd_calls(text, php=php):
         if found != name:
             continue
@@ -2212,7 +2482,7 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
     return None
 
 
-def bdd_callback_body(text, after, php=False, js=True, options=True):
+def bdd_callback_body(text, after, php=False, js=True, options=True, masked=None):
     """Body of the callback that follows a BDD test's `name,` at `after`, or None.
 
     Bounded to that call. An unbounded find("{") lands in the NEXT test's block
@@ -2241,7 +2511,8 @@ def bdd_callback_body(text, after, php=False, js=True, options=True):
     truncated expression must not get a proven hash, so such a slice is still
     refused — UNPROVEN, never a prefix.
     """
-    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=js and not php)
+    if masked is None:
+        masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=js and not php)
     n = len(masked)
     depth, i, brace = 0, after, None
     while i < n and brace is None:

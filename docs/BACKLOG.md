@@ -16918,3 +16918,17 @@ hasher 1 bounds, drops no top-level test, and stops early on no file.
    601 s on, and the brief said nothing over an answer it was withholding. The stamp now names the snapshot by its
    `at`. The regression replaces the snapshot under a kept stamp; two catalogue entries cover it, both RED. The
    reviewer found nothing else material in the lock or ranking changes, and probed both with simulated Windows paths.
+
+## 328. OPEN 2026-10-01 — A campaign printed nothing on Windows, once, inside a locked test
+
+The Windows job of push run 36837928673, at 9845434 (a docs-only commit), failed
+`tests/mutate-runner.test.mjs` "the campaign cache records the tests that killed each RED entry", at its
+line 1026. The test's third campaign printed **nothing** to stdout, so "1/2 mutations were noticed." was
+absent. The whole test took 34 s, well inside its 180 s timeout. The same code passed Windows at 8eb438c,
+before that commit, and at 7906383, after it. Nothing in 3.4.x touches the campaign runner.
+
+What is not known: why. The assertion message carries only stdout, so the campaign's stderr and exit status
+were never shown, and the test is locked by two records (ADR-073 T1, ADR-075 T2), so it cannot be changed to
+show them. Next time it fails, read the job log for the campaign's own lines before the assertion. A new
+test beside it, asserting the campaign's exit status and printing its stderr, would make the next occurrence
+say why.

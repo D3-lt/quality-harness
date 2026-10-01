@@ -31,6 +31,11 @@ esac
 QH_LEASES=$(mktemp -d "${TMPDIR:-/tmp}/qh-leases.XXXXXX")
 export QUALITY_HARNESS_LEASE_DIR="$QH_LEASES"
 unset QUALITY_HARNESS_WAIT
+# ADR-080: the artifact pass runs in each hook's own process here, so no detached pass outlives
+# the test that started it. Windows will not delete a directory a live process is still using,
+# and a fixture's cleanup failed six times on it. tests/artifact-pass-behind.test.mjs chooses
+# its runner explicitly.
+export QUALITY_HARNESS_ARTIFACT_PASS_RUNNER=inline
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # ADR-008 split the two: the tests live in the repository, the thing they

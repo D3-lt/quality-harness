@@ -22,7 +22,8 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = join(repoRoot, 'plugin')
 const lifecycle = join(plugin, 'scripts', 'lifecycle.mjs')
 const qhCheck = join(plugin, 'scripts', 'qh-check.mjs')
-const { NODE_TEST_CONTEXT: _nested, ...baseEnv } = process.env
+// The selftest selects the in-process runner for every other suite; these tests choose their own.
+const { NODE_TEST_CONTEXT: _nested, QUALITY_HARNESS_ARTIFACT_PASS_RUNNER: _runner, ...baseEnv } = process.env
 
 const FAKE_RUNNER = `import { appendFileSync, existsSync, readFileSync, rmSync } from 'node:fs'
 const request = JSON.parse(readFileSync(process.argv[process.argv.indexOf('--artifact-pass') + 1], 'utf8'))
@@ -111,7 +112,7 @@ async function until(predicate, ms = 60_000) {
 async function cleanup(dir, session) {
   release(dir)
   await until(() => !existsSync(lockFile(dir, session)), 10_000)
-  rmSync(dir, { recursive: true, force: true })
+  rmSync(dir, { recursive: true, force: true, maxRetries: 5, retryDelay: 200 })
 }
 
 const stop = session => ({ hook_event_name: 'Stop', session_id: session, last_assistant_message: 'done' })
@@ -243,7 +244,7 @@ test('the unchecked advisory is said once per tree and check state', () => {
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
-test('a refused publish is denied every time', () => {
+test('a refused publish is denied every time', async () => {
   const { dir } = repository(0)
   writeFileSync(join(dir, 'notes.txt'), 'the session changed something\n')
   try {
@@ -251,7 +252,7 @@ test('a refused publish is denied every time', () => {
       const run = hook(dir, commit('behind-refusal'))
       assert.equal(JSON.parse(run.stdout).hookSpecificOutput?.permissionDecision, 'deny', `attempt ${attempt} is refused`)
     }
-  } finally { rmSync(dir, { recursive: true, force: true }) }
+  } finally { await cleanup(dir, 'behind-refusal') }
 })
 
 // The Codex round on ADR-080's code: each finding gets the regression it asked for.

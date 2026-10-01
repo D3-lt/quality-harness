@@ -367,7 +367,9 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000,
       } else {
         const timeoutMs = artifactGateTimeoutMs()
         const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh', '--batch'], {
-          input: JSON.stringify({ paths: uniqueTargets, deadline, windowMs, timeoutMs, ...(saidBy ? { said: true } : {}) }),
+          // `cwd` travels in the batch, so a pass running from the temp directory still
+          // judges each path where the session runs (run-shell-hook's `hookCwd`).
+          input: JSON.stringify({ paths: uniqueTargets, deadline, windowMs, timeoutMs, cwd, ...(saidBy ? { said: true } : {}) }),
           encoding: 'utf8', windowsHide: true,
           // Each shell is capped separately; leave room for its diagnostic framing too.
           maxBuffer: uniqueTargets.length * ARTIFACT_OUTPUT_LIMIT * 2,
@@ -5523,7 +5525,9 @@ async function startArtifactPass(input, targets, identities, bases) {
     // console, and every child it starts would open one (CLAUDE.md §7).
     // untimed-spawn: detached on purpose — the pass stops itself at its budget, and its lock lapses at the deadline
     child = spawn(process.execPath, [runner, '--artifact-pass', request], {
-      cwd: input.cwd, detached: true, stdio: 'ignore', windowsHide: true,
+      // The temp directory, not the session's: on Windows a live process's working
+      // directory cannot be deleted, so a pass must not pin the user's checkout.
+      cwd: os.tmpdir(), detached: true, stdio: 'ignore', windowsHide: true,
     })
     // Before any return: a spawn that fails emits `error` later, and unheard it
     // is an uncaught exception in the hook (Codex review of ADR-080).

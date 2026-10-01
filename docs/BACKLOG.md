@@ -17045,3 +17045,14 @@ The last three were already safe, so they stay as they are. The tests drive the 
 `sleep` seams, and run both callers through it (tests/replace-file.test.mjs); no macOS test can make a real
 rename busy. The diagnosis is likely, not proven: libuv opens files to allow deletion, so "another process reads
 it" alone may not be the cause. A later Windows campaign is what would show that the race is gone.
+
+## 333. OPEN 2026-10-01 — Windows: `mutate --narrow` once missed its `3/3 mutations were noticed.` line
+
+The push run of 6782901 (run 36894085194, job `windows`) failed one test:
+`mutate --narrow proposes, writes only with --write, and undoes a narrowing that is not RED`
+(tests/mutate-runner.test.mjs), at `assert.ok(run('--force').stdout.includes('3/3 mutations were noticed.'))`. The
+test took 33 s. The dispatched campaign at the same sha (36894098947) passed it on Windows, and v3.6.0 was cut on
+that run. The assertion message carries no stdout, so the run's own words are lost. This is the same shape as
+§328: a Windows campaign that prints no summary. Next time it fails, read the job log for the campaign's lines
+before the assertion. If it recurs, a test beside it that prints the run's stdout and stderr on failure would say
+why, as §328's did.

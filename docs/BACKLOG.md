@@ -16793,7 +16793,7 @@ ADR-077 (N3) executed on `spec/machine-lease`: T1 4535501, T2 4231a77, the revie
   dispatched run 36786131988; outside runs php-laravel-monolith at eabf6a3, and react-spa and
   php-laravel-monolith at the two earlier candidates, all filed in `docs/corpus-reports/`).
 
-## 324. OPEN 2026-10-01 — After 3.3.0: the lock hasher's JavaScript scanner, and the coverage-only flake
+## 324. PARTLY FIXED 2026-10-01 — After 3.3.0: the lock hasher's JavaScript scanner, the coverage-only flakes, and the stale brief capped
 
 **1. The test-lock hasher cannot tell a string from code in JavaScript, and a local fix is not safe.**
 Reproduced: `extract_test_names` returns `a negative value is a finding` for
@@ -16820,6 +16820,19 @@ alone under `--experimental-test-coverage` (0.42 s, twice) and after every file 
 `coverage.sh`'s serial order (0.45 s, twice). `waitForSnapshot` now prints, on a timeout, what the git directory
 holds, the snapshot and the refresher's lock with its age, so the next failure carries its own evidence.
 
+**2b. The coverage job's Python stage failed differently at c11a507: the tutorial replay's mutant survived.**
+`tests/tutorial.test.mjs:141` expects the page's mutant (`int(text.rstrip("s"))` → `0`) to be killed, and the
+run recorded a survivor: the fence (`… | tee /tmp/t1.out && grep -q "OK" /tmp/t1.out`) said OK with the parser
+broken. The same test passed that job's JavaScript stage, and `coverage.sh` passes here in full. Ruled out:
+stale bytecode (the mutant changes the file's size, which the `.pyc` check compares) and another writer of
+`/tmp/t1.out` (only the tutorial writes it, and its two runs are sequential). `coverage.sh` printed only the last
+20 lines, which cut adr-verify's first line and the fence's output off; it now prints the whole failing-tests
+block, so the next failure says where the run went and what the fence printed.
+
 **3. For the owner:** `branch-state --cached` serves a stored snapshot labelled with its age, and has served one
 hours old naming a branch the checkout no longer holds (§322, §323). Whether a snapshot past some age — or one
 whose branch is not the checkout's — should be shown at all is a product judgement, not a defect.
+  **Decided 2026-10-01: cap the age.** A brief no longer shows a snapshot older than ten minutes: it says how old
+  the last answer is and that a refresh is running, and the refresher still starts (`SHOW_AT_MOST_SECONDS`,
+  `a brief snapshot past the age cap is not shown, and a refresh starts`, catalogue entry RED). The full report
+  and a fresh cache hit are unchanged; a snapshot under the cap is served as before (ADR-065 T2).

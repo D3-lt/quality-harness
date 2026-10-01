@@ -617,6 +617,10 @@ function stampBriefSaid(store, said) {
 // the last. Serving the snapshot and refreshing it in ONE detached process moves
 // that cost off the prompt; the brief says the answer's age and that a refresh is
 // running, so an old answer is never presented as a new one.
+// The oldest snapshot a brief still shows (the owner's decision, 2026-10-01; BACKLOG §324). One
+// hours old was shown, labelled with its age, naming a branch the checkout no longer held; past
+// this, the brief says how old the last answer is and that it is refreshing, and shows none of it.
+const SHOW_AT_MOST_SECONDS = 600
 const LOCK = 'qh-branch-state.lock'
 const SCRIPT = fileURLToPath(import.meta.url)
 
@@ -747,6 +751,13 @@ function main(argv = process.argv.slice(2)) {
   if (brief && hint && usableCache(previous, now)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const refreshing = refreshBehind({ gitDir: hint })
+    if (age > SHOW_AT_MOST_SECONDS) {
+      process.stdout.write(`branch-state: the last answer is ${Math.round(age / 60)} min old, past the `
+        + `${SHOW_AT_MOST_SECONDS / 60}-minute cap, so it is not shown; `
+        + `${refreshing ? 'refreshing' : 'a refresh could not be started'}.\n`)
+      finish('withheld-stale', { status: 0 })
+      return 0
+    }
     emitCachedBranchState(previous.state, { brief, age, previous, store: join(hint, 'qh-branch-state.json'), refreshing })
     finish('served-behind', { status: 0 })
     return 0

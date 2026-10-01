@@ -920,6 +920,22 @@ test('a due brief is served and one refresher starts behind the prompt', t => {
   assert.match(afterKill.stdout, /refreshing/, afterKill.stdout)
 })
 
+// The owner's decision, 2026-10-01 (BACKLOG §324): a snapshot past the age cap is not shown at all.
+// One hours old named a branch the checkout no longer held. The brief says how old the last answer
+// is and that it is refreshing, and the refresher still starts behind it.
+test('a brief snapshot past the age cap is not shown, and a refresh starts', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-capped-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  const brief = () => spawnSync(process.execPath, [branchScript, '--brief', '--cached', '120'],
+    { cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000 })
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 2 * 60 * 60 * 1000, key: snapshotKey(gitDir), state: { ...greenState, branch: 'an-old-branch' } }))
+  const served = brief()
+  assert.equal(served.status, 0, served.stderr)
+  assert.doesNotMatch(served.stdout, /an-old-branch|every job concluded success/, served.stdout)
+  assert.match(served.stdout, /120 min old.*not shown.*refreshing/, served.stdout)
+  assert.ok(waitForSnapshot(cache, snapshot => snapshot.state?.looked === false), 'a refresher wrote the snapshot')
+})
+
 test('the full report and a brief with no snapshot are collected in the foreground', t => {
   const { project, gitDir } = keyedRepository(t, 'qh-foreground-')
   const cache = path.join(gitDir, 'qh-branch-state.json')

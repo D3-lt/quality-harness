@@ -1846,13 +1846,13 @@ def js_test_lookup(text, name, suffix):
         if kinds[head.start()] != 0:
             continue
         i = head.end()
-        while i < n and text[i] in " \t\n\r":
+        while i < n and (text[i] in " \t\n\r" or kinds[i] == 2):   # a comment the lexer placed
             i += 1
         parsed = _parse_bdd_string(text, i)
         if parsed is None or parsed[2] or parsed[0] != name:
             continue
         j = parsed[1]
-        while j < n and text[j] in " \t\n\r":
+        while j < n and (text[j] in " \t\n\r" or kinds[j] == 2):
             j += 1
         if j < n and text[j] == ",":
             return "found", j + 1, masked

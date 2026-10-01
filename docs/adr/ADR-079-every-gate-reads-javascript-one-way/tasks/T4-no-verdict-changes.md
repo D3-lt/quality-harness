@@ -48,6 +48,7 @@ bash scripts/verdict-diff.sh --control cd8f95f; test $? -eq 1 && bash scripts/ve
 ## Mutation Log
 - 2026-10-01 · 031ffb6* · mutant killed · exit 1 · `scripts/verdict-diff.sh` · the comparator reports no change whatever the two sides printed · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · covers:the comparator can fail
 - 2026-10-01 · 031ffb6* · mutant killed · exit 1 · `scripts/verdict-diff.sh` · the version stamp and its plugin path are left in, so two identical verdicts compare different · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · covers:the comparison is empty
+- 2026-10-01 · efd7cdf* · mutant killed · exit 1 · `scripts/verdict-diff.sh` · a normalisation that erases a path-like word reads two different findings as equal · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · covers:the comparator can fail
 
 ## Invariants
 
@@ -74,3 +75,4 @@ Stop and ask if the diff is not empty.
   bash: scripts/verdict-diff.sh: No such file or directory
   ```
 - 2026-10-01 · 031ffb6* · exit 0 · `bash scripts/verdict-diff.sh --control cd8f95f; test $? -eq 1 && bash scripts/verdict-diff.sh cd8f95f` · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · ms:135873
+- 2026-10-01 · efd7cdf* · exit 0 · `bash scripts/verdict-diff.sh --control cd8f95f; test $? -eq 1 && bash scripts/verdict-diff.sh cd8f95f` · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · ms:149579

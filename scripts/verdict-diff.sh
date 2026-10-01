@@ -35,18 +35,25 @@ if ! git archive "$sha" plugin | tar -x -C "$work/before"; then
 fi
 before="$work/before/plugin"
 after="$repo/plugin"
-if [ "$control" = 1 ]; then
-  mkdir -p "$work/control"
-  cp -R "$repo/plugin" "$work/control/" || exit 2
-  after="$work/control/plugin"
-  mv "$after/bin/adr-lint" "$after/bin/adr-lint.real" || exit 2
-  cat > "$after/bin/adr-lint" <<'PY'
+# Routes a plugin's adr-lint through a copy that prints one more line after the real output.
+wrap() {
+  mv "$1/bin/adr-lint" "$1/bin/adr-lint.real" || exit 2
+  cat > "$1/bin/adr-lint" <<PY || exit 2
 import subprocess, sys
 from pathlib import Path
 run = subprocess.run([sys.executable, str(Path(__file__).with_name("adr-lint.real")), *sys.argv[1:]])
-print("control: one line the real adr-lint does not print")
+print("control: a finding naming $2")
 sys.exit(run.returncode)
 PY
+}
+if [ "$control" = 1 ]; then
+  # The two sides differ only in a path-like word, so a normalisation that erased such a
+  # word would read them as equal, and the control would catch that too.
+  mkdir -p "$work/control"
+  cp -R "$repo/plugin" "$work/control/" || exit 2
+  after="$work/control/plugin"
+  wrap "$before" /tmp/alpha
+  wrap "$after" /tmp/beta
 fi
 
 # One run is bounded, so a hang reads as exit 124 on that side rather than no answer.
@@ -54,10 +61,10 @@ bound=""
 if command -v timeout >/dev/null 2>&1; then bound="timeout 300"
 elif command -v gtimeout >/dev/null 2>&1; then bound="gtimeout 300"; fi
 
+# Only the version stamp, which names the plugin's own path, is taken out; every other byte
+# is compared. A side's plugin path printed anywhere else reads `<plugin>` on both sides.
 norm() {
-  sed -E -e 's/ · (adr-lint|spec-verify) [0-9.]+ \([^)]*\)//' \
-         -e 's#/(private/)?(var/folders|tmp)/[^ ]*##g' \
-         -e 's/[0-9]+(\.[0-9]+)?(ms|s)\b/N/g'
+  sed -E -e 's/ · (adr-lint|spec-verify) [0-9.]+ \([^)]*\)//'
 }
 
 records=$(git ls-files 'docs/adr/ADR-*.md' | grep -v '/tasks/' | sort)
@@ -66,11 +73,11 @@ specs=$(git ls-files 'docs/specs/*.md' | sort)
 side() {
   local plugin=$1 out code
   for r in $records; do
-    out=$($bound python3 "$plugin/bin/adr-lint" "$r" 2>&1); code=$?
+    out=$($bound python3 "$plugin/bin/adr-lint" "$r" 2>&1); code=$?; out=${out//"$plugin"/<plugin>}
     printf '=== adr-lint %s exit %s\n%s\n' "$r" "$code" "$(printf '%s\n' "$out" | norm)"
   done
   for s in $specs; do
-    out=$($bound python3 "$plugin/bin/spec-verify" --spec "$s" 2>&1); code=$?
+    out=$($bound python3 "$plugin/bin/spec-verify" --spec "$s" 2>&1); code=$?; out=${out//"$plugin"/<plugin>}
     printf '=== spec-verify %s exit %s\n%s\n' "$s" "$code" "$(printf '%s\n' "$out" | norm)"
   done
 }

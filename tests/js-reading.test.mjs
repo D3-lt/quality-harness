@@ -224,6 +224,36 @@ test('adr-lint says UNPROVEN for a spaced JavaScript title it found but whose bo
   }
 })
 
+// Codex round on efd7cdf, finding 1: a row naming its own file skips the existence check, so
+// the can-fail check is where an unbounded body there is said.
+test('adr-lint says UNPROVEN for a test named by its own file whose body it cannot bound', () => {
+  const { said } = lint({
+    'tests/probe.mjs': HEAD + "test('probe', () => {\n  const n = {} / (2) / 3\n})\n",
+    'tests/bounded.mjs': HEAD + "test('bounded', () => {\n  assert.ok(1)\n})\n",
+  }, { tests: [['probe', 'tests/probe.mjs'], ['bounded', 'tests/bounded.mjs']] })
+  const lines = linesAbout(said, '`probe`')
+  assert.ok(lines.length && lines.every(line => /UNPROVEN/.test(line)), said)
+  assert.ok(blocking(lines), `a done task is refused: ${said}`)
+  assert.equal(linesAbout(said, '`bounded`').length, 0, `the bounded twin is silent: ${said}`)
+})
+
+// Finding 2: a helper is only a binding whose value is a function, bounded to that value.
+test('adr-lint follows a helper only into its own function', () => {
+  const alias = "const helper = () => {}\nconst checkIt = helper\nfunction unrelated() {\n  assert(false)\n}\n"
+  assert.deepEqual(canFail(HEAD + alias + "test('reading fixture alias', () => {\n  checkIt()\n})\n", 'reading fixture alias'),
+    { status: 'found', can: false }, 'an alias does not borrow the next function\'s assertion')
+  const arrow = "const checkArrow = () => {\n  assert.ok(1)\n}\n"
+  assert.deepEqual(canFail(HEAD + arrow + "test('reading fixture arrow helper', () => {\n  checkArrow()\n})\n", 'reading fixture arrow helper'),
+    { status: 'found', can: true }, 'an arrow helper that asserts is followed')
+})
+
+// Finding 3: a comment between the title and its comma is not a reason to lose the test.
+test('adr-lint finds a JavaScript test with a comment beside its title, and never one inside a comment', () => {
+  assert.equal(bodyOf(HEAD + "test('reading fixture commented' /* why */, () => {\n  assert.ok(1)\n})\n", 'reading fixture commented').status, 'found')
+  assert.equal(bodyOf(HEAD + "test(/* lead */ 'reading fixture led', () => {\n  assert.ok(1)\n})\n", 'reading fixture led').status, 'found')
+  assert.equal(bodyOf(HEAD + "// test('reading fixture ghost', () => {})\n" + REAL, 'reading fixture ghost').status, 'missing')
+})
+
 test('an enforcement pointer to a JavaScript test is resolved on the lexer', () => {
   const map = { 'tests/a.test.mjs': HEAD + STRING_ONLY + REAL + STOP }
   const tests = [['reading fixture real', 'tests/a.test.mjs']]

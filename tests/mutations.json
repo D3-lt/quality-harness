@@ -18553,7 +18553,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "    if (now - previous.at > SHOW_AT_MOST_SECONDS * 1000) {",
+      "from": "    if (pastShowCap(now - previous.at)) {",
       "to": "    if (false) {",
       "only": "^a brief snapshot past the age cap is not shown, and a refresh starts$"
     },
@@ -18803,8 +18803,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "    if (now - previous.at > SHOW_AT_MOST_SECONDS * 1000) {",
-      "to": "    if (Math.round((now - previous.at) / 1000) > SHOW_AT_MOST_SECONDS) {",
+      "from": "  return ageMs > SHOW_AT_MOST_SECONDS * 1000",
+      "to": "  return Math.round(ageMs / 1000) > SHOW_AT_MOST_SECONDS",
       "only": "^a brief never shows a snapshot past the cap, whatever --cached allows$"
     }
   ]

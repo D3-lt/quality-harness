@@ -621,6 +621,15 @@ function stampBriefSaid(store, said) {
 // hours old was shown, labelled with its age, naming a branch the checkout no longer held; past
 // this, the brief says how old the last answer is and that it is refreshing, and shows none of it.
 const SHOW_AT_MOST_SECONDS = 600
+
+/**
+ * pastShowCap says whether a snapshot `ageMs` old is too old for a brief to show. It
+ * compares milliseconds: a rounded age let 600.4 s pass a 600 s cap (Codex review of
+ * 01443dd).
+ */
+export function pastShowCap(ageMs) {
+  return ageMs > SHOW_AT_MOST_SECONDS * 1000
+}
 const LOCK = 'qh-branch-state.lock'
 const SCRIPT = fileURLToPath(import.meta.url)
 
@@ -754,7 +763,7 @@ function main(argv = process.argv.slice(2)) {
   if (brief && hint && usableCache(previous, now)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const refreshing = refreshBehind({ gitDir: hint })
-    if (now - previous.at > SHOW_AT_MOST_SECONDS * 1000) {
+    if (pastShowCap(now - previous.at)) {
       process.stdout.write(`branch-state: the last answer is ${Math.round(age / 60)} min old, past the `
         + `${SHOW_AT_MOST_SECONDS / 60}-minute cap, so it is not shown; `
         + `${refreshing ? 'refreshing' : 'a refresh could not be started'}.\n`)

@@ -16932,3 +16932,12 @@ were never shown, and the test is locked by two records (ADR-073 T1, ADR-075 T2)
 show them. Next time it fails, read the job log for the campaign's own lines before the assertion. A new
 test beside it, asserting the campaign's exit status and printing its stderr, would make the next occurrence
 say why.
+  **Added the same day:** `a campaign that prints no summary says why: its exit, its signal and its stderr`
+  (tests/mutate-runner.test.mjs), beside the locked test. It runs one campaign over the same shape, and when it
+  fails it prints the exit status, signal, error, stdout and stderr, so the next Windows occurrence carries its
+  own cause.
+- **Correction to ADR-078's Out of Scope, found while scouting the convergence:** `plugin/bin/spec-verify:636`
+  reads **Swift** (`_matching_js_brace` over a Swift-masked text), not JavaScript. The JavaScript reader in
+  spec-verify is `test_definition_exists` (`plugin/bin/spec-verify:348-360`): its own `mask_noncode` with
+  `regex_literals`, plus `registered_test_names`, and a JavaScript suffix list without `.mts` or `.cts`. The
+  record is history and stays as written; this line is the correction.

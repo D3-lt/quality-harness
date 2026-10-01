@@ -1028,6 +1028,29 @@ test('the campaign cache records the tests that killed each RED entry', () => {
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
 
+// BACKLOG §328: on Windows at 9845434 the test above saw a campaign print nothing to
+// stdout, and that test is locked, so it cannot show why. This one runs a campaign over
+// the same shape and, when it fails, says the exit status, the signal and the stderr.
+test('a campaign that prints no summary says why: its exit, its signal and its stderr', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-campaign-says-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-c', 'user.name=T', '-c', 'user.email=t@example.invalid', ...args], { cwd: repo, encoding: 'utf8', timeout: 30_000 })
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\n')
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "import assert from 'node:assert/strict'\nimport test from 'node:test'\nimport { f } from '../a.mjs'\n"
+      + "test('f is one', () => { assert.equal(f(), 1) })\n")
+    writeFileSync(join(repo, 'tests', 'mutations.json'), `${JSON.stringify({ mutations: [
+      { label: 'red', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2' },
+    ] }, null, 2)}\n`)
+    git('init', '-q'); git('add', '.'); git('commit', '-qm', 'base', '--no-verify')
+    const run = spawnSync(process.execPath, [join(HERE, '..', 'scripts', 'mutate.mjs'), '--root', repo],
+      { cwd: repo, encoding: 'utf8', timeout: 180_000, env: { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: '' } })
+    const said = `exit ${run.status}, signal ${run.signal}, error ${run.error?.message ?? 'none'}\n--- stdout\n${run.stdout}\n--- stderr\n${run.stderr}`
+    assert.equal(run.status, 0, said)
+    assert.ok(run.stdout.includes('1/1 mutations were noticed.'), said)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})
+
 // ADR-072 T2. A narrowing names exactly the tests the cache saw kill the entry, each
 // escaped and the alternation anchored, and it refuses what it cannot prove.
 test('narrowEntry proposes exactly the recorded killers, escaped and anchored, and refuses what it cannot prove', () => {

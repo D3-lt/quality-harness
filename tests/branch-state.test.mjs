@@ -936,6 +936,23 @@ test('a brief snapshot past the age cap is not shown, and a refresh starts', t =
   assert.ok(waitForSnapshot(cache, snapshot => snapshot.state?.looked === false), 'a refresher wrote the snapshot')
 })
 
+// The Codex round on 01443dd: a fresh cache hit returned before the cap was asked, so
+// `--cached 3600` showed a 30-minute-old answer; and the age was rounded first, so
+// 600.4 s passed a 600 s cap. The cap holds for every brief, whatever --cached says.
+test('a brief never shows a snapshot past the cap, whatever --cached allows', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-capped-long-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  const brief = cached => spawnSync(process.execPath, [branchScript, '--brief', '--cached', cached],
+    { cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000 })
+  for (const [ageMs, cached] of [[1_800_000, '3600'], [600_400, '3600']]) {
+    writeFileSync(cache, JSON.stringify({ at: Date.now() - ageMs, key: snapshotKey(gitDir), state: { ...greenState, branch: 'an-old-branch' } }))
+    const served = brief(cached)
+    assert.equal(served.status, 0, served.stderr)
+    assert.doesNotMatch(served.stdout, /an-old-branch|every job concluded success/, `${ageMs} ms old: ${served.stdout}`)
+    assert.match(served.stdout, /past the 10-minute cap/, served.stdout)
+  }
+})
+
 test('the full report and a brief with no snapshot are collected in the foreground', t => {
   const { project, gitDir } = keyedRepository(t, 'qh-foreground-')
   const cache = path.join(gitDir, 'qh-branch-state.json')

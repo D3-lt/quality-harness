@@ -16862,3 +16862,33 @@ yet. **Lead:** one `adr-next` process reading every task directory removes five 
 the cap together. `branch-state` at SessionStart could serve its git half and refresh `gh` in the
 background, as the brief already does. Both change what a shipped reader prints, so each needs a measured
 target first (a Windows timing), then a spec and an outside run (§18).
+
+## 326. FIXED 2026-10-01 — The Codex round on ADR-078 (01443dd): seven findings, four of them fail-opens
+
+gpt-6-astra at xhigh, read-only, over `d93da62..01443dd` (record.py, adr-verify) and `v3.3.0..01443dd`
+(branch-state.mjs): REQUEST CHANGES. The reviewer ran each input through node v26.10.0, so each P1 below is an
+edit that changes node's exit while the lock stayed clean. Each finding has a red regression in
+`tests/test-lock.test.mjs` or `tests/branch-state.test.mjs`, and a catalogue entry `Codex 01443dd: …`; all 13
+are RED.
+
+1. **A literal at the start of an arrow's expression body was masked as white space.** The body began after it
+   (`() => 'enabled' && …` hashed `&& …`), and a template's interpolation could become the "block". Literals
+   now mask as NUL.
+2. **Divisions read as regexes.** The property test looked back over white space only (`obj./* gap */in / 2`),
+   `of / 2` was read by the keyword table, and TypeScript's `n! / 2` read `!` as an operator. A property is now
+   the previous token being `.`; `of`, `yield` and `await` are UNPROVEN; `!` after a value in TypeScript is
+   postfix.
+3. **Regex data named as a test.** `debugger` then `/test('ghost', …)/`, and the same after `for await (…)`.
+   Every reserved word that cannot end a value now opens a regex, and `for await (` is a for header.
+4. **Unicode white space and line terminators.** U+2028 did not end a line comment, and U+00A0 was read as part
+   of an identifier. Both are now JavaScript's own sets (ECMA-262 §12.2-3).
+5. **A file ending inside `${…}` read as complete.** It is now UNPROVEN from the template's start (F-7).
+6. **A lock that cannot be read was read as hasher 1 by `--relock`, and a payload with two check records chose
+   one.** Two check records make a lock unreadable; `--relock` refuses an unreadable lock unless
+   `--replace-hashes`; any `check@<n>` is read, and an unknown n is UNPROVEN.
+7. **The brief's ten-minute cap was skipped on a fresh cache hit** (`--cached 3600` showed a 30-minute-old
+   answer), and it compared a rounded age (600.4 s passed). The cap now bounds every brief and compares
+   milliseconds.
+
+Re-run after the fixes, over every `.mjs` under `tests/`, `plugin/` and `scripts/`: hasher 2 loses no body
+hasher 1 bounds, drops no top-level test, and stops early on no file.

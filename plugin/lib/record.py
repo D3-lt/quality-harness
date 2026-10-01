@@ -76,6 +76,8 @@ __all__ = [
     "lock_suffix_for_run",
     "lock_snapshot_suffix",
     "moved_lock_bodies",
+    "lock_hasher",
+    "LOCK_HASHERS",
     "lock_findings",
     "lock_blocks_done",
     "vlog_row_is_lock_snapshot",
@@ -2754,6 +2756,17 @@ def moved_lock_bodies(vlog, *, current):
         if now is None or now != digest:
             moved.append((rel, name))
     return moved
+
+
+def lock_hasher(vlog):
+    """The hasher that took the log's recorded lock; 1 when it names none (ADR-078).
+
+    `--relock` compares the recorded bodies under this hasher, so a lock taken
+    before hasher 2 is checked the way it was taken before a hasher-2 lock
+    replaces it (F-8).
+    """
+    _date, recorded = _recorded_lock(vlog)
+    return ((recorded or {}).get("map") or {}).get("hasher", 1)
 
 
 def _vlog_machine_rows(vlog):

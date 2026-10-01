@@ -957,6 +957,31 @@ test('a brief never shows a snapshot past the cap, whatever --cached allows', t 
   assert.equal(pastShowCap(600_000), false)
 })
 
+// Owner, 2026-10-01: an adopter on a branch with no CI run was told COULD NOT LOOK on
+// every prompt until they pushed. An unknown is said once per change; only a completed
+// red run repeats. The same holds for a snapshot withheld past the cap, whose message
+// carries an age that changes on every prompt.
+test('an unchanged unknown is said once, and only a red CI repeats', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-unknown-once-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  const brief = () => spawnSync(process.execPath, [branchScript, '--brief', '--cached', '120'],
+    { cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000 })
+  const unknown = { ...greenState, ci: { looked: false, note: 'no run recorded for this branch' } }
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: snapshotKey(gitDir), state: unknown }))
+  assert.match(brief().stdout, /COULD NOT LOOK/)
+  assert.equal(brief().stdout, '', 'an unchanged could-not-look is not said again')
+  const red = { ...greenState, ci: { ...greenState.ci, conclusion: 'failure', failed: ['coverage'] } }
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: snapshotKey(gitDir), state: red }))
+  assert.match(brief().stdout, /⚠ CI/)
+  assert.match(brief().stdout, /⚠ CI/, 'a red CI repeats')
+  // Past the cap: a young refresher lock is already held, so no refresh rewrites the
+  // snapshot between the two prompts.
+  writeFileSync(path.join(gitDir, 'qh-branch-state.lock'), String(process.pid))
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1_800_000, key: snapshotKey(gitDir), state: greenState }))
+  assert.match(brief().stdout, /past the 10-minute cap/)
+  assert.equal(brief().stdout, '', 'a withheld snapshot is said once')
+})
+
 test('the full report and a brief with no snapshot are collected in the foreground', t => {
   const { project, gitDir } = keyedRepository(t, 'qh-foreground-')
   const cache = path.join(gitDir, 'qh-branch-state.json')

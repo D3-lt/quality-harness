@@ -596,11 +596,23 @@ export function cached(maxAgeSeconds, { read, write, now = Date.now, gather = co
   return { state, ageSeconds: 0, fromCache: false }
 }
 
-export function ciAlarm(state) {
+/**
+ * ciRed says whether CI's answer is a completed run that failed — the one brief an
+ * unchanged prompt still repeats. COULD NOT LOOK and a run still in progress are
+ * unknowns: said again only when the line changes, because an adopter on a branch
+ * with no run yet was told so on every prompt until they pushed (owner, 2026-10-01;
+ * CLAUDE.md §15).
+ */
+export function ciRed(state) {
   if (!state || typeof state !== 'object' || !state.looked) return false
-  if (!state.ci || typeof state.ci !== 'object' || !state.ci.looked) return true
+  if (!state.ci || typeof state.ci !== 'object' || !state.ci.looked) return false
   return state.ci.status === 'completed' && state.ci.conclusion !== 'success'
 }
+
+// What a brief stamps when it withheld a snapshot past the cap, so the next prompt
+// that would withhold it again says nothing: the age in the message changes on every
+// prompt, and an unchanged unknown is said once (CLAUDE.md §15).
+const WITHHELD = 'withheld: past the cap'
 
 function stampBriefSaid(store, said) {
   if (!store) return
@@ -688,7 +700,7 @@ export function refreshBehind({ gitDir, spawnRefresher = startRefresher, now = D
 
 function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false }) {
   const text = render(state, { brief })
-  if (brief && !ciAlarm(state) && previous && previous.said === text) return false
+  if (brief && !ciRed(state) && previous && previous.said === text) return false
   const suffix = age ? ` (read ${age}s ago${refreshing ? '; refreshing' : ''})` : ''
   process.stdout.write(`${text}${suffix}\n`)
   if (brief) stampBriefSaid(store, text)
@@ -764,9 +776,14 @@ function main(argv = process.argv.slice(2)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const refreshing = refreshBehind({ gitDir: hint })
     if (pastShowCap(now - previous.at)) {
+      if (previous.said === WITHHELD) {
+        finish('withheld-stale-again', { status: 0 })
+        return 0
+      }
       process.stdout.write(`branch-state: the last answer is ${Math.round(age / 60)} min old, past the `
         + `${SHOW_AT_MOST_SECONDS / 60}-minute cap, so it is not shown; `
         + `${refreshing ? 'refreshing' : 'a refresh could not be started'}.\n`)
+      stampBriefSaid(join(hint, 'qh-branch-state.json'), WITHHELD)
       finish('withheld-stale', { status: 0 })
       return 0
     }

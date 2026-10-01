@@ -36,6 +36,13 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
   a session skipped the same brief for most of a turn because the content had not
   moved; under the reader rule that skip had to be said and then the reprint itself
   had to stop.
+- **Only a red CI repeats; an unknown is said once (owner, 2026-10-01).** Measured in one long
+  session: of the briefs re-sent unchanged, COULD NOT LOOK (a branch with no run yet) was the largest
+  class, then a red run, then the cap's withheld message, whose age changed on every prompt. An adopter
+  on any unpushed branch was told COULD NOT LOOK on every prompt until they pushed. A completed failed
+  run still repeats, because it is what blocks a release; an unknown is said when it changes.
+  `ciRed` replaced `ciAlarm`, which also counted could-not-look as an alarm. The test is
+  `an unchanged unknown is said once, and only a red CI repeats`.
 - **The release line NAMES its anchor and points at the check; it does not conclude** (BACKLOG §157).
   `git describe` reads LOCAL refs and `gh release create` tags the remote, so the machine that cuts
   the releases is the one whose anchor goes stale — it printed "a green shipped change is released,

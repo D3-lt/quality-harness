@@ -119,7 +119,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
-from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible  # noqa: E402
+from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup  # noqa: E402,E501
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
 # check read a record's Status with the task parser (the Codex round of 3.1.6, finding 1).
@@ -3741,6 +3741,9 @@ def resolve_enforcement(pointer, root, tracked=None):
       "test"      a `path::name` id — proves the check exists, not that it can
                   fail. That is ADR-003's rule and mutate.mjs's job.
       "gate"      an executable in bin/.
+      "unproven"  a `path::name` test in a JavaScript-family file the lexer
+                  could not read as far as the name (ADR-079) — could-not-look,
+                  never "resolved", and never a pointer to nothing.
 
     This never runs anything. A linter that executed a check would be a
     different tool with a different cost, and the pointer's job is to be
@@ -3768,41 +3771,22 @@ def resolve_enforcement(pointer, root, tracked=None):
             # Python and Go — where a test IS a function — and wrong everywhere a
             # test is a registration call, because a production function then
             # resolves. `lifecycle.mjs::shellWords` did.
-            javascript = f.suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx")
+            javascript = f.suffix.lower() in JS_FAMILY_SUFFIXES
             if wanted and not javascript and looks_like_a_test(f) and test_body(
                     source, wanted, python=f.suffix == ".py",
                     php=f.suffix == ".php", swift=f.suffix == ".swift",
                     rust=f.suffix == ".rs") is not None:
                 return "test"
             # A `node:test` name is a STRING ARGUMENT, not a function name, so
-            # test_body cannot see it — and code_only blanks string contents, so
-            # a substring search cannot either. This repository's own JS tests
-            # are all of that shape. Matched against the raw text, anchored to a
-            # registration call so a name merely MENTIONED in a comment or a
-            # table does not resolve.
-            # Comments stripped, string CONTENTS kept — a registration name IS a
-            # string literal, so masking strings would hide every real one, and
-            # not masking comments resolved `// test('ghost', ...)`. The comment
-            # that used to sit here claimed a mention in a comment did not
-            # resolve; it did. Second time this session a comment carried the bug.
-            #
-            # `.skip` and `.only` are registrations too, and were being rejected
-            # as absent while a commented-out ghost resolved — wrong in both
-            # directions at once.
-            # Anchored to STATEMENT POSITION — start of line after whitespace.
-            # A registration inside a string literal (`const s = "test('x')"`)
-            # is not one, and excluding it properly needs a lexer; requiring
-            # line-start costs a registration written mid-line, which node:test
-            # code does not do, and buys the string case for one anchor.
-            #
-            # The direction of the trade is deliberate: a false "not found"
-            # produces visible advice on a valid pointer, while a false "found"
-            # is silent and tells a reader a test backs a decision when none does.
-            if wanted and javascript and re.search(
-                    r"^[ \t]*(?:await[ \t]+)?(?:test|it)(?:\.\w+)*\s*\(\s*(['\"`])"
-                    + re.escape(wanted) + r"\1",
-                    strip_comments(f.read_text(errors="replace", encoding="utf-8")), re.M):
-                return "test"
+            # test_body cannot see it. Read as the lock reads it (ADR-079): a
+            # registration counts only where its call is code, so one inside a
+            # string, a template's text, a regex or a comment does not resolve,
+            # and `.skip` and `.only` are registrations too. A line-start anchor
+            # used to approximate "code" here, and could not see a block comment.
+            if wanted and javascript:
+                status = js_test_lookup(f.read_text(errors="replace", encoding="utf-8"), wanted, f.suffix)[0]
+                if status != "missing":
+                    return "test" if status == "found" else "unproven"
         return None
     # A DIRECT entry of a bin/, not any path that happens to land inside one
     # after resolution. `README.md` is a repository file, not a gate.
@@ -3837,7 +3821,14 @@ def check_enforcement(text, path, errors, root, tracked=None):
     a year later — and the task's tests are freely rewritten once it is.
     """
     for pointer in enforcement_pointers(text):
-        if resolve_enforcement(pointer, root, tracked) is None:
+        form = resolve_enforcement(pointer, root, tracked)
+        if form == "unproven":
+            errors.advise(f"{path.name}: Enforced-by names `{pointer}`, and whether that test exists is "
+                          f"UNPROVEN: the lexer could not read its file as far as the name, past a `/` or "
+                          f"a literal it cannot place — could-not-look, not a pointer to nothing. Rewrite "
+                          f"that construct, or name the check another way")
+            continue
+        if form is None:
             unread = mutation_labels(root)[1] if root is not None else None
             if unread:
                 errors.advise(f"{path.name}: Enforced-by names `{pointer}`, which is not a `path::name` "
@@ -4573,14 +4564,97 @@ JS_TITLE_CALL = re.compile(
     r"""(['"`])((?:\\.|(?!\1)[^\\])*)\1""", re.S)
 
 
-def js_title_exists(source, name):
-    """True when some it/test/describe call's literal title decodes to `name`."""
+def js_title_exists(source, name, suffix=""):
+    """`found`, `missing` or `unproven` for a test title in a JS/TS test file.
+
+    A JavaScript-family file is read as the lock reads it (ADR-079): a call inside
+    a string, a template's text, a regex or a comment is not one, and a title the
+    lexer could not read as far as is `unproven`. Any other suffix keeps the raw
+    reading, which has nothing to say about where it could not see."""
+    if suffix.lower() in JS_FAMILY_SUFFIXES:
+        return js_test_lookup(source, name, suffix)[0]
     for m in JS_TITLE_CALL.finditer(source):
         if re.sub(r"\\(.)", r"\1", m.group(2)) == name:
-            return True
-    return False
+            return "found"
+    return "missing"
 
-def check_tests_exist(infos, readme_text, errors, root, tracked=None):
+
+def js_test_body(text, name, suffix):
+    """`(status, body)` for a JavaScript-family test, bounded as the lock bounds it (ADR-079).
+
+    `found` with the callback's body, bounded on the whole file's code view;
+    `missing` when no call in code carries the title and the lexer read the whole
+    file; `unproven` when it did not, or when the call is found and its body
+    cannot be bounded. There is no declaration, Ruby or last-resort fallback: a
+    JavaScript test is a registration, and a function of that name is not one.
+    """
+    status, after, masked = js_test_lookup(text, name, suffix)
+    if status != "found":
+        return status, None
+    body = bdd_callback_body(text, after, masked=masked)
+    return ("found", body) if body is not None else ("unproven", None)
+
+
+def js_code_body(text, name, suffix):
+    """`(status, body, masked)`: `js_test_body`'s answer, with the body taken from the
+    whole file's code view rather than the raw text (ADR-079)."""
+    status, after, masked = js_test_lookup(text, name, suffix)
+    if status != "found":
+        return status, None, masked
+    body = bdd_callback_body(masked, after, masked=masked)
+    return ("found" if body is not None else "unproven"), body, masked
+
+
+def js_helper_heads(masked, name):
+    """Where a same-file helper named `name` is defined in the code view: a function
+    declaration, or a binding whose value is one."""
+    return re.finditer(r"\bfunction\s*\*?\s*" + re.escape(name) + r"\s*\(|\b(?:const|let|var)\s+"
+                       + re.escape(name) + r"\s*=", masked)
+
+
+def js_body_can_fail(text, name, suffix):
+    """`(status, can_fail)` for a JavaScript-family test, judged on the code view (ADR-079).
+
+    `FAIL_CALLS` is searched over the body's span of the whole file's masked view, so an
+    assertion inside `${…}` counts and a word inside a string or a regex literal does not;
+    then over the span of each same-file helper the body calls, bounded the same way. The
+    status is `js_test_body`'s; anything but `found` is judged False.
+    """
+    status, body, masked = js_code_body(text, name, suffix)
+    if status != "found":
+        return status, False
+    if FAIL_CALLS.search(body):
+        return "found", True
+    for callee in sorted(set(re.findall(r"\b([a-z_]\w{2,})\s*\(", body))):
+        for head in js_helper_heads(masked, callee):
+            helper = bdd_callback_body(masked, head.start(), masked=masked)
+            if helper and FAIL_CALLS.search(helper):
+                return "found", True
+    return "found", False
+
+
+def unproven_test(errors, inf, tid, name, rel, done, frozen):
+    """Report a named JavaScript test the lexer could not read to (ADR-079).
+
+    Could-not-look, so never "not found" and never silence. On a done task it
+    blocks, as evidence, because done claims the test ran. A frozen record and a
+    record below strictFrom are history and get advice, as does a task not yet done.
+    """
+    message = (f"{tests_row_ref(inf, name, rel)}: {tid} names `{name}` in `{rel}`, and whether that "
+               f"file registers it is UNPROVEN: the lexer could not read the file as far as the test, "
+               f"past a `/` or a literal it cannot place, or could not bound the test's body. That is "
+               f"could-not-look, not absence; rewrite the construct it stopped at, or name a test it "
+               f"can read")
+    if not done:
+        errors.advise(message)
+    elif frozen:
+        errors.advise(f"archived record: {message} — history, not a refusal")
+    elif errors.demotion:
+        errors.advise(f"{message} [advisory: {errors.demotion}]")
+    else:
+        errors.append(message, evidence=True)
+
+def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=None):
     # Paths outside the tree are reported ONCE each: a task naming one file in
     # eight Tests rows has one problem, not eight.
     reported_outside = set()
@@ -4599,6 +4673,8 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None):
     """
     if not readme_text or root is None:
         return
+    frozen = record is not None and record_is_frozen(record, root, tracked)
+    done = set(done_task_ids(readme_text))
     for tid in evidenced_task_ids(infos, readme_text):
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
@@ -4616,7 +4692,10 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None):
                 # spaced name, as before, rather than gaining a block by the back door.
                 if f is None or f.is_dir():
                     continue
-                if not js_title_exists(f.read_text(errors="replace", encoding="utf-8"), name):
+                status = js_title_exists(f.read_text(errors="replace", encoding="utf-8"), name, f.suffix)
+                if status == "unproven":
+                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
+                elif status == "missing":
                     errors.advise(
                         f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
                         f"Tests table names the test title `{name}` in `{rel}`, but no `it`/`test`/"
@@ -4687,8 +4766,11 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None):
             # still the identity finding below.
             if name in (f.stem, f.name):
                 source = f.read_text(errors="replace", encoding="utf-8")
+                # A JavaScript-family file is searched on the lexer's code view (ADR-079), so a
+                # `test(` inside a string is not the file's test.
+                view = js_reading(source, f.suffix)[0] if f.suffix.lower() in JS_FAMILY_SUFFIXES else source
                 if re.search(r"^\s*(?:async\s+)?def\s+test_\w+\s*\(|^\s*func\s+(?:Test|Fuzz)\w*\s*\(|"
-                             r"^\s*(?:it|test)\s*\(", source, re.M):
+                             r"^\s*(?:it|test)\s*\(", view, re.M):
                     continue
             # RAW source: `test_body` strips per branch, because a BDD test's name
             # is a string literal and stripping strings here deleted the thing
@@ -4696,9 +4778,18 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None):
             source = f.read_text(errors="replace", encoding="utf-8")
             if f.name == "package.json" and name in npm_scripts(source):
                 continue
-            if test_body(source, name, python=f.suffix == ".py",
-                         php=f.suffix == ".php", swift=f.suffix == ".swift",
-                         rust=f.suffix == ".rs") is None:
+            # ADR-079: a JavaScript-family file is read as the lock reads it, with no
+            # declaration or last-resort fallback; `test_body` keeps its contract.
+            if f.suffix.lower() in JS_FAMILY_SUFFIXES:
+                status = js_test_body(source, name, f.suffix)[0]
+            else:
+                status = "missing" if test_body(source, name, python=f.suffix == ".py",
+                                                php=f.suffix == ".php", swift=f.suffix == ".swift",
+                                                rust=f.suffix == ".rs") is None else "found"
+            if status == "unproven":
+                unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
+                continue
+            if status == "missing":
                 # NO CLAIM ABOUT THE FILTER. This used to end "the acceptance
                 # filter passed without it", which is an inference the check never
                 # makes: measured 2026-08-29 on a 77-record corpus where four of
@@ -5354,7 +5445,7 @@ def check_go_acceptance_fences(infos, errors, root, tracked):
                 f"or make the exclusion package-specific")
 
 
-def check_tests_can_fail(infos, readme_text, errors, root, tracked=None):
+def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=None):
     """A test named by a `done` task must contain a failure path.
 
     Measured 2026-08-21: the existence check passes on a function that asserts
@@ -5371,6 +5462,8 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None):
     """
     if not readme_text or root is None:
         return
+    frozen = record is not None and record_is_frozen(record, root, tracked)
+    done = set(done_task_ids(readme_text))
     for tid in evidenced_task_ids(infos, readme_text):
         inf = infos.get(tid)
         if inf is None or inf.get("human"):
@@ -5393,23 +5486,35 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None):
             raw = f.read_text(errors="replace", encoding="utf-8")
             swift = f.suffix == ".swift"
             text = code_only(raw, python=True) if f.suffix == ".py" else raw
-            body = test_body(text, name, python=f.suffix == ".py", php=f.suffix == ".php", swift=swift,
-                             rust=f.suffix == ".rs")
-            if body is None:
-                continue
-            # A no-op on the text above, which was already stripped; kept because
-            # test_body slices out of it and a future extractor might not.
-            body = code_only(body, python=f.suffix == ".py", swift=swift, rust=f.suffix == ".rs")
-            # A test that delegates its assertions to a helper still fails when the
-            # helper does. Follow one level: any same-file function the body calls
-            # that takes the testing handle counts as part of it.
-            if not FAIL_CALLS.search(body):
-                for callee in set(re.findall(r"\b([a-z_]\w{2,})\s*\(", body)):
-                    h = test_body(text, callee, python=f.suffix == ".py",
-                                  php=f.suffix == ".php", swift=swift, rust=f.suffix == ".rs")
-                    if h and FAIL_CALLS.search(h):
-                        body += h
-                        break
+            if f.suffix.lower() in JS_FAMILY_SUFFIXES:
+                # ADR-079: judged on the whole file's code view, the body and its same-file
+                # helpers both. A name not found or not read to is check_tests_exist's to
+                # report. A spaced title it accepted on its call alone (`it('x', helper)`),
+                # whose body cannot be bounded, is said here, or it would be silence.
+                status, can = js_body_can_fail(raw, name, f.suffix)
+                if status == "unproven" and spaced and js_title_exists(raw, name, f.suffix) == "found":
+                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
+                if status != "found" or can:
+                    continue
+                body = js_code_body(raw, name, f.suffix)[1]
+            else:
+                body = test_body(text, name, python=f.suffix == ".py", php=f.suffix == ".php", swift=swift,
+                                 rust=f.suffix == ".rs")
+                if body is None:
+                    continue
+                # A no-op on the text above, which was already stripped; kept because
+                # test_body slices out of it and a future extractor might not.
+                body = code_only(body, python=f.suffix == ".py", swift=swift, rust=f.suffix == ".rs")
+                # A test that delegates its assertions to a helper still fails when the
+                # helper does. Follow one level: any same-file function the body calls
+                # that takes the testing handle counts as part of it.
+                if not FAIL_CALLS.search(body):
+                    for callee in set(re.findall(r"\b([a-z_]\w{2,})\s*\(", body)):
+                        h = test_body(text, callee, python=f.suffix == ".py",
+                                      php=f.suffix == ".php", swift=swift, rust=f.suffix == ".rs")
+                        if h and FAIL_CALLS.search(h):
+                            body += h
+                            break
             if not FAIL_CALLS.search(body):
                 # ⚠ "NOTHING IN IT CAN GO RED" IS A UNIVERSAL NEGATIVE OVER
                 # ARBITRARY CODE, and this gate cannot establish one — the same
@@ -6441,8 +6546,8 @@ def main():
             check_task_status_vocabulary(infos, readme_text, errors)
 
             check_status_allows_execution(adr, readme_text, errors)
-            check_tests_exist(infos, readme_text, errors, root, tracked)
-            check_tests_can_fail(infos, readme_text, errors, root, tracked)
+            check_tests_exist(infos, readme_text, errors, root, tracked, adr)
+            check_tests_can_fail(infos, readme_text, errors, root, tracked, adr)
             check_mutation_evidence(infos, readme_text, errors)
             check_named_tests_are_run(infos, readme_text, errors)
         check_file_collisions(infos, errors)

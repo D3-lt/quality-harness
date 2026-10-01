@@ -17063,3 +17063,29 @@ that run. The assertion message carries no stdout, so the run's own words are lo
 §328: a Windows campaign that prints no summary. Next time it fails, read the job log for the campaign's lines
 before the assertion. If it recurs, a test beside it that prints the run's stdout and stderr on failure would say
 why, as §328's did.
+
+## 334. OPEN 2026-10-01 — an isolated `adr-verify --mutant` ran a corpus fence many times slower than the checkout did
+
+Observed while recording ADR-079 T4's mutants. Its fence, `scripts/verdict-diff.sh`, runs `adr-lint`
+and `spec-verify` over every tracked record and spec, twice per side. In this checkout one
+`--control` comparison took 78s. Run through `adr-verify --mutant` in its default isolated worktree
+(`.git/qh-campaigns/<pid>/tree`, ADR-075), the clean fence's first pass had reached ADR-035 of 74
+records after 31 minutes, at a load average near 4 on 10 cores. The run was stopped, its worktree
+removed by hand (`git worktree remove --force`), and the mutants recorded with `--in-place`, where
+each took minutes.
+
+Not measured: which call is slow inside the worktree. Candidates to time first are the git calls
+`adr-lint` makes per record (`tracked_or_unignored_paths`, the test-lock reads) from a worktree nested
+under the parent's `.git/`. Also not measured: whether a killed isolated run is meant to leave its
+worktree behind. `adr-verify --restore` said nothing was recorded, and the worktree stayed until it
+was removed by hand.
+
+## 335. OPEN 2026-10-01 — ADR-079 F-11's rationale says a moved lock is advice below `strictFrom`; the code blocks it
+
+F-11 (`docs/specs/2026-10-01-every-gate-reads-javascript-one-way.md`) says UNPROVEN "keeps a moved
+lock's exceptions: on a frozen archived record, and on a record below `strictFrom`, it is advice".
+ADR-079 T2 built that for UNPROVEN, and its test asserts both halves. But `check_test_lock` demotes a
+moved lock only on a frozen record. It runs inside `errors.protected()` and raises with
+`evidence=True`, so below `strictFrom` a moved lock still blocks. The behaviour asked for is
+unambiguous; the comparison it is justified by is not true of the code. Which one should change is
+the owner's call: the spec's sentence, or the lock's handling below `strictFrom`.

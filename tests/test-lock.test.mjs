@@ -3741,3 +3741,84 @@ test('hasher 1 still reads a division after a postfix increment, a comment or a 
     hasherOneSees('tests/division-subject.test.mjs', source(2), source(1), name)
   }
 })
+
+// 3.4.0 doubled adr-next over this corpus (7.7 s at 3.3.0, 15.7 s at 8eb438c, measured
+// 2026-10-01): lock_findings read every hasher-1 lock again under hasher 2 to build the
+// relock advice, and adr-next and lock_blocks_done throw advice away. Only a caller that
+// prints the advice pays for it.
+test('a caller that discards advice does not pay for the hasher-2 reading', () => {
+  const dir = tmpRepo()
+  try {
+    writeLexerSubject(dir)
+    const r = python(`
+import json, sys, record
+from pathlib import Path
+req = json.load(sys.stdin)
+calls = []
+orig = record.snapshot_lock
+def counting(root, rows, hasher=2):
+    calls.append(hasher)
+    return orig(root, rows, hasher=hasher)
+record.snapshot_lock = counting
+text = req["text"]
+blocked = record.lock_blocks_done(text, Path(req["root"]))
+discarding = list(calls)
+calls.clear()
+blocks, advice = record.lock_findings(record.sections_of(text).get("Verification Log", []),
+    root=Path(req["root"]), tests=record.tests_table_rows(text))
+print(json.dumps({"blocked": blocked, "discarding": discarding, "advising": calls, "advice": advice}))
+`, JSON.stringify({ root: dir, text: taskMarkdown(LEXER_ROWS, [FROZEN_ROW]) }))
+    assert.equal(r.status, 0, r.stderr)
+    const got = JSON.parse(r.stdout)
+    assert.equal(got.blocked, false)
+    assert.deepEqual(got.discarding, [1], 'lock_blocks_done reads the lock once, under the hasher that took it')
+    assert.deepEqual(got.advising, [1, 2], 'lock_findings still reads hasher 2 when its advice is wanted')
+    assert.ok(got.advice.some(a => a.includes('adr-verify --relock')), got.advice.join('\\n'))
+    // adr-next's own call, behind a current exit-0 row, discards the advice too.
+    const digest = 'b'.repeat(64)
+    const passing = `- 2026-10-01 · no-git · exit 0 · \`node --test\` · acceptance-sha256:${digest} · ms:12`
+    const n = python(`
+import importlib.machinery, importlib.util, json, sys, record
+from pathlib import Path
+req = json.load(sys.stdin)
+loader = importlib.machinery.SourceFileLoader("adr_next_advice", req["bin"])
+mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+loader.exec_module(mod)
+calls = []
+orig = record.snapshot_lock
+def counting(root, rows, hasher=2):
+    calls.append(hasher)
+    return orig(root, rows, hasher=hasher)
+record.snapshot_lock = counting
+mod.unprovable_evidence(req["text"], req["digest"], "node --test", "node --test", Path(req["root"]))
+print(json.dumps(calls))
+`, JSON.stringify({ bin: join(bin, 'adr-next'), root: dir, digest, text: taskMarkdown(LEXER_ROWS, [FROZEN_ROW, passing]) }))
+    assert.equal(n.status, 0, n.stderr)
+    assert.deepEqual(JSON.parse(n.stdout), [1], 'adr-next reads the lock once, under the hasher that took it')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+// 3.4.0's session start read and hashed one large test file once per task of a record;
+// a file's digests are now one memoised reading of its text (measured 2026-10-01).
+test('a test file named by several tasks is read once, on its text', () => {
+  const dir = tmpRepo()
+  try {
+    writeLexerSubject(dir)
+    const r = python(`
+import json, sys, record
+from pathlib import Path
+req = json.load(sys.stdin)
+record._file_lock_digests.cache_clear()
+for _ in range(3):
+    record.snapshot_lock(Path(req["root"]), [tuple(t) for t in req["tests"]])
+info = record._file_lock_digests.cache_info()
+print(json.dumps({"hits": info.hits, "misses": info.misses}))
+`, JSON.stringify({ root: dir, tests: LEXER_TESTS }))
+    assert.equal(r.status, 0, r.stderr)
+    assert.deepEqual(JSON.parse(r.stdout), { hits: 2, misses: 1 })
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

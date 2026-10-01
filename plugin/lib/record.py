@@ -2680,6 +2680,27 @@ _H2_TS_SUFFIXES = {".ts", ".tsx", ".mts", ".cts"}
 LOCK_HASHERS = (1, 2)
 
 
+# One reading of one file's text: every name it declares, with its body's digest, or None
+# where no body could be bounded. Pure, so memoised on the text itself, which no edit can
+# leave stale: `adr-next` takes a snapshot per task, the tasks of one record name the same
+# test file, and 3.4.0's session start read and hashed one 3,800-line test file once per
+# task — 2.4 s where 3.3.0 took 0.9 s, measured 2026-10-01.
+@lru_cache(maxsize=32)
+def _file_lock_digests(source, python, go, php, rust, shell, swift, hasher, ts):
+    reading = {"hasher": hasher, "ts": ts}
+    out = []
+    for name in extract_test_names(
+            source, python=python, go=go, php=php, rust=rust, shell=shell,
+            swift=swift, **reading):
+        body = extract_test_body(
+            source, name, python=python, go=go, php=php, rust=rust,
+            shell=shell, swift=swift, **reading)
+        out.append((name, None if body is None else body_digest(
+            body, python=python, php=php, shell=shell, rust=rust,
+            swift=swift, go=go, **reading)))
+    return tuple(out)
+
+
 def snapshot_lock(root, tests_rows, hasher=2):
     """Canonical lock map: check value plus every extractable name in Tests files.
 
@@ -2709,21 +2730,14 @@ def snapshot_lock(root, tests_rows, hasher=2):
         shell = path.suffix.lower() in (".sh", ".bash")
         swift = path.suffix.lower() == ".swift"
         suffix = path.suffix.lower()
-        reading = {"hasher": hasher if suffix in _H2_JS_SUFFIXES else 1,
-                   "ts": suffix in _H2_TS_SUFFIXES}
-        for name in extract_test_names(
-                source, python=python, go=go, php=php, rust=rust, shell=shell,
-                swift=swift, **reading):
-            body = extract_test_body(
-                source, name, python=python, go=go, php=php, rust=rust,
-                shell=shell, swift=swift, **reading)
-            if body is None:
+        for name, digest in _file_lock_digests(
+                source, python, go, php, rust, shell, swift,
+                hasher if suffix in _H2_JS_SUFFIXES else 1, suffix in _H2_TS_SUFFIXES):
+            if digest is None:
                 if (rel, name) in named:
                     unproven.add((rel, name))
                 continue
-            bodies[(rel, name)] = body_digest(
-                body, python=python, php=php, shell=shell, rust=rust,
-                swift=swift, go=go, **reading)
+            bodies[(rel, name)] = digest
         for n, r in tests_rows:
             if r == rel and (rel, n) not in bodies:
                 unproven.add((rel, n))
@@ -2942,8 +2956,13 @@ def _recorded_lock(vlog):
 
 
 
-def lock_findings(vlog, *, root, tests, label=""):
-    """blocks and advice for a done claim against first-red hashes."""
+def lock_findings(vlog, *, root, tests, label="", advise=True):
+    """blocks and advice for a done claim against first-red hashes.
+
+    `advise=False` is for a caller that discards the advice: it skips the second,
+    hasher-2 reading of a hasher-1 lock, which doubled adr-next over a corpus
+    (ADR-078; 7.7 s at 3.3.0, 15.7 s at 3.4.0, measured 2026-10-01).
+    """
     prefix = f"{label}: " if label else ""
     date, recorded = _recorded_lock(vlog)
     if recorded is None:
@@ -2989,7 +3008,7 @@ def lock_findings(vlog, *, root, tests, label=""):
     recorded_map = recorded["map"]
     blocks = []
     advice = []
-    if hasher == 1 and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):
+    if advise and hasher == 1 and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):
         newer = snapshot_lock(root, tests, hasher=2)
         if (newer["bodies"], newer["unproven"]) != (current["bodies"], current["unproven"]):
             advice.append(
@@ -3080,5 +3099,5 @@ def lock_blocks_done(text, root):
     """True when is_done must withhold done because the lock does not hold."""
     log = sections_of(text).get("Verification Log", [])
     blocks, _advice = lock_findings(
-        log, root=root, tests=tests_table_rows(text), label="")
+        log, root=root, tests=tests_table_rows(text), label="", advise=False)
     return bool(blocks)

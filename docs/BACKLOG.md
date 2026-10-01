@@ -16892,3 +16892,24 @@ are RED.
 
 Re-run after the fixes, over every `.mjs` under `tests/`, `plugin/` and `scripts/`: hasher 2 loses no body
 hasher 1 bounds, drops no top-level test, and stops early on no file.
+
+## 327. FIXED 2026-10-01 — After 3.4.0, judged from an adopter's session (§19): what the brief repeats, a regression 3.4.0 shipped, and which records session start reads
+
+1. **Only a red CI repeats; an unknown is said once** (owner's decision). On any unpushed branch an adopter
+   was told "COULD NOT LOOK — no run recorded for this branch" on every prompt until they pushed. `ciRed`
+   replaces `ciAlarm`, and a snapshot withheld past the cap is said once. Committed as 2d8c473.
+2. **3.4.0 doubled `adr-next`.** Over this corpus's 69 task directories it took 15.7 s at 8eb438c, against
+   7.7 s at v3.3.0 (measured in one process, 2026-10-01). The cause: `lock_findings` read every hasher-1
+   lock a second time, under hasher 2, to build the relock advice, and `adr-next` and `lock_blocks_done`
+   discard that advice. They now pass `advise=False`. A file's digests are also memoised on its text,
+   because a record's tasks name the same test file and each task's snapshot re-read it. After both:
+   4.0 s for the same 69 directories.
+3. **Session start read the oldest records.** `TASK_DIRECTORY_READ_CAP` took the first six directories
+   listed: here ADR-001 to ADR-006, all done. It now reads the six whose task files changed most recently
+   (newest modification time; no process start, and uncommitted work ranks first). Reading those heavier
+   records made session start take 2.4 s; after item 2's memoisation, 1.2 s warm and 1.65 s cold
+   (0.9 s at 3.3.0, over the wrong records). Codex's architecture review named this, as finding 4.
+4. **Left, with reasons.** The listing descriptions (7.4 KB, always on) are not shortened: the plugin's
+   evals name skills explicitly, so nothing measures description-based routing, and a cut would be
+   unmeasured. The six `adr-next` spawns are not batched into one process, because the saving is
+   interpreter starts, and no Windows timing exists to set a target (§325).

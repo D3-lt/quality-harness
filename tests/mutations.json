@@ -8852,8 +8852,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell, rust=rust,\n                swift=swift, go=go, **reading)",
-      "to": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell,\n                swift=swift, go=go, **reading)",
+      "from": "        out.append((name, None if body is None else body_digest(\n            body, python=python, php=php, shell=shell, rust=rust,",
+      "to": "        out.append((name, None if body is None else body_digest(\n            body, python=python, php=php, shell=shell,",
       "only": "a Rust raw string does not swallow a same-line assertion"
     },
     {
@@ -8862,8 +8862,8 @@
       "tests": [
         "tests/leftovers-after-adr053.test.mjs"
       ],
-      "from": "                swift=swift, go=go, **reading)",
-      "to": "                swift=swift, **reading)",
+      "from": "            swift=swift, go=go, **reading)))",
+      "to": "            swift=swift, **reading)))",
       "only": "does not keep the hash after the assertion moves"
     },
     {
@@ -11404,8 +11404,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (found.length >= cap) { unread += 1; continue }",
-      "to": "    if (found.length >= cap) continue",
+      "from": "  return { read: ranked.slice(0, cap), unread: Math.max(0, ranked.length - cap) }",
+      "to": "  return { read: ranked.slice(0, cap), unread: 0 }",
       "only": "^(?:SessionStart says how many task directories it did not read)$"
     },
     {
@@ -18653,8 +18653,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "                   \"ts\": suffix in _H2_TS_SUFFIXES}",
-      "to": "                   \"ts\": False}",
+      "from": "                hasher if suffix in _H2_JS_SUFFIXES else 1, suffix in _H2_TS_SUFFIXES):",
+      "to": "                hasher if suffix in _H2_JS_SUFFIXES else 1, False):",
       "only": "^a slash hasher 2 cannot place leaves the tests it reaches unproven$"
     },
     {
@@ -18836,6 +18836,56 @@
       "from": "  if (brief && !ciRed(state) && previous && previous.said === text) return false",
       "to": "  if (brief && previous && previous.said === text) return false",
       "only": "^an unchanged unknown is said once, and only a red CI repeats$"
+    },
+    {
+      "label": "3.4.1: the hasher-2 advice reading ignores advise=False",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if advise and hasher == 1 and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):",
+      "to": "    if hasher == 1 and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):",
+      "only": "^a caller that discards advice does not pay for the hasher-2 reading$"
+    },
+    {
+      "label": "3.4.1: lock_blocks_done asks for advice it discards",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        log, root=root, tests=tests_table_rows(text), label=\"\", advise=False)",
+      "to": "        log, root=root, tests=tests_table_rows(text), label=\"\")",
+      "only": "^a caller that discards advice does not pay for the hasher-2 reading$"
+    },
+    {
+      "label": "3.4.1: adr-next asks for advice it discards",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                                        root=root, tests=tests_table_rows(text), label=\"\", advise=False)",
+      "to": "                                        root=root, tests=tests_table_rows(text), label=\"\")",
+      "only": "^a caller that discards advice does not pay for the hasher-2 reading$"
+    },
+    {
+      "label": "3.4.1: SessionStart reads the first listed task directories",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    .sort((a, b) => b.newest - a.newest || a.order - b.order)",
+      "to": "    .sort((a, b) => a.order - b.order)",
+      "only": "^SessionStart reads the most recently changed task directories, not the first listed$"
+    },
+    {
+      "label": "3.4.1: a file's digests are read again for every task",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "@lru_cache(maxsize=32)\ndef _file_lock_digests(",
+      "to": "def _file_lock_digests(",
+      "only": "^a test file named by several tasks is read once, on its text$"
     }
   ]
 }

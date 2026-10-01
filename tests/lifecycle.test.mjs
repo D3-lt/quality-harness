@@ -1800,6 +1800,32 @@ test('SessionStart says how many task directories it did not read', async () => 
   assert.ok(!six.lines.some(line => /more task director/.test(line)), six.lines.join('\n'))
 })
 
+// BACKLOG §325 and the Codex architecture review (2026-10-01): the six read were the
+// first six LISTED, which over a numbered corpus are its oldest, finished records. They
+// are now the six whose task files changed most recently.
+test('SessionStart reads the most recently changed task directories, not the first listed', async () => {
+  const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
+  const root = await mkdtemp(path.join(testTmp, 'ss-ready-recent-'))
+  const fixture = path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md')
+  const old = new Date(Date.now() - 86_400_000)
+  for (const letter of letters) {
+    const directory = path.join(root, 'docs', 'adr', letter, 'tasks')
+    await mkdir(directory, { recursive: true })
+    await cp(fixture, path.join(directory, 'T1-fixture.md'))
+    if (letter !== 'G') utimesSync(path.join(directory, 'T1-fixture.md'), old, old)
+  }
+  gitInit(root)
+  const listing = letters.map(letter => path.join('docs', 'adr', letter, 'tasks', 'T1-fixture.md'))
+  const asked = []
+  const allDone = (tool, args) => {
+    asked.push(path.basename(path.dirname(args[0])))
+    return { status: 3, stdout: JSON.stringify({ ready: [], blocked: [], done: [{ id: 'T1' }] }), stderr: '', error: null, signal: null }
+  }
+  const got = readyTaskLines(root, true, listing, allDone)
+  assert.deepEqual(asked, ['G', 'A', 'B', 'C', 'D', 'E'], 'the newest first, then listing order among equals')
+  assert.ok(got.lines.some(line => /\+1 more task directory: UNPROVEN — not read; this hook reads the 6 most recently changed/.test(line)), got.lines.join('\n'))
+})
+
 test('a hook payload with a BOM is read, and one that is not JSON is said, not swallowed', async () => {
   // Peer-run on Windows, 2026-09-23: `node lifecycle.mjs < payload.json` printed
   // nothing at exit 0 while the same orientation, imported directly, was full. The

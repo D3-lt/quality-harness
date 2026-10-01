@@ -526,7 +526,7 @@ def unprovable_evidence(text, digest, fence, first, root=None):
     # current row's reason (Codex review, round 5).
     if current:
         blocks, _advice = lock_findings(sections_of(text).get("Verification Log", []),
-                                        root=root, tests=tests_table_rows(text), label="")
+                                        root=root, tests=tests_table_rows(text), label="", advise=False)
         if blocks:
             return (f"carries exit-0 evidence for this Acceptance, but its test lock "
                     f"withholds done — {blocks[0]}; `adr-lint` names the remedy")

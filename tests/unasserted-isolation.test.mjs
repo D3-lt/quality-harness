@@ -46,7 +46,7 @@ function fixture({ commit = true, suite = SUITE } = {}) {
   // unasserted.mjs builds its worktree through the plugin's module (ADR-076 T1), which asks the
   // lease module whether a process lives (ADR-077 T2).
   mkdirSync(path.join(dir, 'plugin', 'scripts'), { recursive: true })
-  for (const name of ['worktree.mjs', 'main-module.mjs', 'lease.mjs']) {
+  for (const name of ['worktree.mjs', 'main-module.mjs', 'lease.mjs', 'replace-file.mjs']) {
     copyFileSync(path.join(repoRoot, 'plugin', 'scripts', name), path.join(dir, 'plugin', 'scripts', name))
   }
   writeFileSync(path.join(dir, 'scripts', 'python-interpreter.mjs'), SHIM)

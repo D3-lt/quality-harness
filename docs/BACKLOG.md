@@ -17004,3 +17004,7 @@ Left, named rather than fixed:
 - **branch-state said `CI COULD NOT LOOK` twice on 9ed651c**, naming runs at shas from an older page
   (3ecf036, then c11a507), while `gh run list` listed 9ed651c's run first and green. Reproduce the query the
   brief makes before deciding whether it is `gh` paging or the reader's selection.
+- **`checkInputs` reuse, deferred by the owner (ADR-081 Out of Scope).** It would let a pass stand across a change
+  that touches nothing the check reads. It cannot be measured yet: those adopters edit through Bash and mrw, which
+  log no `file.written`, so "only non-code changed since the last pass" has no ground truth in their logs. Revisit
+  once a source of truth for edits made outside the file tools exists.

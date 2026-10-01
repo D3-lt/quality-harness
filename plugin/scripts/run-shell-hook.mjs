@@ -638,7 +638,7 @@ export async function runArtifactBatch(raw) {
     let status
     try {
       status = await runShellHook('facts-gate-dispatch.sh',
-        JSON.stringify({ tool_input: { file_path: filePath } }), {
+        JSON.stringify({ ...(typeof batch.cwd === 'string' ? { cwd: batch.cwd } : {}), tool_input: { file_path: filePath } }), {
           timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT,
           windowMs: batch.windowMs,
           archiveCatalog: history.get(filePath),

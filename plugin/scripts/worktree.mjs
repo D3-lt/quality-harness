@@ -13,7 +13,8 @@
 //   node worktree.mjs sweep <root>
 import { spawnSync } from 'node:child_process'
 import { randomBytes } from 'node:crypto'
-import { copyFileSync, mkdirSync, readdirSync, readFileSync, renameSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { copyFileSync, mkdirSync, readdirSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { replaceFile } from './replace-file.mjs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 import { alive as aliveness, groupAlive as groupAliveness } from './lease.mjs'
@@ -55,23 +56,23 @@ function readOwner(id) {
 }
 // Written whole or not at all: a reader — the sweep, the campaign's child waiting to be named —
 // never sees half a record.
-function writeOwner(id, owner) {
+function writeOwner(id, owner, rename) {
   const temp = `${ownerFile(id)}.${process.pid}.tmp`
   writeFileSync(temp, JSON.stringify(owner))
-  renameSync(temp, ownerFile(id))
+  replaceFile(temp, ownerFile(id), rename ? { rename } : undefined)
 }
 
 /**
  * addOwned records a process that works in the tree, BEFORE it starts: the child a campaign
  * spawns (`child`), a POSIX process group (`group`), or a Windows process (`pid`). A tree is kept
- * while its owner or any recorded process lives.
+ * while its owner or any recorded process lives. `rename` is a test's seam (BACKLOG §332).
  */
-export function addOwned(id, { child, group, pid } = {}) {
+export function addOwned(id, { child, group, pid } = {}, { rename } = {}) {
   const owner = readOwner(id) ?? {}
   if (Number.isInteger(child)) owner.child = child
   if (Number.isInteger(group)) owner.groups = [...(owner.groups ?? []), group]
   if (Number.isInteger(pid)) owner.pids = [...(owner.pids ?? []), pid]
-  writeOwner(id, owner)
+  writeOwner(id, owner, rename)
 }
 
 const liveOwner = owner => alive(owner.parent) || alive(owner.child) || groupAlive(owner.child)

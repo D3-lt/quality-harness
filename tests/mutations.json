@@ -18363,7 +18363,7 @@
       "tests": [
         "tests/lease.test.mjs"
       ],
-      "from": "      publish(file, lease)\n      return { file, lease, made }",
+      "from": "      publish(file, lease, rename)\n      return { file, lease, made }",
       "to": "      return { file, lease, made }",
       "only": "^a run holds a lease while it runs and releases it at its end$"
     },
@@ -19146,6 +19146,46 @@
       "from": "    if (typeof record?.id !== 'string') return null",
       "to": "    if (false) return null",
       "only": "^a row that is not a record proves nothing, in either ledger$"
+    },
+    {
+      "label": "§332: a rename Windows reports busy is not retried",
+      "file": "plugin/scripts/replace-file.mjs",
+      "tests": [
+        "tests/replace-file.test.mjs"
+      ],
+      "from": "      if (attempt >= tries || !BUSY.has(error?.code)) throw error",
+      "to": "      throw error",
+      "only": "^a rename Windows reports busy is retried, a growing wait apart, until it succeeds$"
+    },
+    {
+      "label": "§332: the wait between tries does not grow",
+      "file": "plugin/scripts/replace-file.mjs",
+      "tests": [
+        "tests/replace-file.test.mjs"
+      ],
+      "from": "      sleep(waitMs * attempt)",
+      "to": "      sleep(waitMs)",
+      "only": "^a rename Windows reports busy is retried, a growing wait apart, until it succeeds$"
+    },
+    {
+      "label": "§332: a campaign's owner record renames without the retry",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/replace-file.test.mjs"
+      ],
+      "from": "  replaceFile(temp, ownerFile(id), rename ? { rename } : undefined)",
+      "to": "  rename ? rename(temp, ownerFile(id)) : replaceFile(temp, ownerFile(id))",
+      "only": "^a campaign's owner record and a lease are both written through the retry$"
+    },
+    {
+      "label": "§332: a lease renames without the retry",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/replace-file.test.mjs"
+      ],
+      "from": "  replaceFile(temp, file, rename ? { rename } : undefined)",
+      "to": "  rename ? rename(temp, file) : replaceFile(temp, file)",
+      "only": "^a campaign's owner record and a lease are both written through the retry$"
     }
   ]
 }

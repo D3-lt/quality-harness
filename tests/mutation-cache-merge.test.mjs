@@ -208,7 +208,7 @@ test('the runner records what it MEASURED, and records nothing when it reused', 
     // mutate.mjs imports its entry guard (BACKLOG §264), its load sampler (ADR-075 T1), its
     // worktree module (ADR-076 T1) and its lease (ADR-077 T2) from the plugin.
     'plugin/scripts/workflow-parse.mjs', 'plugin/scripts/main-module.mjs', 'plugin/scripts/load.mjs',
-    'plugin/scripts/worktree.mjs', 'plugin/scripts/lease.mjs']) {
+    'plugin/scripts/worktree.mjs', 'plugin/scripts/lease.mjs', 'plugin/scripts/replace-file.mjs']) {
     const target = join(dir, file)
     mkdirSync(dirname(target), { recursive: true })
     cpSync(join(repoRoot, file), target)

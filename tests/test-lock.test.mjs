@@ -3521,7 +3521,7 @@ test('a slash hasher 2 cannot place leaves the tests it reaches unproven', () =>
   }
 })
 
-test('relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1', { todo: 'ADR-078' }, () => {
+test('relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1', () => {
   const dir = tmpRepo()
   try {
     writeLexerSubject(dir)
@@ -3536,7 +3536,7 @@ test('relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1
   }
 })
 
-test('a relock of a frozen hasher-1 lock refuses a moved body', { todo: 'ADR-078' }, () => {
+test('a relock of a frozen hasher-1 lock refuses a moved body', () => {
   const dir = tmpRepo()
   try {
     writeLexerSubject(dir, '  assert.ok(!SUITE)')

@@ -69,7 +69,7 @@ while every lock already recorded keeps the meaning it had when it was taken.
 
 ## Scenarios
 
-### UC1-S1 [happy] A lock names only the tests whose call is code [@spec] → `tests/test-lock.test.mjs::hasher 2 counts a test only where its call is code`
+### UC1-S1 [happy] A lock names only the tests whose call is code [@implemented] → `tests/test-lock.test.mjs::hasher 2 counts a test only where its call is code`
 
 ```gherkin
 Given a test file declaring tests in code, a string holding a declaration with the same name as a real one, and test( heads inside a comment, a regex and template text
@@ -77,7 +77,7 @@ When hasher 2 reads it
 Then it names the tests in code and one inside a template's interpolation, and each body is the real declaration's
 ```
 
-### UC1-S2 [happy] A slash reads as JavaScript reads it where its context decides [@spec] → `tests/test-lock.test.mjs::hasher 2 reads a regex literal as a regex and a division as a division`
+### UC1-S2 [happy] A slash reads as JavaScript reads it where its context decides [@implemented] → `tests/test-lock.test.mjs::hasher 2 reads a regex literal as a regex and a division as a division`
 
 ```gherkin
 Given tests holding /^[`/.]/ after =>, /(["'])(.*?)\1/, a division chain, obj.in / 2, and a regex after break outer
@@ -85,7 +85,7 @@ When hasher 2 reads them
 Then every test is named, and each body ends at its own closing brace
 ```
 
-### UC1-S3 [happy] Braces in a template's interpolation are code [@spec] → `tests/test-lock.test.mjs::hasher 2 reads a template's interpolation as code`
+### UC1-S3 [happy] Braces in a template's interpolation are code [@implemented] → `tests/test-lock.test.mjs::hasher 2 reads a template's interpolation as code`
 
 ```gherkin
 Given a test whose body holds nested templates and an object literal inside ${…}
@@ -187,10 +187,10 @@ Then it is refused, and the log is not edited
 |----|----------------------------------|---------------------|-----|----------------|
 | F-1 | A lock records the hasher that took it. A lock with no hasher record was taken by hasher 1 — today's reading, its legacy readings included, encoding exactly the bytes it encodes today — and is compared with hasher 1's reading; every new lock is taken by hasher 2 and says so. | `tests/test-lock.test.mjs::a lock taken before the lexer is read as it was taken` | @spec | |
 | F-2 | Where hasher 2 would read a hasher-1 lock's JavaScript file differently, `adr-lint` advises, naming `adr-verify --relock`, and blocks nothing; where both read it alike, it says nothing. | `tests/test-lock.test.mjs::a hasher-1 lock that hasher 2 reads differently is advised, naming the relock` | @spec | |
-| F-3 | Hasher 2 differs from hasher 1 only on JavaScript-family files (`.js .mjs .cjs .jsx .ts .tsx .mts .cts`); every other language, PHP's Pest `test()` included, is named and hashed exactly as hasher 1 does. | `tests/test-lock.test.mjs::hasher 2 reads a non-JavaScript test file exactly as hasher 1 does` | @spec | |
-| F-4 | Under hasher 2, a `test(`/`it(` that begins inside a string literal, template text, a regex literal or a comment is not a test of the file; one in code, including inside a template's `${…}`, is. | `tests/test-lock.test.mjs::hasher 2 counts a test only where its call is code` | @spec | |
-| F-5 | Under hasher 2, a `/` divides after a value — an identifier (an operator keyword spelled after `.` is an identifier), a number, a closed string, template or regex, a postfix `++`/`--`, `]`, or a `)` that does not close an `if`/`while`/`for`/`with` header — and opens a regex after an operator (`=>` included), an opening bracket, `,`, `;`, an operator keyword, the label after `break`/`continue`, or a `)` closing such a header. Anywhere else its role is not established (F-7). | `tests/test-lock.test.mjs::hasher 2 reads a regex literal as a regex and a division as a division` | @spec | |
-| F-6 | Under hasher 2, a template's `${…}` is code: braces in it nest, and strings and templates in it are literals of their own. | `tests/test-lock.test.mjs::hasher 2 reads a template's interpolation as code` | @spec | |
+| F-3 | Hasher 2 differs from hasher 1 only on JavaScript-family files (`.js .mjs .cjs .jsx .ts .tsx .mts .cts`); every other language, PHP's Pest `test()` included, is named and hashed exactly as hasher 1 does. | `tests/test-lock.test.mjs::hasher 2 reads a non-JavaScript test file exactly as hasher 1 does` | @implemented | |
+| F-4 | Under hasher 2, a `test(`/`it(` that begins inside a string literal, template text, a regex literal or a comment is not a test of the file; one in code, including inside a template's `${…}`, is. | `tests/test-lock.test.mjs::hasher 2 counts a test only where its call is code` | @implemented | |
+| F-5 | Under hasher 2, a `/` divides after a value — an identifier (an operator keyword spelled after `.` is an identifier), a number, a closed string, template or regex, a postfix `++`/`--`, `]`, or a `)` that does not close an `if`/`while`/`for`/`with` header — and opens a regex after an operator (`=>` included), an opening bracket, `,`, `;`, an operator keyword, the label after `break`/`continue`, or a `)` closing such a header. Anywhere else its role is not established (F-7). | `tests/test-lock.test.mjs::hasher 2 reads a regex literal as a regex and a division as a division` | @implemented | |
+| F-6 | Under hasher 2, a template's `${…}` is code: braces in it nest, and strings and templates in it are literals of their own. | `tests/test-lock.test.mjs::hasher 2 reads a template's interpolation as code` | @implemented | |
 | F-7 | Where hasher 2 cannot establish the end of a literal or comment, or the role of a `/` (after `}`, or after a `>` that is not part of `=>` in a TypeScript-family file), every test whose head follows that point or whose body reaches it is UNPROVEN — never a prefix hash, never a guess. | `tests/test-lock.test.mjs::an unterminated literal leaves the tests after it unproven under hasher 2` | @spec | |
 | F-8 | `adr-verify --relock` over a hasher-1 lock compares its bodies under hasher 1 and, when none moved, appends a lock taken by hasher 2 — no `--replace-hashes` needed. | `tests/test-lock.test.mjs::relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1` | @spec | |
 | F-9 | A lock naming a hasher this reader does not know is UNPROVEN and is never compared under another hasher (ADR-005; evidence: `plugin/lib/record.py:2405`, an unreadable lock is not an empty one). | `tests/test-lock.test.mjs::a lock naming a hasher this reader does not know is unproven` | @spec | |

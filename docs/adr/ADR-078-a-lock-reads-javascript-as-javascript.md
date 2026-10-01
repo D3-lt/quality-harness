@@ -1,6 +1,6 @@
 # ADR-078: A lock reads JavaScript as JavaScript, and says which reading took it
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-01
 **Owner:** Zy
 **Spec:** docs/specs/2026-10-01-a-lock-reads-javascript-as-javascript.md

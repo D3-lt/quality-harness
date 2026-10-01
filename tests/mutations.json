@@ -8882,7 +8882,7 @@
       "tests": [
         "tests/leftovers-after-adr053.test.mjs"
       ],
-      "from": "    for name, _after in _iter_bdd_calls(text, php=php):",
+      "from": "    for name, _after in _iter_bdd_calls(text, php=php, in_code=in_code):",
       "to": "    for name, _after in ((m.group(1) or m.group(2) or m.group(3), m.end()) for m in re.compile(r\"\"\"(?:\\b(?:it|test)\\s*\\()\\s*(?:'([^'\\n]+)'|\"([^\"\\n]+)\"|`([^`\\n]+)`)\\s*,\"\"\").finditer(text)):  # [^'\\n]+",
       "only": "escaped same-quote BDD names are discovered"
     },
@@ -18556,6 +18556,46 @@
       "from": "    if (age > SHOW_AT_MOST_SECONDS) {",
       "to": "    if (false) {",
       "only": "^a brief snapshot past the age cap is not shown, and a refresh starts$"
+    },
+    {
+      "label": "ADR-078 T1: a head inside a string, comment, regex or template text is a test",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if in_code is not None and not in_code(head.start()):",
+      "to": "        if False:",
+      "only": "^hasher 2 counts a test only where its call is code$"
+    },
+    {
+      "label": "ADR-078 T1: a regex after a break/continue label is a division",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        return label or word in _H2_REGEX_WORDS",
+      "to": "        return word in _H2_REGEX_WORDS",
+      "only": "^hasher 2 reads a regex literal as a regex and a division as a division$"
+    },
+    {
+      "label": "ADR-078 T1: the brace closing an interpolation is a code brace",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if c == \"`\" or (c == \"}\" and interp and interp[-1] == 0):",
+      "to": "        if c == \"`\":",
+      "only": "^hasher 2 reads a template.s interpolation as code$"
+    },
+    {
+      "label": "ADR-078 T1: hasher 2 reaches PHP Pest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "in_code=_h2_in_code(text, ts) if hasher == 2 and not php else None",
+      "to": "in_code=_h2_in_code(text, ts) if hasher == 2 else None",
+      "only": "^hasher 2 reads a non-JavaScript test file exactly as hasher 1 does$"
     }
   ]
 }

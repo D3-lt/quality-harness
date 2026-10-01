@@ -2572,19 +2572,19 @@ def main():
             js_probe, "sharing the line with a regex", None)
         assert found is True, why
 
-        # THE GENERAL GUARD, which is what actually closes the class: a `'` or
-        # `"` string cannot span a line in JavaScript, so an unterminated one is
-        # not a string. Without this, every construct the lexer does not know
-        # about — today's regex, tomorrow's something else — can swallow the
-        # rest of the FILE. With it, the damage of any future mis-detection is
-        # bounded to one line.
+        # THE GENERAL GUARD, which is what actually closes the class: an
+        # unterminated `'` or `"` string must never make a later test read as
+        # MISSING. Before ADR-079 the masker bounded a quote to its line and
+        # guessed past it. Since then the lock's lexer reads JavaScript and STOPS
+        # where it cannot place a literal, so a test after it is could-not-check
+        # (None, exit 4), never missing and never found by a guess.
         js_probe.write_text(
             "const oops = 'unterminated because this line ends\n"
             "test('survives an unterminated quote', () => {})\n"
         )
         found, why = spec_gate.test_definition_exists(
             js_probe, "survives an unterminated quote", None)
-        assert found is True, why
+        assert found is None and "could not check" in why, (found, why)
 
         # A template literal DOES span lines, so it must stay unbounded.
         js_probe.write_text(

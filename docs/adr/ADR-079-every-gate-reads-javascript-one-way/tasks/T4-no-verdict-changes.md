@@ -46,6 +46,8 @@ bash scripts/verdict-diff.sh --control cd8f95f; test $? -eq 1 && bash scripts/ve
 | 4 — it is used | the release decision |
 
 ## Mutation Log
+- 2026-10-01 · 031ffb6* · mutant killed · exit 1 · `scripts/verdict-diff.sh` · the comparator reports no change whatever the two sides printed · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · covers:the comparator can fail
+- 2026-10-01 · 031ffb6* · mutant killed · exit 1 · `scripts/verdict-diff.sh` · the version stamp and its plugin path are left in, so two identical verdicts compare different · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · covers:the comparison is empty
 
 ## Invariants
 
@@ -64,3 +66,11 @@ Stop and ask if the diff is not empty.
 - Corpora we do not own: the outside runs, §18.
 
 ## Verification Log
+- 2026-10-01 · 031ffb6* · exit 0 · `bash scripts/verdict-diff.sh --control cd8f95f; test $? -eq 1 && bash scripts/verdict-diff.sh cd8f95f` · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · ms:145763
+- 2026-10-01 · 031ffb6* · exit 0 · `bash scripts/verdict-diff.sh --control cd8f95f; test $? -eq 1 && bash scripts/verdict-diff.sh cd8f95f` · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · ms:161865
+- 2026-10-01 · 031ffb6* · exit 1 · `bash scripts/verdict-diff.sh --control cd8f95f; test $? -eq 1 && bash scripts/verdict-diff.sh cd8f95f` · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · ms:26 · test-lock-sha256:45419203407b89188dc409625a7362a6e56333c1910c4b1c62b5d441ff914bb4 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2
+  ```
+  --- last 1 line(s) of stderr
+  bash: scripts/verdict-diff.sh: No such file or directory
+  ```
+- 2026-10-01 · 031ffb6* · exit 0 · `bash scripts/verdict-diff.sh --control cd8f95f; test $? -eq 1 && bash scripts/verdict-diff.sh cd8f95f` · acceptance-sha256:0d3e902c09cd0e9d55bda2cbf3e05525c1f0bbe8841d12d5c56f45d967ef5af5 · ms:135873

@@ -794,8 +794,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                if not js_title_exists(f.read_text(errors=\"replace\", encoding=\"utf-8\"), name):",
-      "to": "                if False:",
+      "from": "                elif status == \"missing\":",
+      "to": "                elif False:",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -2590,13 +2590,13 @@
       "only": "^(?:a baseline is taken once per distinct test-set, not once per mutation|a baseline taken under one pattern licenses nothing about another|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
     },
     {
-      "label": "spec-verify: a regex literal is not read as a string",
+      "label": "spec-verify: a JavaScript-family file is read with the lock's lexer (ADR-079)",
       "file": "plugin/bin/spec-verify",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        regex_literals=suffix in (\".js\", \".jsx\", \".mjs\", \".cjs\", \".ts\", \".tsx\"),",
-      "to": "        regex_literals=False,",
+      "from": "    if suffix in JS_FAMILY_SUFFIXES:",
+      "to": "    if False:",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -2610,24 +2610,144 @@
       "only": "^(?:a baseline that never ran is not reported as an already-failing suite|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
     },
     {
-      "label": "spec-verify: a regex may follow the paren closing an if header",
+      "label": "spec-verify: a regex may follow the paren closing an if header (the lexer's reading, ADR-079)",
       "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        return text[k + 1:end + 1] in CONTROL_HEADER",
+      "from": "        return prev[1] in CONTROL_HEADER",
       "to": "        return False",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
-      "label": "spec-verify: an unterminated quote cannot swallow the next line",
+      "label": "ADR-079 T1: a test not found in a file the lexer did not finish is called missing",
       "file": "plugin/bin/spec-verify",
       "tests": [
-        "tests/gates.test.mjs"
+        "tests/js-reading.test.mjs"
       ],
-      "from": "            stop_at_newline = line_bounded_quotes and quote != \"`\"",
-      "to": "            stop_at_newline = False",
-      "only": "^(?:focused false-green regressions remain closed)$"
+      "from": "        if not complete:",
+      "to": "        if False:",
+      "only": "^spec-verify says could-not-check, exit 4, for a JavaScript test it could not read to$"
+    },
+    {
+      "label": "ADR-079 T1: spec-verify counts a JavaScript registration read on raw text, string-held ones included",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        masked, _, complete = js_reading(text, suffix)",
+      "to": "        masked, complete = text, js_reading(text, suffix)[2]",
+      "only": "^spec-verify finds a JavaScript test only where its registration is code, in every family suffix$"
+    },
+    {
+      "label": "ADR-079 T1: a family suffix is left out of the one JavaScript set",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "JS_FAMILY_SUFFIXES = (\".js\", \".mjs\", \".cjs\", \".jsx\", \".ts\", \".tsx\", \".mts\", \".cts\")",
+      "to": "JS_FAMILY_SUFFIXES = (\".js\", \".jsx\", \".ts\", \".tsx\")",
+      "only": "^spec-verify finds a JavaScript test only where its registration is code, in every family suffix$"
+    },
+    {
+      "label": "ADR-079 T2: a JavaScript body is bounded on a second masking, not the lexer's view",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    body = bdd_callback_body(text, after, masked=masked)",
+      "to": "    body = bdd_callback_body(text, after)",
+      "only": "^(?:adr-lint reads a JavaScript test where its call is code, bounded as the lock bounds it|adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound)$"
+    },
+    {
+      "label": "ADR-079 T2: a found JavaScript call whose body cannot be bounded is called found",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    return (\"found\", body) if body is not None else (\"unproven\", None)",
+      "to": "    return (\"found\", body)",
+      "only": "^adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound$"
+    },
+    {
+      "label": "ADR-079 T2: UNPROVEN on a done task is advice",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        errors.append(message, evidence=True)",
+      "to": "        errors.advise(message)",
+      "only": "^adr-lint says UNPROVEN, and withholds done, for a JavaScript test it could not read to$"
+    },
+    {
+      "label": "ADR-079 T2: UNPROVEN on a frozen record blocks",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    elif frozen:",
+      "to": "    elif False:",
+      "only": "^UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is$"
+    },
+    {
+      "label": "ADR-079 T2: UNPROVEN below strictFrom blocks",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    elif errors.demotion:",
+      "to": "    elif False:",
+      "only": "^UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is$"
+    },
+    {
+      "label": "ADR-079 T2: an enforcement pointer past the stop is taken as resolved",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        if form == \"unproven\":",
+      "to": "        if False:",
+      "only": "^an enforcement pointer to a JavaScript test is resolved on the lexer$"
+    },
+    {
+      "label": "ADR-079 T2: a Python or Go file is read with the JavaScript reader",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    if suffix in JS_FAMILY_SUFFIXES:",
+      "to": "    if True:",
+      "only": "^the other languages read as they did$"
+    },
+    {
+      "label": "ADR-079 T3: can-fail reads a JavaScript body's raw text, not the code view",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    body = bdd_callback_body(masked, after, masked=masked)",
+      "to": "    body = bdd_callback_body(text, after, masked=masked)",
+      "only": "^adr-lint judges a JavaScript body and its helpers on the code view$"
+    },
+    {
+      "label": "ADR-079 T3: a same-file JavaScript helper that asserts is not followed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "            if helper and FAIL_CALLS.search(helper):",
+      "to": "            if False:",
+      "only": "^adr-lint judges a JavaScript body and its helpers on the code view$"
+    },
+    {
+      "label": "ADR-079 T3: a spaced title found with an unbounded body is skipped in silence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                if status == \"unproven\" and spaced and js_title_exists(raw, name, f.suffix) == \"found\":",
+      "to": "                if False:",
+      "only": "^adr-lint says UNPROVEN for a spaced JavaScript title it found but whose body it cannot bound$"
     },
     {
       "label": "verify: importing the wrapper spawns nothing",
@@ -2775,7 +2895,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if resolve_enforcement(pointer, root, tracked) is None:",
+      "from": "        if form is None:",
       "to": "        if False:",
       "only": "^(?:focused false-green regressions remain closed|a path::name pointer at a production function does not resolve as a test)$"
     },
@@ -2795,8 +2915,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                    r\"^[ \\t]*(?:await[ \\t]+)?(?:test|it)(?:\\.\\w+)*\\s*\\(\\s*(['\\\"`])\"",
-      "to": "                    r\"^[ \\t]*(?:await[ \\t]+)?(?:NEVERMATCHES)(?:\\.\\w+)*\\s*\\(\\s*(['\\\"`])\"",
+      "from": "                    return \"test\" if status == \"found\" else \"unproven\"",
+      "to": "                    return None",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -2920,12 +3040,12 @@
     },
     {
       "label": "lint: a commented-out registration is not a test",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                    strip_comments(f.read_text(errors=\"replace\", encoding=\"utf-8\")), re.M):",
-      "to": "                    f.read_text(errors=\"replace\", encoding=\"utf-8\"), re.M):",
+      "from": "    for head in _JS_LOOKUP_HEAD.finditer(text):\n        if kinds[head.start()] != 0:\n            continue\n",
+      "to": "    for head in _JS_LOOKUP_HEAD.finditer(text):\n",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -7550,8 +7670,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if name in (f.stem, f.name):\n                source = f.read_text(errors=\"replace\", encoding=\"utf-8\")\n                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+(?:Test|Fuzz)\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n                    continue\n",
-      "to": "            if name in (f.stem, f.name):\n                continue\n",
+      "from": "            if name in (f.stem, f.name):\n                source = f.read_text(errors=\"replace\", encoding=\"utf-8\")\n",
+      "to": "            if name in (f.stem, f.name):\n                continue\n                source = f.read_text(errors=\"replace\", encoding=\"utf-8\")\n",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -9602,8 +9722,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+(?:Test|Fuzz)\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n",
-      "to": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+Test\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n",
+      "from": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+(?:Test|Fuzz)\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", view, re.M):\n",
+      "to": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+Test\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", view, re.M):\n",
       "only": "focused false-green"
     },
     {
@@ -12386,8 +12506,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                         rust=f.suffix == \".rs\") is None:",
-      "to": "                         rust=False) is None:",
+      "from": "                                                rust=f.suffix == \".rs\") is None else \"found\"",
+      "to": "                                                rust=False) is None else \"found\"",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -12396,8 +12516,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                             rust=f.suffix == \".rs\")",
-      "to": "            body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                             rust=False)",
+      "from": "                body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                                 rust=f.suffix == \".rs\")",
+      "to": "                body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                                 rust=False)",
       "only": "focused false-green regressions remain closed"
     },
     {

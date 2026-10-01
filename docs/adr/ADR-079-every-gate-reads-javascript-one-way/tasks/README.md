@@ -19,10 +19,10 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | One JavaScript reader, and spec-verify reads with it | pending | F-1, F-2, F-3, F-4, UC1-S1, UC1-S2, UC1-S3 | `node --test tests/js-reading.test.mjs` (three named tests pass) |
-| T2 | adr-lint finds a JavaScript test on the lexer, and UNPROVEN withholds done | pending | F-5, F-6, F-7, F-9, F-10, F-11, F-12, UC2-S1, UC2-S2, UC2-S3, UC2-S5, UC2-S6, UC2-S7, UC2-S8 | `node --test tests/js-reading.test.mjs` (seven named tests pass) |
-| T3 | adr-lint judges a JavaScript body and its helpers on the code view | pending | F-8, UC2-S4 | `node --test tests/js-reading.test.mjs` (one named test passes) |
-| T4 | No verdict on this corpus changes | pending | — | `bash scripts/verdict-diff.sh` (its control fails, then the comparison is empty) |
+| T1 | One JavaScript reader, and spec-verify reads with it | done | F-1, F-2, F-3, F-4, UC1-S1, UC1-S2, UC1-S3 | `node --test tests/js-reading.test.mjs` (three named tests pass) |
+| T2 | adr-lint finds a JavaScript test on the lexer, and UNPROVEN withholds done | done | F-5, F-6, F-7, F-9, F-10, F-11, F-12, UC2-S1, UC2-S2, UC2-S3, UC2-S5, UC2-S6, UC2-S7, UC2-S8 | `node --test tests/js-reading.test.mjs` (seven named tests pass) |
+| T3 | adr-lint judges a JavaScript body and its helpers on the code view | done | F-8, UC2-S4 | `node --test tests/js-reading.test.mjs` (one named test passes) |
+| T4 | No verdict on this corpus changes | done | — | `bash scripts/verdict-diff.sh` (its control fails, then the comparison is empty) |
 
 ## Contract Coupling
 

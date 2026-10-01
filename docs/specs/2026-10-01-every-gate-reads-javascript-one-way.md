@@ -64,7 +64,7 @@ receivers) stay as they are, and are named as residuals rather than claimed to a
 
 ## Scenarios
 
-### UC1-S1 [happy] A registered test in code is found, in every family suffix [@spec] → `tests/js-reading.test.mjs::spec-verify finds a JavaScript test only where its registration is code, in every family suffix` cmd:`node --test tests/js-reading.test.mjs`
+### UC1-S1 [happy] A registered test in code is found, in every family suffix [@implemented] → `tests/js-reading.test.mjs::spec-verify finds a JavaScript test only where its registration is code, in every family suffix` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a .mjs, an .mts and a .cts file each registering a test in code, and another name only inside a string
@@ -72,7 +72,7 @@ When spec-verify checks the bindings
 Then the registered names exist and the string-held name does not
 ```
 
-### UC1-S2 [failure] A test past the stop is could-not-check, exit 4 [@spec] → `tests/js-reading.test.mjs::spec-verify says could-not-check, exit 4, for a JavaScript test it could not read to` cmd:`node --test tests/js-reading.test.mjs`
+### UC1-S2 [failure] A test past the stop is could-not-check, exit 4 [@implemented] → `tests/js-reading.test.mjs::spec-verify says could-not-check, exit 4, for a JavaScript test it could not read to` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a spec binding a test registered after a / the lexer cannot place, and one registered before it
@@ -80,7 +80,7 @@ When spec-verify --spec runs
 Then it exits 4, names the later test as could-not-check, and finds the earlier one
 ```
 
-### UC1-S3 [happy] A decoded title, and a substring, are judged on the registration [@spec] → `tests/js-reading.test.mjs::spec-verify matches a decoded title, and never a substring` cmd:`node --test tests/js-reading.test.mjs`
+### UC1-S3 [happy] A decoded title, and a substring, are judged on the registration [@implemented] → `tests/js-reading.test.mjs::spec-verify matches a decoded title, and never a substring` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a test titled with an escaped quote, and a test named ghostly
@@ -88,7 +88,7 @@ When spec-verify checks the escaped title and the name ghost
 Then the escaped title exists and ghost does not
 ```
 
-### UC2-S1 [happy] adr-lint judges the body the lock hashes [@spec] → `tests/js-reading.test.mjs::adr-lint reads a JavaScript test where its call is code, bounded as the lock bounds it` cmd:`node --test tests/js-reading.test.mjs`
+### UC2-S1 [happy] adr-lint judges the body the lock hashes [@implemented] → `tests/js-reading.test.mjs::adr-lint reads a JavaScript test where its call is code, bounded as the lock bounds it` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a string holding test('x', () => { /* nothing */ }) before the real test('x', () => { assert.equal(1, 1) })
@@ -96,7 +96,7 @@ When adr-lint reads x's body
 Then the body is the real one, with its assertion
 ```
 
-### UC2-S2 [failure] A name only inside a string is not found [@spec] → `tests/js-reading.test.mjs::adr-lint does not find a JavaScript test that exists only inside a string` cmd:`node --test tests/js-reading.test.mjs`
+### UC2-S2 [failure] A name only inside a string is not found [@implemented] → `tests/js-reading.test.mjs::adr-lint does not find a JavaScript test that exists only inside a string` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a test that appears only inside a string constant
@@ -104,7 +104,7 @@ When adr-lint looks for it
 Then it is not found
 ```
 
-### UC2-S3 [failure] A test past the stop is UNPROVEN and withholds done [@spec] → `tests/js-reading.test.mjs::adr-lint says UNPROVEN, and withholds done, for a JavaScript test it could not read to` cmd:`node --test tests/js-reading.test.mjs`
+### UC2-S3 [failure] A test past the stop is UNPROVEN and withholds done [@implemented] → `tests/js-reading.test.mjs::adr-lint says UNPROVEN, and withholds done, for a JavaScript test it could not read to` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a task naming a test registered after a / the lexer cannot place, another name the stopped file never registers, and a missing name in a file read to its end
@@ -112,7 +112,7 @@ When adr-lint checks the record, with the task done and then pending
 Then the first two are UNPROVEN and never "not found", blocking when done and advice when pending, and the third is not found
 ```
 
-### UC2-S4 [happy] Can-fail reads the code view, helpers included [@spec] → `tests/js-reading.test.mjs::adr-lint judges a JavaScript body and its helpers on the code view` cmd:`node --test tests/js-reading.test.mjs`
+### UC2-S4 [happy] Can-fail reads the code view, helpers included [@implemented] → `tests/js-reading.test.mjs::adr-lint judges a JavaScript body and its helpers on the code view` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a test whose only assertion is inside ${…}, one whose only "assert" is a regex literal, and one that calls a same-file helper that asserts
@@ -120,7 +120,7 @@ When adr-lint judges whether each can fail, directly and through the CLI
 Then the first and third can, and the second asserts nothing
 ```
 
-### UC2-S5 [failure] The other languages read as they did [@spec] → `tests/js-reading.test.mjs::the other languages read as they did` cmd:`node --test tests/js-reading.test.mjs`
+### UC2-S5 [failure] The other languages read as they did [@implemented] → `tests/js-reading.test.mjs::the other languages read as they did` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a Python, a Go and a PHP test
@@ -128,7 +128,7 @@ When spec-verify and adr-lint read them
 Then each is found and bounded as before, and no non-JavaScript caller is handed an UNPROVEN answer
 ```
 
-### UC2-S6 [failure] A found test whose body cannot be bounded is UNPROVEN [@spec] → `tests/js-reading.test.mjs::adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound` cmd:`node --test tests/js-reading.test.mjs`
+### UC2-S6 [failure] A found test whose body cannot be bounded is UNPROVEN [@implemented] → `tests/js-reading.test.mjs::adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a test whose expression body leaves a / unplaced, and one whose body holds the stop
@@ -136,7 +136,7 @@ When adr-lint bounds each body
 Then each is UNPROVEN, while a complete body before a later stop is found
 ```
 
-### UC2-S7 [failure] History keeps the moved lock's exceptions [@spec] → `tests/js-reading.test.mjs::UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is` cmd:`node --test tests/js-reading.test.mjs`
+### UC2-S7 [failure] History keeps the moved lock's exceptions [@implemented] → `tests/js-reading.test.mjs::UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given a done task naming a test past the stop, in a frozen archived record and then in a record below strictFrom
@@ -144,7 +144,7 @@ When adr-lint checks it
 Then it says UNPROVEN as advice, not as a block
 ```
 
-### UC2-S8 [happy] An enforcement pointer is resolved on the lexer [@spec] → `tests/js-reading.test.mjs::an enforcement pointer to a JavaScript test is resolved on the lexer` cmd:`node --test tests/js-reading.test.mjs`
+### UC2-S8 [happy] An enforcement pointer is resolved on the lexer [@implemented] → `tests/js-reading.test.mjs::an enforcement pointer to a JavaScript test is resolved on the lexer` cmd:`node --test tests/js-reading.test.mjs`
 
 ```gherkin
 Given Enforced-by naming a real test, a string-held test, and a test past the stop
@@ -156,18 +156,18 @@ Then the first resolves, the second points to nothing, and the third is UNPROVEN
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | One JavaScript-family suffix set (`.js .mjs .cjs .jsx .ts .tsx .mts .cts`), defined once, decides which reader every JavaScript arm of `spec-verify` and `adr-lint` uses. | `tests/js-reading.test.mjs::spec-verify finds a JavaScript test only where its registration is code, in every family suffix` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-2 | `spec-verify` counts a JavaScript registration only where `_js_lex` says its call is code; its own vocabulary (modifiers, no receivers) is unchanged. | `tests/js-reading.test.mjs::spec-verify finds a JavaScript test only where its registration is code, in every family suffix` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-3 | A bound JavaScript test that is not found, in a file `_js_lex` did not read to its end, is could-not-check in `spec-verify` (exit 4), never missing (exit 2); one found before the stop is found. | `tests/js-reading.test.mjs::spec-verify says could-not-check, exit 4, for a JavaScript test it could not read to` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-4 | Both gates compare a JavaScript title decoded, as the literal reads, and only against a whole registered title. | `tests/js-reading.test.mjs::spec-verify matches a decoded title, and never a substring` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-5 | `adr-lint` finds a JavaScript test only where its call is code, through every existence path: the title search, the body search, the file-name shortcut, and the enforcement pointer, whose consumer reports UNPROVEN distinctly from a pointer to nothing. It bounds the body on the whole file's lexer view. | `tests/js-reading.test.mjs::adr-lint reads a JavaScript test where its call is code, bounded as the lock bounds it` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-6 | A JavaScript test that occurs only inside a string, a template's text, a regex or a comment is not found by `adr-lint`. | `tests/js-reading.test.mjs::adr-lint does not find a JavaScript test that exists only inside a string` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-7 | A named JavaScript test that is not found, in a file `_js_lex` did not read to its end, is UNPROVEN in `adr-lint`'s existence and can-fail checks, never "not found". On a `done` task it blocks; on a pending task it is advice. | `tests/js-reading.test.mjs::adr-lint says UNPROVEN, and withholds done, for a JavaScript test it could not read to` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-8 | `adr-lint` judges whether a JavaScript test can fail on the code view of the whole file: the body's span, and the span of any same-file helper the body calls. An assertion inside `${…}` counts, and a regex literal never does. | `tests/js-reading.test.mjs::adr-lint judges a JavaScript body and its helpers on the code view` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-10 | A JavaScript test whose call is found but whose body cannot be bounded (a stop inside it, or a `/` left in an expression body) is UNPROVEN, whether or not the lexer read the rest of the file. A complete body before a later stop is found. | `tests/js-reading.test.mjs::adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-11 | UNPROVEN keeps a moved lock's exceptions: on a frozen archived record, and on a record below `strictFrom`, it is advice. | `tests/js-reading.test.mjs::UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-12 | An `Enforced-by` pointer to a JavaScript test resolves only where its call is code; one past the stop is said UNPROVEN, not "pointer to nothing" and not silence. | `tests/js-reading.test.mjs::an enforcement pointer to a JavaScript test is resolved on the lexer` | @spec | `node --test tests/js-reading.test.mjs` |
-| F-9 | Python, Go, PHP, Rust, Swift, Ruby and shell are read exactly as before, and no non-JavaScript caller of `test_body` can receive an UNPROVEN answer. | `tests/js-reading.test.mjs::the other languages read as they did` | @spec | `node --test tests/js-reading.test.mjs` |
+| F-1 | One JavaScript-family suffix set (`.js .mjs .cjs .jsx .ts .tsx .mts .cts`), defined once, decides which reader every JavaScript arm of `spec-verify` and `adr-lint` uses. | `tests/js-reading.test.mjs::spec-verify finds a JavaScript test only where its registration is code, in every family suffix` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-2 | `spec-verify` counts a JavaScript registration only where `_js_lex` says its call is code; its own vocabulary (modifiers, no receivers) is unchanged. | `tests/js-reading.test.mjs::spec-verify finds a JavaScript test only where its registration is code, in every family suffix` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-3 | A bound JavaScript test that is not found, in a file `_js_lex` did not read to its end, is could-not-check in `spec-verify` (exit 4), never missing (exit 2); one found before the stop is found. | `tests/js-reading.test.mjs::spec-verify says could-not-check, exit 4, for a JavaScript test it could not read to` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-4 | Both gates compare a JavaScript title decoded, as the literal reads, and only against a whole registered title. | `tests/js-reading.test.mjs::spec-verify matches a decoded title, and never a substring` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-5 | `adr-lint` finds a JavaScript test only where its call is code, through every existence path: the title search, the body search, the file-name shortcut, and the enforcement pointer, whose consumer reports UNPROVEN distinctly from a pointer to nothing. It bounds the body on the whole file's lexer view. | `tests/js-reading.test.mjs::adr-lint reads a JavaScript test where its call is code, bounded as the lock bounds it` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-6 | A JavaScript test that occurs only inside a string, a template's text, a regex or a comment is not found by `adr-lint`. | `tests/js-reading.test.mjs::adr-lint does not find a JavaScript test that exists only inside a string` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-7 | A named JavaScript test that is not found, in a file `_js_lex` did not read to its end, is UNPROVEN in `adr-lint`'s existence and can-fail checks, never "not found". On a `done` task it blocks; on a pending task it is advice. | `tests/js-reading.test.mjs::adr-lint says UNPROVEN, and withholds done, for a JavaScript test it could not read to` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-8 | `adr-lint` judges whether a JavaScript test can fail on the code view of the whole file: the body's span, and the span of any same-file helper the body calls. An assertion inside `${…}` counts, and a regex literal never does. | `tests/js-reading.test.mjs::adr-lint judges a JavaScript body and its helpers on the code view` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-10 | A JavaScript test whose call is found but whose body cannot be bounded (a stop inside it, or a `/` left in an expression body) is UNPROVEN, whether or not the lexer read the rest of the file. A complete body before a later stop is found. | `tests/js-reading.test.mjs::adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-11 | UNPROVEN keeps a moved lock's exceptions: on a frozen archived record, and on a record below `strictFrom`, it is advice. | `tests/js-reading.test.mjs::UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-12 | An `Enforced-by` pointer to a JavaScript test resolves only where its call is code; one past the stop is said UNPROVEN, not "pointer to nothing" and not silence. | `tests/js-reading.test.mjs::an enforcement pointer to a JavaScript test is resolved on the lexer` | @implemented | `node --test tests/js-reading.test.mjs` |
+| F-9 | Python, Go, PHP, Rust, Swift, Ruby and shell are read exactly as before, and no non-JavaScript caller of `test_body` can receive an UNPROVEN answer. | `tests/js-reading.test.mjs::the other languages read as they did` | @implemented | `node --test tests/js-reading.test.mjs` |
 
 ## Domain
 

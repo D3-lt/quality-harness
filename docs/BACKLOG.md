@@ -16836,3 +16836,10 @@ whose branch is not the checkout's — should be shown at all is a product judge
   the last answer is and that a refresh is running, and the refresher still starts (`SHOW_AT_MOST_SECONDS`,
   `a brief snapshot past the age cap is not shown, and a refresh starts`, catalogue entry RED). The full report
   and a fresh cache hit are unchanged; a snapshot under the cap is served as before (ADR-065 T2).
+  **Decided 2026-10-01: item 1 goes to ADR-078** (Proposed, spec `docs/specs/2026-10-01-a-lock-reads-javascript-as-javascript.md`).
+  Measured while writing it: hasher 1's body masker also misreads — 14 real tests in `tests/mutate-propose.test.mjs`
+  and `tests/evidence-chain.test.mjs` would be dropped by gating discovery on it, and it hashes a prefix for a test
+  holding `` `${ cond ? `x ${y} }` : '' }` ``. ADR-078 leaves three things here, each deferred from its Out of Scope:
+  `spec-verify`'s check that a bound JavaScript test exists (`plugin/bin/spec-verify:636`) and `adr-lint`'s can-fail
+  check (`plugin/bin/adr-lint:4900`) still read with hasher 1's masker; and the records whose locks hasher 2 reads
+  differently are relocked one by one, as each maintainer chooses.

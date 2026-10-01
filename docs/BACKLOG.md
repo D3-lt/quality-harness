@@ -16913,3 +16913,8 @@ hasher 1 bounds, drops no top-level test, and stops early on no file.
    evals name skills explicitly, so nothing measures description-based routing, and a cut would be
    unmeasured. The six `adr-next` spawns are not batched into one process, because the saving is
    interpreter starts, and no Windows timing exists to set a target (§325).
+5. **The Codex round on f79d84d (gpt-6-astra at xhigh): REQUEST CHANGES, one P2.** The cache writer keeps `said`
+   across a refresh, so the withheld stamp, a constant, silenced the next snapshot's expiry: refresh, full report,
+   601 s on, and the brief said nothing over an answer it was withholding. The stamp now names the snapshot by its
+   `at`. The regression replaces the snapshot under a kept stamp; two catalogue entries cover it, both RED. The
+   reviewer found nothing else material in the lock or ranking changes, and probed both with simulated Windows paths.

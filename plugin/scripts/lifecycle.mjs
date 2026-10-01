@@ -719,6 +719,69 @@ export function projectCheckCommand(cwd = process.cwd()) {
  * spellings that drift — which cost this project a defect the same day
  * (docs/BACKLOG.md §66).
  */
+/**
+ * fastCheckCommand reads the `fastCheck` a project declares beside `check`
+ * (ADR-081): the same rules, a non-empty string that is not a constant success.
+ * Anything else is no fast check, and `qh-check --fast` says so.
+ */
+export function fastCheckCommand(root) {
+  let config
+  try { config = JSON.parse(readFileSync(path.join(root, '.quality-harness.json'), 'utf8')) } catch { return null }
+  const fast = typeof config?.fastCheck === 'string' ? config.fastCheck.trim() : ''
+  return fast && !constantSuccessCheck(fast) ? fast : null
+}
+
+/**
+ * latestFastPass reads `fast-checks.jsonl`, which no reader of a full pass opens
+ * (ADR-081): the LATEST fast record on this tree must grade as a pass. A line it
+ * cannot read answers null, so a torn file exempts nothing. `count` is how many
+ * fast records there are, which the publish advisory's key carries.
+ */
+export function latestFastPass(cwd, tree) {
+  let text
+  try { text = readFileSync(path.join(stateDir(cwd), 'fast-checks.jsonl'), 'utf8') } catch { return null }
+  let latest = null
+  let count = 0
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    let record
+    try { record = JSON.parse(line) } catch { return null }
+    // A row that is not a record proves nothing, as the importer reads it.
+    if (typeof record?.id !== 'string') return null
+    count += 1
+    if (record?.after?.tree === tree) latest = record
+  }
+  return latest && checkEventName(latest) === 'check.passed' ? { command: latest.command, count } : null
+}
+
+/**
+ * commitOnlyCommand proves a command is one commit and nothing else (ADR-081):
+ * one simple command, no substitution and nothing dynamic, whose program is git
+ * and whose publish invocation is a commit. `publishCommandIn` names only the
+ * FIRST invocation, so `git commit -m x && git push` would read as a commit;
+ * anything this cannot prove is not one, and keeps the full check (Codex review).
+ */
+export function commitOnlyCommand(command) {
+  if (typeof command !== 'string') return false
+  const invoked = publishCommandIn(command)
+  if (typeof invoked !== 'string' || !/(?:^|\s)commit$/.test(invoked)) return false
+  const { commands } = shellWords(command)
+  if (commands.length !== 1) return false
+  const [only] = commands
+  if (only.substitutions.length || only.dynamic.length || only.assignments.length || only.argv[0] !== 'git') return false
+  // An unquoted here-document expands `$(…)`, so its body is code again (Codex review of ADR-081).
+  if (only.heredocs.some(document => !document.quoted)) return false
+  // The subcommand itself must be `commit`. An alias, `rebase --exec`, `-c` or `--exec-path`
+  // can each run other commands, so before it only `-C <dir>` and `--no-pager` are allowed.
+  let index = 1
+  while (index < only.argv.length && only.argv[index].startsWith('-')) {
+    if (only.argv[index] === '-C') index += 2
+    else if (only.argv[index] === '--no-pager') index += 1
+    else return false
+  }
+  return only.argv[index] === 'commit'
+}
+
 export function checkCommandOrigin(cwd = process.cwd(), discovery = null) {
   const directory = nearestExistingDirectory(path.resolve(cwd))
   if (!directory) return { command: null, origin: 'none' }
@@ -4722,7 +4785,7 @@ export function leavesHookInPlace(command) {
  * event — and null for a mention, which is never refused. Returns null when there
  * is nothing to say, else `{ deny, key, detail, text }`.
  */
-export function publishVerdict({ cwd, session, observation, invoked }) {
+export function publishVerdict({ cwd, session, observation, invoked, commitOnly = false }) {
   // ONE root lookup for this decision: the check and the opt-out are read from
   // the same answer, so they cannot disagree about which project this is.
   const place = nearestExistingDirectory(path.resolve(cwd))
@@ -4775,6 +4838,19 @@ export function publishVerdict({ cwd, session, observation, invoked }) {
   // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
   // evidence than advice). A command that merely mentions the words is warned.
   const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null
+  // ADR-081: a command proven to be one commit, on a tree whose latest declared fast
+  // check passed, is told rather than refused. Its key carries the fast records, so a
+  // commit refused before the fast pass is told after it. Anything that pushes, and
+  // any form not proven, still needs the full check.
+  if (deny && commitOnly) {
+    const fastPass = latestFastPass(cwd, now.tree)
+    if (fastPass) {
+      return {
+        deny: false, fast: true, key: `${key}:fast${fastPass.count}`, detail: { tree: now.tree, revision },
+        text: `quality-harness: a fast check (\`${fastPass.command}\`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need \`qh-check\` to pass first (ADR-081).`,
+      }
+    }
+  }
   return {
     deny, key, detail: { tree: now.tree, revision },
     // On a torn log this still warns — it must — but says UNKNOWN, not "no check
@@ -4813,6 +4889,7 @@ function publishUnchecked(input, requested) {
     // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
     // evidence than advice). A command that merely mentions the words is warned.
     invoked: publishCommandIn(input.tool_input?.command),
+    commitOnly: commitOnlyCommand(input.tool_input?.command),
   })
   if (!verdict) return
   // ADR-066 T3: in a Bash session where git's own hook has RUN, a plain invocation

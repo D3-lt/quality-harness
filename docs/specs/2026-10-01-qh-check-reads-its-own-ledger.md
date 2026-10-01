@@ -57,7 +57,7 @@ with a warning. Anything that pushes still needs the full check.
 
 ## Scenarios
 
-### UC1-S1 [happy] A passed tree is not checked again [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a tree whose latest check passed is not checked again, and says when and how long` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC1-S1 [happy] A passed tree is not checked again [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a tree whose latest check passed is not checked again, and says when and how long` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a check that passed on the tree as it is now
@@ -65,7 +65,7 @@ When qh-check runs again
 Then the check does not run, qh-check names the pass's time and duration, exits 0, and records nothing
 ```
 
-### UC1-S2 [failure] --again runs it [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::--again runs a tree that already passed` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC1-S2 [failure] --again runs it [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::--again runs a tree that already passed` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a check that passed on the tree as it is now
@@ -73,7 +73,7 @@ When qh-check --again runs
 Then the check runs
 ```
 
-### UC1-S3 [failure] Anything it could not establish runs the check [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a changed tree, a torn ledger or a failed run checks again` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC1-S3 [failure] Anything it could not establish runs the check [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a changed tree, a torn ledger or a failed run checks again` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a changed tree, then a torn ledger line, then a check that failed on the tree
@@ -81,7 +81,7 @@ When qh-check runs after each
 Then the check runs each time
 ```
 
-### UC1-S4 [failure] A later failure on the same tree is not skipped [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a pass followed by a failure on the same tree checks again` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC1-S4 [failure] A later failure on the same tree is not skipped [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a pass followed by a failure on the same tree checks again` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a pass and then a failure of the same check on the same tree
@@ -89,7 +89,7 @@ When qh-check runs
 Then the check runs
 ```
 
-### UC1-S5 [failure] A write git cannot see is not skipped [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a write git cannot see, after the pass, checks again` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC1-S5 [failure] A write git cannot see is not skipped [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a write git cannot see, after the pass, checks again` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a pass, and then a write the session recorded that git cannot see
@@ -97,7 +97,7 @@ When qh-check runs in that session
 Then the check runs
 ```
 
-### UC1-S6 [happy] A skip waits for no lease [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a skip waits for no lease` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC1-S6 [happy] A skip waits for no lease [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a skip waits for no lease` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a passed tree and another run holding the machine lease
@@ -105,7 +105,7 @@ When qh-check --wait runs
 Then it skips at once, without waiting its turn
 ```
 
-### UC1-S7 [happy] A run says how long it took [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::every run says how long it took` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC1-S7 [happy] A run says how long it took [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::every run says how long it took` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given any check that runs
@@ -113,7 +113,7 @@ When it ends
 Then the result line names its duration
 ```
 
-### UC2-S1 [happy] A fast pass is recorded apart [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a fast check is recorded apart, where no full-check reader looks` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC2-S1 [happy] A fast pass is recorded apart [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a fast check is recorded apart, where no full-check reader looks` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a declared fastCheck
@@ -121,7 +121,7 @@ When qh-check --fast passes
 Then fast-checks.jsonl holds its record and checks.jsonl holds none
 ```
 
-### UC2-S2 [happy] A commit after a fast pass is told, not refused [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a commit-only command on a fast-passed tree is told, not refused` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC2-S2 [happy] A commit after a fast pass is told, not refused [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a commit-only command on a fast-passed tree is told, not refused` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a changed tree whose latest fast check passed
@@ -129,7 +129,7 @@ When a command that only commits is attempted
 Then it is not refused, and is told the full check has not passed
 ```
 
-### UC2-S3 [failure] A commit with no fast pass is still refused [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a commit with no fast pass, or a failed one, is still refused` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC2-S3 [failure] A commit with no fast pass is still refused [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a commit with no fast pass, or a failed one, is still refused` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a changed tree with no fast pass, then one whose latest fast check failed
@@ -137,7 +137,7 @@ When a command that only commits is attempted
 Then it is refused both times
 ```
 
-### UC2-S4 [failure] Anything that pushes is refused [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a push, or a commit that also pushes, is refused on a fast-passed tree` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC2-S4 [failure] Anything that pushes is refused [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a push, or a commit that also pushes, is refused on a fast-passed tree` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a tree whose latest fast check passed
@@ -145,7 +145,7 @@ When git push, then git commit -m x && git push, is attempted
 Then both are refused
 ```
 
-### UC2-S5 [happy] Git's own hooks agree [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::git's own hooks let a commit through with the warning and refuse a push` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC2-S5 [happy] Git's own hooks agree [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::git's own hooks let a commit through with the warning and refuse a push` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a session whose git hook has run, and a tree whose latest fast check passed
@@ -153,7 +153,7 @@ When git's prepare-commit-msg and pre-push hooks decide
 Then the commit passes with the warning, and the push is refused
 ```
 
-### UC2-S6 [failure] The warning is said after an earlier refusal [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::a commit refused before a fast pass is told after it` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC2-S6 [failure] The warning is said after an earlier refusal [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::a commit refused before a fast pass is told after it` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given a commit refused on an unchecked tree
@@ -161,7 +161,7 @@ When qh-check --fast passes and the same commit is attempted again
 Then it is told the full check has not passed, not silenced as already said
 ```
 
-### UC2-S7 [failure] --fast without a declared fast check [@spec] → `tests/qh-check-reads-the-ledger.test.mjs::--fast with no fastCheck declared is said, and runs nothing` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
+### UC2-S7 [failure] --fast without a declared fast check [@implemented] → `tests/qh-check-reads-the-ledger.test.mjs::--fast with no fastCheck declared is said, and runs nothing` cmd:`node --test tests/qh-check-reads-the-ledger.test.mjs`
 
 ```gherkin
 Given no fastCheck in .quality-harness.json
@@ -173,20 +173,20 @@ Then it says so, runs nothing and exits 2
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | When the latest record in `checks.jsonl`, by ledger position, for the same command on the tree now grades `check.passed`, `qh-check` runs nothing, writes no record, names that pass's time and duration, and exits 0. | `tests/qh-check-reads-the-ledger.test.mjs::a tree whose latest check passed is not checked again, and says when and how long` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-2 | `qh-check --again` runs the check whatever the ledger holds. | `tests/qh-check-reads-the-ledger.test.mjs::--again runs a tree that already passed` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-3 | Every case it could not establish runs the check: a ledger not read whole, a tree not observed, a directory outside git, and a latest record that failed, timed out or was unproven. | `tests/qh-check-reads-the-ledger.test.mjs::a changed tree, a torn ledger or a failed run checks again` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-4 | A pass followed, on the same tree, by a failure of the same check does not skip: only the latest record counts. | `tests/qh-check-reads-the-ledger.test.mjs::a pass followed by a failure on the same tree checks again` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-5 | When the session (`CLAUDE_CODE_SESSION_ID`) holds a write git cannot see that no pass has cleared, `qh-check` runs: a tree hash cannot speak for it. | `tests/qh-check-reads-the-ledger.test.mjs::a write git cannot see, after the pass, checks again` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-6 | The skip is decided before the machine lease is taken, so a skip never waits; a run that misses observes the tree again after its wait. | `tests/qh-check-reads-the-ledger.test.mjs::a skip waits for no lease` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-7 | Every run's result line names how long the check took. | `tests/qh-check-reads-the-ledger.test.mjs::every run says how long it took` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-8 | `qh-check --fast` runs the declared `fastCheck` and records it in `fast-checks.jsonl`, never in `checks.jsonl`, so no reader of a full pass sees it, in this version or an older one after a rollback. | `tests/qh-check-reads-the-ledger.test.mjs::a fast check is recorded apart, where no full-check reader looks` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-9 | A command proven to be one commit and nothing else, on a tree with no full pass whose latest fast record passed, is not refused; it is told the full check has not passed and a push will need it. | `tests/qh-check-reads-the-ledger.test.mjs::a commit-only command on a fast-passed tree is told, not refused` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-10 | A commit on a tree with no fast pass, or whose latest fast record failed, is refused as today. | `tests/qh-check-reads-the-ledger.test.mjs::a commit with no fast pass, or a failed one, is still refused` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-11 | A push, a command that also pushes, and any form not proven to be one commit alone are refused as today on a fast-passed tree. | `tests/qh-check-reads-the-ledger.test.mjs::a push, or a commit that also pushes, is refused on a fast-passed tree` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-12 | Git's own `prepare-commit-msg` hook lets a commit through on a fast-passed tree and prints the warning; `pre-push` refuses. | `tests/qh-check-reads-the-ledger.test.mjs::git's own hooks let a commit through with the warning and refuse a push` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-13 | The publish advisory's key carries the fast state, so a commit refused before a fast pass is told the new state after it. | `tests/qh-check-reads-the-ledger.test.mjs::a commit refused before a fast pass is told after it` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
-| F-14 | `qh-check --fast` with no `fastCheck` declared says so, runs nothing and exits 2. | `tests/qh-check-reads-the-ledger.test.mjs::--fast with no fastCheck declared is said, and runs nothing` | @spec | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-1 | When the latest record in `checks.jsonl`, by ledger position, for the same command on the tree now grades `check.passed`, `qh-check` runs nothing, writes no record, names that pass's time and duration, and exits 0. | `tests/qh-check-reads-the-ledger.test.mjs::a tree whose latest check passed is not checked again, and says when and how long` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-2 | `qh-check --again` runs the check whatever the ledger holds. | `tests/qh-check-reads-the-ledger.test.mjs::--again runs a tree that already passed` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-3 | Every case it could not establish runs the check: a ledger not read whole, a tree not observed, a directory outside git, and a latest record that failed, timed out or was unproven. | `tests/qh-check-reads-the-ledger.test.mjs::a changed tree, a torn ledger or a failed run checks again` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-4 | A pass followed, on the same tree, by a failure of the same check does not skip: only the latest record counts. | `tests/qh-check-reads-the-ledger.test.mjs::a pass followed by a failure on the same tree checks again` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-5 | When any session's log of this repository holds a write git cannot see, recorded after the pass started, `qh-check` runs: a tree hash cannot speak for it. Every session, because a check run by hand carries no session id. | `tests/qh-check-reads-the-ledger.test.mjs::a write git cannot see, after the pass, checks again` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-6 | The skip is decided before the machine lease is taken, so a skip never waits; a run that misses observes the tree again after its wait. | `tests/qh-check-reads-the-ledger.test.mjs::a skip waits for no lease` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-7 | Every run's result line names how long the check took. | `tests/qh-check-reads-the-ledger.test.mjs::every run says how long it took` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-8 | `qh-check --fast` runs the declared `fastCheck` and records it in `fast-checks.jsonl`, never in `checks.jsonl`, so no reader of a full pass sees it, in this version or an older one after a rollback. | `tests/qh-check-reads-the-ledger.test.mjs::a fast check is recorded apart, where no full-check reader looks` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-9 | A command proven to be one commit and nothing else, on a tree with no full pass whose latest fast record passed, is not refused; it is told the full check has not passed and a push will need it. | `tests/qh-check-reads-the-ledger.test.mjs::a commit-only command on a fast-passed tree is told, not refused` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-10 | A commit on a tree with no fast pass, or whose latest fast record failed, is refused as today. | `tests/qh-check-reads-the-ledger.test.mjs::a commit with no fast pass, or a failed one, is still refused` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-11 | A push, a command that also pushes, and any form not proven to be one commit alone are refused as today on a fast-passed tree. | `tests/qh-check-reads-the-ledger.test.mjs::a push, or a commit that also pushes, is refused on a fast-passed tree` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-12 | Git's own `prepare-commit-msg` hook lets a commit through on a fast-passed tree and prints the warning; `pre-push` refuses. | `tests/qh-check-reads-the-ledger.test.mjs::git's own hooks let a commit through with the warning and refuse a push` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-13 | The publish advisory's key carries the fast state, so a commit refused before a fast pass is told the new state after it. | `tests/qh-check-reads-the-ledger.test.mjs::a commit refused before a fast pass is told after it` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
+| F-14 | `qh-check --fast` with no `fastCheck` declared says so, runs nothing and exits 2. | `tests/qh-check-reads-the-ledger.test.mjs::--fast with no fastCheck declared is said, and runs nothing` | @implemented | `node --test tests/qh-check-reads-the-ledger.test.mjs` |
 
 ## Domain
 

@@ -45,7 +45,9 @@ function sink() {
 const lastRecord = dir => JSON.parse(readFileSync(path.join(stateDir(dir), 'checks.jsonl'), 'utf8').trim().split('\n').pop())
 const env = (leases, extra = {}) => {
   const { QUALITY_HARNESS_WAIT: _wait, ...rest } = process.env
-  return { ...rest, QUALITY_HARNESS_LEASE_DIR: leases, ...extra }
+  // ADR-081's opt-out: these tests call qh-check again on an unchanged tree to watch the
+  // leases, which the same-tree skip would otherwise answer before any lease is read.
+  return { ...rest, QUALITY_HARNESS_LEASE_DIR: leases, QUALITY_HARNESS_CHECK_AGAIN: '1', ...extra }
 }
 const sleep = ms => new Promise(resolve => setTimeout(resolve, ms))
 async function until(ready, what, ms = 20_000) {

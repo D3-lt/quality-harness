@@ -16985,7 +16985,7 @@ not the work. Gating a batch in one shell would cut the work too, but it gives u
 per-path isolation, so it is its own decision. Measure the pass's wall time after ADR-080 ships before
 deciding.
 
-## 331. OPEN 2026-10-01 — ADR-080 shipped behind the boundary; what its code review changed, and what is left
+## 331. CLOSED 2026-10-02 (each residual disposed below) — ADR-080 shipped behind the boundary; what its code review changed, and what is left
 
 ADR-080 is executed: no boundary gates artifacts in line. Replayed on a local clone of an adopter's real 422 KB
 session log, a commit's PreToolUse took 44287 ms at 9ed651c and 164 ms after; the detached pass then gated all
@@ -17019,6 +17019,25 @@ Left, named rather than fixed:
   that touches nothing the check reads. It cannot be measured yet: those adopters edit through Bash and mrw, which
   log no `file.written`, so "only non-code changed since the last pass" has no ground truth in their logs. Revisit
   once a source of truth for edits made outside the file tools exists.
+
+**Disposition, 2026-10-02.** No residual is left open without a trigger:
+- **No test produces a real failed spawn.** Deferred. The pass spawns `process.execPath`, which cannot
+  fail to start without a seam this code does not have. The listener is attached before any return
+  (`lifecycle.mjs`, the `child.on('error', …)` beside the spawn), and `!child.pid` is said UNRUN.
+  Trigger: the next change to that spawn adds an injectable spawner and this test with it.
+- **Windows job objects.** Closed as observable: since item 4, a pass that dies with its host's job
+  leaves no end, and the next hook says UNRUN for it. Trigger: an outside Windows run reporting that
+  UNRUN line.
+- **The import's cost at adopter scale.** Deferred to ADR-081's follow-up measurement (on or after
+  2026-10-08), which reads the adopters' hook timings in the same pass.
+- **The one-second release race.** Closed as accepted: its cost is a duplicate gating of the same
+  targets, never a lost verdict.
+- **branch-state's stale `CI COULD NOT LOOK` on 9ed651c.** Deferred: it has not recurred since. Trigger:
+  the next occurrence is re-run with `QUALITY_HARNESS_TRACE_FILE` set, which records the query the brief
+  made, before deciding between `gh` paging and the reader's selection.
+- **`checkInputs` reuse.** Deferred by the owner, now with a trigger: mrw appending `file.written`, and
+  the shell hook appending it for Bash writes. An inbox finding for mrw's project records the first of
+  these.
 
 ## 332. CLOSED 2026-10-01 (fixed for 3.6.1; unproven on Windows) — Windows: a campaign's parent cannot rename onto `owner.json` while its child reads it
 
@@ -17095,6 +17114,8 @@ The worktree it left behind is by design. `adr-verify` leaves a killed run's tre
 isolated run's sweep (`plugin/bin/adr-verify` around the "left for a later sweep" message, and the
 `worktree.mjs sweep` call before a build). Removing it by hand pre-empted that sweep.
 
+Not recurring, 2026-10-02: ADR-083 T4's two `--mutant` runs of the same corpus-wide fence, in the default isolated worktree, took 230 s and 324 s.
+
 ## 335. CLOSED 2026-10-02 (the spec was corrected) — ADR-079 F-11's rationale says a moved lock is advice below `strictFrom`; the code blocks it
 
 F-11 (`docs/specs/2026-10-01-every-gate-reads-javascript-one-way.md`) says UNPROVEN "keeps a moved
@@ -17131,7 +17152,7 @@ by an identifier blocks `done` as UNPROVEN, which is the ADR's rule for a body t
 bounded; `test.each(table)(…)`, generic callbacks and escape decoding keep their earlier limits.
 Not rerun by the reviewer: the CLI fixtures and the corpus comparison (rerun here: no verdict changed).
 
-## 337. OPEN 2026-10-02 — the JavaScript lexer has no JSX mode; 3.7.0 refused real tests in React corpora
+## 337. CLOSED 2026-10-02 (ADR-083, for 3.9.0) — the JavaScript lexer has no JSX mode; 3.7.0 refused real tests in React corpora
 
 Reported by two outside runs against 3.7.0 at 723fa19, before its tag (a react-spa corpus and a
 laravel-react-monorepo corpus). Both showed records going adr-lint PASS → FAIL on done tasks naming
@@ -17187,6 +17208,25 @@ in the file. Now a stop counts as JSX only after a `<Name` or `<>` in code befor
 The raw reading still over-finds. A never-written name that appears only inside a string literal
 reads as advice, an under-block in both gates. The different-lineage round for 3.7.1 and 3.7.2 is
 owed: the Codex budget is spent until 2026-10-07.
+
+**Closed by ADR-083** (docs/specs/2026-10-02-the-lexer-reads-jsx.md).
+- `_js_lex` reads JSX for `.js .mjs .cjs .jsx .tsx`: elements, fragments, attributes, `{…}`
+  expressions and text. Anything it cannot read is a stop.
+- A lock over a file whose reading JSX changes is taken by hasher 3; every other lock stays hasher 2,
+  and recorded locks are read as they were taken.
+- The 3.7.2 stop-gap is deleted: `js_stop_at_jsx`, `js_raw_titles`, `jsx_stopped` and the
+  `"advise"` arm, together with their tests and catalogue entries.
+
+Each residual above now reads, in tests/test-lock.test.mjs `the lexer reads JSX: …`:
+- the apostrophe in JSX text;
+- `</a>` with a later `/`;
+- `/>` after a string attribute;
+- the lock bounding a `.tsx` test (`a lock over a JSX file is taken by hasher 3 …`);
+- the string-held whole call, which needs no raw reading now.
+
+Named residual: in `.tsx`, a generic function TYPE written `<T>(x: T) => T` after a `:` reads as an
+element. It never closes, so it stops (UNPROVEN), never a wrong reading; `<T,>` and `<T extends U>`
+are read as type parameters.
 
 ## 338. CLOSED 2026-10-02 (ADR-082, for 3.8.0) — an attest line carries no sign that the run found a FAIL
 

@@ -1,0 +1,90 @@
+# Task ADR-082-T3: release-evidence refuses a regressed or uncompared run
+
+**Depends-on:** T2
+**Covers:** F-5, F-6, F-8, UC2-S1, UC2-S2, UC2-S3
+**Estimated scope:** S (one filter over covering attestations, two kinds)
+**Owner:** unassigned
+**Produces:** none
+**Consumes:** `verdictChanges` (T1)
+**Data dependency:** hermetic
+**Proof map:** v1
+**Rests-on:** `a regressed run does not attest`, `an uncompared run does not attest`, `older attestations are judged as before`
+
+## Goal
+
+In `outsideRun`, a covering attestation from plugin 3.8.0 on counts only when its `verdictChanges` is an object with `passToFail` 0; when none counts, the verdict is UNPROVEN of kind `regressed` or `uncompared` (ADR-082 Decision).
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `scripts/release-evidence.mjs` | edit | `outsideRun` filters covering attestations by version and `verdictChanges`; the two kinds and their reasons; the attested reason names a `failToPass`; the header's verdict list names the kinds |
+| `tests/release-evidence.test.mjs` | edit | remove `todo` from this task's three tests |
+| `tests/mutations.json` | edit | one entry per Rests-on name |
+
+## Ordered Steps
+
+1. [S1] Remove `todo` from the three tests in this task's Tests table and record the red run (TDD red). [proof: acceptance]
+2. [S2] A version reader: `plugin` as `major.minor.patch`, anything else read as before 3.8.0.
+3. [S3] In `outsideRun`, among covering attestations, one from 3.8.0 on counts only when `verdictChanges` is an object with `passToFail` 0. Any covering one from 3.8.0 on with `passToFail > 0` gives kind `regressed` (naming each such file and count), even beside one that counts; otherwise, if none counts, kind `uncompared`.
+4. [S4] The attested reason names any `failToPass` it carries.
+5. [S5] Record one killed mutant per Rests-on name. [proof: mutation]
+
+## Acceptance
+
+```bash
+T=$(mktemp)
+node --test --test-reporter=tap tests/release-evidence.test.mjs > "$T" 2>&1 \
+  && for t in 'an outside run whose own verdicts regressed does not attest a release' 'an attestation from 3.8.0 on must say what it compared' 'an older attestation, or a run that only recovered verdicts, still attests'; do test "$(grep -cxE "ok [0-9]+ - $t" "$T")" -eq 1 || exit 1; done
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| `an outside run whose own verdicts regressed does not attest a release` | `tests/release-evidence.test.mjs` | `regressed` names file and count; twin with 0 attests | F-5, UC2-S1 | S3 |
+| `an attestation from 3.8.0 on must say what it compared` | `tests/release-evidence.test.mjs` | null and absent from 3.8.0 → `uncompared` | F-8, UC2-S2 | S2, S3 |
+| `an older attestation, or a run that only recovered verdicts, still attests` | `tests/release-evidence.test.mjs` | 3.7.2 and a non-version attest; `failToPass` alone attests and is named | F-6, UC2-S3 | S2, S4 |
+| `the advice under an UNPROVEN outside run says which could-not-look it is` | `tests/release-evidence.test.mjs` | the CLI's advice names `regressed` and `uncompared`, never git | F-5, F-8 | S3 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the three tests |
+| 2 — something selects it | `outsideRunEvidence` calls `outsideRun` for every sha |
+| 3 — the caller can discover it | the UNPROVEN reason names the kind, files and counts |
+| 4 — it is used | every release from 3.8.0 (§13.5) |
+
+## Mutation Log
+- 2026-10-02 · 5d4559d* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · a run that reports PASS to FAIL still attests the release · acceptance-sha256:ed154480b3ff56cd67fc5e0e30e703f7a869f9990a649eba3c62c1a2721607db · covers:a regressed run does not attest
+- 2026-10-02 · 5d4559d* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · a new-format run that compared nothing is reported as nobody having run the readers · acceptance-sha256:ed154480b3ff56cd67fc5e0e30e703f7a869f9990a649eba3c62c1a2721607db · covers:an uncompared run does not attest
+- 2026-10-02 · 5d4559d* · mutant killed · exit 1 · `scripts/release-evidence.mjs` · an attestation from before the field is held to it and refused · acceptance-sha256:ed154480b3ff56cd67fc5e0e30e703f7a869f9990a649eba3c62c1a2721607db · covers:older attestations are judged as before
+
+## Invariants
+
+- Every attestation already in `docs/corpus-reports/` (all before 3.8.0) is judged as before.
+
+## Risks
+
+- A real fix that turns a wrong PASS into a right FAIL refuses: the spec's Risks name the response.
+
+## Stop Condition
+
+Stop and ask if `release-evidence` on the last released sha changes its verdict.
+
+## Out of Scope
+
+- Changing which attestations cover a sha.
+
+## Verification Log
+- 2026-10-02 · 5d4559d* · exit 1 · `T=$(mktemp) …` · acceptance-sha256:ed154480b3ff56cd67fc5e0e30e703f7a869f9990a649eba3c62c1a2721607db · ms:231 · test-lock-sha256:211b0412c0c4b2ba6a07b1af34d0302c55947a53a1ddb444de6ac43961b7e324 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcmVsZWFzZS1ldmlkZW5jZS50ZXN0Lm1qcwlSRUFERVJfUEFUSFMgbmFtZXMgZXZlcnkgcGx1Z2luIGRpcmVjdG9yeSBhIHJlYWRlciBpcyBtYWRlIG9mCTcyMzNhYWRmOGQzMGI5YjlkM2UzYjA4ZWUxNDQyYjdmMGQyNjVkZDU2OGRiNWNkNTRiMWNlM2I3MWRlOWZiNDcKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgY2FuY2VsbGVkIHJ1biBpcyBub3QgYSByZWxlYXNlLCBob3dldmVyIGZldyBqb2JzIHdlcmUgY2FuY2VsbGVkCTJiZDEzZTNjZDQ5Yzc3MTliOWY3ZTE2MjlhY2MyZjc2ZDE1ZGMzMDhkZmE5YjIzNWI1ZDM5OGFlMDE1Mjg2NjYKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgZGlzcGF0Y2ggYW5kIGEgcHVzaCBhdCB0aGUgc2FtZSBpbnN0YW50IHJlc29sdmUgdG8gdGhlIGRpc3BhdGNoCTkyZGM0NzQ0YjYxZmY1MjA1MTkzMDMxMTMyY2I1YjQwNGEzYTZlZWU5OTRkN2I5MjQ5YTJmZDcxOGJjYTQzMWUKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgZnVsbHkgZ3JlZW4gcnVuIGlzIHRoZSBvbmx5IHRoaW5nIHRoYXQgY2xlYXJzIGEgc2hhIGZvciByZWxlYXNlCTcwYjIxZTY5YzE2OTAxYzM2ODM2MmU3YzAyOWIyNTU4YTBhNTE0Yjc2OTFmMDYxYmQ2OWM2MzEzYzNlOWYzOWEKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgZ3JlZW4gcnVuIHJhaXNlZCBieSBhIHB1c2ggaXMgbm90IHJlbGVhc2UgZXZpZGVuY2UsIGJlY2F1c2UgaXRzIGNhbXBhaWduIG1heSBiZSBjYWNoZWQgKEJBQ0tMT0cgwqcxNDIpCWQzZGE2YmJmOWQ2NzY4OGRhYTJiNDdhMjYzNWEwOTA3Nzk1NmFhMzAxNzIxMjg0ZTZiZmIzZWM2ZmM4OTMxOWEKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgbmV3ZXIgcHVzaCBzdGlsbCB3aW5zIG92ZXIgYW4gb2xkZXIgZGlzcGF0Y2gJM2NlYTFlZTE0Nzg4OTE4OGJiN2RlOTAwN2FjMTgzMDE5NGQ3NjBjMTg0MDM2ZTFjYzYyOWVlMzAxOTFhZjIxNgpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYSByZWxlYXNlIHdob3NlIHJlYWRlcnMgY2hhbmdlZCBzaW5jZSB0aGUgbGFzdCB0YWcgbmVlZHMgYW4gb3V0c2lkZSBydW4gYXR0ZXN0ZWQgYWZ0ZXIgaXQJMTViNThlNDlmMGNmNDdkMWE3MzE5YTU4NDdmYjRiN2IyM2Y3Y2ZlNDY5NGIyNDFiNjc1MjFkM2ZjNDllNTI4ZApib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYSBydW4gc3RpbGwgaW4gZmxpZ2h0IGlzIGluY29tcGxldGUsIHdoaWNoIGlzIG5vdCB0aGUgc2FtZSBhcyBmYWlsZWQJZDEyZGE1ZjNmZmJiNTdiYzBjMmQzMDlkMjhjMTI2YjcwOGNmYzNhMGZjYzE4MDQwZWYwMGZhMTk0NWYzMzA3Ywpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYSBzaG9ydCBzaGEgaXMgRVhQQU5ERUQgYmVmb3JlIGdoIGlzIGFza2VkLCBhdCB0aGUgYm91bmRhcnkgdGhhdCBzaGVsbHMgb3V0CWQ2NDZhNmM1ZTI5ZjRmMmQ1N2YyNWMzOWYyZGZjOWZhOTM3ZGM3NjYxYTdlYjA1MDFiMWFjZmFmN2E2NzNiMDEKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWFuIGF0dGVzdGF0aW9uIGZyb20gMy44LjAgb24gbXVzdCBzYXkgd2hhdCBpdCBjb21wYXJlZAlhMGNmODcwMjJkMmFhMzljYzJjZGI5MTFhYjAwNWI5NTc1NWNkNWY2Yjg0MWQ4YTc5MWIzZWQ4YzI2YmIyNjQ3CmJvZHkJdGVzdHMvcmVsZWFzZS1ldmlkZW5jZS50ZXN0Lm1qcwlhbiBhdHRlc3RhdGlvbiBnaXQgY2Fubm90IGNoZWNrIGlzIGNvdmVyYWdlIHVua25vd24sIG5ldmVyIGNvdmVyYWdlIGFic2VudAlkNTdlMTJkN2EwMzUwNWY3YzA5ZmIwODIxNTFhNTU3NzZjN2M4ZTA2MWRmNGJkYWMwNTU4ZWY0ZWIzODgxZmRhCmJvZHkJdGVzdHMvcmVsZWFzZS1ldmlkZW5jZS50ZXN0Lm1qcwlhbiBlbXB0eSBvciB1bnJlYWRhYmxlIGFuc3dlciBpcyAiY291bGQgbm90IGxvb2siLCBuZXZlciBhIHBhc3MJODA4NmU4OTgxYmExYTAxZDRhMTljY2VmMWU4ZTI4OWIyNzY2ZTkxYTZlN2FmNjZmMDE1ZjIxZThjYTExNjdmMgpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYW4gb2xkZXIgYXR0ZXN0YXRpb24sIG9yIGEgcnVuIHRoYXQgb25seSByZWNvdmVyZWQgdmVyZGljdHMsIHN0aWxsIGF0dGVzdHMJZjFmZDA4YTA5MzBmYmMxYzFiNzEyYWQ2Zjc5ODY3YmJkNDMyYWE5Yzg3NGEzM2M1MjE1ZmEwMzU0ZTZhMWZmZgpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYW4gb3B0aW9uIGlzIG5vdCBhIHNoYSwgYW5kIGEgYmFyZSBkYXNoLWFyZ3VtZW50IG5ldmVyIHJlYWNoZXMgZ2l0IHJldi1wYXJzZQk2Y2JkNGM1NTYxOGM3ZGQyYWI1ZmE4OWI5ZTQ1MGRkYjUzYjU0ZGZmMDJlNTc5MTZiZDg5ZGU3OTkwNmRmMTllCmJvZHkJdGVzdHMvcmVsZWFzZS1ldmlkZW5jZS50ZXN0Lm1qcwlhbiBvcmRlcmluZyBub3RoaW5nIGNhbiBlc3RhYmxpc2ggaXMgcmVmdXNlZCwgbm90IGd1ZXNzZWQJYzJjNDk1MTFlNThhYjM1NDI2ZGU0ZjVjYjFjNGIxODVlODE5MmI5N2MxZmY2NmVlMTZmNzBkYWYxODQ5NzE5ZQpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYW4gb3V0c2lkZSBydW4gd2hvc2Ugb3duIHZlcmRpY3RzIHJlZ3Jlc3NlZCBkb2VzIG5vdCBhdHRlc3QgYSByZWxlYXNlCWYzOWMwNzdmNTZmYzA4M2I2MjA5NWYzMTJmNTNjMGNkNDg2NDI2ZWE0M2ExNDFiYTZmZjlhNmZhYjJmYjU4ZTAKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWF0dGVzdGF0aW9ucyBhcmUgcmVhZCBmcm9tIHRoZSBkaXJlY3RvcnksIGFuZCBhbiB1bnBhcnNhYmxlIG9uZSBhdHRlc3RzIG5vdGhpbmcJYzYwYzRiOTI3MTFjOWFlYTA2MzYyOGQ1NmMwODkyMzg5OWQ0MjM1OGVjMmVkOWU1NzcxYzA1YWYzMDE4ZDY2Ygpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJZXZlcnkgbm9uLXN1Y2Nlc3MgY29uY2x1c2lvbiBpcyByZXBvcnRlZCBieSBpdHMgb3duIG5hbWUJMjdjNzNkZDhkNTM0YzY3NTk4ZGU2MWNiMDZlMDQzMzY2YzYzYTgzMzRiMjZjYzgwM2M1MzJlNDY3YTg4Y2E0Zgpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJbm90aGluZyB0byBjaG9vc2UgZnJvbSBpcyBudWxsLCBhbmQgYSBydW4gd2l0aCBubyBpZCBpcyBub3QgYSBjaG9pY2UJOGMwYzE4YjlkNWFmNTdiZDE5YTRkNWY2N2Y5NTgwN2NjYTgxOGNjZjBkMzI5MWViZWZkZjkzODAyZjQxMTE2Ngpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJb3V0c2lkZVJ1bkV2aWRlbmNlIGFuY2hvcnMgb24gdGhlIHRhZyBiZWZvcmUgdGhlIHNoYSBhbmQgcmVmdXNlcyBhIHJ1biB0aGF0IGRpZCBub3Qgc2VlIGV2ZXJ5IHJlYWRlciBjaGFuZ2UJMTk1ZGVlNTY0ZDg3OTcxMDc0Y2U1NDZhOGMzYmU1MGIzMmQ1MmU4MmFmOTY1OTRkZTRjNWQwOWFiMGFmYmYyZQpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJdGhlIG5ld2VzdCBkaXNwYXRjaCBpcyBjaG9zZW4gd2l0aCBubyB0aWUgdG8gYnJlYWsJMWE0MWE3YzEyYzg5YjQ3MjhmYzk5ZmExNjBhOWZlNmViNThlYmNiNjU5NzJkZWVkNTU2MjI4YmI5NjM4N2U0NApib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJdGhlIHJ1biBsaXN0IGlzIHNjb3BlZCB0byB0aGUgY2FtcGFpZ24gd29ya2Zsb3csIG5vdCB0byB0aGUgc2hhIGFsb25lCTkwOGM5OTRjOGRmYmRlNGUyMGM4NmYwMWIyMDNkY2VjY2ZmZjVlNWQ0YmNmNjE4YmZjM2Y4MGU4OTE4ZGExOTcKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCXRoZSB2ZXJkaWN0cyBhcmUgZml2ZSBkaXN0aW5jdCBhbnN3ZXJzLCBub3QgYSBib29sZWFuIHdlYXJpbmcgZml2ZSBuYW1lcwkwNmM5ODdiNDQ1ZDNkM2Q0M2U4MDg5MmE4MmU2MmE2YTNkNjg0ZjRkMDI1ZmE4YTA4YjYzNDdhZDAzMGViNDAw
+  ```
+  ```
+- 2026-10-02 · 5d4559d* · exit 1 · `T=$(mktemp) …` · acceptance-sha256:ed154480b3ff56cd67fc5e0e30e703f7a869f9990a649eba3c62c1a2721607db · ms:205
+  ```
+  ```
+- 2026-10-02 · 5d4559d* · exit 0 · `T=$(mktemp) …` · acceptance-sha256:ed154480b3ff56cd67fc5e0e30e703f7a869f9990a649eba3c62c1a2721607db · ms:348
+- 2026-10-02 · 5d4559d* · exit 0 · `T=$(mktemp) …` · acceptance-sha256:ed154480b3ff56cd67fc5e0e30e703f7a869f9990a649eba3c62c1a2721607db · ms:311
+- 2026-10-02 · 5d4559d* · exit 0 · `T=$(mktemp) …` · acceptance-sha256:ed154480b3ff56cd67fc5e0e30e703f7a869f9990a649eba3c62c1a2721607db · ms:277
+- 2026-10-02 · 5d4559d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:ed154480b3ff56cd67fc5e0e30e703f7a869f9990a649eba3c62c1a2721607db · ms:0 · test-lock-sha256:4fb68747b2c9cd80b13993807425a21d89a29fc7d034301c94e9396801e66eda · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcmVsZWFzZS1ldmlkZW5jZS50ZXN0Lm1qcwlSRUFERVJfUEFUSFMgbmFtZXMgZXZlcnkgcGx1Z2luIGRpcmVjdG9yeSBhIHJlYWRlciBpcyBtYWRlIG9mCTcyMzNhYWRmOGQzMGI5YjlkM2UzYjA4ZWUxNDQyYjdmMGQyNjVkZDU2OGRiNWNkNTRiMWNlM2I3MWRlOWZiNDcKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgY2FuY2VsbGVkIHJ1biBpcyBub3QgYSByZWxlYXNlLCBob3dldmVyIGZldyBqb2JzIHdlcmUgY2FuY2VsbGVkCTJiZDEzZTNjZDQ5Yzc3MTliOWY3ZTE2MjlhY2MyZjc2ZDE1ZGMzMDhkZmE5YjIzNWI1ZDM5OGFlMDE1Mjg2NjYKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgZGlzcGF0Y2ggYW5kIGEgcHVzaCBhdCB0aGUgc2FtZSBpbnN0YW50IHJlc29sdmUgdG8gdGhlIGRpc3BhdGNoCTkyZGM0NzQ0YjYxZmY1MjA1MTkzMDMxMTMyY2I1YjQwNGEzYTZlZWU5OTRkN2I5MjQ5YTJmZDcxOGJjYTQzMWUKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgZnVsbHkgZ3JlZW4gcnVuIGlzIHRoZSBvbmx5IHRoaW5nIHRoYXQgY2xlYXJzIGEgc2hhIGZvciByZWxlYXNlCTcwYjIxZTY5YzE2OTAxYzM2ODM2MmU3YzAyOWIyNTU4YTBhNTE0Yjc2OTFmMDYxYmQ2OWM2MzEzYzNlOWYzOWEKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgZ3JlZW4gcnVuIHJhaXNlZCBieSBhIHB1c2ggaXMgbm90IHJlbGVhc2UgZXZpZGVuY2UsIGJlY2F1c2UgaXRzIGNhbXBhaWduIG1heSBiZSBjYWNoZWQgKEJBQ0tMT0cgwqcxNDIpCWQzZGE2YmJmOWQ2NzY4OGRhYTJiNDdhMjYzNWEwOTA3Nzk1NmFhMzAxNzIxMjg0ZTZiZmIzZWM2ZmM4OTMxOWEKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWEgbmV3ZXIgcHVzaCBzdGlsbCB3aW5zIG92ZXIgYW4gb2xkZXIgZGlzcGF0Y2gJM2NlYTFlZTE0Nzg4OTE4OGJiN2RlOTAwN2FjMTgzMDE5NGQ3NjBjMTg0MDM2ZTFjYzYyOWVlMzAxOTFhZjIxNgpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYSByZWxlYXNlIHdob3NlIHJlYWRlcnMgY2hhbmdlZCBzaW5jZSB0aGUgbGFzdCB0YWcgbmVlZHMgYW4gb3V0c2lkZSBydW4gYXR0ZXN0ZWQgYWZ0ZXIgaXQJMTViNThlNDlmMGNmNDdkMWE3MzE5YTU4NDdmYjRiN2IyM2Y3Y2ZlNDY5NGIyNDFiNjc1MjFkM2ZjNDllNTI4ZApib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYSBydW4gc3RpbGwgaW4gZmxpZ2h0IGlzIGluY29tcGxldGUsIHdoaWNoIGlzIG5vdCB0aGUgc2FtZSBhcyBmYWlsZWQJZDEyZGE1ZjNmZmJiNTdiYzBjMmQzMDlkMjhjMTI2YjcwOGNmYzNhMGZjYzE4MDQwZWYwMGZhMTk0NWYzMzA3Ywpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYSBzaG9ydCBzaGEgaXMgRVhQQU5ERUQgYmVmb3JlIGdoIGlzIGFza2VkLCBhdCB0aGUgYm91bmRhcnkgdGhhdCBzaGVsbHMgb3V0CWQ2NDZhNmM1ZTI5ZjRmMmQ1N2YyNWMzOWYyZGZjOWZhOTM3ZGM3NjYxYTdlYjA1MDFiMWFjZmFmN2E2NzNiMDEKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWFuIGF0dGVzdGF0aW9uIGZyb20gMy44LjAgb24gbXVzdCBzYXkgd2hhdCBpdCBjb21wYXJlZAlhMGNmODcwMjJkMmFhMzljYzJjZGI5MTFhYjAwNWI5NTc1NWNkNWY2Yjg0MWQ4YTc5MWIzZWQ4YzI2YmIyNjQ3CmJvZHkJdGVzdHMvcmVsZWFzZS1ldmlkZW5jZS50ZXN0Lm1qcwlhbiBhdHRlc3RhdGlvbiBnaXQgY2Fubm90IGNoZWNrIGlzIGNvdmVyYWdlIHVua25vd24sIG5ldmVyIGNvdmVyYWdlIGFic2VudAlkNTdlMTJkN2EwMzUwNWY3YzA5ZmIwODIxNTFhNTU3NzZjN2M4ZTA2MWRmNGJkYWMwNTU4ZWY0ZWIzODgxZmRhCmJvZHkJdGVzdHMvcmVsZWFzZS1ldmlkZW5jZS50ZXN0Lm1qcwlhbiBlbXB0eSBvciB1bnJlYWRhYmxlIGFuc3dlciBpcyAiY291bGQgbm90IGxvb2siLCBuZXZlciBhIHBhc3MJODA4NmU4OTgxYmExYTAxZDRhMTljY2VmMWU4ZTI4OWIyNzY2ZTkxYTZlN2FmNjZmMDE1ZjIxZThjYTExNjdmMgpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYW4gb2xkZXIgYXR0ZXN0YXRpb24sIG9yIGEgcnVuIHRoYXQgb25seSByZWNvdmVyZWQgdmVyZGljdHMsIHN0aWxsIGF0dGVzdHMJZjFmZDA4YTA5MzBmYmMxYzFiNzEyYWQ2Zjc5ODY3YmJkNDMyYWE5Yzg3NGEzM2M1MjE1ZmEwMzU0ZTZhMWZmZgpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYW4gb3B0aW9uIGlzIG5vdCBhIHNoYSwgYW5kIGEgYmFyZSBkYXNoLWFyZ3VtZW50IG5ldmVyIHJlYWNoZXMgZ2l0IHJldi1wYXJzZQk2Y2JkNGM1NTYxOGM3ZGQyYWI1ZmE4OWI5ZTQ1MGRkYjUzYjU0ZGZmMDJlNTc5MTZiZDg5ZGU3OTkwNmRmMTllCmJvZHkJdGVzdHMvcmVsZWFzZS1ldmlkZW5jZS50ZXN0Lm1qcwlhbiBvcmRlcmluZyBub3RoaW5nIGNhbiBlc3RhYmxpc2ggaXMgcmVmdXNlZCwgbm90IGd1ZXNzZWQJYzJjNDk1MTFlNThhYjM1NDI2ZGU0ZjVjYjFjNGIxODVlODE5MmI5N2MxZmY2NmVlMTZmNzBkYWYxODQ5NzE5ZQpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJYW4gb3V0c2lkZSBydW4gd2hvc2Ugb3duIHZlcmRpY3RzIHJlZ3Jlc3NlZCBkb2VzIG5vdCBhdHRlc3QgYSByZWxlYXNlCTZiMTMzOGNkMTI4NDA0ODY4ZTRkZTI0ODBlYWMxNDA1NTUwNDQ1ZWQyMGE5YTdiZDg4NmYxZDMxMDQ5NGQ1YjEKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCWF0dGVzdGF0aW9ucyBhcmUgcmVhZCBmcm9tIHRoZSBkaXJlY3RvcnksIGFuZCBhbiB1bnBhcnNhYmxlIG9uZSBhdHRlc3RzIG5vdGhpbmcJYzYwYzRiOTI3MTFjOWFlYTA2MzYyOGQ1NmMwODkyMzg5OWQ0MjM1OGVjMmVkOWU1NzcxYzA1YWYzMDE4ZDY2Ygpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJZXZlcnkgbm9uLXN1Y2Nlc3MgY29uY2x1c2lvbiBpcyByZXBvcnRlZCBieSBpdHMgb3duIG5hbWUJMjdjNzNkZDhkNTM0YzY3NTk4ZGU2MWNiMDZlMDQzMzY2YzYzYTgzMzRiMjZjYzgwM2M1MzJlNDY3YTg4Y2E0Zgpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJbm90aGluZyB0byBjaG9vc2UgZnJvbSBpcyBudWxsLCBhbmQgYSBydW4gd2l0aCBubyBpZCBpcyBub3QgYSBjaG9pY2UJOGMwYzE4YjlkNWFmNTdiZDE5YTRkNWY2N2Y5NTgwN2NjYTgxOGNjZjBkMzI5MWViZWZkZjkzODAyZjQxMTE2Ngpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJb3V0c2lkZVJ1bkV2aWRlbmNlIGFuY2hvcnMgb24gdGhlIHRhZyBiZWZvcmUgdGhlIHNoYSBhbmQgcmVmdXNlcyBhIHJ1biB0aGF0IGRpZCBub3Qgc2VlIGV2ZXJ5IHJlYWRlciBjaGFuZ2UJMTk1ZGVlNTY0ZDg3OTcxMDc0Y2U1NDZhOGMzYmU1MGIzMmQ1MmU4MmFmOTY1OTRkZTRjNWQwOWFiMGFmYmYyZQpib2R5CXRlc3RzL3JlbGVhc2UtZXZpZGVuY2UudGVzdC5tanMJdGhlIGFkdmljZSB1bmRlciBhbiBVTlBST1ZFTiBvdXRzaWRlIHJ1biBzYXlzIHdoaWNoIGNvdWxkLW5vdC1sb29rIGl0IGlzCTc5MjhhMDNkYjJmM2M2N2MwYTE5YWU5MjVlNzExMmU4MTlmMjVkZmI4MTk2OTIxMDlkMWIxNzQ5ZTlkYjkyNDUKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCXRoZSBuZXdlc3QgZGlzcGF0Y2ggaXMgY2hvc2VuIHdpdGggbm8gdGllIHRvIGJyZWFrCTFhNDFhN2MxMmM4OWI0NzI4ZmM5OWZhMTYwYTlmZTZlYjU4ZWJjYjY1OTcyZGVlZDU1NjIyOGJiOTYzODdlNDQKYm9keQl0ZXN0cy9yZWxlYXNlLWV2aWRlbmNlLnRlc3QubWpzCXRoZSBydW4gbGlzdCBpcyBzY29wZWQgdG8gdGhlIGNhbXBhaWduIHdvcmtmbG93LCBub3QgdG8gdGhlIHNoYSBhbG9uZQk5MDhjOTk0YzhkZmJkZTRlMjBjODZmMDFiMjAzZGNlY2NmZmY1ZTVkNGJjZjYxOGJmYzNmODBlODkxOGRhMTk3CmJvZHkJdGVzdHMvcmVsZWFzZS1ldmlkZW5jZS50ZXN0Lm1qcwl0aGUgdmVyZGljdHMgYXJlIGZpdmUgZGlzdGluY3QgYW5zd2Vycywgbm90IGEgYm9vbGVhbiB3ZWFyaW5nIGZpdmUgbmFtZXMJMDZjOTg3YjQ0NWQzZDNkNDNlODA4OTJhODJlNjJhNmEzZDY4NGY0ZDAyNWZhOGEwOGI2MzQ3YWQwMzBlYjQwMA · test-lock-kind:replace

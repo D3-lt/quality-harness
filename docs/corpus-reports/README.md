@@ -25,6 +25,7 @@ release question needs:
   "couldNotRun": 0,
   "disagreements": 0,
   "readinessUnproven": 0,
+  "verdictChanges": { "compared": 0, "passToFail": 0, "failToPass": 0 },
   "runner": "<who ran it, without naming a person or a machine>",
   "found": "<one line: what was reported, or 'nothing new'>"
 }
@@ -39,9 +40,15 @@ A finding a run confirms changes the reader and lands in a fixture corpus; the r
 that checks it, are in `/quality-harness:corpus-chaos`.
 
 How to get one: `/quality-harness:corpus-chaos`. The probe writes it from a saved report:
-`node corpus-probe.mjs --attest <label> <report.json>`. Its `at` is `null`, with `atReason`, when the
+`node corpus-probe.mjs --attest <label> <report.json> --since <earlier.json>`. Its `at` is `null`, with `atReason`, when the
 probe ran on an installed plugin (no git checkout) or on reader files that differ from their commit —
 release-evidence compares commits, so neither can place the run. `found` is left for you to fill.
+
+`verdictChanges` (ADR-082) counts the adr-lint verdicts that moved since `--since`, the same runner's
+earlier report of the same corpus: `compared` records in both, `passToFail` that left PASS,
+`failToPass` that reached PASS. It is `null` without `--since`, or when the two reports cannot be
+compared. From plugin 3.8.0, release-evidence counts an attestation only when `verdictChanges` is an
+object with `passToFail` 0; one taken against a report from the last tag serves.
 
 How to file one (ADR-070): save the peer's message, whatever surrounds the JSON, and run
 `node scripts/attest-import.mjs <message-file>` (or `-` for stdin). It files the one attestation in

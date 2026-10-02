@@ -238,6 +238,16 @@ export function fetchRun(sha, exec = execFileSync) {
  * content question. A diff that could not be taken is could-not-look, never "not
  * required" and never "nobody ran it" (ADR-005) — `kind` tells the two apart.
  */
+// ADR-082: from 3.8.0 an attestation counts the adr-lint verdicts its run moved (`verdictChanges`).
+function saysWhatChanged(plugin) {
+  const version = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(plugin ?? ''))
+  return Boolean(version) && (Number(version[1]) > 3 || (Number(version[1]) === 3 && Number(version[2]) >= 8))
+}
+const regressedBy = report => saysWhatChanged(report.plugin) && (report.verdictChanges?.passToFail ?? 0) > 0
+// An attestation from before the field, or one whose run moved no verdict out of PASS.
+const countsAsRun = report => !saysWhatChanged(report.plugin)
+  || (report.verdictChanges !== null && typeof report.verdictChanges === 'object' && report.verdictChanges.passToFail === 0)
+
 export function outsideRun(changed, reports, covers) {
   if (!Array.isArray(changed)) {
     return {
@@ -251,8 +261,25 @@ export function outsideRun(changed, reports, covers) {
   // attestation whose coverage could not be checked must not be reported as
   // nobody having run anything (Codex review of 829b3a9, P2).
   const checked = (reports ?? []).filter(r => typeof r?.at === 'string').map(r => ({ r, c: covers(r.at) }))
-  const attested = checked.filter(v => v.c === true).map(v => v.r)
+  const covering = checked.filter(v => v.c === true).map(v => v.r)
+  // A regression one corpus reports is not outvoted by a corpus that did not see it (ADR-082 F-5).
+  const regressed = covering.filter(regressedBy)
+  if (regressed.length) {
+    return {
+      verdict: 'unproven', kind: 'regressed',
+      reason: `an outside run reports adr-lint verdicts that left PASS: ${regressed.map(r => `${r.file} (passToFail ${r.verdictChanges.passToFail})`).join(', ')} `
+        + '— read its --diff, fix the reader or confirm each row is stale, and attest a run that moved none (ADR-082)',
+    }
+  }
+  const attested = covering.filter(countsAsRun)
   if (attested.length === 0) {
+    if (covering.length) {
+      return {
+        verdict: 'unproven', kind: 'uncompared',
+        reason: `${covering.map(r => r.file).join(', ')} compared nothing: from 3.8.0 an outside run attests only with the `
+          + 'verdictChanges that `corpus-probe --attest … --since <earlier report>` counts (ADR-082)',
+      }
+    }
     const unchecked = checked.filter(v => v.c === null).map(v => v.r)
     if (unchecked.length) {
       return {
@@ -271,7 +298,7 @@ export function outsideRun(changed, reports, covers) {
   }
   return {
     verdict: 'attested',
-    reason: `outside run attested by ${attested.map(r => `${r.file} at ${String(r.at).slice(0, 7)}`).join(', ')}`,
+    reason: `outside run attested by ${attested.map(r => `${r.file} at ${String(r.at).slice(0, 7)}${r.verdictChanges?.failToPass ? ` (failToPass ${r.verdictChanges.failToPass})` : ''}`).join(', ')}`,
   }
 }
 
@@ -357,9 +384,27 @@ const USAGE = [
   '  0  every job concluded success — safe to release this sha',
   '  1  a job did not conclude success (failed, cancelled, timed out, skipped)',
   '  2  could not look (no gh, no run for this sha, unreadable answer, bad usage, or readers',
-  '     changed since the last tag with no outside run attested in docs/corpus-reports/ — §18)',
+  '     changed since the last tag with no outside run attested in docs/corpus-reports/ — §18,',
+  '     or with an outside run that regressed or compared nothing — ADR-082)',
   '  3  the run is not finished yet',
 ].join('\n')
+
+/** What to do about an UNPROVEN outside-run verdict, said by its `kind`; anything else is could-not-look. */
+export function tagAdvice(kind) {
+  const advice = {
+    missing: 'Do NOT tag this sha. CI is green and nobody outside has run the readers it ships — get one run '
+      + '(`/quality-harness:corpus-chaos`) at a revision that carries every reader change, file its attestation '
+      + 'in docs/corpus-reports/, and ask again.',
+    unverified: 'Do NOT tag this sha yet. An attestation exists but git here could not check it against this sha — fetch '
+      + 'the attested revision (and the tags), then ask again. Coverage unknown is not coverage absent (ADR-005).',
+    regressed: 'Do NOT tag this sha. An outside run reports adr-lint verdicts that left PASS against its own earlier report '
+      + '— read its --diff with the runner, fix the reader or confirm each row is stale, and file a run that moved none (ADR-082).',
+    uncompared: 'Do NOT tag this sha. The outside run compared nothing — ask for `corpus-probe --attest <label> <report> '
+      + '--since <earlier report>`, file that attestation, and ask again (ADR-082).',
+  }
+  return advice[kind] ?? ('Do NOT tag this sha. Whether its readers changed since the last tag could not be established from git '
+    + 'here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.')
+}
 
 function main(argv) {
   const argument = classifyArgument(argv[0])
@@ -398,17 +443,9 @@ function main(argv) {
   }
   console.log(`${verdict.toUpperCase()}${head} — ${reason}`)
   if (verdict === 'unproven') {
-    // Two different could-not-looks, said apart: nobody ran the readers, or git
-    // here could not say whether they changed (Codex review of 013149e, P2).
-    console.log(outside?.kind === 'missing'
-      ? 'Do NOT tag this sha. CI is green and nobody outside has run the readers it ships — get one run '
-        + '(`/quality-harness:corpus-chaos`) at a revision that carries every reader change, file its attestation '
-        + 'in docs/corpus-reports/, and ask again.'
-      : outside?.kind === 'unverified'
-        ? 'Do NOT tag this sha yet. An attestation exists but git here could not check it against this sha — fetch '
-          + 'the attested revision (and the tags), then ask again. Coverage unknown is not coverage absent (ADR-005).'
-        : 'Do NOT tag this sha. Whether its readers changed since the last tag could not be established from git '
-          + 'here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.')
+    // Each could-not-look said apart: nobody ran the readers, git could not check a run, a run
+    // regressed or compared nothing, or git could not say whether they changed (Codex review of 013149e, P2).
+    console.log(tagAdvice(outside?.kind))
   } else if (verdict !== 'success') {
     console.log('Do NOT tag this sha. A run that did not finish is "I could not look", '
       + 'not "nothing was wrong" — see BACKLOG §104 and CLAUDE.md §13.')

@@ -10,7 +10,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
 import {
-  classifyArgument, evaluateRun, fetchRun, outsideRun, outsideRunEvidence, readAttestations, READER_PATHS, runListArgv, selectRun,
+  classifyArgument, evaluateRun, fetchRun, outsideRun, outsideRunEvidence, readAttestations, READER_PATHS, runListArgv, selectRun, tagAdvice,
 } from '../scripts/release-evidence.mjs'
 
 const job = (name, conclusion, status = 'completed') => ({ name, status, conclusion })
@@ -401,4 +401,53 @@ test('an attestation git cannot check is coverage unknown, never coverage absent
 // be every plugin directory a reader is made of, as repository paths.
 test('READER_PATHS names every plugin directory a reader is made of', () => {
   assert.deepEqual(READER_PATHS, ['plugin/scripts', 'plugin/bin', 'plugin/lib', 'plugin/hooks'])
+})
+
+// ADR-082 (BACKLOG §338): from 3.8.0 an attestation says how its run's adr-lint verdicts moved,
+// and a run whose verdicts regressed, or that compared nothing, attests no release.
+// Bound red as node:test `todo`; each task removed `todo` from its own tests.
+const covering = at => at === 'bbbb'
+const run = (file, plugin, verdictChanges) => ({ file, at: 'bbbb', plugin, ...(verdictChanges === undefined ? {} : { verdictChanges }) })
+
+test('an outside run whose own verdicts regressed does not attest a release', () => {
+  const changed = ['plugin/bin/adr-lint']
+  const regressed = outsideRun(changed, [run('spa.json', '3.8.0', { compared: 3, passToFail: 1, failToPass: 0 })], covering)
+  assert.equal(regressed.verdict, 'unproven')
+  assert.equal(regressed.kind, 'regressed')
+  assert.match(regressed.reason, /spa\.json/)
+  assert.match(regressed.reason, /1 .*PASS → FAIL|passToFail 1/)
+  // The twin: the same run with nothing regressed attests.
+  assert.equal(outsideRun(changed, [run('spa.json', '3.8.0', { compared: 3, passToFail: 0, failToPass: 0 })], covering).verdict, 'attested')
+  // A clean run beside it does not outvote the regression one corpus reported.
+  const mixed = outsideRun(changed, [run('spa.json', '3.8.0', { compared: 3, passToFail: 1, failToPass: 0 }),
+    run('mono.json', '3.8.0', { compared: 9, passToFail: 0, failToPass: 0 })], covering)
+  assert.equal(mixed.kind, 'regressed')
+  assert.doesNotMatch(mixed.reason, /mono\.json/)
+})
+
+test('an attestation from 3.8.0 on must say what it compared', () => {
+  const uncompared = outsideRun(['plugin/bin/adr-lint'], [run('spa.json', '3.8.0', null), run('mono.json', '3.9.1')], covering)
+  assert.equal(uncompared.verdict, 'unproven')
+  assert.equal(uncompared.kind, 'uncompared')
+  assert.match(uncompared.reason, /compared nothing/)
+})
+
+test('an older attestation, or a run that only recovered verdicts, still attests', () => {
+  assert.equal(outsideRun(['plugin/bin/adr-lint'], [run('old.json', '3.7.2')], covering).verdict, 'attested')
+  assert.equal(outsideRun(['plugin/bin/adr-lint'], [run('odd.json', 'not-a-version')], covering).verdict, 'attested')
+  const recovered = outsideRun(['plugin/bin/adr-lint'], [run('spa.json', '3.8.0', { compared: 3, passToFail: 0, failToPass: 2 })], covering)
+  assert.equal(recovered.verdict, 'attested')
+  assert.match(recovered.reason, /2 .*FAIL → PASS|failToPass 2/)
+})
+
+// ADR-082: the advice under an UNPROVEN outside run names its own cause. A regressed or
+// uncompared run fell through to "could not be established from git", an observation
+// release-evidence never made (CLAUDE.md §3).
+test('the advice under an UNPROVEN outside run says which could-not-look it is', () => {
+  assert.match(tagAdvice('regressed'), /left PASS/)
+  assert.match(tagAdvice('uncompared'), /--since/)
+  assert.match(tagAdvice('missing'), /nobody outside has run/)
+  assert.match(tagAdvice('unverified'), /could not check it/)
+  for (const kind of ['regressed', 'uncompared', 'missing', 'unverified']) assert.doesNotMatch(tagAdvice(kind), /could not be established from git/, kind)
+  assert.match(tagAdvice('unlisted'), /could not be established from git/)
 })

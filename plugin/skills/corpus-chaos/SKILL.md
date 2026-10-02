@@ -37,13 +37,16 @@ Two roles. Run the one you are in.
    Then read the saved report twice. Neither command runs anything:
 
        node "<checkout>/plugin/scripts/corpus-probe.mjs" --diff old.json new.json
-       node "<checkout>/plugin/scripts/corpus-probe.mjs" --attest <label> new.json
+       node "<checkout>/plugin/scripts/corpus-probe.mjs" --attest <label> new.json --since old.json
 
    `--diff` compares against your report from the previous batch, when you have one: the counts,
    and the `ready`, `unbacked`, `readinessUnproven`, `unmarkedArchives` and `readyButClaimedDone`
    lists. It does not compare `partialBecause` or the spec fields, so read those in `new.json`.
    `--attest` prints the counts-only attestation, where `<label>` names the corpus's shape, never
-   its real name; when `work-next` did not answer, it takes the counts from `corpus-report` and
+   its real name, and `--since` makes it count the adr-lint verdicts that moved since `old.json`
+   (`verdictChanges`; from 3.8.0 a release does not count a run without it, or one with any
+   PASS that left PASS). Without an earlier report, take one at the last tag first.
+   When `work-next` did not answer, it takes the counts from `corpus-report` and
    says so in `countsFrom`. Send both to the asker, and only by a direct reply: `--diff` prints
    advice lines verbatim, with the corpus's record paths, task file names and test titles, so it
    never goes anywhere public (an issue, a pull request, a commit). Only the `--attest` line is

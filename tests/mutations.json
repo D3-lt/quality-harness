@@ -2930,6 +2930,96 @@
       "only": "^a live mutant run keeps its journal: another adr-verify refuses to recover it$"
     },
     {
+      "label": "ADR-082 T1: no adr-lint verdict move is found",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (old.verdict !== entry.verdict) moves.push({ file: entry.file, from: old.verdict, to: entry.verdict, reason: entry.reason })",
+      "to": "    if (false) moves.push({ file: entry.file, from: old.verdict, to: entry.verdict, reason: entry.reason })",
+      "only": "^an attestation counts the adr-lint verdicts that moved since an earlier report$"
+    },
+    {
+      "label": "ADR-082 T1: reports of different corpora are counted",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (!before || !comparable(before, after) || !Array.isArray(before.adrLint) || !Array.isArray(after.adrLint)) return null",
+      "to": "  if (!before) return null",
+      "only": "^an attestation that compared nothing says null, never zero$"
+    },
+    {
+      "label": "ADR-082 T1: --since never reaches the attestation",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    since = earlier.report",
+      "to": "    since = undefined",
+      "only": "^corpus-probe --attest --since prints the verdict changes$"
+    },
+    {
+      "label": "ADR-082 T2: verdictChanges is outside the schema",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'verdictChanges', 'runner', 'found']",
+      "to": "  'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'runner', 'found']",
+      "only": "^attest-import files verdictChanges and refuses a malformed one$"
+    },
+    {
+      "label": "ADR-082 T2: a malformed verdictChanges is filed",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if ('verdictChanges' in attestation && !verdictChangesShape(attestation.verdictChanges)) {",
+      "to": "  if (false) {",
+      "only": "^attest-import files verdictChanges and refuses a malformed one$"
+    },
+    {
+      "label": "ADR-082 T3: a regressed run attests",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  if (regressed.length) {",
+      "to": "  if (false) {",
+      "only": "^an outside run whose own verdicts regressed does not attest a release$"
+    },
+    {
+      "label": "ADR-082 T3: an uncompared run reads as nobody having run the readers",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "    if (covering.length) {",
+      "to": "    if (false) {",
+      "only": "^an attestation from 3.8.0 on must say what it compared$"
+    },
+    {
+      "label": "ADR-082 T3: an attestation from before the field is held to it",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  return Boolean(version) && (Number(version[1]) > 3 || (Number(version[1]) === 3 && Number(version[2]) >= 8))",
+      "to": "  return true",
+      "only": "^an older attestation, or a run that only recovered verdicts, still attests$"
+    },
+    {
+      "label": "ADR-082 T3: a regressed run's advice says git could not look",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "    regressed: 'Do NOT tag this sha. An outside run reports adr-lint verdicts that left PASS against its own earlier report '",
+      "to": "    unregressed: 'Do NOT tag this sha. An outside run reports adr-lint verdicts that left PASS against its own earlier report '",
+      "only": "^the advice under an UNPROVEN outside run says which could-not-look it is$"
+    },
+    {
       "label": "verify: importing the wrapper spawns nothing",
       "file": "plugin/scripts/verify.mjs",
       "tests": [

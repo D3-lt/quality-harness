@@ -119,7 +119,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
-from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, js_stop_at_jsx, js_raw_titles  # noqa: E402,E501
+from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup  # noqa: E402,E501
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
 # check read a record's Status with the task parser (the Codex round of 3.1.6, finding 1).
@@ -4650,34 +4650,13 @@ def js_body_can_fail(text, name, suffix):
     return "found", False
 
 
-def jsx_stopped(text, name, suffix):
-    """Whether a JavaScript test's UNPROVEN is the lexer stopping at a JSX tag (BACKLOG §337):
-    the name was not reached, or its call was and the stop lies at or after it."""
-    stop = js_stop_at_jsx(text, suffix)
-    if stop is None:
-        return False
-    status, after, _ = js_test_lookup(text, name, suffix)
-    return status == "unproven" or (status == "found" and stop >= after)
-
-
-def unproven_test(errors, inf, tid, name, rel, done, frozen, text, suffix):
+def unproven_test(errors, inf, tid, name, rel, done, frozen):
     """Report a named JavaScript test the lexer could not read to (ADR-079).
 
     Could-not-look, so never "not found" and never silence. On a done task it
     blocks, as evidence, because done claims the test ran. A frozen record and a
     record below strictFrom are history and get advice, as does a task not yet done.
-    A stop at a JSX tag, which the lexer does not read yet, is advice everywhere
-    (BACKLOG §337) for a test 3.6.1's raw reading finds: refusing a React corpus's real
-    tests over the reader's own gap is a false refusal. A name no reading finds returns
-    "missing", so the caller keeps 3.6.1's verdict and a stale row is still caught.
     """
-    if jsx_stopped(text, name, suffix):
-        if js_test_lookup(text, name, suffix)[0] != "found" and name not in js_raw_titles(text):
-            return "missing"
-        errors.advise(f"{tests_row_ref(inf, name, rel)}: {tid} names `{name}` in `{rel}`, and whether that "
-                      f"file registers it is UNPROVEN: the lexer stopped at a JSX tag, which it does not "
-                      f"read yet (BACKLOG §337). Advice until it does; could-not-look, not absence")
-        return None
     message = (f"{tests_row_ref(inf, name, rel)}: {tid} names `{name}` in `{rel}`, and whether that "
                f"file registers it is UNPROVEN: the lexer could not read the file as far as the test, "
                f"past a `/` or a literal it cannot place, or could not bound the test's body. That is "
@@ -4691,6 +4670,7 @@ def unproven_test(errors, inf, tid, name, rel, done, frozen, text, suffix):
         errors.advise(f"{message} [advisory: {errors.demotion}]")
     else:
         errors.append(message, evidence=True)
+
 
 def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=None):
     # Paths outside the tree are reported ONCE each: a task naming one file in
@@ -4733,8 +4713,8 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=Non
                 source = f.read_text(errors="replace", encoding="utf-8")
                 status = js_title_exists(source, name, f.suffix)
                 if status == "unproven":
-                    status = unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)
-                if status == "missing":
+                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
+                elif status == "missing":
                     errors.advise(
                         f"{tests_row_ref(inf, name, rel)}: {tid} has passing acceptance evidence and its "
                         f"Tests table names the test title `{name}` in `{rel}`, but no `it`/`test`/"
@@ -4820,9 +4800,8 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=Non
                                                 php=f.suffix == ".php", swift=f.suffix == ".swift",
                                                 rust=f.suffix == ".rs") is None else "found"
             if status == "unproven":
-                status = unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)
-                if status is None:
-                    continue
+                unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
+                continue
             if status == "missing":
                 # NO CLAIM ABOUT THE FILTER. This used to end "the acceptance
                 # filter passed without it", which is an inference the check never
@@ -5530,7 +5509,7 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=
                 # its call alone, or one naming its own file (Codex round on efd7cdf).
                 if status == "unproven" and (spaced or names_its_own_file(f, name, raw)) \
                         and js_title_exists(raw, name, f.suffix) == "found":
-                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen, raw, f.suffix)
+                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
                 if status != "found" or can:
                     continue
                 body = js_code_body(raw, name, f.suffix)[1]

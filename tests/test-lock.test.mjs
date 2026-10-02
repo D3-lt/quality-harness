@@ -3822,3 +3822,135 @@ print(json.dumps({"hits": info.hits, "misses": info.misses}))
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// ADR-083 (docs/specs/2026-10-02-the-lexer-reads-jsx.md, BACKLOG §337): the lexer reads JSX,
+// and a lock over a file whose reading JSX changes is taken by hasher 3. Bound red as
+// node:test `todo`; each task removed `todo` from its own tests.
+function lexJsx(src, { ts = false, jsx = true } = {}) {
+  const r = python(`
+import json, sys, record
+req = json.load(sys.stdin)
+masked, kinds, stop, _ = record._js_lex(req["src"], ts=req["ts"], jsx=req["jsx"])
+print(json.dumps({"stop": stop, "kinds": list(kinds)}))
+`, JSON.stringify({ src, ts, jsx }))
+  assert.equal(r.status, 0, r.stderr)
+  return JSON.parse(r.stdout)
+}
+const kindAt = (src, got, needle) => got.kinds[src.indexOf(needle)]
+
+test('the lexer reads JSX: elements, fragments, attributes, expressions and text', () => {
+  const src = [
+    "vi.mock('x', () => ({ C: () => <div className=\"a\">a</div> }))",
+    "const F = ({ children }) => <>{children ?? 'key'}</>",
+    'const L = ({ xs }) => <ul>{xs.map(x => <li key={x} onClick={() => go(x)}>{x}</li>)}</ul>',
+    "const T = () => <p>Don't stop</p>",
+    'const R = () => <a href="/x">y</a>; const re = /a/',
+    'const S = () => <X a="s" />',
+    'const N = () => <div>{/* c */}{cond && <span />}</div>',
+    "test('lexer fixture after jsx', () => {",
+    '  render(<B>x</B>)',
+    '  assert.ok(1)',
+    '})',
+    '',
+  ].join('\n')
+  for (const ts of [false, true]) {
+    const got = lexJsx(src, { ts })
+    assert.equal(got.stop, null, `ts=${ts}: nothing stops`)
+    assert.equal(kindAt(src, got, "test('lexer fixture after jsx'"), 0, 'the test after the JSX is code')
+    assert.equal(kindAt(src, got, 'go(x)'), 0, 'an attribute expression is code')
+    assert.equal(kindAt(src, got, 'children ??'), 0, 'a child expression is code')
+    assert.equal(kindAt(src, got, "Don't"), 1, 'JSX text is literal, apostrophe and all')
+    assert.equal(kindAt(src, got, 're = '), 0, 'code after a closing tag on the same line')
+    assert.equal(kindAt(src, got, '/a/'), 1, 'a regex after JSX is still a regex')
+    assert.equal(kindAt(src, got, '/* c */'), 2, 'a comment in a child expression is a comment')
+    assert.equal(kindAt(src, got, 'className'), 1, 'an attribute name is literal')
+  }
+})
+
+test('hasher 2 reads a JSX file exactly as it did', () => {
+  const src = "render(<B>x</B>)\ntest('lexer fixture after jsx', () => {})\n"
+  const unchanged = python(`
+import json, sys, record
+src = sys.stdin.read()
+a = record._js_lex(src)
+b = record._js_lex(src, jsx=False)
+print(json.dumps({"same": list(a[1]) == list(b[1]) and a[2] == b[2], "stop": a[2]}))
+`, src)
+  assert.equal(unchanged.status, 0, unchanged.stderr)
+  const got = JSON.parse(unchanged.stdout)
+  assert.ok(got.same, 'jsx left False is the default reading')
+  assert.equal(got.stop, src.indexOf('/B>'), 'without JSX the lexer still stops at the closing tag, as hasher 2 did')
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-jsx-h2-'))
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, 'tests', 'jsx.test.tsx'), src)
+    const two = takeLock(dir, [['lexer fixture after jsx', 'tests/jsx.test.tsx']], 2)
+    assert.match(two.payload, /^check@2\t/m)
+    assert.deepEqual(two.unproven, ['lexer fixture after jsx'], 'a hasher-2 lock reads the file as it was taken')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('only a JSX-capable suffix reads JSX, and a tsx generic arrow is not an element', () => {
+  const src = "const a = <B>x</B>\ntest('lexer fixture after jsx', () => {})\n"
+  const generic = "const id = <T,>(x: T) => x\nconst k = <T extends U>(x: T) => x\ntest('lexer fixture after generics', () => {})\n"
+  const r = python(`
+import json, sys, record
+req = json.load(sys.stdin)
+out = {s: record.js_reading(req["src"], s)[2] for s in (".js", ".mjs", ".cjs", ".jsx", ".tsx", ".ts", ".mts", ".cts")}
+masked, kinds, complete = record.js_reading(req["generic"], ".tsx")
+out["generic"] = {"complete": complete, "code": kinds[req["generic"].index("(x: T)")] == 0}
+print(json.dumps(out))
+`, JSON.stringify({ src, generic }))
+  assert.equal(r.status, 0, r.stderr)
+  const got = JSON.parse(r.stdout)
+  for (const s of ['.js', '.mjs', '.cjs', '.jsx', '.tsx']) assert.equal(got[s], true, `${s} reads JSX`)
+  for (const s of ['.ts', '.mts', '.cts']) assert.equal(got[s], false, `${s} never reads JSX`)
+  assert.deepEqual(got.generic, { complete: true, code: true }, 'a tsx generic arrow is a type parameter, not an element')
+})
+
+test('a lock over a JSX file is taken by hasher 3, and every other lock by hasher 2', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-jsx-h3-'))
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, 'tests', 'jsx.test.tsx'), "render(<B>x</B>)\ntest('lexer fixture after jsx', () => {\n  assert.ok(1)\n})\n")
+    writeFileSync(join(dir, 'tests', 'plain.test.mjs'), "test('lexer fixture plain', () => {\n  assert.ok(1)\n})\n")
+    const three = takeLock(dir, [['lexer fixture after jsx', 'tests/jsx.test.tsx']])
+    assert.match(three.payload, /^check@3\t/m, 'a lock over a file JSX changes is taken by hasher 3')
+    assert.deepEqual(three.bodies, ['lexer fixture after jsx'], 'and it bounds the test past the tag')
+    const two = takeLock(dir, [['lexer fixture plain', 'tests/plain.test.mjs']])
+    assert.match(two.payload, /^check@2\t/m, 'a lock over JSX-free files stays hasher 2')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// The twin of the element rule: a `<` after a value is a comparison, never an element, so
+// a file of comparisons reads the same with JSX as without it (ADR-083 F-1).
+// In JSX text a `<` that opens no element is not JSX the lexer can read, so it stops there
+// rather than guessing an element into being (ADR-083 F-7).
+test('a < in JSX text that opens nothing is a stop', () => {
+  const src = "const a = <p>a < b</p>\ntest('lexer fixture after text', () => {})\n"
+  const got = lexJsx(src)
+  assert.equal(got.stop, src.indexOf('< b'))
+  assert.ok(got.kinds.slice(got.stop).every(k => k === 3))
+})
+
+test('a comparison is not an element', () => {
+  const src = "const x = a <b; const y = i<n && j <k\ntest('lexer fixture after comparisons', () => {})\n"
+  const got = lexJsx(src)
+  assert.equal(got.stop, null)
+  assert.equal(kindAt(src, got, "test('lexer fixture after comparisons'"), 0)
+  assert.deepEqual(got.kinds, lexJsx(src, { jsx: false }).kinds, 'with or without JSX, the same reading')
+})
+
+test('an element the lexer cannot read is a stop, never a guess', () => {
+  for (const [what, src] of [
+    ['an unterminated tag', 'const a = <div className="x"'],
+    ['an unterminated attribute string', 'const a = <div className="x>\nconst b = 1\n'],
+    ['a < inside a tag', 'const a = <div <span/>>x</div>\n'],
+    ['a closing tag that does not match', 'const a = <div>x</span>\n'],
+    ['the end of the file inside JSX', 'const a = <div>text\n'],
+  ]) {
+    const got = lexJsx(src)
+    assert.notEqual(got.stop, null, `${what}: the lexer stops`)
+    assert.ok(got.kinds.slice(got.stop).every(k => k === 3), `${what}: nothing after the stop is code`)
+  }
+})

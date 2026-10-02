@@ -254,89 +254,26 @@ test('adr-lint finds a JavaScript test with a comment beside its title, and neve
   assert.equal(bodyOf(HEAD + "// test('reading fixture ghost', () => {})\n" + REAL, 'reading fixture ghost').status, 'missing')
 })
 
-// BACKLOG §337, reported from two React corpora against 3.7.0: the lexer has no JSX mode, so a
-// closing or self-closing tag stops it and every test after it reads UNPROVEN. Until it reads
-// JSX, that UNPROVEN is advice naming JSX, in both gates; a stop that is not at a JSX tag, or a
-// tag in plain TypeScript (which cannot hold JSX), still refuses.
-const JSX = "it('reading fixture jsx', () => {\n  render(<B>x</B>)\n})\n"
-test('a test past a JSX tag the lexer cannot read yet is advice, never a refusal', () => {
-  const after = "it('reading fixture after jsx', () => {\n  assert.ok(1)\n})\nit('jsx_after', () => {\n  assert.ok(1)\n})\n"
+// ADR-083: with JSX read, what still refuses is what the lexer still cannot read. A stop that
+// is not at a tag, and a tag in plain TypeScript, are UNPROVEN and withhold done; a comment
+// beside a title past JSX hides nothing, and a commented-out call is not a test. These are the
+// twins 3.7.2's stop-gap tests carried, kept when the stop-gap went.
+test('past JSX, a stop the lexer still cannot read refuses, and comments read as comments', () => {
+  const tag = "it('reading fixture jsx', () => {\n  render(<B>x</B>)\n})\n"
   const { said } = lint({
-    'tests/a.test.tsx': HEAD + JSX + after,
-    'tests/b.test.tsx': HEAD + REAL + STOP,
-    'tests/c.test.ts': HEAD + JSX + after,
-  }, { tests: [['reading fixture after jsx', 'tests/a.test.tsx'], ['jsx_after', 'tests/a.test.tsx'],
-    ['reading fixture past the stop', 'tests/b.test.tsx'], ['reading fixture after jsx', 'tests/c.test.ts']] })
-  for (const name of ['`reading fixture after jsx` in `tests/a.test.tsx`', '`jsx_after` in `tests/a.test.tsx`']) {
-    const lines = linesAbout(said, name)
-    assert.ok(lines.length && lines.every(line => /UNPROVEN/.test(line) && /JSX/.test(line)), `${name}: ${said}`)
-    assert.ok(!blocking(lines), `${name}: advice, not a refusal: ${said}`)
-  }
-  assert.ok(blocking(linesAbout(said, 'reading fixture past the stop')), `a stop that is not JSX still refuses: ${said}`)
-  assert.ok(blocking(linesAbout(said, '`tests/c.test.ts`')), `plain TypeScript holds no JSX, so it still refuses: ${said}`)
-  const dir = files({ 'a.test.tsx': HEAD + JSX + after, 'b.test.tsx': HEAD + REAL + STOP })
+    'tests/b.test.tsx': HEAD + tag + STOP,
+    'tests/c.test.ts': HEAD + tag + "it('reading fixture after ts jsx', () => {\n  assert.ok(1)\n})\n",
+    'tests/d.test.tsx': HEAD + tag + "it(/* c */ 'reading fixture led after jsx', () => {\n  assert.ok(1)\n})\n",
+  }, { tests: [['reading fixture past the stop', 'tests/b.test.tsx'], ['reading fixture after ts jsx', 'tests/c.test.ts'],
+    ['reading fixture led after jsx', 'tests/d.test.tsx']] })
+  assert.ok(blocking(linesAbout(said, 'reading fixture past the stop')), `a stop that is not JSX refuses: ${said}`)
+  assert.ok(blocking(linesAbout(said, 'reading fixture after ts jsx')), `plain TypeScript holds no JSX, so it refuses: ${said}`)
+  assert.equal(linesAbout(said, 'reading fixture led after jsx').length, 0, `a comment beside the title hides nothing: ${said}`)
+  const dir = files({ 'e.test.tsx': HEAD + tag + "// it('reading fixture stale one', () => {})\n" })
   try {
-    assert.equal(existsIn(dir, 'a.test.tsx', 'reading fixture after jsx').ok, 'advise', 'spec-verify: advice, not exit 4')
-    assert.equal(existsIn(dir, 'b.test.tsx', 'reading fixture past the stop').ok, null, 'spec-verify: a stop that is not JSX is still could-not-check')
-    // Through the CLI: advice naming the fact, exit 0, never could-not-check or missing.
-    const spec = readFileSync(join(repoRoot, 'tests', 'fixtures', 'ok', 'spec-selftest.md'), 'utf8')
-      .replaceAll('test_selftest_fixture.py::test_gates_run', 'a.test.tsx::reading fixture jsx')
-      .replaceAll('test_selftest_fixture.py::test_gates_reject_malformed', 'a.test.tsx::reading fixture after jsx')
-    writeFileSync(join(dir, 'spec.md'), spec)
-    const run = spawnSync('python3', [join(bin, 'spec-verify'), '--spec', '--repo', dir, join(dir, 'spec.md')],
-      { cwd: dir, env: pyEnv, encoding: 'utf8', timeout: 60_000 })
-    const said = `${run.stdout}\n${run.stderr}`
-    assert.equal(run.status, 0, said)
-    assert.match(said, /advice[^\n]*reading fixture after jsx[^\n]*JSX/, said)
+    assert.equal(existsIn(dir, 'e.test.tsx', 'reading fixture stale one').ok, false, 'a commented-out call is not a test')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
-
-// The react-spa runner's finding against 3.7.1: past a JSX stop, a name that 3.6.1's raw
-// reading does not find at all was advice, so a stale or never-written row passed. The JSX
-// advice is only for a test that is there; one no reading finds keeps 3.6.1's verdict.
-test('past a JSX tag, a test no reading finds is still missing', () => {
-  const file = HEAD + JSX + "it('reading fixture after jsx', () => {\n  assert.ok(1)\n})\n"
-  const { said } = lint({ 'tests/a.test.tsx': file }, { tests: [['jsx_never_written', 'tests/a.test.tsx'],
-    ['reading fixture never written', 'tests/a.test.tsx'], ['reading fixture after jsx', 'tests/a.test.tsx']] })
-  const ident = linesAbout(said, '`jsx_never_written`')
-  assert.ok(ident.some(line => /no executable definition/.test(line)) && blocking(ident), `refused as 3.6.1 refused it: ${said}`)
-  assert.ok(!ident.some(line => /JSX/.test(line)), said)
-  assert.ok(linesAbout(said, '`reading fixture never written`').some(line => /carries that exact title/.test(line)), said)
-  const real = linesAbout(said, '`reading fixture after jsx`')
-  assert.ok(real.length && real.every(line => /JSX/.test(line)) && !blocking(real), `the real one is JSX advice: ${said}`)
-  const dir = files({ 'a.test.tsx': file })
-  try {
-    assert.equal(existsIn(dir, 'a.test.tsx', 'reading fixture never written').ok, false, 'spec-verify: missing, as 3.6.1 said')
-    assert.equal(existsIn(dir, 'a.test.tsx', 'reading fixture after jsx').ok, 'advise')
-  } finally { rmSync(dir, { recursive: true, force: true }) }
-})
-
-// The stand-in review of the raw fallback: it must read comments as comments. A comment beside
-// a title is not a reason to call a test missing, a commented-out call is not a test, and a
-// `/>` with no opening tag before it is a regex the lexer could not place, not JSX.
-test('past a JSX tag, a comment is not a test and does not hide one', () => {
-  const { said } = lint({
-    'tests/a.test.tsx': HEAD + "it(/* c */ 'reading fixture led jsx', () => {\n  render(<B>x</B>)\n})\n",
-    'tests/b.test.tsx': HEAD + "it(/* c */ 'led_jsx_ok', () => {\n  render(<B>x</B>)\n  expect(1).toBe(1)\n})\n",
-    // The raw reading strips a regex's `//` and the rest of its line; the lexer does not, and wins.
-    'tests/e.test.tsx': HEAD + "const r = /a\\/\\//; it('reading fixture after a regex', () => {\n  render(<B>x</B>)\n})\n",
-  }, { tests: [['reading fixture led jsx', 'tests/a.test.tsx'], ['led_jsx_ok', 'tests/b.test.tsx'],
-    ['reading fixture after a regex', 'tests/e.test.tsx']] })
-  for (const name of ['`reading fixture led jsx`', '`led_jsx_ok`', '`reading fixture after a regex`']) {
-    const lines = linesAbout(said, name)
-    assert.ok(lines.length && lines.every(line => /JSX/.test(line)) && !blocking(lines), `${name}: JSX advice, never silence or a refusal: ${said}`)
-  }
-  const dir = files({
-    'c.test.tsx': HEAD + JSX + "it(\n  // why\n  'reading fixture commented after jsx', () => {})\n// it('reading fixture stale one', () => {})\n",
-    'd.test.js': HEAD + "function f() {}\n/>/.test(s)\nit('reading fixture after regex', () => {})\n",
-  })
-  try {
-    assert.equal(existsIn(dir, 'c.test.tsx', 'reading fixture commented after jsx').ok, 'advise', 'a comment before the title hides nothing')
-    assert.equal(existsIn(dir, 'c.test.tsx', 'reading fixture stale one').ok, false, 'a commented-out call is not a test')
-    assert.equal(existsIn(dir, 'd.test.js', 'reading fixture after regex').ok, null, 'no opening tag: not JSX, still could-not-check')
-  } finally { rmSync(dir, { recursive: true, force: true }) }
-})
-
 test('an enforcement pointer to a JavaScript test is resolved on the lexer', () => {
   const map = { 'tests/a.test.mjs': HEAD + STRING_ONLY + REAL + STOP }
   const tests = [['reading fixture real', 'tests/a.test.mjs']]
@@ -357,5 +294,26 @@ body = mod.test_body(req["text"], req["name"])
 print(json.dumps({"body": body if isinstance(body, str) or body is None else "NOT A STRING"}))
 `, { text: "<?php\ntest('reading fixture pest', function () {\n    expect(1)->toBe(1);\n});\n", name: 'reading fixture pest' })
     assert.match(php.body ?? '', /expect\(1\)/, 'test_body still answers a string or None, never an UNPROVEN status')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// ADR-083 (docs/specs/2026-10-02-the-lexer-reads-jsx.md): the gates read JSX, so a test past
+// a tag is found with no JSX advice and a never-written one is missing. Bound red as
+// node:test `todo` until the record's task turns it green.
+test('a test past a JSX tag is found by both gates, and a never-written one is missing', () => {
+  const file = HEAD + "it('reading fixture jsx', () => {\n  render(<B>x</B>)\n  assert.ok(1)\n})\n"
+    + "it('reading fixture after jsx', () => {\n  assert.ok(1)\n})\n"
+  const { said } = lint({ 'tests/a.test.tsx': file }, { tests: [['reading fixture jsx', 'tests/a.test.tsx'],
+    ['reading fixture after jsx', 'tests/a.test.tsx'], ['jsx_never_written', 'tests/a.test.tsx']] })
+  for (const name of ['`reading fixture jsx`', '`reading fixture after jsx`']) {
+    assert.equal(linesAbout(said, name).length, 0, `${name} is found, bounded and can fail, so nothing is said: ${said}`)
+  }
+  const missing = linesAbout(said, '`jsx_never_written`')
+  assert.ok(missing.some(line => /no executable definition/.test(line)) && blocking(missing), said)
+  assert.doesNotMatch(said, /JSX tag/, 'no JSX advice is left')
+  const dir = files({ 'a.test.tsx': file })
+  try {
+    assert.equal(existsIn(dir, 'a.test.tsx', 'reading fixture after jsx').ok, true)
+    assert.equal(existsIn(dir, 'a.test.tsx', 'reading fixture never written').ok, false)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })

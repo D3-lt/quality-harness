@@ -1792,7 +1792,11 @@ test('a live mutant run keeps its journal: another adr-verify refuses to recover
     child.kill('SIGTERM')
     await once(child, 'exit')
   }
-  assert.ok(!mutated(copy), "the live run's own unwind still restores its file")
+  // POSIX: SIGTERM unwinds, and the live run restores its own file. Windows has no SIGTERM a
+  // process can catch, so the kill is a hard stop that unwinds nothing; there, the journal
+  // whose owner has now ended is recovered by the next run, which is the twin's path.
+  if (process.platform === 'win32') expectExit(runWith(journal, ['--restore', '--cwd', '.'], copy), 0, 'recovery once the owner ended')
+  assert.ok(!mutated(copy), "the live run's file is restored once the run ends")
 })
 
 test('the warning that names the broken file survives the kill that hides it', async () => {

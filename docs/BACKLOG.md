@@ -17295,3 +17295,51 @@ Codex budget returns 2026-10-07.
   adopters, against the 53 of 280 measured before it. This also answers §331's import-cost residual.
 - **§333** closes if no Windows `mutate --narrow` miss recurs across the campaigns dispatched since
   2026-10-02.
+
+## 341. CLOSED 2026-10-02 (fixed for 3.8.0) — the stand-in review of 3.8.0: two reviewers, nine fixes, residuals named
+
+The owner asked for the review to be done here instead of waiting for Codex ("do the review yourself",
+2026-10-02). Two independent read-only correctness reviewers took `e8a3de8..5ac7436`: one on ADR-083's
+lexer and hasher 3, one on ADR-082 and §339. Both said REQUEST CHANGES. Each finding was reproduced,
+then fixed with a regression and a catalogue mutant (labels `review of …`).
+
+**Invariant held.** With `jsx` off, `_js_lex` matched e8a3de8's on 60,960 inputs: every tracked
+JS-family file, slices of each, and generated token strings. It also matched on 192 files × both TS
+modes, measured separately here.
+
+**Fixed:**
+1. **Unspaced left shift (blocker).** `1<<bits` opened a JSX element in a JSX-capable file, which stopped
+   the lexer and refused a JSX-free test, in the gates and the lock both. A `<` after a `<` is now a
+   shift.
+2. **TSX generic parameters.** `<T = unknown>(x) => x` and `<const T,>(x) => x` read as elements. Both are
+   type parameters now, like `<T,>` and `<T extends U>`.
+3. **Comments in a tag.** A comment inside a tag (`<div /* note */ id="a" />`, `// …`) stopped the lexer;
+   it now reads as a comment.
+4. **Generic components.** The generic component `<Table<Row> rows={rows} />`, common in TSX, stopped the
+   lexer. Its balanced type arguments now read as literal.
+5. **A closed element's start leaked.** When a file that held an element ended inside a template, the stop
+   landed at the closed element instead of at the template.
+6. **Relock advice.** The relock advice said only "hasher 1 → hasher 2". A hasher-2 lock over a file JSX
+   now reads gets the same advice toward hasher 3.
+7. **A regression hidden by its version (blocker, fail-open).** A run reporting PASS → FAIL was ignored
+   when its `plugin` field was not a strict x.y.z ≥ 3.8.0. That includes a run at a sha whose
+   plugin.json still says 3.7.2. A regression now counts at any version.
+   - A run that compared zero records no longer attests.
+   - An attestation that could not be checked is named beside an uncompared one.
+8. **`--since` checks.** `--since` against a report taken by the same readers now compares nothing, and a
+   record listed twice counts once.
+9. **Journal owner (§339).** Without node, the owner was called "a live adr-verify run", and after a
+   SIGKILL that blocked every later call, `--restore` included.
+   - POSIX now asks the kernel (signal 0); an owner whose liveness cannot be established is said to be
+     unknown, never live.
+   - An implicit recovery refuses, and names `--restore`; an explicit `--restore` recovers past it.
+   - A live owner refuses both, and is no longer called "adr-verify" (pid reuse).
+   - `worktree.mjs alive` refuses a pid it cannot parse.
+
+**Residuals, named:**
+- A generic function TYPE in a TSX type position reads as an element and stops (UNPROVEN, never a wrong
+  reading). That covers `: <T>(x: T) => T`, `type F = <T>(x: T) => T`, and `Map<string, <T>() => T>`.
+- `< div />` with a space after `<` is not read as JSX, as under hasher 2.
+- A PASS that became could-not-run counts in `passToFail`. That fails closed, and the advice covers it.
+- `recover_mutant` has no lock between reading a journal, probing its owner and unlinking it; that race
+  predates §339. Trigger: a report of two recoveries interleaving.

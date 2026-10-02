@@ -138,3 +138,12 @@ test('a git directory that cannot be written is a build error, not a throw', { s
     chmodSync(git, 0o755)
   }
 })
+
+// The stand-in review of §339: a pid it cannot read is a usage error, never "dead".
+test('alive refuses a pid it cannot read', () => {
+  for (const pid of ['abc', '1.5', '-3']) {
+    const run = spawnSync(process.execPath, [cli, 'alive', pid], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+    assert.equal(run.status, 2, `${pid}: ${run.stdout}`)
+    assert.equal(run.stdout, '', `${pid}: says nothing about liveness`)
+  }
+})

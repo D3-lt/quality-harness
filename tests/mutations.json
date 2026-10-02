@@ -2785,8 +2785,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    owner = live_journal_owner(data)\n    if owner is not None:",
-      "to": "    owner = None\n    if owner is not None:",
+      "from": "    refusal = owner_refusal(journal, pid, alive, why, explicit)\n    if refusal:",
+      "to": "    refusal = None\n    if refusal:",
       "only": "^a live mutant run keeps its journal: another adr-verify refuses to recover it$"
     },
     {
@@ -2905,8 +2905,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if jsx and c == \"<\" and _h2_slash_opens_regex(prev, ts) is True:",
-      "to": "        if jsx and c == \"<\":",
+      "from": "        if jsx and c == \"<\" and prev != (\"op\", \"<\") and _h2_slash_opens_regex(prev, ts) is True:",
+      "to": "        if jsx and c == \"<\" and prev != (\"op\", \"<\"):",
       "only": "^a comparison is not an element$"
     },
     {
@@ -2955,7 +2955,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            if text.startswith(\",\", k) or (text.startswith(\"extends\", k) and not word_after):",
+      "from": "            if text.startswith((\",\", \"=\"), k) or (text.startswith(\"extends\", k) and not word_after):",
       "to": "            if False:",
       "only": "^only a JSX-capable suffix reads JSX, and a tsx generic arrow is not an element$"
     },
@@ -3018,6 +3018,146 @@
       "from": "            return None if end is None else push_element(j, end)",
       "to": "            return push_element(j, j + 2)",
       "only": "^a < in JSX text that opens nothing is a stop$"
+    },
+    {
+      "label": "review of ADR-083: a shift opens an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if jsx and c == \"<\" and prev != (\"op\", \"<\") and _h2_slash_opens_regex(prev, ts) is True:",
+      "to": "        if jsx and c == \"<\" and _h2_slash_opens_regex(prev, ts) is True:",
+      "only": "^a shift, a tsx generic arrow, a generic component and a comment in a tag are read$"
+    },
+    {
+      "label": "review of ADR-083: a const type parameter opens an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if text[j + 1:end] == \"const\":",
+      "to": "            if False:",
+      "only": "^a shift, a tsx generic arrow, a generic component and a comment in a tag are read$"
+    },
+    {
+      "label": "review of ADR-083: a generic component's type arguments stop the lexer",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if ts and end < n and text[end] == \"<\":",
+      "to": "        if False:",
+      "only": "^a shift, a tsx generic arrow, a generic component and a comment in a tag are read$"
+    },
+    {
+      "label": "review of ADR-083: a block comment in a tag stops the lexer",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if text.startswith(\"/*\", j):\n                end = text.find(\"*/\", j + 2)",
+      "to": "            if False:\n                end = text.find(\"*/\", j + 2)",
+      "only": "^a shift, a tsx generic arrow, a generic component and a comment in a tag are read$"
+    },
+    {
+      "label": "review of ADR-083: a closed element's start outlives it",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not any(frame[0] == \"jsx\" for frame in ctx):\n            outer_jsx = None",
+      "to": "        if False:\n            outer_jsx = None",
+      "only": "^a file ending in a template after an element closed stops at the template$"
+    },
+    {
+      "label": "review of ADR-083: a hasher-2 lock over JSX is not advised",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        newer = snapshot_lock(root, tests)",
+      "to": "        newer = snapshot_lock(root, tests, hasher=2)",
+      "only": "^a hasher-2 lock over a file JSX now reads is advised to relock$"
+    },
+    {
+      "label": "review of §339: without node an ended owner reads as unknown",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            return pid, False, None\n        except PermissionError:",
+      "to": "            return pid, None, None\n        except PermissionError:",
+      "only": "^a journal owner is probed without node, and an unknown owner is never called live$"
+    },
+    {
+      "label": "review of §339: an explicit --restore cannot pass an unknown owner",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if alive is None and not explicit:",
+      "to": "    if alive is None:",
+      "only": "^a journal owner is probed without node, and an unknown owner is never called live$"
+    },
+    {
+      "label": "review of ADR-082: a run that compared zero records attests",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "    && report.verdictChanges.passToFail === 0 && report.verdictChanges.compared > 0)",
+      "to": "    && report.verdictChanges.passToFail === 0)",
+      "only": "^a regression is never hidden by the attestation version, and a run that compared nothing does not attest$"
+    },
+    {
+      "label": "review of ADR-082: a regression under an odd version attests",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "const regressedBy = report => (report.verdictChanges?.passToFail ?? 0) > 0",
+      "to": "const regressedBy = report => saysWhatChanged(report.plugin) && (report.verdictChanges?.passToFail ?? 0) > 0",
+      "only": "^a regression is never hidden by the attestation version, and a run that compared nothing does not attest$"
+    },
+    {
+      "label": "review of ADR-082: an unchecked attestation beside an uncompared one is not named",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "          + (unverified.length ? ",
+      "to": "          + (false ? ",
+      "only": "^a regression is never hidden by the attestation version, and a run that compared nothing does not attest$"
+    },
+    {
+      "label": "review of ADR-082: a report compared against the same readers counts",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (readers(before) && readers(before) === readers(after)) return null",
+      "to": "  if (false) return null",
+      "only": "^an attestation compares only an earlier reading, and counts each record once$"
+    },
+    {
+      "label": "review of ADR-082: a record listed twice counts twice",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  for (const entry of now.values()) {",
+      "to": "  for (const entry of after.adrLint ?? []) {",
+      "only": "^an attestation compares only an earlier reading, and counts each record once$"
+    },
+    {
+      "label": "review of §339: alive reads a pid it cannot parse as dead",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  if (verb === 'alive' && /^[0-9]+$/.test(target ?? '')) {",
+      "to": "  if (verb === 'alive' && target) {",
+      "only": "^alive refuses a pid it cannot read$"
     },
     {
       "label": "verify: importing the wrapper spawns nothing",
@@ -19023,7 +19163,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if (newer[\"bodies\"], newer[\"unproven\"]) != (current[\"bodies\"], current[\"unproven\"]):",
+      "from": "        if newer[\"hasher\"] > hasher and (newer[\"bodies\"], newer[\"unproven\"]) != (current[\"bodies\"], current[\"unproven\"]):",
       "to": "        if False:",
       "only": "^a hasher-1 lock that hasher 2 reads differently is advised, naming the relock$"
     },
@@ -19233,8 +19373,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if advise and hasher == 1 and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):",
-      "to": "    if hasher == 1 and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):",
+      "from": "    if advise and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):",
+      "to": "    if any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):",
       "only": "^a caller that discards advice does not pay for the hasher-2 reading$"
     },
     {

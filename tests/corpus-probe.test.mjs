@@ -564,3 +564,15 @@ test('corpus-probe --attest --since prints the verdict changes', () => {
     assert.equal(missing.status, 2, 'an unreadable --since is an unreadable report')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// The stand-in review of ADR-082 (2026-10-02): a report compared against one taken by the same
+// readers compares nothing, and a record listed twice counts once, as --diff reads it.
+test('an attestation compares only an earlier reading, and counts each record once', () => {
+  const readers = sha256 => ({ probe: { readers: { sha256 } } })
+  const earlier = { ...probeReport({ 'a.md': 'PASS', 'b.md': 'FAIL' }), ...readers('aaa') }
+  const same = { ...probeReport({ 'a.md': 'FAIL', 'b.md': 'FAIL' }), ...readers('aaa') }
+  assert.equal(attestation(same, 'x', { since: earlier }).verdictChanges, null, 'the same readers say nothing about a change')
+  const twice = { ...probeReport({}), adrLint: [{ file: 'd.md', verdict: 'FAIL' }, { file: 'd.md', verdict: 'PASS' }], ...readers('bbb') }
+  assert.deepEqual(attestation(twice, 'x', { since: { ...probeReport({ 'd.md': 'PASS' }), ...readers('aaa') } }).verdictChanges,
+    { compared: 1, passToFail: 0, failToPass: 0 })
+})

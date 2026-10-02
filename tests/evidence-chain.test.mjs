@@ -3321,3 +3321,33 @@ test('a Swift comment-only mutant is refused like any other', () => {
   expectExit(prose, 2, 'a Swift comment edit changes nothing the program does')
   assert.match(prose.stdout, /COMMENT-ONLY MUTANT/)
 })
+
+// The stand-in review of §339 (2026-10-02): with node absent, the owner probe failed and the owner
+// was called "a live adr-verify run", which blocked every later call. POSIX now asks the kernel,
+// an owner whose liveness cannot be established is said to be unknown, never live, and only an
+// explicit --restore recovers past it.
+test('a journal owner is probed without node, and an unknown owner is never called live', () => {
+  const r = spawnSync('python3', ['-c', `
+import importlib.machinery, importlib.util, json, os, subprocess, sys
+loader = importlib.machinery.SourceFileLoader("adr_verify_owner", ${JSON.stringify(join(bin, 'adr-verify'))})
+mod = importlib.util.module_from_spec(importlib.util.spec_from_loader(loader.name, loader))
+loader.exec_module(mod)
+mod.worktree_cli = lambda *a, **k: ([], "node is not on PATH")
+dead = subprocess.Popen([sys.executable, "-c", "pass"]); dead.wait()
+state = lambda pid: list(mod.journal_owner_state({"owner": {"pid": pid}})[:2])
+unknown = mod.owner_refusal("J", 4242, None, "node is not on PATH", explicit=False)
+print(json.dumps({"dead": state(dead.pid), "live": state(os.getppid()), "dead_pid": dead.pid, "ppid": os.getppid(),
+  "unknown": unknown, "explicit": mod.owner_refusal("J", 4242, None, "x", explicit=True),
+  "live_says": mod.owner_refusal("J", 4242, True, None, explicit=True)}))
+`], { env, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(r.status, 0, r.stderr)
+  const got = JSON.parse(r.stdout)
+  if (process.platform !== 'win32') {
+    assert.deepEqual(got.dead, [got.dead_pid, false], 'an ended owner is known to have ended, node or not')
+    assert.deepEqual(got.live, [got.ppid, true])
+  }
+  assert.match(got.unknown, /could not be established/)
+  assert.doesNotMatch(got.unknown, /\blive\b/, 'an unknown is never called live')
+  assert.equal(got.explicit, null, 'an explicit --restore recovers past an unknown owner')
+  assert.match(got.live_says, /pid 4242/, 'a live owner refuses even --restore')
+})

@@ -1692,11 +1692,17 @@ def _js_lex(text, ts=False, jsx=False):
             return None
         if ts:
             k = end
+            if text[j + 1:end] == "const":
+                # `<const T,>`: a const type parameter, not an element named `const` (F-3).
+                while k < n and _h2_space(text[k]):
+                    k += 1
+                if jsx_name(k) > k:
+                    return None
             while k < n and _h2_space(text[k]):
                 k += 1
-            # `<T,>` and `<T extends U>` before an arrow are type parameters (F-3).
+            # `<T,>`, `<T = U>` and `<T extends U>` before an arrow are type parameters (F-3).
             word_after = k + 7 < n and (text[k + 7].isalnum() or text[k + 7] in "_$")
-            if text.startswith(",", k) or (text.startswith("extends", k) and not word_after):
+            if text.startswith((",", "="), k) or (text.startswith("extends", k) and not word_after):
                 return None
         return end
 
@@ -1711,11 +1717,25 @@ def _js_lex(text, ts=False, jsx=False):
             return j + 2
         mark(j, end, 1)
         ctx.append(["jsx", 0, "tag", "tag", text[j + 1:end]])
+        if ts and end < n and text[end] == "<":
+            # `<Table<Row> …>`: a generic component's type arguments, balanced, are literal.
+            depth, k = 0, end
+            while k < n:
+                if text.startswith("=>", k):
+                    k += 2
+                    continue
+                depth += {"<": 1, ">": -1}.get(text[k], 0)
+                if depth == 0:
+                    mark(end, k + 1, 1)
+                    return k + 1
+                k += 1
         return end
 
     def element_closed():
         """Code resumes after a value, unless the element's parent is still reading children."""
-        nonlocal prev
+        nonlocal prev, outer_jsx
+        if not any(frame[0] == "jsx" for frame in ctx):
+            outer_jsx = None
         if not (ctx and ctx[-1][0] == "jsx" and ctx[-1][2] != "expr"):
             prev = ("value",)
 
@@ -1742,6 +1762,16 @@ def _js_lex(text, ts=False, jsx=False):
                 else:
                     frame[2] = "children"
                 return end
+            if text.startswith("//", j):
+                end = _h2_line_end(text, j)
+                mark(j, end, 2)
+                return end
+            if text.startswith("/*", j):
+                end = text.find("*/", j + 2)
+                if end < 0:
+                    return None
+                mark(j, end + 2, 2)
+                return end + 2
             if c in "'\"":
                 end = text.find(c, j + 1)
                 if end < 0:
@@ -1863,7 +1893,8 @@ def _js_lex(text, ts=False, jsx=False):
             prev = ("op", "/")
             i += 1
             continue
-        if jsx and c == "<" and _h2_slash_opens_regex(prev, ts) is True:
+        # A `<` after a `<` is a shift (`1<<bits`), never an element (the stand-in review of ADR-083).
+        if jsx and c == "<" and prev != ("op", "<") and _h2_slash_opens_regex(prev, ts) is True:
             end = opens_element(i)
             if end is not None:
                 i = push_element(i, end)
@@ -3210,13 +3241,13 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
     recorded_map = recorded["map"]
     blocks = []
     advice = []
-    if advise and hasher == 1 and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):
-        newer = snapshot_lock(root, tests, hasher=2)
-        if (newer["bodies"], newer["unproven"]) != (current["bodies"], current["unproven"]):
+    if advise and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):
+        newer = snapshot_lock(root, tests)
+        if newer["hasher"] > hasher and (newer["bodies"], newer["unproven"]) != (current["bodies"], current["unproven"]):
             advice.append(
-                f"{prefix}this lock was taken by hasher 1, and hasher 2 reads its "
-                "JavaScript test files differently (ADR-078) — `adr-verify --relock` "
-                "takes a hasher-2 lock once nothing has moved")
+                f"{prefix}this lock was taken by hasher {hasher}, and hasher {newer['hasher']} reads its "
+                f"JavaScript test files differently ({'ADR-078' if newer['hasher'] == 2 else 'ADR-083'}) — "
+                f"`adr-verify --relock` takes a hasher-{newer['hasher']} lock once nothing has moved")
     if recorded.get("kind"):
         cmd = ("adr-verify --relock --replace-hashes"
                if recorded["kind"] == "replace" else "adr-verify --relock")

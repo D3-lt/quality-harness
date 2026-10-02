@@ -243,10 +243,13 @@ function saysWhatChanged(plugin) {
   const version = /^(\d+)\.(\d+)\.(\d+)$/.exec(String(plugin ?? ''))
   return Boolean(version) && (Number(version[1]) > 3 || (Number(version[1]) === 3 && Number(version[2]) >= 8))
 }
-const regressedBy = report => saysWhatChanged(report.plugin) && (report.verdictChanges?.passToFail ?? 0) > 0
-// An attestation from before the field, or one whose run moved no verdict out of PASS.
+// A regression is one whatever version an attestation names: a run at a sha whose plugin.json
+// still says the last release carries the field too (the stand-in review of ADR-082).
+const regressedBy = report => (report.verdictChanges?.passToFail ?? 0) > 0
+// An attestation from before the field, or one whose run compared records and moved none out of PASS.
 const countsAsRun = report => !saysWhatChanged(report.plugin)
-  || (report.verdictChanges !== null && typeof report.verdictChanges === 'object' && report.verdictChanges.passToFail === 0)
+  || (report.verdictChanges !== null && typeof report.verdictChanges === 'object'
+    && report.verdictChanges.passToFail === 0 && report.verdictChanges.compared > 0)
 
 export function outsideRun(changed, reports, covers) {
   if (!Array.isArray(changed)) {
@@ -274,10 +277,12 @@ export function outsideRun(changed, reports, covers) {
   const attested = covering.filter(countsAsRun)
   if (attested.length === 0) {
     if (covering.length) {
+      const unverified = checked.filter(v => v.c === null).map(v => v.r.file)
       return {
         verdict: 'unproven', kind: 'uncompared',
         reason: `${covering.map(r => r.file).join(', ')} compared nothing: from 3.8.0 an outside run attests only with the `
-          + 'verdictChanges that `corpus-probe --attest … --since <earlier report>` counts (ADR-082)',
+          + 'verdictChanges that `corpus-probe --attest … --since <earlier report>` counts (ADR-082)'
+          + (unverified.length ? `; ${unverified.join(', ')} could not be checked against this sha (fetch the revision)` : ''),
       }
     }
     const unchecked = checked.filter(v => v.c === null).map(v => v.r)
@@ -398,7 +403,8 @@ export function tagAdvice(kind) {
     unverified: 'Do NOT tag this sha yet. An attestation exists but git here could not check it against this sha — fetch '
       + 'the attested revision (and the tags), then ask again. Coverage unknown is not coverage absent (ADR-005).',
     regressed: 'Do NOT tag this sha. An outside run reports adr-lint verdicts that left PASS against its own earlier report '
-      + '— read its --diff with the runner, fix the reader or confirm each row is stale, and file a run that moved none (ADR-082).',
+      + '(a FAIL, or a record that could no longer be read) — read its --diff with the runner, fix the reader or confirm '
+      + 'each row is stale, and file a run that moved none (ADR-082).',
     uncompared: 'Do NOT tag this sha. The outside run compared nothing — ask for `corpus-probe --attest <label> <report> '
       + '--since <earlier report>`, file that attestation, and ask again (ADR-082).',
   }

@@ -3954,3 +3954,46 @@ test('an element the lexer cannot read is a stop, never a guess', () => {
     assert.ok(got.kinds.slice(got.stop).every(k => k === 3), `${what}: nothing after the stop is code`)
   }
 })
+
+// The stand-in review of ADR-083 (2026-10-02): valid JavaScript and TypeScript the JSX mode
+// misread. Each case reads through, with the test after it at a code position; the twin keeps a
+// shift and an element on one line apart.
+test('a shift, a tsx generic arrow, a generic component and a comment in a tag are read', () => {
+  const after = "\ntest('lexer fixture after', () => {})\n"
+  for (const [head, ts] of [
+    ['const mask = 1<<bits;', false], ['flags | (1<<shift)', false],
+    ['const id = <T = unknown>(x: T) => x;', true], ['const id = <const T,>(x: T) => x;', true],
+    ['render(<Table<Row> rows={rows} />)', true],
+    ['render(<div /* note */ id="a" />)', false], ['render(<div // note\n  id="a" />)', false],
+  ]) {
+    const src = head + after
+    const got = lexJsx(src, { ts })
+    assert.equal(got.stop, null, `${head}: nothing stops`)
+    assert.equal(kindAt(src, got, "test('lexer fixture after'"), 0, `${head}: the test after is code`)
+  }
+  const twin = 'const y = a<<b; const x = <A/>\n'
+  const got = lexJsx(twin)
+  assert.equal(got.kinds[twin.indexOf('<<')], 0, 'a shift is code')
+  assert.equal(got.kinds[twin.indexOf('<A')], 1, 'an element is literal')
+})
+
+test('a file ending in a template after an element closed stops at the template', () => {
+  const src = "const a = <div/>;\nit('lexer fixture mid', () => {})\nconst s = `a${ foo"
+  const got = lexJsx(src)
+  assert.equal(got.stop, src.indexOf('`a${'))
+  assert.equal(kindAt(src, got, "it('lexer fixture mid'"), 0)
+})
+
+test('a hasher-2 lock over a file JSX now reads is advised to relock', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-jsx-advice-'))
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, 'tests', 'jsx.test.tsx'), "render(<B>x</B>)\ntest('lexer fixture after jsx', () => {\n  assert.ok(1)\n})\n")
+    writeFileSync(join(dir, 'tests', 'plain.test.mjs'), "test('lexer fixture plain', () => {\n  assert.ok(1)\n})\n")
+    const jsx = [['lexer fixture after jsx', 'tests/jsx.test.tsx']]
+    const advised = findings(dir, [takeLock(dir, jsx, 2).row], jsx).advice
+    assert.ok(advised.some(line => /hasher 2, and hasher 3 reads/.test(line) && /--relock/.test(line)), advised.join('\n'))
+    const plain = [['lexer fixture plain', 'tests/plain.test.mjs']]
+    assert.ok(!findings(dir, [takeLock(dir, plain, 2).row], plain).advice.some(line => /hasher 3/.test(line)), 'a JSX-free lock is not advised')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

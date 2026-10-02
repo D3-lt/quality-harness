@@ -451,3 +451,17 @@ test('the advice under an UNPROVEN outside run says which could-not-look it is',
   for (const kind of ['regressed', 'uncompared', 'missing', 'unverified']) assert.doesNotMatch(tagAdvice(kind), /could not be established from git/, kind)
   assert.match(tagAdvice('unlisted'), /could not be established from git/)
 })
+
+// The stand-in review of ADR-082 (2026-10-02): a regression is a regression whatever version the
+// attestation names, a run that compared zero records compared nothing, and an attestation that
+// could not be checked is named beside an uncompared one.
+test('a regression is never hidden by the attestation version, and a run that compared nothing does not attest', () => {
+  for (const plugin of ['3.7.2', '3.8.0-rc1', 'v3.8.0', '4.0', null, undefined]) {
+    const report = { file: 'x.json', at: 'bbbb', ...(plugin === undefined ? {} : { plugin }), verdictChanges: { compared: 5, passToFail: 2, failToPass: 0 } }
+    assert.equal(outsideRun(['plugin/bin/adr-lint'], [report], covering).kind, 'regressed', String(plugin))
+  }
+  assert.equal(outsideRun(['plugin/bin/adr-lint'], [run('z.json', '3.8.0', { compared: 0, passToFail: 0, failToPass: 0 })], covering).kind, 'uncompared')
+  const unchecked = outsideRun(['plugin/bin/adr-lint'], [run('u.json', '3.8.0', null), { file: 'far.json', at: 'cccc' }], at => (at === 'bbbb' ? true : null))
+  assert.equal(unchecked.kind, 'uncompared')
+  assert.match(unchecked.reason, /far\.json/)
+})

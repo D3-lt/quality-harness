@@ -17077,7 +17077,7 @@ The last three were already safe, so they stay as they are. The tests drive the 
 rename busy. The diagnosis is likely, not proven: libuv opens files to allow deletion, so "another process reads
 it" alone may not be the cause. A later Windows campaign is what would show that the race is gone.
 
-## 333. OPEN 2026-10-01 — Windows: `mutate --narrow` once missed its `3/3 mutations were noticed.` line
+## 333. CLOSED 2026-10-02 (not recurred) — Windows: `mutate --narrow` once missed its `3/3 mutations were noticed.` line
 
 The push run of 6782901 (run 36894085194, job `windows`) failed one test:
 `mutate --narrow proposes, writes only with --write, and undoes a narrowing that is not RED`
@@ -17087,6 +17087,10 @@ that run. The assertion message carries no stdout, so the run's own words are lo
 §328: a Windows campaign that prints no summary. Next time it fails, read the job log for the campaign's lines
 before the assertion. If it recurs, a test beside it that prints the run's stdout and stderr on failure would say
 why, as §328's did.
+
+Closed 2026-10-02: it did not recur. On every `selftest.yml` run after 6782901 that reached the `windows` job
+(19 runs, 5 of them dispatched campaigns: 6f6ddaa, 723fa19, f1ad71c, e8a3de8, 4171b6e), that test passed in
+3.1–8.4 s, against the failing 33.2 s. Read from each job's log. The same test failed nowhere else.
 
 ## 334. CLOSED 2026-10-02 (not reproduced; the left-behind worktree is by design) — an isolated `adr-verify --mutant` ran a corpus fence many times slower than the checkout did
 
@@ -17295,10 +17299,10 @@ asked for the review to be done in this session instead (§341).
   `dead-code-scan` found 0 (orphan-sweep 0 of 1472, vulture 2.16, knip 6.39.0). The Codex round owed for
   3.7.2 (f1ad71c..e8a3de8) is moot: its scope, the JSX stop-gap, was deleted by ADR-083, and 3.8.0's
   review is §341.
-- **On or after 2026-10-08:** ADR-081's follow-up. Measure same-tree skips and hook durations at the
-  adopters, against the 53 of 280 measured before it. This also answers §331's import-cost residual.
-- **§333** closes if no Windows `mutate --narrow` miss recurs across the campaigns dispatched since
-  2026-10-02. Campaign 36992731601's Windows and mutation jobs were green.
+- **On or after 2026-10-08:** ADR-081's follow-up. Its record fixes the date at "a week after release"
+  (v3.6.0, 2026-10-01). Measure same-tree skips and hook durations at the adopters, against the 53 of 280
+  measured before it. This also answers §331's import-cost residual. It is the only item left here.
+- **§333:** closed 2026-10-02. It did not recur on any of 19 Windows runs since 6782901.
 
 ## 341. CLOSED 2026-10-02 (fixed for 3.8.0) — the stand-in review of 3.8.0: two reviewers, nine fixes, residuals named
 

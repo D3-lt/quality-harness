@@ -1867,13 +1867,62 @@ def js_stop_at_jsx(text, suffix):
     reads UNPROVEN. Until it reads JSX, the gates say that UNPROVEN as advice naming
     JSX. Plain TypeScript (`.ts .mts .cts`) cannot hold JSX, so a stop there is never
     one, and a stop anywhere else (a `/` after `}`, an unterminated literal) is not.
+    A tag closes only after one opened, so a `/>` with no `<Name` or `<>` in code
+    before it (`}` then `/>/.test(s)`) is a regex the lexer could not place, not JSX.
     """
     if suffix.lower() in (".ts", ".mts", ".cts"):
         return None
-    stop = _js_lex(text, ts=suffix.lower() in _JS_TS_SUFFIXES)[2]
+    masked, _, stop, _ = _js_lex(text, ts=suffix.lower() in _JS_TS_SUFFIXES)
     if stop is None or text[stop] != "/":
         return None
-    return stop if (stop > 0 and text[stop - 1] == "<") or text.startswith("/>", stop) else None
+    if not ((stop > 0 and text[stop - 1] == "<") or text.startswith("/>", stop)):
+        return None
+    return stop if re.search(r"<[A-Za-z>]", masked[:stop]) else None
+
+
+_JS_RAW_TITLE = re.compile(r"""\b(?:it|test|describe|context|specify|scenario)(?:\.\w+)*\s*\(\s*"""
+                           r"""(['"`])((?:\\.|(?!\1)[^\\\n])*)\1""")
+
+
+def js_raw_titles(text):
+    """The titles a JavaScript file registers, read without the lexer: comments removed,
+    string contents kept, every it/test/describe call's literal decoded (BACKLOG §337).
+
+    The fallback for a file the lexer stopped in at a JSX tag, so it decides only between
+    JSX advice and missing. A quote is read to the end of its line at most, so an
+    apostrophe in JSX text costs that line's comments and nothing more. It over-finds:
+    a call held in a string counts, which is an under-block, never a false refusal.
+    """
+    out, quote, i, n = [], None, 0, len(text)
+    while i < n:
+        c = text[i]
+        if quote:
+            if c == "\\":
+                out.append(text[i:i + 2])
+                i += 2
+                continue
+            if c in (quote, "\n"):
+                quote = None
+            out.append(c)
+            i += 1
+            continue
+        if c in "'\"`":
+            quote = c
+        elif text.startswith("//", i):
+            end = text.find("\n", i)
+            end = n if end < 0 else end
+            out.append(" " * (end - i))
+            i = end
+            continue
+        elif text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            end = n if end < 0 else end + 2
+            out.append("".join(ch if ch == "\n" else " " for ch in text[i:end]))
+            i = end
+            continue
+        out.append(c)
+        i += 1
+    return {re.sub(r"\\(.)", r"\1", m.group(2)) for m in _JS_RAW_TITLE.finditer("".join(out))}
 
 
 def _h2_js_digest_text(text, ts=False):

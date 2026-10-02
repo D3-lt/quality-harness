@@ -794,8 +794,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                elif status == \"missing\":",
-      "to": "                elif False:",
+      "from": "                if status == \"missing\":",
+      "to": "                if False:",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -2785,8 +2785,8 @@
       "tests": [
         "tests/js-reading.test.mjs"
       ],
-      "from": "    return stop if (stop > 0 and text[stop - 1] == \"<\") or text.startswith(\"/>\", stop) else None",
-      "to": "    return None",
+      "from": "    if not ((stop > 0 and text[stop - 1] == \"<\") or text.startswith(\"/>\", stop)):\n        return None",
+      "to": "    if True:\n        return None",
       "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
     },
     {
@@ -2828,6 +2828,76 @@
       "from": "                elif ok == \"advise\":\n                    errors.advise(f\"{item['id']}: {why}\")",
       "to": "                elif ok == \"advise\":\n                    pass",
       "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
+    },
+    {
+      "label": "§337: past a JSX stop, a name no reading finds is advice",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        if js_test_lookup(text, name, suffix)[0] != \"found\" and name not in js_raw_titles(text):\n            return \"missing\"",
+      "to": "        if False:\n            return \"missing\"",
+      "only": "^past a JSX tag, a test no reading finds is still missing$"
+    },
+    {
+      "label": "§337: spec-verify advises past a JSX stop for a name no reading finds",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                if name not in raw and leaf not in raw:",
+      "to": "                if False:",
+      "only": "^past a JSX tag, a test no reading finds is still missing$"
+    },
+    {
+      "label": "§337: the body search drops unproven_test's missing verdict",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                status = unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)\n                if status is None:",
+      "to": "                unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)\n                if status is None:",
+      "only": "^past a JSX tag, a test no reading finds is still missing$"
+    },
+    {
+      "label": "§337: the title search drops unproven_test's missing verdict",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                    status = unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)",
+      "to": "                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)",
+      "only": "^past a JSX tag, a test no reading finds is still missing$"
+    },
+    {
+      "label": "§337: a test the lexer found is called missing when the raw reading misses it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        if js_test_lookup(text, name, suffix)[0] != \"found\" and name not in js_raw_titles(text):",
+      "to": "        if name not in js_raw_titles(text):",
+      "only": "^past a JSX tag, a comment is not a test and does not hide one$"
+    },
+    {
+      "label": "§337: the raw reading keeps a commented-out call as a test",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        elif text.startswith(\"//\", i):\n            end = text.find(\"\\n\", i)\n            end = n if end < 0 else end\n            out.append(\" \" * (end - i))",
+      "to": "        elif False:\n            end = text.find(\"\\n\", i)\n            end = n if end < 0 else end\n            out.append(\" \" * (end - i))",
+      "only": "^past a JSX tag, a comment is not a test and does not hide one$"
+    },
+    {
+      "label": "§337: a `/>` with no opening tag before it is taken for JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    return stop if re.search(r\"<[A-Za-z>]\", masked[:stop]) else None",
+      "to": "    return stop",
+      "only": "^past a JSX tag, a comment is not a test and does not hide one$"
     },
     {
       "label": "verify: importing the wrapper spawns nothing",

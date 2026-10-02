@@ -2885,7 +2885,10 @@ def _read_file(path):
         if not path.is_file():
             return None
         return path.read_text(encoding="utf-8")
-    except OSError:
+    # A file this reader cannot decode (UTF-16, binary) is could-not-read, the answer an
+    # unreadable one gets: its locked names are unproven. It raised a traceback out of every
+    # gate whose lock named it (BACKLOG §350 C1, a Windows corpus-chaos run of 3.8.3).
+    except (OSError, UnicodeDecodeError):
         return None
 
 

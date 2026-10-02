@@ -9852,8 +9852,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "                          \"status\": status, \"undecided\": undecided, \"owner_unreadable\": owner_unreadable},",
-      "to": "                          \"owner_unreadable\": owner_unreadable},",
+      "from": "                          \"status\": status, \"undecided\": undecided, \"owner_unreadable\": owner_unreadable,",
+      "to": "                          \"owner_unreadable\": owner_unreadable,",
       "only": "single-record --json answer carries"
     },
     {
@@ -19896,6 +19896,96 @@
       "from": "const jobs = (ci.failed?.length ?? 0) - unread",
       "to": "const jobs = (ci.failed?.length ?? 0)",
       "only": "^a workflow whose jobs were not read is counted apart from jobs$"
+    },
+    {
+      "label": "§350 C1: an undecodable test file crashes the lock",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    except (OSError, UnicodeDecodeError):",
+      "to": "    except OSError:",
+      "only": "^a lock over a test file it cannot decode says unproven, and does not crash$"
+    },
+    {
+      "label": "§350 C1: a temp directory the probe cannot use is a stack trace",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (!(error instanceof ScratchError)) throw error",
+      "to": "    throw error",
+      "only": "^probe: a temp directory that does not exist is said, not a stack trace$"
+    },
+    {
+      "label": "§350 C6: tasks with no owning record are offered without a word",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    owner_missing = not owner_found",
+      "to": "    owner_missing = False",
+      "only": "^tasks with no owning record are said to have none, apart from an unreadable one$"
+    },
+    {
+      "label": "§350 C6: the ready line drops the missing-owner hedge",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (report.owner_missing === true) {",
+      "to": "  if (false) {",
+      "only": "^the ready line says when no record owns the tasks, before the instruction$"
+    },
+    {
+      "label": "§350 C7: a record reached through a link loop is read every time",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "    const first = firstPathTo.get(real)",
+      "to": "    const first = undefined",
+      "only": "^a record reached again through a link that loops is read once, and the copies are named$"
+    },
+    {
+      "label": "§350 C6: an ownerless task directory is offered unhedged to a corpus the matrix probes",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "    owner_missing = not owner_found",
+      "to": "    owner_missing = False",
+      "only": "^corpus orphan-tasks: every reader answers as reviewed, through a symlink$"
+    },
+    {
+      "label": "§350 C6 review: a slugged folder binds by number to another record",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            mine = RECORD_NUMBER.fullmatch(record_dir.name)",
+      "to": "            mine = RECORD_NUMBER.match(record_dir.name)",
+      "only": "^a task folder named for its own record is owned by that record and no other$"
+    },
+    {
+      "label": "§350 C6 review: a record inside its own folder is not looked for",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    for candidate in (record_dir.with_suffix(\".md\"), record_dir / f\"{record_dir.name}.md\", *siblings):",
+      "to": "    for candidate in (record_dir.with_suffix(\".md\"), *siblings):",
+      "only": "^a task folder named for its own record is owned by that record and no other$"
+    },
+    {
+      "label": "§350 C7 review: the first path is named raw",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "    const shown = shownPath(posixListed(path.relative(root, first)))",
+      "to": "    const shown = posixListed(path.relative(root, first))",
+      "only": "^the path a link copy is named against is shown, not printed raw$"
     }
   ]
 }

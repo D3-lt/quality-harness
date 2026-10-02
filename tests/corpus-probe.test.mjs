@@ -601,3 +601,15 @@ test('an attestation compares only an earlier reading, and counts each record on
   assert.deepEqual(attestation(twice, 'x', { since: { ...probeReport({ 'd.md': 'PASS' }), ...readers('aaa') } }).verdictChanges,
     { compared: 1, passToFail: 0, failToPass: 0 })
 })
+
+// BACKLOG §350 C1: with TEMP naming a directory that does not exist, `corpus-probe --json` died
+// in mkdtemp with an ENOENT stack trace and no JSON. Where there is nowhere to put its scratch,
+// it says so in one line and exits 3, could not run.
+test('probe: a temp directory that does not exist is said, not a stack trace', () => {
+  const missing = path.join(os.tmpdir(), 'qh-probe-no-such-temp-dir', 'deeper')
+  const env = { ...process.env, TMPDIR: missing, TEMP: missing, TMP: missing }
+  const run = spawnSync(process.execPath, [probeScript, '--json'], { cwd: path.join(path.dirname(fileURLToPath(import.meta.url)), '..'), env, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  assert.equal(run.status, 3, run.stderr)
+  assert.doesNotMatch(run.stderr, /\n\s+at /, 'no stack trace')
+  assert.match(run.stderr, /corpus-probe: could not run: the temp directory .* could not be used/)
+})

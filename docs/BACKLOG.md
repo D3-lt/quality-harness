@@ -17393,6 +17393,11 @@ Only executable names are written (`ps … comm`, `tasklist`'s image name), neve
 `QH_SAMPLE_PRINT_MS=0` showed it printing on a fast run here. The next slow Windows run shows whether a
 python process outlives the starved call.
 
+**A Windows 11 desktop, 2026-10-02** (node 24.20.0, Python 3.14.7, Git Bash msys 3.5.7, NTFS), its user
+approving the run: ten runs at 8fe7ae2 all passed in 7.2–8.7 s. None went past 60 s, so the sampler
+printed nothing. The slow mode did not reproduce there, which points at the windows-latest runner rather
+than at Windows itself. The trigger stays: the next slow CI run prints its samples.
+
 ## 343. CLOSED 2026-10-02 (fixed for 3.8.1) — ADR-081's fast exemption said nothing of a partial stage, and skipped the unseen-write veto
 
 An outside reading of ADR-081's skip and exemption, given to the session by the owner, found two holes.
@@ -17583,3 +17588,128 @@ The other gaps from the same answer stay open:
 - mrw and Bash writes leave no `file.written` (§331; a finding was filed to mrw's inbox the same day);
 - the fast check never skips (by design);
 - artifact-gate verdicts are kept per session.
+
+## 348. CLOSED 2026-10-02 (fixed for 3.8.4) — on Windows a full branch-state takes 6.4–7.7 s and loses the release line at SessionStart
+
+A Windows 11 desktop session ran an installed 3.8.3 (node 24.20.0, git 2.49.0, gh 2.87.3, logged in) on
+a repository whose CI at HEAD is red. It timed each hook five times, in ms:
+
+| command | min | median | max |
+|---|---|---|---|
+| lifecycle SessionStart | 257 | 265 | 285 |
+| branch-state (full) | 6374 | 6656 | 7704 |
+| branch-state --brief --cached 120 | 171 | 180 | 191 |
+| lifecycle UserPromptSubmit | 193 | 198 | 217 |
+| `node -e 0` | 88 | 100 | 108 |
+
+That session's SessionStart banner also said the release read had used up its 8000 ms budget before
+`git describe`. So at SessionStart on Windows the full reader runs close to its budget, and the release
+half is lost. The per-prompt brief is cheap, because it serves from the snapshot.
+
+Not yet known: which call takes the time. A red CI adds one `gh run view` per failing run, and 3.8.2's
+§344 retry adds a `gh run list --commit` only on a stale page. A per-call timing was asked of the runner.
+Fix by the evidence (CLAUDE.md §19): parallelise the `gh` calls, cap `gh run view` at the first failing
+run, or move the release half ahead of `gh`.
+
+**The breakdown, from the same runner, one timing per call:**
+- git: about 690 ms in all (rev-parse ×4: 181, status: 127, rev-list: 95, remote -v: 100, describe: 100,
+  diff: 83).
+- `gh run list`: 1240 ms, returning 20 runs.
+- `gh run view --json jobs`: 1.6–2.5 s each, once per failing run at HEAD. `headRuns` keeps the newest per
+  workflow and event, so three were fetched there (e2e, platforms, ci): about 5.7 s.
+
+So `gh` fills the budget, almost all of it in the per-run job views, and the release half (git, about
+180 ms) runs after them and is the half that gets lost. Two fixes follow:
+1. Read the release half before `gh`, as the tip already is (Codex review of 3.2.1). This is cheap
+   and changes no output.
+2. Cap the job views. That is a cost trade-off on what the brief names, and it is the owner's call.
+
+**Fixed for 3.8.4 (the owner chose the budget over a count, 2026-10-02).** "View only the first failing
+run" would have broken `every workflow at the newest commit answers, and a green one does not hide a red
+one`, which ADR-065 T1 and T2 lock. So the views spend a budget instead:
+- the first red workflow is always viewed;
+- the rest are viewed only while the views have used less than 2 s (`JOB_VIEW_BUDGET_MS`), and any past
+  it are named `<workflow> (<event>): failure, jobs not read`, never dropped;
+- a fast host, and the locked test's instant fakes, view every one;
+- the release half is now `releaseHalf(run)`, read before `gh` and carried in the checkpoint.
+
+Test: `job views stop at their budget, and the release half is read before gh`, red first, with a clock
+seam on `collect`. Three `§348:` mutants, plus the retargeted checkpoint entry, all killed.
+The stand-in review APPROVED with three advisories, all taken:
+- a workflow whose view FAILED is named too, which was dropped before this change;
+- the entry reads "— jobs not read", because the brief joins entries with commas;
+- the statusline counted named workflows as jobs, and now says `CI ✗ 1 job(s) +2 unread`.
+Statusline test: `a workflow whose jobs were not read is counted apart from jobs`. All four §348 mutants
+were killed.
+
+## 349. OPEN 2026-10-02 (leads from the first Windows outside run; the owner's call on each) — a Go ADR corpus on Windows: no verdict moved, five readings to judge
+
+The first Windows outside run, on a Go CLI ADR corpus of 70 records and 177 tasks, attested as
+`windows-go-cli-adr-heavy` at 8fe7ae2: `compared` 70, PASS → FAIL 0, no disagreements, nothing that
+could not run. Its runner flagged five things:
+1. **The repository does not clone on Windows by default.** `git clone` failed with "Filename too long"
+   (exit 128, checkout failed) under a %TEMP% scratch directory about 115 characters deep. The longest
+   tracked path is 157 characters (ADR-059's archived task names, and ADR-060 T3), and 22 tracked paths
+   exceed 120. `git -c core.longpaths=true clone` works. `plugin/` peaks at 106 characters, so an
+   installed plugin is not affected; a contributor's or outside runner's clone is. Options: say
+   `core.longpaths` in every outside-run request, or a selftest bound on tracked path length plus
+   shorter names. Archived records are frozen, which leaves only the first for them. **Fixed, the
+   owner's choice (2026-10-02):** a bound of 128 characters, held by `tests/path-length.test.mjs`, with a
+   dirty twin. Three active task files were renamed with `git mv` (no content change, `T<n>-` ids kept),
+   and their references updated. Five ARCHIVED paths (ADR-058, ADR-059) could not be renamed: the
+   frozen digest covers file names, and `adr-retire-check` failed until the renames were reverted. The
+   owner chose a closed list for those five, which may only shrink. A Windows clone needs
+   `core.longpaths` until they leave. CLAUDE.md §7 states the rule, and `.claude/rules/07` holds the
+   evidence.
+2. **"ready 3" names shipped work, and gives no reason.** Three tasks have exit-0 evidence, but their
+   locked test hashes moved when a later record edited those tests. adr-next's JSON says exactly that
+   (re-lock debt), but work-next's human line and adr-next's per-directory "ready T1" do not. The owner
+   kept such tasks in `ready` (2026-10-02, Q3); this lead is about saying WHY in the human line.
+3. **adr-lint FAILs two records on the same cause** (a moved lock). That is correct by its own rule, and
+   it names `adr-verify --relock --replace-hashes`. No change proposed.
+4. **Advice that fits historical evidence badly.** "records exit 1 in 192ms, which is too short to have
+   run this task's Acceptance fence" fires on old red-first entries, where a fast exit-1 is the expected
+   shape of a missing test. The fence-segments count advice appears on almost every record (3–27 lines
+   each). The first is a possible false advisory, to check against the rule's intent.
+5. **adr-lint slower on four records**, 3.7.2 → 3.8.3 (900 ms → 2.1–2.7 s). One run each on Windows, so
+   possibly noise. To re-measure before reading anything into it.
+
+`readinessUnproven: 0` beside adr-next's unproven reasons is §345's name clash, not a count error.
+
+## 350. OPEN 2026-10-02 (the next reader batch; the owner picks the order) — Windows corpus-chaos on 3.8.3: one crash, three could-not-look read as absence
+
+A Windows 11 desktop (NTFS, 8.3 names on, LongPathsEnabled, Git for Windows 2.49.0) ran the corpus-chaos
+skill with the installed 3.8.3 readers, whose readers digest matched the release byte for byte. Its user
+approved. The baseline was this repository's corpus grafted into a web app, 83 records, all PASS. Each
+case was a fresh copy with one perturbation. Findings, as reported, each to confirm against source
+before fixing:
+- **F1, a crash.** A UTF-16 test file makes adr-lint and adr-next exit 1 with a traceback:
+  `record.py` `_read_file` → `path.read_text(encoding="utf-8")` → UnicodeDecodeError, reached through
+  `lock_findings` → `snapshot_lock`. It hits every record whose lock names the file, frozen ADR-056
+  included. ADR-049 says an unreadable file is could-not-run, not a crash. A third reading of the same
+  file FAILs with advice to "rewrite the construct it stopped at", when the encoding is the cause.
+- **F2, could-not-look read as absence.** A test file held open with FileShare.None: adr-lint says
+  "could not run … Permission denied" (right), but adr-next says the locked test "vanished — done is
+  refused". work-next then lists those tasks in `readyButClaimedDone` and says "adr-verify them first",
+  and `disagreements` stays empty. `partialBecause` names only the record. One locked file blinds 76 of
+  83 records' cross-record reads.
+- **F3, an absolute path past the scrubber.** SessionStart's truncated "could not run" line carries a
+  home path that `couldNotRun` scrubs to `<path>`. adr-lint's header always prints the absolute plugin
+  directory (by design, to name which copy answered).
+- **F4, a case-only duplicate in the git index** (`t1-….md` beside `T1-….md`, one file on disk):
+  work-next counts 199 tasks where corpus-report counts 198. Nothing names the collision.
+- **F5, a path over 260 characters.** The advice says "a checkout root longer than -34 characters" (a
+  negative number), and adr-next blames ".quality-harness.json check could not be read" for a long task
+  path. adr-lint PASS against work-next's unbacked T1–T4 is not listed as a disagreement.
+- **F6, an unreadable task file counted as an unbacked done claim** (icacls deny read): work-next says
+  "adr-verify <task file> because a task is marked done", but nothing could read whether it claims
+  anything. The probe's look is "ok" with an empty `partialBecause`, while corpusReport says
+  `unreadable: 1`.
+- **Lead, a dangling junction at `docs/adr`:** every reader says "No QH corpus is in use", where ADR-034
+  says a corpus root is a question, not an empty answer.
+- **Lead, an 8.3 alias in Affected Files:** a lock reads "vanished" for a test that exists. Low priority:
+  the runner made the alias itself.
+
+Held right: CRLF everywhere, read-only attributes, a case-only rename on disk, 8.3 short names as access
+paths, a junction loop (UNPROVEN, no hang, no leftover git.exe), and `docs/ADR` in upper case. Not
+tried: `--sweep`, alternate data streams, a delete-pending file.

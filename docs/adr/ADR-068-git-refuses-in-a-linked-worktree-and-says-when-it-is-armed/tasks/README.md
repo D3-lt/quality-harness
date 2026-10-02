@@ -16,4 +16,4 @@ Implementation tasks for ADR-068: Git refuses in a linked worktree too, and the 
 | Task | File | Status |
 |------|------|--------|
 | T1 | [T1-git-refuses-in-a-linked-worktree.md](T1-git-refuses-in-a-linked-worktree.md) | done |
-| T2 | [T2-sessionstart-says-when-git-is-not-yet-armed.md](T2-sessionstart-says-when-git-is-not-yet-armed.md) | done |
+| T2 | [T2-sessionstart-says-git-not-armed.md](T2-sessionstart-says-git-not-armed.md) | done |

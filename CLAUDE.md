@@ -136,6 +136,12 @@ CI blocks on Windows, macOS and Linux; you develop on one of them and cannot run
 - **A Windows runner can be several times slower than your machine.** A budget a test depends on is
   set by the test (`QUALITY_HARNESS_OBSERVE_BUDGET_MS`, `QUALITY_HARNESS_SLOW_HOOK_MS`), never
   inherited from the product's default.
+- **Keep every tracked path short enough to clone into a deep Windows directory.** Git for Windows
+  refuses a checkout past MAX_PATH without `core.longpaths`. `tests/path-length.test.mjs` holds the
+  bound; shorten a name (a task keeps its `T<n>-` prefix and README link) rather than raise it. An
+  archived record cannot be renamed (its frozen digest covers file names), so the archive's paths
+  already over the bound are a closed list in that test, and a Windows clone of this repository needs
+  `git -c core.longpaths=true clone` until they leave.
 
 Why: `.claude/rules/07-platforms-and-paths.md`
 

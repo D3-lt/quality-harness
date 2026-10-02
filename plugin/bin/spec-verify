@@ -80,7 +80,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, extract_test_names, _mask_lock_noncode, _matching_js_brace, JS_FAMILY_SUFFIXES, js_reading, js_stop_at_jsx  # noqa: E402
+from record import sections_of, extract_test_names, _mask_lock_noncode, _matching_js_brace, JS_FAMILY_SUFFIXES, js_reading, js_stop_at_jsx, js_raw_titles  # noqa: E402
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -325,7 +325,11 @@ def test_definition_exists(path, name, stack):
             return True, ""
         if not complete:
             if js_stop_at_jsx(text, suffix) is not None:
-                # BACKLOG §337: a JSX tag the lexer cannot read yet is advice, not exit 4.
+                # BACKLOG §337: a JSX tag the lexer cannot read yet is advice, not exit 4, for a
+                # test 3.6.1's raw reading finds. One no reading finds is missing, as it was.
+                raw = js_raw_titles(text)
+                if name not in raw and leaf not in raw:
+                    return False, f"no JavaScript test()/it() definition for '{name}'"
                 return "advise", (f"could not check '{name}': the lexer stopped at a JSX tag, which it "
                                   f"does not read yet (BACKLOG §337), so a test after it is UNPROVEN")
             return None, (f"could not check '{name}': the file could not be read past a `/` or "

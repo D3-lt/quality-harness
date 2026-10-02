@@ -17141,6 +17141,34 @@ patch. Residuals until then, none measured on a corpus yet:
 - `/>` after a string attribute (`<X a="s" />`) reads as a division;
 - the lock still cannot bound a `.tsx` test after the first tag.
 
+**Addendum 2026-10-02, 3.7.1 failed open; fixed for 3.7.2.** Both outside runners measured it at
+f1ad71c. The react-spa runner renamed one Tests row to a name that exists nowhere, in a `.tsx` file
+whose lexer stops at line 59 of 1327: 3.6.1 refused it, 3.7.1 passed it with JSX advice. The
+laravel-react-monorepo runner found the same thing on a real record: a row naming `onOrder` (a prop,
+not a test) went FAIL → PASS. So advice for every name past a JSX stop lost a check 3.6.1 had.
+
+Now a name is missing past a JSX stop only when the lexer did not find it AND
+`record.js_raw_titles` does not either. That is one comment-aware raw reading, which both gates
+call: it strips comments, keeps string contents, and decodes each it/test/describe title. Missing
+keeps 3.6.1's verdict: it blocks for an identifier name and is advice for a spaced title in
+adr-lint, and exits 2 in spec-verify. Any other name gets the JSX advice. The tests are
+`past a JSX tag, a test no reading finds is still missing` and `past a JSX tag, a comment is not a
+test and does not hide one`.
+
+The first version of this fix read raw text with no comment handling. A read-only correctness
+reviewer, standing in for Codex, found four defects in it:
+- a found test whose body the lexer could not bound went silent;
+- a comment before a title made a found test read as absent, which blocked;
+- in spec-verify, a comment after `it(` refused a test that exists;
+- in spec-verify, a commented-out stale call passed as advice.
+
+The reviewer also found an advisory one: `}` then `/>/.test(s)` took the JSX exemption with no JSX
+in the file. Now a stop counts as JSX only after a `<Name` or `<>` in code before it.
+
+The raw reading still over-finds. A never-written name that appears only inside a string literal
+reads as advice, an under-block in both gates. The different-lineage round for 3.7.1 and 3.7.2 is
+owed: the Codex budget is spent until 2026-10-07.
+
 ## 338. OPEN 2026-10-02 — an attest line carries no sign that the run found a FAIL
 
 Reported by the react-spa runner against 3.7.0: its `corpus-probe --attest` line said

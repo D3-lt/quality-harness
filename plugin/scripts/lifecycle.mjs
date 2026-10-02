@@ -735,12 +735,15 @@ export function fastCheckCommand(root) {
  * latestFastPass reads `fast-checks.jsonl`, which no reader of a full pass opens
  * (ADR-081): the LATEST fast record on this tree must grade as a pass. A line it
  * cannot read answers null, so a torn file exempts nothing. `count` is how many
- * fast records there are, which the publish advisory's key carries.
+ * fast records there are, which the publish advisory's key carries. A write git
+ * cannot see, logged after that pass, answers null too: the full skip's veto,
+ * read against the fast ledger's own count (BACKLOG §343).
  */
-export function latestFastPass(cwd, tree) {
+export function latestFastPass(cwd, tree, root = cwd) {
   let text
   try { text = readFileSync(path.join(stateDir(cwd), 'fast-checks.jsonl'), 'utf8') } catch { return null }
   let latest = null
+  let latestSeq = 0
   let count = 0
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
@@ -749,9 +752,56 @@ export function latestFastPass(cwd, tree) {
     // A row that is not a record proves nothing, as the importer reads it.
     if (typeof record?.id !== 'string') return null
     count += 1
-    if (record?.after?.tree === tree) latest = record
+    if (record?.after?.tree === tree) { latest = record; latestSeq = count }
   }
-  return latest && checkEventName(latest) === 'check.passed' ? { command: latest.command, count } : null
+  if (!latest || checkEventName(latest) !== 'check.passed') return null
+  if (unseenWriteSince(root, { seen: 'fastSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
+  return { command: latest.command, count }
+}
+
+/**
+ * unseenWriteSince says whether any session log holds a write git cannot see that a
+ * pass does not cover (ADR-081). A pass covers a write only when the write was
+ * recorded before it, by the ledger count `seen` names (`checksSeen` for
+ * `checks.jsonl`, `fastSeen` for `fast-checks.jsonl`), AND stamped before the pass
+ * started: a clock that went back cannot hide a write the count says came after
+ * (Codex review of ADR-081). A write with no count, logged before that count
+ * existed, is judged by its time alone. Only a write inside `root` counts: a
+ * scratchpad or a peer's temp file is outside what the tree's check reads, and
+ * vetoing on one refused an ordinary commit (BACKLOG §343, review). A directory
+ * that cannot be listed, or a log that cannot be read whole, may hide such a write,
+ * so it answers true.
+ */
+export function unseenWriteSince(root, { seen, seq, started }) {
+  const sessions = path.join(stateDir(root), 'sessions')
+  let names = []
+  try { names = readdirSync(sessions).filter(name => name.endsWith('.jsonl')) } catch (error) {
+    // Absent is no session; a directory that cannot be listed hides what it holds.
+    if (error?.code !== 'ENOENT') return true
+  }
+  for (const name of names) {
+    let log
+    try { log = readFileSync(path.join(sessions, name), 'utf8') } catch { return true }
+    for (const line of log.split('\n')) {
+      if (!line.trim()) continue
+      let entry
+      try { entry = JSON.parse(line) } catch { return true }
+      if (entry?.event !== 'file.written' || entry.observable !== false) continue
+      // A path that is not absolute says nothing about where it landed, and vetoes.
+      if (typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path)) continue
+      const counted = entry[seen]
+      const recordedBefore = counted === undefined || (Number.isInteger(counted) && counted < seq)
+      if (!(recordedBefore && Date.parse(entry.at) < started)) return true
+    }
+  }
+  return false
+}
+
+// Whether `file` lies outside the repository at `root`, through `relativeWithinRoot`'s
+// spellings (a symlinked /tmp, a drive letter); its answer is a relative path either way.
+function outsideRoot(root, file) {
+  const relative = relativeWithinRoot(root, file).replace(/\\/g, '/')
+  return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) || /^[A-Za-z]:/.test(relative)
 }
 
 /**
@@ -4223,9 +4273,12 @@ function recordFileWritten(input) {
   if (typeof target !== 'string' || !target) return null
   // Canonical, so this path and rule A's candidate for the same file are one key.
   const absolute = canonicalFile(path.resolve(input.cwd, target))
-  // How many check records existed when this write happened. Only a pass recorded
+  // How many records each ledger held when this write happened. Only a pass recorded
   // AFTER it can cover it; the importer may append an earlier pass later in the log.
-  const entry = { event: 'file.written', path: absolute, observable: false, checksSeen: checkRecordCount(input.cwd) }
+  const entry = {
+    event: 'file.written', path: absolute, observable: false,
+    checksSeen: ledgerRecordCount(input.cwd, 'checks.jsonl'), fastSeen: ledgerRecordCount(input.cwd, 'fast-checks.jsonl'),
+  }
   const directory = nearestExistingDirectory(path.resolve(input.cwd))
   const root = directory ? gitRepositoryRoot(directory) : null
   const parent = nearestExistingDirectory(absolute)
@@ -4256,12 +4309,12 @@ function recordFileWritten(input) {
   return entry
 }
 
-// The number of records in `checks.jsonl`, counted the way `importCheckRecords`
-// numbers `seq`. Null when the file exists and cannot be read: a count that was
-// not taken is not zero (ADR-005).
-function checkRecordCount(cwd) {
+// The number of records in a ledger (`checks.jsonl` or `fast-checks.jsonl`), counted
+// the way `importCheckRecords` numbers `seq`. Null when the file exists and cannot be
+// read: a count that was not taken is not zero (ADR-005).
+function ledgerRecordCount(cwd, file) {
   let text
-  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch (error) {
+  try { text = readFileSync(path.join(stateDir(cwd), file), 'utf8') } catch (error) {
     return error?.code === 'ENOENT' ? 0 : null
   }
   let count = 0
@@ -4843,11 +4896,15 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
   // commit refused before the fast pass is told after it. Anything that pushes, and
   // any form not proven, still needs the full check.
   if (deny && commitOnly) {
-    const fastPass = latestFastPass(cwd, now.tree)
+    const fastPass = latestFastPass(cwd, now.tree, found.root ?? cwd)
     if (fastPass) {
+      // The fast check ran on the working tree; the commit records the index. A partial
+      // stage is a different tree, and the full path says so at the same point.
+      const staged = now.index === now.tree ? ''
+        : ' The staged index is not the tree the fast check ran on (a partial stage, or files the check saw that are not staged), so what this commit records was not itself checked.'
       return {
         deny: false, fast: true, key: `${key}:fast${fastPass.count}`, detail: { tree: now.tree, revision },
-        text: `quality-harness: a fast check (\`${fastPass.command}\`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need \`qh-check\` to pass first (ADR-081).`,
+        text: `quality-harness: a fast check (\`${fastPass.command}\`) passed on this tree, but the full check has not passed — this commit goes through, and a push will need \`qh-check\` to pass first (ADR-081).${staged}`,
       }
     }
   }

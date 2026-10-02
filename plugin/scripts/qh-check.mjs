@@ -9,10 +9,10 @@
 // it would have cleared stays open.
 import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, readdirSync, readFileSync, realpathSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
-import { checkCommandOrigin, checkEventName, fastCheckCommand, observe, stateDir, validationVerdict } from './lifecycle.mjs'
+import { checkCommandOrigin, checkEventName, fastCheckCommand, observe, stateDir, unseenWriteSince, validationVerdict } from './lifecycle.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
@@ -98,28 +98,7 @@ export function passedAlready({ root, git, command, env = process.env, observeTr
     if (latest === record) latestSeq = seq
   }
   if (!latest || checkEventName(latest) !== 'check.passed') return null
-  const started = Date.parse(latest.before?.at)
-  const sessions = path.join(stateDir(root), 'sessions')
-  let names = []
-  try { names = readdirSync(sessions).filter(name => name.endsWith('.jsonl')) } catch (error) {
-    // Absent is no session; a directory that cannot be listed hides what it holds.
-    if (error?.code !== 'ENOENT') return null
-  }
-  for (const name of names) {
-    let log
-    try { log = readFileSync(path.join(sessions, name), 'utf8') } catch { return null }
-    for (const line of log.split('\n')) {
-      if (!line.trim()) continue
-      let entry
-      try { entry = JSON.parse(line) } catch { return null }
-      if (entry?.event !== 'file.written' || entry.observable !== false) continue
-      // Cleared only when recorded before this pass AND started before it, the rule
-      // `unobservableWrites` keeps: a clock that went back cannot hide a write the
-      // ledger's count says came after (Codex review of ADR-081).
-      const recordedBefore = entry.checksSeen === undefined || (Number.isInteger(entry.checksSeen) && entry.checksSeen < latestSeq)
-      if (!(recordedBefore && Date.parse(entry.at) < started)) return null
-    }
-  }
+  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
   const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)
   return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null }
 }

@@ -294,3 +294,80 @@ test('a row that is not a record proves nothing, in either ledger', () => {
     assert.equal(decision(hook(fast, 'git commit -m x', 'ledger-row')), 'deny', 'nor does the fast ledger')
   } finally { done(fast) }
 })
+
+// BACKLOG §343: the fast exemption, read beside what the commit records and what git cannot see.
+const post = (fixture, session, file) => spawnSync(process.execPath, [lifecycle], {
+  cwd: fixture.dir, env: fixture.env, encoding: 'utf8', timeout: 60_000, windowsHide: true,
+  input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: resolve(fixture.dir, file) }, session_id: session, cwd: fixture.dir }),
+})
+
+test('a commit told through on a fast pass says when the staged index is not the tree it checked', () => {
+  const fixture = repository({ check: FULL, fastCheck: FAST })
+  try {
+    changed(fixture)
+    fastPassed(fixture)
+    const partial = hook(fixture, 'git commit -m x', 'ledger-index-partial')
+    assert.notEqual(decision(partial), 'deny', partial.stdout)
+    assert.match(partial.stdout, /staged index is not the tree the fast check ran on/)
+    spawnSync('git', ['-C', fixture.dir, 'add', '-A'], { timeout: 10_000, windowsHide: true })
+    const whole = hook(fixture, 'git commit -m x', 'ledger-index-whole')
+    assert.notEqual(decision(whole), 'deny', whole.stdout)
+    assert.match(whole.stdout, /full check has not passed/)
+    assert.doesNotMatch(whole.stdout, /staged index/, 'a commit of the checked tree is not warned')
+  } finally { done(fixture) }
+})
+
+test('a write git cannot see, after a fast pass, takes the commit back to the full check', () => {
+  const fixture = repository({ check: FULL, fastCheck: FAST })
+  const session = 'ledger-fast-unseen'
+  try {
+    writeFileSync(join(fixture.dir, '.gitignore'), 'ignored.bin\n')
+    changed(fixture)
+    fastPassed(fixture)
+    assert.notEqual(decision(hook(fixture, 'git commit -m x', session)), 'deny', 'told before the write')
+    writeFileSync(join(fixture.dir, 'ignored.bin'), 'written after the fast check\n')
+    post(fixture, session, 'ignored.bin')
+    const logged = jsonl(join(state(fixture), 'sessions', `${session}.jsonl`)).find(entry => entry.event === 'file.written')
+    assert.equal(logged?.fastSeen, 1, 'the write carries the fast ledger count it was made after')
+    assert.equal(decision(hook(fixture, 'git commit -m x', session)), 'deny', 'a tree hash cannot speak for a write it cannot see')
+    fastPassed(fixture)
+    assert.notEqual(decision(hook(fixture, 'git commit -m x', session)), 'deny', 'a later fast pass covers it')
+  } finally { done(fixture) }
+})
+
+test('a write the fast ledger counts after its pass is seen, even when the clock went back', () => {
+  const written = fastSeen => JSON.stringify({ at: '2000-01-01T00:00:00.000Z', event: 'file.written', observable: false, path: 'ignored.bin', fastSeen })
+  for (const [fastSeen, expected] of [[1, 'deny'], [0, null]]) {
+    const fixture = repository({ check: FULL, fastCheck: FAST })
+    try {
+      changed(fixture)
+      fastPassed(fixture)
+      mkdirSync(join(state(fixture), 'sessions'), { recursive: true })
+      appendFileSync(join(state(fixture), 'sessions', 'ledger-fast-clock.jsonl'), `${written(fastSeen)}\n`)
+      const run = hook(fixture, 'git commit -m x', 'ledger-fast-clock-commit')
+      assert.equal(decision(run), expected, `fastSeen ${fastSeen}: ${run.stdout}`)
+    } finally { done(fixture) }
+  }
+})
+
+// The review of §343's first fix: a veto over every write git cannot see refused a commit after a
+// scratchpad note, which a full pass never did. Only a write inside the repository counts.
+test('a write outside the repository vetoes neither a fast-path commit nor the full skip', () => {
+  const fixture = repository({ check: FULL, fastCheck: FAST })
+  const outside = join(fixture.top, 'scratch.txt')
+  try {
+    changed(fixture)
+    fastPassed(fixture)
+    writeFileSync(outside, 'a note the check never reads\n')
+    post(fixture, 'ledger-outside-self', outside)
+    const logged = jsonl(join(state(fixture), 'sessions', 'ledger-outside-self.jsonl')).find(entry => entry.event === 'file.written')
+    assert.equal(logged?.observable, false, 'the write is one git cannot see')
+    const commit = hook(fixture, 'git commit -F msg.txt', 'ledger-outside-self')
+    assert.notEqual(decision(commit), 'deny', commit.stdout)
+    assert.match(commit.stdout, /full check has not passed/)
+    assert.equal(check(fixture).status, 0)
+    post(fixture, 'ledger-outside-peer', outside)
+    assert.match(check(fixture).stderr, /already passed on this tree/, "a peer's write outside the tree does not undo the skip")
+    assert.deepEqual(runs(fixture), ['fast', 'full'])
+  } finally { done(fixture) }
+})

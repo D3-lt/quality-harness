@@ -34,6 +34,9 @@ runs it anyway.
 that is one commit and nothing else through, with a warning; a push still needs the
 full check (ADR-081). With no `fastCheck` declared it says so and exits 2.
 
+A skip appends one row to `skips.jsonl` (the pass it reused, the tree, and that pass's duration as
+an estimate of the time saved), where no reader of a pass looks, so how often the skip saves a run can be counted.
+
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root (ADR-031).
 """

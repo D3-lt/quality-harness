@@ -17560,3 +17560,26 @@ adrLint line.
 The gap predates 3.8.2. It is not fixed there, because changing the probe would invalidate all three
 3.8.2 attestations. The fix adds an `undecided` set-change by file, plus a reason change, with a test
 and an `expected.json` field (CLAUDE.md §18).
+
+## 347. CLOSED 2026-10-02 (fixed for 3.8.3, the owner: "append") — a skip left no trace, so ADR-081's follow-up could not count it
+
+Asked whether the event logs are used fully, the session listed what they still do not record. The first
+item was that `qh-check`'s same-tree skip (ADR-081) returned 0 and wrote nothing. Its follow-up, to
+measure how often the skip saves a run, could therefore only infer the count. Before the change the
+session considered a row in `checks.jsonl` and rejected it: `passedAlready` grades the LATEST row for
+the tree, so a skip row there would undo the next skip, and the session import would read it as a check
+event.
+
+Fixed: a skip appends one row to `.git/quality-harness/skips.jsonl` with `id`, `at`, `command`,
+`tree`, `passId` (the pass it reused), `passedAt` and `savedMs`. No reader of a pass opens that file.
+A ledger that cannot be written is said on stderr, and the skip and its exit stand. Test: `a skip is
+recorded in its own ledger, naming the pass it reused`, red first, and `a skip whose ledger cannot be
+written is said, and still skips`. Three `skip ledger:` mutants, all killed. `savedMs` is the reused
+pass's duration, an estimate rather than a measurement. A stand-in read-only review APPROVED, and its two
+advisories (the untested failure arm, and calling the estimate an estimate) were acted on. ADR-081's
+Follow-ups name the file.
+
+The other gaps from the same answer stay open:
+- mrw and Bash writes leave no `file.written` (§331; a finding was filed to mrw's inbox the same day);
+- the fast check never skips (by design);
+- artifact-gate verdicts are kept per session.

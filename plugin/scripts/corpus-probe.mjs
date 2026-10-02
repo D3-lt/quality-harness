@@ -19,10 +19,12 @@
 //
 //   node corpus-probe.mjs [<repo-root>] [--json] [--sweep] [--timeout <seconds>] [--sweep-budget <seconds>]
 //   node corpus-probe.mjs --diff <before.json> <after.json>
-//   node corpus-probe.mjs --attest <label> <report.json>
+//   node corpus-probe.mjs --attest <label> <report.json> [--since <earlier.json>]
 //
 // `--attest` reads one saved report and prints the counts-only attestation
 // docs/corpus-reports/README.md defines (ADR-064 T3), so no count is transcribed.
+// With `--since`, the attestation also counts the adr-lint verdicts that moved since the
+// runner's earlier report of the same corpus (ADR-082), from the comparison `--diff` prints.
 //
 // `--diff` reads two saved reports of ONE corpus and prints what changed in the fields
 // it compares, and names a reader or a field it could not compare. It
@@ -471,12 +473,36 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
  * empty. A timing is a line only when it at least doubled AND grew by a second, so
  * load noise on a fast reader stays quiet.
  */
+/** Whether two reports describe one corpus that both looked at, so their fields compare. */
+function comparable(before, after) {
+  const corpora = report => (report.corpora ?? []).join(', ')
+  return before.look === 'ok' && after.look === 'ok' && corpora(before) === corpora(after)
+}
+
+/**
+ * verdictMoves is every adr-lint record present in both reports whose verdict moved, as
+ * `{ file, from, to, reason }`, and how many records were compared. It is the one comparison
+ * `--diff` prints from and an attestation counts (ADR-082), so the two cannot disagree.
+ */
+export function verdictMoves(before, after) {
+  const was = new Map((before.adrLint ?? []).map(entry => [entry.file, entry]))
+  const moves = []
+  let compared = 0
+  for (const entry of after.adrLint ?? []) {
+    const old = was.get(entry.file)
+    if (!old) continue
+    compared += 1
+    if (old.verdict !== entry.verdict) moves.push({ file: entry.file, from: old.verdict, to: entry.verdict, reason: entry.reason })
+  }
+  return { compared, moves }
+}
+
 export function diffReports(before, after, scrub = text => String(text)) {
   const lines = []
   const say = text => lines.push(scrub(text))
   if (before.look !== 'ok' || after.look !== 'ok') return [scrub(`look: ${before.look} → ${after.look}: not compared`)]
   const corpora = report => (report.corpora ?? []).join(', ')
-  if (corpora(before) !== corpora(after)) return [scrub(`corpora differ (${corpora(before)} → ${corpora(after)}): not compared`)]
+  if (!comparable(before, after)) return [scrub(`corpora differ (${corpora(before)} → ${corpora(after)}): not compared`)]
   const lacks = (field, b, a) => {
     if (b === undefined && a !== undefined) { say(`before lacks ${field}`); return true }
     if (a === undefined && b !== undefined) { say(`after lacks ${field}`); return true }
@@ -516,10 +542,12 @@ export function diffReports(before, after, scrub = text => String(text)) {
   if (!lacks('adrLint', before.adrLint, after.adrLint)) {
     const was = new Map(before.adrLint.map(entry => [entry.file, entry]))
     const now = new Map(after.adrLint.map(entry => [entry.file, entry]))
+    const moved = new Map(verdictMoves(before, after).moves.map(move => [move.file, move]))
     for (const [file, entry] of now) {
       const old = was.get(file)
+      const move = moved.get(file)
       if (!old) say(`adrLint ${file}: new, ${entry.verdict}`)
-      else if (old.verdict !== entry.verdict) say(`adrLint ${file}: ${old.verdict} → ${entry.verdict}${entry.reason ? ` — ${entry.reason}` : ''}`)
+      else if (move) say(`adrLint ${file}: ${move.from} → ${move.to}${move.reason ? ` — ${move.reason}` : ''}`)
       // A FAIL that stays a FAIL for another reason — one defect fixed, another
       // exposed — is a change too (Codex review of 833ea52).
       else if ((old.reason ?? null) !== (entry.reason ?? null)) say(`adrLint ${file}: ${entry.verdict}, reason changed — ${entry.reason ?? '(none)'}`)
@@ -587,7 +615,22 @@ function corpusCounts(report) {
   }
 }
 
-export function attestation(report, label) {
+/**
+ * The adr-lint verdicts that moved since `before`, counted, or null when there is nothing to
+ * compare: no earlier report, reports `diffReports` would not compare, or one without adr-lint.
+ * Null, never zeros: a run that compared nothing must not read as a run where nothing moved.
+ */
+function verdictChanges(before, after) {
+  if (!before || !comparable(before, after) || !Array.isArray(before.adrLint) || !Array.isArray(after.adrLint)) return null
+  const { compared, moves } = verdictMoves(before, after)
+  return {
+    compared,
+    passToFail: moves.filter(move => move.from === 'PASS').length,
+    failToPass: moves.filter(move => move.to === 'PASS').length,
+  }
+}
+
+export function attestation(report, label, { since } = {}) {
   const readers = report.probe?.readers ?? {}
   const committed = typeof readers.git === 'string' && readers.dirty === false && !readers.moved
   // A probe that could not list the corpus ran its readers over nothing, and its zero
@@ -618,6 +661,7 @@ export function attestation(report, label) {
     couldNotRun: count(report.couldNotRun),
     disagreements: count(report.disagreements),
     readinessUnproven: count(report.workNext?.readinessUnproven),
+    verdictChanges: verdictChanges(since, report),
     runner: label,
     found: '',
   }
@@ -643,11 +687,17 @@ function notAReport(file, why) {
   return 2
 }
 
-/** `--attest`: read a saved report and print its attestation. Exit 2 when it is not one. */
-function attestMain(label, file) {
+/** `--attest`: read a saved report (and `--since` an earlier one) and print its attestation. Exit 2 when one is not a report. */
+function attestMain(label, file, sinceFile) {
   const { report, why } = readReport(file)
   if (!report) return notAReport(file, why)
-  process.stdout.write(`${JSON.stringify(attestation(report, label), null, 2)}\n`)
+  let since
+  if (sinceFile !== undefined) {
+    const earlier = readReport(sinceFile)
+    if (!earlier.report) return notAReport(sinceFile, earlier.why)
+    since = earlier.report
+  }
+  process.stdout.write(`${JSON.stringify(attestation(report, label, { since }), null, 2)}\n`)
   return 0
 }
 
@@ -667,7 +717,7 @@ function diffMain(beforeFile, afterFile) {
 function usage() {
   process.stderr.write('usage: corpus-probe.mjs [<repo-root>] [--json] [--sweep] [--timeout <seconds>] [--sweep-budget <seconds>]\n'
     + '       corpus-probe.mjs --diff <before.json> <after.json>\n'
-    + '       corpus-probe.mjs --attest <label> <report.json>\n')
+    + '       corpus-probe.mjs --attest <label> <report.json> [--since <earlier.json>]\n')
   return 2
 }
 
@@ -680,7 +730,11 @@ export function main(argv = process.argv.slice(2)) {
   for (let i = 0; i < argv.length; i += 1) {
     const arg = argv[i]
     if (arg === '--diff') return argv[i + 1] && argv[i + 2] ? diffMain(argv[i + 1], argv[i + 2]) : usage()
-    if (arg === '--attest') return argv[i + 1] && argv[i + 2] ? attestMain(argv[i + 1], argv[i + 2]) : usage()
+    if (arg === '--attest') {
+      if (!argv[i + 1] || !argv[i + 2]) return usage()
+      if (argv[i + 3] === undefined) return attestMain(argv[i + 1], argv[i + 2])
+      return argv[i + 3] === '--since' && argv[i + 4] && argv.length === i + 5 ? attestMain(argv[i + 1], argv[i + 2], argv[i + 4]) : usage()
+    }
     if (arg === '--json') json = true
     else if (arg === '--sweep') sweep = true
     else if (arg === '--timeout' || arg === '--sweep-budget') {

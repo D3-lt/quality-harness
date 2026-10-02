@@ -17188,7 +17188,7 @@ The raw reading still over-finds. A never-written name that appears only inside 
 reads as advice, an under-block in both gates. The different-lineage round for 3.7.1 and 3.7.2 is
 owed: the Codex budget is spent until 2026-10-07.
 
-## 338. OPEN 2026-10-02 — an attest line carries no sign that the run found a FAIL
+## 338. CLOSED 2026-10-02 (ADR-082, for 3.8.0) — an attest line carries no sign that the run found a FAIL
 
 Reported by the react-spa runner against 3.7.0: its `corpus-probe --attest` line said
 `"disagreements":0` and `"found":""` while the same run's `--diff` showed both of its records going
@@ -17196,6 +17196,15 @@ adr-lint PASS → FAIL. `release-evidence` reads only the attestation, so it wou
 release that falsely refuses the runner's corpus. Not yet read: what `disagreements` counts, and
 whether a reader verdict that changed between two probe reports can be carried in the attestation
 without carrying the report (§6).
+
+Closed by ADR-082 (docs/specs/2026-10-02-an-attestation-says-what-changed.md).
+- `disagreements` counts adr-next/work-next readiness splits (`compareReaders`), not verdicts.
+- `corpus-probe --attest … --since <earlier report>` now adds `verdictChanges`: counts only, from
+  the comparison `--diff` prints (`verdictMoves`).
+- `attest-import` files it when it is null or exactly its three counts.
+- From plugin 3.8.0, `release-evidence` refuses a run that compared nothing (`uncompared`) and any
+  run whose verdicts left PASS (`regressed`), even beside a clean one. Its advice names each kind.
+- Attestations from before 3.8.0 are judged as before.
 
 ## 339. CLOSED 2026-10-02 (fixed for 3.7.3) — a second `adr-verify` cleared a live run's mutant journal
 

@@ -17930,3 +17930,36 @@ for nothing. release-evidence's `countsAsRun` also needs `compared > 0`. Nothing
 - Checked clean: no encoded lock, digest or comparison reads the new `unreadable` key; frozen-record
   conversion and the strictFrom exemption carry the new line; a FIFO, a dangling symlink and a missing
   file still say "vanished".
+
+**Outside runs of 3.8.6 at bf1b55c:** react-spa, python-adr-corpus and laravel-react-monorepo on macOS,
+and windows-js-python-plugin-adr-heavy (this repository at 8902ada, 64 records compared) and
+windows-ts-monorepo-specs-only on Windows 11. None moved a verdict.
+- **The junction fix, measured on Windows by two runners.** `adr-debt docs/adr` over
+  `docs/adr/loop` → `docs/adr`: exit 0 in 13 s, byte-identical to the no-junction control; 5c6980a
+  was killed at 300 s. `adr-retire-check docs/adr-archive/README.md` with a junction under the
+  archive: PASS, identical to its control, the archived count not doubled.
+- ⚠ **My request was wrong twice:** I asked for `adr-retire-check docs/adr` and then
+  `adr-retire-check docs/adr-archive`. It takes the archive README FILE, so those runs FAILed before
+  walking anything and said nothing about junctions. **Lead:** a directory argument gets
+  "archive README not found: <dir>"; the gate could say it wants the README file.
+- **php-react-app (59,042 files on disk, 2,397 tracked), 5c6980a against bf1b55c:** `adr-debt docs/adr`,
+  `adr-retire-check docs/adr-archive/README.md` and `--adopt docs/adr docs/adr-archive` were
+  identical apart from the banner.
+  - arch-lint was not run, because php-react-app has no architecture doc.
+  - Read from source instead: `repo_files` counts toward its 6,000 cap only tracked, non-skipped,
+    non-binary files, so the walk's ORDER matters only past 6,000 such files. There rglob's order was
+    already filesystem order; the walk's is sorted, and so deterministic.
+- **Lead, F3's class:** adr-debt's banner prints the plugin's absolute path, which on Windows holds the
+  user name. Every gate's banner does.
+- **Still open:** the loop's tasks are not deduplicated (`tasks: 192`, `unbacked` 64, 7 SessionStart
+  lines through `loopback`), unchanged from 5c6980a.
+- **The UTF-16 fix, measured on Windows (js-spa-windows, a copy of this repository at bf1b55c with
+  `tests/test-lock.test.mjs` saved as UTF-16):** adr-lint and adr-next say "could not be read — the file is
+  there, but not as UTF-8 text … — UNPROVEN, done is refused". No "vanished" names that file. The 200
+  "vanished" advice lines in the probe are archived-record history, the same 200 as at 3.8.3.
+- **Two wrong sentences left, both unchanged since 5c6980a (C2 and C8, open):**
+  - work-next says the five lock holders are "READY and claimed done without evidence — `adr-verify`
+    them first". They carry exit-0 evidence, and re-running adr-verify does not fix an unreadable file.
+  - adr-lint's registration check over the same file blames syntax, "the lexer could not read the file
+    as far as the test … rewrite the construct it stopped at", where the lock check names the
+    encoding.

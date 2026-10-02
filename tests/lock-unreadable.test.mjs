@@ -36,7 +36,7 @@ const locked = () => {
     'record = importlib.util.module_from_spec(spec)',
     'spec.loader.exec_module(record)',
     'print(record.first_red_lock_suffix(open(sys.argv[2], encoding="utf-8").read(), sys.argv[3]))',
-  ].join('\n'), RECORD_PY, task, repo], { encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  ].join('\n'), RECORD_PY, task, repo], { encoding: 'utf8', timeout: 60_000, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1', PYTHONIOENCODING: 'utf-8' } })
   assert.equal(minted.status, 0, said(minted))
   const suffix = minted.stdout.trim()
   assert.match(suffix, /^· test-lock-sha256:[0-9a-f]{64} · test-lock-b64:[\w-]+$/)

@@ -2694,9 +2694,9 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
         if hasher not in LOCK_HASHERS:
             fail(f"the recorded lock was taken by hasher {hasher}, which this adr-verify "
                  "does not know — UNPROVEN; it is never compared under another hasher")
-        # Compared under the hasher that took it; the appended lock is hasher 2's
-        # (ADR-078 F-8), so moving a record to hasher 2 needs no --replace-hashes.
-        recorded_reading = snap if hasher == 2 else snapshot_lock(cwd, tests, hasher=hasher)
+        # Compared under the hasher that took it; the appended lock is the one a new lock
+        # takes (ADR-078 F-8, ADR-083 F-4), so moving a record to it needs no --replace-hashes.
+        recorded_reading = snap if hasher == snap["hasher"] else snapshot_lock(cwd, tests, hasher=hasher)
         moved = moved_lock_bodies(vlog, current=recorded_reading)
         if moved:
             names = ", ".join(f"`{rel}`::{name}" for rel, name in moved)

@@ -988,16 +988,17 @@ def _code_normalize(text, python=False, php=False, shell=False, rust=False,
     return "".join(out).strip()
 
 def body_digest(body, python=False, php=False, shell=False, rust=False,
-                swift=False, go=False, hasher=1, ts=False):
+                swift=False, go=False, hasher=1, ts=False, jsx=False):
     """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept.
 
     `hasher=2` reads a JavaScript-family body with `_js_lex` (ADR-078 F-10): a
-    template is kept whole, so a `//` inside a nested one is not a comment. Every
-    other language, and hasher 1, digest exactly as before.
+    template is kept whole, so a `//` inside a nested one is not a comment. Hasher 3
+    reads it the same way with JSX when `jsx` (ADR-083). Every other language, and
+    hasher 1, digest exactly as before.
     """
     text = body.replace("\r\n", "\n").replace("\r", "\n")
-    if hasher == 2 and not (python or php or shell or rust or swift or go):
-        return hashlib.sha256(_h2_js_digest_text(text, ts).encode("utf-8")).hexdigest()
+    if hasher >= 2 and not (python or php or shell or rust or swift or go):
+        return hashlib.sha256(_h2_js_digest_text(text, ts, jsx).encode("utf-8")).hexdigest()
     if python:
         text = re.sub(r'"""(?:.|\n)*?"""', " ", text)
         text = re.sub(r"'''(?:.|\n)*?'''", " ", text)
@@ -1145,7 +1146,7 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
 
 
 def extract_test_names(text, python=False, go=False, php=False, rust=False,
-                       shell=False, swift=False, hasher=1, ts=False):
+                       shell=False, swift=False, hasher=1, ts=False, jsx=False):
     """Names this hasher can see in `text`."""
     if python:
         try:
@@ -1187,7 +1188,7 @@ def extract_test_names(text, python=False, go=False, php=False, rust=False,
             if name not in seen:
                 seen.add(name)
                 names.append(name)
-    for name in _iter_bdd_names(text, php=php, in_code=_h2_in_code(text, ts) if hasher == 2 and not php else None):
+    for name in _iter_bdd_names(text, php=php, in_code=_h2_in_code(text, ts, jsx) if hasher >= 2 and not php else None):
         if name not in seen:
             seen.add(name)
             names.append(name)
@@ -1619,7 +1620,7 @@ def _h2_slash_opens_regex(prev, ts):
 
 
 @lru_cache(maxsize=32)
-def _js_lex(text, ts=False):
+def _js_lex(text, ts=False, jsx=False):
     """(masked, kinds, stop, templates) for a JavaScript-family text, read as JavaScript reads it.
 
     `kinds` marks each position code (0), literal — string, template text or
@@ -1632,15 +1633,27 @@ def _js_lex(text, ts=False):
     from it is unknown (F-7): nothing after it is named and no body reaching it is
     bounded — UNPROVEN, never a guess or a prefix. `templates` holds each outermost
     template's span, which the digest keeps whole (F-10).
+
+    With `jsx` (ADR-083), a `<` where a regex could start, followed by a name or `>`,
+    opens a JSX element: tag and attribute names, attribute strings and text are
+    literal, and an expression's `{…}` is code whose braces are literal, as a
+    template's `${…}` is. An element it cannot read is a stop (F-7). Left False, it
+    reads every file as ADR-078's hasher 2 does (F-2).
     """
     n = len(text)
     kinds = bytearray(n)
     stop = None
-    interp = []      # brace depth inside each open `${…}`, innermost last
+    # Open contexts, innermost last: ["tpl", depth] for a template's `${…}`, depth
+    # counting braces inside it; ["jsx", depth, mode, back, name] for a JSX element,
+    # whose mode is "tag", "children", or "expr" inside one of its `{…}` (depth
+    # counting braces there), `back` being the mode that expression returns to.
+    # Without `jsx` only template frames are pushed, so the reading is hasher 2's.
+    ctx = []
     parens = []      # for each open `(`, the word before it
     templates = []
     regexes = []     # a regex literal right after `=>`: its `/` stays in `masked`
     outer = None
+    outer_jsx = None  # where the outermost open element began
     prev = ("start",)
     i = 0
 
@@ -1662,11 +1675,119 @@ def _js_lex(text, ts=False):
             j += 1
         return None, False
 
+    def jsx_name(j):
+        """End of a JSX tag or attribute name starting at `j`; `j` when none starts there."""
+        if j < n and (text[j].isalpha() or text[j] in "_$"):
+            j += 1
+            while j < n and (text[j].isalnum() or text[j] in "_$.:-"):
+                j += 1
+        return j
+
+    def opens_element(j):
+        """Where the `<` at `j` opening an element ends its name (`j + 1` for `<>`), or None."""
+        if j + 1 < n and text[j + 1] == ">":
+            return j + 1
+        end = jsx_name(j + 1)
+        if end == j + 1:
+            return None
+        if ts:
+            k = end
+            while k < n and _h2_space(text[k]):
+                k += 1
+            # `<T,>` and `<T extends U>` before an arrow are type parameters (F-3).
+            word_after = k + 7 < n and (text[k + 7].isalnum() or text[k + 7] in "_$")
+            if text.startswith(",", k) or (text.startswith("extends", k) and not word_after):
+                return None
+        return end
+
+    def push_element(j, end):
+        """Open the element whose `<` is at `j` and whose name ends at `end`; the next position."""
+        nonlocal outer_jsx
+        if not any(frame[0] == "jsx" for frame in ctx):
+            outer_jsx = j
+        if end == j + 1:   # `<>`, a fragment
+            mark(j, j + 2, 1)
+            ctx.append(["jsx", 0, "children", "children", ""])
+            return j + 2
+        mark(j, end, 1)
+        ctx.append(["jsx", 0, "tag", "tag", text[j + 1:end]])
+        return end
+
+    def element_closed():
+        """Code resumes after a value, unless the element's parent is still reading children."""
+        nonlocal prev
+        if not (ctx and ctx[-1][0] == "jsx" and ctx[-1][2] != "expr"):
+            prev = ("value",)
+
+    def jsx_step(j):
+        """Read one piece of the open element at `j`: the next position, or None for a stop."""
+        nonlocal prev
+        frame = ctx[-1]
+        c = text[j]
+        if c == "{":
+            mark(j, j + 1, 1)
+            frame[1], frame[3], frame[2] = 0, frame[2], "expr"
+            prev = ("start",)
+            return j + 1
+        if frame[2] == "tag":
+            if _h2_space(c) or c == "=":
+                mark(j, j + 1, 1)
+                return j + 1
+            if text.startswith("/>", j) or c == ">":
+                end = j + (2 if c == "/" else 1)
+                mark(j, end, 1)
+                if c == "/":
+                    ctx.pop()
+                    element_closed()
+                else:
+                    frame[2] = "children"
+                return end
+            if c in "'\"":
+                end = text.find(c, j + 1)
+                if end < 0:
+                    return None
+                mark(j, end + 1, 1)
+                return end + 1
+            end = jsx_name(j)
+            if end == j:
+                return None
+            mark(j, end, 1)
+            return end
+        if text.startswith("</", j):
+            k = j + 2
+            while k < n and _h2_space(text[k]):
+                k += 1
+            end = jsx_name(k)
+            name = text[k:end]
+            while end < n and _h2_space(text[end]):
+                end += 1
+            if end >= n or text[end] != ">" or name != frame[4]:
+                return None
+            mark(j, end + 1, 1)
+            ctx.pop()
+            element_closed()
+            return end + 1
+        if c == "<":
+            end = opens_element(j)
+            return None if end is None else push_element(j, end)
+        end = j
+        while end < n and text[end] not in "{<":
+            end += 1
+        mark(j, end, 1)
+        return end
+
     if text.startswith("#!"):
         end = _h2_line_end(text, 0)
         mark(0, end, 2)
         i = end
     while i < n:
+        if ctx and ctx[-1][0] == "jsx" and ctx[-1][2] != "expr":
+            after = jsx_step(i)
+            if after is None:
+                stop = i
+                break
+            i = after
+            continue
         c = text[i]
         if _h2_space(c):
             i += 1
@@ -1695,22 +1816,28 @@ def _js_lex(text, ts=False):
             prev = ("value",)
             i = j + 1
             continue
-        if c == "`" or (c == "}" and interp and interp[-1] == 0):
-            if c == "`" and not interp:
+        if c == "}" and ctx and ctx[-1][0] == "jsx" and ctx[-1][1] == 0:
+            # The `}` closing a JSX expression: the element reads on (F-1).
+            mark(i, i + 1, 1)
+            ctx[-1][2] = ctx[-1][3]
+            i += 1
+            continue
+        if c == "`" or (c == "}" and ctx and ctx[-1][0] == "tpl" and ctx[-1][1] == 0):
+            if c == "`" and not any(frame[0] == "tpl" for frame in ctx):
                 outer = i
             if c == "}":
-                interp.pop()
+                ctx.pop()
             end, opened = template_text(i + 1)
             if end is None:
                 stop = outer if outer is not None else i
                 break
             mark(i, end, 1)
             if opened:
-                interp.append(0)
+                ctx.append(["tpl", 0])
                 prev = ("start",)
             else:
                 prev = ("value",)
-                if not interp:
+                if not any(frame[0] == "tpl" for frame in ctx):
                     templates.append((outer, end))
                     outer = None
             i = end
@@ -1736,6 +1863,11 @@ def _js_lex(text, ts=False):
             prev = ("op", "/")
             i += 1
             continue
+        if jsx and c == "<" and _h2_slash_opens_regex(prev, ts) is True:
+            end = opens_element(i)
+            if end is not None:
+                i = push_element(i, end)
+                continue
         if c.isalnum() or c in "_$#\\" or ord(c) > 127:
             j = i
             while j < n and (text[j].isalnum() or text[j] in "_$#\\"
@@ -1761,12 +1893,12 @@ def _js_lex(text, ts=False):
         elif c == "]":
             prev = ("value",)
         elif c == "{":
-            if interp:
-                interp[-1] += 1
+            if ctx:
+                ctx[-1][1] += 1
             prev = ("op", "{")
         elif c == "}":
-            if interp:
-                interp[-1] -= 1
+            if ctx:
+                ctx[-1][1] -= 1
             prev = ("close_brace",)
         elif text.startswith("=>", i):
             prev = ("op", "=>")
@@ -1781,9 +1913,9 @@ def _js_lex(text, ts=False):
         else:
             prev = ("op", c)
         i += 1
-    if stop is None and interp:
-        # The file ended inside a `${…}`: the template never closed (F-7).
-        stop = outer
+    if stop is None and ctx:
+        # The file ended inside a `${…}` or an element: it never closed (F-7).
+        stop = min(start for start in (outer, outer_jsx) if start is not None)
     if stop is not None:
         mark(stop, n, 3)
     masked = "".join(
@@ -1803,9 +1935,9 @@ def _js_lex(text, ts=False):
     return masked, bytes(kinds), stop, tuple(templates)
 
 
-def _h2_in_code(text, ts=False):
-    """A predicate: is position `p` of `text` code to hasher 2 (F-4)."""
-    kinds = _js_lex(text, ts)[1]
+def _h2_in_code(text, ts=False, jsx=False):
+    """A predicate: is position `p` of `text` code to hasher 2, or with `jsx` hasher 3 (F-4)."""
+    kinds = _js_lex(text, ts, jsx)[1]
     return lambda p: 0 <= p < len(kinds) and kinds[p] == 0
 
 
@@ -1814,6 +1946,8 @@ def _h2_in_code(text, ts=False):
 # reader keeps a list that leaves `.mts` or `.cts` to a different reading.
 JS_FAMILY_SUFFIXES = (".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts", ".cts")
 _JS_TS_SUFFIXES = (".ts", ".tsx", ".mts", ".cts")
+# The suffixes that may hold JSX, read with it (ADR-083 F-3). Plain TypeScript cannot.
+JSX_SUFFIXES = (".js", ".mjs", ".cjs", ".jsx", ".tsx")
 
 
 def js_reading(text, suffix):
@@ -1822,7 +1956,8 @@ def js_reading(text, suffix):
     ADR-079. `complete` is False when the lexer stopped before the end of the file: a name
     it did not find may lie past the stop, so such a name is UNPROVEN, never missing.
     """
-    masked, kinds, stop, _ = _js_lex(text, ts=suffix.lower() in _JS_TS_SUFFIXES)
+    suffix = suffix.lower()
+    masked, kinds, stop, _ = _js_lex(text, ts=suffix in _JS_TS_SUFFIXES, jsx=suffix in JSX_SUFFIXES)
     return masked, kinds, stop is None
 
 
@@ -1859,79 +1994,13 @@ def js_test_lookup(text, name, suffix):
     return ("missing" if complete else "unproven"), None, masked
 
 
-def js_stop_at_jsx(text, suffix):
-    """The lexer's stop when it sits on a JSX tag's `/` (`</` or `/>`), else None.
-
-    The lexer has no JSX mode (BACKLOG §337, reported from two React corpora against
-    3.7.0): a closing or self-closing tag stops it, so every test after the first tag
-    reads UNPROVEN. Until it reads JSX, the gates say that UNPROVEN as advice naming
-    JSX. Plain TypeScript (`.ts .mts .cts`) cannot hold JSX, so a stop there is never
-    one, and a stop anywhere else (a `/` after `}`, an unterminated literal) is not.
-    A tag closes only after one opened, so a `/>` with no `<Name` or `<>` in code
-    before it (`}` then `/>/.test(s)`) is a regex the lexer could not place, not JSX.
-    """
-    if suffix.lower() in (".ts", ".mts", ".cts"):
-        return None
-    masked, _, stop, _ = _js_lex(text, ts=suffix.lower() in _JS_TS_SUFFIXES)
-    if stop is None or text[stop] != "/":
-        return None
-    if not ((stop > 0 and text[stop - 1] == "<") or text.startswith("/>", stop)):
-        return None
-    return stop if re.search(r"<[A-Za-z>]", masked[:stop]) else None
-
-
-_JS_RAW_TITLE = re.compile(r"""\b(?:it|test|describe|context|specify|scenario)(?:\.\w+)*\s*\(\s*"""
-                           r"""(['"`])((?:\\.|(?!\1)[^\\\n])*)\1""")
-
-
-def js_raw_titles(text):
-    """The titles a JavaScript file registers, read without the lexer: comments removed,
-    string contents kept, every it/test/describe call's literal decoded (BACKLOG §337).
-
-    The fallback for a file the lexer stopped in at a JSX tag, so it decides only between
-    JSX advice and missing. A quote is read to the end of its line at most, so an
-    apostrophe in JSX text costs that line's comments and nothing more. It over-finds:
-    a call held in a string counts, which is an under-block, never a false refusal.
-    """
-    out, quote, i, n = [], None, 0, len(text)
-    while i < n:
-        c = text[i]
-        if quote:
-            if c == "\\":
-                out.append(text[i:i + 2])
-                i += 2
-                continue
-            if c in (quote, "\n"):
-                quote = None
-            out.append(c)
-            i += 1
-            continue
-        if c in "'\"`":
-            quote = c
-        elif text.startswith("//", i):
-            end = text.find("\n", i)
-            end = n if end < 0 else end
-            out.append(" " * (end - i))
-            i = end
-            continue
-        elif text.startswith("/*", i):
-            end = text.find("*/", i + 2)
-            end = n if end < 0 else end + 2
-            out.append("".join(ch if ch == "\n" else " " for ch in text[i:end]))
-            i = end
-            continue
-        out.append(c)
-        i += 1
-    return {re.sub(r"\\(.)", r"\1", m.group(2)) for m in _JS_RAW_TITLE.finditer("".join(out))}
-
-
-def _h2_js_digest_text(text, ts=False):
+def _h2_js_digest_text(text, ts=False, jsx=False):
     """Hasher 2's digest text: comments out, code collapsed, every literal kept.
 
     The same normalisation hasher 1 applies, from the lexer's spans, so a body
     both read alike digests alike, and a template is kept whole (F-10).
     """
-    _masked, kinds, _stop, templates = _js_lex(text, ts)
+    _masked, kinds, _stop, templates = _js_lex(text, ts, jsx)
     verbatim = bytearray(len(text))
     for start, end in templates:
         for j in range(start, end):
@@ -2589,7 +2658,7 @@ def _iter_swift_tests(text):
 
 def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
                       shell=False, swift=False, before_regex_masking=False, options_as_body=False,
-                      hasher=1, ts=False):
+                      hasher=1, ts=False, jsx=False):
     """Best-effort body of `name`, or None.
 
     `before_regex_masking` reproduces the JavaScript extraction as it was before
@@ -2662,10 +2731,11 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
             if found != name:
                 continue
             return _span_from_paren(text, masked, after_paren)
-    if hasher == 2 and not php:
-        # Hasher 2 (ADR-078): only a head in code, bounded on the lexer's view.
-        masked = _js_lex(text, ts)[0]
-        for found, after in _iter_bdd_calls(text, in_code=_h2_in_code(text, ts)):
+    if hasher >= 2 and not php:
+        # Hasher 2 (ADR-078): only a head in code, bounded on the lexer's view; hasher 3
+        # reads that view with JSX for a JSX-capable file (ADR-083).
+        masked = _js_lex(text, ts, jsx)[0]
+        for found, after in _iter_bdd_calls(text, in_code=_h2_in_code(text, ts, jsx)):
             if found != name:
                 continue
             return bdd_callback_body(text, after, masked=masked)
@@ -2792,8 +2862,9 @@ def _read_file(path):
 # hasher 1 did. TypeScript is flagged, because a `/` after `>` is ambiguous there.
 _H2_JS_SUFFIXES = {".js", ".mjs", ".cjs", ".jsx", ".ts", ".tsx", ".mts", ".cts"}
 _H2_TS_SUFFIXES = {".ts", ".tsx", ".mts", ".cts"}
-# The hashers a lock may name. A lock naming any other is UNPROVEN (ADR-078 F-9).
-LOCK_HASHERS = (1, 2)
+# The hashers a lock may name. A lock naming any other is UNPROVEN (ADR-078 F-9). Hasher 3
+# is hasher 2 with JSX for a JSX-capable file (ADR-083).
+LOCK_HASHERS = (1, 2, 3)
 
 
 # One reading of one file's text: every name it declares, with its body's digest, or None
@@ -2802,8 +2873,8 @@ LOCK_HASHERS = (1, 2)
 # test file, and 3.4.0's session start read and hashed one 3,800-line test file once per
 # task — 2.4 s where 3.3.0 took 0.9 s, measured 2026-10-01.
 @lru_cache(maxsize=32)
-def _file_lock_digests(source, python, go, php, rust, shell, swift, hasher, ts):
-    reading = {"hasher": hasher, "ts": ts}
+def _file_lock_digests(source, python, go, php, rust, shell, swift, hasher, ts, jsx=False):
+    reading = {"hasher": hasher, "ts": ts, "jsx": jsx}
     out = []
     for name in extract_test_names(
             source, python=python, go=go, php=php, rust=rust, shell=shell,
@@ -2817,11 +2888,21 @@ def _file_lock_digests(source, python, go, php, rust, shell, swift, hasher, ts):
     return tuple(out)
 
 
-def snapshot_lock(root, tests_rows, hasher=2):
+def _jsx_changes_reading(path, source):
+    """Whether JSX changes how a JSX-capable file reads: its lexing differs with JSX (ADR-083 F-4)."""
+    if path is None or source is None or path.suffix.lower() not in JSX_SUFFIXES:
+        return False
+    ts = path.suffix.lower() in _H2_TS_SUFFIXES
+    return _js_lex(source, ts)[1:3] != _js_lex(source, ts, True)[1:3]
+
+
+def snapshot_lock(root, tests_rows, hasher=None):
     """Canonical lock map: check value plus every extractable name in Tests files.
 
-    `hasher` is the reading the map is taken with: 2 for every new lock, 1 to
-    read a lock recorded before hasher 2 the way it was taken (ADR-078 F-1).
+    `hasher` is the reading the map is taken with. None, for every new lock, takes 3
+    when JSX changes how a locked file reads and 2 otherwise, so a lock over JSX-free
+    files reads as ADR-078's did (ADR-083 F-4). 1, 2 or 3 read a lock recorded earlier
+    the way it was taken (ADR-078 F-1).
     """
     check = declared_check(root)
     bodies = {}
@@ -2831,9 +2912,13 @@ def snapshot_lock(root, tests_rows, hasher=2):
         if rel not in seen_files:
             seen_files.append(rel)
     named = {(rel, name) for name, rel in tests_rows}
+    files = []
     for rel in seen_files:
         path = None if root is None else Path(root, *rel.split("/"))
-        source = None if path is None else _read_file(path)
+        files.append((rel, path, None if path is None else _read_file(path)))
+    if hasher is None:
+        hasher = 3 if any(_jsx_changes_reading(path, source) for _rel, path, source in files) else 2
+    for rel, path, source in files:
         if source is None:
             for n, r in tests_rows:
                 if r == rel:
@@ -2848,7 +2933,8 @@ def snapshot_lock(root, tests_rows, hasher=2):
         suffix = path.suffix.lower()
         for name, digest in _file_lock_digests(
                 source, python, go, php, rust, shell, swift,
-                hasher if suffix in _H2_JS_SUFFIXES else 1, suffix in _H2_TS_SUFFIXES):
+                hasher if suffix in _H2_JS_SUFFIXES else 1, suffix in _H2_TS_SUFFIXES,
+                hasher >= 3 and suffix in JSX_SUFFIXES):
             if digest is None:
                 if (rel, name) in named:
                     unproven.add((rel, name))

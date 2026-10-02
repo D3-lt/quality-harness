@@ -794,8 +794,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                if status == \"missing\":",
-      "to": "                if False:",
+      "from": "                elif status == \"missing\":",
+      "to": "                elif False:",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -2780,126 +2780,6 @@
       "only": "^adr-lint finds a JavaScript test with a comment beside its title, and never one inside a comment$"
     },
     {
-      "label": "§337: a stop at a JSX tag is not recognised as one",
-      "file": "plugin/lib/record.py",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "    if not ((stop > 0 and text[stop - 1] == \"<\") or text.startswith(\"/>\", stop)):\n        return None",
-      "to": "    if True:\n        return None",
-      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
-    },
-    {
-      "label": "§337: a stop in plain TypeScript is taken for JSX",
-      "file": "plugin/lib/record.py",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "    if suffix.lower() in (\".ts\", \".mts\", \".cts\"):",
-      "to": "    if False:",
-      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
-    },
-    {
-      "label": "§337: adr-lint refuses a test past a JSX tag",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "    if jsx_stopped(text, name, suffix):",
-      "to": "    if False:",
-      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
-    },
-    {
-      "label": "§337: spec-verify says could-not-check past a JSX tag",
-      "file": "plugin/bin/spec-verify",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "            if js_stop_at_jsx(text, suffix) is not None:",
-      "to": "            if False:",
-      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
-    },
-    {
-      "label": "§337: spec-verify drops its JSX advice in silence",
-      "file": "plugin/bin/spec-verify",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "                elif ok == \"advise\":\n                    errors.advise(f\"{item['id']}: {why}\")",
-      "to": "                elif ok == \"advise\":\n                    pass",
-      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
-    },
-    {
-      "label": "§337: past a JSX stop, a name no reading finds is advice",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "        if js_test_lookup(text, name, suffix)[0] != \"found\" and name not in js_raw_titles(text):\n            return \"missing\"",
-      "to": "        if False:\n            return \"missing\"",
-      "only": "^past a JSX tag, a test no reading finds is still missing$"
-    },
-    {
-      "label": "§337: spec-verify advises past a JSX stop for a name no reading finds",
-      "file": "plugin/bin/spec-verify",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "                if name not in raw and leaf not in raw:",
-      "to": "                if False:",
-      "only": "^past a JSX tag, a test no reading finds is still missing$"
-    },
-    {
-      "label": "§337: the body search drops unproven_test's missing verdict",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "                status = unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)\n                if status is None:",
-      "to": "                unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)\n                if status is None:",
-      "only": "^past a JSX tag, a test no reading finds is still missing$"
-    },
-    {
-      "label": "§337: the title search drops unproven_test's missing verdict",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "                    status = unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)",
-      "to": "                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen, source, f.suffix)",
-      "only": "^past a JSX tag, a test no reading finds is still missing$"
-    },
-    {
-      "label": "§337: a test the lexer found is called missing when the raw reading misses it",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "        if js_test_lookup(text, name, suffix)[0] != \"found\" and name not in js_raw_titles(text):",
-      "to": "        if name not in js_raw_titles(text):",
-      "only": "^past a JSX tag, a comment is not a test and does not hide one$"
-    },
-    {
-      "label": "§337: the raw reading keeps a commented-out call as a test",
-      "file": "plugin/lib/record.py",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "        elif text.startswith(\"//\", i):\n            end = text.find(\"\\n\", i)\n            end = n if end < 0 else end\n            out.append(\" \" * (end - i))",
-      "to": "        elif False:\n            end = text.find(\"\\n\", i)\n            end = n if end < 0 else end\n            out.append(\" \" * (end - i))",
-      "only": "^past a JSX tag, a comment is not a test and does not hide one$"
-    },
-    {
-      "label": "§337: a `/>` with no opening tag before it is taken for JSX",
-      "file": "plugin/lib/record.py",
-      "tests": [
-        "tests/js-reading.test.mjs"
-      ],
-      "from": "    return stop if re.search(r\"<[A-Za-z>]\", masked[:stop]) else None",
-      "to": "    return stop",
-      "only": "^past a JSX tag, a comment is not a test and does not hide one$"
-    },
-    {
       "label": "§339: recovery ignores a live run's ownership of the journal",
       "file": "plugin/bin/adr-verify",
       "tests": [
@@ -3018,6 +2898,126 @@
       "from": "    regressed: 'Do NOT tag this sha. An outside run reports adr-lint verdicts that left PASS against its own earlier report '",
       "to": "    unregressed: 'Do NOT tag this sha. An outside run reports adr-lint verdicts that left PASS against its own earlier report '",
       "only": "^the advice under an UNPROVEN outside run says which could-not-look it is$"
+    },
+    {
+      "label": "ADR-083 T1: a < after a value opens an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if jsx and c == \"<\" and _h2_slash_opens_regex(prev, ts) is True:",
+      "to": "        if jsx and c == \"<\":",
+      "only": "^a comparison is not an element$"
+    },
+    {
+      "label": "ADR-083 T1: JSX text is read as code",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        while end < n and text[end] not in \"{<\":\n            end += 1\n        mark(j, end, 1)",
+      "to": "        while end < n and text[end] not in \"{<\":\n            end += 1\n        mark(j, end, 0)",
+      "only": "^the lexer reads JSX: elements, fragments, attributes, expressions and text$"
+    },
+    {
+      "label": "ADR-083 T1: a JSX expression is read as text",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            frame[1], frame[3], frame[2] = 0, frame[2], \"expr\"",
+      "to": "            frame[1], frame[3], frame[2] = 0, frame[2], frame[2]",
+      "only": "^the lexer reads JSX: elements, fragments, attributes, expressions and text$"
+    },
+    {
+      "label": "ADR-083 T1: a closing tag that names another element is accepted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if end >= n or text[end] != \">\" or name != frame[4]:",
+      "to": "            if end >= n or text[end] != \">\":",
+      "only": "^an element the lexer cannot read is a stop, never a guess$"
+    },
+    {
+      "label": "ADR-083 T1: plain TypeScript is read as JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "JSX_SUFFIXES = (\".js\", \".mjs\", \".cjs\", \".jsx\", \".tsx\")",
+      "to": "JSX_SUFFIXES = (\".js\", \".mjs\", \".cjs\", \".jsx\", \".tsx\", \".ts\")",
+      "only": "^only a JSX-capable suffix reads JSX, and a tsx generic arrow is not an element$"
+    },
+    {
+      "label": "ADR-083 T1: a tsx generic arrow opens an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if text.startswith(\",\", k) or (text.startswith(\"extends\", k) and not word_after):",
+      "to": "            if False:",
+      "only": "^only a JSX-capable suffix reads JSX, and a tsx generic arrow is not an element$"
+    },
+    {
+      "label": "ADR-083 T2: a hasher-3 lock reads its file without JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                hasher >= 3 and suffix in JSX_SUFFIXES):",
+      "to": "                False):",
+      "only": "^a lock over a JSX file is taken by hasher 3, and every other lock by hasher 2$"
+    },
+    {
+      "label": "ADR-083 T2: every new lock is hasher 2",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        hasher = 3 if any(_jsx_changes_reading(path, source) for _rel, path, source in files) else 2",
+      "to": "        hasher = 2",
+      "only": "^a lock over a JSX file is taken by hasher 3, and every other lock by hasher 2$"
+    },
+    {
+      "label": "ADR-083 T2: a hasher-2 lock is read with JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                hasher >= 3 and suffix in JSX_SUFFIXES):",
+      "to": "                hasher >= 2 and suffix in JSX_SUFFIXES):",
+      "only": "^hasher 2 reads a JSX file exactly as it did$"
+    },
+    {
+      "label": "ADR-083 T3: the gates read a JSX file without JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    masked, kinds, stop, _ = _js_lex(text, ts=suffix in _JS_TS_SUFFIXES, jsx=suffix in JSX_SUFFIXES)",
+      "to": "    masked, kinds, stop, _ = _js_lex(text, ts=suffix in _JS_TS_SUFFIXES, jsx=False)",
+      "only": "^a test past a JSX tag is found by both gates, and a never-written one is missing$"
+    },
+    {
+      "label": "ADR-083 T3: a never-written name in a file read to its end is UNPROVEN",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    return (\"missing\" if complete else \"unproven\"), None, masked",
+      "to": "    return \"unproven\", None, masked",
+      "only": "^a test past a JSX tag is found by both gates, and a never-written one is missing$"
+    },
+    {
+      "label": "ADR-083 T1: a < in JSX text that opens nothing is read as an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            return None if end is None else push_element(j, end)",
+      "to": "            return push_element(j, j + 2)",
+      "only": "^a < in JSX text that opens nothing is a stop$"
     },
     {
       "label": "verify: importing the wrapper spawns nothing",
@@ -18973,7 +18973,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if c == \"`\" or (c == \"}\" and interp and interp[-1] == 0):",
+      "from": "        if c == \"`\" or (c == \"}\" and ctx and ctx[-1][0] == \"tpl\" and ctx[-1][1] == 0):",
       "to": "        if c == \"`\":",
       "only": "^hasher 2 reads a template.s interpolation as code$"
     },
@@ -18983,8 +18983,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "in_code=_h2_in_code(text, ts) if hasher == 2 and not php else None",
-      "to": "in_code=_h2_in_code(text, ts) if hasher == 2 else None",
+      "from": "in_code=_h2_in_code(text, ts, jsx) if hasher >= 2 and not php else None",
+      "to": "in_code=_h2_in_code(text, ts, jsx) if hasher >= 2 else None",
       "only": "^hasher 2 reads a non-JavaScript test file exactly as hasher 1 does$"
     },
     {
@@ -18993,7 +18993,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "def snapshot_lock(root, tests_rows, hasher=2):",
+      "from": "def snapshot_lock(root, tests_rows, hasher=None):",
       "to": "def snapshot_lock(root, tests_rows, hasher=1):",
       "only": "^a lock taken before the lexer is read as it was taken$"
     },
@@ -19043,8 +19043,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "                hasher if suffix in _H2_JS_SUFFIXES else 1, suffix in _H2_TS_SUFFIXES):",
-      "to": "                hasher if suffix in _H2_JS_SUFFIXES else 1, False):",
+      "from": "                hasher if suffix in _H2_JS_SUFFIXES else 1, suffix in _H2_TS_SUFFIXES,",
+      "to": "                hasher if suffix in _H2_JS_SUFFIXES else 1, False,",
       "only": "^a slash hasher 2 cannot place leaves the tests it reaches unproven$"
     },
     {
@@ -19053,7 +19053,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        recorded_reading = snap if hasher == 2 else snapshot_lock(cwd, tests, hasher=hasher)",
+      "from": "        recorded_reading = snap if hasher == snap[\"hasher\"] else snapshot_lock(cwd, tests, hasher=hasher)",
       "to": "        recorded_reading = snap",
       "only": "^relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1$"
     },
@@ -19153,7 +19153,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if stop is None and interp:",
+      "from": "    if stop is None and ctx:",
       "to": "    if False:",
       "only": "^an interpolation still open at the end of the file leaves its tests unproven$"
     },

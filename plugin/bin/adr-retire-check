@@ -56,7 +56,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of  # noqa: E402
-from record import first_number_id, first_reference, looks_like_record, record_id, references_in, title_line  # noqa: E402
+from record import first_number_id, first_reference, looks_like_record, record_id, references_in, title_line, walk  # noqa: E402
 from record import record_status, status_kind  # noqa: E402
 
 
@@ -152,7 +152,7 @@ def adr_files(root, unidentified=None):
     say so; it is never counted and never silently dropped (ADR-005).
     """
     records = {}
-    for path in sorted(root.rglob("*.md")):
+    for path in sorted(walk(root, "*.md")):
         relative = path.relative_to(root)
         if "tasks" in {part.lower() for part in relative.parts[:-1]} or path.name.lower() == "readme.md":
             continue
@@ -219,7 +219,7 @@ def adr_id_for_file(path, root, known=frozenset()):
 
 def meaningful_obligations(root, known=frozenset()):
     counts = Counter()
-    for path in sorted(root.rglob("*.md")):
+    for path in sorted(walk(root, "*.md")):
         if path.resolve() == (root / "README.md").resolve():
             continue
         adr_id = adr_id_for_file(path, root, known)
@@ -342,9 +342,9 @@ def unit_order(paths):
 
 def decision_unit_files(archive_root, adr_id, source, known=frozenset()):
     if source.parent != archive_root:
-        return unit_order(path for path in source.parent.rglob("*") if path.is_file())
+        return unit_order(path for path in walk(source.parent) if path.is_file())
     files = {source}
-    for path in archive_root.rglob("*"):
+    for path in walk(archive_root):
         if path.is_file() and path.name != "README.md" and adr_id_for_file(path, archive_root, known) == adr_id:
             files.add(path)
     return unit_order(files)

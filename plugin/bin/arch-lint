@@ -70,7 +70,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, NO_WINDOW  # noqa: E402
+from record import sections_of, NO_WINDOW, walk  # noqa: E402
 
 RULE_SECTIONS = ["Dependency Contracts", "Concept Ownership (DRY)", "Composition Root",
                  "Test Doubles", "Trust & Data Boundaries"]
@@ -324,7 +324,7 @@ def repo_files(root, limit=6000):
     """Text files under root, cheaply — enough to resolve a symbol name."""
     out = []
     tracked = tracked_paths(root)
-    for q in root.rglob("*"):
+    for q in walk(root):
         if len(out) >= limit:
             break
         if not q.is_file():

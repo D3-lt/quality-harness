@@ -17841,3 +17841,92 @@ Advice the review gave, decided:
 - **Open, C2:** a locked test file later saved as UTF-16 reads "vanished — done is refused", not
   unreadable. The new test covers only `snapshot_lock`.
 - Not run by the reviewer: a Windows junction under `realpathSync.native`.
+
+**Outside runs of 3.8.5 at 5c6980a (2026-10-02):** react-spa, python-adr-corpus and
+laravel-react-monorepo on macOS, and a Windows 11 run on a specs-only TypeScript monorepo. None moved a
+verdict. The Windows runner also repeated its 3.8.3 chaos cases on scratch copies:
+- **Unusable TEMP: fixed.** It exits 3 with the one-line reason, with no stack trace and no JSON.
+- **Junction loop (`mklink /J docs\adr\loopback docs\adr`): half fixed, and the first item for 3.8.6.**
+  - No hang: the probe took 22 s against a 17 s baseline. `records: 3`, the look is PARTIAL, every
+    duplicate is named, and adr-state reads 3.
+  - But TASKS are not deduplicated: work-next says `tasks: 192` and 64 `unbacked`, and the probe lists
+    192 adr-lint entries.
+  - SessionStart offers the same task again through the link:
+    `docs/adr/loopback/ADR-001-…/tasks: T1 is ready … Prove it with adr-verify docs/adr/loopback/…`, 7
+    lines.
+  - This is not a fail-open: every offered task is real and owned by an Accepted record, and no finding
+    is hidden. It is the same file counted many times. `taskDirectories` needs the realpath rule that
+    `adrCorpus` now has. A Windows junction is the first measurement of `realpathSync.native` on one.
+- **Deleted owner record: half fixed.** SessionStart now says "no record owning these tasks was found …
+  UNKNOWN". work-next, however, says `look: ok`, counts the task, and names it nowhere. This is the C5
+  gap the `orphan-tasks` fixture shows, now seen on Windows too.
+- The UTF-16-test-file-under-a-lock case was not run by that runner.
+
+3.8.5 at 5c6980a was ready to ship with the two halves above named as known open: neither offers
+unreal work or hides a real finding.
+
+**Then a second Windows run (js-spa-windows) held the tag:** C1's fix had turned a crash into a false
+sentence. With `tests/test-lock.test.mjs` saved as UTF-16 in a copy of this repository:
+- adr-lint FAILed 6 records with "locked test … vanished — done is refused";
+- adr-next said the same for 5 T1s;
+- work-next said "READY and claimed done without evidence".
+The file was there and nobody had seen it gone. `_read_file` returned None for "gone" and for "cannot
+read" alike, and `lock_findings` called every None "vanished". This is CLAUDE.md §3 — "a gate never
+reports an observation it did not make" — and 3.8.5 introduced it; 3.8.3 crashed instead. The stand-in
+review had flagged it as advice ("Open, C2" above), and an outside run measured it.
+
+**Fixed for 3.8.6** (the version is bumped, since main already serves 3.8.5):
+- `snapshot_lock` records `unreadable`, the Tests-row files that are there and could not be read. A
+  failed lookup counts as there: "could not look" is not "gone".
+- `lock_findings` then says "could not be read — the file is there, but not as UTF-8 text, or not
+  openable by this process — UNPROVEN, done is refused".
+- The block stays, as UNPROVEN blocks done everywhere else; only the sentence was false.
+- The test is `a locked test file that is there and cannot be read is UNPROVEN, not vanished`. It goes
+  through adr-lint, with a gone-file twin that still says "vanished". Two mutants are killed.
+- With the mode bits denying a read on macOS, adr-lint stops earlier with "could not run … Permission
+  denied", from its own read of the Tests-row file. That is honest, and its absolute path is F2/F3's
+  open item.
+
+The same run's other repeats:
+- A junction loop under `tasks/` made `git ls-files` itself hang on Windows; the probe took 126 s and
+  said UNPROVEN, which is honest.
+- With TEMP missing, adr-lint still PASSes while the probe says adr-lint has "nowhere to put its state".
+  The probe's sentence over-claims and adr-lint's state write fails silently: open.
+- A deleted owner gave adr-next `owner_missing: true`, and work-next still said nothing, the C5 gap.
+- F2 and F6 are unchanged, as expected.
+
+**A third Windows run (windows-js-python-plugin-adr-heavy, over this repository at 8902ada) found the
+Python half of C7: `adr-debt docs/adr` HANGS over a junction loop** (`New-Item -ItemType Junction`;
+killed at 300 s, no output; 12 s without the junction). Under Git Bash, `cmd //c mklink /J` mangles
+its switch and silently makes nothing. Git for Windows walks into the junction too, so every JS reader
+said UNPROVEN ("git could not list the tree"), which is honest. adr-retire-check finished.
+
+**Fixed for 3.8.6 (the owner, 2026-10-02: "fix the hang in 3.8.6"):**
+- `record.walk(root, pattern)` is `rglob` that never enters a symlink or a junction
+  (`os.path.isjunction`, Python 3.12+). A link is still yielded when its name matches.
+- It replaces every `rglob` in `plugin/`: adr-debt ×3, adr-retire-check ×4, adr-verify, adr-lint's
+  no-git fallback, arch-lint and spec-verify.
+- `mrw read --grep 'rglob\(|os\.walk\(|glob\("\*\*' plugin/` now finds two comments and no call.
+- Tests: `record.walk yields what rglob yields, and never enters a directory it is told is a link`, with
+  an injected predicate, since a junction cannot be made off Windows; and `record.walk and adr-debt
+  finish over a link that loops back to the corpus`, with a real junction on Windows and a symlink
+  elsewhere.
+- One mutant is killed. ⚠ Off Windows the second test passes without the fix: Python 3.13+ `rglob`
+  already skips symlinks. Only the Windows CI job measures the junction.
+
+**Asked and withdrawn (the owner chose "fix in 3.8.6" on a premise I had not checked):** that run
+suggested an all-UNPROVEN probe attests as a clean run, since `couldNotRun` reads 0. It does not.
+`attestation()` gives `at: null` with `atReason: "the probe could not look at the corpus (look
+UNPROVEN) …"`, pinned at `tests/corpus-probe.test.mjs:434`, and an attestation without `at` counts
+for nothing. release-evidence's `countsAsRun` also needs `compared > 0`. Nothing changed.
+
+**The stand-in review of the 3.8.6 lock fix:**
+- **Blocker, fixed.** `_present` asked `Path.is_file`, which from Python 3.13 swallows every OSError,
+  so a directory above the file that the process may not search still said "vanished". It uses
+  `os.stat` now, with a test and a killed mutant.
+- **Open.** `moved_lock_bodies` treats an unreadable file as a moved body, so `adr-verify --relock`
+  offers "pass --replace-hashes" over a file it could not read. Whether a `--replace-hashes` lock then
+  leaves that test unlocked through `tool_blind` was not settled.
+- Checked clean: no encoded lock, digest or comparison reads the new `unreadable` key; frozen-record
+  conversion and the strictFrom exemption carry the new line; a FIFO, a dangling symlink and a missing
+  file still say "vanished".

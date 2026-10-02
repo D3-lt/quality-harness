@@ -273,3 +273,12 @@ test('statusline segment: recipe does not delete refreshInterval or claim QH set
   const hooks = readFileSync(join(repoRoot, 'plugin', 'hooks', 'hooks.json'), 'utf8')
   assert.doesNotMatch(hooks, /statusLine/)
 })
+
+// BACKLOG §348's review: a red workflow branch-state named without reading its jobs is not a job.
+test('a workflow whose jobs were not read is counted apart from jobs', () => {
+  const red = failed => renderCi({ state: 'red', sha: 'feed123', failed })
+  assert.equal(red(['e2e (push) / browser: failure', 'platforms (push): failure — jobs not read', 'ci (push): failure — jobs not read']),
+    'CI ✗ 1 job(s) +2 unread')
+  assert.equal(red(['a workflow (push): failure — jobs not read']), 'CI ✗ +1 unread')
+  assert.equal(red(['windows: failure', 'lint: failure']), 'CI ✗ 2 job(s)')
+})

@@ -120,11 +120,12 @@ const NO_TAGS = /No names found|cannot describe anything/i
  * Each half is independent: git can answer while `gh` is missing, and the render
  * must be able to say so for one without claiming anything about the other.
  *
- * `checkpoint` is called ONCE with the git half, before `gh` is attempted. A
- * caller that caches can persist that, so a run killed during the network half
- * still leaves something behind — see `cached`.
+ * `checkpoint` is called ONCE with the git half and the release half, before `gh` is
+ * attempted. A caller that caches can persist that, so a run killed during the network
+ * half still leaves something behind — see `cached`. `clock` is the seam the job-view
+ * budget reads (BACKLOG §348).
  */
-export function collect(run = shell, checkpoint = () => {}) {
+export function collect(run = shell, checkpoint = () => {}, clock = Date.now) {
   const branch = run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
   if (!branch.ok) return { looked: false, note: branch.note }
   const head = run(['git', 'rev-parse', '--short', 'HEAD'])
@@ -144,11 +145,14 @@ export function collect(run = shell, checkpoint = () => {}) {
     dirty: dirty.ok ? dirty.out.split('\n').filter(Boolean).length : null,
     ahead, behind,
   }
+  // ⚠ THE RELEASE HALF IS GIT ONLY, SO IT IS READ BEFORE `gh` (BACKLOG §348). On a Windows
+  // desktop the job views alone took 5.7 s, and the release half, read after them, was the
+  // part an 8 s budget lost at SessionStart. Read here it costs about 180 ms and survives.
+  const release = releaseHalf(run)
   checkpoint({
     ...git,
     ci: { looked: false, note: 'this answer was stored before the CI half was gathered' },
-    tag: null, shippedSinceTag: null,
-    releaseBlocked: 'this answer was stored before the release half was read',
+    ...release,
   })
 
   // ⚠ ASKING `gh` ABOUT A REPOSITORY IT CANNOT ANSWER FOR IS NOT FREE, AND IT IS
@@ -234,11 +238,22 @@ export function collect(run = shell, checkpoint = () => {}) {
         ci = { looked: false, note: `the newest ${rows.length} runs are all at ${ci.sha}, so a workflow listed `
           + 'before them was not read' }
       }
-      for (const bad of failing.filter(r => r.conclusion)) {
-        const jobs = run(['gh', 'run', 'view', String(bad.databaseId), '--json', 'jobs'])
-        if (!jobs.ok) continue
+      // ⚠ EACH JOB VIEW IS 1.6–2.5 s ON A WINDOWS DESKTOP (BACKLOG §348, the owner, 2026-10-02).
+      // The first red workflow is always viewed; the rest only while the views have spent less
+      // than JOB_VIEW_BUDGET_MS. A workflow past it is still named and still red, its jobs said
+      // not read, never dropped (ADR-005). A fast host views every one.
+      const viewing = clock()
+      for (const [index, bad] of failing.filter(r => r.conclusion).entries()) {
         // A job name alone cannot say which workflow failed once two did.
         const where = failing.length > 1 ? `${bad.workflowName || 'a workflow'} (${bad.event ?? 'run'}) / ` : ''
+        // Named, not dropped, whether its view was skipped or failed (the review of §348).
+        const unread = () => ci.failed.push(`${bad.workflowName || 'a workflow'} (${bad.event ?? 'run'}): ${bad.conclusion} — jobs not read`)
+        if (index > 0 && clock() - viewing >= JOB_VIEW_BUDGET_MS) {
+          unread()
+          continue
+        }
+        const jobs = run(['gh', 'run', 'view', String(bad.databaseId), '--json', 'jobs'])
+        if (!jobs.ok) { unread(); continue }
         try {
           ci.failed.push(...JSON.parse(jobs.out).jobs
             .filter(job => job.conclusion && job.conclusion !== 'success')
@@ -255,30 +270,42 @@ export function collect(run = shell, checkpoint = () => {}) {
     }
   }
 
-  // WHAT THE RELEASE QUESTION IS ANCHORED TO, AND WHAT THAT ANCHOR CANNOT KNOW.
-  // `git describe` reads LOCAL refs; `gh release create` — what CLAUDE.md §13.7
-  // tells you to run — puts the tag on the FORGE. So the machine that cuts the
-  // releases is the one whose anchor goes stale, and on 2026-09-07 this printed
-  // "plugin/ changed in 8 file(s) since v2.81.0 — a green shipped change is
-  // released, not parked" on every prompt while HEAD WAS the newest release. The
-  // count was true and the conclusion was false (BACKLOG §157).
-  //
-  // ⚠ THE FIX IS THE WORDING, NOT A FORGE LOOKUP, AND THAT IS THE SECOND ANSWER
-  // TO THIS. The first asked `gh release view` and anchored on the published
-  // release. It worked — and five different-lineage review rounds each found a
-  // real defect in it, every one in the CLASSIFICATION of how `gh` can fail: a
-  // spent budget, an auth error, a 404 that means four different things, a draft,
-  // a release off a divergent branch, a repository not on GitHub at all, and the
-  // same repository without `gh` installed. The feature's real surface was "how
-  // many ways can a subprocess fail, and which of them may be silent", and that
-  // surface is bigger than the defect it was built to fix.
-  //
-  // So this reader states what it can OBSERVE and names what it cannot, narrowly:
-  // `git describe --tags --abbrev=0` gives the newest tag REACHABLE FROM HEAD in
-  // this clone — not the newest tag the clone holds, and nothing at all about the
-  // forge. Exact release evidence belongs in `scripts/release-evidence.mjs`, which
-  // the release procedure already runs and which may take as long as it likes
-  // (§13.5).
+  return {
+    ...git,
+    ci,
+    ...release,
+  }
+}
+
+// How long `gh run view` calls may run before the remaining red workflows are named without
+// their jobs (BACKLOG §348). The first is always viewed.
+const JOB_VIEW_BUDGET_MS = 2_000
+
+// WHAT THE RELEASE QUESTION IS ANCHORED TO, AND WHAT THAT ANCHOR CANNOT KNOW.
+// `git describe` reads LOCAL refs; `gh release create` — what CLAUDE.md §13.7
+// tells you to run — puts the tag on the FORGE. So the machine that cuts the
+// releases is the one whose anchor goes stale, and on 2026-09-07 this printed
+// "plugin/ changed in 8 file(s) since v2.81.0 — a green shipped change is
+// released, not parked" on every prompt while HEAD WAS the newest release. The
+// count was true and the conclusion was false (BACKLOG §157).
+//
+// ⚠ THE FIX IS THE WORDING, NOT A FORGE LOOKUP, AND THAT IS THE SECOND ANSWER
+// TO THIS. The first asked `gh release view` and anchored on the published
+// release. It worked — and five different-lineage review rounds each found a
+// real defect in it, every one in the CLASSIFICATION of how `gh` can fail: a
+// spent budget, an auth error, a 404 that means four different things, a draft,
+// a release off a divergent branch, a repository not on GitHub at all, and the
+// same repository without `gh` installed. The feature's real surface was "how
+// many ways can a subprocess fail, and which of them may be silent", and that
+// surface is bigger than the defect it was built to fix.
+//
+// So this reader states what it can OBSERVE and names what it cannot, narrowly:
+// `git describe --tags --abbrev=0` gives the newest tag REACHABLE FROM HEAD in
+// this clone — not the newest tag the clone holds, and nothing at all about the
+// forge. Exact release evidence belongs in `scripts/release-evidence.mjs`, which
+// the release procedure already runs and which may take as long as it likes
+// (§13.5).
+function releaseHalf(run) {
   const tag = run(['git', 'describe', '--tags', '--abbrev=0'])
   const anchor = tag.ok && tag.out ? tag.out : null
   const shipped = anchor ? run(['git', 'diff', '--name-only', `${anchor}..HEAD`, '--', 'plugin/']) : null
@@ -299,13 +326,11 @@ export function collect(run = shell, checkpoint = () => {}) {
       ? `the newest tag could not be read (${tag.note ?? 'no reason given'})`
       : null
   return {
-    ...git,
-    ci,
     tag: anchor,
     shippedSinceTag: shipped && shipped.ok ? shipped.out.split('\n').filter(Boolean).length : null,
     releaseBlocked: blocked,
-}
   }
+}
 
 // How many runs one listing asks for. A window whose rows are ALL at the answering
 // commit is not known to be complete, and says so rather than reading green.

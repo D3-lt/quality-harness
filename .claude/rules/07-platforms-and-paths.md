@@ -108,3 +108,23 @@ way it is broken.
 two runs before took about 5s. `observe()` then outran its 5s git budget, and the publish check said
 nothing at all (§314 fixed the silence). Two tests that expected a refusal failed because of runner
 speed, not because of the change under test. Tests now set the budgets they depend on.
+
+## Path length (2026-10-02, BACKLOG §349)
+
+The first Windows outside run could not clone this repository: `git clone` under a %TEMP% scratch
+directory about 115 characters deep failed with "Filename too long" (exit 128, "Clone succeeded, but
+checkout failed"). The longest tracked path was 157 characters: archived ADR-059 task names, and
+ADR-060 T3. 22 paths exceeded 120. `git -c core.longpaths=true clone` worked, but an outside runner
+should not need to know that. `plugin/` peaked at 106 characters, so installs were never affected.
+
+The owner chose a bound plus shorter names. `tests/path-length.test.mjs` refuses any tracked or
+about-to-be-added path over 128 characters, which leaves a clone directory about 130 characters deep.
+Three active task files were renamed with `git mv` (ADR-060 T3, ADR-067 T3, ADR-068 T2), each keeping
+its `T<n>-` prefix, and their two README links and one test were updated.
+
+⚠ **The archive could not be renamed, and the selftest said so.** Renaming five archived task files
+of ADR-058 and ADR-059 made `adr-retire-check` FAIL with "SHA-256 does not match the frozen decision
+unit": the frozen digest covers file names, and no tool re-freezes. The renames were reverted. The
+owner chose a closed list: those five paths are named in the test, none may be added, and one that
+leaves the tree must leave the list. Until they do, a Windows clone needs `core.longpaths`, and every
+outside-run request says so.

@@ -6811,7 +6811,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  checkpoint({\n    ...git,\n    ci: { looked: false, note: 'this answer was stored before the CI half was gathered' },\n    tag: null, shippedSinceTag: null,\n    releaseBlocked: 'this answer was stored before the release half was read',\n  })",
+      "from": "  checkpoint({\n    ...git,\n    ci: { looked: false, note: 'this answer was stored before the CI half was gathered' },\n    ...release,\n  })",
       "to": "  void checkpoint",
       "only": "^(?:collect checkpoints the git half BEFORE it spawns gh, and the next prompt reads it)$"
     },
@@ -19856,6 +19856,46 @@
       "from": "stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\\n`)",
       "to": "throw failure",
       "only": "^a skip whose ledger cannot be written is said, and still skips$"
+    },
+    {
+      "label": "§348: job views ignore their budget",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "if (index > 0 && clock() - viewing >= JOB_VIEW_BUDGET_MS) {",
+      "to": "if (false) {",
+      "only": "^job views stop at their budget, and the release half is read before gh$"
+    },
+    {
+      "label": "§348: a red workflow past the budget is dropped, not named",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const unread = () => ci.failed.push(",
+      "to": "const unread = () => void (",
+      "only": "^job views stop at their budget, and the release half is read before gh$"
+    },
+    {
+      "label": "§348: the checkpoint carries no release half",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const release = releaseHalf(run)",
+      "to": "  const release = { tag: null, shippedSinceTag: null, releaseBlocked: null }",
+      "only": "^job views stop at their budget, and the release half is read before gh$"
+    },
+    {
+      "label": "§348 review: the statusline counts unread workflows as jobs",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "const jobs = (ci.failed?.length ?? 0) - unread",
+      "to": "const jobs = (ci.failed?.length ?? 0)",
+      "only": "^a workflow whose jobs were not read is counted apart from jobs$"
     }
   ]
 }

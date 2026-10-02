@@ -17281,20 +17281,24 @@ labelled `§339:`.
 Limit, named: a journal written by a release before 3.7.3 names no owner. Such a journal is still
 recovered as before, so a run started under an older plugin is unprotected until it ends.
 
-## 340. OPEN 2026-10-02 (dated triggers) — 3.8.0 waits for its Codex round; ADR-081's measurement is due
+## 340. OPEN 2026-10-02 (dated trigger 2026-10-08) — 3.8.0 released; ADR-081's measurement is due
 
-main at f992e4f carries §339's journal owner, ADR-082 and ADR-083: green in CI and unreleased. main's plugin
-version is still 3.7.2. The owner chose to hold the tag for the different-lineage round (§12), and the
-Codex budget returns 2026-10-07.
-- **On or after 2026-10-07:**
-  1. Run the Codex round owed for 3.7.2 (f1ad71c..e8a3de8) together with the one for this batch. Reconcile
-     and fix its findings.
-  2. Then run the 3.8.0 chain. Its outside runs attest with `--since` their 3.7.2 reports, the first
-     release ADR-082's rule binds.
+main at f992e4f carried §339's journal owner, ADR-082 and ADR-083: green in CI and unreleased. The owner
+first chose to hold the tag for the different-lineage round (§12), whose budget returns 2026-10-07, then
+asked for the review to be done in this session instead (§341).
+- **Released 2026-10-02:** v3.8.0, Latest, at 4171b6e. The dispatched campaign 36992731601 ran 55 of 55
+  jobs green, and `release-evidence` returned SUCCESS. Both outside runs attest with `--since` their 3.7.2
+  reports, the first release ADR-082's rule binds:
+  - react-spa: `compared` 2, PASS → FAIL 0;
+  - laravel-react-monorepo: `compared` 95, PASS → FAIL 0.
+  Every "lexer stopped at a JSX tag" line is gone in both, and the `onOrder` record still FAILs.
+  `dead-code-scan` found 0 (orphan-sweep 0 of 1472, vulture 2.16, knip 6.39.0). The Codex round owed for
+  3.7.2 (f1ad71c..e8a3de8) is moot: its scope, the JSX stop-gap, was deleted by ADR-083, and 3.8.0's
+  review is §341.
 - **On or after 2026-10-08:** ADR-081's follow-up. Measure same-tree skips and hook durations at the
   adopters, against the 53 of 280 measured before it. This also answers §331's import-cost residual.
 - **§333** closes if no Windows `mutate --narrow` miss recurs across the campaigns dispatched since
-  2026-10-02.
+  2026-10-02. Campaign 36992731601's Windows and mutation jobs were green.
 
 ## 341. CLOSED 2026-10-02 (fixed for 3.8.0) — the stand-in review of 3.8.0: two reviewers, nine fixes, residuals named
 

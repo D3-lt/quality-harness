@@ -86,4 +86,4 @@ Revert the commits. A hasher-3 lock recorded meanwhile then names a hasher the r
 
 ## Follow-ups
 
-- [ ] Ask the react-spa and laravel-react-monorepo runners for a run with `--since` their 3.7.2 report: every "lexer stopped at a JSX tag" advice line gone, and no PASS → FAIL but rows they confirm are stale.
+- [x] Ask the react-spa and laravel-react-monorepo runners for a run with `--since` their 3.7.2 report: every "lexer stopped at a JSX tag" advice line gone, and no PASS → FAIL but rows they confirm are stale (done 2026-10-02: both attest `passToFail` 0, `compared` 2 and 95, and every JSX stop line is gone; filed in `docs/corpus-reports/` at 4171b6e, released as v3.8.0).

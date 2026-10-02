@@ -158,7 +158,12 @@ export function ciReading(cwd, now = Date.now()) {
 export function renderCi(ci) {
   if (!ci) return ''
   if (ci.state === 'green') return 'CI ✓'
-  if (ci.state === 'red') return `CI ✗${ci.failed?.length ? ` ${ci.failed.length} job(s)` : ''}`
+  if (ci.state === 'red') {
+    // A workflow branch-state named without reading its jobs is not a job (BACKLOG §348).
+    const unread = (ci.failed ?? []).filter(entry => / — jobs not read$/.test(entry)).length
+    const jobs = (ci.failed?.length ?? 0) - unread
+    return `CI ✗${jobs ? ` ${jobs} job(s)` : ''}${unread ? ` +${unread} unread` : ''}`
+  }
   if (ci.state === 'running') return 'CI …'
   if (ci.state === 'stale') return `CI ? (${ci.ageMinutes}m old)`
   return 'CI ?'

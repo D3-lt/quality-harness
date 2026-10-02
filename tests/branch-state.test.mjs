@@ -1464,3 +1464,45 @@ test('a stale listing is asked once more by commit, and only a stale one is', ()
   ], once)), { brief: true })
   assert.equal(once.filter(call => call.startsWith('gh run list')).length, 1, once.join(' | '))
 })
+
+// BACKLOG §348 (the owner, 2026-10-02): on a Windows desktop a full branch-state took 6.4–7.7 s, of
+// which each `gh run view --json jobs` was 1.6–2.5 s, and the release half (git, after gh) was the
+// part the 8 s budget lost. The release half is read before gh, and job views stop once they have
+// spent their budget: the first red workflow is always viewed, the rest are named, jobs not read.
+test('job views stop at their budget, and the release half is read before gh', () => {
+  const at = (workflowName, workflowDatabaseId, databaseId) =>
+    ({ headSha: 'feed1234', event: 'push', status: 'completed', conclusion: 'failure', databaseId, workflowName, workflowDatabaseId })
+  let now = 0
+  const calls = []
+  const table = [...GIT_CLEAN,
+    listing([at('e2e', 7, 30), at('platforms', 8, 20), at('ci', 9, 10)]),
+    jobsOf(30, [{ name: 'browser', conclusion: 'failure' }]),
+    jobsOf(20, [{ name: 'windows', conclusion: 'failure' }]),
+    jobsOf(10, [{ name: 'lint', conclusion: 'failure' }]),
+  ]
+  const slow = argv => {
+    calls.push(argv.join(' '))
+    if (argv.join(' ').startsWith('gh run view')) now += 2500
+    return runner(table)(argv)
+  }
+  const state = collect(slow, () => {}, () => now)
+  assert.equal(calls.filter(call => call.startsWith('gh run view')).length, 1, calls.join(' | '))
+  const out = render(state, { brief: true })
+  assert.match(out, /FAILURE — e2e \(push\) \/ browser: failure/, out)
+  assert.match(out, /platforms \(push\): failure — jobs not read/, out)
+  assert.match(out, /ci \(push\): failure — jobs not read/, out)
+
+  // A fast host views every red workflow.
+  const fast = render(collect(runner(table), () => {}, () => 0), { brief: true })
+  assert.match(fast, /platforms \(push\) \/ windows: failure/, fast)
+  assert.doesNotMatch(fast, /jobs not read/, fast)
+
+  // The release half is read before gh, and a checkpoint taken before gh already carries it.
+  const describeAt = calls.findIndex(call => call.startsWith('git describe'))
+  const ghAt = calls.findIndex(call => call.startsWith('gh run list'))
+  assert.ok(describeAt >= 0 && describeAt < ghAt, calls.join(' | '))
+  let saved = null
+  collect(runner(table), state => { saved = state }, () => 0)
+  assert.equal(saved.tag, 'v2.64.0')
+  assert.equal(saved.shippedSinceTag, 0, 'GIT_CLEAN names no changed plugin file')
+})

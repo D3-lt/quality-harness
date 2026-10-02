@@ -18,7 +18,7 @@ const [python, ...prefix] = pythonArgv()
 
 test('test-locks names the task that locks a test, and nothing for a file no lock names', () => {
   const adr = readdirSync(join(repoRoot, 'docs', 'adr')).find(name => /^ADR-068-/.test(name) && !name.endsWith('.md'))
-  const task = join('docs', 'adr', adr, 'tasks', 'T2-sessionstart-says-when-git-is-not-yet-armed.md')
+  const task = join('docs', 'adr', adr, 'tasks', 'T2-sessionstart-says-git-not-armed.md')
   const dir = mkdtempSync(join(tmpdir(), 'qh-test-locks-'))
   try {
     mkdirSync(join(dir, dirname(task)), { recursive: true })
@@ -28,7 +28,7 @@ test('test-locks names the task that locks a test, and nothing for a file no loc
       { encoding: 'utf8', timeout: 60_000 })
     const locked = run('tests/lifecycle.test.mjs', 'the nag says what changed')
     assert.equal(locked.status, 0, locked.stderr)
-    assert.match(locked.stdout, /T2-sessionstart-says-when-git-is-not-yet-armed\.md: reported: the nag says what changed in a form a person can read/)
+    assert.match(locked.stdout, /T2-sessionstart-says-git-not-armed\.md: reported: the nag says what changed in a form a person can read/)
     assert.match(locked.stdout, /^1 lock\(s\) on tests\/lifecycle\.test\.mjs$/m)
     const free = run('tests/no-such.test.mjs')
     assert.equal(free.status, 0, free.stderr)

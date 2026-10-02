@@ -18,4 +18,4 @@ Implementation tasks for ADR-067: The publish classifier reads a command as the 
 |------|------|--------|
 | T1 | [T1-one-lexer-proved-against-the-shell.md](T1-one-lexer-proved-against-the-shell.md) | done |
 | T2 | [T2-the-publish-classifier-reads-argv.md](T2-the-publish-classifier-reads-argv.md) | done |
-| T3 | [T3-the-armed-grammar-reads-the-same-lexer.md](T3-the-armed-grammar-reads-the-same-lexer.md) | done |
+| T3 | [T3-armed-grammar-reads-the-lexer.md](T3-armed-grammar-reads-the-lexer.md) | done |

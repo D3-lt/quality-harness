@@ -228,7 +228,8 @@ export function main(argv, out = line => process.stdout.write(`${line}\n`)) {
   }
   if (verb === 'remove' && target) { remove(target); return 0 }
   if (verb === 'sweep' && target) { sweep(path.resolve(target), line => out(JSON.stringify({ said: line }))); return 0 }
-  process.stderr.write('usage: worktree.mjs build <root> --owner <pid> [--exclude <path>]... | add-owned <id> (--child|--group|--pid) <n> | remove <id> | sweep <root>\n')
+  if (verb === 'alive' && target) { out(JSON.stringify({ alive: alive(Number(target)) })); return 0 }
+  process.stderr.write('usage: worktree.mjs build <root> --owner <pid> [--exclude <path>]... | add-owned <id> (--child|--group|--pid) <n> | remove <id> | sweep <root> | alive <pid>\n')
   return 2
 }
 

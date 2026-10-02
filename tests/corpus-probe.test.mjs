@@ -145,6 +145,31 @@ test('probe: a corpus with records is linted without writing, and a record it ca
   }
 })
 
+// BACKLOG §345: a fresh corpus's runner found every `undecided[].reason` null, so a plan, a status
+// nobody here knows and a record with no status line all read alike. Each now says which.
+test('probe: a record held back says why — a plan, an unknown status, or none read', () => {
+  const repo = mkdtempSync(path.join(os.tmpdir(), 'qh-probe-reason-'))
+  try {
+    const adr = path.join(repo, 'docs', 'adr')
+    mkdirSync(adr, { recursive: true })
+    writeFileSync(path.join(adr, 'ADR-001-accepted.md'), '# ADR-001: Accepted\n\n**Status:** Accepted\n\n## Decision\n\nx\n')
+    writeFileSync(path.join(adr, 'ADR-002-proposed.md'), '# ADR-002: Proposed\n\n**Status:** Proposed\n\n## Decision\n\nx\n')
+    writeFileSync(path.join(adr, 'ADR-003-free-text.md'), '# ADR-003: Free text\n\n**Status:** Frontend-driven (no backend work required)\n\n## Decision\n\nx\n')
+    writeFileSync(path.join(adr, 'ADR-004-fullwidth.md'), '# ADR-004: Fullwidth\n\n**Status：** Accepted\n\n## Decision\n\ny\n')
+    for (const args of [['init', '-q'], ['add', '.']]) {
+      assert.equal(spawnSync('git', args, { cwd: repo, encoding: 'utf8', timeout: 10_000 }).status, 0)
+    }
+    const reasons = Object.fromEntries(probe(repo).undecided.map(entry => [path.basename(entry.file), entry.reason]))
+    assert.deepEqual(reasons, {
+      'ADR-002-proposed.md': 'a plan, not yet decided',
+      'ADR-003-free-text.md': 'a status this reader does not recognise',
+      'ADR-004-fullwidth.md': 'no status line this reader can read',
+    }, JSON.stringify(reasons))
+  } finally {
+    rmSync(repo, { recursive: true, force: true })
+  }
+})
+
 // Codex review of 2.108.0: an override that is the SAME directory for every
 // repository merged two worktrees' check records, so one read the other's pass as
 // its own. The override is a root; each repository keeps its own place under it.

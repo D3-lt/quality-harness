@@ -43,7 +43,7 @@ import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'no
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { adrCorpus, resolvePython, spawnGate, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, recordStatusKind, resolvePython, spawnGate, trackedPaths } from './lifecycle.mjs'
 import { publicPath, pluginVersion } from './corpus-report.mjs'
 import { isMainModule } from './main-module.mjs'
 import { READER_DIRECTORIES } from './reader-paths.mjs'
@@ -183,6 +183,18 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
 }
 
 /**
+ * Why a record the readers counted was held back, where no read failed (BACKLOG §345):
+ * a plan not yet decided, a frozen record whose catalog does not establish its effect,
+ * a status nobody here knows, or no status line at all. A fresh corpus's runner found
+ * these all null, so "Proposed" and an unparseable line read alike.
+ */
+function undecidedReason(entry) {
+  if (entry.unproven) return 'its archive catalog does not establish its effect'
+  if (entry.status == null) return 'no status line this reader can read'
+  return recordStatusKind(entry.status) === 'pending' ? 'a plan, not yet decided' : 'a status this reader does not recognise'
+}
+
+/**
  * Where two readers disagree about one task. Compared only where BOTH answered: a
  * reader that crashed made no observation, and a directory work-next reports as
  * `readinessUnproven` is one it did not read — "not offered" there is not a
@@ -283,7 +295,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // fullwidth colon, or that was saved as UTF-16, made `records` 0 with `look` ok and
   // was never linted (a Windows chaos round of 626934a, F-1 and F-2).
   const undecided = (corpus.unreadable ?? []).map(entry => ({
-    file: rel(entry.file), status: entry.status == null ? null : scrub(entry.status), reason: entry.reason ?? null,
+    file: rel(entry.file), status: entry.status == null ? null : scrub(entry.status), reason: entry.reason ?? undecidedReason(entry),
   }))
   const corpusDirs = [...new Set(corpus.map(record => path.dirname(record.file)))]
   const taskDirs = [...new Set(corpus.flatMap(record => (record.taskFiles ?? []).map(file => path.dirname(file))))]

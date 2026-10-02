@@ -18563,8 +18563,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "tip.ok ? tip.out : null)",
-      "to": "null)",
+      "from": "const tipSha = tip.ok ? tip.out : null",
+      "to": "const tipSha = null",
       "only": "never an old commit's verdict"
     },
     {
@@ -19776,6 +19776,56 @@
       "from": "return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)",
       "to": "return relative === '..' || path.isAbsolute(relative)",
       "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
+    },
+    {
+      "label": "§344: a stale listing is never asked again by commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "if (!answer && rows.length) {",
+      "to": "if (false) {",
+      "only": "^a stale listing is asked once more by commit, and only a stale one is$"
+    },
+    {
+      "label": "§344: a listing that answered is asked again anyway",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "if (!answer && rows.length) {",
+      "to": "if (rows.length) {",
+      "only": "^a stale listing is asked once more by commit, and only a stale one is$"
+    },
+    {
+      "label": "§344 review: the retry reads another branch's runs at the same commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "retried = retried.filter(r => r && r.headBranch === branch.out)",
+      "to": "retried = retried.filter(r => r)",
+      "only": "^a stale listing is asked once more by commit, and only a stale one is$"
+    },
+    {
+      "label": "§345: a plan reads as an unknown status",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "return recordStatusKind(entry.status) === 'pending' ? 'a plan, not yet decided' : 'a status this reader does not recognise'",
+      "to": "return 'a status this reader does not recognise'",
+      "only": "^probe: a record held back says why — a plan, an unknown status, or none read$"
+    },
+    {
+      "label": "§345: a missing status line reads as an unknown status",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (entry.status == null) return 'no status line this reader can read'",
+      "to": "  if (false) return 'no status line this reader can read'",
+      "only": "^probe: a record held back says why — a plan, an unknown status, or none read$"
     }
   ]
 }

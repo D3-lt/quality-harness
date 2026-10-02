@@ -36,7 +36,8 @@ const walked = (root, pattern, links = null) => {
   { encoding: 'utf8', timeout: 60_000, windowsHide: true, env: { ...process.env, PYTHONUTF8: '1' } })
   assert.equal(run.signal, null, `record.walk did not finish: ${said(run)}`)
   assert.equal(run.status, 0, said(run))
-  return run.stdout.split('\n').filter(Boolean)
+  // CRLF on Windows: Python's text-mode stdout ends each line there with \r\n.
+  return run.stdout.split(/\r?\n/).filter(Boolean)
 }
 
 test('record.walk yields what rglob yields, and never enters a directory it is told is a link', () => {

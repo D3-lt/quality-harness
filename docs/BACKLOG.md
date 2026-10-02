@@ -17539,3 +17539,24 @@ The runner flagged four things, each checked in source:
 A second fresh corpus, a web app, could not run: its session's permission check refused the cloned
 script, and it has no `docs/adr` anyway. Its 55 `.tsx`/`.jsx` test files would be fresh input for
 ADR-083's lexer if its user approves.
+**Its user approved, 2026-10-02.** `record._js_lex` at 77bd909 read all 74 tracked test files to the
+end: 55 `.tsx` and 19 `.ts`, with `ts` set for both and `jsx` set for `.tsx`. It found
+`stop=None` and no unknown (kind 3) position. The runner's controls on the same build:
+- an unterminated JSX attribute string stops (stop=21);
+- an unterminated template stops;
+- valid JSX read with `jsx=False` stops at `/div>`;
+- the same JSX with `jsx=True` reads to the end.
+So the zero is not vacuous: ADR-083's JSX mode is what reads this corpus.
+
+## 346. OPEN 2026-10-02 (trigger: the next corpus-probe change) — `--diff` never compares `undecided[]`
+
+The laravel-react-monorepo runner's 3.8.2 report changed in one section only: `undecided[]` gained
+§345's reasons. Its `--diff` against 3.8.1 printed only the readers line. `diffReports`
+(`plugin/scripts/corpus-probe.mjs:514-580`) compares workNext, adrState, adrLint, couldNotRun,
+disagreements and sessionStart, but never `undecided`. So a record that moves into it or out of it, or
+whose reason changes, is invisible to `--diff`. A record that stops being read shows only through its
+adrLint line.
+
+The gap predates 3.8.2. It is not fixed there, because changing the probe would invalidate all three
+3.8.2 attestations. The fix adds an `undecided` set-change by file, plus a reason change, with a test
+and an `expected.json` field (CLAUDE.md §18).

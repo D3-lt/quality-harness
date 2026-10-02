@@ -1357,6 +1357,26 @@ def _recover_legacy(journal, data, cwd):
     return "resolved"
 
 
+def live_journal_owner(data):
+    """The pid of a live run that owns this journal, or None (BACKLOG §339).
+
+    Every invocation recovers the checkout's journal first, so a journal naming no owner let a
+    second call restore a live run's mutant under its fence and clear its record. The owner is
+    asked of worktree.mjs's `alive`, the probe the campaign sweep already trusts: Python's
+    `os.kill(pid, 0)` would end the process on Windows. A probe that could not answer reads as
+    alive, as the sweep reads it, because recovering under a live run is the harm. A journal
+    from before owners were recorded names none and is recovered as it always was.
+    """
+    owner = data.get("owner")
+    pid = owner.get("pid") if isinstance(owner, dict) else None
+    if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0 or pid == os.getpid():
+        return None
+    records, error = worktree_cli("alive", str(pid), timeout=30)
+    if error is None and records and records[-1].get("alive") is False:
+        return None
+    return pid
+
+
 def recover_mutant(cwd):
     """Resolve a durable journal, or stop before an ambiguous tree is measured."""
     journal = mutant_journal(cwd)
@@ -1370,6 +1390,12 @@ def recover_mutant(cwd):
     if not isinstance(data, dict):
         fail(f"[adr-verify] corrupt mutant journal retained at {journal}: expected an object. "
              f"Verification is blocked until it is reconciled.")
+    owner = live_journal_owner(data)
+    if owner is not None:
+        fail(f"[adr-verify] the mutant journal at {journal} belongs to a live adr-verify run, pid {owner}, "
+             f"in this checkout. Recovering it now would restore that run's files under its fence and "
+             f"clear its recovery record (BACKLOG §339). Wait for it to end, or end it; if pid {owner} "
+             f"is not adr-verify, remove the journal by hand.")
     if "version" not in data:
         return _recover_legacy(journal, data, cwd)
     if data.get("version") != JOURNAL_VERSION:
@@ -1580,6 +1606,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     cleanup_failure = None
     journal_data = {
         "version": JOURNAL_VERSION,
+        "owner": {"pid": os.getpid()},
         "phase": "baseline",
         "cwd": str(run_cwd),
         "members": members,

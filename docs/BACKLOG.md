@@ -17196,3 +17196,33 @@ adr-lint PASS → FAIL. `release-evidence` reads only the attestation, so it wou
 release that falsely refuses the runner's corpus. Not yet read: what `disagreements` counts, and
 whether a reader verdict that changed between two probe reports can be carried in the attestation
 without carrying the report (§6).
+
+## 339. CLOSED 2026-10-02 (fixed for 3.7.3) — a second `adr-verify` cleared a live run's mutant journal
+
+Reported by a peer session in another checkout, 2026-10-02. A long `adr-verify --mutant --in-place`
+was still running its clean fence when a `--relock` in the same checkout printed `RESTORED
+transaction: all members were already at entry state. The recovery journal is clear.` Nothing was
+damaged that time, but the live run had lost its crash recovery.
+
+Confirmed in code:
+- The journal is keyed only by the checkout (`mutant_journal`).
+- It named no owner.
+- Every invocation recovers it first (`recover_mutant`, before `--relock` and every other mode).
+
+The baseline phase is the reported case: recovery clears the journal. In the mutant phase it is
+worse: a second call writes the original bytes back under the live fence and clears the journal.
+The fence then tests unmutated code, which can record a false "survived".
+
+Fixed:
+- The journal records `owner.pid`.
+- Recovery refuses while that pid is alive, `--restore` included, and names it.
+- Liveness is asked of `plugin/scripts/worktree.mjs alive <pid>`, the probe the campaign sweep
+  already trusts. Python's `os.kill(pid, 0)` would end the process on Windows.
+- A probe that cannot answer reads as alive.
+
+The test is `a live mutant run keeps its journal: another adr-verify refuses to recover it`. Its
+twin is the existing `a SIGKILLed mutant run is restored by the next run`. Catalogue entries are
+labelled `§339:`.
+
+Limit, named: a journal written by a release before 3.7.3 names no owner. Such a journal is still
+recovered as before, so a run started under an older plugin is unprotected until it ends.

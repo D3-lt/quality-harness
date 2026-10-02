@@ -2900,6 +2900,36 @@
       "only": "^past a JSX tag, a comment is not a test and does not hide one$"
     },
     {
+      "label": "§339: recovery ignores a live run's ownership of the journal",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    owner = live_journal_owner(data)\n    if owner is not None:",
+      "to": "    owner = None\n    if owner is not None:",
+      "only": "^a live mutant run keeps its journal: another adr-verify refuses to recover it$"
+    },
+    {
+      "label": "§339: the journal names no owner",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        \"owner\": {\"pid\": os.getpid()},",
+      "to": "        \"owner\": {},",
+      "only": "^a live mutant run keeps its journal: another adr-verify refuses to recover it$"
+    },
+    {
+      "label": "§339: worktree.mjs alive says every process ended",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "out(JSON.stringify({ alive: alive(Number(target)) }))",
+      "to": "out(JSON.stringify({ alive: false }))",
+      "only": "^a live mutant run keeps its journal: another adr-verify refuses to recover it$"
+    },
+    {
       "label": "verify: importing the wrapper spawns nothing",
       "file": "plugin/scripts/verify.mjs",
       "tests": [

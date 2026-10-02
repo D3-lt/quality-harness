@@ -119,7 +119,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
-from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup  # noqa: E402,E501
+from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
 # check read a record's Status with the task parser (the Codex round of 3.1.6, finding 1).
@@ -2868,7 +2868,7 @@ def resolve_test_file(root, rel, tracked=None):
         if len(hits) == 1 and not hits[0].is_file():
             return None
     else:
-        hits = [q for q in root.rglob(base)
+        hits = [q for q in walk(root, base)
                 if q.is_file() and not any(part in str(q) for part in excluded)]
     return hits[0] if len(hits) == 1 else None
 

@@ -80,7 +80,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, extract_test_names, _mask_lock_noncode, _matching_js_brace, JS_FAMILY_SUFFIXES, js_reading  # noqa: E402
+from record import sections_of, extract_test_names, _mask_lock_noncode, _matching_js_brace, JS_FAMILY_SUFFIXES, js_reading, walk  # noqa: E402
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -416,7 +416,7 @@ def test_exists(test, root, stack, collect):
             ok, why = test_definition_exists(f, name, stack)
             return ok, "" if ok is True else f"{why} in {path}"
         if stack == "cargo":
-            for candidate in root.rglob("*.rs"):
+            for candidate in walk(root, "*.rs"):
                 if any(part in (".git", "target", "vendor", "node_modules")
                        for part in candidate.parts):
                     continue

@@ -34,11 +34,13 @@ existing evidence row changes meaning.
 """
 import ast
 import base64
+import fnmatch
 import hashlib
 import json
 import os
 import re
 import unicodedata
+import stat
 from functools import lru_cache
 from pathlib import Path
 
@@ -2947,9 +2949,17 @@ def snapshot_lock(root, tests_rows, hasher=None):
             seen_files.append(rel)
     named = {(rel, name) for name, rel in tests_rows}
     files = []
+    # A Tests-row file that is THERE but could not be read (not UTF-8, or one this process may not
+    # open, such as a file another program holds on Windows) is told apart from one that is gone:
+    # both are unproven here, and lock_findings must not call the first "vanished" (a Windows
+    # corpus-chaos run of 3.8.5: a UTF-16 test file got "vanished — done is refused" on 5 records).
+    unreadable = set()
     for rel in seen_files:
         path = None if root is None else Path(root, *rel.split("/"))
-        files.append((rel, path, None if path is None else _read_file(path)))
+        source = None if path is None else _read_file(path)
+        if source is None and path is not None and _present(path):
+            unreadable.add(rel)
+        files.append((rel, path, source))
     if hasher is None:
         hasher = 3 if any(_jsx_changes_reading(path, source) for _rel, path, source in files) else 2
     for rel, path, source in files:
@@ -2977,7 +2987,62 @@ def snapshot_lock(root, tests_rows, hasher=None):
         for n, r in tests_rows:
             if r == rel and (rel, n) not in bodies:
                 unproven.add((rel, n))
-    return {"check": check, "bodies": bodies, "unproven": unproven, "hasher": hasher}
+    return {"check": check, "bodies": bodies, "unproven": unproven, "hasher": hasher, "unreadable": unreadable}
+
+
+def _present(path):
+    """Whether a regular file is there. A lookup that itself failed says yes: could not look is
+    not gone, and only "gone" licenses "vanished". `os.stat`, not `Path.is_file`: from Python
+    3.13 `is_file` swallows every OSError, so a directory above the file that this process may
+    not search read as "gone" (the stand-in review of 3.8.6)."""
+    try:
+        mode = os.stat(path).st_mode
+    except (FileNotFoundError, NotADirectoryError):
+        return False
+    except OSError:
+        return True
+    return stat.S_ISREG(mode)
+
+
+def _is_link(path):
+    """Whether a directory entry is a symlink or a Windows junction. A lookup that failed says yes:
+    a walk that cannot tell does not enter."""
+    try:
+        if path.is_symlink():
+            return True
+        isjunction = getattr(os.path, "isjunction", None)  # Python 3.12+; off Windows always False
+        return bool(isjunction and isjunction(path))
+    except OSError:
+        return True
+
+
+def walk(root, pattern="*", is_link=_is_link):
+    """`Path(root).rglob(pattern)`, except that it never enters a symlink or a junction.
+
+    `rglob` enters a Windows junction, which pathlib does not take for a symlink: a junction under
+    `docs/adr` that pointed back at it made `adr-debt docs/adr` run until it was killed at 300 s
+    (a Windows corpus-chaos run of 3.8.5, BACKLOG §350 C7). A link itself is yielded when its name
+    matches, as rglob yields one, and is never entered. The pattern is matched per name with the
+    platform's case rule, as rglob matches it. `is_link` is the seam a test sets, since a junction
+    cannot be made off Windows.
+    """
+    stack = [Path(root)]
+    while stack:
+        directory = stack.pop()
+        try:
+            entries = sorted(directory.iterdir())
+        except OSError:
+            continue
+        below = []
+        for entry in entries:
+            if fnmatch.fnmatch(entry.name, pattern):
+                yield entry
+            try:
+                if entry.is_dir() and not is_link(entry):
+                    below.append(entry)
+            except OSError:
+                continue
+        stack.extend(reversed(below))
 
 
 def encode_lock(snap):
@@ -3293,7 +3358,10 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
                 "UNPROVEN, done is refused; frozen at the first red")
     for (rel, name), digest in recorded_bodies.items():
         now = current["bodies"].get((rel, name))
-        if now is None:
+        if now is None and rel in current.get("unreadable", ()):
+            blocks.append(f"{prefix}locked test `{rel}`::{name} could not be read — the file is there, "
+                          "but not as UTF-8 text, or not openable by this process — UNPROVEN, done is refused")
+        elif now is None:
             blocks.append(f"{prefix}locked test `{rel}`::{name} vanished — done is refused")
         elif now != digest:
             # A lock taken before regex literals were masked could stop at a `}`

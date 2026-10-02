@@ -72,7 +72,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, NO_WINDOW  # noqa: E402
+from record import sections_of, NO_WINDOW, walk  # noqa: E402
 
 
 def disposition_span(text):
@@ -305,9 +305,9 @@ def _resolve_adr_id(token, scan_dir):
     come to disagree about what counts as the same record (ADR-009).
     """
     pat = re.sub(r"[-_\s]", "", token).lower()
-    hits = [f for f in scan_dir.rglob("*.md")
+    hits = [f for f in walk(scan_dir, "*.md")
             if pat in re.sub(r"[-_]", "", f.stem).lower()] + \
-           [d for d in scan_dir.rglob("*") if d.is_dir()
+           [d for d in walk(scan_dir) if d.is_dir()
             and pat == re.sub(r"[-_]", "", d.name).lower()]
     return "adr", bool(hits)
 
@@ -468,7 +468,7 @@ def main():
     # than a missing one.
     waiting = []
     for scan_dir in dirs:
-        for md in sorted(scan_dir.rglob("*.md")):
+        for md in sorted(walk(scan_dir, "*.md")):
             try:
                 text = md.read_text(errors="replace", encoding="utf-8")
             except OSError as exc:

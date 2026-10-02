@@ -17963,3 +17963,16 @@ windows-ts-monorepo-specs-only on Windows 11. None moved a verdict.
   - adr-lint's registration check over the same file blames syntax, "the lexer could not read the file
     as far as the test … rewrite the construct it stopped at", where the lock check names the
     encoding.
+
+**Released as v3.8.6 at 9c335c6c372f79bc3f4d10adeaae372fc22dac7b (2026-10-02).** release-evidence said
+SUCCESS: 55 jobs, plus the six outside runs at bf1b55c. 9c335c6 differs from bf1b55c only in two test
+files, which the Windows job failed on the first push: a cp1252 `·` and a CRLF split, both in the
+new tests and none in a reader.
+
+**A CI hang, open:** in dispatch 37056738851 the `mutations 3/48` shard was killed at the 30-minute
+job limit; every other shard took 5–6 minutes, and the cancelled job kept no log. Attempt 2 of the
+same shard passed. Locally, `mutate.mjs --shard 3/48 --no-cache` noticed 42/42. The one suite it
+could not judge, `tests/human-proof-advice.test.mjs`, "never finished" at baseline under load 10, and
+alone it passes 3/3 in 1.7 s. The cause is unknown. The next shard that is killed should print which
+mutant it was on: a campaign that is killed leaves nothing to diagnose, and §342 is the same shape on
+Windows.

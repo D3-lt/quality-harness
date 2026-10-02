@@ -256,6 +256,20 @@ function reader(name, run, note, budgetMs = null) {
  * under `root`; the SessionStart hook's own state goes to a scratch directory
  * that is removed before returning.
  */
+// A scratch directory under the temp directory. Where that directory cannot be used (TEMP naming
+// a path that does not exist), the probe has nowhere to put adr-lint's state or the hook's
+// scratch: it died in mkdtemp with a stack trace and no JSON (BACKLOG §350 C1). It now throws a
+// ScratchError, which `main` says in one line, exiting 3, could not run.
+class ScratchError extends Error {}
+function scratchDirectory(prefix) {
+  // The directory is not named: every path that leaves this file is relative or a placeholder (the
+  // header), and a Windows TEMP carries the user's name. Nor is the error's message, which repeats it.
+  try { return mkdtempSync(path.join(os.tmpdir(), prefix)) } catch (error) {
+    throw new ScratchError(`the temp directory (TMPDIR, or TEMP on Windows) could not be used (${error.code ?? 'no error code'}), so there is nowhere `
+      + 'to put adr-lint\'s state or the hook\'s scratch. Point TMPDIR (TEMP on Windows) at a writable directory.')
+  }
+}
+
 export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, sweepTimeoutSeconds = 60, sweepBudgetMs = DEFAULT_SWEEP_BUDGET_MS } = {}) {
   const resolved = realpathSync(root)
   const rel = target => publicPath(target, resolved)
@@ -309,7 +323,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // adr-lint writes its advice-survival note into the repository's git directory
   // (ADR-037 T1), and this probe promises to write nothing under root (a Windows
   // chaos round of 626934a, F-5a): the note goes to a scratch state directory.
-  const lintState = mkdtempSync(path.join(os.tmpdir(), 'qh-corpus-probe-lint-'))
+  const lintState = scratchDirectory('qh-corpus-probe-lint-')
   const adrLint = [...corpus, ...(corpus.unreadable ?? [])].map(record => {
     // A file the corpus reader never opened (not on disk in a sparse checkout, over the
     // size bound, past the record budget) has no verdict to take: spawning adr-lint for
@@ -376,7 +390,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // The real hook, with a payload shaped as the host sends it and ALL its state
   // pointed at scratch: plugin data, temp, and the per-repository state directory
   // that otherwise lives in the corpus's own `.git` (QUALITY_HARNESS_STATE_DIR).
-  const scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-corpus-probe-'))
+  const scratch = scratchDirectory('qh-corpus-probe-')
   let sessionStart = null
   try {
     const hook = timed('SessionStart', null, () => node('lifecycle.mjs', [], {
@@ -763,7 +777,12 @@ export function main(argv = process.argv.slice(2)) {
     } else if (arg.startsWith('--')) return usage()
     else root = arg
   }
-  const report = probe(root, { sweep, timeoutMs, sweepBudgetMs })
+  let report
+  try { report = probe(root, { sweep, timeoutMs, sweepBudgetMs }) } catch (error) {
+    if (!(error instanceof ScratchError)) throw error
+    process.stderr.write(`corpus-probe: could not run: ${error.message}\n`)
+    return 3
+  }
   if (json) {
     process.stdout.write(`${JSON.stringify(report, null, 2)}\n`)
     return 0

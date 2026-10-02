@@ -1583,3 +1583,50 @@ test("a record is never given the tasks of another record that shares its number
   // Clean twin: the record the folder is named for still has its task.
   assert.match(next([join(dir, 'ADR-002-a.md')], root).stdout, /T1/)
 })
+
+// BACKLOG §350 C6 (a Windows corpus-chaos run of 3.8.3), a fail-open: with its record deleted, a
+// tasks directory's tasks came back READY with `status: null`, `undecided: null` and
+// `owner_unreadable: false`, and SessionStart handed over "Prove it with adr-verify". A record that
+// cannot be found cannot be Accepted, so whether those tasks are a work order is unknown, and said.
+test('tasks with no owning record are said to have none, apart from an unreadable one', () => {
+  const { tasksDir } = corpus([{ id: 'T1' }])
+  const missing = next(['--json', tasksDir], tasksDir)
+  const answer = JSON.parse(missing.stdout)
+  assert.deepEqual(answer.ready.map(t => t.id), ['T1'], 'it still answers (CLAUDE.md §3)')
+  assert.equal(answer.owner_missing, true, missing.stdout)
+  assert.equal(answer.owner_unreadable, false, 'missing is not unreadable')
+  assert.match(next([tasksDir], tasksDir).stderr, /no record owning these tasks was found/)
+  const owned = twoRecords('none')
+  const found = JSON.parse(next(['--json', owned.tasksDir], owned.tasksDir).stdout)
+  assert.equal(found.owner_missing, false, 'a found owner is not missing')
+  assert.doesNotMatch(next([owned.tasksDir], owned.tasksDir).stderr, /no record owning these tasks was found/)
+})
+
+// A stand-in review of 3.8.5: §350 C6 by another route. A folder named with its own slug was owned
+// by any record of the same number, so deleting `ADR-002-a.md` handed `ADR-002-a/tasks/` to an
+// Accepted `ADR-002-b.md`, READY with no word. A number-only folder still binds by number, and a
+// record inside its own folder owns the tasks beside it.
+test('a task folder named for its own record is owned by that record and no other', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-slugowner-'))
+  temps.push(dir)
+  mkdirSync(join(dir, 'ADR-002-a', 'tasks'), { recursive: true })
+  writeFileSync(join(dir, 'ADR-002-b.md'), '# ADR-002: b\n\n**Status:** Accepted\n')
+  writeFileSync(join(dir, 'ADR-002-a', 'tasks', 'T1-a.md'), task({ id: 'T1' }))
+  const orphan = next(['--json', join(dir, 'ADR-002-a', 'tasks')], dir)
+  const answer = JSON.parse(orphan.stdout)
+  assert.equal(answer.owner_missing, true, orphan.stdout)
+  assert.equal(answer.status, null, orphan.stdout)
+  assert.match(orphan.stderr, /no record owning these tasks was found/)
+  // A number-only folder still binds to the slugged record of its number.
+  mkdirSync(join(dir, 'ADR-004', 'tasks'), { recursive: true })
+  writeFileSync(join(dir, 'ADR-004-long-slug.md'), '# ADR-004: d\n\n**Status:** Accepted\n')
+  writeFileSync(join(dir, 'ADR-004', 'tasks', 'T1-d.md'), task({ id: 'T1' }))
+  const numbered = JSON.parse(next(['--json', join(dir, 'ADR-004', 'tasks')], dir).stdout)
+  assert.deepEqual([numbered.status, numbered.owner_missing], ['Accepted', false])
+  // The record-in-folder layout owns the tasks beside it.
+  mkdirSync(join(dir, 'ADR-003-x', 'tasks'), { recursive: true })
+  writeFileSync(join(dir, 'ADR-003-x', 'ADR-003-x.md'), '# ADR-003: x\n\n**Status:** Accepted\n')
+  writeFileSync(join(dir, 'ADR-003-x', 'tasks', 'T1-x.md'), task({ id: 'T1' }))
+  const inside = JSON.parse(next(['--json', join(dir, 'ADR-003-x', 'tasks')], dir).stdout)
+  assert.deepEqual([inside.status, inside.owner_missing], ['Accepted', false])
+})

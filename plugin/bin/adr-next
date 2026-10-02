@@ -1008,14 +1008,22 @@ def owning_record(tasks_dir, record_dir=None):
     # Found but unreadable (binary, empty, no Status line) is told apart from not
     # found: only the first is an owner this reader could not read (2.111.0-rc, P3).
     seen = False
-    for candidate in (record_dir.with_suffix(".md"), *siblings):
+    # `record_dir/<name>.md` is the record-in-folder layout (`ADR-002-x/ADR-002-x.md` beside its
+    # `tasks/`): missing it, SessionStart hedged an owned task as ownerless (a stand-in review of
+    # 3.8.5).
+    for candidate in (record_dir.with_suffix(".md"), record_dir / f"{record_dir.name}.md", *siblings):
         try:
             if not candidate.is_file():
                 continue
         except OSError:
             continue
         if candidate.stem != record_dir.name:
-            mine = RECORD_NUMBER.match(record_dir.name)
+            # Only a NUMBER-ONLY folder (`ADR-002/`, `0002/`) binds by number, as in
+            # resolve_tasks_dir. A folder named with its own slug belongs to the record of that
+            # name and to no other: by number alone, deleting `ADR-002-a.md` handed
+            # `ADR-002-a/tasks/` to an Accepted `ADR-002-b.md`, READY and unhedged — §350 C6's
+            # fail-open by another route (a stand-in review of 3.8.5).
+            mine = RECORD_NUMBER.fullmatch(record_dir.name)
             theirs = RECORD_NUMBER.match(candidate.name)
             if not (mine and theirs and int(mine.group(1)) == int(theirs.group(1))):
                 continue
@@ -1337,7 +1345,8 @@ def main():
             # A JSON caller parses stdout; this prose broke that (a Windows chaos round
             # of 916b515, G2 a). Exit 3 is this mode's "nothing ready", a valid answer.
             print(json.dumps({"tasks_dir": None, "ready": [], "done": [], "blocked": [], "stopped": [],
-                              "status": None, "undecided": None, "owner_unreadable": False, "note": said},
+                              "status": None, "undecided": None, "owner_unreadable": False, "owner_missing": None,
+                              "note": said},
                              indent=2))
             return 3
         print(said)
@@ -1354,6 +1363,10 @@ def main():
     # reported and the reader decides.
     owner_found, status = owning_record(tasks_dir)
     owner_unreadable = owner_found and status is None
+    # A record that cannot be found cannot be Accepted (BACKLOG §350 C6, a fail-open a Windows
+    # corpus-chaos run found): with the record deleted, these tasks came back READY with no word.
+    # Told apart from an unreadable owner, whose file exists; both mean "may not be a work order".
+    owner_missing = not owner_found
     if status is not None and record_undecided(status):
         print(f"adr-next: the record owning these tasks is **{status}**, not Accepted — "
               f"a record is a work order only once it is Accepted, so what follows is a "
@@ -1371,6 +1384,9 @@ def main():
         print("adr-next: the record owning these tasks was found but could not be read as one "
               "(binary, empty, or no Status line), so whether it is Accepted is UNKNOWN — its "
               "ready task(s) below may not be a work order.", file=sys.stderr)
+    if owner_missing and ready:
+        print("adr-next: no record owning these tasks was found beside them, so whether they are a work "
+              "order is UNKNOWN — the ready task(s) below may not be one.", file=sys.stderr)
 
     if "--json" in flags:
         # The record's status travels with the answer, as it does in corpus mode
@@ -1381,7 +1397,8 @@ def main():
         undecided = record_undecided(status)
         print(json.dumps({"tasks_dir": str(tasks_dir), "ready": ready,
                           "done": done, "blocked": blocked, "stopped": stopped,
-                          "status": status, "undecided": undecided, "owner_unreadable": owner_unreadable},
+                          "status": status, "undecided": undecided, "owner_unreadable": owner_unreadable,
+                          "owner_missing": owner_missing},
                          indent=2))
         return 0 if ready else 3
 

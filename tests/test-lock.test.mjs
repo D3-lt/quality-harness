@@ -3997,3 +3997,26 @@ test('a hasher-2 lock over a file JSX now reads is advised to relock', () => {
     assert.ok(!findings(dir, [takeLock(dir, plain, 2).row], plain).advice.some(line => /hasher 3/.test(line)), 'a JSX-free lock is not advised')
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// BACKLOG §350 C1 (a Windows corpus-chaos run of 3.8.3): a test file saved as UTF-16 made
+// `_read_file` raise UnicodeDecodeError, and adr-lint and adr-next exited with a traceback for
+// every record whose lock names it. A file this reader cannot decode is could-not-read: its
+// locked names are unproven, never a crash and never "vanished".
+test('a lock over a test file it cannot decode says unproven, and does not crash', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-lock-utf16-'))
+  try {
+    mkdirSync(join(dir, 'tests'))
+    writeFileSync(join(dir, 'tests', 'x.test.mjs'), Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from("test('a', () => {})\n", 'utf16le')]))
+    const run = python(`
+import json
+from pathlib import Path
+from record import snapshot_lock
+snap = snapshot_lock(Path(${JSON.stringify(dir)}), [("a", "tests/x.test.mjs")])
+print(json.dumps({"bodies": [list(k) for k in snap["bodies"]], "unproven": [list(k) for k in snap["unproven"]]}))
+`)
+    assert.equal(run.status, 0, run.stderr)
+    const snap = JSON.parse(run.stdout)
+    assert.deepEqual(snap.bodies, [])
+    assert.deepEqual(snap.unproven, [['tests/x.test.mjs', 'a']])
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

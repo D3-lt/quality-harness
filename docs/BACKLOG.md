@@ -17566,6 +17566,10 @@ The gap predates 3.8.2. It is not fixed there, because changing the probe would 
 3.8.2 attestations. The fix adds an `undecided` set-change by file, plus a reason change, with a test
 and an `expected.json` field (CLAUDE.md §18).
 
+**A second gap, from a 3.8.4 run:** the host's Python moved from 3.14.7 to 3.14.8 between two runs.
+`--diff` did not say so, because it compares no environment field, so a verdict that moved with the
+interpreter would carry no hint of why.
+
 ## 347. CLOSED 2026-10-02 (fixed for 3.8.3, the owner: "append") — a skip left no trace, so ADR-081's follow-up could not count it
 
 Asked whether the event logs are used fully, the session listed what they still do not record. The first
@@ -17676,7 +17680,7 @@ could not run. Its runner flagged five things:
 
 `readinessUnproven: 0` beside adr-next's unproven reasons is §345's name clash, not a count error.
 
-## 350. OPEN 2026-10-02 (the next reader batch; the owner picks the order) — Windows corpus-chaos on 3.8.3: one crash, three could-not-look read as absence
+## 350. OPEN 2026-10-02 (C1, C6 and C7 fixed for 3.8.5; the rest is the next reader batch, the owner picks the order) — Windows corpus-chaos on 3.8.3: one crash, three could-not-look read as absence
 
 A Windows 11 desktop (NTFS, 8.3 names on, LongPathsEnabled, Git for Windows 2.49.0) ran the corpus-chaos
 skill with the installed 3.8.3 readers, whose readers digest matched the release byte for byte. Its user
@@ -17713,3 +17717,127 @@ before fixing:
 Held right: CRLF everywhere, read-only attributes, a case-only rename on disk, 8.3 short names as access
 paths, a junction loop (UNPROVEN, no hang, no leftover git.exe), and `docs/ADR` in upper case. Not
 tried: `--sweep`, alternate data streams, a delete-pending file.
+
+**All five Windows desktops reported (2026-10-02). Their findings merge into these classes, each to
+confirm against source:**
+- **C1, crashes.** A UTF-16 test file named by a lock (F1 above). A TEMP pointing at a missing
+  directory: `corpus-probe --json` exits 1 with an ENOENT stack trace from `mkdtemp`
+  (`corpus-probe.mjs:312`), and no JSON.
+- **C2, could-not-look read as absence or as a claim.** A locked test file says "vanished" (F2). An
+  unreadable or undecodable task is an "unbacked done claim" with "adr-verify it first" (F6; and a UTF-16
+  T1). A task directory that is a junction leaving the tree makes done tasks READY, because
+  ".quality-harness.json check could not be read" (reported twice). The guess is that the project root
+  is resolved from the task's REAL path. A long path blames the same file (F5).
+- **C3, one lock blinds the corpus.** One locked task file turns adr-lint into "could not run" for
+  57–76 of 64–83 records, in four reports. Its cross-record read fails on a file the record does not
+  own. `probe.couldNotRun` lists only adr-next, so an attestation's `couldNotRun` reads 1. Windows'
+  sharing violation is worded "Permission denied", which points at ACLs.
+- **C4, an absolute home path in SessionStart's truncated "could not run" line.** Three reports. The
+  same message in `couldNotRun` is scrubbed.
+- **C5, counted but not named, or dropped in silence:**
+  - case twins in git's index (two reports: 199 against 198 tasks, the twin named nowhere);
+  - a junctioned task directory, omitted from corpusReport (141 against 145 tasks);
+  - a readable task under an unreadable record, in no list;
+  - a case-only renamed record, dropped from corpusReport;
+  - a fullwidth-colon (U+FF1A) Status record, which leaves work-next's count with look "ok" and no reason;
+  - adr-state losing paths silently on CR-only line endings, and not naming an unreadable task;
+  - junctions that loop or leave the tree, skipped without a word;
+  - the SessionStart window swapping a missing task directory out without naming it (two reports);
+  - `--diff` on a PARTIAL report saying only "not compared", never what dropped out.
+- **C6, FAIL-OPEN: a missing owner record still yields a work order.** With the record deleted, adr-next
+  exits 0 with `status: null`, `undecided: null`, `owner_unreadable: false` and READY tasks, and
+  SessionStart says "T1 is ready … Prove it". A UTF-16 record gets the right hedge ("this may not be a
+  work order"). work-next and adr-state say PARTIAL for the same copy.
+- **C7, a junction loop under `docs/adr` is followed 64 levels deep.** `corpus-probe` was killed at
+  120 s. work-next took 49 s and said `records: 192` with look "ok". adr-state reported ADR-001 contested
+  with itself. A loop inside a tasks directory was handled (no hang) in two other reports.
+- **C8, untrue sentences:**
+  - "Superseded by a record that is not in this corpus" for an unreadable record;
+  - "a checkout root longer than -34 / -3 characters" (two reports);
+  - adr-lint's blocking content verdicts about a file it just called undecodable;
+  - a lowercase `readme.md` linted as a task while also read as the README;
+  - fixture specs (`tests/golden-*/docs/specs`) counted as the corpus's own unproven specs;
+  - adr-lint PASS on a record whose Status nobody could read (U+FF1A), as advice only.
+- **C9, platform-dependent JSON.** work-next and adr-next print `docs\\adr\\…` on Windows where every other
+  field prints `/` (three reports).
+- **C10, a dangling junction at `docs/adr`** reads as "No QH corpus is in use" (ADR-034).
+
+Held right across the five runs: CRLF, read-only trees, Hidden and System attributes, alternate data
+streams, 8.3 names, a hard link (adr-next named the ambiguity), a garbage ledger, odd SessionStart stdin,
+locales, time zones, a UTF-16 record, and a loop inside a tasks directory.
+C1, C6 and C7 come first: a crash, a fail-open, a hang.
+
+**Fixed for 3.8.5 (the owner chose C1+C6+C7 first, 2026-10-02):**
+- **C1:** `_read_file` catches UnicodeDecodeError, so an undecodable test file is could-not-read and its
+  locked names are unproven. A temp directory the probe cannot use is one line on stderr, exit 3.
+- **C6:** adr-next's answer carries `owner_missing`, and both it and the SessionStart line say "no
+  record owning these tasks was found, so whether they are a work order is UNKNOWN". This is kept
+  apart from an unreadable owner, which the 2.111.0-rc test pins. The SessionStart line says it right
+  after "T1 is ready —", not first like the unreadable and undecided caveats: ADR-068 T2 locks a test
+  (`SessionStart says UNPROVEN, with the gate's reason, when adr-next could not run`) whose ownerless
+  `docs/tasks` fixture expects "`docs/tasks`: T1 is ready —", and the first placement turned the gate
+  red on it.
+- **C7:** `adrCorpus` reads a record once by its real path. Every other listed path to the same file
+  (a junction or symlink loop) is named, unread, and the look is PARTIAL.
+
+Tests, each red first:
+- `a lock over a test file it cannot decode says unproven, and does not crash`;
+- `probe: a temp directory that does not exist is said, not a stack trace`;
+- `tasks with no owning record are said to have none, apart from an unreadable one`;
+- `the ready line says when no record owns the tasks, before the instruction`;
+- `a record reached again through a link that loops is read once, and the copies are named`.
+
+Five `§350` mutants, all killed. C2–C5 and C8–C10 stay open, as the next batch.
+
+**Class audit (CLAUDE.md §5), 2026-10-02.**
+- **C7, other corpus listers.** `mrw read --grep 'adrCorpus\(|readdirSync\(|trackedPaths\(' plugin/scripts/`:
+  work-next, adr-state and corpus-probe each list with `trackedPaths` and read through `adrCorpus`, so the
+  fix covers all three. The Python gates walk with `rglob` instead (`adr-debt`, `adr-retire-check`,
+  `adr-verify`). On macOS (Python 3.14.8) they were run over a scratch corpus holding `docs/adr/self -> .`
+  and `docs/adr/ADR-001-x/back -> ..`: `adr-debt docs/adr` (exit 0) and `adr-retire-check docs/adr`
+  (exit 1, the corpus's own finding) each returned in under a second and named no path through either
+  link, because `rglob` does not recurse into symlinks. A Windows junction is NOT measured. It stays open
+  for a Windows runner.
+- **C1, other strict UTF-8 reads.** `mrw read --grep 'read_text\(encoding="utf-8"\)|…decode\("utf-8"\)'
+  plugin/bin/ plugin/lib/`: every hit is the plugin's own `plugin.json`, read under `except Exception`,
+  or a read under `except (OSError, UnicodeError)`. One is not: `adr-verify`'s `recover_mutant` reads
+  its own mutant journal catching `OSError` and `json.JSONDecodeError` only, so a journal that is not
+  UTF-8 raises a traceback where "corrupt mutant journal retained" was meant. It is a file the tool
+  wrote itself, and it stays open as a sibling.
+
+**3.8.4 (d4c7819) is not tagged:** the owner chose to go straight to 3.8.5, since C6 is a fail-open
+that 3.8.4 carried. It predates 3.8.4, which did not touch adr-next.
+
+**The matrix carries C6 (CLAUDE.md §18):** a new corpus, `tests/fixtures/corpora/orphan-tasks`, has one
+Accepted record and a task directory whose record is gone. Its `expected.json` requires SessionStart's
+hedge, and a sixth `§350` mutant (`owner_missing = False`, checked by the matrix row) is killed. C7
+cannot be a fixture, because git lists a tracked symlink as one path and does not walk through it; its
+test injects the listing instead.
+
+**The same fixture shows a C5 gap in work-next, recorded as it is:** it counts the ownerless task
+(`tasks: 1`), but names it nowhere: `ready` and `readinessUnproven` are empty and the look is `ok`.
+The probe's `adrNext` list never visits that directory, so the readers do not disagree on paper.
+This is the safe direction, a task not offered rather than one offered without a hedge. It joins
+the C5 batch, and the fixture's `expected.json` will change when it is fixed.
+
+**The stand-in review of 3.8.5 (the owner's choice over Codex, 2026-10-02)** had three blockers, each
+reproduced by the reviewer and fixed with a test and a killed mutant:
+- **C6 by another route, a fail-open.** `owning_record` bound any record of the same number, so with
+  `ADR-002-a.md` deleted, `ADR-002-a/tasks/` went to an Accepted `ADR-002-b.md`, READY and unhedged.
+  Now only a number-only folder binds by number. A record inside its own folder
+  (`ADR-002-x/ADR-002-x.md`) is now looked for too: without it, an owned task was hedged as ownerless.
+- **C7's reason printed the first path raw.** A newline in a listed name forged a line of work-next's
+  output (§319's class). It is shown escaped now. It was also worded "through a link" where a
+  case-folded spelling reaches the same file with no link; it now says "another listed path to the
+  same file on disk".
+- **C1's message named the temp directory,** against corpus-probe's own header contract, on Windows a
+  path holding the user name. It now names only the variable.
+
+Advice the review gave, decided:
+- adr-next's no-tasks JSON said `owner_missing: false` where nothing was looked for; it is `null` now.
+- **Open, safe direction:** a symlinked tasks directory still gets the ownerless hedge, because
+  `tasks_dir.resolve()` runs with no `record_dir`.
+- **Open:** work-next's `undecidedRecords` counts a link copy of an Accepted record.
+- **Open, C2:** a locked test file later saved as UTF-16 reads "vanished — done is refused", not
+  unreadable. The new test covers only `snapshot_lock`.
+- Not run by the reviewer: a Windows junction under `realpathSync.native`.

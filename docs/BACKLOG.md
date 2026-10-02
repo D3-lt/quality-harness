@@ -17382,3 +17382,88 @@ with no deterministic twin.
 which would explain why the slow mode outlasts the 100s window. The process is still running during
 the judged run. Test it on a Windows runner: list processes after the starved call. Fix either the
 tree kill or the test's own budget (CLAUDE.md §7).
+
+## 343. CLOSED 2026-10-02 (fixed for 3.8.1) — ADR-081's fast exemption said nothing of a partial stage, and skipped the unseen-write veto
+
+An outside reading of ADR-081's skip and exemption, given to the session by the owner, found two holes.
+Both were confirmed in source before any fix. Each applies only to a commit told through on a fast pass;
+a push still needed the full check.
+1. **A partial stage was not said.** `publishVerdict`'s fast branch (`plugin/scripts/lifecycle.mjs`,
+   ADR-081) returned before any index comparison. So a fast pass on the working tree let a commit of a
+   different index through, saying only "a fast check passed on this tree". The full path says "the
+   staged index is unchecked" at the same point.
+2. **The fast exemption did not apply the unseen-write veto.** `latestFastPass` read only
+   `fast-checks.jsonl`. `passedAlready` refuses to skip when a session log holds an `observable: false`
+   write the pass does not cover; the fast path never read the logs. A write git cannot see, made after
+   the fast pass, still let the commit through.
+
+**Fixed:**
+- The veto is one function, `unseenWriteSince(root, {seen, seq, started})`. `passedAlready` calls it
+  against `checksSeen`, and `latestFastPass` against `fastSeen`, so there is no second copy.
+- `recordFileWritten` now logs `fastSeen`, the fast ledger's count, beside `checksSeen`. A write logged
+  before 3.8.1 has no `fastSeen` and is judged by its time alone, the rule the full skip already keeps
+  for a write with no count.
+- The fast advisory adds "the staged index is not the tree the fast check ran on" when `now.index` is
+  not `now.tree`.
+
+Regressions in `tests/qh-check-reads-the-ledger.test.mjs`. Each was red first, at the assertion it
+names:
+- `a commit told through on a fast pass says when the staged index is not the tree it checked`, with a
+  whole-stage twin;
+- `a write git cannot see, after a fast pass, takes the commit back to the full check`, driven through
+  the PostToolUse hook, with a later fast pass as the twin that covers the write;
+- `a write the fast ledger counts after its pass is seen, even when the clock went back`, with a
+  `fastSeen: 0` twin.
+
+Catalogue: four `§343:` mutants. Four ADR-081 entries were retargeted onto `unseenWriteSince` and
+`latestFastPass`, because the veto moved out of `qh-check.mjs`.
+
+**The review of this fix: REQUEST CHANGES, one blocker.** It was an independent read-only correctness
+reviewer, standing in for Codex, whose budget returns 2026-10-07.
+- **The blocker, a false refusal.** `recordFileWritten` logs any write outside the repository as
+  `observable: false`, a scratchpad note or a peer's temp file included, and the veto read every one.
+  So a fast-path commit was refused after the session saved a commit message outside the tree. A full
+  pass is never refused that way, so the fix had made the fast exemption stricter than the full check.
+  The reviewer reproduced it through the real hooks.
+- **Fixed, the owner's choice of two:** only a write inside the repository counts (`outsideRoot`, through
+  the existing `relativeWithinRoot`). That applies in both callers, so the full skip no longer loses
+  itself to a scratchpad write either. Twin: `a write outside the repository vetoes neither a fast-path
+  commit nor the full skip`. Two more `§343 review:` mutants. All six §343 mutants were killed.
+
+**The class: every reader of a pass ledger that skips a check or excuses a publish.** Enumerated with
+`mrw read --grep "checks\.jsonl'|fast-checks\.jsonl'|unseenWriteSince\(|unobservableWrites\(" plugin/`:
+- `passedAlready` (qh-check.mjs) applies the veto;
+- `latestFastPass` applies it now;
+- `importCheckRecords` (lifecycle.mjs) feeds `checkStanding`, which decides a publish and reads NO veto.
+  `unobservableWrites` is called only by `observedFacts` and `completionRules`, both advisory. The first
+  draft of this entry said otherwise, and the review corrected it.
+
+The remaining hits are the writer (qh-check.mjs) and a size read used for a cache key.
+
+**Residuals, named:**
+- **A full pass, then a write inside the repository that git cannot see** (an ignored file): commit and
+  push both go through. The full publish standing reads no veto, while a fast pass now does. Trigger: a
+  report of a publish over an ignored input the check reads, or a decision to align the two.
+- **A direct write to a file outside the repository that the tree symlinks to** is not counted. Writing
+  through the in-tree link is.
+- **A `file.written` with no `at`** vetoes here, where `unobservableWrites` treats it as covered.
+  `appendEvent` always stamps `at`, so only a hand-written row has none.
+- **`git commit -a` from PreToolUse** gets the partial-stage sentence even when every change is tracked.
+  Git's own hook sees the index git commits. Advice text only.
+- Bash and mrw still write no `file.written`, so the veto cannot see their writes. That is §331's trigger
+  for `checkInputs`.
+
+## 344. OPEN 2026-10-02 (trigger: a second sighting) — branch-state once listed runs from 2026-09-16 as the newest
+
+Around 10:50Z, the `UserPromptSubmit` brief said `CI COULD NOT LOOK — no run listed is at HEAD 7f780b1 or
+at the pushed tip; the 20 listed are at f6335f5, 21cadc1, f149a36, …`. Those are this repository's
+2026-09-16 release commits. At the same time, `gh run list` listed 489737c's run in progress. The
+brief failed closed: it reported unknown, never green.
+
+Not reproduced:
+- `branch-state.mjs` run from inside `.git/quality-harness/sessions`, the session's working directory
+  shortly before, read the right runs.
+- So did `gh run list` from `.git`.
+
+The cause is unknown. Candidates: `gh` serving an old page, which the brief's own text names, or a
+snapshot from another key. Next sighting: keep the snapshot file and its key before it refreshes.

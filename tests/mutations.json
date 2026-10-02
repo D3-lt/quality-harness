@@ -19559,12 +19559,12 @@
     },
     {
       "label": "ADR-081 T1: a write git cannot see is ignored by the skip",
-      "file": "plugin/scripts/qh-check.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "if (!(recordedBefore && Date.parse(entry.at) < started)) return null",
-      "to": "if (false) return null",
+      "from": "if (!(recordedBefore && Date.parse(entry.at) < started)) return true",
+      "to": "if (false) return true",
       "only": "^a write git cannot see, after the pass, checks again$"
     },
     {
@@ -19603,8 +19603,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "return latest && checkEventName(latest) === 'check.passed' ? { command: latest.command, count } : null",
-      "to": "return latest ? { command: latest.command, count } : null",
+      "from": "if (!latest || checkEventName(latest) !== 'check.passed') return null",
+      "to": "if (!latest) return null",
       "only": "^a commit with no fast pass, or a failed one, is still refused$"
     },
     {
@@ -19649,22 +19649,22 @@
     },
     {
       "label": "ADR-081 review: an unseen write is judged by its clock alone",
-      "file": "plugin/scripts/qh-check.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "const recordedBefore = entry.checksSeen === undefined || (Number.isInteger(entry.checksSeen) && entry.checksSeen < latestSeq)",
+      "from": "const recordedBefore = counted === undefined || (Number.isInteger(counted) && counted < seq)",
       "to": "const recordedBefore = true",
       "only": "^a write the ledger counts after the pass is seen, even when the clock went back$"
     },
     {
       "label": "ADR-081 review: a sessions directory that cannot be listed reads as empty",
-      "file": "plugin/scripts/qh-check.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "    if (error?.code !== 'ENOENT') return null",
-      "to": "    if (false) return null",
+      "from": "    if (error?.code !== 'ENOENT') return true",
+      "to": "    if (false) return true",
       "only": "^a sessions directory that cannot be listed runs the check$"
     },
     {
@@ -19716,6 +19716,66 @@
       "from": "  replaceFile(temp, file, rename ? { rename } : undefined)",
       "to": "  rename ? rename(temp, file) : replaceFile(temp, file)",
       "only": "^a campaign's owner record and a lease are both written through the retry$"
+    },
+    {
+      "label": "§343: a fast pass ignores a write git cannot see",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "  if (unseenWriteSince(root, { seen: 'fastSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null",
+      "to": "  if (false) return null",
+      "only": "^a write git cannot see, after a fast pass, takes the commit back to the full check$"
+    },
+    {
+      "label": "§343: a write logs no fast-ledger count",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "fastSeen: ledgerRecordCount(input.cwd, 'fast-checks.jsonl')",
+      "to": "fastSeen: ledgerRecordCount(input.cwd, 'checks.jsonl')",
+      "only": "^a write git cannot see, after a fast pass, takes the commit back to the full check$"
+    },
+    {
+      "label": "§343: a partial stage is never said on the fast path",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "const staged = now.index === now.tree ? ''",
+      "to": "const staged = true ? ''",
+      "only": "^a commit told through on a fast pass says when the staged index is not the tree it checked$"
+    },
+    {
+      "label": "§343: a whole stage is warned as partial on the fast path",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "const staged = now.index === now.tree ? ''",
+      "to": "const staged = false ? ''",
+      "only": "^a commit told through on a fast pass says when the staged index is not the tree it checked$"
+    },
+    {
+      "label": "§343 review: a write outside the repository vetoes the pass",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "if (typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path)) continue",
+      "to": "if (false) continue",
+      "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
+    },
+    {
+      "label": "§343 review: a sibling of the repository reads as inside it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)",
+      "to": "return relative === '..' || path.isAbsolute(relative)",
+      "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
     }
   ]
 }

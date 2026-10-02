@@ -17453,7 +17453,7 @@ The remaining hits are the writer (qh-check.mjs) and a size read used for a cach
 - Bash and mrw still write no `file.written`, so the veto cannot see their writes. That is §331's trigger
   for `checkInputs`.
 
-## 344. OPEN 2026-10-02 (trigger: a second sighting) — branch-state once listed runs from 2026-09-16 as the newest
+## 344. OPEN 2026-10-02 (sighted twice; trigger: a third sighting, or a decision to retry) — branch-state twice listed weeks-old runs as the newest
 
 Around 10:50Z, the `UserPromptSubmit` brief said `CI COULD NOT LOOK — no run listed is at HEAD 7f780b1 or
 at the pushed tip; the 20 listed are at f6335f5, 21cadc1, f149a36, …`. Those are this repository's
@@ -17467,3 +17467,41 @@ Not reproduced:
 
 The cause is unknown. Candidates: `gh` serving an old page, which the brief's own text names, or a
 snapshot from another key. Next sighting: keep the snapshot file and its key before it refreshes.
+
+**Second sighting, about 11:20Z.** The brief said `the 20 listed are at d4dfaeb, 3b2a830, b089080, …`
+(late-September commits), a minute after 77bd909 was pushed and its campaign dispatched. The snapshot
+`.git/qh-branch-state.json` was kept before it refreshed:
+- its key was `["ref: refs/heads/main","77bd909…","77bd909…"]`, which is HEAD and the pushed tip, so it
+  was not another key;
+- `state.ci.note` held the stale list, so the list is what `gh run list --branch main --limit 20` (the
+  call at `plugin/scripts/branch-state.mjs:182`) returned.
+
+Run three times right afterwards, the same call listed 77bd909's two runs first. **The cause is `gh`, or
+the API behind it, serving an older page of a branch-filtered list shortly after a push.** Both sightings
+came within minutes of one. The reader already says that in its own words, and it fails closed. A
+possible change, not made: retry once when no listed run is at HEAD or at the tip, or ask `--commit
+<sha>` as well. That spends a second `gh` call on a hook that fires on every prompt (CLAUDE.md §19), so
+it waits for a third sighting or the owner's call.
+
+## 345. OPEN 2026-10-02 (one small improvement; trigger: the next corpus-probe change) — a fresh corpus's reading of 3.8.1: three name clashes, one fair ask
+
+A first outside run on an older Python ADR corpus (72 records, 219 tasks; attested as
+`python-adr-corpus` at 77bd909): every verdict at 3.8.1 equals 3.7.2's (`compared` 78, PASS → FAIL 0).
+The runner flagged four things, each checked in source:
+1. **"Three shipped tasks come back READY."** Not a defect. They are done in their README, but their
+   evidence is stale or predates acceptance digests. `work-next` lists them in `readyButClaimedDone`
+   (`plugin/scripts/work-next.mjs:475-478`, §280 item 4, §289 item 2), and the runner confirmed all three
+   are there. Whether `ready` should still include them stays a design question; it has been asked
+   before.
+2. **`readinessUnproven: 0` beside adr-next's `unproven` reasons.** A name clash. `readinessUnproven`
+   counts task directories work-next could not read (`plugin/scripts/corpus-probe.mjs:186-189`), not
+   tasks with unproven evidence.
+3. **An `undecided[].reason` is null** for a status that was read but not recognised. The `status` field
+   holds the text, but a reason saying "a status that is not a known value" (as against "Proposed")
+   would help. This one is open.
+4. **`workNext.accepted` equals `records`.** It is computed: records whose kind is `governing`
+   (`work-next.mjs:532`).
+
+A second fresh corpus, a web app, could not run: its session's permission check refused the cloned
+script, and it has no `docs/adr` anyway. Its 55 `.tsx`/`.jsx` test files would be fresh input for
+ADR-083's lexer if its user approves.

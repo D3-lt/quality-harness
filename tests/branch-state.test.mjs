@@ -885,11 +885,15 @@ function waitForSnapshot(cache, done, ms = 60_000) {
   const directory = path.dirname(cache)
   const said = what => { try { return what() } catch (error) { return `unreadable (${error.code ?? error.message})` } }
   const lock = path.join(directory, 'qh-branch-state.lock')
-  process.stderr.write(`waitForSnapshot timed out after ${ms} ms in ${directory}\n`
-    + `  holds: ${said(() => readdirSync(directory).join(', '))}\n`
-    + `  snapshot: ${said(() => readFileSync(cache, 'utf8').slice(0, 600))}\n`
-    + `  lock: ${said(() => `${readFileSync(lock, 'utf8')} (${Math.round(Date.now() - statSync(lock).mtimeMs)} ms old)`)}\n`)
-  return false
+  // Thrown, not printed: coverage.sh shows only the failing-tests block of a suite it ran
+  // under coverage, so a line on stderr never reached the CI log of the one job that fails
+  // here (BACKLOG §323). Every caller asserts the result, so a throw fails them the same way.
+  throw new assert.AssertionError({
+    message: `waitForSnapshot timed out after ${ms} ms in ${directory}; load ${os.loadavg().map(n => n.toFixed(1)).join(' ')}\n`
+      + `  holds: ${said(() => readdirSync(directory).join(', '))}\n`
+      + `  snapshot: ${said(() => readFileSync(cache, 'utf8').slice(0, 600))}\n`
+      + `  lock: ${said(() => `${readFileSync(lock, 'utf8')} (${Math.round(Date.now() - statSync(lock).mtimeMs)} ms old)`)}`,
+  })
 }
 
 test('a due brief is served and one refresher starts behind the prompt', t => {

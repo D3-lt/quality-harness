@@ -108,3 +108,4 @@ Revert the commits. `fast-checks.jsonl` is then read by nothing, so no fast reco
 ## Follow-ups
 
 - [ ] Measure the same-tree skips at the adopters a week after release, against the 53 of 280 measured before it.
+- [ ] Count the skips from `.git/quality-harness/skips.jsonl`, written from 3.8.3 on, one row per skip with `passId`, `tree` and `savedMs` (the reused pass's duration, an estimate of the time saved, not a measurement). The owner asked for it on 2026-10-02 because a skip had left no trace. Before 3.8.3, skips can only be inferred.

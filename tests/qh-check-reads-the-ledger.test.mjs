@@ -371,3 +371,38 @@ test('a write outside the repository vetoes neither a fast-path commit nor the f
     assert.deepEqual(runs(fixture), ['fast', 'full'])
   } finally { done(fixture) }
 })
+
+// The owner, 2026-10-02: a skip was invisible — it wrote nothing, so ADR-081's follow-up could not
+// count how often the same-tree skip actually saves a run. It appends to skips.jsonl, where no
+// reader of a pass looks, naming the pass it reused; a run that runs appends nothing there.
+test('a skip is recorded in its own ledger, naming the pass it reused', () => {
+  const fixture = repository()
+  try {
+    assert.equal(check(fixture).status, 0)
+    assert.equal(jsonl(join(state(fixture), 'skips.jsonl')).length, 0, 'a run that ran is not a skip')
+    const [pass] = jsonl(join(state(fixture), 'checks.jsonl'))
+    const skipped = check(fixture)
+    assert.equal(skipped.status, 0)
+    const skips = jsonl(join(state(fixture), 'skips.jsonl'))
+    assert.equal(skips.length, 1, skipped.stderr)
+    assert.equal(skips[0].passId, pass.id)
+    assert.equal(skips[0].tree, pass.after.tree)
+    assert.equal(skips[0].command, pass.command)
+    assert.equal(typeof skips[0].id, 'string')
+    assert.ok(Number.isFinite(skips[0].savedMs), JSON.stringify(skips[0]))
+    assert.equal(jsonl(join(state(fixture), 'checks.jsonl')).length, 1, 'no reader of a pass sees the skip')
+  } finally { done(fixture) }
+})
+
+test('a skip whose ledger cannot be written is said, and still skips', () => {
+  const fixture = repository()
+  try {
+    assert.equal(check(fixture).status, 0)
+    mkdirSync(join(state(fixture), 'skips.jsonl'))
+    const skipped = check(fixture)
+    assert.equal(skipped.status, 0, skipped.stderr)
+    assert.match(skipped.stderr, /already passed on this tree/)
+    assert.match(skipped.stderr, /the skip could not be recorded/)
+    assert.equal(runs(fixture).length, 1, 'the check did not run again')
+  } finally { done(fixture) }
+})

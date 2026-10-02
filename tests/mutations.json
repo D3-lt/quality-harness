@@ -19826,6 +19826,36 @@
       "from": "  if (entry.status == null) return 'no status line this reader can read'",
       "to": "  if (false) return 'no status line this reader can read'",
       "only": "^probe: a record held back says why — a plan, an unknown status, or none read$"
+    },
+    {
+      "label": "skip ledger: a skip leaves no trace",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "appendFileSync(path.join(stateDir(root), 'skips.jsonl'),",
+      "to": "void (path.join(stateDir(root), 'skips.jsonl'),",
+      "only": "^a skip is recorded in its own ledger, naming the pass it reused$"
+    },
+    {
+      "label": "skip ledger: a skip does not name the pass it reused",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "passId: already.id,",
+      "to": "passId: null,",
+      "only": "^a skip is recorded in its own ledger, naming the pass it reused$"
+    },
+    {
+      "label": "skip ledger: a ledger that cannot be written fails the skip",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\\n`)",
+      "to": "throw failure",
+      "only": "^a skip whose ledger cannot be written is said, and still skips$"
     }
   ]
 }

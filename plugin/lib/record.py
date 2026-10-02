@@ -1858,6 +1858,24 @@ def js_test_lookup(text, name, suffix):
             return "found", j + 1, masked
     return ("missing" if complete else "unproven"), None, masked
 
+
+def js_stop_at_jsx(text, suffix):
+    """The lexer's stop when it sits on a JSX tag's `/` (`</` or `/>`), else None.
+
+    The lexer has no JSX mode (BACKLOG §337, reported from two React corpora against
+    3.7.0): a closing or self-closing tag stops it, so every test after the first tag
+    reads UNPROVEN. Until it reads JSX, the gates say that UNPROVEN as advice naming
+    JSX. Plain TypeScript (`.ts .mts .cts`) cannot hold JSX, so a stop there is never
+    one, and a stop anywhere else (a `/` after `}`, an unterminated literal) is not.
+    """
+    if suffix.lower() in (".ts", ".mts", ".cts"):
+        return None
+    stop = _js_lex(text, ts=suffix.lower() in _JS_TS_SUFFIXES)[2]
+    if stop is None or text[stop] != "/":
+        return None
+    return stop if (stop > 0 and text[stop - 1] == "<") or text.startswith("/>", stop) else None
+
+
 def _h2_js_digest_text(text, ts=False):
     """Hasher 2's digest text: comments out, code collapsed, every literal kept.
 

@@ -760,12 +760,12 @@
     },
     {
       "label": "lint: a spaced title is compared by its decoded value, so an escaped quote is not stale (§284)",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if re.sub(r\"\\\\(.)\", r\"\\1\", m.group(2)) == name:",
-      "to": "        if m.group(2) == name:",
+      "from": "            out.append({\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\", \"b\": \"\\b\", \"f\": \"\\f\", \"v\": \"\\v\"}.get(nxt, nxt))",
+      "to": "            out.append(\"\\\\\" + nxt)",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -2778,6 +2778,56 @@
       "from": "        while j < n and (text[j] in \" \\t\\n\\r\" or kinds[j] == 2):",
       "to": "        while j < n and text[j] in \" \\t\\n\\r\":",
       "only": "^adr-lint finds a JavaScript test with a comment beside its title, and never one inside a comment$"
+    },
+    {
+      "label": "§337: a stop at a JSX tag is not recognised as one",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    return stop if (stop > 0 and text[stop - 1] == \"<\") or text.startswith(\"/>\", stop) else None",
+      "to": "    return None",
+      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
+    },
+    {
+      "label": "§337: a stop in plain TypeScript is taken for JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    if suffix.lower() in (\".ts\", \".mts\", \".cts\"):",
+      "to": "    if False:",
+      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
+    },
+    {
+      "label": "§337: adr-lint refuses a test past a JSX tag",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    if jsx_stopped(text, name, suffix):",
+      "to": "    if False:",
+      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
+    },
+    {
+      "label": "§337: spec-verify says could-not-check past a JSX tag",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "            if js_stop_at_jsx(text, suffix) is not None:",
+      "to": "            if False:",
+      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
+    },
+    {
+      "label": "§337: spec-verify drops its JSX advice in silence",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                elif ok == \"advise\":\n                    errors.advise(f\"{item['id']}: {why}\")",
+      "to": "                elif ok == \"advise\":\n                    pass",
+      "only": "^a test past a JSX tag the lexer cannot read yet is advice, never a refusal$"
     },
     {
       "label": "verify: importing the wrapper spawns nothing",

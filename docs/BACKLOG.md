@@ -17111,3 +17111,41 @@ Residuals the reviewer named and nothing here changes: a named callback (`test('
 by an identifier blocks `done` as UNPROVEN, which is the ADR's rule for a body that cannot be
 bounded; `test.each(table)(…)`, generic callbacks and escape decoding keep their earlier limits.
 Not rerun by the reviewer: the CLI fixtures and the corpus comparison (rerun here: no verdict changed).
+
+## 337. OPEN 2026-10-02 — the JavaScript lexer has no JSX mode; 3.7.0 refused real tests in React corpora
+
+Reported by two outside runs against 3.7.0 at 723fa19, before its tag (a react-spa corpus and a
+laravel-react-monorepo corpus). Both showed records going adr-lint PASS → FAIL on done tasks naming
+tests that exist, all in `.test.tsx` files. The first runner measured `_js_lex(text, ts=True)` over
+its corpus: 61 of 65 `.tsx` test files stop, and 0 of 50 `.ts`. Every stop is at the `/` of a closing
+or self-closing tag. Reproduced here: `it("a", () => { render(<B>x</B>) })` followed by `it("b", …)`
+stops at the `/` of `</B>`, and `b` reads UNPROVEN, in `.tsx` and `.jsx` alike. The second runner
+found two of its six refused titles registered further down their files, and three genuinely gone
+(stale rows); a lexer that never reaches the end can say neither.
+
+Fixed for 3.7.0 by the owner's choice (2026-10-02, "advise now, JSX ADR next"):
+`record.js_stop_at_jsx` names a stop that sits on a JSX tag's `/` (`</` or `/>`) in any
+JavaScript-family suffix but `.ts .mts .cts`. Both gates then say UNPROVEN as advice naming JSX:
+adr-lint never blocks on it, and spec-verify advises instead of exit 4. A stop anywhere else, and a
+tag in plain TypeScript, still refuses. The test is `a test past a JSX tag the lexer cannot read yet
+is advice, never a refusal`. Under-blocking is the named cost: a test genuinely missing from such a
+file is advice now.
+
+Still open, and the next record: a JSX mode for the shared lexer. It is ADR-078's lexer, and the
+test lock reads with it (hasher 2), so it is a spec and an ADR for the owner's acceptance, not a
+patch. Residuals until then, none measured on a corpus yet:
+- an apostrophe in JSX text (`<p>Don't</p>`) opens a string, so a stop there is not at a tag `/`
+  and still refuses;
+- `</a>` with another `/` later on the same line lexes as a regex and does not stop, so code
+  positions after it can be wrong;
+- `/>` after a string attribute (`<X a="s" />`) reads as a division;
+- the lock still cannot bound a `.tsx` test after the first tag.
+
+## 338. OPEN 2026-10-02 — an attest line carries no sign that the run found a FAIL
+
+Reported by the react-spa runner against 3.7.0: its `corpus-probe --attest` line said
+`"disagreements":0` and `"found":""` while the same run's `--diff` showed both of its records going
+adr-lint PASS → FAIL. `release-evidence` reads only the attestation, so it would have accepted a
+release that falsely refuses the runner's corpus. Not yet read: what `disagreements` counts, and
+whether a reader verdict that changed between two probe reports can be carried in the attestation
+without carrying the report (§6).

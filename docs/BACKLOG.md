@@ -17280,3 +17280,18 @@ labelled `§339:`.
 
 Limit, named: a journal written by a release before 3.7.3 names no owner. Such a journal is still
 recovered as before, so a run started under an older plugin is unprotected until it ends.
+
+## 340. OPEN 2026-10-02 (dated triggers) — 3.8.0 waits for its Codex round; ADR-081's measurement is due
+
+main at f992e4f carries §339's journal owner, ADR-082 and ADR-083: green in CI and unreleased. main's plugin
+version is still 3.7.2. The owner chose to hold the tag for the different-lineage round (§12), and the
+Codex budget returns 2026-10-07.
+- **On or after 2026-10-07:**
+  1. Run the Codex round owed for 3.7.2 (f1ad71c..e8a3de8) together with the one for this batch. Reconcile
+     and fix its findings.
+  2. Then run the 3.8.0 chain. Its outside runs attest with `--since` their 3.7.2 reports, the first
+     release ADR-082's rule binds.
+- **On or after 2026-10-08:** ADR-081's follow-up. Measure same-tree skips and hook durations at the
+  adopters, against the 53 of 280 measured before it. This also answers §331's import-cost residual.
+- **§333** closes if no Windows `mutate --narrow` miss recurs across the campaigns dispatched since
+  2026-10-02.

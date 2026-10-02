@@ -1770,6 +1770,31 @@ test('a SIGKILLed mutant run is restored by the next run, not left in the tree',
   assert.ok(!mutated(copy), 'the mutant survived a restore that reported success')
 })
 
+// BACKLOG §339, reported from a peer's checkout: every adr-verify call recovers the checkout's
+// journal first, and the journal named no owner, so a second call during a live run restored
+// that run's mutant under its fence and cleared its journal. A journal whose owner is alive
+// belongs to that run: recovery refuses and names it. The SIGKILL test above is the twin, a dead
+// owner's journal is recovered as before.
+test('a live mutant run keeps its journal: another adr-verify refuses to recover it', async () => {
+  const copy = corpus()
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  slowFence(copy)
+  const { child } = spawnMutant(copy, journal)
+  try {
+    assert.ok(await untilMutated(copy), 'the mutant never landed, so nothing was probed')
+    const refused = runWith(journal, ['--restore', '--cwd', '.'], copy)
+    expectExit(refused, 2, 'a recovery under a live run')
+    assert.match(`${refused.stdout}${refused.stderr}`, new RegExp(`\\bpid ${child.pid}\\b`), 'the refusal names the owner')
+    assert.ok(mutated(copy), "the live run's mutant was restored under its fence")
+    assert.equal(readdirSync(journal).length, 1, "the live run's journal was cleared")
+  } finally {
+    child.kill('SIGTERM')
+    await once(child, 'exit')
+  }
+  assert.ok(!mutated(copy), "the live run's own unwind still restores its file")
+})
+
 test('the warning that names the broken file survives the kill that hides it', async () => {
   // The announcement is the only recovery a SIGKILL cannot take away — but only
   // if it is flushed. Measured 2026-08-27: redirected stdout is block-buffered,

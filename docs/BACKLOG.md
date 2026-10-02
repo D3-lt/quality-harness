@@ -17064,7 +17064,7 @@ that run. The assertion message carries no stdout, so the run's own words are lo
 before the assertion. If it recurs, a test beside it that prints the run's stdout and stderr on failure would say
 why, as §328's did.
 
-## 334. OPEN 2026-10-01 — an isolated `adr-verify --mutant` ran a corpus fence many times slower than the checkout did
+## 334. CLOSED 2026-10-02 (not reproduced; the left-behind worktree is by design) — an isolated `adr-verify --mutant` ran a corpus fence many times slower than the checkout did
 
 Observed while recording ADR-079 T4's mutants. Its fence, `scripts/verdict-diff.sh`, runs `adr-lint`
 and `spec-verify` over every tracked record and spec, twice per side. In this checkout one
@@ -17080,7 +17080,22 @@ under the parent's `.git/`. Also not measured: whether a killed isolated run is 
 worktree behind. `adr-verify --restore` said nothing was recorded, and the worktree stayed until it
 was removed by hand.
 
-## 335. OPEN 2026-10-01 — ADR-079 F-11's rationale says a moved lock is advice below `strictFrom`; the code blocks it
+Closed 2026-10-02, on two measurements at load about 5.5 on 10 cores:
+- `adr-lint` on three records took 0.71/0.44/0.46 s in the checkout and 0.60/0.39/0.51 s in a
+  worktree built by `plugin/scripts/worktree.mjs build`.
+- The whole `scripts/verdict-diff.sh cd8f95f` took 74 s in that worktree, against 78 s in the
+  checkout.
+
+So neither the nested worktree nor the git calls of adr-lint reproduce the slowdown, and nothing
+in how `adr-verify` spawns a fence sets a different environment. The 31 minutes stays an
+unexplained observation of one run, UNPROVEN as a defect. If it recurs, time the fence's own
+children while the run is live.
+
+The worktree it left behind is by design. `adr-verify` leaves a killed run's tree for the next
+isolated run's sweep (`plugin/bin/adr-verify` around the "left for a later sweep" message, and the
+`worktree.mjs sweep` call before a build). Removing it by hand pre-empted that sweep.
+
+## 335. CLOSED 2026-10-02 (the spec was corrected) — ADR-079 F-11's rationale says a moved lock is advice below `strictFrom`; the code blocks it
 
 F-11 (`docs/specs/2026-10-01-every-gate-reads-javascript-one-way.md`) says UNPROVEN "keeps a moved
 lock's exceptions: on a frozen archived record, and on a record below `strictFrom`, it is advice".
@@ -17089,6 +17104,10 @@ moved lock only on a frozen record. It runs inside `errors.protected()` and rais
 `evidence=True`, so below `strictFrom` a moved lock still blocks. The behaviour asked for is
 unambiguous; the comparison it is justified by is not true of the code. Which one should change is
 the owner's call: the spec's sentence, or the lock's handling below `strictFrom`.
+
+Owner's decision 2026-10-02: the spec changes and the lock does not. A moved lock is evidence, and
+`strictFrom` never demotes evidence; UNPROVEN is advice there because it is could-not-look. F-11 now
+says so. Its bound test keeps the name it was locked under, and the spec row notes that.
 
 ## 336. OPEN 2026-10-01 — ADR-079's Codex round on efd7cdf: four findings fixed, residuals named
 

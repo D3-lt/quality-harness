@@ -83,3 +83,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-079](ADR-079-every-gate-reads-javascript-one-way.md) | Every gate reads JavaScript one way | Accepted |
 | [ADR-080](ADR-080-no-hook-waits-on-the-artifact-pass.md) | No hook waits on the artifact pass | Accepted |
 | [ADR-081](ADR-081-qh-check-reads-its-own-ledger.md) | qh-check reads its own ledger | Accepted |
+| [ADR-082](ADR-082-an-attestation-says-what-changed.md) | An attestation says what its run changed | Accepted |

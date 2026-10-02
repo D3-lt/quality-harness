@@ -117,3 +117,27 @@ test('a date that is not a date is refused, and nothing is written outside the r
   // Clean twin: the same attestation with a real date is filed.
   assert.equal(importing(repo, message({ ...attestation, runner: 'escape-probe' })).status, 0)
 })
+
+// ADR-082 (BACKLOG §338): verdictChanges is filed when it is null or exactly its three counts,
+// and refused otherwise. Bound red as node:test `todo` until the record's task turns it green.
+test('attest-import files verdictChanges and refuses a malformed one', () => {
+  const { repo, attestation } = repository('verdict-changes')
+  const bad = [
+    { compared: 3, passToFail: 1 },
+    { compared: 3, passToFail: 1, failToPass: 0, records: ['docs/adr/x.md'] },
+    { compared: 1, passToFail: 1, failToPass: 1 },
+    { compared: 3, passToFail: -1, failToPass: 0 },
+    { compared: 3, passToFail: 0.5, failToPass: 0 },
+    'none',
+  ]
+  for (const verdictChanges of bad) {
+    const refused = importing(repo, message({ ...attestation, verdictChanges }))
+    assert.equal(refused.status, 1, `${JSON.stringify(verdictChanges)}: ${refused.stdout}\n${refused.stderr}`)
+    assert.match(refused.stdout, /verdictChanges/, JSON.stringify(verdictChanges))
+    assert.deepEqual(reports(repo), [], JSON.stringify(verdictChanges))
+  }
+  for (const [runner, verdictChanges] of [['nulled', null], ['counted', { compared: 3, passToFail: 0, failToPass: 2 }]]) {
+    const filed = importing(repo, message({ ...attestation, runner, verdictChanges }))
+    assert.equal(filed.status, 0, `${runner}: ${filed.stdout}\n${filed.stderr}`)
+  }
+})

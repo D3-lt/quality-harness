@@ -5,7 +5,7 @@
 // component is a root name, a directory one reader did not read.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { attestation, compareReaders, failedToRun, probe, readerFingerprint, readersOfRun, scrubber } from '../plugin/scripts/corpus-probe.mjs'
+import { attestation, compareReaders, diffReports, failedToRun, probe, readerFingerprint, readersOfRun, scrubber } from '../plugin/scripts/corpus-probe.mjs'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import os from 'node:os'
@@ -522,4 +522,45 @@ test('a record the corpus reader never opened is named unread, not linted', () =
     assert.deepEqual(report.adrLint.map(({ file, verdict, reason }) => ({ file, verdict, reason })),
       [{ file: 'docs/adr/ADR-001-gone.md', verdict: 'unread', reason: 'ENOENT' }])
   } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+// ADR-082 (docs/specs/2026-10-02-an-attestation-says-what-changed.md, BACKLOG §338): an
+// attestation carries how many adr-lint verdicts moved since the runner's earlier report.
+// Bound red as node:test `todo`; each task removed `todo` from its own tests.
+const probeReport = verdicts => ({
+  look: 'ok', corpora: ['fixture'], probe: { readers: {} },
+  adrLint: Object.entries(verdicts).map(([file, verdict]) => ({ file, verdict })),
+})
+
+test('an attestation counts the adr-lint verdicts that moved since an earlier report', () => {
+  const before = probeReport({ 'a.md': 'PASS', 'b.md': 'FAIL', 'c.md': 'PASS', 'd.md': 'PASS', 'gone.md': 'PASS' })
+  const after = probeReport({ 'a.md': 'FAIL', 'b.md': 'PASS', 'c.md': 'PASS', 'd.md': null, 'new.md': 'FAIL' })
+  // PASS → could not run counts as a regression too; a record in only one report is not compared.
+  assert.deepEqual(attestation(after, 'x', { since: before }).verdictChanges, { compared: 4, passToFail: 2, failToPass: 1 })
+  // One comparison: every record the attestation counts is a line --diff prints.
+  const lines = diffReports(before, after)
+  for (const file of ['a.md', 'b.md', 'd.md']) assert.ok(lines.some(line => line.startsWith(`adrLint ${file}: `)), lines.join('\n'))
+})
+
+test('an attestation that compared nothing says null, never zero', () => {
+  const report = probeReport({ 'a.md': 'PASS' })
+  assert.equal(attestation(report, 'x').verdictChanges, null)
+  assert.equal(attestation(report, 'x', { since: { ...report, corpora: ['other'] } }).verdictChanges, null)
+  assert.equal(attestation(report, 'x', { since: { ...report, look: 'UNPROVEN' } }).verdictChanges, null)
+})
+
+test('corpus-probe --attest --since prints the verdict changes', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-attest-since-'))
+  try {
+    writeFileSync(path.join(dir, 'before.json'), JSON.stringify(probeReport({ 'a.md': 'PASS' })))
+    writeFileSync(path.join(dir, 'after.json'), JSON.stringify(probeReport({ 'a.md': 'FAIL' })))
+    const cli = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'plugin', 'scripts', 'corpus-probe.mjs')
+    const run = spawnSync(process.execPath, [cli, '--attest', 'x', path.join(dir, 'after.json'), '--since', path.join(dir, 'before.json')],
+      { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+    assert.equal(run.status, 0, run.stderr)
+    assert.deepEqual(JSON.parse(run.stdout).verdictChanges, { compared: 1, passToFail: 1, failToPass: 0 })
+    const missing = spawnSync(process.execPath, [cli, '--attest', 'x', path.join(dir, 'after.json'), '--since', path.join(dir, 'absent.json')],
+      { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+    assert.equal(missing.status, 2, 'an unreadable --since is an unreadable report')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })

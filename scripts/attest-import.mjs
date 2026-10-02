@@ -20,7 +20,7 @@ import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 /** The attestation schema of docs/corpus-reports/README.md, in the order a file is written. */
 export const KEYS = ['date', 'at', 'atReason', 'plugin', 'kind', 'probeSha256', 'readers', 'platform', 'node', 'python',
-  'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'runner', 'found']
+  'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'verdictChanges', 'runner', 'found']
 const CORPUS_KEYS = ['records', 'tasks', 'taskDirectories', 'countsFrom']
 
 /** Every top-level JSON object in `text`, in order; braces in prose that do not parse are skipped. */
@@ -99,6 +99,16 @@ export function ordered(attestation) {
  * ADR-070 Decision steps 1-6 over a message's text, against the repository at `root`.
  * `{ attestation, name }` to file, `{ refused: [reasons] }`, or `{ couldNotLook }`.
  */
+/** Whether `value` is a well-formed verdictChanges: null, or exactly its three counts (ADR-082). */
+function verdictChangesShape(value) {
+  if (value === null) return true
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return false
+  const count = n => Number.isInteger(n) && n >= 0
+  return Object.keys(value).sort().join(',') === 'compared,failToPass,passToFail'
+    && count(value.compared) && count(value.passToFail) && count(value.failToPass)
+    && value.passToFail + value.failToPass <= value.compared
+}
+
 export function check(text, root) {
   const candidates = jsonObjects(text).filter(o => o && typeof o === 'object' && !Array.isArray(o) && 'at' in o && 'kind' in o)
   if (candidates.length !== 1) {
@@ -113,6 +123,10 @@ export function check(text, root) {
     refused.push(`2: keys outside the attestation schema (${[...unknown, ...corpusUnknown.map(k => `corpus.${k}`)].join(', ')}): a report's content is never committed`)
   }
   if (attestation.kind !== 'probe') refused.push(`3: kind is ${JSON.stringify(attestation.kind)}; only a probe attestation carries digests to check, and a hand one is filed by hand`)
+  if ('verdictChanges' in attestation && !verdictChangesShape(attestation.verdictChanges)) {
+    refused.push(`2: verdictChanges is ${JSON.stringify(attestation.verdictChanges)}; it is null, or exactly { compared, passToFail, failToPass }: `
+      + 'non-negative integers with passToFail + failToPass <= compared (ADR-082)')
+  }
   // The date names the file, so it must be a date: `../../x` would have filed outside
   // docs/corpus-reports (Codex review of 3.1.0..e0ef6d4, F1).
   if (typeof attestation.date !== 'string' || !/^\d{4}-\d{2}-\d{2}$/.test(attestation.date)) {

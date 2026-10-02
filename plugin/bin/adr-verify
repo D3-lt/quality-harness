@@ -194,7 +194,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, visible, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON, conflict_markers  # noqa: E402,E501
-from record import record_id, title_line, NO_WINDOW  # noqa: E402
+from record import record_id, title_line, NO_WINDOW, walk  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock, lock_hasher, LOCK_HASHERS  # noqa: E402
 
 
@@ -2429,7 +2429,7 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSE
     appends evidence, and `tests/sweep.test.mjs` asserts the corpus is
     byte-identical afterwards rather than trusting this sentence.
     """
-    tasks = sorted(q for q in Path(root).rglob("*.md") if q.is_file())
+    tasks = sorted(q for q in walk(root, "*.md") if q.is_file())
     # Injectable, and the reason is the tri-platform rule this project wrote down
     # the same day it broke it: emptying PATH removes bash on POSIX and removes
     # nothing on Windows, where resolve_bash() finds Git Bash by absolute path.

@@ -19986,6 +19986,46 @@
       "from": "    const shown = shownPath(posixListed(path.relative(root, first)))",
       "to": "    const shown = posixListed(path.relative(root, first))",
       "only": "^the path a link copy is named against is shown, not printed raw$"
+    },
+    {
+      "label": "§350 C1 at 3.8.5: a locked file that is there and unreadable reads as vanished",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "        if now is None and rel in current.get(\"unreadable\", ()):",
+      "to": "        if False:",
+      "only": "^a locked test file that is there and cannot be read is UNPROVEN, not vanished$"
+    },
+    {
+      "label": "§350 C1 at 3.8.5: the snapshot does not record a file that is there and unreadable",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "        if source is None and path is not None and _present(path):",
+      "to": "        if False:",
+      "only": "^a locked test file that is there and cannot be read is UNPROVEN, not vanished$"
+    },
+    {
+      "label": "§350 C7 Python: the walk enters a directory it is told is a link",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/walk-links.test.mjs"
+      ],
+      "from": "                if entry.is_dir() and not is_link(entry):",
+      "to": "                if entry.is_dir():",
+      "only": "^record\\.walk yields what rglob yields, and never enters a directory it is told is a link$"
+    },
+    {
+      "label": "§350 C1 review: a lookup that failed reads as a file that is gone",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "    except OSError:\n        return True\n    return stat.S_ISREG(mode)",
+      "to": "    except OSError:\n        return False\n    return stat.S_ISREG(mode)",
+      "only": "^a file behind a directory this process may not search is not gone$"
     }
   ]
 }

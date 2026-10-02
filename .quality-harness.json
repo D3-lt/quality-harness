@@ -1,3 +1,4 @@
 {
-  "check": "bash scripts/selftest.sh"
+  "check": "bash scripts/selftest.sh",
+  "fastCheck": "node --test tests/js-reading.test.mjs tests/gates.test.mjs tests/publish-command.test.mjs tests/publish-hook.test.mjs tests/qh-check.test.mjs tests/qh-check-reads-the-ledger.test.mjs tests/qh-check-shell.test.mjs tests/test-locks.test.mjs tests/corpus-probe.test.mjs tests/release-evidence.test.mjs tests/attest-import.test.mjs && node scripts/mutate.mjs --stale"
 }

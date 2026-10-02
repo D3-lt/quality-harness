@@ -16819,6 +16819,11 @@ refresher never wrote) and passed the dispatched run at eabf6a3. In a `node:24` 
 alone under `--experimental-test-coverage` (0.42 s, twice) and after every file that precedes it in
 `coverage.sh`'s serial order (0.45 s, twice). `waitForSnapshot` now prints, on a timeout, what the git directory
 holds, the snapshot and the refresher's lock with its age, so the next failure carries its own evidence.
+**Addendum 2026-10-02:** it failed again at 6d1178f (coverage floor, run 36971099606), and the diagnostics
+above never reached the log: `coverage.sh` shows only a suite's failing-tests block, and `waitForSnapshot`
+printed to stderr. `waitForSnapshot` now THROWS its diagnostics (and the load average), so they land in that
+block. The next three coverage runs passed (b7e867e, c454442, d866327), so the cause is still unobserved.
+Closed as not reproduced, with the instrument armed: the next failure says what the refresher left.
 
 **2b. The coverage job's Python stage failed differently at c11a507: the tutorial replay's mutant survived.**
 `tests/tutorial.test.mjs:141` expects the page's mutant (`int(text.rstrip("s"))` → `0`) to be killed, and the

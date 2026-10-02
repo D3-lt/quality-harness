@@ -1,0 +1,57 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/adr"
+  ],
+  "records": [
+    [
+      "docs/adr/0001-use-postgres.md",
+      "governing",
+      false
+    ]
+  ],
+  "undecided": [],
+  "workNext": {
+    "records": 1,
+    "accepted": 1,
+    "tasks": 1,
+    "ready": [],
+    "unbacked": [],
+    "retirable": [],
+    "readinessUnproven": [],
+    "next": null
+  },
+  "adrState": {
+    "read": 1,
+    "governing": 1
+  },
+  "adrNext": [],
+  "adrLint": [
+    {
+      "file": "docs/adr/0001-use-postgres.md",
+      "verdict": "FAIL",
+      "reasonMatches": "Alternatives Considered has no entries"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "docs/adr",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [
+      "`docs/adr/0002-dropped/tasks`: T1 is ready — no record owning these tasks was found, so whether they are a work order is UNKNOWN — "
+    ],
+    "mustNotMatch": [
+      "T1 is ready — the task file calls it"
+    ]
+  },
+  "neverNamed": [],
+  "couldNotRun": []
+}

@@ -1600,6 +1600,17 @@ function ownerCaveat(report) {
   }
   return ''
 }
+// What a ready line says right after the task it offers when no record owns the tasks (BACKLOG
+// §350 C6, a fail-open: with the record deleted, the line offered the task with no word). Said
+// AFTER "is ready —", not first like the two above: ADR-068 T2 locks a test whose ownerless
+// `docs/tasks` fixture expects "`docs/tasks`: T1 is ready —", and a locked test stays
+// byte-identical (CLAUDE.md §2). It is still said before the instruction to prove the task.
+function missingOwnerCaveat(report) {
+  if (report.owner_missing === true) {
+    return 'no record owning these tasks was found, so whether they are a work order is UNKNOWN — '
+  }
+  return ''
+}
 export function readyTaskLines(root, insideRepository, listing, spawn = spawnGate) {
   // Without a repository there is no "this project". Git-fail (listing null
   // while inside a repo) is UNPROVEN, not an empty ready list.
@@ -1677,8 +1688,8 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
       lines.push(archive
         ? `  ${readyPath}: read as live only because ${pathInCode(archive)} has no Lifecycle marker — if it is an archive, `
           + `adopt it first (${codeSpan(`adr-retire-check --adopt <active> ${shownPath(archive)}`)}); if it is not, ${ownerCaveat(report)}${next.id} is ready — `
-          + `the task file calls it ${quotedCorpusText(next.goal)}.`
-        : `  ${readyPath}: ${ownerCaveat(report)}${next.id} is ready — the task file calls it ${quotedCorpusText(next.goal)}`
+          + `${missingOwnerCaveat(report)}the task file calls it ${quotedCorpusText(next.goal)}.`
+        : `  ${readyPath}: ${ownerCaveat(report)}${next.id} is ready — ${missingOwnerCaveat(report)}the task file calls it ${quotedCorpusText(next.goal)}`
         + (next.acceptance ? `, and its Acceptance fence reads ${quotedCorpusText(next.acceptance)}` : '')
         + (next.acceptance === null && next.human_observed === false
           // No fence was read, and adr-verify refuses the file, so the instruction could
@@ -2415,6 +2426,29 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       reason: `record budget: ${RECORD_BUDGET} records were read; this file and every later one in the listing were not examined` })
     records.look = 'PARTIAL'
   }
+  // ⚠ ONE FILE, HOWEVER MANY PATHS REACH IT (BACKLOG §350 C7). A junction under docs/adr that
+  // pointed back at docs/adr was listed 64 levels deep on Windows: 192 records where there were
+  // 3, a record contested with itself, and a probe killed at 120 s. A record is read once, by the
+  // first listed path to its real file; every other path to it is named, unread, and the look
+  // is PARTIAL, since what a link reaches is not what the listing says.
+  const firstPathTo = new Map()
+  const reached = []
+  for (const file of files) {
+    let real
+    try { real = realpathSync.native(file) } catch { reached.push(file); continue }
+    const first = firstPathTo.get(real)
+    if (first === undefined) { firstPathTo.set(real, file); reached.push(file); continue }
+    // Shown, never raw: a listed name is corpus text, and a newline in it forged a line of the
+    // tool's own output in work-next (a stand-in review of 3.8.5; BACKLOG §319's class). Worded for
+    // what is known: on macOS and Windows a spelling that differs only in case reaches the same file
+    // with no link at all.
+    const shown = shownPath(posixListed(path.relative(root, first)))
+    unreadable.push({ file, status: null, taskFiles: [],
+      reason: `another listed path to the same file on disk as ${shown} (a link, a junction, or a spelling the file system folds together), so that file is read once` })
+    records.look = 'PARTIAL'
+  }
+  files.length = 0
+  files.push(...reached)
   const recordsPerDirectory = new Map()
   for (const file of files) {
     const directory = path.dirname(file)

@@ -619,3 +619,25 @@ test('the ready line says first when the owning record is unreadable or not Acce
     assert.match(archived, /if it is not, its record's Status is «Proposed», not Accepted/, archived)
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+// BACKLOG §350 C6: a ready line whose tasks have no owning record says so, right after the task it
+// offers and before the instruction to prove it: a record nobody found is not an Accepted one.
+test('the ready line says when no record owns the tasks, before the instruction', () => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-owner-missing-')))
+  try {
+    mkdirSync(join(root, 'tasks'), { recursive: true })
+    writeFileSync(join(root, 'tasks', 'T1.md'), '# x\n')
+    const answer = extra => () => ({ status: 0, stderr: '',
+      stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: join(root, 'tasks', 'T1.md') }], ...extra }) })
+    const line = extra => readyTaskLines(root, true, ['tasks/T1.md'], answer(extra)).lines.join('\n')
+    assert.match(line({ status: null, undecided: null, owner_unreadable: false, owner_missing: true }),
+      /T1 is ready — no record owning these tasks was found, so whether they are a work order is UNKNOWN — the task file calls it .*Prove it/)
+    assert.doesNotMatch(line({ status: 'Accepted', undecided: false, owner_unreadable: false, owner_missing: false }), /UNKNOWN/)
+    // The unmarked-archive branch says it too.
+    mkdirSync(join(root, 'docs', 'adr-archive', 'ADR-001-x', 'tasks'), { recursive: true })
+    writeFileSync(join(root, 'docs', 'adr-archive', 'ADR-001-x', 'tasks', 'T1-x.md'), '# x\n')
+    const archived = readyTaskLines(root, true, ['docs/adr-archive/ADR-001-x/tasks/T1-x.md'],
+      answer({ status: null, undecided: null, owner_unreadable: false, owner_missing: true })).lines.join('\n')
+    assert.match(archived, /if it is not, T1 is ready — no record owning these tasks was found/, archived)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

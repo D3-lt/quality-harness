@@ -1,0 +1,21 @@
+{
+  "date": "2026-10-02",
+  "at": "e8a3de836fedec6f41f69f9ffc58cf304af837b0",
+  "plugin": "3.7.2",
+  "kind": "probe",
+  "probeSha256": "10a7de4d2aef9e2eca344e031c2611b6bfd0c73e32f9ba624fea7cec6394078d",
+  "readers": "30378dc822b46f43551c31644ce7151f1c08e7df09d8c535886e8af6e2f0d93b",
+  "platform": "Darwin 27.0.0",
+  "node": "26.10.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 2,
+    "tasks": 9,
+    "taskDirectories": 2
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "runner": "react-spa",
+  "found": ""
+}

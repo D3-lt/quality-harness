@@ -100,7 +100,7 @@ export function passedAlready({ root, git, command, env = process.env, observeTr
   if (!latest || checkEventName(latest) !== 'check.passed') return null
   if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
   const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)
-  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null }
+  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree }
 }
 // Runs a launched check to its end, forwarding SIGINT/SIGTERM and enforcing the
 // timeout. `received` is the signal this process forwarded, if any.
@@ -163,6 +163,17 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     const took = already.ms === null ? '' : `, in ${inSeconds(already.ms)}`
     stderr.write(`qh-check: already passed on this tree at ${already.at}${took} (\`${command}\`) — not run again. `
       + 'A tree hash covers no ignored file, environment or service; `qh-check --again` runs it.\n')
+    // The owner, 2026-10-02: a skip left no trace, so how often it saves a run could not be
+    // counted (ADR-081's follow-up). It goes to `skips.jsonl`, where no reader of a pass looks —
+    // a row in checks.jsonl would become the tree's latest record and undo the next skip. A
+    // ledger that cannot be written is said; the skip and its exit stand (CLAUDE.md §3).
+    try {
+      mkdirSync(stateDir(root), { recursive: true })
+      appendFileSync(path.join(stateDir(root), 'skips.jsonl'), `${JSON.stringify({ id: randomUUID(), at: new Date().toISOString(),
+        command, tree: already.tree, passId: already.id, passedAt: already.at, savedMs: already.ms })}\n`, 'utf8')
+    } catch (failure) {
+      stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\n`)
+    }
     return 0
   }
   // ADR-077: a lease for the whole run, taken before the load is sampled, so the check's own

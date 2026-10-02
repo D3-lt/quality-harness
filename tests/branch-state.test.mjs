@@ -1419,3 +1419,48 @@ test('a run answers for HEAD or the tip by whole identity, and the tip is read b
   ])), { brief: true })
   assert.match(configured, /c0ffee1: every job concluded success\. \(the pushed tip as last fetched; HEAD has no run\)/, configured)
 })
+
+// BACKLOG §344 (the owner, 2026-10-02): the branch-filtered page was weeks old twice more, each
+// time within a minute of a push, while the same call answered correctly moments later. A
+// listing with no run at HEAD or the tip is asked once more, by the commit, and a fresh answer
+// is read. One that answers is never asked twice: this hook fires on every prompt (§19).
+test('a stale listing is asked once more by commit, and only a stale one is', () => {
+  const full = sha => sha.padEnd(40, '0')
+  const recording = (table, calls) => { const inner = runner(table); return argv => { calls.push(argv.join(' ')); return inner(argv) } }
+  const tip = ['git rev-parse origin/main', ok(full('0a18d04a'))]
+  const stale = ['gh run list --branch', ok(JSON.stringify([{ headSha: full('24ce31b0'), status: 'completed', conclusion: 'failure', databaseId: 9 }]))]
+
+  const calls = []
+  const fresh = render(collect(recording([...GIT_CLEAN, tip,
+    ['gh run list --commit', ok(JSON.stringify([{ headSha: full('0a18d04a'), headBranch: 'main', status: 'completed', conclusion: 'success', databaseId: 10 }]))],
+    stale,
+  ], calls)), { brief: true })
+  assert.match(fresh, /0a18d04: every job concluded success/, fresh)
+  assert.doesNotMatch(fresh, /FAILURE|COULD NOT LOOK/, fresh)
+  assert.deepEqual(calls.filter(call => call.startsWith('gh run list --commit')).map(call => call.split(' ')[4]), [full('0a18d04a')],
+    'asked once, by the pushed tip')
+
+  // The second answer is stale too: still COULD NOT LOOK, never the old commit's red.
+  const still = render(collect(runner([...GIT_CLEAN, tip,
+    ['gh run list --commit', ok(JSON.stringify([{ headSha: full('24ce31b0'), status: 'completed', conclusion: 'failure', databaseId: 9 }]))],
+    stale,
+  ])), { brief: true })
+  assert.match(still, /COULD NOT LOOK/, still)
+  assert.doesNotMatch(still, /FAILURE/, still)
+
+  // `--commit` is not filtered by branch: a run at the same commit on another branch is not this
+  // branch's CI (the review of the first fix: a new branch whose upstream is main read main's red).
+  const other = render(collect(runner([...GIT_CLEAN, tip,
+    ['gh run list --commit', ok(JSON.stringify([{ headSha: full('0a18d04a'), headBranch: 'feature', status: 'completed', conclusion: 'failure', databaseId: 11 }]))],
+    stale,
+  ])), { brief: true })
+  assert.match(other, /COULD NOT LOOK/, other)
+  assert.doesNotMatch(other, /FAILURE/, other)
+
+  // A listing that answers for HEAD is not asked again.
+  const once = []
+  render(collect(recording([...GIT_CLEAN, tip,
+    ['gh run list --branch', ok(JSON.stringify([{ headSha: full('0a18d04a'), status: 'completed', conclusion: 'success', databaseId: 10 }]))],
+  ], once)), { brief: true })
+  assert.equal(once.filter(call => call.startsWith('gh run list')).length, 1, once.join(' | '))
+})

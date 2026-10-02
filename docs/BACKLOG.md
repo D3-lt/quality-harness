@@ -17352,7 +17352,7 @@ modes, measured separately here.
 - `recover_mutant` has no lock between reading a journal, probing its owner and unlinking it; that race
   predates §339. Trigger: a report of two recoveries interleaving.
 
-## 342. OPEN 2026-10-02 (trigger: a second Windows failure) — the artifact-gate budget test is bimodal on Windows
+## 342. OPEN 2026-10-02 (instrumented for 3.8.2; trigger: the next slow Windows run) — the artifact-gate budget test is bimodal on Windows
 
 The push run of 4171b6e (36992722231, v3.8.0's sha) failed one job on `windows`, one test:
 `the artifact gate budget is raisable, and running out of it names the budget` (tests/lifecycle.test.mjs:891).
@@ -17382,6 +17382,16 @@ with no deterministic twin.
 which would explain why the slow mode outlasts the 100s window. The process is still running during
 the judged run. Test it on a Windows runner: list processes after the starved call. Fix either the
 tree kill or the test's own budget (CLAUDE.md §7).
+
+**Instrumented, 2026-10-02 (the owner chose this over waiting).** The test's body is locked (ADR-068
+T2), so the instrument sits outside it in `tests/lifecycle.test.mjs`:
+- a `beforeEach` starts a sampler process that writes the python, bash and sh processes, with pid,
+  parent and age, every 5 s while that one test runs;
+- an `afterEach` prints the samples when the run took over 60 s.
+
+Only executable names are written (`ps … comm`, `tasklist`'s image name), never arguments.
+`QH_SAMPLE_PRINT_MS=0` showed it printing on a fast run here. The next slow Windows run shows whether a
+python process outlives the starved call.
 
 ## 343. CLOSED 2026-10-02 (fixed for 3.8.1) — ADR-081's fast exemption said nothing of a partial stage, and skipped the unseen-write veto
 
@@ -17443,7 +17453,9 @@ The remaining hits are the writer (qh-check.mjs) and a size read used for a cach
 **Residuals, named:**
 - **A full pass, then a write inside the repository that git cannot see** (an ignored file): commit and
   push both go through. The full publish standing reads no veto, while a fast pass now does. Trigger: a
-  report of a publish over an ignored input the check reads, or a decision to align the two.
+  report of a publish over an ignored input the check reads. **The owner, 2026-10-02: leave as is.** The
+  full check is the strong proof, and ADR-081 already names the limit ("a tree hash covers no ignored
+  file").
 - **A direct write to a file outside the repository that the tree symlinks to** is not counted. Writing
   through the in-tree link is.
 - **A `file.written` with no `at`** vetoes here, where `unobservableWrites` treats it as covered.
@@ -17453,7 +17465,7 @@ The remaining hits are the writer (qh-check.mjs) and a size read used for a cach
 - Bash and mrw still write no `file.written`, so the veto cannot see their writes. That is §331's trigger
   for `checkInputs`.
 
-## 344. OPEN 2026-10-02 (sighted twice; trigger: a third sighting, or a decision to retry) — branch-state twice listed weeks-old runs as the newest
+## 344. CLOSED 2026-10-02 (fixed for 3.8.2, the owner's choice) — branch-state twice listed weeks-old runs as the newest
 
 Around 10:50Z, the `UserPromptSubmit` brief said `CI COULD NOT LOOK — no run listed is at HEAD 7f780b1 or
 at the pushed tip; the 20 listed are at f6335f5, 21cadc1, f149a36, …`. Those are this repository's
@@ -17483,7 +17495,26 @@ possible change, not made: retry once when no listed run is at HEAD or at the ti
 <sha>` as well. That spends a second `gh` call on a hook that fires on every prompt (CLAUDE.md §19), so
 it waits for a third sighting or the owner's call.
 
-## 345. OPEN 2026-10-02 (one small improvement; trigger: the next corpus-probe change) — a fresh corpus's reading of 3.8.1: three name clashes, one fair ask
+**The owner chose the retry (2026-10-02). Fixed for 3.8.2:**
+- A listing with runs, none of them at HEAD or the tip, is asked once more with `gh run list --commit
+  <tip, else HEAD>`, and a fresh answer is read.
+- A second stale answer is still COULD NOT LOOK, never an old commit's verdict.
+- A listing that answers is never asked twice.
+
+Test: `a stale listing is asked once more by commit, and only a stale one is`, red first. The catalogue
+has two `§344:` mutants. The existing `branch-state: the tip is read and passed to the run choice`
+mutant now targets one shared `tipSha`, because the retry would otherwise have supplied the tip that
+the mutant took away.
+
+**The review of this fix: REQUEST CHANGES, one blocker** (an independent read-only reviewer standing in
+for Codex). `gh run list --commit` is not filtered by branch. A new branch whose upstream is main had a
+`--branch` listing holding only its own older run, and the retry then read main's red at that commit
+as the branch's own: COULD NOT LOOK had become a wrong FAILURE, repeated on every prompt. Fixed: the
+retry asks for `headBranch` and keeps only this branch's rows. An arm in the test covers it, and a
+`§344 review:` mutant. All three §344 mutants and the tip mutant were killed. The same review
+corrected the sampler's comment: on macOS `comm` is the whole path, so `ucomm` is used there.
+
+## 345. CLOSED 2026-10-02 (item 3 fixed for 3.8.2; item 1 decided by the owner) — a fresh corpus's reading of 3.8.1: three name clashes, one fair ask
 
 A first outside run on an older Python ADR corpus (72 records, 219 tasks; attested as
 `python-adr-corpus` at 77bd909): every verdict at 3.8.1 equals 3.7.2's (`compared` 78, PASS → FAIL 0).
@@ -17491,14 +17522,17 @@ The runner flagged four things, each checked in source:
 1. **"Three shipped tasks come back READY."** Not a defect. They are done in their README, but their
    evidence is stale or predates acceptance digests. `work-next` lists them in `readyButClaimedDone`
    (`plugin/scripts/work-next.mjs:475-478`, §280 item 4, §289 item 2), and the runner confirmed all three
-   are there. Whether `ready` should still include them stays a design question; it has been asked
-   before.
+   are there. **The owner, 2026-10-02: they stay in `ready`.** Task files win over the derived README,
+   and the separate field already says to verify first.
 2. **`readinessUnproven: 0` beside adr-next's `unproven` reasons.** A name clash. `readinessUnproven`
    counts task directories work-next could not read (`plugin/scripts/corpus-probe.mjs:186-189`), not
    tasks with unproven evidence.
 3. **An `undecided[].reason` is null** for a status that was read but not recognised. The `status` field
    holds the text, but a reason saying "a status that is not a known value" (as against "Proposed")
-   would help. This one is open.
+   would help. **Fixed for 3.8.2:** `corpus-probe` gives each undecided record a reason: "a plan, not yet
+   decided", "a status this reader does not recognise", "no status line this reader can read", or "its
+   archive catalog does not establish its effect". Test: `probe: a record held back says why — a plan,
+   an unknown status, or none read`. Two `§345:` mutants.
 4. **`workNext.accepted` equals `records`.** It is computed: records whose kind is `governing`
    (`work-next.mjs:532`).
 

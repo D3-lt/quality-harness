@@ -178,9 +178,9 @@ export function collect(run = shell, checkpoint = () => {}) {
   const remotes = run(['git', 'remote', '-v'])
   const unreadable = !remotes.ok
   const onGitHub = remotes.ok && /github/i.test(remotes.out)
+  const RUN_FIELDS = 'headSha,status,conclusion,databaseId,startedAt,event,workflowDatabaseId,workflowName'
   const runs = onGitHub
-    ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', String(RUN_WINDOW), '--json',
-      'headSha,status,conclusion,databaseId,startedAt,event,workflowDatabaseId,workflowName'])
+    ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', String(RUN_WINDOW), '--json', RUN_FIELDS])
     : {
       ok: false,
       out: '',
@@ -196,7 +196,26 @@ export function collect(run = shell, checkpoint = () => {}) {
     // or the tip cannot be read, the answer is COULD NOT LOOK (the owner, 2026-09-30).
     // `gh` has served a page of runs weeks old (2026-09-29 and -30, three times), and
     // the newest run on such a page is an old commit's, not this branch's CI.
-    const answer = headRuns(rows, whole.ok ? whole.out : git.head, tip.ok ? tip.out : null)
+    const headSha = whole.ok ? whole.out : git.head
+    const tipSha = tip.ok ? tip.out : null
+    let answer = headRuns(rows, headSha, tipSha)
+    // ⚠ A STALE PAGE IS ASKED AGAIN, BY COMMIT AND THIS BRANCH (BACKLOG §344, the owner,
+    // 2026-10-02). Twice more the branch-filtered page was weeks old within a minute of a push,
+    // while the same call answered correctly moments later. So a listing with runs, none of them
+    // at HEAD or the tip, is asked once more for the pushed tip's (else HEAD's) runs by commit.
+    // `--commit` is NOT filtered by branch, so only this branch's rows are kept: a new branch
+    // whose upstream is main otherwise read main's red as its own (the review of the first fix).
+    // Only then: a listing that answers costs no second call on this per-prompt hook (§19).
+    if (!answer && rows.length) {
+      const again = run(['gh', 'run', 'list', '--commit', tipSha ?? headSha,
+        '--limit', String(RUN_WINDOW), '--json', `${RUN_FIELDS},headBranch`])
+      let retried = []
+      if (again.ok) { try { retried = JSON.parse(again.out) } catch { retried = [] } }
+      if (!Array.isArray(retried)) retried = []
+      retried = retried.filter(r => r && r.headBranch === branch.out)
+      const second = headRuns(retried, headSha, tipSha)
+      if (second) { rows = retried; answer = second }
+    }
     if (answer) {
       const answering = answer.runs
       const failing = answering.filter(r => r.status === 'completed' && r.conclusion !== 'success')

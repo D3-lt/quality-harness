@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { linkDirectory } from './symlink-support.mjs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import test, { after } from 'node:test'
+import test, { after, afterEach, beforeEach } from 'node:test'
 import { hookSaid, SLOW_HOOK_NOTE, stripPauseLines } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
@@ -120,6 +120,42 @@ function gitInit(dir) {
 // temp is no different. realpath'd, because /tmp is a symlink on macOS and the
 // judgements under test compare realpaths.
 const testTmp = realpathSync.native(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'quality-lifecycle-')))
+// BACKLOG §342 (the owner, 2026-10-02): on windows-latest one test takes either 7–14s or 122–136s,
+// and failed once. Its body is locked (ADR-068 T2), so the instrument sits outside it: a sampler
+// process writes the process list every 5s while that test runs, and a run longer than 60s prints
+// the samples, so the next slow run shows which processes outlived the starved budget.
+// QH_SAMPLE_PRINT_MS lowers the threshold, so the printing can be seen without a slow host.
+const SAMPLED = 'the artifact gate budget is raisable, and running out of it names the budget'
+const sampling = new Map()
+beforeEach(t => {
+  if (t.name !== SAMPLED) return
+  const file = path.join(testTmp, 'process-samples.txt')
+  // Executable names only, never arguments: `tasklist`'s image name, `ucomm` on macOS (where `comm`
+  // is the whole path) and `comm` elsewhere. Every process on the machine is listed, a peer's too.
+  const list = process.platform === 'win32' ? "['tasklist', ['/fo', 'csv', '/nh']]"
+    : `['ps', ['-eo', 'pid,ppid,etime,${process.platform === 'darwin' ? 'ucomm' : 'comm'}']]`
+  const script = `const { execFileSync } = require('node:child_process'); const { appendFileSync } = require('node:fs')
+const [cmd, args] = ${list}; const end = Date.now() + 300000
+;(function sample() {
+  let out; try { out = execFileSync(cmd, args, { encoding: 'utf8', timeout: 10000, windowsHide: true }) } catch (e) { out = String(e) }
+  appendFileSync(${JSON.stringify(file)}, '--- ' + new Date().toISOString() + '\\n' + out.split('\\n').filter(l => /python|bash|\\bsh\\b/i.test(l)).join('\\n') + '\\n')
+  if (Date.now() < end) setTimeout(sample, 5000)
+})()`
+  const child = spawn(process.execPath, ['-e', script], { stdio: 'ignore', windowsHide: true, timeout: 310_000 })
+  sampling.set(t.name, { child, file, start: Date.now() })
+})
+afterEach(t => {
+  const run = sampling.get(t.name)
+  if (!run) return
+  sampling.delete(t.name)
+  run.child.kill()
+  const took = Date.now() - run.start
+  if (took > Number(process.env.QH_SAMPLE_PRINT_MS ?? 60_000)) {
+    let samples
+    try { samples = readFileSync(run.file, 'utf8') } catch (error) { samples = `no samples were written (${error.code})` }
+    console.error(`§342: "${SAMPLED}" took ${(took / 1000).toFixed(1)}s; process samples follow\n${samples}`)
+  }
+})
 // Bounded retries for Windows handle locks. A failure here is SAID, loudly, and
 // never thrown: on 2026-09-05 (CI run 33970787579) the file failed at FILE level
 // on windows-latest with every subtest ok — the shape BACKLOG §49 had seen twice

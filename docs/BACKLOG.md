@@ -17347,3 +17347,34 @@ modes, measured separately here.
 - A PASS that became could-not-run counts in `passToFail`. That fails closed, and the advice covers it.
 - `recover_mutant` has no lock between reading a journal, probing its owner and unlinking it; that race
   predates §339. Trigger: a report of two recoveries interleaving.
+
+## 342. OPEN 2026-10-02 (trigger: a second Windows failure) — the artifact-gate budget test is bimodal on Windows
+
+The push run of 4171b6e (36992722231, v3.8.0's sha) failed one job on `windows`, one test:
+`the artifact gate budget is raisable, and running out of it names the budget` (tests/lifecycle.test.mjs:891).
+The second half, run with the default 30s budget, got `facts-gate-dispatch.sh timed out after 30000ms`
+instead of a verdict on the 400,000-line record. The dispatched campaign at the same sha (36992731601)
+passed it in 12.7s, and `release-evidence` reads that run, so the tag stands.
+
+**It predates 3.8.0.** That test's duration on `windows`, read from each run's log on 2026-10-02:
+
+| run | sha | result |
+|---|---|---|
+| 36992722231 | 4171b6e | ✖ 136.3s |
+| 36992731601 | 4171b6e | ✔ 12.7s |
+| 36985881795 | d866327 | ✔ 135.9s |
+| 36971099606 | 6d1178f | ✔ 122.2s |
+| 36963737035 | f1ad71c | ✔ 132.7s |
+| 36963745574 | f1ad71c | ✔ 6.8s |
+| 36965411586, 36965403941 | e8a3de8 | ✔ 12.5s, 13.5s |
+| 36918242536, 36918231925, 36909665154, 36902698378, 36898882347 | 723fa19, 031ffb6, cd8f95f, 6f6ddaa | ✔ 7.5s to 12.8s |
+
+It takes either 7–14s or 122–136s. The slow mode passed three times, and failed once, when the judged run
+also exceeded 30s. §16629's note already says that half is a performance assertion on the product default,
+with no deterministic twin.
+
+**Hypothesis, unverified:** the starved run (100ms budget) kills the shell, but on Windows a grandchild
+(the gate's python over 400,000 lines) keeps the pipe open. So `spawnSync` returns only when it exits,
+which would explain why the slow mode outlasts the 100s window. The process is still running during
+the judged run. Test it on a Windows runner: list processes after the starved call. Fix either the
+tree kill or the test's own budget (CLAUDE.md §7).

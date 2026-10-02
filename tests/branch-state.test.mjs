@@ -874,8 +874,8 @@ function waitForNoRefresher(gitDir, ms = 20_000) {
 // coverage job's instrumentation it outlasted 15 s (the 3.3.0 candidate, 35b36fa). A healthy
 // refresher answers in well under a second, so a wider guard costs nothing when nothing is wrong.
 // At eabf6a3 it failed the full 60 s — the refresher never wrote — and a Linux container running the
-// same files under coverage passed it every time (BACKLOG §323). So on a timeout it says what it
-// found, on stderr: what the git directory holds, the snapshot, and the refresher's lock and its age.
+// same files under coverage passed it every time (BACKLOG §323). So on a timeout it throws what it
+// found: what the git directory holds, the snapshot, and the refresher's lock and its age.
 function waitForSnapshot(cache, done, ms = 60_000) {
   const until = Date.now() + ms
   while (Date.now() < until) {

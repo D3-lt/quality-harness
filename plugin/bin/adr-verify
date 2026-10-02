@@ -1357,27 +1357,59 @@ def _recover_legacy(journal, data, cwd):
     return "resolved"
 
 
-def live_journal_owner(data):
-    """The pid of a live run that owns this journal, or None (BACKLOG §339).
+def journal_owner_state(data):
+    """`(pid, alive, why)` for the run that owns this journal (BACKLOG §339).
 
     Every invocation recovers the checkout's journal first, so a journal naming no owner let a
-    second call restore a live run's mutant under its fence and clear its record. The owner is
-    asked of worktree.mjs's `alive`, the probe the campaign sweep already trusts: Python's
-    `os.kill(pid, 0)` would end the process on Windows. A probe that could not answer reads as
-    alive, as the sweep reads it, because recovering under a live run is the harm. A journal
-    from before owners were recorded names none and is recovered as it always was.
+    second call restore a live run's mutant under its fence and clear its record. `alive` is
+    True, False, or None when it could not be established, with `why`. The probe is
+    worktree.mjs's `alive`, which the campaign sweep trusts; without node, POSIX asks the kernel
+    (signal 0), which Windows cannot do: there Python's `os.kill` ends the process. A journal
+    from before owners were recorded, or this process's own, gives `(None, None, None)`.
     """
     owner = data.get("owner")
     pid = owner.get("pid") if isinstance(owner, dict) else None
     if not isinstance(pid, int) or isinstance(pid, bool) or pid <= 0 or pid == os.getpid():
-        return None
+        return None, None, None
     records, error = worktree_cli("alive", str(pid), timeout=30)
-    if error is None and records and records[-1].get("alive") is False:
+    if error is None and records and isinstance(records[-1].get("alive"), bool):
+        return pid, records[-1]["alive"], None
+    if os.name != "nt":
+        try:
+            os.kill(pid, 0)
+        except ProcessLookupError:
+            return pid, False, None
+        except PermissionError:
+            return pid, True, None
+        except OSError as exc:
+            return pid, None, str(exc)
+        return pid, True, None
+    return pid, None, error or "the probe gave no answer"
+
+
+def owner_refusal(journal, pid, alive, why, explicit):
+    """Why recovery must not touch this journal yet, or None (BACKLOG §339).
+
+    A live owner refuses every recovery, `--restore` included: it may be an adr-verify run
+    mid-fence. An owner whose liveness could not be established is said to be unknown, never
+    live: an implicit recovery refuses and names `--restore`, which recovers past it, because a
+    refusal nothing can clear would leave a killed run's mutant in the tree for good.
+    """
+    if pid is None:
         return None
-    return pid
+    if alive:
+        return (f"[adr-verify] the mutant journal at {journal} belongs to a live process, pid {pid}, "
+                f"in this checkout. Recovering it now could restore an adr-verify run's files under "
+                f"its fence and clear its recovery record (BACKLOG §339). Wait for pid {pid} to end, "
+                f"or end it; recovery then restores the members.")
+    if alive is None and not explicit:
+        return (f"[adr-verify] whether pid {pid}, which owns the mutant journal at {journal}, is still "
+                f"running could not be established ({why}). Recovering now could restore files under a "
+                f"fence still running. Once you know it has ended, `adr-verify --restore` recovers it.")
+    return None
 
 
-def recover_mutant(cwd):
+def recover_mutant(cwd, explicit=False):
     """Resolve a durable journal, or stop before an ambiguous tree is measured."""
     journal = mutant_journal(cwd)
     if not journal.exists():
@@ -1390,12 +1422,13 @@ def recover_mutant(cwd):
     if not isinstance(data, dict):
         fail(f"[adr-verify] corrupt mutant journal retained at {journal}: expected an object. "
              f"Verification is blocked until it is reconciled.")
-    owner = live_journal_owner(data)
-    if owner is not None:
-        fail(f"[adr-verify] the mutant journal at {journal} belongs to a live adr-verify run, pid {owner}, "
-             f"in this checkout. Recovering it now would restore that run's files under its fence and "
-             f"clear its recovery record (BACKLOG §339). Wait for it to end, or end it; if pid {owner} "
-             f"is not adr-verify, remove the journal by hand.")
+    pid, alive, why = journal_owner_state(data)
+    refusal = owner_refusal(journal, pid, alive, why, explicit)
+    if refusal:
+        fail(refusal)
+    if pid is not None and alive is None:
+        print(f"[adr-verify] whether pid {pid} is still running could not be established ({why}); "
+              f"recovering because --restore was asked for.")
     if "version" not in data:
         return _recover_legacy(journal, data, cwd)
     if data.get("version") != JOURNAL_VERSION:
@@ -2940,7 +2973,7 @@ def main():
             fail("--also-restore cannot be combined with --restore; recovery reads the durable "
                  "manifest already on disk")
         where = cwd if cwd is not None else Path.cwd()
-        if recover_mutant(where) == "absent":
+        if recover_mutant(where, explicit=True) == "absent":
             print(f"[adr-verify] no mutant is recorded for {Path(where).resolve()} — "
                   f"nothing to restore.")
         sys.exit(0)

@@ -485,10 +485,12 @@ function comparable(before, after) {
  * `--diff` prints from and an attestation counts (ADR-082), so the two cannot disagree.
  */
 export function verdictMoves(before, after) {
+  // By file, the last entry winning, as `diffReports` reads them: a record listed twice is one record.
   const was = new Map((before.adrLint ?? []).map(entry => [entry.file, entry]))
+  const now = new Map((after.adrLint ?? []).map(entry => [entry.file, entry]))
   const moves = []
   let compared = 0
-  for (const entry of after.adrLint ?? []) {
+  for (const entry of now.values()) {
     const old = was.get(entry.file)
     if (!old) continue
     compared += 1
@@ -622,6 +624,9 @@ function corpusCounts(report) {
  */
 function verdictChanges(before, after) {
   if (!before || !comparable(before, after) || !Array.isArray(before.adrLint) || !Array.isArray(after.adrLint)) return null
+  // Reports taken by the same readers say nothing about a change in them (the stand-in review of ADR-082).
+  const readers = report => report.probe?.readers?.sha256
+  if (readers(before) && readers(before) === readers(after)) return null
   const { compared, moves } = verdictMoves(before, after)
   return {
     compared,

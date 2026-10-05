@@ -20817,6 +20817,16 @@
       "from": ".replace(HOME_RELATIVE, '~<path>')",
       "to": "",
       "only": "^(?:a path under the home directory is a placeholder in either separator)$"
+    },
+    {
+      "label": "§350 RC: a Status line is copied into the report unscrubbed",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "status: record.status == null ? null : scrub(record.status), kind",
+      "to": "status: record.status ?? null, kind",
+      "only": "^(?:the probe scrubs a Status line it copies into the report)$"
     }
   ]
 }

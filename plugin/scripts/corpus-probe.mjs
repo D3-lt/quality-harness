@@ -247,7 +247,9 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const corpus = adrCorpus(resolved, { tracked: listing })
   const look = listing == null ? 'UNPROVEN' : (corpus.look ?? 'ok')
   const records = corpus.map(record => ({
-    id: record.id ?? null, file: rel(record.file), status: record.status ?? null, kind: record.kind ?? null,
+    // A Status line is corpus text, scrubbed like every emitted string: one reading "recorded in
+    // ~/<other repository>/…" printed whole in the full report (an outside run of the 3.8.7 RC).
+    id: record.id ?? null, file: rel(record.file), status: record.status == null ? null : scrub(record.status), kind: record.kind ?? null,
     frozen: Boolean(record.frozen),
   }))
   // Files that look like records and carry no status the readers act on, or could
@@ -431,7 +433,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       // a pasted probe said less than the reader (inbox, ts-generator 2026-09-24).
       specs: workNext.specs ?? null,
       unprovenSpecs: workNextPaths('unprovenSpecs'),
-      partialBecause: (workNext.partialBecause ?? []).map(entry => ({ file: normal(entry.file), reason: entry.reason })),
+      partialBecause: (workNext.partialBecause ?? []).map(entry => ({ file: normal(entry.file), reason: entry.reason == null ? null : scrub(entry.reason) })),
       next: workNext.next,
     },
     frozenTaskDirs,

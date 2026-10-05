@@ -18124,3 +18124,8 @@ before the tag, each with a test and a killed catalogue mutant:
   any other exit 2 is still counted.
 A runner's caveat worth keeping: a days-old clone under `/private/tmp` had tracked files deleted by the
 OS's periodic cleanup, and failed with ERR_MODULE_NOT_FOUND — a fresh clone, never a release defect.
+- **rust-adr-corpus ran after its user approved** (compared 185, no verdict moved; FAIL 117 / PASS 68 both sides) and
+  found a third: a record with no Status that FAILs on another rule prints `unproven: … no **Status:** line`
+  under the FAIL — FAIL outranks UNPROVEN, by design — and the probe kept only the FAIL's first finding and
+  its advice, so the record's one Status signal was in no report. The probe now carries `unproven` lines
+  under any reached verdict and `--diff` compares them. rust-adr-corpus also saw the `~` leak, fixed above.

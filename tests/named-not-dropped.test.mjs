@@ -6,7 +6,7 @@ import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
-import { diffReports } from '../plugin/scripts/corpus-probe.mjs'
+import { diffReports, probe } from '../plugin/scripts/corpus-probe.mjs'
 import { recordCount } from '../plugin/scripts/corpus-report.mjs'
 import { fileURLToPath } from 'node:url'
 import { adrCorpus, readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
@@ -204,4 +204,20 @@ test('SessionStart never repeats an absolute path a gate printed', () => {
   const homeSaid = readyTaskLines(root, true, listing, home).lines.join('\n')
   assert.match(homeSaid, /could not run: ~‹path› — held open/, homeSaid)
   assert.doesNotMatch(homeSaid, /elsewhere/, homeSaid)
+})
+
+// An outside run of the 3.8.7 RC (rust-adr-corpus): a record with no Status that FAILs on another rule prints its
+// `unproven:` line under the FAIL, and the probe kept only the FAIL's first finding and the advice, so
+// the record's one Status signal was in no report. It rides with the verdict now, and --diff compares it.
+test('the probe keeps what adr-lint could not decide, under whatever verdict it reached', () => {
+  const root = path.join(scratch, 'probe-unproven')
+  mkdirSync(path.join(root, 'docs', 'adr'), { recursive: true })
+  spawnSync('git', ['init', '-q'], { cwd: root, timeout: 30_000, windowsHide: true })
+  writeFileSync(path.join(root, 'docs', 'adr', 'ADR-001-x.md'), '# ADR-001: x\n\n## Context\n\nx\n\n## Decision\n\nx\n\n## Alternatives Considered\n\n')
+  const entry = probe(root).adrLint.find(item => item.file === 'docs/adr/ADR-001-x.md')
+  assert.equal(entry?.verdict, 'FAIL', JSON.stringify(entry))
+  assert.ok(entry.unproven?.some(line => /^unproven: ADR-001-x\.md: no \*\*Status:\*\* line/.test(line)), JSON.stringify(entry))
+  const was = { look: 'ok', corpora: ['docs/adr'], adrLint: [{ file: 'a.md', verdict: 'FAIL', advice: [] }] }
+  const now = { look: 'ok', corpora: ['docs/adr'], adrLint: [{ file: 'a.md', verdict: 'FAIL', advice: [], unproven: ['unproven: a.md: no Status'] }] }
+  assert.ok(diffReports(was, now).includes('adrLint a.md unproven: + unproven: a.md: no Status'), diffReports(was, now).join('\n'))
 })

@@ -320,8 +320,12 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     // could-not-run and an unread one carry no list — an empty one would say the gate had
     // nothing to add about a record it never checked (ADR-005).
     const advice = `${run.stdout ?? ''}`.split('\n').filter(line => /^ {2}advice(?: withheld)?: /.test(line)).map(line => scrub(line.trim()))
+    // What the gate could not decide rides too, under whatever verdict it reached: a FAIL outranks
+    // UNPROVEN, and a record with no Status that FAILed on another rule lost its only Status signal
+    // in the report (an outside run of the 3.8.7 RC, rust-adr-corpus). Present only when the gate printed one.
+    const unproven = `${run.stdout ?? ''}`.split('\n').filter(line => /^ {2}unproven: /.test(line)).map(line => scrub(line.trim()))
     return { file: rel(record.file), exit: run.status, verdict, ...(finding ? { reason: scrub(finding.trim()) } : {}),
-      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),
+      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...(unproven.length ? { unproven } : {}), ...frozen(record),
       ...(corpus.includes(record) ? {} : { undecided: true }) }
   })
   try { rmSync(lintState, { recursive: true, force: true }) } catch { /* scratch outlives us */ }
@@ -571,6 +575,7 @@ export function diffReports(before, after, scrub = text => String(text)) {
       // Advice that came or went under a verdict that held is a change too: a PASS that gained
       // advice compared as "nothing changed". A verdict that moved is its own line already.
       if (old && old.verdict === entry.verdict) setChange(`adrLint ${file} advice`, old.advice, entry.advice)
+      if (old && old.verdict === entry.verdict && (old.unproven || entry.unproven)) setChange(`adrLint ${file} unproven`, old.unproven ?? [], entry.unproven ?? [])
     }
     for (const file of was.keys()) if (!now.has(file)) say(`adrLint ${file}: removed`)
   }

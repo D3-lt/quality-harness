@@ -16341,7 +16341,9 @@
     {
       "label": "BACKLOG §319 A: a nested spec does not stop the core route",
       "file": "plugin/scripts/work-next.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  if (!state.records && !state.specs && !state.tasks && !state.undecided && !state.nestedSpecs?.length) return STAGES.find(s => s.id === 'core')",
       "to": "  if (!state.records && !state.specs && !state.tasks && !state.undecided) return STAGES.find(s => s.id === 'core')",
       "only": "a spec in a subdirectory of docs/specs"
@@ -16349,7 +16351,9 @@
     {
       "label": "BACKLOG §319 A: nested specs are never listed",
       "file": "plugin/scripts/work-next.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  const nestedSpecPaths = nestedSpecFiles(directory, listing) ?? []",
       "to": "  const nestedSpecPaths = []",
       "only": "a spec in a subdirectory of docs/specs"
@@ -16357,7 +16361,9 @@
     {
       "label": "BACKLOG §319 A: a flat spec is listed as nested too",
       "file": "plugin/scripts/work-next.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))",
       "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && ownSpec(rel))",
       "only": "a spec in a subdirectory of docs/specs"
@@ -16365,7 +16371,9 @@
     {
       "label": "BACKLOG §319 A: the all-clear ignores unread nested specs",
       "file": "plugin/scripts/work-next.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "      say(state.readinessUnproven.length || state.nestedSpecs.length",
       "to": "      say(state.readinessUnproven.length",
       "only": "a spec in a subdirectory of docs/specs"
@@ -16373,7 +16381,9 @@
     {
       "label": "BACKLOG §319 B: a record holding NUL is read as text",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "    if (text.includes('\\u0000')) {\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
       "to": "    if (false) {\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
       "only": "a record holding a NUL byte"
@@ -16381,7 +16391,9 @@
     {
       "label": "BACKLOG §319 C: a linked tasks directory is walked",
       "file": "plugin/scripts/trajectory-metrics.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "        if (target?.isDirectory()) unreadableDirs.push(full)",
       "to": "        if (target?.isDirectory()) walk(full)",
       "only": "corpus-report counts a linked task file"
@@ -16389,7 +16401,9 @@
     {
       "label": "BACKLOG §319 C: a linked task file is skipped",
       "file": "plugin/scripts/trajectory-metrics.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "        else if (task) found.push(full)",
       "to": "        else if (false) found.push(full)",
       "only": "corpus-report counts a linked task file"
@@ -16397,7 +16411,9 @@
     {
       "label": "BACKLOG §319 D: a check record's exit is graded whatever its type",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  if (typeof record?.exit !== 'number') return 'check.unproven'",
       "to": "  if (record?.exit === undefined) return 'check.unproven'",
       "only": "a check record whose exit is not a number"
@@ -16405,7 +16421,9 @@
     {
       "label": "BACKLOG §319 D: a check record's git is graded whatever its type",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  if (typeof record.git !== 'boolean') return 'check.unproven'",
       "to": "  if (record.git == null) return 'check.unproven'",
       "only": "a check record whose exit is not a number"
@@ -16413,7 +16431,9 @@
     {
       "label": "BACKLOG §319 E: a path in work-next's text is printed raw",
       "file": "plugin/scripts/work-next.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  const shown = file => visiblePath(relative(file))",
       "to": "  const shown = file => relative(file)",
       "only": "a newline in a spec file name"
@@ -16421,7 +16441,9 @@
     {
       "label": "BACKLOG §319 F: adr-lint reads a named file that is not regular",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "    if target.exists() and not target.is_file():",
       "to": "    if False:",
       "only": "adr-lint refuses a file that is not a regular file"
@@ -16429,7 +16451,9 @@
     {
       "label": "BACKLOG §319 F: adr-lint reads a task that is not regular",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "            refuse_irregular(p)",
       "to": "            pass",
       "only": "adr-lint refuses a file that is not a regular file"
@@ -16437,7 +16461,9 @@
     {
       "label": "BACKLOG §319 F: the cross-record check reads another record's irregular task",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "            if f.exists() and not f.is_file():\n                unread.append(f\"`{shown(f)}`: not a regular file\")",
       "to": "            if False:\n                unread.append(f\"`{shown(f)}`: not a regular file\")",
       "only": "adr-lint refuses a file that is not a regular file"
@@ -16445,7 +16471,9 @@
     {
       "label": "BACKLOG §319 G: an npm script is not a definition",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "            if f.name == \"package.json\" and name in npm_scripts(source):",
       "to": "            if False:",
       "only": "adr-lint reads a package.json script"
@@ -16453,7 +16481,9 @@
     {
       "label": "BACKLOG §319 G: any mention of the name in package.json is a definition",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "            if f.name == \"package.json\" and name in npm_scripts(source):",
       "to": "            if f.name == \"package.json\" and f'\"{name}\"' in source:",
       "only": "adr-lint reads a package.json script"
@@ -16461,7 +16491,9 @@
     {
       "label": "BACKLOG §319 H: a start that could not look is a baseline",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  return log.find(entry => entry.event === 'session.started' && entry.observation?.ok === true)",
       "to": "  return log.find(entry => entry.event === 'session.started')",
       "only": "a session whose first look failed"
@@ -16469,7 +16501,10 @@
     {
       "label": "BACKLOG §319 H: a late baseline is taken after the tree was already seen",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/late-baseline.test.mjs", "tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/late-baseline.test.mjs",
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "!log.some(event => event.observation?.ok === true)",
       "to": "true",
       "only": "a session that did start normally gets no late baseline|a tree seen before a commit is not forgiven"
@@ -16477,7 +16512,9 @@
     {
       "label": "BACKLOG §319 H: the publish decision reads a start that could not look",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  const baseline = sessionBaseline(log)?.observation\n    ?? (log.some(entry => entry.event === 'session.started')",
       "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n    ?? (log.some(entry => entry.event === 'session.started')",
       "only": "a session whose first look failed"
@@ -16485,7 +16522,9 @@
     {
       "label": "BACKLOG §319 H: the session note reads a start that could not look",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true ? statusPaths(root) : []",
       "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n  const status = observation?.ok === true ? statusPaths(root) : []",
       "only": "the session note reads the late baseline"
@@ -16493,7 +16532,9 @@
     {
       "label": "BACKLOG §319 H: the session note's late flag reads a start that could not look",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "    late: sessionBaseline(log)?.late === true,",
       "to": "    late: log.find(entry => entry.event === 'session.started')?.late === true,",
       "only": "the session note reads the late baseline"
@@ -16501,7 +16542,9 @@
     {
       "label": "BACKLOG §319 I: adr-state's JSON drops the Governs paths that match nothing",
       "file": "plugin/scripts/adr-state.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "    governsUnmatched: rotted.map(entry => entry.slice('governs:'.length)),",
       "to": "    governsUnmatched: [],",
       "only": "adr-state --json lists the Governs paths"
@@ -16509,7 +16552,9 @@
     {
       "label": "BACKLOG §319 H: git's hook gets no late baseline",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "    ?? (log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now) ? now : undefined)",
       "to": "    ?? undefined",
       "only": "git's own hook gives a failed start"
@@ -16517,7 +16562,9 @@
     {
       "label": "BACKLOG §319 H: git's hook hands a worktree a late baseline",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now)",
       "to": "lateBaselineAllowed(log, cwd, now)",
       "only": "git's own hook gives a failed start"
@@ -16525,7 +16572,9 @@
     {
       "label": "BACKLOG §319 G: a script whose value is not a string is a definition",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "    return {name for name, value in scripts.items() if isinstance(value, str)} if isinstance(scripts, dict) else set()",
       "to": "    return set(scripts) if isinstance(scripts, dict) else set()",
       "only": "adr-lint reads a package.json script"
@@ -16533,7 +16582,9 @@
     {
       "label": "BACKLOG §319 G: a BOM hides every script",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "        manifest = json.loads(source.lstrip(chr(0xFEFF)))",
       "to": "        manifest = json.loads(source)",
       "only": "adr-lint reads a package.json script"
@@ -16541,7 +16592,9 @@
     {
       "label": "BACKLOG §319 A: a nested spec with a line break is invisible",
       "file": "plugin/scripts/work-next.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))",
       "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/.+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))",
       "only": "a spec in a subdirectory of docs/specs"
@@ -16549,7 +16602,9 @@
     {
       "label": "BACKLOG §319 C: a task that is not a regular file is read",
       "file": "plugin/scripts/trajectory-metrics.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  if (!statSync(file).isFile()) throw Object.assign(new Error(`${file} is not a regular file`), { code: 'ENOTREG' })",
       "to": "  if (false) throw Object.assign(new Error(`${file} is not a regular file`), { code: 'ENOTREG' })",
       "only": "corpus-report counts a FIFO task"
@@ -16557,7 +16612,9 @@
     {
       "label": "BACKLOG §319 C: a FIFO named like a task is skipped",
       "file": "plugin/scripts/trajectory-metrics.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "      // and left to the reader, which refuses it unopened, rather than skipped in silence.\n      else if (task) found.push(full)",
       "to": "      // and left to the reader, which refuses it unopened, rather than skipped in silence.\n      else if (false) found.push(full)",
       "only": "corpus-report counts a FIFO task"
@@ -16565,7 +16622,9 @@
     {
       "label": "BACKLOG §319 C: corpus-report's CLI reads through a reader that opens anything",
       "file": "plugin/scripts/corpus-report.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "export function run(argv, { read = readRegularFile,",
       "to": "export function run(argv, { read = readFileSync,",
       "only": "corpus-report counts a FIFO task"
@@ -16573,7 +16632,9 @@
     {
       "label": "code-review of ADR-074: the Python Status reader reads inside a code fence (C4 next-line reading is now impossible by construction)",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "    for line in unfenced_lines([line for line, _start, _end in split_lines(text)]):",
       "to": "    for line in [line for line, _start, _end in split_lines(text)]:",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
@@ -16581,7 +16642,9 @@
     {
       "label": "BACKLOG §319 C4: an empty Status line is not said",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "    elif not status_value.strip(\": \\t\"):",
       "to": "    elif False:",
       "only": "an empty Status line is not read"
@@ -16589,7 +16652,9 @@
     {
       "label": "ADR-073 T1: no narrowed baseline is ever short",
       "file": "scripts/mutate.mjs",
-      "tests": ["tests/mutate-runner.test.mjs"],
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
       "from": "if (run.status === 0 && named > 0 && ran < named) return",
       "to": "if (false) return",
       "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
@@ -16597,7 +16662,9 @@
     {
       "label": "ADR-073 T1: a narrowed baseline that runs every name reads short",
       "file": "scripts/mutate.mjs",
-      "tests": ["tests/mutate-runner.test.mjs"],
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
       "from": "named > 0 && ran < named)",
       "to": "named > 0 && ran <= named)",
       "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
@@ -16605,7 +16672,9 @@
     {
       "label": "ADR-073 T1: a hand-written pattern is held to a count",
       "file": "scripts/mutate.mjs",
-      "tests": ["tests/mutate-runner.test.mjs"],
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
       "from": "namesOf(set.only) ?? []))",
       "to": "namesOf(set.only) ?? Array(99).fill('')))",
       "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
@@ -16613,7 +16682,9 @@
     {
       "label": "ADR-073: a named leaf ending in a source extension is discounted as a wrapper",
       "file": "scripts/mutate.mjs",
-      "tests": ["tests/mutate-runner.test.mjs"],
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
       "from": ".filter(m => named.has(m[1]) || !/",
       "to": ".filter(m => !/",
       "only": "^(?:a narrowed killer whose name ends in a source extension is counted, and a wrapper still is not)$"
@@ -16621,7 +16692,9 @@
     {
       "label": "ADR-073: any names rescue the file wrapper of a run that matched nothing",
       "file": "scripts/mutate.mjs",
-      "tests": ["tests/mutate-runner.test.mjs"],
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
       "from": ".filter(m => named.has(m[1]) || !/",
       "to": ".filter(m => named.size > 0 || !/",
       "only": "^(?:a narrowed killer whose name ends in a source extension is counted, and a wrapper still is not)$"
@@ -16629,7 +16702,9 @@
     {
       "label": "BACKLOG §320.2: adr-verify quotes a failed run's control bytes raw",
       "file": "plugin/bin/adr-verify",
-      "tests": ["tests/evidence-chain.test.mjs"],
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
       "from": "fence_safe(visible(ln))",
       "to": "fence_safe(ln)",
       "only": "control bytes are written into the task as visible escapes"
@@ -16637,7 +16712,9 @@
     {
       "label": "BACKLOG §320.2: a tab inside a quoted line is escaped too",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/evidence-chain.test.mjs"],
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
       "from": "def visible(text, keep=\"\\t\"):",
       "to": "def visible(text, keep=\"\"):",
       "only": "control bytes are written into the task as visible escapes"
@@ -16645,7 +16722,9 @@
     {
       "label": "§319 A6: adr-lint prints a finding's newline raw",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "print(visible(f\"  {e}\", keep=\"\"))",
       "to": "print(f\"  {e}\")",
       "only": "a newline in a task file name is shown escaped in adr-lint"
@@ -16653,7 +16732,9 @@
     {
       "label": "§319 A6: adr-lint prints advice's newline raw",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "print(visible(f\"  advice: {a}\", keep=\"\"))",
       "to": "print(f\"  advice: {a}\")",
       "only": "a newline in a task file name is shown escaped in adr-lint"
@@ -16661,7 +16742,9 @@
     {
       "label": "§319 A6: the withheld-advice line keeps a task name's newline",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "f\"Blocking checks still ran.\", keep=\"\"))",
       "to": "f\"Blocking checks still ran.\", keep=\"\\n\"))",
       "only": "a newline in a task file name is shown escaped in adr-lint"
@@ -16669,7 +16752,9 @@
     {
       "label": "§319 A6: the verdict line keeps a record name's newline",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "f\" · {gate_identity()}\", keep=\"\"))",
       "to": "f\" · {gate_identity()}\", keep=\"\\n\"))",
       "only": "a newline in a task file name is shown escaped in adr-lint"
@@ -16677,7 +16762,9 @@
     {
       "label": "§319 H1: a check command's controls are printed raw",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "return codeSpan(untagged(String(command).split('\\t').map(visiblePath).join('\\t')))",
       "to": "return codeSpan(untagged(String(command)))",
       "only": "a declared check cannot forge a line"
@@ -16685,7 +16772,9 @@
     {
       "label": "§319 H1: a tag in a check command is left to open or close a frame",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "codeSpan(untagged(String(command).split(",
       "to": "codeSpan((String(command).split(",
       "only": "a declared check cannot forge a line"
@@ -16693,7 +16782,9 @@
     {
       "label": "§319 H1: every < in a check command is neutralised, a redirection too",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "const TAG_OPEN = /<(?=\\/?[A-Za-z](?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$)))/g",
       "to": "const TAG_OPEN = /</g",
       "only": "a declared check cannot forge a line"
@@ -16701,7 +16792,9 @@
     {
       "label": "§319 H1: SessionStart's Verification line prints the declared check raw",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "? `this project's own check is ${checkInCode(check)}`",
       "to": "? `this project's own check is \\`${check}\\``",
       "only": "a declared check cannot forge a line"
@@ -16709,7 +16802,9 @@
     {
       "label": "§319 H1: runTheCheckSentence prints the declared check raw",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "it runs ${checkInCode(command)} (this project's own check)",
       "to": "it runs \\`${command}\\` (this project's own check)",
       "only": "a declared check cannot forge a line"
@@ -16717,7 +16812,9 @@
     {
       "label": "§319 item 6: SessionStart passes adr-next's line through raw",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "const said = gateSaid((run.stderr",
       "to": "const said = String((run.stderr",
       "only": "SessionStart says adr-next's failure relative to the repository"
@@ -16725,7 +16822,9 @@
     {
       "label": "§319 item 6: adr-next's line keeps the repository's absolute path",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "[[root, '.'], [os.homedir(), '~']]",
       "to": "[[os.homedir(), '~']]",
       "only": "SessionStart says adr-next's failure relative to the repository"
@@ -16733,7 +16832,9 @@
     {
       "label": "§319 item 6: adr-next's line is relativised but not cleaned",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  return corpusText(scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out))\n",
       "to": "  return scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out)\n",
       "only": "SessionStart says adr-next's failure relative to the repository"
@@ -16741,7 +16842,9 @@
     {
       "label": "§319: work-next's relock remedy prints a task path's newline raw",
       "file": "plugin/scripts/work-next.mjs",
-      "tests": ["tests/work-next-readiness.test.mjs"],
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
       "from": "would refuse again: ${visiblePath(remedy(stage))}.",
       "to": "would refuse again: ${remedy(stage)}.",
       "only": "the relock remedy shows a newline in a task path escaped"
@@ -16749,7 +16852,9 @@
     {
       "label": "§319: a command in code keeps a control's bytes",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "/gu, visiblePath)\n  const hidden",
       "to": "/gu, char => char)\n  const hidden",
       "only": "a command keeps an invisible character a copy needs"
@@ -16757,7 +16862,9 @@
     {
       "label": "§307 F-1: an unrecognised record Status is not said",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "    elif status_kind(status_value) is None:",
       "to": "    elif False:",
       "only": "Status is not one the readers recognise"
@@ -16765,7 +16872,9 @@
     {
       "label": "§307 F-1: a recognised Status with a qualifier is called unrecognised",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "    run = _STATUS_RUN.match((value or \"\").strip(_EDGE_SPACE))",
       "to": "    run = _STATUS_RUN.fullmatch((value or \"\").strip(_EDGE_SPACE))",
       "only": "Status is not one the readers recognise"
@@ -16773,7 +16882,9 @@
     {
       "label": "§307 F-1: a Status holding bytes that are not UTF-8 is not named as such",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "if chr(0xFFFD) in status_value else",
       "to": "if False else",
       "only": "Status is not one the readers recognise"
@@ -16781,7 +16892,9 @@
     {
       "label": "§319 D4: a torn checks.jsonl is named as the session log",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "  return log?.complete !== true ? sessionWords : '`checks.jsonl`",
       "to": "  return true ? sessionWords : '`checks.jsonl`",
       "only": "a torn checks.jsonl is named as checks.jsonl"
@@ -16789,7 +16902,9 @@
     {
       "label": "§319 D4: the publish warning names the session log whatever tore",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "unknown — ${tornRecord(log, 'the session log')} could not be read whole, so whether",
       "to": "unknown — the session log could not be read whole, so whether",
       "only": "a torn checks.jsonl is named as checks.jsonl"
@@ -16797,7 +16912,9 @@
     {
       "label": "§319 D4: the turn-end could-not-look names the session log whatever tore",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "${tornRecord(log, 'this session’s event log')} could not be read whole",
       "to": "this session’s event log could not be read whole",
       "only": "a torn checks.jsonl is named as checks.jsonl"
@@ -16805,7 +16922,9 @@
     {
       "label": "§321 codex P1: a suite's completion line counts as a leaf that ran",
       "file": "scripts/mutate.mjs",
-      "tests": ["tests/mutate-runner.test.mjs"],
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
       "from": "  return Math.max(0, Math.min(leaves, Number(passed?.[1] ?? 0) + Number(failed?.[1] ?? 0) - lines.filter(wrapper).length))",
       "to": "  return leaves",
       "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
@@ -16813,7 +16932,9 @@
     {
       "label": "§321 codex P1: output with no summary still gives a count",
       "file": "scripts/mutate.mjs",
-      "tests": ["tests/mutate-runner.test.mjs"],
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
       "from": "  if (!passed && !failed) return null",
       "to": "  if (false) return null",
       "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
@@ -16821,7 +16942,9 @@
     {
       "label": "§321 codex P2: adr-lint prints a missing file's name raw",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "print(f\"ADR not found: {one_line(adr)}\")",
       "to": "print(f\"ADR not found: {adr}\")",
       "only": "other printers show a newline escaped"
@@ -16829,7 +16952,9 @@
     {
       "label": "§321 codex P2: adr-lint prints an unknown option raw",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "print(f\"unknown option: {one_line(unknown[0])}\", file=sys.stderr)",
       "to": "print(f\"unknown option: {unknown[0]}\", file=sys.stderr)",
       "only": "other printers show a newline escaped"
@@ -16837,7 +16962,9 @@
     {
       "label": "§321 codex P2: a survival line prints its finding raw",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-e016066.test.mjs"],
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
       "from": "unchanged · {one_line(message)}\")",
       "to": "unchanged · {message}\")",
       "only": "other printers show a newline escaped"
@@ -17095,7 +17222,9 @@
     {
       "label": "ADR-074 T1: markup is kept in a record's Status value",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "            return _STATUS_MARKUP.sub(\"\", found.group(1)).strip(_EDGE_SPACE), \"inline\"",
       "to": "            return found.group(1).strip(_EDGE_SPACE), \"inline\"",
       "only": "^every reader gives one Status the same reading$"
@@ -17103,7 +17232,9 @@
     {
       "label": "ADR-074 T1: an ASCII regex word end stands in for the lookup",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "  const word = edgeTrim(String(status ?? '')).match(/^[\\p{L}\\p{N}]+/u)?.[0].toLowerCase()",
       "to": "  const word = edgeTrim(String(status ?? '')).match(/^[a-z]+\\b/i)?.[0].toLowerCase()",
       "only": "^every reader gives one Status the same reading$"
@@ -17111,7 +17242,9 @@
     {
       "label": "ADR-074 T1: adr-retire-check bypasses the shared rule",
       "file": "plugin/bin/adr-retire-check",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "    return status_kind(status) == \"governing\"",
       "to": "    return status.strip().casefold() == \"accepted\"",
       "only": "^every reader gives one Status the same reading$"
@@ -17119,7 +17252,9 @@
     {
       "label": "ADR-074 T1: the label forms are narrowed to **Status:**",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
       "to": "_STATUS_LINE = re.compile(r\"^\\*\\*Status:\\*\\*[ \\t]*([^\\r\\n]*)$\")",
       "only": "^every reader gives one Status the same reading$"
@@ -17127,7 +17262,9 @@
     {
       "label": "ADR-074 T2: the Status section is ignored",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-section.test.mjs"],
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
       "from": "    section = status_section(text)",
       "to": "    section = None",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
@@ -17135,7 +17272,9 @@
     {
       "label": "ADR-074 T2: the section wins over an inline line",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-section.test.mjs"],
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
       "from": "        found = _STATUS_LINE.match(line)",
       "to": "        found = None if status_section(text) is not None else _STATUS_LINE.match(line)",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
@@ -17143,7 +17282,9 @@
     {
       "label": "ADR-074 T2: a line and a section that disagree are not said",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/status-section.test.mjs"],
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
       "from": "    if section_value is not None and status_kind(section_value) != status_kind(status_value):",
       "to": "    if False:",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
@@ -17151,7 +17292,9 @@
     {
       "label": "ADR-074 T2: lifecycle reads a ## Status inside a code fence",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/status-section.test.mjs"],
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
       "from": "    const heading = fenced ? null : line.match(STATUS_HEADING)",
       "to": "    const heading = line.match(STATUS_HEADING)",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
@@ -17159,7 +17302,9 @@
     {
       "label": "ADR-074 T2: lifecycle reads a ### Status as the section",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/status-section.test.mjs"],
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
       "from": "const STATUS_HEADING = new RegExp(`^## ([^\\\\r\\\\n]+?)",
       "to": "const STATUS_HEADING = new RegExp(`^#{2,6} ([^\\\\r\\\\n]+?)",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
@@ -17167,7 +17312,9 @@
     {
       "label": "ADR-074 T2: lifecycle keeps the markup on a section's value",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/status-section.test.mjs"],
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
       "from": "  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*_`]/g, ''))",
       "to": "  return edgeTrim(inlineStatus(text)?.replace(/[*_`]/g, '') ?? statusSection(text) ?? '')",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
@@ -17175,7 +17322,9 @@
     {
       "label": "ADR-074 T3: the old adr<digit> name arm is back",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/record-by-name.test.mjs"],
+      "tests": [
+        "tests/record-by-name.test.mjs"
+      ],
       "from": "    spec = re.match(r\"spec[-_]?\\d\", adr.name, re.I)",
       "to": "    spec = re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I)",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
@@ -17183,7 +17332,9 @@
     {
       "label": "ADR-074 T3: the content arm is dropped",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/record-by-name.test.mjs"],
+      "tests": [
+        "tests/record-by-name.test.mjs"
+      ],
       "from": "    content = (status_value is not None and _RECORD_SECTION.search(text)",
       "to": "    content = (False",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
@@ -17191,7 +17342,9 @@
     {
       "label": "ADR-074 T3: a Status alone admits a file",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/record-by-name.test.mjs"],
+      "tests": [
+        "tests/record-by-name.test.mjs"
+      ],
       "from": "    content = (status_value is not None and _RECORD_SECTION.search(text)",
       "to": "    content = (status_value is not None",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
@@ -17199,7 +17352,9 @@
     {
       "label": "ADR-074 T3 (owner, after): content admits a record in any directory",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/record-by-name.test.mjs"],
+      "tests": [
+        "tests/record-by-name.test.mjs"
+      ],
       "from": "    kept_as_records = \"tasks\" not in directories and any(_RECORD_DIRECTORY.match(part) for part in directories)",
       "to": "    kept_as_records = True",
       "only": "^a Status section makes a record only in a directory records are kept in$"
@@ -17207,7 +17362,9 @@
     {
       "label": "ADR-074 T3 (owner, after): a note under tasks/ reads as a record",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/record-by-name.test.mjs"],
+      "tests": [
+        "tests/record-by-name.test.mjs"
+      ],
       "from": "    kept_as_records = \"tasks\" not in directories and any(_RECORD_DIRECTORY.match(part) for part in directories)",
       "to": "    kept_as_records = any(_RECORD_DIRECTORY.match(part) for part in directories)",
       "only": "^a Status section makes a record only in a directory records are kept in$"
@@ -17215,7 +17372,9 @@
     {
       "label": "ADR-074 T4: adr-lint's unsigned human-proof advice is silent",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/human-proof-advice.test.mjs"],
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
       "from": "        if unsigned:",
       "to": "        if False:",
       "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
@@ -17223,7 +17382,9 @@
     {
       "label": "ADR-074 T4: adr-next's unsigned human-proof note is silent",
       "file": "plugin/bin/adr-next",
-      "tests": ["tests/human-proof-advice.test.mjs"],
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
       "from": "            \"unsigned_human_proof\": unsigned_human_proof_steps(text) if done else [],",
       "to": "            \"unsigned_human_proof\": [],",
       "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
@@ -17231,7 +17392,9 @@
     {
       "label": "ADR-074 T4: a human-observed sign-off does not clear the advice",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/human-proof-advice.test.mjs"],
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
       "from": "    if any(\"· human-observed ·\" in line for line in sections.get(\"Verification Log\", [])):",
       "to": "    if False:",
       "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
@@ -17239,7 +17402,9 @@
     {
       "label": "559827d chaos: lifecycle's content test ignores a Status section",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/status-section.test.mjs"],
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
       "from": "  return (inlineStatus(text) !== null || statusSection(text) !== null)",
       "to": "  return (inlineStatus(text) !== null)",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
@@ -17247,7 +17412,9 @@
     {
       "label": "559827d chaos: lifecycle reads content records under adr only, not decisions",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/status-section.test.mjs"],
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
       "from": "  if (!directory.split(/[\\\\/]/).some(part => RECORD_DIRECTORY.test(part))) return false",
       "to": "  if (!/(^|[\\\\/])(?:adr)([\\\\/]|$)/i.test(directory)) return false",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
@@ -17255,7 +17422,9 @@
     {
       "label": "559827d chaos: record.py's content test ignores a Status section",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-section.test.mjs"],
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
       "from": "    return bool(record_status(text)[0] is not None and _RECORD_SECTION.search(text))",
       "to": "    return bool(record_status(text)[1] == \"inline\" and _RECORD_SECTION.search(text))",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
@@ -17263,7 +17432,9 @@
     {
       "label": "559827d chaos: a numbered step without an id is not read",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/human-proof-advice.test.mjs"],
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
       "from": "        elif step and step.group(\"ordinal\"):",
       "to": "        elif False:",
       "only": "^the human-proof advice names the task file, reads a step without an id, and agrees in number$"
@@ -17271,7 +17442,9 @@
     {
       "label": "559827d chaos: the human-proof advice names README.md",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/human-proof-advice.test.mjs"],
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
       "from": "            errors.advise(f\"{inf['path'].name}: {tid} is done, and {', '.join(unsigned)} \"",
       "to": "            errors.advise(f\"README.md: {tid} is done, and {', '.join(unsigned)} \"",
       "only": "^the human-proof advice names the task file, reads a step without an id, and agrees in number$"
@@ -17279,7 +17452,9 @@
     {
       "label": "559827d chaos: two steps read \"names\"",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/human-proof-advice.test.mjs"],
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
       "from": "                          f\"{'names' if len(unsigned) == 1 else 'name'} \"",
       "to": "                          f\"names \"",
       "only": "^the human-proof advice names the task file, reads a step without an id, and agrees in number$"
@@ -17287,7 +17462,9 @@
     {
       "label": "559827d chaos: a leading character that is not a letter is not named",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-315-codex-status.test.mjs"],
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
       "from": "                         if not status_value[0].isalnum() else \"\")",
       "to": "                         if False else \"\")",
       "only": "^the Status advice names a leading character that is not a letter, and the section form when there is none$"
@@ -17295,7 +17472,9 @@
     {
       "label": "code-review of ADR-074: a Status label needs no colon",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
       "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss]:?\\*{0,2}[ \\t]*:?[ \\t]*([^\\r\\n]*)$\")",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
@@ -17303,7 +17482,9 @@
     {
       "label": "code-review of ADR-074: the Status label is folded by re.I",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
       "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\", re.I)",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
@@ -17311,7 +17492,9 @@
     {
       "label": "code-review of ADR-074: Python's strip decides a value's edges",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "    run = _STATUS_RUN.match((value or \"\").strip(_EDGE_SPACE))",
       "to": "    run = _STATUS_RUN.match((value or \"\").strip())",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
@@ -17319,7 +17502,9 @@
     {
       "label": "code-review of ADR-074: JS trim decides a value's edges",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "const edgeTrim = value => value.replace(EDGE_SPACE, '')",
       "to": "const edgeTrim = value => value.trim()",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
@@ -17327,7 +17512,9 @@
     {
       "label": "code-review of ADR-074: the JS Status reader reads inside a code fence",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "    if (fenced) continue",
       "to": "    if (false) continue",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
@@ -17335,7 +17522,9 @@
     {
       "label": "code-review of ADR-074: a human-observed task is told twice",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/human-proof-advice.test.mjs"],
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
       "from": "        unsigned = [] if inf[\"human\"] else unsigned_human_proof_steps(inf.get(\"text\") or \"\")",
       "to": "        unsigned = unsigned_human_proof_steps(inf.get(\"text\") or \"\")",
       "only": "^a sub-item is not a step, a `1)` list is, and a human-observed task is told once$"
@@ -17343,7 +17532,9 @@
     {
       "label": "code-review of ADR-074: an indented sub-item is a step",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/human-proof-advice.test.mjs"],
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
       "from": "_STEP_ID = re.compile(r\"^(?:(?P<ordinal>\\d+)[.)]|[-*])[ \\t]+(?:\\[S(?P<number>[1-9]\\d*)\\])?\")",
       "to": "_STEP_ID = re.compile(r\"^\\s*(?:(?P<ordinal>\\d+)[.)]|[-*])[ \\t]+(?:\\[S(?P<number>[1-9]\\d*)\\])?\")",
       "only": "^a sub-item is not a step, a `1)` list is, and a human-observed task is told once$"
@@ -17351,7 +17542,9 @@
     {
       "label": "code-review of ADR-074: an empty section is called a line",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-315-codex-status.test.mjs"],
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
       "from": "        where = \"## Status section is\" if status_source == \"section\" else \"**Status:** line is\"",
       "to": "        where = \"**Status:** line is\"",
       "only": "^an empty Status section is called a section, not a line$"
@@ -17359,7 +17552,9 @@
     {
       "label": "code-review of ADR-074: a label colon that is not \":\" is not named",
       "file": "plugin/bin/adr-lint",
-      "tests": ["tests/chaos-315-codex-status.test.mjs"],
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
       "from": "                         f\"is not the colon `:`\" if near else \"\"))",
       "to": "                         f\"is not the colon `:`\" if False else \"\"))",
       "only": "^a Status label written with a fullwidth colon is named as not the colon$"
@@ -17367,7 +17562,9 @@
     {
       "label": "the React SPA corpus at 084d925: a no-break space is not edge whitespace in Python",
       "file": "plugin/lib/record.py",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "_EDGE_SPACE = \"\".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, *range(0x2000, 0x200B),",
       "to": "_EDGE_SPACE = \"\".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x1680, *range(0x2000, 0x200B),",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
@@ -17375,7 +17572,9 @@
     {
       "label": "the React SPA corpus at 084d925: a no-break space is not edge whitespace in JS",
       "file": "plugin/scripts/lifecycle.mjs",
-      "tests": ["tests/status-reading.test.mjs"],
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
       "from": "const EDGE_CODES = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,",
       "to": "const EDGE_CODES = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
@@ -17596,8 +17795,8 @@
       "tests": [
         "tests/chaos-315-probe.test.mjs"
       ],
-      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),",
-      "to": "      ...frozen(record),",
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...(unproven.length ? { unproven } : {}), ...frozen(record),",
+      "to": "      ...(unproven.length ? { unproven } : {}), ...frozen(record),",
       "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all|a PASS that carries advice is not reported as a bare PASS)$"
     },
     {
@@ -17646,8 +17845,8 @@
       "tests": [
         "tests/corpus-matrix.test.mjs"
       ],
-      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),",
-      "to": "      ...frozen(record),",
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...(unproven.length ? { unproven } : {}), ...frozen(record),",
+      "to": "      ...(unproven.length ? { unproven } : {}), ...frozen(record),",
       "only": "^corpus php-multi-root: every reader answers as reviewed, through a symlink$"
     },
     {
@@ -17686,8 +17885,8 @@
       "tests": [
         "tests/chaos-315-probe.test.mjs"
       ],
-      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...frozen(record),",
-      "to": "      advice, ...frozen(record),",
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...(unproven.length ? { unproven } : {}), ...frozen(record),",
+      "to": "      advice, ...(unproven.length ? { unproven } : {}), ...frozen(record),",
       "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
     },
     {
@@ -18102,7 +18301,9 @@
     {
       "label": "§321 fifo: adr-verify's strictFrom reader opens a FIFO config",
       "file": "plugin/bin/adr-verify",
-      "tests": ["tests/chaos-315-fifo.test.mjs"],
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
       "from": "    if not config.is_file() and not config.is_dir():\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
       "to": "    if False:\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
       "only": "strictFrom reader does not wait on a FIFO config"
@@ -20596,6 +20797,16 @@
       "from": "    if (run.status === 2 && !/not-recognised|NOT A DECISION RECORD/.test(`${run.stdout ?? ''}${run.stderr ?? ''}`)) {",
       "to": "    if (run.status === 2) {",
       "only": "^(?:corpus-probe counts an adr-lint that could not run, by record)$"
+    },
+    {
+      "label": "§350 RC: the probe drops what adr-lint could not decide",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "...(unproven.length ? { unproven } : {}), ",
+      "to": "",
+      "only": "^(?:the probe keeps what adr-lint could not decide, under whatever verdict it reached)$"
     }
   ]
 }

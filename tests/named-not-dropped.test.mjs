@@ -230,3 +230,16 @@ test('a path under the home directory is a placeholder in either separator', () 
   assert.equal(scrub('cites `~\\Ansible\\x.md`, which'), 'cites `~<path>`, which')
   assert.equal(scrub('a ~ tilde and docs/~x stay'), 'a ~ tilde and docs/~x stay')
 })
+
+// An outside run of the 3.8.7 RC (php-react-app): records[].status copied a record's own Status line into the
+// full report unscrubbed, so "recorded in ~/<other repository>/…" printed whole there.
+test('the probe scrubs a Status line it copies into the report', () => {
+  const root = path.join(scratch, 'probe-status')
+  mkdirSync(path.join(root, 'docs', 'adr'), { recursive: true })
+  spawnSync('git', ['init', '-q'], { cwd: root, timeout: 30_000, windowsHide: true })
+  writeFileSync(path.join(root, 'docs', 'adr', 'ADR-001-x.md'), '# ADR-001: x\n\n**Status:** Accepted (recorded in ~/secret-repo/docs/x.md)\n\n## Context\n\nx\n')
+  const report = probe(root)
+  const status = report.records.find(record => record.file === 'docs/adr/ADR-001-x.md')?.status
+  assert.match(status ?? '', /^Accepted \(recorded in ~<path>\)$/, JSON.stringify(report.records))
+  assert.doesNotMatch(JSON.stringify(report), /secret-repo/)
+})

@@ -18133,3 +18133,10 @@ OS's periodic cleanup, and failed with ERR_MODULE_NOT_FOUND — a fresh clone, n
   `~\elsewhere\x.md` met no absolute-path head (a `/`, a drive letter or a UNC prefix) and printed whole,
   in 3.8.6 as well. A `~` followed by either separator is now `~<path>`, with a test that runs everywhere.
   The same campaign's other jobs were cancelled by GitHub ("not acquired by Runner of type hosted").
+- **The runs at e3f77ce** (react-spa compared 2, python-adr-corpus 78, laravel-react-monorepo 95, all
+  passToFail 0; php-laravel-monolith PARTIAL and the corpus-free web app compared nothing) confirmed the
+  `~` and couldNotRun fixes. php-react-app found one more, older than this release: `records[].status` copied a
+  record's Status line unscrubbed, so "recorded in `~/<other repository>/…`" printed whole in the full report
+  (never in --diff or --attest). It and `workNext.partialBecause[].reason`, which can carry a Status, are
+  scrubbed now; the audit was `mrw read --grep '(goal|title|stopped_by|reason|why|status): [a-z]' corpus-probe.mjs`
+  for fields emitted without `scrub(`, which found those two and nothing else carrying corpus text.

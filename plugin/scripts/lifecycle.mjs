@@ -1589,10 +1589,13 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   // home directory names the owner's other work, so it stays a placeholder (CLAUDE.md §6).
   const HEAD = /(?<![\w.\\/-])(?<!<(?:tmp|home|plugin|path)>)(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|(?<!:)\/\/[^\s'"`)\/]+\/|\/(?!\/))/.source
   const ABSOLUTE = new RegExp(`${HEAD}[^\\s'"\`)\\\\/]${TAIL}`, 'g')
+  // A path under the home directory in either separator: `~/x` meets HEAD's `/`, but Windows's `~\x`
+  // met no head at all and printed whole (the Windows CI job of the 3.8.7 RC). Both become `~<path>`.
+  const HOME_RELATIVE = new RegExp(`(?<![\\w.\\\\/-])~[\\\\/][^\\s'"\`)\\\\/]${TAIL}`, 'g')
   return text => {
     let out = String(text)
     for (const [pattern, placeholder] of known) out = out.replace(pattern, placeholder)
-    return out.replace(QUOTED, '$1<path>$1').replace(ABSOLUTE, '<path>')
+    return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')
   }
 }
 

@@ -9,7 +9,7 @@ import { after, test } from 'node:test'
 import { diffReports, probe } from '../plugin/scripts/corpus-probe.mjs'
 import { recordCount } from '../plugin/scripts/corpus-report.mjs'
 import { fileURLToPath } from 'node:url'
-import { adrCorpus, readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, readyTaskLines, scrubber } from '../plugin/scripts/lifecycle.mjs'
 import { main, observe } from '../plugin/scripts/work-next.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -220,4 +220,13 @@ test('the probe keeps what adr-lint could not decide, under whatever verdict it 
   const was = { look: 'ok', corpora: ['docs/adr'], adrLint: [{ file: 'a.md', verdict: 'FAIL', advice: [] }] }
   const now = { look: 'ok', corpora: ['docs/adr'], adrLint: [{ file: 'a.md', verdict: 'FAIL', advice: [], unproven: ['unproven: a.md: no Status'] }] }
   assert.ok(diffReports(was, now).includes('adrLint a.md unproven: + unproven: a.md: no Status'), diffReports(was, now).join('\n'))
+})
+
+// The Windows CI job of the 3.8.7 RC: `~\elsewhere\x.md` met no absolute-path head and printed whole,
+// naming the owner's other work as `~/…` did on POSIX. Both separators are a placeholder.
+test('a path under the home directory is a placeholder in either separator', () => {
+  const scrub = scrubber({ root: null, pluginRoot: null, tmp: null, home: null })
+  assert.equal(scrub('cites `~/Ansible/x.md`, which'), 'cites `~<path>`, which')
+  assert.equal(scrub('cites `~\\Ansible\\x.md`, which'), 'cites `~<path>`, which')
+  assert.equal(scrub('a ~ tilde and docs/~x stay'), 'a ~ tilde and docs/~x stay')
 })

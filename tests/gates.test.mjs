@@ -188,12 +188,13 @@ test('a form finding is reported to the reader without failing the record', () =
   writeFileSync(adr, complete)
   expectExit(run('adr-lint', [adr], temp), 0, 'a complete record passes clean')
 
-  // Drop the header. The record still says what it decided, so this advises.
+  // Drop the header. The record still says what it decided, so nothing fails — but nobody read its
+  // Status, so it is not a PASS either: UNPROVEN, exit 3 (BACKLOG §350 C8, the owner's call).
   writeFileSync(adr, complete.replace('**Status:** Accepted\n', ''))
   const advised = run('adr-lint', [adr], temp)
-  expectExit(advised, 0, 'a form finding must not fail the record')
-  assert.match(advised.stdout, /^\s+advice: .*Status/m, advised.stdout)
-  assert.match(advised.stdout, /^\[PASS\]/m)
+  expectExit(advised, 3, 'a form finding must not fail the record')
+  assert.match(advised.stdout, /^\s+unproven: .*Status/m, advised.stdout)
+  assert.match(advised.stdout, /^\[UNPROVEN\]/m)
 
   // Empty the section instead. That is content, and it still fails.
   writeFileSync(adr, complete.replace('- Doing nothing — rejected, the bug persists.\n', ''))
@@ -763,6 +764,12 @@ test('missing file, directory, and not-recognised stay their current exits', () 
     expectExit(asDir, 1, 'adr-lint directory')
     assert.match(`${asDir.stdout}${asDir.stderr}`, /expected a record FILE/)
     assert.doesNotMatch(`${asDir.stdout}${asDir.stderr}`, /could not run:/)
+    // BACKLOG §350 item 6: adr-retire-check given the archive DIRECTORY said "archive README not found:
+    // <dir>", and two Windows runners read it as a finding about the corpus. It names what it wants.
+    const retireDir = run('adr-retire-check', [dir])
+    expectExit(retireDir, 1, 'adr-retire-check directory')
+    assert.match(`${retireDir.stdout}${retireDir.stderr}`, /expected the archive's README FILE, and was given a directory/)
+    assert.doesNotMatch(`${retireDir.stdout}${retireDir.stderr}`, /archive README not found/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 
   const backlog = join(os.tmpdir(), 'qh-backlog-not-a-record.md')
@@ -1797,6 +1804,20 @@ test('a task whose archived path would exceed the Windows ceiling is advised, on
   rmSync(repo, { recursive: true, force: true })
 })
 
+// BACKLOG §350 C8: a Status nobody could read is [UNPROVEN], exit 3 — except on a record older than
+// strictFrom, which reported it as advice before and must not fail CI over history.
+test('a record older than strictFrom with no Status is advised, not UNPROVEN', () => {
+  const aged = agedCorpus('qh-strict-status-', '{"strictFrom":"ADR-0012"}\n')
+  writeFileSync(aged.adr, readFileSync(aged.adr, 'utf8').replace(/^\*\*Status:\*\*.*\n/m, ''))
+  const old = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  assert.equal(old.status, 0, old.stdout + old.stderr)
+  assert.match(old.stdout, /advice: unproven: ADR-001-old\.md: no \*\*Status:\*\* line .*\[advisory: ADR-0001 predates strictFrom ADR-0012/, old.stdout)
+  // The control: the same record at the cutoff is UNPROVEN.
+  writeFileSync(join(aged.repo, '.quality-harness.json'), '{"strictFrom":"ADR-0001"}\n')
+  const current = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  assert.equal(current.status, 1, current.stdout + current.stderr)
+  assert.match(current.stdout, /^\s+unproven: ADR-001-old\.md: no \*\*Status:\*\* line/m, current.stdout)
+})
 test('strictFrom lets a corpus adopt these gates without failing on its own history', () => {
   // A project that adopts the gates late lights up on every record written
   // before the decision to adopt them, and a gate that fails on day one over
@@ -1887,7 +1908,9 @@ test('a task file adr-lint cannot read is could-not-run, never a traceback', () 
 // it no longer reaches the handler that turns every other OSError into could-not-run: a
 // catalogue mutant of that handler stayed GREEN (CI run 36486684619). A regular file the
 // process may not read still does.
-test('a permission-denied task file adr-lint cannot read is could-not-run, never a traceback', t => {
+// BACKLOG §350 C3: one task file another record owns, held unreadable, made every record's lint
+// could-not-run (57-76 of 64-83 records on Windows). It is the cycle check's gap now, said as advice.
+test('a permission-denied task file another record owns is advice on the cycle check, never could-not-run or a traceback', t => {
   if (process.platform === 'win32' || process.getuid?.() === 0) { t.skip('a mode of 000 does not refuse a read here'); return }
   const aged = agedCorpus('qh-unreadable-mode-', '{"strictFrom":"ADR-0012"}\n')
   const adrDir = join(aged.repo, 'docs', 'adr')
@@ -1899,9 +1922,9 @@ test('a permission-denied task file adr-lint cannot read is could-not-run, never
   try {
     const result = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
     const said = `${result.stdout}${result.stderr}`
-    expectExit(result, 2, 'a file that could not be read is could-not-run')
-    assert.doesNotMatch(said, /Traceback/, said)
-    assert.match(said, /could not run: \S*T1-locked\.md/, said)
+    expectExit(result, 0, 'a file the linted record does not own does not stop its lint')
+    assert.doesNotMatch(said, /Traceback|could not run/, said)
+    assert.match(said, /cycles were checked without 1 task file\(s\) that could not be read \(`docs\/adr\/ADR-002-other\/tasks\/T1-locked\.md`: Permission denied\): a cycle through them is UNPROVEN, not absent/, said)
   } finally { chmodSync(task, 0o644) }
 })
 
@@ -3208,7 +3231,10 @@ test('every gate that returns a verdict names the binary that reached it (BACKLO
     ]
 
     const normalise = text => text.replace(/\\/g, '/')
-    const expectedRoot = normalise(root)
+    // The home directory is shown as `~` (BACKLOG §350 C4/F3): a root under it is expected in that
+    // spelling, and the home path itself must not appear.
+    const home = normalise(os.homedir())
+    const expectedRoot = normalise(root).startsWith(`${home}/`) ? `~${normalise(root).slice(home.length)}` : normalise(root)
 
     for (const [gate, args] of cases) {
       const result = run(gate, args, temp)
@@ -3221,6 +3247,7 @@ test('every gate that returns a verdict names the binary that reached it (BACKLO
       assert.match(line, /\b\d+\.\d+\.\d+\b/, `${gate}: verdict carries no version:\n${line}`)
       assert.ok(normalise(line).includes(expectedRoot),
         `${gate}: verdict does not name the plugin root it ran from:\n${line}`)
+      if (expectedRoot.startsWith('~')) assert.ok(!normalise(line).includes(home), `${gate}: verdict prints the home directory:\n${line}`)
     }
   } finally {
     rmSync(temp, { recursive: true, force: true })

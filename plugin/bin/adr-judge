@@ -268,7 +268,7 @@ def judge(text):
 # questioned. A version that can be about another binary is worse than none,
 # because it resolves.
 #
-# Imports are local so this block is byte-identical in all eleven gates, which
+# Imports are local so this block is byte-identical in every gate, which
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
@@ -292,11 +292,19 @@ def gate_identity():
     from pathlib import Path as _Path
     here = _Path(__file__).resolve()
     manifest = here.parent.parent / ".claude-plugin" / "plugin.json"
+    def _shown(path):
+        # The home directory as `~`: this banner reached SessionStart and pasted reports with
+        # a username in it (BACKLOG §350 C4/F3; ADR-031 Follow-ups).
+        try:
+            rel = path.relative_to(_Path.home())
+        except (ValueError, RuntimeError, KeyError):
+            return str(path)
+        return "~" if not rel.parts else "~/" + rel.as_posix()
     try:
         version = _json.loads(manifest.read_text(encoding="utf-8"))["version"]
     except Exception as exc:
-        return f"{here.name} (version unreadable: {manifest} — {exc})"
-    return f"{here.name} {version} ({here.parent.parent})"
+        return f"{here.name} (version unreadable: {_shown(manifest)} — {getattr(exc, 'strerror', None) or exc})"
+    return f"{here.name} {version} ({_shown(here.parent.parent)})"
 
 
 def report_version():
@@ -330,7 +338,11 @@ def main():
     try:
         body = path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
-        print(f"[adr-judge] could not run: {path} — {exc}", file=sys.stderr)
+        # record.os_reason's two lines, inline: this gate reads no lib. A sharing violation is said
+        # as one, and the reason carries no path (BACKLOG §350 C3, F3).
+        why = ("held open by another process (a Windows sharing violation)" if getattr(exc, "winerror", None) == 32
+               else exc.strerror or str(exc))
+        print(f"[adr-judge] could not run: {path} — {why}", file=sys.stderr)
         return 2
     findings = judge(body)
     empty = vacuous_rules(body)

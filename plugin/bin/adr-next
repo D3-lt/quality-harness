@@ -86,6 +86,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402
+from record import git_root, os_reason  # noqa: E402
 from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW  # noqa: E402
 from record import record_status, status_kind, unsigned_human_proof_steps  # noqa: E402
 
@@ -387,17 +388,6 @@ def acceptance(text):
     return fence, first, digest
 
 
-def git_root(d):
-    try:
-        r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
-                           capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace", **NO_WINDOW)
-        if r.returncode == 0:
-            return Path(r.stdout.strip())
-    except Exception:
-        pass
-    return None
-
 def listed_absent(tasks_dir):
     """Task files git lists in this directory that the disk does not hold.
 
@@ -604,7 +594,7 @@ def read_named(path):
     try:
         return path.read_text(encoding="utf-8", errors="replace")
     except OSError as exc:
-        print(f"[adr-next] could not run: {path} — {exc}", file=sys.stderr)
+        print(f"[adr-next] could not run: {path} — {os_reason(exc)}", file=sys.stderr)
         sys.exit(1)
 
 
@@ -636,7 +626,7 @@ def load(tasks_dir):
         # Two files, one id: the second overwrote the first, so one task was in no
         # bucket and nothing named it (a Windows chaos round of 916b515). Neither is
         # read as that task until one of them is given its own id.
-        if tid in infos and infos[tid]["path"] != str(path):
+        if tid in infos and infos[tid]["path"] != Path(path).as_posix():
             first = Path(infos[tid]["path"]).name
             infos[tid] = unreadable_task(tid, path, (
                 f"could not tell which file is {tid}: {first} and {path.name} both declare it, "
@@ -650,7 +640,9 @@ def load(tasks_dir):
         done = not conflicted and is_done(text, digest, human, fence, first, root)
         infos[tid] = {
             "id": tid,
-            "path": str(path),
+            # POSIX separators in every path a caller reads: Windows printed `docs\\adr\\…` here
+            # where every other field printed `/` (BACKLOG §350 C9, three reports).
+            "path": Path(path).as_posix(),
             "goal": (re.sub(r"^#\s+", "", text.lstrip("\U0000feff").split("\n", 1)[0]).strip() if text else tid),
             "depends_on": header_val(text, "Depends-on") or "",
             "consumes": header_val(text, "Consumes") or "",
@@ -740,7 +732,7 @@ def unreadable_task(tid, path, why):
     says so in a field, because SessionStart read only `ready`, `blocked` and `done`
     and called a directory holding one "fully evidenced" (a Windows chaos round of
     626934a, F-2 and F-3)."""
-    return {"id": tid, "path": str(path), "goal": tid, "depends_on": "", "consumes": "",
+    return {"id": tid, "path": Path(path).as_posix(), "goal": tid, "depends_on": "", "consumes": "",
             "produces": "", "acceptance": None, "human_observed": False, "done": False,
             "unproven": None, "stopped_by": why, "blocked_on": None, "unreadable": True,
             "unsigned_human_proof": []}
@@ -991,11 +983,13 @@ def owning_record(tasks_dir, record_dir=None):
         # `.resolve()` follows symlinks and a symlinked record's file sits beside
         # the LINK, not beside its target. Resolving sent the lookup to the wrong
         # directory, found nothing, and a Proposed record was reported as decided.
-        # Codex, 2026-09-04. The resolve() below stays for the ordinary call: a
-        # relative `tasks` argument makes the parent `.`, whose `with_suffix`
-        # raises "has an empty name".
+        # Codex, 2026-09-04. The ordinary call is absolutised WITHOUT following links,
+        # for the same reason: a tasks directory reached through a link was owned by
+        # nothing, its owner looked for beside the link's target (BACKLOG §350 item 5).
+        # Absolute, because a relative `tasks` argument makes the parent `.`, whose
+        # `with_suffix` raises "has an empty name".
         record_dir = (record_dir.absolute() if record_dir is not None
-                      else tasks_dir.resolve().parent)
+                      else Path(os.path.abspath(tasks_dir)).parent)
     except OSError:
         return False, None
     if record_dir == record_dir.parent:      # filesystem root: no record can own it
@@ -1118,7 +1112,7 @@ def corpus_records(target):
         children = sorted(target.iterdir())
     except OSError as exc:
         # The corpus root itself could not be listed. Nothing below is knowable.
-        return [], [(target.name, str(exc))]
+        return [], [(target.name, os_reason(exc))]
     for child in children:
         # A record FILE resolves through its sibling folder, so listing both the
         # `.md` and the directory would report the same record twice. Directories
@@ -1151,7 +1145,7 @@ def corpus_records(target):
                 list(tasks_dir.iterdir())
             infos = load(tasks_dir)
         except OSError as exc:
-            unreadable.append((child.name, str(exc)))
+            unreadable.append((child.name, os_reason(exc)))
             continue
         if infos:
             found.append((child.name, tasks_dir, child))
@@ -1188,7 +1182,7 @@ def report_corpus(records, unreadable, flags):
         # `undecided: false` tells a machine caller the record is Accepted when
         # nothing was read (ADR-005).
         undecided = record_undecided(status)
-        answers[name] = {"tasks_dir": str(tasks_dir), "ready": ready, "done": done,
+        answers[name] = {"tasks_dir": Path(tasks_dir).as_posix(), "ready": ready, "done": done,
                          "blocked": blocked, "stopped": stopped,
                          "status": status, "undecided": undecided}
         if undecided and ready:
@@ -1254,7 +1248,7 @@ def report_corpus(records, unreadable, flags):
 # questioned. A version that can be about another binary is worse than none,
 # because it resolves.
 #
-# Imports are local so this block is byte-identical in all eleven gates, which
+# Imports are local so this block is byte-identical in every gate, which
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
@@ -1278,11 +1272,19 @@ def gate_identity():
     from pathlib import Path as _Path
     here = _Path(__file__).resolve()
     manifest = here.parent.parent / ".claude-plugin" / "plugin.json"
+    def _shown(path):
+        # The home directory as `~`: this banner reached SessionStart and pasted reports with
+        # a username in it (BACKLOG §350 C4/F3; ADR-031 Follow-ups).
+        try:
+            rel = path.relative_to(_Path.home())
+        except (ValueError, RuntimeError, KeyError):
+            return str(path)
+        return "~" if not rel.parts else "~/" + rel.as_posix()
     try:
         version = _json.loads(manifest.read_text(encoding="utf-8"))["version"]
     except Exception as exc:
-        return f"{here.name} (version unreadable: {manifest} — {exc})"
-    return f"{here.name} {version} ({here.parent.parent})"
+        return f"{here.name} (version unreadable: {_shown(manifest)} — {getattr(exc, 'strerror', None) or exc})"
+    return f"{here.name} {version} ({_shown(here.parent.parent)})"
 
 
 def report_version():
@@ -1395,7 +1397,7 @@ def main():
         # and a probe counted them as work-next's disagreement (BACKLOG §270).
         # THREE states: None is "could not determine" (ADR-005).
         undecided = record_undecided(status)
-        print(json.dumps({"tasks_dir": str(tasks_dir), "ready": ready,
+        print(json.dumps({"tasks_dir": Path(tasks_dir).as_posix(), "ready": ready,
                           "done": done, "blocked": blocked, "stopped": stopped,
                           "status": status, "undecided": undecided, "owner_unreadable": owner_unreadable,
                           "owner_missing": owner_missing},

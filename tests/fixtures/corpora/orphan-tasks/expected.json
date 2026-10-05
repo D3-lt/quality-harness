@@ -18,7 +18,9 @@
     "ready": [],
     "unbacked": [],
     "retirable": [],
-    "readinessUnproven": [],
+    "readinessUnproven": [
+      "docs/adr/0002-dropped/tasks"
+    ],
     "next": null
   },
   "adrState": {

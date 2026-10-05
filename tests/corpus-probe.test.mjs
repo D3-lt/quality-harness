@@ -574,6 +574,23 @@ test('an attestation that compared nothing says null, never zero', () => {
   assert.equal(attestation(report, 'x', { since: { ...report, look: 'UNPROVEN' } }).verdictChanges, null)
 })
 
+// BACKLOG §346: --diff compared no `undecided[]` and no environment, so a record that became
+// undecided, or whose undecided reason moved, and an interpreter that changed between two runs
+// (python 3.14.7 → 3.14.8, a 3.8.4 run) all printed "nothing changed".
+test('--diff names undecided records that came, went or changed reason, and an environment change', () => {
+  const base = { look: 'ok', corpora: ['fixture'], adrLint: [] }
+  const before = { ...base, probe: { readers: {}, platform: 'Darwin 27.0.0', node: '26.10.0', python: '3.14.7' },
+    undecided: [{ file: 'a.md', status: null, reason: 'no status line' }, { file: 'b.md', status: 'Draft', reason: 'not acted on' }] }
+  const after = { ...base, probe: { readers: {}, platform: 'Darwin 27.0.0', node: '26.10.0', python: '3.14.8' },
+    undecided: [{ file: 'a.md', status: null, reason: 'it holds a NUL byte' }, { file: 'c.md', status: null, reason: 'unreadable' }] }
+  const lines = diffReports(before, after)
+  assert.ok(lines.includes('environment: python 3.14.7 → 3.14.8'), lines.join('\n'))
+  assert.ok(lines.includes('undecided: + c.md, - b.md'), lines.join('\n'))
+  assert.ok(lines.includes('undecided a.md: reason changed — it holds a NUL byte'), lines.join('\n'))
+  // The control: two identical reports still say nothing changed.
+  assert.deepEqual(diffReports(before, before), ['nothing changed'])
+})
+
 test('corpus-probe --attest --since prints the verdict changes', () => {
   const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-attest-since-'))
   try {
@@ -612,4 +629,8 @@ test('probe: a temp directory that does not exist is said, not a stack trace', (
   assert.equal(run.status, 3, run.stderr)
   assert.doesNotMatch(run.stderr, /\n\s+at /, 'no stack trace')
   assert.match(run.stderr, /corpus-probe: could not run: the temp directory .* could not be used/)
+  // Whose need it is: the probe's own scratch, where it keeps adr-lint's note so it writes nothing into
+  // the corpus. adr-lint run alone needs no temp directory, and PASSes (BACKLOG §350 item 6, js-spa-windows).
+  assert.match(run.stderr, /the probe keeps adr-lint's advice note and the SessionStart hook's state in its own scratch directory/)
+  assert.doesNotMatch(run.stderr, /nowhere to put adr-lint's state/)
 })

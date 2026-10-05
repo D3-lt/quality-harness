@@ -1666,6 +1666,10 @@ export function main(argv) {
   for (const set of sets) {
     // The same files and the same arguments as the mutated run below, or this
     // would be measuring a different thing than the one it licenses.
+    // A HEARTBEAT before each run, on stderr. Verdicts print as they are decided, so a shard the CI
+    // limit killed named every mutant it finished and not the one it was in: 3/48 hung once at 30
+    // minutes with no clue which (BACKLOG §350). This line is the clue; it decides nothing.
+    process.stderr.write(`mutate: ${new Date().toISOString()} baseline ${[...set.tests].sort().join(', ')}\n`)
     const run = runChild(root, testArgs(root, set), timeoutMs)
     // ADR-073: a narrowed pattern is held to the tests it names; a hand-written one selects every
     // test whose name contains it, and implies no count.
@@ -1703,6 +1707,7 @@ export function main(argv) {
       continue
     }
 
+    process.stderr.write(`mutate: ${new Date().toISOString()} mutant ${mutation.label}\n`)
     begin(file, original)
     writeFileSync(file, original.replace(mutation.from, mutation.to))
     const startedAt = Date.now()

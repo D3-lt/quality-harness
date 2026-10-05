@@ -73,6 +73,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, NO_WINDOW, walk  # noqa: E402
+from record import os_reason  # noqa: E402
 
 
 def disposition_span(text):
@@ -407,7 +408,7 @@ def reject_unknown_flags(known=()):
 # questioned. A version that can be about another binary is worse than none,
 # because it resolves.
 #
-# Imports are local so this block is byte-identical in all eleven gates, which
+# Imports are local so this block is byte-identical in every gate, which
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
@@ -431,11 +432,19 @@ def gate_identity():
     from pathlib import Path as _Path
     here = _Path(__file__).resolve()
     manifest = here.parent.parent / ".claude-plugin" / "plugin.json"
+    def _shown(path):
+        # The home directory as `~`: this banner reached SessionStart and pasted reports with
+        # a username in it (BACKLOG §350 C4/F3; ADR-031 Follow-ups).
+        try:
+            rel = path.relative_to(_Path.home())
+        except (ValueError, RuntimeError, KeyError):
+            return str(path)
+        return "~" if not rel.parts else "~/" + rel.as_posix()
     try:
         version = _json.loads(manifest.read_text(encoding="utf-8"))["version"]
     except Exception as exc:
-        return f"{here.name} (version unreadable: {manifest} — {exc})"
-    return f"{here.name} {version} ({here.parent.parent})"
+        return f"{here.name} (version unreadable: {_shown(manifest)} — {getattr(exc, 'strerror', None) or exc})"
+    return f"{here.name} {version} ({_shown(here.parent.parent)})"
 
 
 def report_version():
@@ -472,7 +481,7 @@ def main():
             try:
                 text = md.read_text(errors="replace", encoding="utf-8")
             except OSError as exc:
-                print(f"[adr-debt] could not run: {md} — {exc}", file=sys.stderr)
+                print(f"[adr-debt] could not run: {md} — {os_reason(exc)}", file=sys.stderr)
                 sys.exit(2)
             secs = sections_of(text)
             rel = md.relative_to(scan_dir)

@@ -74,7 +74,8 @@ export function main(argv, root = process.cwd()) {
   }
   const { governing, graveyard, unproven } = decisionsGoverning(targets, root, corpus)
   const shape = record => ({
-    file: path.relative(root, record.file) || record.file,
+    // POSIX separators, as every other reader's JSON (BACKLOG §350 C9's class audit).
+    file: (path.relative(root, record.file) || record.file).replaceAll('\\', '/'),
     title: record.title,
     status: record.status,
     governs: record.governs,
@@ -93,7 +94,7 @@ export function main(argv, root = process.cwd()) {
       governing: governing.map(shape),
       graveyard: graveyard.map(shape),
       // Records that DECLARE these paths and whose standing could not be established.
-      unproven: unproven.map(record => ({ file: path.relative(root, record.file) || record.file, title: record.title, governs: record.governs, why: record.unproven })),
+      unproven: unproven.map(record => ({ file: (path.relative(root, record.file) || record.file).replaceAll('\\', '/'), title: record.title, governs: record.governs, why: record.unproven })),
     }, null, 2)}\n`)
   } else {
     // ⚠ PARTIAL QUALIFIES THE ANSWER; IT DOES NOT REPLACE IT. This was one arm of an

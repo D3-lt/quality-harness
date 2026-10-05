@@ -170,3 +170,7 @@ consumes — the flag is a leaf, so removal is a deletion and nothing else.
 ## Follow-ups
 
 - [x] 2026-09-05, after v2.66.0: every gate under `plugin/bin/` answers `--version` as `<gate> 2.66.0 (<this tree>)` and each resolves through its own `__file__` (`grep -c __file__` ≥ 1 in all eleven). Holds.
+- [x] 2026-10-05, for v3.8.7: the plugin root in every gate's banner shows the home directory as `~`
+  (`<gate> 3.8.7 (~/…/plugin)`), so a pasted verdict carries no username (BACKLOG §350 C4/F3, the
+  owner's call). A root outside the home directory is still printed whole: which copy answered is the
+  question this record exists for, and `~` keeps it answerable.

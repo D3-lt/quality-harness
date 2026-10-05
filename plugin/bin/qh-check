@@ -70,11 +70,19 @@ def gate_identity():
     """
     here = Path(__file__).resolve()
     manifest = here.parent.parent / ".claude-plugin" / "plugin.json"
+    def _shown(path):
+        # The home directory as `~`: this banner reached SessionStart and pasted reports with
+        # a username in it (BACKLOG §350 C4/F3; ADR-031 Follow-ups).
+        try:
+            rel = path.relative_to(Path.home())
+        except (ValueError, RuntimeError, KeyError):
+            return str(path)
+        return "~" if not rel.parts else "~/" + rel.as_posix()
     try:
         version = json.loads(manifest.read_text(encoding="utf-8"))["version"]
     except Exception as exc:
-        return f"{here.name} (version unreadable: {manifest} — {exc})"
-    return f"{here.name} {version} ({here.parent.parent})"
+        return f"{here.name} (version unreadable: {_shown(manifest)} — {getattr(exc, 'strerror', None) or exc})"
+    return f"{here.name} {version} ({_shown(here.parent.parent)})"
 
 
 def main(argv):

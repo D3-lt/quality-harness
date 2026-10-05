@@ -46,7 +46,7 @@
     },
     {
       "file": "docs/adr/ADR-001-a-status-behind-a-fullwidth-colon.md",
-      "verdict": "PASS"
+      "verdict": "UNPROVEN"
     }
   ],
   "sweep": [

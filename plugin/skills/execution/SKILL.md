@@ -1,6 +1,6 @@
 ---
 name: execution
-description: Implement a decided code change with the smallest coherent diff and fresh executed evidence. Use for bug fixes, bounded features, and small refactors when the request authorizes implementation. If a durable design decision is discovered, return it to the main coordinator rather than silently expanding scope. Do not use for review-only work.
+description: Implement a decided code change with the smallest coherent diff and fresh executed evidence. Use when the request authorizes implementing a bug fix, a bounded feature, or a small refactor. If a durable design decision is discovered, return it to the main coordinator rather than silently expanding scope. Do not use for review-only work.
 ---
 
 # Execution

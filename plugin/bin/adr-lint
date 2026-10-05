@@ -40,6 +40,8 @@ Exit: 0 pass · 1 failures found — an unknown flag, no record named, or a miss
       2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied
       on its own; ADR-045), a named path that exists but could not be read, or a file that never claimed to be a record (not-recognised).
       2 is NOT a finding about the record: nothing was checked.
+      3 UNPROVEN — nothing blocks, but something the verdict rests on could not be read (a
+      record whose Status no reader can read), so it is not a pass either (BACKLOG §350 C8).
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a
@@ -119,6 +121,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
+from record import git_root, os_reason  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
@@ -504,17 +507,6 @@ def id_matches(tid, stem):
     found = _STEM_TASK_ID.search(stem)
     return found is not None and found.group(0).upper() == tid.upper()
 
-
-def git_root(d):
-    try:
-        r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
-                           capture_output=True, text=True, timeout=10,
-                           encoding="utf-8", errors="replace", **NO_WINDOW)
-        if r.returncode == 0:
-            return Path(r.stdout.strip())
-    except Exception:
-        pass
-    return None
 
 
 def header_val(text, name):
@@ -1043,7 +1035,7 @@ def read_named(path):
     try:
         return Path(path).read_text(errors="replace", encoding="utf-8")
     except OSError as exc:
-        print(f"[adr-lint] could not run: {one_line(path)} — {one_line(exc)}", file=sys.stderr)
+        print(f"[adr-lint] could not run: {one_line(path)} — {one_line(os_reason(exc))}", file=sys.stderr)
         sys.exit(2)
 
 
@@ -1078,6 +1070,10 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
         # a file nobody can read (a Windows chaos round of 626934a, F-2).
         errors.append(f"{adr_path.name}: holds NUL bytes, so it is not UTF-8 text (saved as UTF-16, or binary?) "
                       f"and no gate can read it. Save it as UTF-8.")
+        # And nothing more: every finding below would be about text no gate could read — a missing
+        # section, an empty Alternatives, an unreadable Status — each a verdict on content nobody
+        # saw (BACKLOG §350 C8). No spec is named, because none was read.
+        return None
     name_n, title_n = adr_numbers(Path(adr_path), text)
     if name_n is not None and title_n is not None and name_n != title_n:
         errors.append(
@@ -1107,17 +1103,19 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
                       f"Make them agree, or remove one")
     if status_value is None:
         # A line that starts like a label but whose colon is not `:` (a fullwidth `：`) is no
-        # label since the colon became required; the advice names the character, so the author
-        # sees why the line they wrote was not read (the /code-review of ADR-074).
+        # label since the colon became required; the message names the character, so the author
+        # sees why the line they wrote was not read (the /code-review of ADR-074). UNPROVEN, not
+        # advice: with no Status, the check that done tasks need an Accepted record cannot run, and
+        # the record linted [PASS] (BACKLOG §350 C8; the owner, 2026-10-05).
         near = re.search(r"^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss]\*{0,2}([^\w\s:*])", text, re.M)
-        errors.advise(f"{adr_path.name}: no **Status:** line or `## Status` section (a `### Status` heading, "
-                      f"or one inside a code fence, is not read)"
-                      + (f"; a line starts like one, but its `{near.group(1)}` (U+{ord(near.group(1)):04X}) "
-                         f"is not the colon `:`" if near else ""))
+        errors.unprove(f"{adr_path.name}: no **Status:** line or `## Status` section (a `### Status` heading, "
+                       f"or one inside a code fence, is not read)"
+                       + (f"; a line starts like one, but its `{near.group(1)}` (U+{ord(near.group(1)):04X}) "
+                          f"is not the colon `:`" if near else ""))
     elif not status_value.strip(": \t"):
         where = "## Status section is" if status_source == "section" else "**Status:** line is"
-        errors.advise(f"{adr_path.name}: the {where} empty, so no reader can tell "
-                      f"whether this decision was taken")
+        errors.unprove(f"{adr_path.name}: the {where} empty, so no reader can tell "
+                       f"whether this decision was taken")
     # §307 F-1. A Status no reader acts on linted PASS in silence; it is said now, as advice. The
     # first run of letters decides, so `Accepted (partially)` and `Superseded by ADR-7` are that
     # word, and markup anywhere in the value is removed first (ADR-074). Every reader now gives
@@ -1596,11 +1594,16 @@ def check_task_path_length(path, root, errors):
     if length > TASK_PATH_ADVISE_LEN:
         later = "" if archived else (f" ({len(rel)} now, +{shift} once its record is retired into the "
                                      f"`-archive` sibling adr-retire creates by default)")
+        # At 260 or more the path alone is past MAX_PATH, and "a checkout root longer than
+        # -34 characters" printed a negative length (BACKLOG §350 C8, two Windows reports).
+        ceiling = (f"so a checkout root longer than {260 - length} characters cannot clone this "
+                   f"repository" if length < 260 else
+                   f"and this path is past MAX_PATH 260 on its own, so no checkout root can clone it "
+                   f"without core.longpaths")
         errors.advise(
             f"{path.name}: its repository path is {length} characters{later}, past "
             f"{TASK_PATH_ADVISE_LEN}. Windows MAX_PATH is 260 and a default Git for Windows "
-            f"does not set core.longpaths, so a checkout root longer than {260 - length} "
-            f"characters cannot clone this repository (BACKLOG §231). A shorter task name "
+            f"does not set core.longpaths, {ceiling} (BACKLOG §231). A shorter task name "
             f"keeps the ceiling where it is.")
 
 
@@ -1611,6 +1614,9 @@ def check_task(path, all_stems, errors, root, tracked):
         # can read (a Windows chaos round, 2.111.0-rc: a UTF-16 task).
         errors.append(f"{path.name}: holds NUL bytes, so it is not UTF-8 text (saved as UTF-16, or binary?) "
                       f"and no gate can read it. Save it as UTF-8.")
+        # And nothing more, as for a record: a task nobody can read has no sections, tests or
+        # log to judge, and its `None` info keeps every later check off it (BACKLOG §350 C8).
+        return set(), None
     secs = sections_of(text)
     test_rows = task_tests_rows(secs)
     check_step_proof_map(path, text, secs, errors)
@@ -2189,6 +2195,10 @@ def check_cross_record_cycles(root, corpus_dir, tracked, errors):
                       "be listed from git. This is 'I could not look', not 'there is no cycle'")
         return
     edges, nodes = [], set()
+    # A task file another record owns that cannot be read leaves a cycle through it UNPROVEN,
+    # never the lint of this record: one locked task turned 57–76 records into could-not-run on
+    # Windows (BACKLOG §350 C3). Each is named, relative, with the reason in words.
+    unread = []
     for record, record_number in records:
         tasks = record.with_suffix("") / "tasks"
         if not tasks.is_dir():
@@ -2203,13 +2213,28 @@ def check_cross_record_cycles(root, corpus_dir, tracked, errors):
                 continue
             node = f"{here}-{local.group(0).upper()}"
             nodes.add(node)
-            text = f.read_text(encoding="utf-8", errors="replace")
+            try:
+                text = f.read_text(encoding="utf-8", errors="replace")
+            except OSError as exc:
+                # Relative to the repository by REAL path: `/var` is `/private/var` on macOS, and the
+                # listed spelling against the resolved root printed `../../../../var/…`, a home or
+                # temp path in all but name. Outside it, or on another drive, only the file's name.
+                try:
+                    rel = os.path.relpath(os.path.realpath(f), os.path.realpath(root))
+                except ValueError:
+                    rel = os.pardir
+                shown = Path(rel).as_posix() if not rel.startswith(os.pardir) else f.name
+                unread.append(f"`{shown}`: {os_reason(exc)}")
+                continue
             qualified, _ = split_dependencies(header_val(text, "Depends-on") or "")
             for pointer in qualified:
                 found = QUALIFIED_DEP.match(pointer)
                 target = f"{found.group('number').zfill(3)}-{found.group('task').upper()}"
                 nodes.add(target)
                 edges.append((node, target, f"{node} depends on {target}"))
+    if unread:
+        errors.advise(f"cross-record dependency cycles were checked without {len(unread)} task file(s) that "
+                      f"could not be read ({'; '.join(unread)}): a cycle through them is UNPROVEN, not absent")
     cycle = find_cycle(edges, nodes)
     if cycle:
         errors.append("cross-record dependency cycle: "
@@ -2772,7 +2797,7 @@ def check_status_allows_execution(adr_path, readme_text, errors):
     text = Path(adr_path).read_text(errors="replace", encoding="utf-8")
     status, _ = record_status(text)
     if status is None:
-        return  # the missing-Status line is already reported by check_adr
+        return  # check_adr already made the verdict UNPROVEN: this check cannot run without a Status
     # ADR-074: the shared reading. Pending (Proposed, Draft) and Rejected were never executed.
     if status_kind(status) == "pending" or record_status_word(status) == "rejected":
         errors.append(f"{adr_path.name}: Status is '{status}' but "
@@ -3758,7 +3783,10 @@ def resolve_enforcement(pointer, root, tracked=None):
         rel, name = pointer.split("::", 1)
         f = resolve_test_file(root, rel.strip(), tracked)
         if f is not None and f.is_file():
-            source = code_only(f.read_text(errors="replace", encoding="utf-8"),
+            raw = read_test_source(f)
+            if raw is None:
+                return "unproven"  # not UTF-8 text: could-not-look, never unresolved (BACKLOG §350 item 6)
+            source = code_only(raw,
                                python=f.suffix == ".py", swift=f.suffix == ".swift",
                                rust=f.suffix == ".rs")
             # `test_body`, the same resolver check_tests_exist uses — NOT a
@@ -3784,7 +3812,7 @@ def resolve_enforcement(pointer, root, tracked=None):
             # and `.skip` and `.only` are registrations too. A line-start anchor
             # used to approximate "code" here, and could not see a block comment.
             if wanted and javascript:
-                status = js_test_lookup(f.read_text(errors="replace", encoding="utf-8"), wanted, f.suffix)[0]
+                status = js_test_lookup(raw, wanted, f.suffix)[0]
                 if status != "missing":
                     return "test" if status == "found" else "unproven"
         return None
@@ -4650,18 +4678,35 @@ def js_body_can_fail(text, name, suffix):
     return "found", False
 
 
-def unproven_test(errors, inf, tid, name, rel, done, frozen):
-    """Report a named JavaScript test the lexer could not read to (ADR-079).
+def read_test_source(f):
+    """A test file's text, or None when it is not UTF-8 text.
+
+    Read leniently, a UTF-16 test file became replacement characters, and the gates
+    then judged that: a JavaScript-family file "could not be read past a `/`" and was
+    to be rewritten, and a Python or Go file's test was reported missing, an absence
+    nobody observed (BACKLOG §350 item 6, a Windows corpus-chaos run of 3.8.6).
+    """
+    try:
+        return f.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return None
+
+
+def unproven_test(errors, inf, tid, name, rel, done, frozen, undecodable=False):
+    """Report a named test whose file could not be read to (ADR-079, BACKLOG §350 item 6).
 
     Could-not-look, so never "not found" and never silence. On a done task it
     blocks, as evidence, because done claims the test ran. A frozen record and a
     record below strictFrom are history and get advice, as does a task not yet done.
+    `undecodable` says the file is not UTF-8 text, which no rewrite of a construct fixes.
     """
+    why = ("the file is not UTF-8 text, so it could not be read at all. That is could-not-look, "
+           "not absence; save it as UTF-8") if undecodable else (
+        "the lexer could not read the file as far as the test, past a `/` or a literal it cannot place, "
+        "or could not bound the test's body. That is could-not-look, not absence; rewrite the construct "
+        "it stopped at, or name a test it can read")
     message = (f"{tests_row_ref(inf, name, rel)}: {tid} names `{name}` in `{rel}`, and whether that "
-               f"file registers it is UNPROVEN: the lexer could not read the file as far as the test, "
-               f"past a `/` or a literal it cannot place, or could not bound the test's body. That is "
-               f"could-not-look, not absence; rewrite the construct it stopped at, or name a test it "
-               f"can read")
+               f"file registers it is UNPROVEN: {why}")
     if not done:
         errors.advise(message)
     elif frozen:
@@ -4710,7 +4755,10 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=Non
                 # spaced name, as before, rather than gaining a block by the back door.
                 if f is None or f.is_dir():
                     continue
-                source = f.read_text(errors="replace", encoding="utf-8")
+                source = read_test_source(f)
+                if source is None:
+                    unproven_test(errors, inf, tid, name, rel, tid in done, frozen, undecodable=True)
+                    continue
                 status = js_title_exists(source, name, f.suffix)
                 if status == "unproven":
                     unproven_test(errors, inf, tid, name, rel, tid in done, frozen)
@@ -4783,12 +4831,15 @@ def check_tests_exist(infos, readme_text, errors, root, tracked=None, record=Non
             # the claim the row makes is that the file's tests ran — which holds when
             # the file holds at least one. A same-named file with no test in it is
             # still the identity finding below.
-            if names_its_own_file(f, name, f.read_text(errors="replace", encoding="utf-8")):
-                continue
             # RAW source: `test_body` strips per branch, because a BDD test's name
             # is a string literal and stripping strings here deleted the thing
             # being searched for (docs/BACKLOG.md §57).
-            source = f.read_text(errors="replace", encoding="utf-8")
+            source = read_test_source(f)
+            if source is None:
+                unproven_test(errors, inf, tid, name, rel, tid in done, frozen, undecodable=True)
+                continue
+            if names_its_own_file(f, name, source):
+                continue
             if f.name == "package.json" and name in npm_scripts(source):
                 continue
             # ADR-079: a JavaScript-family file is read as the lock reads it, with no
@@ -5496,7 +5547,9 @@ def check_tests_can_fail(infos, readme_text, errors, root, tracked=None, record=
             # its tests are named by `def`, which survives stripping, and its
             # bodies carry DOCSTRINGS that must be removed before an `assert` in
             # one can be mistaken for an assertion the test makes.
-            raw = f.read_text(errors="replace", encoding="utf-8")
+            raw = read_test_source(f)
+            if raw is None:
+                continue  # not UTF-8 text: check_tests_exist already said UNPROVEN, naming the encoding
             swift = f.suffix == ".swift"
             text = code_only(raw, python=True) if f.suffix == ".py" else raw
             if f.suffix.lower() in JS_FAMILY_SUFFIXES:
@@ -6161,6 +6214,9 @@ class Findings(list):
     def __init__(self):
         super().__init__()
         self.advice = []
+        # Could-not-look, said apart from both: nothing here blocks, and nothing here passed. Any
+        # entry makes the verdict [UNPROVEN], exit 3, unless something blocks (BACKLOG §350 C8).
+        self.unproven = []
         # Why this record's content findings are advisory, or None when they block.
         # Set from `strictFrom` in .quality-harness.json: a corpus that adopts these
         # gates late would otherwise light up on every record written before the
@@ -6169,6 +6225,15 @@ class Findings(list):
         # adr-kit's idea (rvdbreemen/adr-kit, MIT).
         self.demotion = None
         self._protected = 0
+
+    def unprove(self, message):
+        # strictFrom reaches this channel as it reaches `append`: a record older than the cutoff
+        # had no Status as advice before [UNPROVEN] existed, and turning that history into exit 3
+        # is the day-one failure strictFrom exists to prevent. Still said, and still tagged.
+        if self.demotion and not self._protected:
+            self.advise(f"unproven: {message} [advisory: {self.demotion}]")
+            return
+        self.unproven.append(message)
 
     def advise(self, message):
         self.advice.append(message)
@@ -6262,7 +6327,7 @@ def adr_number(path, text):
 # questioned. A version that can be about another binary is worse than none,
 # because it resolves.
 #
-# Imports are local so this block is byte-identical in all eleven gates, which
+# Imports are local so this block is byte-identical in every gate, which
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
@@ -6286,11 +6351,19 @@ def gate_identity():
     from pathlib import Path as _Path
     here = _Path(__file__).resolve()
     manifest = here.parent.parent / ".claude-plugin" / "plugin.json"
+    def _shown(path):
+        # The home directory as `~`: this banner reached SessionStart and pasted reports with
+        # a username in it (BACKLOG §350 C4/F3; ADR-031 Follow-ups).
+        try:
+            rel = path.relative_to(_Path.home())
+        except (ValueError, RuntimeError, KeyError):
+            return str(path)
+        return "~" if not rel.parts else "~/" + rel.as_posix()
     try:
         version = _json.loads(manifest.read_text(encoding="utf-8"))["version"]
     except Exception as exc:
-        return f"{here.name} (version unreadable: {manifest} — {exc})"
-    return f"{here.name} {version} ({here.parent.parent})"
+        return f"{here.name} (version unreadable: {_shown(manifest)} — {getattr(exc, 'strerror', None) or exc})"
+    return f"{here.name} {version} ({_shown(here.parent.parent)})"
 
 
 def report_version():
@@ -6445,7 +6518,7 @@ def main():
         for cand in candidates:
             if not cand.is_dir():
                 continue
-            if inline_tasks and not any(p.name != "README.md" for p in cand.glob("*.md")):
+            if inline_tasks and not any(p.name.lower() != "readme.md" for p in cand.glob("*.md")):
                 continue
             tasks_dir = cand
             break
@@ -6519,7 +6592,9 @@ def main():
         # could-not-look this corpus refuses (ADR-005). The withheld count is printed
         # with the reason, so "nothing to say" and "not looked at" stay different.
         withdrawn_tasks.clear()
-        task_files = sorted(p for p in tasks_dir.glob("*.md") if p.name != "README.md")
+        # A README in any letter case is the index, never a task: `readme.md` was linted as a task
+        # while also being read as the README (BACKLOG §350 C8).
+        task_files = sorted(p for p in tasks_dir.glob("*.md") if p.name.lower() != "readme.md")
         for p in task_files:
             refuse_irregular(p)
         stems = [p.stem for p in task_files]
@@ -6533,10 +6608,16 @@ def main():
                 withdrawn_tasks[p.name] = terminal
             covers, info = check_task(p, stems, errors, root, tracked)
             all_covers |= covers
+            if info is None:
+                continue  # a task nobody could read: its NUL finding is the one thing said about it
             m = re.match(r"(T\d+)(?!\d)", p.stem, re.I)
             if m:
                 infos[m.group(1).upper()] = info
         readme = tasks_dir / "README.md"
+        if not readme.exists():
+            # On a case-sensitive file system `readme.md` is not `README.md`, and was read as no
+            # index at all; any spelling is the index (BACKLOG §350 C8).
+            readme = next((p for p in sorted(tasks_dir.glob("*")) if p.name.lower() == "readme.md"), readme)
         readme_text = None
         if readme.exists():
             refuse_special(readme)
@@ -6608,7 +6689,7 @@ def main():
             else:
                 withheld.setdefault(owner, []).append(a)
         errors.advice[:] = kept
-    status = "PASS" if not errors else "FAIL"
+    status = "FAIL" if errors else "UNPROVEN" if errors.unproven else "PASS"
     if errors.demotion:
         print(f"[strictFrom] {one_line(errors.demotion)}")
     # BACKLOG §143: the verdict names the BINARY as well as the record. The
@@ -6624,6 +6705,8 @@ def main():
     print(visible(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only; its Status is not checked against evidence here)") + f" · {gate_identity()}", keep=""))
     for e in errors:
         print(visible(f"  {e}", keep=""))
+    for u in errors.unproven:
+        print(visible(f"  unproven: {u}", keep=""))
     # Advice is printed on a PASS too: a record that is acceptable and a record
     # that is finished are different things, and the reader deserves both.
     for a in errors.advice:
@@ -6660,7 +6743,7 @@ def main():
         else:
             for message, runs in sorted(survival, key=lambda pair: -pair[1]):
                 print(f"  survival: {runs} run(s) unchanged · {one_line(message)}")
-    sys.exit(1 if errors else 0)
+    sys.exit(1 if errors else 3 if errors.unproven else 0)
 
 
 if __name__ == "__main__":
@@ -6671,5 +6754,13 @@ if __name__ == "__main__":
     try:
         main()
     except OSError as exc:
-        print(f"[adr-lint] could not run: {one_line(exc.filename or 'a file')} — {one_line(exc.strerror or exc)}", file=sys.stderr)
+        # Relative where it can be, so no home path leaves in the reason (BACKLOG §350 F3); a path
+        # outside the working directory, or on another Windows drive, is shown as the OS gave it.
+        shown = exc.filename or "a file"
+        try:
+            if exc.filename and not os.path.relpath(exc.filename).startswith(".."):
+                shown = os.path.relpath(exc.filename)
+        except ValueError:
+            pass
+        print(f"[adr-lint] could not run: {one_line(shown)} — {one_line(os_reason(exc))}", file=sys.stderr)
         sys.exit(2)

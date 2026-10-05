@@ -18110,3 +18110,17 @@ The push's campaign (run 37354513065) then had three GREEN mutants and a red Win
 `skill.invoked` for this plugin's skills and prints nothing; `plugin/scripts/ledger-report.mjs` reads the
 skill counts, same-tree skips and checks, UNPROVEN for a ledger not read whole. Each task has its red
 run, its exit-0 run and a killed mutant per Rests-on name in its own Mutation Log.
+
+**Outside runs of the 3.8.7 RC at 7483869 (2026-10-05)** — react-spa (compared 2), laravel-react-monorepo
+(compared 95) and php-laravel-monolith (PARTIAL in both runs, uncompared): no verdict moved, no PASS →
+UNPROVEN. rust-adr-corpus could not run, its classifier refusing cloned code. They found two defects, both fixed
+before the tag, each with a test and a killed catalogue mutant:
+- **A privacy regression, introduced by the review fix above.** Exempting `~` from the scrubber's
+  absolute-path head printed a record's Cross-references `~/<other private repository>/…` whole, where
+  3.8.6 printed `~<path>`. Reverted: a path under the home directory stays a placeholder, and gateSaid's
+  line says `~‹path›`. The reviewer had called that form cosmetic; the run showed it is the point.
+- **An over-count.** The probe counted adr-lint's exit 2 on a not-recognised note (a file named like a
+  record that never claimed to be one) as could-not-run, two of them in that corpus. It is a verdict;
+  any other exit 2 is still counted.
+A runner's caveat worth keeping: a days-old clone under `/private/tmp` had tracked files deleted by the
+OS's periodic cleanup, and failed with ERR_MODULE_NOT_FOUND — a fresh clone, never a release defect.

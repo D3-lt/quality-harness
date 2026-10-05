@@ -20233,8 +20233,8 @@
       "tests": [
         "tests/one-unreadable-task.test.mjs"
       ],
-      "from": "    if (run.status === 2) note(",
-      "to": "    if (false) note(",
+      "from": "      note(`adr-lint ${rel(record.file)}`, `${run.stderr ?? ''}`.split('\\n').find(line => line.trim()) ?? 'exit 2')",
+      "to": "      void 0",
       "only": "^corpus-probe counts an adr-lint that could not run, by record$"
     },
     {
@@ -20488,13 +20488,13 @@
       "only": "^(?:a locked test reached through another spelling of the same file is not vanished)$"
     },
     {
-      "label": "§350 review: ~ is scrubbed as an absolute path",
+      "label": "§350 RC: a path under ~ is printed whole",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/named-not-dropped.test.mjs"
       ],
-      "from": "  const HEAD = /(?<![\\w.\\\\/~-])",
-      "to": "  const HEAD = /(?<![\\w.\\\\/-])",
+      "from": "  const HEAD = /(?<![\\w.\\\\/-])",
+      "to": "  const HEAD = /(?<![\\w.\\\\/~-])",
       "only": "^(?:SessionStart never repeats an absolute path a gate printed)$"
     },
     {
@@ -20586,6 +20586,16 @@
       "from": "      : verdict === 'UNPROVEN' ? `${run.stdout ?? ''}`.split('\\n').find(line => /^ {2}unproven: /.test(line))",
       "to": "      : verdict === 'UNPROVEN' ? undefined",
       "only": "corpus undecided-records: every reader answers as reviewed"
+    },
+    {
+      "label": "§350 RC: a not-recognised file is counted as could-not-run",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/one-unreadable-task.test.mjs"
+      ],
+      "from": "    if (run.status === 2 && !/not-recognised|NOT A DECISION RECORD/.test(`${run.stdout ?? ''}${run.stderr ?? ''}`)) {",
+      "to": "    if (run.status === 2) {",
+      "only": "^(?:corpus-probe counts an adr-lint that could not run, by record)$"
     }
   ]
 }

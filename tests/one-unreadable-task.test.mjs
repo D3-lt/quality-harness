@@ -6,7 +6,7 @@
 // no absolute path leaves in the reason. corpus-probe now counts an adr-lint that could not run.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { chmodSync, cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
@@ -66,12 +66,20 @@ test('a sharing violation is named as one, and no reason carries the path it fai
 
 test('corpus-probe counts an adr-lint that could not run, by record', t => {
   const dir = corpus()
+  // A review note named like a record, which adr-lint reads and calls not-recognised (exit 2).
+  writeFileSync(path.join(dir, 'docs', 'adr', 'adr009_review_notes.md'), '# Review notes\n\nProse, not a decision.\n')
   if (!denies(path.join(dir, TASK1))) { t.skip('no mode bit denies this process a read here'); return }
   const report = probe(dir)
   chmodSync(path.join(dir, TASK1), 0o644)
-  const failed = report.adrLint.filter(entry => entry.exit === 2).map(entry => entry.file)
+  const failed = report.adrLint.filter(entry => entry.exit === 2 && entry.verdict !== 'not-recognised').map(entry => entry.file)
   for (const file of failed) {
     assert.ok(report.couldNotRun.some(entry => entry.reader === `adr-lint ${file}`), JSON.stringify(report.couldNotRun))
   }
   assert.ok(failed.length > 0 || report.adrLint.every(entry => entry.exit !== 2), JSON.stringify(report.adrLint))
+  // The twin: a file adr-lint calls not-recognised also exits 2, and it is a verdict, not a reader
+  // that could not run (an outside run of the 3.8.7 RC counted two notes as could-not-run).
+  assert.ok(report.adrLint.some(item => item.verdict === 'not-recognised'), JSON.stringify(report.adrLint.map(item => [item.file, item.verdict])))
+  for (const entry of report.adrLint.filter(item => item.verdict === 'not-recognised')) {
+    assert.ok(!report.couldNotRun.some(item => item.reader === `adr-lint ${entry.file}`), JSON.stringify(report.couldNotRun))
+  }
 })

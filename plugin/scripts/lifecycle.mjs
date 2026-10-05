@@ -1583,9 +1583,11 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   // redacted too, and three review rounds found a leak each time the boundary
   // was made cleverer. A report that lost a reproduction hint costs one
   // question; a report that shipped a home directory cannot be recalled (§6).
-  // `~` precedes no absolute path: gateSaid writes the home directory as `~` first, and `~/x` became
-  // `~‹path›` here (a stand-in review of f8d1eaf).
-  const HEAD = /(?<![\w.\\/~-])(?<!<(?:tmp|home|plugin|path)>)(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|(?<!:)\/\/[^\s'"`)\/]+\/|\/(?!\/))/.source
+  // ⚠ A `~` BEFORE A PATH DOES NOT EXEMPT IT. A stand-in review of f8d1eaf called gateSaid's `~‹path›`
+  // cosmetic and the lookbehind took `~`; the next outside run (php-react-app, 3.8.7 RC) then printed
+  // `~/<private repository>/…` from a record's Cross-references in place of `~‹path›`. A path under the
+  // home directory names the owner's other work, so it stays a placeholder (CLAUDE.md §6).
+  const HEAD = /(?<![\w.\\/-])(?<!<(?:tmp|home|plugin|path)>)(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|(?<!:)\/\/[^\s'"`)\/]+\/|\/(?!\/))/.source
   const ABSOLUTE = new RegExp(`${HEAD}[^\\s'"\`)\\\\/]${TAIL}`, 'g')
   return text => {
     let out = String(text)
@@ -1595,7 +1597,8 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
 }
 
 // adr-next's first line, said on its behalf. A path under the repository is said relative to it,
-// and the home directory as `~`, so a scratch checkout's absolute path is not repeated into the
+// and the home directory as `~` — anything under it then becomes `~‹path›`, so no directory of the
+// owner's other work is named — and a scratch checkout's absolute path is not repeated into the
 // session; the rest is cleaned as corpus text is, because a task file's name reaches this line and
 // must not print a control or a frame in this tool's voice (BACKLOG §319 item 6: js-spa-client, a
 // symlink loop). Any absolute path left after that goes through `scrubber`, as the probe's does:

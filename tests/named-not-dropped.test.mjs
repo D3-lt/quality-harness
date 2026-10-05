@@ -198,8 +198,10 @@ test('SessionStart never repeats an absolute path a gate printed', () => {
   // The control: a path under the repository is still said relative to it.
   const inside = () => ({ status: 2, stdout: '', stderr: `could not run: ${path.join(root, 'docs', 'x.md')} — held open\n` })
   assert.match(readyTaskLines(root, true, listing, inside).lines.join('\n'), /could not run: \.[\\/]docs[\\/]x\.md — held open/)
-  // A home path outside the repository is said as `~/…`, not `~‹path›` (a stand-in review of f8d1eaf).
+  // A home path outside the repository names nothing under the home directory: `~‹path›`. The `~/…`
+  // form named the owner's other repositories in an outside run's report (php-react-app, 3.8.7 RC).
   const home = () => ({ status: 2, stdout: '', stderr: `could not run: ${path.join(os.homedir(), 'elsewhere', 'x.md')} — held open\n` })
   const homeSaid = readyTaskLines(root, true, listing, home).lines.join('\n')
-  assert.match(homeSaid, /could not run: ~[\\/]elsewhere[\\/]x\.md — held open/, homeSaid)
+  assert.match(homeSaid, /could not run: ~‹path› — held open/, homeSaid)
+  assert.doesNotMatch(homeSaid, /elsewhere/, homeSaid)
 })

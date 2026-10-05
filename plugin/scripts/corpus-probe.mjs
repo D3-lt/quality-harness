@@ -287,7 +287,12 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     // adr-lint answered could-not-run (exit 2, a file it could not read): counted where every other
     // reader that could not run is, by record. The attestation's `couldNotRun` read 1 while 57-76
     // records could not be linted (BACKLOG §350 C3).
-    if (run.status === 2) note(`adr-lint ${rel(record.file)}`, `${run.stderr ?? ''}`.split('\n').find(line => line.trim()) ?? 'exit 2')
+    // Not a not-recognised file: adr-lint exits 2 there too, but that is a verdict about a file that
+    // never claimed to be a record, and two such notes were counted as could-not-run (an outside run
+    // of the 3.8.7 RC, laravel-cms). Any other exit 2 is counted.
+    if (run.status === 2 && !/not-recognised|NOT A DECISION RECORD/.test(`${run.stdout ?? ''}${run.stderr ?? ''}`)) {
+      note(`adr-lint ${rel(record.file)}`, `${run.stderr ?? ''}`.split('\n').find(line => line.trim()) ?? 'exit 2')
+    }
     // The verdict line by name, never "the first line opening with `[`": on a record older than
     // the corpus's strictFrom, adr-lint prints `[strictFrom] …` ABOVE its verdict, and a PASS read
     // `exit 0` with nothing behind it. adr-lint's other bracketed line, `[adr-lint] could not run`,

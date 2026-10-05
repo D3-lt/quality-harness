@@ -297,6 +297,18 @@ test('a campaign says its load line once, in place and isolated', () => {
   }
 })
 
+// BACKLOG §350: a CI shard killed at its time limit named every mutant it had finished and not the
+// one it was in. Each run is announced before it starts, so the last line of a killed log names it.
+test('a campaign names each baseline and mutant before it runs it', () => {
+  const dir = campaignFixture()
+  const run = campaign(dir, ['--no-cache', '--case', 'answer'])
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  const said = run.stderr.split('\n')
+  const baseline = said.findIndex(line => /^mutate: \d{4}-\d\d-\d\dT\S+ baseline tests\/lib\.test\.mjs$/.test(line))
+  const mutant = said.findIndex(line => /^mutate: \d{4}-\d\d-\d\dT\S+ mutant answer$/.test(line))
+  assert.ok(baseline >= 0 && mutant > baseline, run.stderr)
+})
+
 // Codex review of ADR-075: the child's marker exempts it from the in-place checks, so a test the
 // child runs — this file's own campaigns among them — must not inherit it.
 test('a campaign child does not hand its marker to the tests it runs', async () => {

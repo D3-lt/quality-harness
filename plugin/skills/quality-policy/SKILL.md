@@ -1,6 +1,6 @@
 ---
 name: quality-policy
-description: Apply universal scope, simplicity, verification, and risk-routing discipline to substantive code changes. Use in the main coordinator for implementation planning and completion; do not use as a second lifecycle router or preload its full body into child agents.
+description: Apply universal scope, simplicity, verification, and risk-routing discipline to substantive code changes. Use when the main coordinator plans or completes an implementation; do not use as a second lifecycle router or preload its full body into child agents.
 user-invocable: false
 ---
 

@@ -1,6 +1,6 @@
 ---
 name: postmortem
-description: Document a material, recurrent, or production-relevant failure—or a genuinely reusable lesson—as a structured postmortem. Use after resolving a qualifying failure or review finding, or whenever the user explicitly asks. Do not auto-trigger for every routine bug, expected test failure, or low-impact one-off fix.
+description: Document a material, recurrent, or production-relevant failure—or a genuinely reusable lesson—as a structured postmortem. Use when a qualifying failure or review finding has been resolved, or whenever the user explicitly asks. Do not auto-trigger for every routine bug, expected test failure, or low-impact one-off fix.
 ---
 
 # Postmortem

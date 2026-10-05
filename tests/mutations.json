@@ -694,7 +694,7 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "    partialBecause: corpus.look === 'PARTIAL'",
+      "from": "    partialBecause: look === 'PARTIAL'",
       "to": "    partialBecause: false",
       "only": "^(?:a task under an archive whose README spelling is ambiguous is unproven, not work)$"
     },
@@ -1765,8 +1765,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "const dangling = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))",
-      "to": "const dangling = []",
+      "from": "  const dangling = superseded.filter(record => !unreadSuperseder(record.supersededBy))",
+      "to": "  const dangling = []",
       "only": "^(?:adr-state derives what is decided now, instead of asking anyone to maintain it)$"
     },
     {
@@ -5833,7 +5833,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        return f\"{here.name} (version unreadable: {manifest} — {exc})\"",
+      "from": "        return f\"{here.name} (version unreadable: {_shown(manifest)} — {getattr(exc, 'strerror', None) or exc})\"",
       "to": "        return f\"{here.name} 2.60.0\"",
       "only": "^(?:a gate whose manifest cannot be read says so instead of guessing|a gate whose manifest is unreadable says so, and states no version \\(BACKLOG §143\\))$"
     },
@@ -6082,8 +6082,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "        except OSError as exc:\n            unreadable.append((child.name, str(exc)))",
-      "to": "        except ValueError as exc:\n            unreadable.append((child.name, str(exc)))",
+      "from": "        except OSError as exc:\n            unreadable.append((child.name, os_reason(exc)))",
+      "to": "        except ValueError as exc:\n            unreadable.append((child.name, os_reason(exc)))",
       "only": "^(?:a record this tool could not read is not counted as a record holding nothing)$"
     },
     {
@@ -7479,8 +7479,8 @@
       "tests": [
         "tests/corpus-report.test.mjs"
       ],
-      "from": "      .filter(entry => entry.isFile() && /^ADR-.*\\.md$/.test(entry.name)).length",
-      "to": "      .filter(entry => /^ADR-.*\\.md$/.test(entry.name)).length",
+      "from": "      .filter(entry => entry.isFile() && /^ADR-.*\\.md$/i.test(entry.name)).length",
+      "to": "      .filter(entry => /^ADR-.*\\.md$/i.test(entry.name)).length",
       "only": "^(?:a record is a FILE, so a directory named like one is not counted)$"
     },
     {
@@ -8080,7 +8080,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if names_its_own_file(f, name, f.read_text(errors=\"replace\", encoding=\"utf-8\")):\n                continue\n",
+      "from": "            if names_its_own_file(f, name, source):\n                continue\n",
       "to": "            if name in (f.stem, f.name):\n                continue\n",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
@@ -8902,8 +8902,8 @@
       "tests": [
         "tests/staged-product.test.mjs"
       ],
-      "from": "    } catch (error) {\n      unreadable.push({ file, status: null, taskFiles: [], reason: error?.code ?? 'unreadable' })\n      records.look = 'PARTIAL'\n      continue\n    }",
-      "to": "    } catch { continue }",
+      "from": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: error?.code ?? 'unreadable' })\n      records.look = 'PARTIAL'\n      continue\n    }",
+      "to": "      continue\n    }",
       "only": "a listed ADR that cannot be read is PARTIAL"
     },
     {
@@ -9702,8 +9702,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      unreadable.push({ file, status: null, taskFiles: [], reason: error?.code ?? 'unreadable' })",
-      "to": "      unreadable.push({ file, status: null, taskFiles: [] })",
+      "from": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: error?.code ?? 'unreadable' })",
+      "to": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader) })",
       "only": "adr-state names a file it could not open"
     },
     {
@@ -11934,8 +11934,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  return { read: ranked.slice(0, cap), unread: Math.max(0, ranked.length - cap) }",
-      "to": "  return { read: ranked.slice(0, cap), unread: 0 }",
+      "from": "  return { read: ranked.slice(0, cap), unread: Math.max(0, ranked.length - cap), aliases: once.aliases, absent }",
+      "to": "  return { read: ranked.slice(0, cap), unread: 0, aliases: once.aliases, absent }",
       "only": "^(?:SessionStart says how many task directories it did not read)$"
     },
     {
@@ -12010,7 +12010,7 @@
     },
     {
       "label": "corpus-probe: a known prefix is redacted in either separator spelling",
-      "file": "plugin/scripts/corpus-probe.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
@@ -12034,13 +12034,13 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "  const ready = readiness.ready.filter(file => executable(file))",
-      "to": "  const ready = readiness.ready",
+      "from": "  const ready = readiness.ready.filter(file => executable(file) && !withheldByLock.has(path.resolve(file)))",
+      "to": "  const ready = readiness.ready.filter(file => !withheldByLock.has(path.resolve(file)))",
       "only": "^(?:a directory two records share offers only the Accepted record's task)$"
     },
     {
       "label": "corpus-probe: a quoted path is redacted whole, spaces and all",
-      "file": "plugin/scripts/corpus-probe.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
@@ -12050,7 +12050,7 @@
     },
     {
       "label": "corpus-probe: an unquoted path continues past a space when the next word is followed by a separator",
-      "file": "plugin/scripts/corpus-probe.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
@@ -13064,7 +13064,7 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "            if inline_tasks and not any(p.name != \"README.md\" for p in cand.glob(\"*.md\")):\n                continue\n",
+      "from": "            if inline_tasks and not any(p.name.lower() != \"readme.md\" for p in cand.glob(\"*.md\")):\n                continue\n",
       "to": "",
       "only": "inline tasks is not paired"
     },
@@ -14734,7 +14734,7 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "    if ((answer.stopped ?? []).some(task => task.unreadable)) unproven.push(dir)",
+      "from": "    if (unreadTasks.length) unproven.push(dir)",
       "to": "    if (false) unproven.push(dir)",
       "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
     },
@@ -14814,7 +14814,7 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "  const undecided = (corpus.unreadable ?? []).map(entry => ({",
+      "from": "  const undecided = (corpus.unreadable ?? []).filter(entry => !entry.alias).map(entry => ({",
       "to": "  const undecided = [].map(entry => ({",
       "only": "a corpus with records is linted without writing"
     },
@@ -15294,7 +15294,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "        if tid in infos and infos[tid][\"path\"] != str(path):",
+      "from": "        if tid in infos and infos[tid][\"path\"] != Path(path).as_posix():",
       "to": "        if False:",
       "only": "declaring one id"
     },
@@ -15464,8 +15464,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    except OSError as exc:\n        print(f\"[adr-lint] could not run: {one_line(exc.filename or 'a file')}",
-      "to": "    except ZeroDivisionError as exc:\n        print(f\"[adr-lint] could not run: {one_line(exc.filename or 'a file')}",
+      "from": "    except OSError as exc:\n        # Relative where it can be, so no home path",
+      "to": "    except ZeroDivisionError as exc:\n        # Relative where it can be, so no home path",
       "only": "cannot read is could-not-run"
     },
     {
@@ -16358,8 +16358,8 @@
       "label": "BACKLOG §319 A: a flat spec is listed as nested too",
       "file": "plugin/scripts/work-next.mjs",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))",
-      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)))",
+      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))",
+      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && ownSpec(rel))",
       "only": "a spec in a subdirectory of docs/specs"
     },
     {
@@ -16374,8 +16374,8 @@
       "label": "BACKLOG §319 B: a record holding NUL is read as text",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "    if (text.includes('\\u0000')) {\n      unreadable.push({ file, status: null, taskFiles: [], reason: 'it holds a NUL byte, so it is not text this reader can read' })",
-      "to": "    if (false) {\n      unreadable.push({ file, status: null, taskFiles: [], reason: 'it holds a NUL byte, so it is not text this reader can read' })",
+      "from": "    if (text.includes('\\u0000')) {\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
+      "to": "    if (false) {\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
       "only": "a record holding a NUL byte"
     },
     {
@@ -16542,8 +16542,8 @@
       "label": "BACKLOG §319 A: a nested spec with a line break is invisible",
       "file": "plugin/scripts/work-next.mjs",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))",
-      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/.+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))",
+      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))",
+      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/.+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))",
       "only": "a spec in a subdirectory of docs/specs"
     },
     {
@@ -16734,8 +16734,8 @@
       "label": "§319 item 6: adr-next's line is relativised but not cleaned",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "  return corpusText(out)\n",
-      "to": "  return out\n",
+      "from": "  return corpusText(scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out))\n",
+      "to": "  return scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out)\n",
       "only": "SessionStart says adr-next's failure relative to the repository"
     },
     {
@@ -17696,7 +17696,7 @@
       "tests": [
         "tests/chaos-315-probe.test.mjs"
       ],
-      "from": "/^\\[(?:PASS|FAIL)\\] |not-recognised|NOT A DECISION RECORD/",
+      "from": "/^\\[(?:PASS|FAIL|UNPROVEN)\\] |not-recognised|NOT A DECISION RECORD/",
       "to": "/^\\[|not-recognised|NOT A DECISION RECORD/",
       "only": "^(?:a record strictFrom demotes is read by its verdict line, not the demotion line above it)$"
     },
@@ -19809,7 +19809,7 @@
     },
     {
       "label": "§345: a plan reads as an unknown status",
-      "file": "plugin/scripts/corpus-probe.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
@@ -19819,7 +19819,7 @@
     },
     {
       "label": "§345: a missing status line reads as an unknown status",
-      "file": "plugin/scripts/corpus-probe.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
@@ -19983,8 +19983,8 @@
       "tests": [
         "tests/corpus-link-loop.test.mjs"
       ],
-      "from": "    const shown = shownPath(posixListed(path.relative(root, first)))",
-      "to": "    const shown = posixListed(path.relative(root, first))",
+      "from": "  return `another listed path to the same file on disk as ${shownPath(posixListed(path.relative(root, sameAs)))} `",
+      "to": "  return `another listed path to the same file on disk as ${posixListed(path.relative(root, sameAs))} `",
       "only": "^the path a link copy is named against is shown, not printed raw$"
     },
     {
@@ -20026,6 +20026,436 @@
       "from": "    except OSError:\n        return True\n    return stat.S_ISREG(mode)",
       "to": "    except OSError:\n        return False\n    return stat.S_ISREG(mode)",
       "only": "^a file behind a directory this process may not search is not gone$"
+    },
+    {
+      "label": "§350 item 1: a relock over an unreadable Tests file is not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "    unread = sorted({rel for _name, rel in tests} & snap.get(\"unreadable\", set()))",
+      "to": "    unread = []",
+      "only": "^a relock over a locked test file it cannot read is refused, in either mode, and says why$"
+    },
+    {
+      "label": "§350 item 2: a journal that is not UTF-8 raises",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:",
+      "to": "    except (OSError, json.JSONDecodeError) as exc:",
+      "only": "^a mutant journal that is not UTF-8 is a retained corrupt journal, not a traceback$"
+    },
+    {
+      "label": "§350 item 3: SessionStart reads a task directory once per path",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "  const ranked = found.filter(entry => kept.has(entry.directory) && !absent.includes(entry.directory))",
+      "to": "  const ranked = found.filter(entry => !absent.includes(entry.directory))",
+      "only": "^SessionStart reads a task directory reached again through a link once, and names the other path$"
+    },
+    {
+      "label": "§350 item 3: SessionStart does not name the other path",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "  if (aliases.length > 0) {",
+      "to": "  if (false) {",
+      "only": "^SessionStart reads a task directory reached again through a link once, and names the other path$"
+    },
+    {
+      "label": "§350 item 3: work-next counts a task once per path",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "  return { files: once.kept, aliases: once.aliases, archiveUnknown: [...archiveUnknown] }",
+      "to": "  return { files: found, aliases: once.aliases, archiveUnknown: [...archiveUnknown] }",
+      "only": "^work-next counts a task reached again through a link once, and a link copy of a record is not undecided$"
+    },
+    {
+      "label": "§350 item 3: work-next counts a link copy as undecided",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "    undecided: (corpus.unreadable ?? []).filter(entry => !entry.alias).length,",
+      "to": "    undecided: (corpus.unreadable ?? []).length,",
+      "only": "^work-next counts a task reached again through a link once, and a link copy of a record is not undecided$"
+    },
+    {
+      "label": "§350 item 3: the probe lists a link copy as undecided",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "  const undecided = (corpus.unreadable ?? []).filter(entry => !entry.alias).map(entry => ({",
+      "to": "  const undecided = (corpus.unreadable ?? []).map(entry => ({",
+      "only": "^corpus-probe names a link copy of a record as unread, never as an undecided record$"
+    },
+    {
+      "label": "§350 item 4: work-next names no ownerless task",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-ownerless.test.mjs"
+      ],
+      "from": "  const ownerless = [...new Set(tasks.filter(file => !owner.has(path.resolve(file)))",
+      "to": "  const ownerless = [...new Set(tasks.filter(file => false)",
+      "only": "^work-next names tasks no record owns, and does not call the corpus clear$"
+    },
+    {
+      "label": "§350 item 5: a linked tasks directory's owner is looked for beside the target",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                      else Path(os.path.abspath(tasks_dir)).parent)",
+      "to": "                      else tasks_dir.resolve().parent)",
+      "only": "^a tasks directory reached through a link is owned by the record beside the link$"
+    },
+    {
+      "label": "§350 item 6: a task withheld by an unreadable lock is told to adr-verify",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "  const lockUnreadable = tasks.filter(file => /could not be read — the file is there/.test(",
+      "to": "  const lockUnreadable = tasks.filter(file => /never matches anything/.test(",
+      "only": "^work-next names a task withheld by an unreadable test lock, and never tells it to adr-verify$"
+    },
+    {
+      "label": "§350 item 6: adr-lint reads a test file leniently",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/undecodable-test-file.test.mjs"
+      ],
+      "from": "        return f.read_text(encoding=\"utf-8\")",
+      "to": "        return f.read_text(encoding=\"utf-8\", errors=\"replace\")",
+      "only": "^adr-lint reads a test file that is not UTF-8 as UNPROVEN, naming the encoding, never missing$"
+    },
+    {
+      "label": "§350 item 6: spec-verify reads a test file leniently",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/undecodable-test-file.test.mjs"
+      ],
+      "from": "        text = path.read_text(encoding=\"utf-8\")",
+      "to": "        text = path.read_text(encoding=\"utf-8\", errors=\"replace\")",
+      "only": "^spec-verify cannot check a binding into a test file that is not UTF-8, and says why$"
+    },
+    {
+      "label": "§350 item 6: spec-verify's crate search drops could-not-check",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/undecodable-test-file.test.mjs"
+      ],
+      "from": "            if unchecked is not None:",
+      "to": "            if False:",
+      "only": "^spec-verify searching a Rust crate says could-not-check when the only candidate is not UTF-8$"
+    },
+    {
+      "label": "§350 item 6: the syntax check reads JSON as lenient text",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/undecodable-test-file.test.mjs"
+      ],
+      "from": "            json.loads(path.read_bytes())",
+      "to": "            json.loads(path.read_text(errors=\"replace\", encoding=\"utf-8\"))",
+      "only": "^adr-verify's syntax check parses a UTF-16 JSON file as JSON, not as replacement characters$"
+    },
+    {
+      "label": "§350 item 6: adr-retire-check given a directory says README not found",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if archive_readme.is_dir():",
+      "to": "    if False:",
+      "only": "^missing file, directory, and not-recognised stay their current exits$"
+    },
+    {
+      "label": "§350 C10: a dangling corpus link reads as no corpus",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "    try { statSync(at) } catch { found.push(at) }",
+      "to": "    try { statSync(at) } catch { }",
+      "only": "^a corpus directory that is a link to nothing is named, never read as no corpus$"
+    },
+    {
+      "label": "§346: --diff names no environment change",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (b !== undefined && a !== undefined && b !== a) say(`environment: ${key} ${b} → ${a}`)",
+      "to": "    if (false) say(`environment: ${key} ${b} → ${a}`)",
+      "only": "^--diff names undecided records that came, went or changed reason, and an environment change$"
+    },
+    {
+      "label": "§346: --diff compares no undecided set",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    setChange('undecided', before.undecided.map(entry => entry.file), after.undecided.map(entry => entry.file))",
+      "to": "    void setChange",
+      "only": "^--diff names undecided records that came, went or changed reason, and an environment change$"
+    },
+    {
+      "label": "§350 C3: one unreadable task another record owns stops this record's lint",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/one-unreadable-task.test.mjs"
+      ],
+      "from": "            except OSError as exc:\n                # Relative to the repository by REAL path",
+      "to": "            except ValueError as exc:\n                # Relative to the repository by REAL path",
+      "only": "^one unreadable task another record owns leaves this record linted, its cycle check UNPROVEN$"
+    },
+    {
+      "label": "§350 C3: a sharing violation reads as Permission denied",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/one-unreadable-task.test.mjs"
+      ],
+      "from": "    if getattr(exc, \"winerror\", None) == 32:",
+      "to": "    if False:",
+      "only": "^a sharing violation is named as one, and no reason carries the path it failed on$"
+    },
+    {
+      "label": "§350 C3: the probe does not count an adr-lint that could not run",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/one-unreadable-task.test.mjs"
+      ],
+      "from": "    if (run.status === 2) note(",
+      "to": "    if (false) note(",
+      "only": "^corpus-probe counts an adr-lint that could not run, by record$"
+    },
+    {
+      "label": "§350 C2: the project root is asked of the link's target",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "            if (candidate / \".git\").exists():",
+      "to": "            if False:",
+      "only": "^a done task reached through a link that leaves the tree is done, its project check read$"
+    },
+    {
+      "label": "§350 C2: a task this reader cannot open is an unbacked claim",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "      || unopenable.has(path.resolve(file))) return false",
+      "to": "      || false) return false",
+      "only": "^a task file nobody could read is not an unbacked done claim, and its directory is UNPROVEN$"
+    },
+    {
+      "label": "§350 C2: a task adr-next could not read is an unbacked claim",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-ownerless.test.mjs"
+      ],
+      "from": "    if (!claimed || withheldByLock.has(path.resolve(file)) || readiness.unreadable.has(path.resolve(file))",
+      "to": "    if (!claimed || withheldByLock.has(path.resolve(file))",
+      "only": "^a task adr-next could not read is not an unbacked done claim$"
+    },
+    {
+      "label": "§350 C8: a record that is not text is still judged on its content",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "        # saw (BACKLOG §350 C8). No spec is named, because none was read.\n        return None",
+      "to": "        # saw (BACKLOG §350 C8). No spec is named, because none was read.\n        pass",
+      "only": "^(?:adr-lint says nothing about the content of a record or task it called not UTF-8 text)$"
+    },
+    {
+      "label": "§350 C8: a task that is not text is still judged on its content",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "        # log to judge, and its `None` info keeps every later check off it (BACKLOG §350 C8).\n        return set(), None",
+      "to": "        # log to judge, and its `None` info keeps every later check off it (BACKLOG §350 C8).\n        pass",
+      "only": "^(?:adr-lint says nothing about the content of a record or task it called not UTF-8 text)$"
+    },
+    {
+      "label": "§350 C8: a lowercase readme.md is linted as a task",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "        task_files = sorted(p for p in tasks_dir.glob(\"*.md\") if p.name.lower() != \"readme.md\")",
+      "to": "        task_files = sorted(p for p in tasks_dir.glob(\"*.md\") if p.name != \"README.md\")",
+      "only": "^(?:a lowercase readme\\.md is the tasks README, never linted as a task)$"
+    },
+    {
+      "label": "§350 C8: the long-path ceiling goes negative again",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "                   f\"repository\" if length < 260 else",
+      "to": "                   f\"repository\" if True else",
+      "only": "^(?:the long-path advice never prints a negative length)$"
+    },
+    {
+      "label": "§350 C8: a superseder that could not be read is 'not in this corpus'",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "  const supersededByUnread = superseded.filter(record => unreadSuperseder(record.supersededBy))",
+      "to": "  const supersededByUnread = []",
+      "only": "^(?:adr-state says a superseding record could not be read, not that it is absent)$"
+    },
+    {
+      "label": "§350 C8: a fixture spec is the corpus's own",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "const ownSpec = rel => !listedUnderUninterestingDirectory(posixRel(rel).split('/').slice(0, -1))",
+      "to": "const ownSpec = rel => true",
+      "only": "^(?:work-next does not count fixture or golden specs as the corpus's own)$"
+    },
+    {
+      "label": "§350 C8: a golden directory is the corpus's own",
+      "file": "plugin/scripts/uninteresting.mjs",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "|testdata|golden(?:[-_].*)?)$/i",
+      "to": "|testdata)$/i",
+      "only": "^(?:work-next does not count fixture or golden specs as the corpus's own)$"
+    },
+    {
+      "label": "§350 C8: another spelling of a locked file is vanished",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "                        if n == name and r != rel and _same_file(root, r, rel)), None)",
+      "to": "                        if n == name and r != rel and False), None)",
+      "only": "^(?:a locked test reached through another spelling of the same file is not vanished)$"
+    },
+    {
+      "label": "§350 C5: a record no reader can read is counted and not named",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "  const unusual = state.undecidedNamed.filter(entry => entry.reason !== 'a plan, not yet decided')",
+      "to": "  const unusual = []",
+      "only": "^(?:work-next names a record whose Status no reader can read, and keeps a plan a count)$"
+    },
+    {
+      "label": "§350 C5: a task under an unreadable record is in no list",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: error?.code ?? 'unreadable' })",
+      "to": "      unreadable.push({ file, status: null, taskFiles: [], reason: error?.code ?? 'unreadable' })",
+      "only": "^(?:a readable task under a record nobody could read is attributed to it, not dropped)$"
+    },
+    {
+      "label": "§350 C5: a task under a record holding a NUL byte is in no list",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
+      "to": "      unreadable.push({ file, status: null, taskFiles: [], reason: 'it holds a NUL byte, so it is not text this reader can read' })",
+      "only": "^(?:a readable task under a record nobody could read is attributed to it, not dropped)$"
+    },
+    {
+      "label": "§350 C5: a lone CR does not end a line",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "    text: once(file => readFileSync(file, 'utf8').replace(/\\r(?!\\n)/g, '\\n')),",
+      "to": "    text: once(file => readFileSync(file, 'utf8')),",
+      "only": "^(?:a CR-only task file loses none of its Affected Files)$"
+    },
+    {
+      "label": "§350 C5: a lower-case record is not counted by corpus-report",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "      .filter(entry => entry.isFile() && /^ADR-.*\\.md$/i.test(entry.name)).length",
+      "to": "      .filter(entry => entry.isFile() && /^ADR-.*\\.md$/.test(entry.name)).length",
+      "only": "^(?:corpus-report counts a record named in lower case)$"
+    },
+    {
+      "label": "§350 C5: a PARTIAL diff says only 'not compared'",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "    named('partialBecause', ...[before, after]",
+      "to": "    if (false) named('partialBecause', ...[before, after]",
+      "only": "^(?:a PARTIAL diff names what made it partial and what dropped out)$"
+    },
+    {
+      "label": "§350 C5: a task directory missing from disk is one more 'not read'",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "  const absent = found.filter(entry => kept.has(entry.directory) && gone(entry)).map(entry => entry.directory)",
+      "to": "  const absent = []",
+      "only": "^(?:SessionStart names a task directory git lists and the disk does not hold)$"
+    },
+    {
+      "label": "§350 C5: an unread task is named only under a record that governs nothing",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "  const unknownScope = governing.filter(record => record.unreadTasks?.length)",
+      "to": "  const unknownScope = governing.filter(record => record.governs.length === 0 && record.unreadTasks?.length)",
+      "only": "^(?:adr-state names an unread task under a record that governs other paths)$"
+    },
+    {
+      "label": "§350 C4: SessionStart repeats an absolute path a gate printed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "  return corpusText(scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out))",
+      "to": "  return corpusText(out)",
+      "only": "^(?:SessionStart never repeats an absolute path a gate printed)$"
+    },
+    {
+      "label": "§350 C4: a gate's banner prints the home directory",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return \"~\" if not rel.parts else \"~/\" + rel.as_posix()",
+      "to": "        return str(path)",
+      "only": "^every gate that returns a verdict names the binary that reached it \\(BACKLOG §143\\)$"
+    },
+    {
+      "label": "§350 C3: an unreadable task file is named against the unresolved root",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                    rel = os.path.relpath(os.path.realpath(f), os.path.realpath(root))",
+      "to": "                    rel = os.path.relpath(f, root)",
+      "only": "^a permission-denied task file another record owns is advice on the cycle check, never could-not-run or a traceback$"
     }
   ]
 }

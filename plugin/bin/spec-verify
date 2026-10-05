@@ -81,6 +81,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, extract_test_names, _mask_lock_noncode, _matching_js_brace, JS_FAMILY_SUFFIXES, js_reading, walk  # noqa: E402
+from record import os_reason  # noqa: E402
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -303,7 +304,13 @@ def python_test_defined(text, name):
 
 def test_definition_exists(path, name, stack):
     """Prove a binding names an actual language-level test definition."""
-    text = path.read_text(errors="replace", encoding="utf-8")
+    # Strict: a test file that is not UTF-8 text cannot be checked, and a lenient read
+    # reported its test missing (BACKLOG §350 item 6). Could-not-check is None.
+    try:
+        text = path.read_text(encoding="utf-8")
+    except UnicodeDecodeError:
+        return None, (f"could not check '{name}': the file is not UTF-8 text, so a test there "
+                      f"is UNPROVEN, not missing")
     suffix = path.suffix.lower()
     leaf = name.rsplit("::", 1)[-1].split("[", 1)[0]
 
@@ -416,13 +423,18 @@ def test_exists(test, root, stack, collect):
             ok, why = test_definition_exists(f, name, stack)
             return ok, "" if ok is True else f"{why} in {path}"
         if stack == "cargo":
+            unchecked = None
             for candidate in walk(root, "*.rs"):
                 if any(part in (".git", "target", "vendor", "node_modules")
                        for part in candidate.parts):
                     continue
-                ok, _ = test_definition_exists(candidate, name, stack)
+                ok, why = test_definition_exists(candidate, name, stack)
                 if ok:
                     return True, ""
+                if ok is None:
+                    unchecked = why
+            if unchecked is not None:
+                return None, unchecked
             return False, f"no #[test] Rust function found for '{name}'"
         if stack == "molecule":
             scenario = root / "molecule" / name
@@ -691,7 +703,7 @@ def check_spec(path, mode, root_override, collect):
     try:
         text = Path(path).read_text(errors="replace", encoding="utf-8")
     except OSError as exc:
-        print(f"[spec-verify] could not run: {path} — {exc}", file=sys.stderr)
+        print(f"[spec-verify] could not run: {path} — {os_reason(exc)}", file=sys.stderr)
         sys.exit(4)
     secs = sections_of(text)
 
@@ -829,7 +841,7 @@ def check_spec(path, mode, root_override, collect):
 # questioned. A version that can be about another binary is worse than none,
 # because it resolves.
 #
-# Imports are local so this block is byte-identical in all eleven gates, which
+# Imports are local so this block is byte-identical in every gate, which
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
@@ -853,11 +865,19 @@ def gate_identity():
     from pathlib import Path as _Path
     here = _Path(__file__).resolve()
     manifest = here.parent.parent / ".claude-plugin" / "plugin.json"
+    def _shown(path):
+        # The home directory as `~`: this banner reached SessionStart and pasted reports with
+        # a username in it (BACKLOG §350 C4/F3; ADR-031 Follow-ups).
+        try:
+            rel = path.relative_to(_Path.home())
+        except (ValueError, RuntimeError, KeyError):
+            return str(path)
+        return "~" if not rel.parts else "~/" + rel.as_posix()
     try:
         version = _json.loads(manifest.read_text(encoding="utf-8"))["version"]
     except Exception as exc:
-        return f"{here.name} (version unreadable: {manifest} — {exc})"
-    return f"{here.name} {version} ({here.parent.parent})"
+        return f"{here.name} (version unreadable: {_shown(manifest)} — {getattr(exc, 'strerror', None) or exc})"
+    return f"{here.name} {version} ({_shown(here.parent.parent)})"
 
 
 def report_version():

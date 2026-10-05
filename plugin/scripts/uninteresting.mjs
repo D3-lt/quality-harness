@@ -14,7 +14,8 @@
 // fixture record read as real costs an advisory nobody acts on; a real corpus
 // read as nothing costs every advisory. So the names here are the ones no
 // project keeps its decisions under.
-const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|fixtures?|testdata)$/i
+// `golden`, `golden-*` and `golden_*` are test-golden trees (the owner, 2026-10-05; BACKLOG §350 C8).
+const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|fixtures?|testdata|golden(?:[-_].*)?)$/i
 
 /**
  * Whether a listed path's directory components put it somewhere no record of

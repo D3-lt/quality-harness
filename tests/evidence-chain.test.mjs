@@ -1901,6 +1901,26 @@ test('--restore with nothing recorded says so rather than implying it repaired s
   assert.match(result.stdout, /no mutant is recorded/)
 })
 
+// BACKLOG §350 item 2 (a class audit of 3.8.6's decode fix): `recover_mutant` caught OSError and
+// JSONDecodeError only, so a journal that is not UTF-8 raised a traceback where the gate's own
+// "corrupt mutant journal retained" stop was meant. The journal's path is the gate's own rule,
+// computed by Python so it resolves the directory exactly as the gate does.
+test('a mutant journal that is not UTF-8 is a retained corrupt journal, not a traceback', () => {
+  const copy = corpus()
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  const key = spawnSync('python3', ['-c', 'import hashlib, sys; from pathlib import Path; '
+    + 'print(hashlib.sha256(str(Path(sys.argv[1]).resolve()).encode("utf-8")).hexdigest()[:16])', copy],
+  { encoding: 'utf8', timeout: 60_000, windowsHide: true }).stdout.trim()
+  assert.match(key, /^[0-9a-f]{16}$/)
+  writeFileSync(join(journal, `adr-verify-mutant-${key}.json`), Buffer.from([0xff, 0xfe, 0x7b, 0x00, 0x7d, 0x00]))
+  const result = runWith(journal, ['--restore', '--cwd', '.'], copy)
+  assert.doesNotMatch(`${result.stdout}${result.stderr}`, /Traceback/, result.stderr)
+  assert.match(`${result.stdout}${result.stderr}`, /corrupt mutant journal retained/)
+  assert.notEqual(result.status, 0)
+  assert.equal(readdirSync(journal).length, 1, 'the corrupt journal is retained')
+})
+
 test('an ordinary run recovers a mutant a killed run left, before it measures anything', async () => {
   // Otherwise the leftover defect IS the code under test, and every verdict
   // after it is about the mutation rather than about the change.

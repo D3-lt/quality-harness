@@ -17976,3 +17976,96 @@ could not judge, `tests/human-proof-advice.test.mjs`, "never finished" at baseli
 alone it passes 3/3 in 1.7 s. The cause is unknown. The next shard that is killed should print which
 mutant it was on: a campaign that is killed leaves nothing to diagnose, and §342 is the same shape on
 Windows.
+
+**The rest of §350, for 3.8.7 (the owner, 2026-10-05: "implement this plan end to end, NO LEFTOVERS").**
+Each item has a test through the outermost callable and a `§350` catalogue mutant. Batch A's and C8's
+tests were seen red before their fix. C5's and C4's were written after the fix and passed on first run;
+the catalogue mutants are what showed each one failing. C9's test has not been seen red at all, because
+it can only fail on Windows. The owner's calls made while planning: C2 and C3 ride
+in this batch; a Status nobody could read is a new `[UNPROVEN]` verdict with exit 3, not advice and not
+a FAIL; `golden`, `golden-*` and `golden_*` directories are excluded by every reader; a gate's banner
+shows the home directory as `~`.
+- **Item 1, the possible fail-open.** `moved_lock_bodies` no longer offers `--replace-hashes` over a file
+  it could not read: `adr-verify --relock` refuses in either mode and names the file, UNPROVEN. That
+  settles the open question above: a `--replace-hashes` over an unread file would have hashed no body
+  for it, and `tool_blind` then reads later edits as advice — a test left unlocked by the gate's own
+  instruction. The skip inside `moved_lock_bodies` became dead once the caller refused first, and is gone.
+- **Item 2.** `recover_mutant` catches `UnicodeDecodeError`, so a non-UTF-8 journal is "corrupt mutant
+  journal retained", not a traceback.
+- **Item 3 and C7's tail.** `taskDirectories` and work-next's task list read a directory and a task
+  file once, by real path (`onceByRealPath`); every other path is named with `aliasReason`, and the
+  look is PARTIAL. SessionStart says it in one line instead of offering the task again.
+- **Item 4 (C5).** work-next names a task directory no record owns (`ownerlessTaskDirectories`), as
+  readiness UNPROVEN, and no longer calls the corpus clear. `orphan-tasks/expected.json` changed with it.
+- **Item 5.** `owning_record` takes the listed path, so a symlinked tasks directory finds its record.
+- **Item 6, the untrue sentences:** work-next names a lock that could not be read rather than saying
+  "adr-verify them first"; adr-lint's registration check names an encoding, not "rewrite the construct
+  it stopped at"; the probe's scratch message names only its own scratch; `adr-retire-check` given a
+  directory asks for the README file; a dangling link at the corpus root is PARTIAL, not "No QH corpus".
+- **Item 7 (§346).** `--diff` names an environment change and compares `undecided` by file and reason.
+- **C3.** A file the linted record does not own, unreadable, is advice on the cross-record cycle check
+  ("a cycle through them is UNPROVEN, not absent"), never could-not-run for the whole record. A Windows
+  sharing violation (winerror 32) is "held open by another process", never "Permission denied", and no
+  reason carries the path (`os_reason`).
+- **C2.** An unreadable or undecodable task is readiness UNPROVEN, not an unbacked done claim; the
+  project root is resolved from the LISTED path (`git_root`, shared in `record.py`), so a task directory
+  that is a junction leaving the tree, or a long path, no longer blames `.quality-harness.json`.
+- **C8.** adr-state says "Superseded by a record that could not be read" (`supersededByUnreadable`); the
+  long-path advice past 260 says the path alone is past MAX_PATH; adr-lint says nothing about the
+  content of a record or task it called not text; a `readme.md` in any case is the index, never a task;
+  fixture and golden specs are not the corpus's; a locked test reached through another spelling of the
+  same file (`os.path.samefile`) is compared by digest, not "vanished"; a record with no readable Status
+  is `[UNPROVEN]`, exit 3, relayed by the facts dispatcher as UNPROVEN. On a record older than the
+  corpus's `strictFrom` it is advice instead, tagged as strictFrom tags any demoted finding: it was advice
+  before `[UNPROVEN]` existed, and exit 3 over history is the day-one failure strictFrom prevents.
+  ⚠ An outside run where a record moves PASS → UNPROVEN counts in ADR-082's `passToFail` ("left PASS"),
+  so `release-evidence` reads it as a regression. That is the record's own definition, kept; a corpus
+  with a record that has no Status line will show it.
+- **C5.** work-next names every record it does not act on, with its reason (`undecidedNamed`; the text
+  names any reason other than "a plan, not yet decided"); a readable task under an unreadable record is
+  attributed to it, whichever way the record failed; a lone CR ends a line in every JS corpus read;
+  corpus-report counts a record in any case; SessionStart names a task directory git lists and the disk
+  does not hold; adr-state names an unread task under any governing record; `--diff` on a PARTIAL report
+  names what made it partial and what dropped out. A case twin in the listing is one task, named — the
+  item-3 rule, with its own test.
+- **C9.** adr-next, work-next, adr-state and adr-context write `/` in every JSON path. The test is red
+  only where the separator is `\`, which the Windows CI leg runs; no mutant is catalogued, because a
+  campaign off Windows cannot see one.
+- **C4/F3.** SessionStart's could-not-run line goes through corpus-probe's `scrubber`, now in
+  lifecycle.mjs, so a home path in a spelling `os.homedir()` does not match (an 8.3 name, a resolved
+  link) is `‹path›`. Every gate's banner shows the home directory as `~`; ADR-031's Follow-ups say so.
+- **Ops.** `scripts/mutate.mjs` writes `mutate: <time> baseline <files>` and `mutate: <time> mutant
+  <label>` to stderr before each run, so the next killed shard names what it was in.
+- **Batch B, the autoharness review's skill-listing idea.** `tests/skill-metadata.test.mjs` holds each
+  description to 700 bytes and the listing to 6,850 characters (measured: 648 and 6,518), and to a
+  trigger — "Use when …" or a quoted phrase. execution, postmortem and quality-policy were reworded to
+  "Use when"; each keeps its "Do not use" boundary, and adr-execute's eval-pinned text is unchanged.
+
+Slips of mine on the way, each caught before a commit: an insertion split `os_reason` so its fallthrough
+landed in another function (every non-sharing reason was None for one edit); two range replaces swallowed
+a test's closing `})` (mrw's balance advisory said so; I read past the range only after the parse error).
+
+**Class audits (CLAUDE.md §5), 2026-10-05:**
+- **A verdict on content after "not text".** `mrw read --grep 'holds NUL bytes' plugin/bin/ plugin/lib/`:
+  adr-lint ×2, both now return at once; adr-next's is a stopped task, no content verdict. Nothing else.
+- **The banner.** `mrw read --grep 'def gate_identity|def _shown' plugin/bin/`: every `gate_identity` has
+  its `_shown`, the same count of each.
+- **Native separators in JSON.** `str(path)` beside a JSON key in `plugin/bin/` and `plugin/lib/`: none
+  left. `path.relative(` in a script that writes JSON: adr-context ×2 was the same defect and is fixed
+  with the C9 test; event-log, mutate-propose, performance-trace, run-shell-hook and worktree use it for a
+  comparison or already join with `/`; qh-check's is a human stderr line (an absolute path there only
+  when the record lies outside the checkout — named, not changed).
+- **A case-sensitive README test.** `[!=]= "README.md"` across `plugin/`: adr-retire-check's archive
+  walk (an archive's catalog is `README.md` by contract) and lifecycle's `listedReadme`, which decides the
+  other spellings on purpose. Neither changed.
+
+**The catalogue, after the batch:** moving `scrubber` and `undecidedReason` into lifecycle.mjs and
+rewriting the lines under 26 older entries left them matching nothing (`mutate.mjs --stale`, which the
+selftest runs). `--repoint --since HEAD` proposed seven; `--write` refused them on stderr, exit 2,
+because their files were uncommitted — the tool working, which a grep of mine over its output hid. All 26
+were repointed by hand, each `from` checked to match its file exactly once, and `--stale` then said every
+entry matches.
+
+**Still open, and why:** the skill-usage counter and ledger reader (Batch C) wait for a record the owner
+Accepts; the ADR-081 measurement is due on or after 2026-10-08; §342 waits for its trigger, the next slow
+Windows run.

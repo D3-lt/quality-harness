@@ -16,11 +16,11 @@
 //
 // Reads only. Suggests only. Exit 0 whatever it finds, and 2 on an option it does
 // not know; a router that refused would be the thing this harness spent a week removing.
-import { readFileSync, statSync } from 'node:fs'
+import { closeSync, openSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, frozenArchiveOf, listedUnderUninterestingDirectory, pathInCode, spawnGate, terminalText, trackedPaths, visiblePath } from './lifecycle.mjs'
+import { adrCorpus, aliasReason, danglingCorpusLinks, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
@@ -71,6 +71,8 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
   // needs `--relock --replace-hashes`, and the router named bare `adr-verify`,
   // which that lock refuses again (BACKLOG §281 item 7).
   const notes = new Map()
+  // Tasks adr-next listed and could not read.
+  const unreadable = new Set()
   for (const dir of [...dirs].sort()) {
     const run = spawn(path.join(BIN, 'adr-next'), [dir, '--json'], { cwd: root, encoding: 'utf8', timeout: 60_000, windowsHide: true })
     // adr-next answers 0 (a ready task) or 3 (nothing ready) — BOTH with JSON. Reading
@@ -82,7 +84,10 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
     if (!answer || !Array.isArray(answer.ready)) { unproven.push(dir); continue }
     // A task adr-next could not read is stopped and marked, and its directory's
     // readiness is not known (a Windows chaos round of 626934a, F-2: a UTF-16 task).
-    if ((answer.stopped ?? []).some(task => task.unreadable)) unproven.push(dir)
+    // Nor is it an unbacked done claim: nobody read it (BACKLOG §350 C2).
+    const unreadTasks = (answer.stopped ?? []).filter(task => task.unreadable)
+    if (unreadTasks.length) unproven.push(dir)
+    for (const task of unreadTasks) unreadable.add(path.resolve(root, task.path))
     for (const bucket of ['ready', 'done', 'blocked', 'stopped']) {
       for (const task of answer[bucket] ?? []) {
         listed.add(path.resolve(root, task.path))
@@ -98,7 +103,7 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
       ready.push(file)
     }
   }
-  return { ready, unproven, done, listed, notes }
+  return { ready, unproven, done, listed, notes, unreadable }
 }
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
@@ -199,15 +204,22 @@ function taskFiles(directory, listing) {
     if (listedUnderUninterestingDirectory(norm.split('/').slice(0, -1))) continue
     found.push(path.join(directory, rel))
   }
-  return { files: found, archiveUnknown: [...archiveUnknown] }
+  // A task file reached again through a link is counted once and named (BACKLOG §350 item 3).
+  const once = onceByRealPath(found)
+  return { files: once.kept, aliases: once.aliases, archiveUnknown: [...archiveUnknown] }
 }
 
 // A spec is a file directly in a `docs/specs/` directory: the contract is flat.
 const FLAT_SPEC = /(?:^|\/)docs\/specs\/[^/]+\.md$/i
 
+// Under a fixture or generated directory a spec is not this corpus's (the one rule every reader
+// applies, uninteresting.mjs): `tests/fixtures/…/docs/specs` and `tests/golden-*` were counted as
+// the project's own unproven specs (BACKLOG §350 C8).
+const ownSpec = rel => !listedUnderUninterestingDirectory(posixRel(rel).split('/').slice(0, -1))
+
 function specFiles(directory, listing) {
   if (listing == null) return null
-  return listing.filter(rel => FLAT_SPEC.test(posixRel(rel)))
+  return listing.filter(rel => FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))
     .map(rel => path.join(directory, rel))
 }
 
@@ -217,7 +229,7 @@ function specFiles(directory, listing) {
 // this reader did not read is never mistaken for no spec.
 function nestedSpecFiles(directory, listing) {
   if (listing == null) return null
-  return listing.filter(rel => /(?:^|\/)docs\/specs\/[\s\S]+\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)))
+  return listing.filter(rel => /(?:^|\/)docs\/specs\/[\s\S]+\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))
     .map(rel => path.join(directory, rel))
 }
 
@@ -344,11 +356,15 @@ function coveredIds(corpus) {
 }
 
 /** Observations, each carrying the evidence that produced it. */
-export function observe(directory, { spawn = spawnGate } = {}) {
-  const listing = trackedPaths(directory)
+// `listing` is the seam a test sets: git on macOS and Linux does not list through a symlinked
+// directory, so a link loop is reachable from a test only by naming the listing.
+export function observe(directory, { spawn = spawnGate, listing = trackedPaths(directory) } = {}) {
   const corpus = adrCorpus(directory, { tracked: listing })
-  const look = listing == null ? 'UNPROVEN' : (corpus.look ?? 'ok')
   const listedTasks = taskFiles(directory, listing)
+  const taskAliases = listedTasks?.aliases ?? []
+  const dangling = danglingCorpusLinks(directory)
+  const look = listing == null ? 'UNPROVEN'
+    : (corpus.look ?? 'ok') === 'ok' && (taskAliases.length || dangling.length) ? 'PARTIAL' : (corpus.look ?? 'ok')
   // ⚠ LISTED IS NOT PRESENT. A sparse or partial checkout lists a task git tracks
   // and leaves the file off the disk; it was counted as a task, asked about nowhere,
   // and a done claim on it vanished (a Windows chaos round, 2026-09-25). The file's
@@ -396,6 +412,17 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     const id = path.basename(file).match(/^(T\d+)(?!\d)/i)?.[1]?.toUpperCase()
     return id != null && readmeDone.get(dir).has(id)
   }
+  // A task withheld ONLY by a test lock over a file that is there and could not be read carries its
+  // evidence, and re-running adr-verify cannot change it: work-next called five such tasks "READY and
+  // claimed done without evidence — `adr-verify` them first" (BACKLOG §350 item 6, a Windows run of
+  // 3.8.6). Named on their own, counted neither ready nor unbacked; their readiness is UNPROVEN.
+  const lockUnreadable = tasks.filter(file => /could not be read — the file is there/.test(readiness.notes?.get(path.resolve(file)) ?? ''))
+  const withheldByLock = new Set(lockUnreadable.map(file => path.resolve(file)))
+  // A task file this reader cannot open is not a claim it read: `read` returns '' for it, and a
+  // README row then made it an "unbacked done claim" nobody had looked at (BACKLOG §350 C2).
+  const unopenable = new Set(tasks.filter(file => {
+    try { closeSync(openSync(file, 'r')); return false } catch { return true }
+  }).map(file => path.resolve(file)))
   const unbacked = tasks.filter(file => {
     const text = read(file)
     // `**Status:** done` puts the colon INSIDE the bold markers, which is how
@@ -409,7 +436,8 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // of 916b515). `[^\S\r\n]` never crosses a line, which the backtracking note needs.
     const claimed = /^[^\S\r\n]*[-*]?[^\S\r\n]*\*{0,2}(?:Status|State):?\*{0,2}:?[^\S\r\n]*done\b/im.test(text)
       || /\bmarked\s+done\b/i.test(text) || claimedInReadme(file)
-    if (!claimed) return false
+    if (!claimed || withheldByLock.has(path.resolve(file)) || readiness.unreadable.has(path.resolve(file))
+      || unopenable.has(path.resolve(file))) return false
     if (readiness.listed.has(path.resolve(file))) return !readiness.done.has(path.resolve(file))
     return !/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)
   })
@@ -437,6 +465,11 @@ export function observe(directory, { spawn = spawnGate } = {}) {
       if (!owner.has(path.resolve(file))) owner.set(path.resolve(file), { kind: null, ...entry })
     }
   }
+  // A task no record owns (its record deleted, or never written) is neither ready nor finished here.
+  // It was counted and named nowhere, and the text said nothing was waiting while SessionStart said
+  // whether it is a work order is UNKNOWN (BACKLOG §350 item 4). Its directory is named.
+  const ownerless = [...new Set(tasks.filter(file => !owner.has(path.resolve(file)))
+    .map(file => path.resolve(path.dirname(file))))]
   const executable = file => owner.get(path.resolve(file))?.kind === 'governing'
   const unfinished = file => {
     const text = read(file)
@@ -471,7 +504,7 @@ export function observe(directory, { spawn = spawnGate } = {}) {
   // each task to its OWN record. Removed once as redundant (bdeba73, a GREEN
   // mutant on shard 4/48, because no fixture shared a directory); restored on a
   // shared-directory probe (Codex review of 1032720, P2), with that fixture.
-  const ready = readiness.ready.filter(file => executable(file))
+  const ready = readiness.ready.filter(file => executable(file) && !withheldByLock.has(path.resolve(file)))
   // Both true at once, and said once: not done, so it may be started; claimed done
   // without evidence, so `adr-verify` comes first (BACKLOG §280 item 4).
   const claimedDone = new Set(unbacked.map(file => path.resolve(file)))
@@ -527,7 +560,11 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // are neither live nor frozen here (BACKLOG §288).
     // …and those holding a task git lists that is not on the disk (a sparse checkout).
     readinessUnproven: [...new Set([...readiness.unproven, ...(listedTasks?.archiveUnknown ?? []),
-      ...[...absentTasks].map(file => path.resolve(path.dirname(file)))])],
+      ...[...absentTasks].map(file => path.resolve(path.dirname(file))), ...ownerless,
+      ...lockUnreadable.map(file => path.resolve(path.dirname(file))),
+      ...[...unopenable].map(file => path.dirname(file))])],
+    lockUnreadable,
+    ownerless,
     records: corpus.length,
     accepted: corpus.filter(record => record.kind === 'governing').length,
     // `records` counts what this reader could CLASSIFY, and until §48 that was
@@ -535,12 +572,19 @@ export function observe(directory, { spawn = spawnGate } = {}) {
     // record(s), 10 accepted", right by exclusion and indistinguishable from
     // right by checking. A count that omits what it could not read reads as
     // coverage; the reader is told the remainder rather than left to subtract.
-    undecided: (corpus.unreadable ?? []).length,
+    // A link copy of a record is not a record with a status this reader does not act on.
+    // …and which, and why: a record whose `Status：` (U+FF1A) no reader can read was counted here
+    // and named nowhere, with look ok (BACKLOG §350 C5).
+    undecidedNamed: (corpus.unreadable ?? []).filter(entry => !entry.alias)
+      .map(entry => ({ file: entry.file, reason: entry.reason ?? undecidedReason(entry) })),
+    undecided: (corpus.unreadable ?? []).filter(entry => !entry.alias).length,
     // WHICH records made the look PARTIAL, and why: a bare PARTIAL sent the reader
     // hunting through the corpus for the one file (BACKLOG §289 item 3).
-    partialBecause: corpus.look === 'PARTIAL'
-      ? (corpus.unreadable ?? []).filter(entry => entry.reason || /effect UNPROVEN/.test(entry.status ?? ''))
-        .map(entry => ({ file: entry.file, reason: entry.reason ?? entry.status }))
+    partialBecause: look === 'PARTIAL'
+      ? [...(corpus.unreadable ?? []).filter(entry => entry.reason || /effect UNPROVEN/.test(entry.status ?? ''))
+        .map(entry => ({ file: entry.file, reason: entry.reason ?? entry.status })),
+      ...taskAliases.map(({ file, sameAs }) => ({ file, reason: aliasReason(directory, sameAs) })),
+      ...dangling.map(file => ({ file, reason: 'a link whose target does not exist, so the corpus behind it could not be read' }))]
       : [],
     tasks: tasks.length,
     unbacked,
@@ -602,7 +646,7 @@ export function productLayer(look, nextId) {
  * process was gone before the runner could say otherwise. The healthier the
  * corpus, the fewer tests ran. Three sibling scripts already had this guard.
  */
-export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
+export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing } = {}) {
   const json = argv.includes('--json')
   const unknown = argv.filter(a => a.startsWith('--') && a !== '--json')
   if (unknown.length) {
@@ -610,13 +654,15 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
     return 2
   }
   const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
-  const state = observe(root, { spawn })
+  const state = observe(root, listing === undefined ? { spawn } : { spawn, listing })
   const remedy = stage => stage?.id === 'adr-verify' && state.relock.length
     // POSIX separators: a command a person copies, and `adr-verify` reads either (CLAUDE.md §7).
     ? `adr-verify --relock --replace-hashes ${relative(state.relock[0]).replaceAll('\\', '/')} — once the change to the test is reviewed`
     : undefined
   const stage = nextStage(state)
-  const relative = file => path.relative(root, file) || file
+  // POSIX separators in every path printed or emitted: Windows wrote `docs\\adr\\…` in this JSON
+  // where every other field wrote `/` (BACKLOG §350 C9, three reports).
+  const relative = file => posixRel(path.relative(root, file) || file)
 
   if (json) {
     process.stdout.write(`${JSON.stringify({
@@ -624,6 +670,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       records: state.records,
       accepted: state.accepted,
       undecidedRecords: state.undecided,
+      undecidedNamed: state.undecidedNamed.map(entry => ({ file: relative(entry.file), reason: entry.reason })),
       partialBecause: state.partialBecause.map(entry => ({ file: relative(entry.file), reason: entry.reason })),
       tasks: state.tasks,
       unbackedDoneClaims: state.unbacked.map(relative),
@@ -631,6 +678,8 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       tasksUnderAnUndecidedRecord: state.notYetDecided.map(relative),
       retirableInActiveCorpus: state.retirable.map(record => relative(record.file)),
       readinessUnproven: state.readinessUnproven.map(relative),
+      ownerlessTaskDirectories: state.ownerless.map(relative),
+      lockUnreadable: state.lockUnreadable.map(relative),
       unmarkedArchives: state.unmarkedArchives,
       readyButClaimedDone: state.readyButClaimedDone.map(relative),
       specs: state.specs,
@@ -673,6 +722,12 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
     + (state.undecided
       ? ` ${state.undecided} further record(s) carry a status this reader does not act on.\n`
       : '\n'))
+  // A plan not yet decided is the ordinary case and stays a count; any other reason is named.
+  const unusual = state.undecidedNamed.filter(entry => entry.reason !== 'a plan, not yet decided')
+  // In a code span with a tag's `<` as `‹`: a directory's name is corpus text, and a raw one put a
+  // `<system-reminder>` into this tool's voice (tests/chaos-315-codex-render.test.mjs).
+  for (const entry of unusual.slice(0, 5)) say(`  not acted on: ${pathInCode(relative(entry.file))}: ${entry.reason}\n`)
+  if (unusual.length > 5) say(`  (+${unusual.length - 5} more; --json for all)\n`)
   if (state.unprovenSpecs?.length) {
     say(`\n${state.unprovenSpecs.length} spec file(s) have an UNPROVEN Status `
       + '(unreadable, binary, missing, unknown, or two different values). They are not counted as "not Ready-for-ADR".\n')
@@ -714,15 +769,32 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate } = {}) {
       say(`  (+${state.notYetDecided.length - 5} more; --json for all)\n`)
     }
   }
+  if (state.ownerless.length) {
+    const n = state.ownerless.length
+    say(`\n${n} task director${n === 1 ? 'y has' : 'ies have'} no record owning ${n === 1 ? 'it' : 'them'}: no record owning `
+      + 'these tasks was found, so whether they are a work order is UNKNOWN. They are not counted as ready, '
+      + 'and the readiness below names them too:\n')
+    for (const dir of state.ownerless.slice(0, 5)) say(`  ${shown(dir)}\n`)
+    if (n > 5) say(`  (+${n - 5} more; --json for all)\n`)
+  }
   if (state.readinessUnproven.length) {
     // Rendered, not only serialised: the JSON carried this while the text printed
     // an all-clear over the same directories (Codex review of bdeba73, P2).
     say(`\n${state.readinessUnproven.length} task director${state.readinessUnproven.length === 1 ? 'y' : 'ies'} `
       + 'could not be read by adr-next, sit under a README whose archive marker could not be decided, '
-      + 'or hold a task git lists that is not on disk, '
+      + 'hold a task git lists that is not on disk, have no record owning them, '
+      + 'or hold a task withheld by a test lock over a file that could not be read, '
       + 'so readiness there is UNPROVEN — not "nothing ready" (ADR-005):\n')
     for (const dir of state.readinessUnproven.slice(0, 5)) say(`  ${shown(dir)}\n`)
     if (state.readinessUnproven.length > 5) say(`  (+${state.readinessUnproven.length - 5} more; --json for all)\n`)
+  }
+  if (state.lockUnreadable.length) {
+    const n = state.lockUnreadable.length
+    say(`\n${n} task${n === 1 ? ' is' : 's are'} withheld by a test lock over a file that could not be read: `
+      + 'the evidence is there, but the locked test file is not UTF-8 text, or not openable by this process, so done is '
+      + 'UNPROVEN. Make that file readable; re-running `adr-verify` cannot change it. `adr-lint` names the file:\n')
+    for (const file of state.lockUnreadable.slice(0, 5)) say(`  ${shown(file)}\n`)
+    if (n > 5) say(`  (+${n - 5} more; --json for all)\n`)
   }
   if (state.readyButClaimedDone.length) {
     const n = state.readyButClaimedDone.length

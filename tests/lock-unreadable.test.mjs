@@ -6,7 +6,7 @@
 // came through (CLAUDE.md §4).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, renameSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -24,12 +24,19 @@ const lint = repo => spawnSync('python3', [join(repoRoot, 'plugin', 'bin', 'adr-
   { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
 // The js-vitest-spa corpus in a scratch repository this file made (CLAUDE.md §9), its done T1
 // carrying the first-red lock record.py itself mints over `src/cart.test.ts`.
-const locked = () => {
+// `oneTest` drops the fixture's second Tests row, `removes_an_item`, which names no test in the file
+// and is therefore unproven from the first red: a lock whose every name resolves, so the only thing
+// that can withhold done is the file this test breaks.
+// `check` declares the project's check in .quality-harness.json before the lock is minted, so the lock
+// records it and a reader that cannot find the project root says the check could not be read.
+const locked = ({ oneTest = false, check = null } = {}) => {
   const repo = mkdtempSync(join(tmpdir(), 'qh-lock-unreadable-'))
   temps.push(repo)
   cpSync(join(repoRoot, 'tests', 'fixtures', 'corpora', 'js-vitest-spa'), repo, { recursive: true })
   spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true })
   const task = join(repo, TASK)
+  if (oneTest) writeFileSync(task, readFileSync(task, 'utf8').replace(/^\| `removes_an_item` .*\n/m, ''))
+  if (check) writeFileSync(join(repo, '.quality-harness.json'), JSON.stringify({ check }))
   const minted = spawnSync('python3', ['-c', [
     'import importlib.util, sys',
     'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
@@ -97,4 +104,113 @@ test('a file behind a directory this process may not search is not gone', t => {
   try {
     assert.equal(present('shut/x.test.mjs'), 'True', 'could not look is not gone')
   } finally { chmodSync(join(root, 'shut'), 0o755) }
+})
+
+// BACKLOG §350 C8: a locked test whose Tests row now spells its file another way — an 8.3 name on
+// Windows, a link, a case variant — was "vanished". The same file is compared by its digest.
+test('a locked test reached through another spelling of the same file is not vanished', t => {
+  const respell = (repo, dir) => {
+    const task = join(repo, TASK)
+    writeFileSync(task, readFileSync(task, 'utf8').replace('| `adds_an_item` | `src/cart.test.ts` |', `| \`adds_an_item\` | \`${dir}/cart.test.ts\` |`))
+  }
+  const aliased = locked({ oneTest: true })
+  try { symlinkSync(join(aliased, 'src'), join(aliased, 'lib'), 'junction') } catch (error) { t.skip(`no link here: ${error.code}`); return }
+  respell(aliased, 'lib')
+  const same = lint(aliased)
+  assert.ok(!said(same).includes(VANISHED), said(same))
+  assert.ok(!said(same).includes(UNREAD), said(same))
+  // And nothing else moved: the gate ran (no traceback, not could-not-run) and exits as the same
+  // corpus does with the row spelled the way it was locked.
+  assert.ok(!/Traceback/.test(said(same)), said(same))
+  assert.equal(same.status, lint(locked({ oneTest: true })).status, said(same))
+  // The dirty twin: a real copy is another file, so the locked spelling is still gone.
+  const copied = locked({ oneTest: true })
+  cpSync(join(copied, 'src'), join(copied, 'lib'), { recursive: true })
+  rmSync(cart(copied))
+  respell(copied, 'lib')
+  const other = lint(copied)
+  assert.ok(other.stdout.includes(VANISHED), said(other))
+})
+
+// A stand-in review of 3.8.6, then BACKLOG §350 item 1: `moved_lock_bodies` called an unreadable
+// test file a MOVED body, so `adr-verify --relock` said "pass --replace-hashes". That replace hashed
+// nothing for the file's tests, and a lock that hashed no bodies reads later edits as advice
+// (record.py's `tool_blind`) — a test left unlocked by the gate's own instruction. A relock over a
+// file it cannot read is refused in either mode, and names the file, never "moved".
+const relock = (repo, ...flags) => spawnSync('python3', [join(repoRoot, 'plugin', 'bin', 'adr-verify'),
+  join(repo, TASK), '--relock', ...flags, '--cwd', repo], { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+test('a relock over a locked test file it cannot read is refused, in either mode, and says why', () => {
+  for (const flags of [[], ['--replace-hashes']]) {
+    const repo = locked()
+    const before = readFileSync(join(repo, TASK), 'utf8')
+    writeFileSync(cart(repo), Buffer.from(`﻿${readFileSync(cart(repo), 'utf8')}`, 'utf16le'))
+    const run = relock(repo, ...flags)
+    assert.notEqual(run.status, 0, `${flags}: ${said(run)}`)
+    assert.match(said(run), /could not read `src\/cart\.test\.ts` — UNPROVEN/, said(run))
+    assert.doesNotMatch(said(run), /hashed body moved/, said(run))
+    assert.equal(readFileSync(join(repo, TASK), 'utf8'), before, `${flags}: no lock row was written`)
+  }
+  // The dirty twin: a body that really moved is still "moved", and --replace-hashes still replaces it.
+  const moved = locked()
+  writeFileSync(cart(moved), readFileSync(cart(moved), 'utf8').replace("'sku-1').items", "'sku-2').items"))
+  const edited = relock(moved)
+  assert.notEqual(edited.status, 0, said(edited))
+  assert.match(said(edited), /hashed body moved \(`src\/cart\.test\.ts`::adds_an_item\)/, said(edited))
+  assert.equal(relock(moved, '--replace-hashes').status, 0, 'a readable moved body is still replaceable')
+})
+
+// BACKLOG §350 item 6 (js-spa-windows, 3.8.6): with a locked test file saved as UTF-16, work-next said
+// "5 tasks are both READY and claimed done without evidence — `adr-verify` them first". The tasks
+// carry exit-0 evidence; what withholds done is a file that cannot be read, and re-running
+// adr-verify cannot change that. They are named as withheld by an unreadable lock, as UNPROVEN.
+const workNext = (repo, ...flags) => spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'work-next.mjs'), ...flags, repo],
+  { cwd: repo, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+test('work-next names a task withheld by an unreadable test lock, and never tells it to adr-verify', () => {
+  const repo = locked({ oneTest: true })
+  writeFileSync(cart(repo), Buffer.from(`\ufeff${readFileSync(cart(repo), 'utf8')}`, 'utf16le'))
+  const state = JSON.parse(workNext(repo, '--json').stdout)
+  const task = 'docs/adr/ADR-001-the-cart-is-a-pure-reducer/tasks/T1-add-and-remove-items.md'
+  assert.deepEqual(state.lockUnreadable.map(file => file.split('\\').join('/')), [task], JSON.stringify(state))
+  assert.ok(!state.unbackedDoneClaims.some(file => file.split('\\').join('/') === task), 'not an unbacked claim: it carries exit-0 evidence')
+  assert.ok(!state.readyButClaimedDone.some(file => file.split('\\').join('/') === task), JSON.stringify(state.readyButClaimedDone))
+  assert.ok(state.readinessUnproven.some(dir => dir.split('\\').join('/') === task.slice(0, task.lastIndexOf('/'))), JSON.stringify(state.readinessUnproven))
+  const text = workNext(repo).stdout
+  assert.match(text, /withheld by a test lock over a file that could not be read/, text)
+  // The fixture's own ADR-002 task is ready and claimed done; this task is not among those told to adr-verify.
+  assert.doesNotMatch(text.split(/`adr-verify` (?:it|them) first/)[1] ?? '', /T1-add-and-remove-items/, text)
+  // The control: the readable twin names nothing of the kind.
+  const clean = JSON.parse(workNext(locked({ oneTest: true }), '--json').stdout)
+  assert.deepEqual(clean.lockUnreadable, [])
+})
+
+// BACKLOG §350 C2 (Windows runs of 3.8.3): a task directory that is a junction leaving the tree made
+// done tasks READY with ".quality-harness.json check could not be read", because the project root was
+// asked of git from inside the junction, which answers for the junction's target. The root is the
+// repository the LISTED path is in.
+test('a done task reached through a link that leaves the tree is done, its project check read', t => {
+  const repo = locked({ oneTest: true, check: 'npx vitest run' })
+  const tasks = join(repo, 'docs', 'adr', 'ADR-001-the-cart-is-a-pure-reducer', 'tasks')
+  const outside = mkdtempSync(join(tmpdir(), 'qh-tasks-outside-'))
+  temps.push(outside)
+  renameSync(tasks, join(outside, 'tasks'))
+  try { symlinkSync(join(outside, 'tasks'), tasks, process.platform === 'win32' ? 'junction' : 'dir') } catch (error) { t.skip(`no link can be made here: ${error.code}`); return }
+  const next = spawnSync('python3', [join(repoRoot, 'plugin', 'bin', 'adr-next'), tasks, '--json'], { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  const answer = JSON.parse(next.stdout)
+  assert.deepEqual(answer.done.map(task => task.id), ['T1'], next.stdout)
+  assert.doesNotMatch(next.stdout, /check could not be read/, next.stdout)
+})
+
+// BACKLOG §350 C2: a task file adr-next could not read was listed as an "unbacked done claim" (its
+// README row claims done), with "adr-verify it first". Nobody read it; its readiness is UNPROVEN.
+test('a task file nobody could read is not an unbacked done claim, and its directory is UNPROVEN', t => {
+  if (process.platform === 'win32' || process.getuid?.() === 0) { t.skip('no mode bit denies this process a read here'); return }
+  const repo = locked({ oneTest: true })
+  const task = join(repo, TASK)
+  chmodSync(task, 0o000)
+  try {
+    const state = JSON.parse(workNext(repo, '--json').stdout)
+    const rel = TASK.split('\\').join('/')
+    assert.ok(!state.unbackedDoneClaims.some(file => file.split('\\').join('/') === rel), JSON.stringify(state.unbackedDoneClaims))
+    assert.ok(state.readinessUnproven.some(dir => dir.split('\\').join('/') === rel.slice(0, rel.lastIndexOf('/'))), JSON.stringify(state.readinessUnproven))
+  } finally { chmodSync(task, 0o644) }
 })

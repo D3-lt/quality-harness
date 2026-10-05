@@ -11,7 +11,7 @@
 // disagreement it described; tests/status-reading.test.mjs holds the readers to one answer.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -116,7 +116,7 @@ test('the Status advice names a leading character that is not a letter, and the 
   mkdirSync(dirname(record), { recursive: true })
   writeFileSync(record, '# ADR-001: X\n\n### Status\n\nAccepted\n\n## Context\n\nx\n')
   const run = python('adr-lint', [record], repo)
-  assert.ok(run.stdout.includes('advice: ADR-001-x.md: no **Status:** line or `## Status` section'), run.stdout)
+  assert.ok(run.stdout.includes('unproven: ADR-001-x.md: no **Status:** line or `## Status` section'), run.stdout)
 })
 
 // The /code-review of the ADR-074 batch (high, 2026-09-29): an empty `## Status` section was
@@ -127,7 +127,7 @@ test('an empty Status section is called a section, not a line', () => {
   mkdirSync(dirname(record), { recursive: true })
   writeFileSync(record, '# ADR-001: X\n\n## Status\n\n## Context\n\nx\n')
   const said = python('adr-lint', [record], repo).stdout
-  assert.ok(said.includes('advice: ADR-001-x.md: the ## Status section is empty'), said)
+  assert.ok(said.includes('unproven: ADR-001-x.md: the ## Status section is empty'), said)
   assert.doesNotMatch(said, /the \*\*Status:\*\* line is empty/)
 })
 
@@ -140,4 +140,30 @@ test('a Status label written with a fullwidth colon is named as not the colon', 
   writeFileSync(record, '# ADR-001: X\n\n**Status：** Accepted\n\n## Context\n\nx\n')
   const said = python('adr-lint', [record], repo).stdout
   assert.ok(said.includes('a line starts like one, but its `：` (U+FF1A) is not the colon `:`'), said)
+})
+
+// BACKLOG §350 C8 (the owner, 2026-10-05: a new verdict, exit 3): a record whose Status nobody could
+// read linted [PASS], exit 0, with the check that done tasks need an Accepted record never run. Could
+// not look is not a pass (CLAUDE.md §3): the verdict is [UNPROVEN], exit 3, never a block; a finding
+// that blocks still makes it [FAIL]; and the commit-boundary dispatcher says UNPROVEN, not "not satisfied".
+test('a record whose Status nobody could read is [UNPROVEN], exit 3, and never [PASS]', () => {
+  const repo = scratch()
+  const record = join(repo, 'docs', 'adr', 'ADR-001-x.md')
+  mkdirSync(join(repo, 'docs', 'adr'), { recursive: true })
+  // The selftest's conforming record, so nothing but its Status can be said about it.
+  const conforming = readFileSync(join(repoRoot, 'tests', 'fixtures', 'ok', 'ADR-001-selftest.md'), 'utf8')
+    .replace(/^\*\*Spec:\*\*.*$/m, '**Spec:** None — no spec stage')
+  writeFileSync(record, conforming.replace('**Status:** Accepted', '**Status：** Accepted'))
+  const run = python('adr-lint', [record], repo)
+  assert.equal(run.status, 3, `${run.stdout}${run.stderr}`)
+  assert.match(run.stdout, /^\[UNPROVEN\] .*ADR-001-x\.md/m, run.stdout)
+  assert.doesNotMatch(run.stdout, /^\[PASS\]/m, run.stdout)
+  assert.match(run.stdout, /unproven: ADR-001-x\.md: no \*\*Status:\*\* line/, run.stdout)
+  const dispatched = spawnSync('bash', [join(repoRoot, 'plugin', 'scripts', 'facts-gate-dispatch.sh'), record],
+    { cwd: repo, encoding: 'utf8', timeout: 120_000, windowsHide: true, env: { ...process.env, CLAUDE_PLUGIN_ROOT: join(repoRoot, 'plugin') } })
+  assert.match(`${dispatched.stdout}${dispatched.stderr}`, /UNPROVEN: adr-lint could not decide/, `${dispatched.stdout}${dispatched.stderr}`)
+  assert.doesNotMatch(`${dispatched.stdout}${dispatched.stderr}`, /is not satisfied/)
+  // The control: the same record with a Status that can be read is [PASS] or [FAIL] as before.
+  writeFileSync(record, conforming)
+  assert.match(python('adr-lint', [record], repo).stdout, /^\[(?:PASS|FAIL)\] /m)
 })

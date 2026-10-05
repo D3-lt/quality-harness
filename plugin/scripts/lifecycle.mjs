@@ -1308,6 +1308,49 @@ export function unmarkedArchives(root, listing) {
   return [...found].sort()
 }
 
+// ⚠ ONE FILE, HOWEVER MANY PATHS REACH IT (BACKLOG §350 C7 and item 3). A junction under docs/adr
+// that pointed back at docs/adr was listed 64 levels deep on Windows: 192 records where there were
+// 3, a record contested with itself, a probe killed at 120 s — and, once records were read once,
+// `tasks: 192` and the same task offered again through the link. A file, or a task directory, is
+// read once, by the first listed path to its real path; every other path is returned as an alias
+// for the caller to name. A path whose real path cannot be taken is kept: it is not known to be a
+// copy, and the reader that opens it says what it finds.
+export function onceByRealPath(paths) {
+  const firstPathTo = new Map()
+  const kept = []
+  const aliases = []
+  for (const file of paths) {
+    let real
+    try { real = realpathSync.native(file) } catch { kept.push(file); continue }
+    const first = firstPathTo.get(real)
+    if (first === undefined) { firstPathTo.set(real, file); kept.push(file); continue }
+    aliases.push({ file, sameAs: first })
+  }
+  return { kept, aliases }
+}
+
+// Why an alias was not read. Shown, never raw: a listed name is corpus text, and a newline in it
+// forged a line of work-next's own output (a stand-in review of 3.8.5; BACKLOG §319's class).
+// Worded for what is known: on macOS and Windows a spelling that differs only in case reaches the
+// same file with no link at all.
+export function aliasReason(root, sameAs) {
+  return `another listed path to the same file on disk as ${shownPath(posixListed(path.relative(root, sameAs)))} `
+    + '(a link, a junction, or a spelling the file system folds together), so that file is read once'
+}
+
+/**
+ * Why a record the readers counted was held back, where no read failed (BACKLOG §345):
+ * a plan not yet decided, a frozen record whose catalog does not establish its effect,
+ * a status nobody here knows, or no status line at all. A fresh corpus's runner found
+ * these all null, so "Proposed" and an unparseable line read alike. Shared by corpus-probe
+ * and work-next, which counted a U+FF1A `Status：` record and named it nowhere (§350 C5).
+ */
+export function undecidedReason(entry) {
+  if (entry.unproven) return 'its archive catalog does not establish its effect'
+  if (entry.status == null) return 'no status line this reader can read'
+  return recordStatusKind(entry.status) === 'pending' ? 'a plan, not yet decided' : 'a status this reader does not recognise'
+}
+
 // ADR task directories from the git listing, not a disk walk. A gitignored
 // tasks/ dir is not in flight; git-fail is UNPROVEN at the caller.
 // ⚠ AND NEITHER IS A RETIRED ONE. A frozen archive is "historical evidence, never
@@ -1368,11 +1411,18 @@ function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP) {
     seen.set(key, entry)
     found.push(entry)
   }
-  const ranked = found
+  const once = onceByRealPath(found.map(entry => entry.directory))
+  const kept = new Set(once.kept)
+  // A directory git lists and the disk does not hold (a sparse checkout, a deleted tree) ranked
+  // last and fell out of the window as one more "not read", where it was never there to read
+  // (BACKLOG §350 C5, two Windows reports). It is named apart; any other failure to look is kept.
+  const gone = entry => { try { statSync(entry.directory); return false } catch (error) { return error?.code === 'ENOENT' } }
+  const absent = found.filter(entry => kept.has(entry.directory) && gone(entry)).map(entry => entry.directory)
+  const ranked = found.filter(entry => kept.has(entry.directory) && !absent.includes(entry.directory))
     .map((entry, order) => ({ entry, order, newest: newestTaskChange(root, entry.files) }))
     .sort((a, b) => b.newest - a.newest || a.order - b.order)
     .map(({ entry: { files: _files, ...entry } }) => entry)
-  return { read: ranked.slice(0, cap), unread: Math.max(0, ranked.length - cap) }
+  return { read: ranked.slice(0, cap), unread: Math.max(0, ranked.length - cap), aliases: once.aliases, absent }
 }
 
 // The gates in bin/ are `#!/usr/bin/env python3` scripts. Windows cannot exec a
@@ -1492,11 +1542,63 @@ function corpusText(value, max = 160) {
   return cut.replaceAll('«', '‹').replaceAll('»', '›').replaceAll('<', '‹').replaceAll('>', '›')
 }
 
+/**
+ * The redaction every emitted string passes through (CLAUDE.md §6). The
+ * repository root becomes `.`; the plugin's own directory, the OS temp directory
+ * and the home directory become placeholders, in either separator spelling; any
+ * other absolute path — a POSIX root, a drive letter, a UNC share — becomes
+ * `<path>`. Anchored on a token boundary so a repository-relative path is never
+ * touched: the first version knew five root names, let `D:\Projects\…` out whole
+ * and ate `docs/var/cache/tasks/T1.md` down to `docs<path>` (Codex review of
+ * bdeba73, P1 and P2).
+ */
+export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedir() }) {
+  const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\', '/'), prefix.replaceAll('/', '\\')])]
+  // A known prefix is replaced only where it starts a path token and ends at a
+  // separator or the end of the token: `.split('/tmp')` turned `docs/tmp/x` into
+  // `docs<tmp>/x` on any Linux host (Codex review of 1032720, P2).
+  const known = [[root, '.'], [pluginRoot, '<plugin>'], [tmp, '<tmp>'], [home, '<home>']]
+    .filter(([prefix]) => prefix)
+    .map(([prefix, placeholder]) => [
+      new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)`, 'g'), placeholder])
+  // A quoted path is consumed to ITS closing delimiter, whatever other quote
+  // characters it holds: `"D:\Projects\Example Person\x"` used to leave
+  // ` Person\x"` behind, and `"/opt/Example's secret/x"` stopped at the
+  // apostrophe (Codex, 1032720 P1 and abd5a13 P1).
+  const QUOTED = /(["'`])((?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\|\/(?!\/))(?:(?!\1)[^\n])*)\1/g
+  // The tail of an unquoted path: to the next space, quote or paren — and on
+  // past a space when the word after it is followed by a separator, so
+  // `Example Person\x` is one path and `task.md failed` is not.
+  const TAIL = /[^\s'"`)]*(?:[ \t]+[^\s'"`)\\/]+(?=[\\/])[^\s'"`)]*)*/.source
+  // Any other absolute path — a drive letter, a UNC share in either spelling, a
+  // file: URL, or a POSIX root — becomes `<path>`. Not preceded by a path
+  // character or by one of this function's own placeholders, so `docs/var/x`,
+  // `./tmp/x` and `<tmp>/qh-1` are untouched; a colon or `->` may precede it; a
+  // URL's `//` may not, and a bare `/` between words is not a path.
+  //
+  // ⚠ THE SAFE DIRECTION IS OVER-SCRUBBING, BY DECISION. This is a classifier
+  // over free text (CLAUDE.md §16) and it cannot be made exact: a regex literal
+  // in a diagnostic (`/foo\/bar/i`) and a URL's query path (`?q=/api/v1`) are
+  // redacted too, and three review rounds found a leak each time the boundary
+  // was made cleverer. A report that lost a reproduction hint costs one
+  // question; a report that shipped a home directory cannot be recalled (§6).
+  const HEAD = /(?<![\w.\\/-])(?<!<(?:tmp|home|plugin|path)>)(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|(?<!:)\/\/[^\s'"`)\/]+\/|\/(?!\/))/.source
+  const ABSOLUTE = new RegExp(`${HEAD}[^\\s'"\`)\\\\/]${TAIL}`, 'g')
+  return text => {
+    let out = String(text)
+    for (const [pattern, placeholder] of known) out = out.replace(pattern, placeholder)
+    return out.replace(QUOTED, '$1<path>$1').replace(ABSOLUTE, '<path>')
+  }
+}
+
 // adr-next's first line, said on its behalf. A path under the repository is said relative to it,
 // and the home directory as `~`, so a scratch checkout's absolute path is not repeated into the
 // session; the rest is cleaned as corpus text is, because a task file's name reaches this line and
 // must not print a control or a frame in this tool's voice (BACKLOG §319 item 6: js-spa-client, a
-// symlink loop).
+// symlink loop). Any absolute path left after that goes through `scrubber`, as the probe's does:
+// `os.homedir()` as spelled missed a home path in any other spelling — an 8.3 short name, a
+// resolved link — and it reached the session (BACKLOG §350 C4/F3, three Windows reports).
 function gateSaid(text, root) {
   let out = String(text)
   for (const [prefix, placeholder] of [[root, '.'], [os.homedir(), '~']].filter(([prefix]) => prefix)) {
@@ -1504,7 +1606,7 @@ function gateSaid(text, root) {
       out = out.split(spelling).join(placeholder)
     }
   }
-  return corpusText(out)
+  return corpusText(scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out))
 }
 
 // A path is the corpus's text too. An invisible character in a name (zero-width,
@@ -1628,7 +1730,7 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
   // naming `--adopt`: the instruction a session acts on is the one it reads last
   // (BACKLOG §289 item 1). Such a line leads with the question instead.
   const unmarked = unmarkedArchives(root, listing)
-  const { read, unread } = taskDirectories(root, listing)
+  const { read, unread, aliases, absent } = taskDirectories(root, listing)
   for (const { directory, archive } of read) {
     if (archive === 'unknown') {
       // No READY line for a directory that may be a frozen archive: `adr-next` reads
@@ -1713,6 +1815,20 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
     // UNPROVEN so surfaceReadyLines never hides it behind the render cap.
     lines.push(`  (+${unread} more task director${unread === 1 ? 'y' : 'ies'}: UNPROVEN — not read; this hook reads the `
       + `${TASK_DIRECTORY_READ_CAP} most recently changed per session start. Ready tasks there are not known; \`work-next\` reads them all.)`)
+  }
+  if (aliases.length > 0) {
+    // The same directory again through a link, said once rather than offered again (BACKLOG §350
+    // item 3: seven SessionStart lines through one junction on Windows).
+    const first = pathInCode(posixListed(path.relative(root, aliases[0].sameAs)))
+    lines.push(aliases.length === 1
+      ? `  (1 other listed path reaches a task directory already read (${first}) — a link, a junction, or a spelling the file system folds together; it is read once)`
+      : `  (${aliases.length} other listed paths reach task directories already read (first: ${first}) — links, junctions, or spellings the file system folds together; each is read once)`)
+  }
+  if (absent.length > 0) {
+    const first = pathInCode(posixListed(path.relative(root, absent[0])))
+    lines.push(absent.length === 1
+      ? `  ${first}: UNPROVEN — listed by git, not on disk. Ready tasks there are not known.`
+      : `  ${first} and ${absent.length - 1} more task director${absent.length === 2 ? 'y' : 'ies'}: UNPROVEN — listed by git, not on disk. Ready tasks there are not known.`)
   }
   return { look: 'ok', lines }
 }
@@ -2213,7 +2329,9 @@ function corpusReader() {
     }
   }
   return {
-    text: once(file => readFileSync(file, 'utf8')),
+    // A lone CR ends a line too: a CR-only file was one line here, so every path in its
+    // `Affected Files` was lost without a word (BACKLOG §350 C5). CRLF is left as it is.
+    text: once(file => readFileSync(file, 'utf8').replace(/\r(?!\n)/g, '\n')),
     entries: once(directory => readdirSync(directory, { withFileTypes: true })),
   }
 }
@@ -2426,29 +2544,15 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       reason: `record budget: ${RECORD_BUDGET} records were read; this file and every later one in the listing were not examined` })
     records.look = 'PARTIAL'
   }
-  // ⚠ ONE FILE, HOWEVER MANY PATHS REACH IT (BACKLOG §350 C7). A junction under docs/adr that
-  // pointed back at docs/adr was listed 64 levels deep on Windows: 192 records where there were
-  // 3, a record contested with itself, and a probe killed at 120 s. A record is read once, by the
-  // first listed path to its real file; every other path to it is named, unread, and the look
-  // is PARTIAL, since what a link reaches is not what the listing says.
-  const firstPathTo = new Map()
-  const reached = []
-  for (const file of files) {
-    let real
-    try { real = realpathSync.native(file) } catch { reached.push(file); continue }
-    const first = firstPathTo.get(real)
-    if (first === undefined) { firstPathTo.set(real, file); reached.push(file); continue }
-    // Shown, never raw: a listed name is corpus text, and a newline in it forged a line of the
-    // tool's own output in work-next (a stand-in review of 3.8.5; BACKLOG §319's class). Worded for
-    // what is known: on macOS and Windows a spelling that differs only in case reaches the same file
-    // with no link at all.
-    const shown = shownPath(posixListed(path.relative(root, first)))
-    unreadable.push({ file, status: null, taskFiles: [],
-      reason: `another listed path to the same file on disk as ${shown} (a link, a junction, or a spelling the file system folds together), so that file is read once` })
+  // ⚠ One file, however many paths reach it: `onceByRealPath` says why. A link copy is named,
+  // unread, and marked `alias` so no counter takes it for a record with an unread status.
+  const once = onceByRealPath(files)
+  for (const { file, sameAs } of once.aliases) {
+    unreadable.push({ file, status: null, taskFiles: [], alias: true, reason: aliasReason(root, sameAs) })
     records.look = 'PARTIAL'
   }
   files.length = 0
-  files.push(...reached)
+  files.push(...once.kept)
   const recordsPerDirectory = new Map()
   for (const file of files) {
     const directory = path.dirname(file)
@@ -2462,13 +2566,15 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // reader cannot apply. Without it adr-state said the file "was opened"
       // and had "[no **Status:** line]" — an observation it never made (ADR-005).
       if (statSync(file).size > 512 * 1024) {
-        unreadable.push({ file, status: null, taskFiles: [], reason: 'over 512 KiB' })
+        unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'over 512 KiB' })
         records.look = 'PARTIAL'
         continue
       }
       text = reader.text(file)
     } catch (error) {
-      unreadable.push({ file, status: null, taskFiles: [], reason: error?.code ?? 'unreadable' })
+      // Its tasks are still its own, attributed by directory: a readable task under an unreadable
+      // record was in no list at all (BACKLOG §350 C5).
+      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: error?.code ?? 'unreadable' })
       records.look = 'PARTIAL'
       continue
     }
@@ -2477,7 +2583,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     // corpus-chaos run of e016066, js-spa-client B5; BACKLOG §319). adr-lint already said it
     // could not read the same file.
     if (text.includes('\u0000')) {
-      unreadable.push({ file, status: null, taskFiles: [], reason: 'it holds a NUL byte, so it is not text this reader can read' })
+      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })
       records.look = 'PARTIAL'
       continue
     }
@@ -3375,6 +3481,21 @@ export function hasDecisionCorpus(root, listing = trackedPaths(root)) {
     }
   }
   return false
+}
+
+// A corpus directory that is a link whose target is gone — a dangling symlink, or a junction left
+// behind on Windows. The corpus behind it could not be read, and work-next said "No QH corpus is in
+// use" over it (BACKLOG §350 C10, a Windows chaos run of 3.8.3). The paths found, absolute.
+export function danglingCorpusLinks(root) {
+  const found = []
+  for (const dir of CORPUS_DIR_NAMES) {
+    const at = path.join(root, ...dir.split('/'))
+    let link
+    try { link = lstatSync(at).isSymbolicLink() } catch { continue }
+    if (!link) continue
+    try { statSync(at) } catch { found.push(at) }
+  }
+  return found
 }
 
 export function sessionOrientation(cwd) {

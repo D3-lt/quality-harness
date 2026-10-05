@@ -39,6 +39,7 @@ import hashlib
 import json
 import os
 import re
+import subprocess
 import unicodedata
 import stat
 from functools import lru_cache
@@ -3004,6 +3005,54 @@ def _present(path):
     return stat.S_ISREG(mode)
 
 
+def os_reason(exc):
+    """Why a file could not be read, in words, and never the path it failed on.
+
+    `str(exc)` is `[Errno 13] Permission denied: '<absolute path>'`, which every gate printed:
+    a home path in the reason (BACKLOG §350 F3), and, for a file another process holds open on
+    Windows, "Permission denied", which points at ACLs (C3). Python raises that sharing violation
+    as a PermissionError carrying `winerror` 32.
+    """
+    if getattr(exc, "winerror", None) == 32:
+        return "held open by another process (a Windows sharing violation)"
+    return exc.strerror or str(exc) or type(exc).__name__
+
+
+def _same_file(root, a, b):
+    """Whether two repository-relative spellings reach one file. Could not look is no."""
+    try:
+        return os.path.samefile(Path(root, *a.split("/")), Path(root, *b.split("/")))
+    except (OSError, TypeError):
+        return False
+
+
+def git_root(d):
+    """The repository `d` is in, looked for along the path AS LISTED, then git's own answer.
+
+    `git -C <d> rev-parse --show-toplevel` answers for the directory a link points at: a task
+    directory that was a junction leaving the tree got the target's repository, or none, so its
+    declared check "could not be read" and done tasks read as READY (BACKLOG §350 C2, Windows runs
+    of 3.8.3). The `.git` found on the way up is returned by its real path, which is the form
+    git's answer always had, so callers compare it with resolved paths as before.
+    """
+    start = Path(os.path.abspath(d))
+    for candidate in (start, *start.parents):
+        try:
+            if (candidate / ".git").exists():
+                return Path(os.path.realpath(candidate))
+        except OSError:
+            break
+    try:
+        r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
+                           capture_output=True, text=True, timeout=10,
+                           encoding="utf-8", errors="replace", **NO_WINDOW)
+        if r.returncode == 0:
+            return Path(r.stdout.strip())
+    except Exception:
+        pass
+    return None
+
+
 def _is_link(path):
     """Whether a directory entry is a symlink or a Windows junction. A lookup that failed says yes:
     a walk that cannot tell does not enter."""
@@ -3126,7 +3175,10 @@ def lock_snapshot_suffix(snap, kind):
 
 
 def moved_lock_bodies(vlog, *, current):
-    """Recorded hashed bodies that vanished or whose digest moved."""
+    """Recorded hashed bodies that vanished or whose digest moved.
+
+    Its one caller, `adr-verify --relock`, refuses first when a Tests-row file is there and could
+    not be read, so no body here is "moved" for want of a read (BACKLOG §350 item 1)."""
     _date, recorded = _recorded_lock(vlog)
     if not recorded or not recorded.get("map"):
         return []
@@ -3358,6 +3410,11 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
                 "UNPROVEN, done is refused; frozen at the first red")
     for (rel, name), digest in recorded_bodies.items():
         now = current["bodies"].get((rel, name))
+        if now is None:
+            # The same file spelled another way in today's Tests row — an 8.3 name on Windows, a
+            # link, a case variant — is not a vanished test: compare its digest (BACKLOG §350 C8).
+            now = next((d for (r, n), d in current["bodies"].items()
+                        if n == name and r != rel and _same_file(root, r, rel)), None)
         if now is None and rel in current.get("unreadable", ()):
             blocks.append(f"{prefix}locked test `{rel}`::{name} could not be read — the file is there, "
                           "but not as UTF-8 text, or not openable by this process — UNPROVEN, done is refused")

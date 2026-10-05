@@ -74,7 +74,9 @@ export function pluginVersion(read = readFileSync) {
 export function recordCount(root, readdir = readdirSync) {
   try {
     return readdir(root, { withFileTypes: true })
-      .filter(entry => entry.isFile() && /^ADR-.*\.md$/.test(entry.name)).length
+      // Any letter case: a record renamed `adr-001-….md` was counted by every other reader and
+      // dropped here (BACKLOG §350 C5).
+      .filter(entry => entry.isFile() && /^ADR-.*\.md$/i.test(entry.name)).length
   } catch { return null }
 }
 

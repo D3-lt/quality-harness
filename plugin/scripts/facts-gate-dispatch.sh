@@ -426,6 +426,13 @@ if [ -n "$(unrun_exit "$gate")" ] && [ "$rc" -eq "$(unrun_exit "$gate")" ]; then
   say_unproven "$(printf 'UNPROVEN: %s could not run (exit %s): %s' "$gate" "$rc" "$reason")"
   exit 0
 fi
+# adr-lint's exit 3 is [UNPROVEN]: nothing blocks, and something its verdict rests on could not be
+# read (BACKLOG §350 C8). It is not "not satisfied": that would report a finding it did not make.
+if [ "$gate" = "adr-lint" ] && [ "$rc" -eq 3 ]; then
+  reason=$(printf '%s\n' "$out" | grep -m1 'unproven:' | sed 's/^ *unproven: //' || true)
+  say_unproven "$(printf 'UNPROVEN: adr-lint could not decide (exit 3): %s' "${reason:-it said nothing}")"
+  exit 0
+fi
 
 # NOTHING HERE REFUSES A CALL. Every boundary informs; the decision stays with
 # the agent and its owner.

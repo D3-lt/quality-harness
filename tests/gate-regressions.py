@@ -1584,7 +1584,7 @@ def main():
             adr.write_text(text, encoding="utf-8")
             errors = lint.Findings()
             lint.check_adr(adr, errors)
-            return errors, errors.advice
+            return errors, errors.advice + errors.unproven
 
         complete = (
             "# ADR-001: Probe\n\n"
@@ -1600,10 +1600,11 @@ def main():
         errors, advice = findings(complete)
         assert errors == [], errors
 
-        # FORM: the header is gone. The record still says what it decided.
+        # FORM: the header is gone. The record still says what it decided, so nothing fails; its
+        # Status was read by nobody, which is UNPROVEN rather than advice (BACKLOG §350 C8).
         errors, advice = findings(complete.replace("**Status:** Accepted\n", ""))
         assert errors == [], errors
-        assert any("Status" in a for a in advice), advice
+        assert any("Status" in a for a in errors.unproven), errors.unproven
 
         # CONTENT: the section is there and says nothing.
         errors, _ = findings(complete.replace(

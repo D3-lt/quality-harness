@@ -1630,3 +1630,22 @@ test('a task folder named for its own record is owned by that record and no othe
   const inside = JSON.parse(next(['--json', join(dir, 'ADR-003-x', 'tasks')], dir).stdout)
   assert.deepEqual([inside.status, inside.owner_missing], ['Accepted', false])
 })
+
+// BACKLOG §350 item 5 (the stand-in review of 3.8.5): a tasks directory reached through a link
+// was owned by nothing, because the owner was looked for beside the link's TARGET
+// (`tasks_dir.resolve()`), so an Accepted record's tasks got the "no record owning these tasks"
+// hedge. The owner sits beside the LINK, the path the corpus lists.
+test('a tasks directory reached through a link is owned by the record beside the link', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-linked-tasks-'))
+  temps.push(dir)
+  mkdirSync(join(dir, 'adr', 'ADR-005-x'), { recursive: true })
+  mkdirSync(join(dir, 'elsewhere', 'real-tasks'), { recursive: true })
+  writeFileSync(join(dir, 'adr', 'ADR-005-x.md'), '# ADR-005: x\n\n**Status:** Accepted\n')
+  writeFileSync(join(dir, 'elsewhere', 'real-tasks', 'T1-x.md'), task({ id: 'T1' }))
+  linkDirectory(join(dir, 'elsewhere', 'real-tasks'), join(dir, 'adr', 'ADR-005-x', 'tasks'))
+  const answer = JSON.parse(next(['--json', join(dir, 'adr', 'ADR-005-x', 'tasks')], dir).stdout)
+  assert.deepEqual([answer.status, answer.owner_missing], ['Accepted', false], JSON.stringify(answer))
+  // The control: the target directory itself, reached by its own path, has no record beside it.
+  const target = JSON.parse(next(['--json', join(dir, 'elsewhere', 'real-tasks')], dir).stdout)
+  assert.equal(target.owner_missing, true, JSON.stringify(target))
+})

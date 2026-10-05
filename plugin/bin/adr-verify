@@ -194,6 +194,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, visible, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON, conflict_markers  # noqa: E402,E501
+from record import os_reason  # noqa: E402
 from record import record_id, title_line, NO_WINDOW, walk  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock, lock_hasher, LOCK_HASHERS  # noqa: E402
 
@@ -592,22 +593,24 @@ def syntax_ok(path):
         except ImportError:
             return True, "no yaml module — not checked"
         try:
-            yaml.safe_load(path.read_text(errors="replace", encoding="utf-8"))
+            # Bytes, not lenient text: each parser reads its own encodings (a UTF-16 JSON or
+            # YAML file with a BOM, a Python coding cookie), where replacement characters
+            # made a valid file look broken (BACKLOG §350 item 6).
+            yaml.safe_load(path.read_bytes())
             return True, "yaml parses"
         except Exception as e:
             return False, f"yaml: {e}"
     if suf == ".json":
         import json
         try:
-            json.loads(path.read_text(errors="replace", encoding="utf-8"))
+            json.loads(path.read_bytes())
             return True, "json parses"
         except Exception as e:
             return False, f"json: {e}"
     if suf == ".py":
         import ast
         try:
-            ast.parse(path.read_text(errors="replace", encoding="utf-8"))
-            return True, "python parses"
+            ast.parse(path.read_bytes())
         except Exception as e:
             return False, f"python: {e}"
     cmd = SYNTAX_CHECK.get(suf)
@@ -1416,7 +1419,9 @@ def recover_mutant(cwd, explicit=False):
         return "absent"
     try:
         data = json.loads(journal.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError) as exc:
+    # UnicodeDecodeError too: a journal that is not UTF-8 is as corrupt as one that is not JSON, and
+    # it raised a traceback past this stop (BACKLOG §350 item 2).
+    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:
         fail(f"[adr-verify] corrupt mutant journal retained at {journal}: {exc}. "
              f"Verification is blocked until it is reconciled.")
     if not isinstance(data, dict):
@@ -2719,6 +2724,15 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
     tests = tests_table_rows(text)
     vlog = sections_of(text).get("Verification Log", [])
     snap = snapshot_lock(cwd, tests)
+    # A Tests-row file that is there and could not be read hashes nothing. A lock taken over it
+    # would carry its tests as unproven with no body, and a lock that hashed no bodies reads later
+    # edits as advice (record.py's `tool_blind`): the relock the old "moved" message asked for left
+    # those tests unlocked (BACKLOG §350 item 1). Refused in either mode, before any comparison.
+    unread = sorted({rel for _name, rel in tests} & snap.get("unreadable", set()))
+    if unread:
+        fail(f"could not read {', '.join(f'`{rel}`' for rel in unread)} — UNPROVEN: the file is there, "
+             "but not as UTF-8 text, or not openable by this process, so a lock taken now would hash "
+             "nothing for its tests and leave them unlocked. Make it readable, then relock.")
     if not replace_hashes:
         hasher = lock_hasher(vlog)
         if hasher is None:
@@ -2763,7 +2777,7 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
 # questioned. A version that can be about another binary is worse than none,
 # because it resolves.
 #
-# Imports are local so this block is byte-identical in all eleven gates, which
+# Imports are local so this block is byte-identical in every gate, which
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
@@ -2787,11 +2801,19 @@ def gate_identity():
     from pathlib import Path as _Path
     here = _Path(__file__).resolve()
     manifest = here.parent.parent / ".claude-plugin" / "plugin.json"
+    def _shown(path):
+        # The home directory as `~`: this banner reached SessionStart and pasted reports with
+        # a username in it (BACKLOG §350 C4/F3; ADR-031 Follow-ups).
+        try:
+            rel = path.relative_to(_Path.home())
+        except (ValueError, RuntimeError, KeyError):
+            return str(path)
+        return "~" if not rel.parts else "~/" + rel.as_posix()
     try:
         version = _json.loads(manifest.read_text(encoding="utf-8"))["version"]
     except Exception as exc:
-        return f"{here.name} (version unreadable: {manifest} — {exc})"
-    return f"{here.name} {version} ({here.parent.parent})"
+        return f"{here.name} (version unreadable: {_shown(manifest)} — {getattr(exc, 'strerror', None) or exc})"
+    return f"{here.name} {version} ({_shown(here.parent.parent)})"
 
 
 def report_version():
@@ -3015,7 +3037,7 @@ def main():
     try:
         text = task.read_text(errors="replace", encoding="utf-8")
     except OSError as exc:
-        print(f"[adr-verify] could not run: {task} — {exc}", file=sys.stderr)
+        print(f"[adr-verify] could not run: {task} — {os_reason(exc)}", file=sys.stderr)
         sys.exit(4)
     today = datetime.date.today().isoformat()
 

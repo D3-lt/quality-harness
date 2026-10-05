@@ -158,3 +158,46 @@ test("a skill claims the triggers its eval proved it needs", () => {
     )
   }
 })
+
+// Every description is in the listing an adopter's session carries on every start and every
+// compaction (CLAUDE.md §19), and it is the only text read when deciding whether a skill applies.
+// So each is held to a size and to a trigger a router can match: "Use when …", or a quoted phrase a
+// user would type. The budgets are measured, 2026-10-05: the largest description was 648 bytes and
+// the whole listing 6,518 characters; each bound leaves about 5% (an autoharness review, BACKLOG §350).
+const DESCRIPTION_BYTES = 700;
+const LISTING_CHARS = 6850;
+
+function listingFindings(skills) {
+  const found = [];
+  let total = 0;
+  for (const { name, description } of skills) {
+    total += name.length + description.length;
+    const bytes = Buffer.byteLength(description);
+    if (bytes > DESCRIPTION_BYTES) found.push(`${name}: description is ${bytes} bytes, over ${DESCRIPTION_BYTES}`);
+    if (!/\buse when\b/i.test(description) && !/["“][^"”]{3,}["”]/.test(description)) {
+      found.push(`${name}: description says neither "Use when …" nor a phrase a user would type`);
+    }
+  }
+  if (total > LISTING_CHARS) found.push(`the listing is ${total} characters, over ${LISTING_CHARS}`);
+  return found;
+}
+
+test("every skill description fits its budget and names its trigger", () => {
+  const skills = skillPaths().map((path) => {
+    const frontmatter = frontmatterOf(path);
+    return { name: scalar(frontmatter, "name"), description: scalar(frontmatter, "description") };
+  });
+  assert.ok(skills.length > 5, `the sweep must have found a real tree: ${skills.length}`);
+  assert.deepEqual(listingFindings(skills), []);
+});
+
+test("the description budget fails what it exists to catch", () => {
+  const ok = { name: "ok", description: "Use when the thing is needed. Do not use otherwise." };
+  assert.deepEqual(listingFindings([ok, { name: "quoted", description: 'Triggers on "mark it done".' }]), []);
+  assert.deepEqual(listingFindings([{ name: "long", description: `Use when ${"x".repeat(DESCRIPTION_BYTES)}` }]),
+    [`long: description is ${DESCRIPTION_BYTES + 9} bytes, over ${DESCRIPTION_BYTES}`]);
+  assert.deepEqual(listingFindings([{ name: "vague", description: "Use for anything at all, in any project." }]),
+    ['vague: description says neither "Use when …" nor a phrase a user would type']);
+  const many = Array.from({ length: 20 }, (_, i) => ({ name: `s${i}`, description: `Use when ${"y".repeat(400)}` }));
+  assert.match(listingFindings(many).at(-1), /^the listing is \d+ characters, over 6850$/);
+});

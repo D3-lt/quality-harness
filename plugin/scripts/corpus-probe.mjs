@@ -43,7 +43,7 @@ import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'no
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { adrCorpus, recordStatusKind, resolvePython, spawnGate, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, resolvePython, scrubber, spawnGate, trackedPaths, undecidedReason } from './lifecycle.mjs'
 import { publicPath, pluginVersion } from './corpus-report.mjs'
 import { isMainModule } from './main-module.mjs'
 import { READER_DIRECTORIES } from './reader-paths.mjs'
@@ -132,67 +132,8 @@ export function failedToRun(error, budgetMs = null) {
     : `did not start: ${error.code ?? error.message}`
 }
 
-/**
- * The redaction every emitted string passes through (CLAUDE.md §6). The
- * repository root becomes `.`; the plugin's own directory, the OS temp directory
- * and the home directory become placeholders, in either separator spelling; any
- * other absolute path — a POSIX root, a drive letter, a UNC share — becomes
- * `<path>`. Anchored on a token boundary so a repository-relative path is never
- * touched: the first version knew five root names, let `D:\Projects\…` out whole
- * and ate `docs/var/cache/tasks/T1.md` down to `docs<path>` (Codex review of
- * bdeba73, P1 and P2).
- */
-export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedir() }) {
-  const escape = value => value.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\', '/'), prefix.replaceAll('/', '\\')])]
-  // A known prefix is replaced only where it starts a path token and ends at a
-  // separator or the end of the token: `.split('/tmp')` turned `docs/tmp/x` into
-  // `docs<tmp>/x` on any Linux host (Codex review of 1032720, P2).
-  const known = [[root, '.'], [pluginRoot, '<plugin>'], [tmp, '<tmp>'], [home, '<home>']]
-    .filter(([prefix]) => prefix)
-    .map(([prefix, placeholder]) => [
-      new RegExp(`(?<![\\w.\\\\/-])(?:${spellings(prefix).map(escape).join('|')})(?=[\\\\/\\s'"\`)]|$)`, 'g'), placeholder])
-  // A quoted path is consumed to ITS closing delimiter, whatever other quote
-  // characters it holds: `"D:\Projects\Example Person\x"` used to leave
-  // ` Person\x"` behind, and `"/opt/Example's secret/x"` stopped at the
-  // apostrophe (Codex, 1032720 P1 and abd5a13 P1).
-  const QUOTED = /(["'`])((?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\|\/(?!\/))(?:(?!\1)[^\n])*)\1/g
-  // The tail of an unquoted path: to the next space, quote or paren — and on
-  // past a space when the word after it is followed by a separator, so
-  // `Example Person\x` is one path and `task.md failed` is not.
-  const TAIL = /[^\s'"`)]*(?:[ \t]+[^\s'"`)\\/]+(?=[\\/])[^\s'"`)]*)*/.source
-  // Any other absolute path — a drive letter, a UNC share in either spelling, a
-  // file: URL, or a POSIX root — becomes `<path>`. Not preceded by a path
-  // character or by one of this function's own placeholders, so `docs/var/x`,
-  // `./tmp/x` and `<tmp>/qh-1` are untouched; a colon or `->` may precede it; a
-  // URL's `//` may not, and a bare `/` between words is not a path.
-  //
-  // ⚠ THE SAFE DIRECTION IS OVER-SCRUBBING, BY DECISION. This is a classifier
-  // over free text (CLAUDE.md §16) and it cannot be made exact: a regex literal
-  // in a diagnostic (`/foo\/bar/i`) and a URL's query path (`?q=/api/v1`) are
-  // redacted too, and three review rounds found a leak each time the boundary
-  // was made cleverer. A report that lost a reproduction hint costs one
-  // question; a report that shipped a home directory cannot be recalled (§6).
-  const HEAD = /(?<![\w.\\/-])(?<!<(?:tmp|home|plugin|path)>)(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|(?<!:)\/\/[^\s'"`)\/]+\/|\/(?!\/))/.source
-  const ABSOLUTE = new RegExp(`${HEAD}[^\\s'"\`)\\\\/]${TAIL}`, 'g')
-  return text => {
-    let out = String(text)
-    for (const [pattern, placeholder] of known) out = out.replace(pattern, placeholder)
-    return out.replace(QUOTED, '$1<path>$1').replace(ABSOLUTE, '<path>')
-  }
-}
-
-/**
- * Why a record the readers counted was held back, where no read failed (BACKLOG §345):
- * a plan not yet decided, a frozen record whose catalog does not establish its effect,
- * a status nobody here knows, or no status line at all. A fresh corpus's runner found
- * these all null, so "Proposed" and an unparseable line read alike.
- */
-function undecidedReason(entry) {
-  if (entry.unproven) return 'its archive catalog does not establish its effect'
-  if (entry.status == null) return 'no status line this reader can read'
-  return recordStatusKind(entry.status) === 'pending' ? 'a plan, not yet decided' : 'a status this reader does not recognise'
-}
+// The redaction lives in lifecycle.mjs, shared with SessionStart; this module's callers import it here.
+export { scrubber }
 
 /**
  * Where two readers disagree about one task. Compared only where BOTH answered: a
@@ -256,21 +197,26 @@ function reader(name, run, note, budgetMs = null) {
  * under `root`; the SessionStart hook's own state goes to a scratch directory
  * that is removed before returning.
  */
-// A scratch directory under the temp directory. Where that directory cannot be used (TEMP naming
-// a path that does not exist), the probe has nowhere to put adr-lint's state or the hook's
-// scratch: it died in mkdtemp with a stack trace and no JSON (BACKLOG §350 C1). It now throws a
-// ScratchError, which `main` says in one line, exiting 3, could not run.
+// A scratch directory under the temp directory. The probe keeps adr-lint's advice note and the
+// SessionStart hook's state there, so that it writes nothing into the corpus it reads. Where the temp
+// directory cannot be used (TEMP naming a path that does not exist), it died in mkdtemp with a stack
+// trace and no JSON (BACKLOG §350 C1); it now throws a ScratchError, which `main` says in one line,
+// exiting 3, could not run. The need is the probe's own: adr-lint run alone uses no temp directory,
+// and the first wording, "nowhere to put adr-lint's state", read as adr-lint's (item 6).
 class ScratchError extends Error {}
 function scratchDirectory(prefix) {
   // The directory is not named: every path that leaves this file is relative or a placeholder (the
   // header), and a Windows TEMP carries the user's name. Nor is the error's message, which repeats it.
   try { return mkdtempSync(path.join(os.tmpdir(), prefix)) } catch (error) {
-    throw new ScratchError(`the temp directory (TMPDIR, or TEMP on Windows) could not be used (${error.code ?? 'no error code'}), so there is nowhere `
-      + 'to put adr-lint\'s state or the hook\'s scratch. Point TMPDIR (TEMP on Windows) at a writable directory.')
+    throw new ScratchError(`the temp directory (TMPDIR, or TEMP on Windows) could not be used (${error.code ?? 'no error code'}). `
+      + 'the probe keeps adr-lint\'s advice note and the SessionStart hook\'s state in its own scratch directory there, so that it '
+      + 'writes nothing into the corpus; without one it does not run. Point TMPDIR (TEMP on Windows) at a writable directory.')
   }
 }
 
-export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, sweepTimeoutSeconds = 60, sweepBudgetMs = DEFAULT_SWEEP_BUDGET_MS } = {}) {
+// `listing` is the seam a test sets, as work-next's is: git on macOS and Linux does not list through a
+// symlinked directory, so a link copy is reachable from a test only by naming the listing.
+export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, sweepTimeoutSeconds = 60, sweepBudgetMs = DEFAULT_SWEEP_BUDGET_MS, listing: given } = {}) {
   const resolved = realpathSync(root)
   const rel = target => publicPath(target, resolved)
   // Every reader's free text goes through here before it is emitted (see `scrubber`).
@@ -297,7 +243,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     }
   }
 
-  const listing = trackedPaths(resolved)
+  const listing = given === undefined ? trackedPaths(resolved) : given
   const corpus = adrCorpus(resolved, { tracked: listing })
   const look = listing == null ? 'UNPROVEN' : (corpus.look ?? 'ok')
   const records = corpus.map(record => ({
@@ -308,7 +254,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // not be opened. They were counted nowhere here: a record whose `**Status:**` had a
   // fullwidth colon, or that was saved as UTF-16, made `records` 0 with `look` ok and
   // was never linted (a Windows chaos round of 626934a, F-1 and F-2).
-  const undecided = (corpus.unreadable ?? []).map(entry => ({
+  // A link copy of a record is named among adr-lint's `unread` entries, never as an undecided record.
+  const undecided = (corpus.unreadable ?? []).filter(entry => !entry.alias).map(entry => ({
     file: rel(entry.file), status: entry.status == null ? null : scrub(entry.status), reason: entry.reason ?? undecidedReason(entry),
   }))
   const corpusDirs = [...new Set(corpus.map(record => path.dirname(record.file)))]
@@ -337,12 +284,18 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       note(`adr-lint ${rel(record.file)}`, failedToRun(run.error, timeoutMs))
       return { file: rel(record.file), exit: null, verdict: null, ...frozen(record) }
     }
+    // adr-lint answered could-not-run (exit 2, a file it could not read): counted where every other
+    // reader that could not run is, by record. The attestation's `couldNotRun` read 1 while 57-76
+    // records could not be linted (BACKLOG §350 C3).
+    if (run.status === 2) note(`adr-lint ${rel(record.file)}`, `${run.stderr ?? ''}`.split('\n').find(line => line.trim()) ?? 'exit 2')
     // The verdict line by name, never "the first line opening with `[`": on a record older than
     // the corpus's strictFrom, adr-lint prints `[strictFrom] …` ABOVE its verdict, and a PASS read
     // `exit 0` with nothing behind it. adr-lint's other bracketed line, `[adr-lint] could not run`,
     // is stderr and exit 2, which the `exit N` arm below already names.
-    const first = `${run.stdout ?? ''}${run.stderr ?? ''}`.split('\n').find(line => /^\[(?:PASS|FAIL)\] |not-recognised|NOT A DECISION RECORD/.test(line)) ?? ''
-    const verdict = /^\[PASS\]/.test(first) ? 'PASS' : /^\[FAIL\]/.test(first) ? 'FAIL' : /not-recognised/.test(first) ? 'not-recognised' : /NOT A DECISION RECORD/i.test(first) ? 'not-a-record' : `exit ${run.status}`
+    // [UNPROVEN] is the third verdict, exit 3: nothing blocks and something could not be read
+    // (BACKLOG §350 C8); a regex that knew two verdicts read it as `exit 3`.
+    const first = `${run.stdout ?? ''}${run.stderr ?? ''}`.split('\n').find(line => /^\[(?:PASS|FAIL|UNPROVEN)\] |not-recognised|NOT A DECISION RECORD/.test(line)) ?? ''
+    const verdict = /^\[PASS\]/.test(first) ? 'PASS' : /^\[FAIL\]/.test(first) ? 'FAIL' : /^\[UNPROVEN\]/.test(first) ? 'UNPROVEN' : /not-recognised/.test(first) ? 'not-recognised' : /NOT A DECISION RECORD/i.test(first) ? 'not-a-record' : `exit ${run.status}`
     // A FAIL carries its first finding. A runner who saw only the verdict had to
     // find and run adr-lint by hand, and one could not, and reported the FAIL
     // without its cause (BACKLOG §279 item 9). Scrubbed like every emitted string.
@@ -528,7 +481,21 @@ export function verdictMoves(before, after) {
 export function diffReports(before, after, scrub = text => String(text)) {
   const lines = []
   const say = text => lines.push(scrub(text))
-  if (before.look !== 'ok' || after.look !== 'ok') return [scrub(`look: ${before.look} → ${after.look}: not compared`)]
+  if (before.look !== 'ok' || after.look !== 'ok') {
+    // The counts are not compared, but what made a side PARTIAL, what it held back and which
+    // reader did not answer are: `--diff` said only "not compared", never what dropped out
+    // (BACKLOG §350 C5).
+    say(`look: ${before.look} → ${after.look}: not compared`)
+    const named = (field, b, a) => {
+      const [was, now] = [new Set(b), new Set(a)]
+      const changes = [...[...now].filter(x => !was.has(x)).map(x => `+ ${x}`), ...[...was].filter(x => !now.has(x)).map(x => `- ${x}`)]
+      if (changes.length) say(`${field}: ${changes.join(', ')}`)
+    }
+    named('partialBecause', ...[before, after].map(report => (report.workNext?.partialBecause ?? []).map(entry => `${entry.file} (${entry.reason})`)))
+    named('undecided', ...[before, after].map(report => (report.undecided ?? []).map(entry => entry.file)))
+    named('couldNotRun', ...[before, after].map(report => (report.couldNotRun ?? []).map(entry => entry.reader)))
+    return lines
+  }
   const corpora = report => (report.corpora ?? []).join(', ')
   if (!comparable(before, after)) return [scrub(`corpora differ (${corpora(before)} → ${corpora(after)}): not compared`)]
   const lacks = (field, b, a) => {
@@ -563,6 +530,20 @@ export function diffReports(before, after, scrub = text => String(text)) {
     const [was, now] = [new Set(b ?? []), new Set(a ?? [])]
     const changes = [...[...now].filter(x => !was.has(x)).map(x => `+ ${x}`), ...[...was].filter(x => !now.has(x)).map(x => `- ${x}`)]
     if (changes.length) say(`${field}: ${changes.join(', ')}`)
+  }
+  // The run's environment: a verdict that moved with the interpreter carried no hint of why
+  // (BACKLOG §346, a 3.8.4 run whose Python moved 3.14.7 → 3.14.8 between two reports).
+  for (const key of ['platform', 'node', 'python']) {
+    const [b, a] = [before.probe?.[key], after.probe?.[key]]
+    if (b !== undefined && a !== undefined && b !== a) say(`environment: ${key} ${b} → ${a}`)
+  }
+  // Records the readers found and do not act on, compared by file, and a reason that moved (§346).
+  if (!lacks('undecided', before.undecided, after.undecided)) {
+    setChange('undecided', before.undecided.map(entry => entry.file), after.undecided.map(entry => entry.file))
+    const was = new Map(before.undecided.map(entry => [entry.file, entry.reason ?? null]))
+    for (const entry of after.undecided) {
+      if (was.has(entry.file) && was.get(entry.file) !== (entry.reason ?? null)) say(`undecided ${entry.file}: reason changed — ${entry.reason ?? '(none)'}`)
+    }
   }
   for (const key of absent.has('workNext') ? [] : ['ready', 'unbacked', 'readinessUnproven', 'unmarkedArchives', 'readyButClaimedDone']) {
     setChange(`workNext.${key}`, before.workNext?.[key], after.workNext?.[key])

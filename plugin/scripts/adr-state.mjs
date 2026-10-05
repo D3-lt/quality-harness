@@ -35,7 +35,8 @@ export function main(argv) {
     else process.stdout.write('could-not-look: git could not list the tree (UNPROVEN).\n')
     return 0
   }
-  const relative = record => path.relative(root, record.file) || record.file
+  // POSIX separators, as every other reader's JSON (BACKLOG §350 C9).
+  const relative = record => (path.relative(root, record.file) || record.file).replaceAll('\\', '/')
   // A record with neither number nor dated stem (ADR-063) is named by its file, never `ADR-00?`.
   const label = record => record.id
     ?? (record.number != null ? `ADR-${String(record.number).padStart(3, '0')}` : path.basename(record.file, '.md'))
@@ -83,9 +84,20 @@ export function main(argv) {
   // A record whose task files could not all be opened has a scope nobody read, which
   // is not an empty one (a Windows chaos round of 916b515, C-5).
   const orphans = governing.filter(record => record.governs.length === 0 && !record.unreadTasks?.length)
-  const unknownScope = governing.filter(record => record.governs.length === 0 && record.unreadTasks?.length)
+  // Any unread task, not only under a record that governs nothing: one more unread task file under
+  // a record that governs three paths left its fourth path unknown, and nothing named it (§350 C5).
+  const unknownScope = governing.filter(record => record.unreadTasks?.length)
   const SHOWN = 12
-  const dangling = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))
+  // A superseder that is there and could not be read is not "not in this corpus" (BACKLOG §350
+  // C8): matched to an unread file by its stem, or by the number its name starts with.
+  const numberOf = text => /^(?:adr[-_]?)?0*(\d{1,4})\b/i.exec(String(text))?.[1]
+  const unreadSuperseder = target => (corpus.unreadable ?? []).find(entry => {
+    const stem = path.basename(entry.file).replace(/\.md$/i, '')
+    return stem === target || (numberOf(stem) !== undefined && numberOf(stem) === numberOf(target))
+  })
+  const superseded = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))
+  const supersededByUnread = superseded.filter(record => unreadSuperseder(record.supersededBy))
+  const dangling = superseded.filter(record => !unreadSuperseder(record.supersededBy))
   // Declared paths that match nothing git tracks, in the text AND the JSON: the text said
   // `--json for all` and the JSON had no such field (go-cli-adr-corpus's corpus-chaos
   // run, BACKLOG §319).
@@ -139,6 +151,8 @@ export function main(argv) {
     governsUnproven: unknownScope.map(record => ({ id: label(record), file: relative(record), unreadTasks: record.unreadTasks.map(file => relative({ file })) })),
     governsUnmatched: rotted.map(entry => entry.slice('governs:'.length)),
     danglingSupersession: dangling.map(record => ({ id: label(record), status: record.status })),
+    supersededByUnreadable: supersededByUnread.map(record => ({ id: label(record), status: record.status, target: record.supersededBy,
+      file: relative(unreadSuperseder(record.supersededBy)), reason: unreadSuperseder(record.supersededBy).reason ?? 'its Status could not be read' })),
     duplicateIds: duplicateIds.map(([id, records]) => ({ id, files: records.map(record => relative(record)) })),
   }, null, 2)}\n`)
   return 0
@@ -300,6 +314,12 @@ export function main(argv) {
   say('\nSuperseded by a record that is not in this corpus:\n')
   for (const record of dangling) {
     say(`  ${label(record)}  ${record.status}\n`)
+  }
+  }
+  if (supersededByUnread.length) {
+  say('\nSuperseded by a record that could not be read:\n')
+  for (const record of supersededByUnread) {
+    say(`  ${label(record)}  ${record.status} → ${record.supersededBy} (${unreadSuperseder(record.supersededBy).reason ?? 'its Status could not be read'})\n`)
   }
   }
 

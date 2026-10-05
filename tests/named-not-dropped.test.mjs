@@ -48,6 +48,7 @@ test('work-next names a record whose Status no reader can read, and keeps a plan
   ])
   const text = printed(root, Object.keys(files))
   assert.match(text, /not acted on: `docs\/adr\/ADR-002-b\.md`: no status line this reader can read/, text)
+  assert.match(text, /2 further record\(s\) are not acted on: not yet Accepted, or with a Status this reader cannot read/, text)
   assert.doesNotMatch(text, /not acted on: `docs\/adr\/ADR-003-c\.md`/, text)
 })
 
@@ -197,4 +198,8 @@ test('SessionStart never repeats an absolute path a gate printed', () => {
   // The control: a path under the repository is still said relative to it.
   const inside = () => ({ status: 2, stdout: '', stderr: `could not run: ${path.join(root, 'docs', 'x.md')} — held open\n` })
   assert.match(readyTaskLines(root, true, listing, inside).lines.join('\n'), /could not run: \.[\\/]docs[\\/]x\.md — held open/)
+  // A home path outside the repository is said as `~/…`, not `~‹path›` (a stand-in review of f8d1eaf).
+  const home = () => ({ status: 2, stdout: '', stderr: `could not run: ${path.join(os.homedir(), 'elsewhere', 'x.md')} — held open\n` })
+  const homeSaid = readyTaskLines(root, true, listing, home).lines.join('\n')
+  assert.match(homeSaid, /could not run: ~[\\/]elsewhere[\\/]x\.md — held open/, homeSaid)
 })

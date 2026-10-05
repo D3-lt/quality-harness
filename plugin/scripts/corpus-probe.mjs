@@ -301,8 +301,11 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     // without its cause (BACKLOG §279 item 9). Scrubbed like every emitted string.
     // A verdict that is only an exit code carries what the gate said on stderr, or it
     // reads as a failure with nothing behind it (a Windows chaos round of 916b515, C-5).
+    // An UNPROVEN carries what could not be decided, as a FAIL carries its finding: a move to
+    // UNPROVEN said no reason (a stand-in review of f8d1eaf).
     const finding = verdict === 'FAIL'
       ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}\S/.test(line) && !/^ {2}advice:/.test(line))
+      : verdict === 'UNPROVEN' ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}unproven: /.test(line))
       : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\n').find(line => line.trim()) : undefined
     // Advice leaves with the verdict. Only the verdict did, so a PASS the gate had advised on
     // read as a bare PASS and the advice a runner meant to report was invisible (a corpus-chaos

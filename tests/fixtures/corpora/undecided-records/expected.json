@@ -46,7 +46,8 @@
     },
     {
       "file": "docs/adr/ADR-001-a-status-behind-a-fullwidth-colon.md",
-      "verdict": "UNPROVEN"
+      "verdict": "UNPROVEN",
+      "reasonMatches": "unproven: ADR-001-a-status-behind-a-fullwidth-colon\\.md: no \\*\\*Status:\\*\\* line"
     }
   ],
   "sweep": [

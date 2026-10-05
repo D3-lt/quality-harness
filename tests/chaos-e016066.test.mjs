@@ -157,13 +157,14 @@ test('adr-lint refuses a file that is not a regular file instead of waiting on i
     assert.equal(run.status, 2, `${run.stdout}\n${run.stderr}`)
     assert.ok(`${run.stdout}${run.stderr}`.includes('not a regular file'), `${run.stdout}\n${run.stderr}`)
   }
-  // Another record's FIFO task, which the cross-record cycle check reads: could-not-run, as a
-  // directory named like a task already is (tests/gates.test.mjs), and never a wait.
+  // Another record's FIFO task, which the cross-record cycle check reads: never a wait, and never
+  // this record's could-not-run — a cycle through it is UNPROVEN, said as advice (BACKLOG §350 C3's
+  // sibling). This record's own verdict is whatever its own findings make it.
   write(repo, 'docs/adr/ADR-002-y.md', '# ADR-002: Y\n\n**Status:** Accepted\n')
   const beside = lint(join(repo, 'docs', 'adr', 'ADR-002-y.md'), repo, 20_000)
   assert.equal(beside.signal, null, 'adr-lint waited on another record\'s FIFO task')
-  assert.equal(beside.status, 2, `${beside.stdout}\n${beside.stderr}`)
-  assert.ok(beside.stderr.includes('T1-fifo.md — not a regular file'), `${beside.stdout}\n${beside.stderr}`)
+  assert.notEqual(beside.status, 2, `${beside.stdout}\n${beside.stderr}`)
+  assert.match(beside.stdout, /T1-fifo\.md`: not a regular file\): a cycle through them is UNPROVEN/, `${beside.stdout}\n${beside.stderr}`)
 })
 
 // php-react-app, the real corpus: `test:visual` is an npm script in the package.json a row names.

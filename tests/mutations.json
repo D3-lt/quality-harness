@@ -1141,7 +1141,7 @@
       ],
       "from": "    def advise(self, message):\n        self.advice.append(message)",
       "to": "    def advise(self, message):\n        self.append(message)",
-      "only": "^(?:all bundled gates accept the conforming corpus|adr-verify executes acceptance and writes digest-bound evidence|adr-verify says before the run what a failure on an already-verified task will read as|a form finding is reported to the reader without failing the record|an inline task claiming done is told nothing can prove it|a Proposed record with no tasks is told its Status was not checked, and when its paths all exist|focused false-green regressions remain closed|adr-lint reports Go fences whose required success is unreachable|a task whose archived path would exceed the Windows ceiling is advised, one under it is not|strictFrom lets a corpus adopt these gates without failing on its own history|strictFrom never reaches the evidence chain|a task file's own done claim needs evidence, whatever the README says|a task file adr-lint cannot read is could-not-run, never a traceback|adr-lint cross-checks every ordered step against an explicit proof|a parallelised acceptance fence that never collects its children is reported|a step whose proof is a named test has a run that names it|a task with no steps field anywhere is silent, not uncovered|a step the run does name is not reported|a path::name pointer at a production function does not resolve as a test)$"
+      "only": "^(?:all bundled gates accept the conforming corpus|adr-verify executes acceptance and writes digest-bound evidence|adr-verify says before the run what a failure on an already-verified task will read as|a form finding is reported to the reader without failing the record|an inline task claiming done is told nothing can prove it|a Proposed record with no tasks is told its Status was not checked, and when its paths all exist|focused false-green regressions remain closed|adr-lint reports Go fences whose required success is unreachable|a task whose archived path would exceed the Windows ceiling is advised, one under it is not|strictFrom lets a corpus adopt these gates without failing on its own history|strictFrom never reaches the evidence chain|a task file's own done claim needs evidence, whatever the README says|a task file this record owns and cannot read is could-not-run, never a traceback|adr-lint cross-checks every ordered step against an explicit proof|a parallelised acceptance fence that never collects its children is reported|a step whose proof is a named test has a run that names it|a task with no steps field anywhere is silent, not uncovered|a step the run does name is not reported|a path::name pointer at a production function does not resolve as a test)$"
     },
     {
       "label": "severity: a placeholder still blocks",
@@ -1765,7 +1765,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const dangling = superseded.filter(record => !unreadSuperseder(record.supersededBy))",
+      "from": "  const dangling = superseded.filter(record => !unreadSuperseder(record))",
       "to": "  const dangling = []",
       "only": "^(?:adr-state derives what is decided now, instead of asking anyone to maintain it)$"
     },
@@ -8392,7 +8392,7 @@
       ],
       "from": "    for args in ([\"ls-files\", \"-z\"], [\"ls-files\", \"--others\", \"--exclude-standard\", \"-z\"]):\n",
       "to": "    for args in ([\"ls-files\"], [\"ls-files\", \"--others\", \"--exclude-standard\"]):\n",
-      "only": "^(?:a Proposed record with no tasks is told its Status was not checked, and when its paths all exist|a corpus that does not prefix its records with ADR- is still seen, and still spoken to|a cited tracker id or section number is not reported as a missing file|a tracked path git has to quote is still a record, not an empty corpus|focused false-green regressions remain closed|adr-lint reports Go fences whose required success is unreachable|a task file adr-lint cannot read is could-not-run, never a traceback|adr-lint's tracked_or_unignored_paths includes an untracked file; arch-lint's tracked_paths excludes it)$"
+      "only": "^(?:a Proposed record with no tasks is told its Status was not checked, and when its paths all exist|a corpus that does not prefix its records with ADR- is still seen, and still spoken to|a cited tracker id or section number is not reported as a missing file|a tracked path git has to quote is still a record, not an empty corpus|focused false-green regressions remain closed|adr-lint reports Go fences whose required success is unreachable|a task file this record owns and cannot read is could-not-run, never a traceback|adr-lint's tracked_or_unignored_paths includes an untracked file; arch-lint's tracked_paths excludes it)$"
     },
     {
       "label": "dispatch: a title with no trailing newline is not erased",
@@ -10152,8 +10152,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        moved = moved_lock_bodies(vlog, current=recorded_reading)\n        if moved:\n",
-      "to": "        moved = moved_lock_bodies(vlog, current=recorded_reading)\n        if False:\n",
+      "from": "        moved = moved_lock_bodies(vlog, current=recorded_reading, root=cwd)\n        if moved:\n",
+      "to": "        moved = moved_lock_bodies(vlog, current=recorded_reading, root=cwd)\n        if False:\n",
       "only": "refuses when a hashed body moved"
     },
     {
@@ -15779,14 +15779,14 @@
       "only": "read as git expands it"
     },
     {
-      "label": "review e0ef6d4 F6: an unread shared task goes to the sole record",
+      "label": "§350 review: an unread task its record owns is called ownerless",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [
-        "tests/record-budget.test.mjs"
+        "tests/work-next-ownerless.test.mjs"
       ],
-      "from": "    for (const file of [...(record.taskFiles ?? []), ...(record.unreadTasks ?? [])]) {",
-      "to": "    for (const file of record.taskFiles ?? []) {",
-      "only": "shared tasks directory"
+      "from": "    for (const file of [...(record.taskFiles ?? []), ...(record.unreadTasks ?? [])]) owner.set(path.resolve(file), record)",
+      "to": "    for (const file of record.taskFiles ?? []) owner.set(path.resolve(file), record)",
+      "only": "^(?:a task its record owns and nobody could read is not called ownerless)$"
     },
     {
       "label": "review e0ef6d4 F1: an attestation date must be a date",
@@ -16438,8 +16438,8 @@
       "label": "BACKLOG §319 F: the cross-record check reads another record's irregular task",
       "file": "plugin/bin/adr-lint",
       "tests": ["tests/chaos-e016066.test.mjs"],
-      "from": "            refuse_irregular(f)",
-      "to": "            pass",
+      "from": "            if f.exists() and not f.is_file():\n                unread.append(f\"`{shown(f)}`: not a regular file\")",
+      "to": "            if False:\n                unread.append(f\"`{shown(f)}`: not a regular file\")",
       "only": "adr-lint refuses a file that is not a regular file"
     },
     {
@@ -20213,8 +20213,8 @@
       "tests": [
         "tests/one-unreadable-task.test.mjs"
       ],
-      "from": "            except OSError as exc:\n                # Relative to the repository by REAL path",
-      "to": "            except ValueError as exc:\n                # Relative to the repository by REAL path",
+      "from": "            except OSError as exc:\n                unread.append(f\"`{shown(f)}`: {os_reason(exc)}\")",
+      "to": "            except ValueError as exc:\n                unread.append(f\"`{shown(f)}`: {os_reason(exc)}\")",
       "only": "^one unreadable task another record owns leaves this record linted, its cycle check UNPROVEN$"
     },
     {
@@ -20313,7 +20313,7 @@
       "tests": [
         "tests/reader-sentences.test.mjs"
       ],
-      "from": "  const supersededByUnread = superseded.filter(record => unreadSuperseder(record.supersededBy))",
+      "from": "  const supersededByUnread = superseded.filter(record => unreadSuperseder(record))",
       "to": "  const supersededByUnread = []",
       "only": "^(?:adr-state says a superseding record could not be read, not that it is absent)$"
     },
@@ -20343,8 +20343,8 @@
       "tests": [
         "tests/lock-unreadable.test.mjs"
       ],
-      "from": "                        if n == name and r != rel and _same_file(root, r, rel)), None)",
-      "to": "                        if n == name and r != rel and False), None)",
+      "from": "            # link, a case variant — is not a vanished test: compare its digest (BACKLOG §350 C8).\n            now = next((d for (r, n), d in current[\"bodies\"].items()\n                        if n == name and r != rel and _same_file(root, r, rel)), None)",
+      "to": "            # link, a case variant — is not a vanished test: compare its digest (BACKLOG §350 C8).\n            now = next((d for (r, n), d in current[\"bodies\"].items()\n                        if n == name and r != rel and False), None)",
       "only": "^(?:a locked test reached through another spelling of the same file is not vanished)$"
     },
     {
@@ -20453,9 +20453,139 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                    rel = os.path.relpath(os.path.realpath(f), os.path.realpath(root))",
-      "to": "                    rel = os.path.relpath(f, root)",
+      "from": "            rel = os.path.relpath(os.path.realpath(f), os.path.realpath(root))",
+      "to": "            rel = os.path.relpath(f, root)",
       "only": "^a permission-denied task file another record owns is advice on the cycle check, never could-not-run or a traceback$"
+    },
+    {
+      "label": "§350 review: a NUL task's finding is demoted by strictFrom",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                      f\"and no gate can read it. Save it as UTF-8.\", evidence=True)",
+      "to": "                      f\"and no gate can read it. Save it as UTF-8.\")",
+      "only": "^(?:a done task nobody can read blocks, even before strictFrom)$"
+    },
+    {
+      "label": "§350 review: a done task under no readable Status stands",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        errors.unprove(f\"{adr_path.name}: {', '.join(sorted(done))} {'is' if len(done) == 1 else 'are'} marked \"",
+      "to": "        (lambda *a: None)(f\"{adr_path.name}: {', '.join(sorted(done))} {'is' if len(done) == 1 else 'are'} marked \"",
+      "only": "^(?:a done task under a record whose Status nobody could read is UNPROVEN, even before strictFrom)$"
+    },
+    {
+      "label": "§350 review: --relock calls an aliased body moved",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "            # a link while `--relock` called the same body moved (a stand-in review of f8d1eaf).\n            now = next((d for (r, n), d in current[\"bodies\"].items()\n                        if n == name and r != rel and _same_file(root, r, rel)), None)",
+      "to": "            # a link while `--relock` called the same body moved (a stand-in review of f8d1eaf).\n            now = next((d for (r, n), d in current[\"bodies\"].items()\n                        if n == name and r != rel and False), None)",
+      "only": "^(?:a locked test reached through another spelling of the same file is not vanished)$"
+    },
+    {
+      "label": "§350 review: ~ is scrubbed as an absolute path",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "  const HEAD = /(?<![\\w.\\\\/~-])",
+      "to": "  const HEAD = /(?<![\\w.\\\\/-])",
+      "only": "^(?:SessionStart never repeats an absolute path a gate printed)$"
+    },
+    {
+      "label": "§350 review: an unreadable superseder in another corpus hides a dangling one",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "    if (path.dirname(entry.file) !== path.dirname(record.file)) return false\n",
+      "to": "",
+      "only": "^(?:adr-state says a superseding record could not be read, not that it is absent)$"
+    },
+    {
+      "label": "§350 review: work-next's count says every undecided record carries a status",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "further record(s) are not acted on: not yet Accepted, or with a Status this reader cannot read.",
+      "to": "further record(s) carry a status this reader does not act on.",
+      "only": "^(?:work-next names a record whose Status no reader can read, and keeps a plan a count)$"
+    },
+    {
+      "label": "ADR-084 T1: the Skill branch records no event",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/skill-usage.test.mjs"
+      ],
+      "from": "      && !appendEvent(input.cwd ?? process.cwd(), input.session_id, { event: 'skill.invoked', skill })) {",
+      "to": "      && false) {",
+      "only": "^(?:a Skill call is recorded in the session log and prints nothing)$"
+    },
+    {
+      "label": "ADR-084 T1: every plugin's skills are recorded",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/skill-usage.test.mjs"
+      ],
+      "from": "skill.startsWith('quality-harness:')",
+      "to": "skill.length > 0",
+      "only": "^(?:the Skill hook is registered and records only this plugin's skills)$"
+    },
+    {
+      "label": "ADR-084 T1: no hook is registered for Skill",
+      "file": "plugin/hooks/hooks.json",
+      "tests": [
+        "tests/skill-usage.test.mjs"
+      ],
+      "from": "\"matcher\": \"Skill\",",
+      "to": "\"matcher\": \"SkillNot\",",
+      "only": "^(?:the Skill hook is registered and records only this plugin's skills)$"
+    },
+    {
+      "label": "ADR-084 T2: invocations are not counted",
+      "file": "plugin/scripts/ledger-report.mjs",
+      "tests": [
+        "tests/ledger-report.test.mjs"
+      ],
+      "from": "      counted.calls += 1",
+      "to": "      counted.calls += 0",
+      "only": "^(?:ledger-report counts skills and sums skips from the ledgers)$"
+    },
+    {
+      "label": "ADR-084 T2: the saving is not summed",
+      "file": "plugin/scripts/ledger-report.mjs",
+      "tests": [
+        "tests/ledger-report.test.mjs"
+      ],
+      "from": "(Number.isFinite(row.savedMs) ? row.savedMs : 0)",
+      "to": "0",
+      "only": "^(?:ledger-report counts skills and sums skips from the ledgers)$"
+    },
+    {
+      "label": "ADR-084 T2: a torn session log reads as complete",
+      "file": "plugin/scripts/ledger-report.mjs",
+      "tests": [
+        "tests/ledger-report.test.mjs"
+      ],
+      "from": "    if (!events.complete) unproven.push(`sessions/${name}`)",
+      "to": "    if (false) unproven.push(`sessions/${name}`)",
+      "only": "^(?:ledger-report says UNPROVEN for a ledger it could not read whole)$"
+    },
+    {
+      "label": "§350 review: an UNPROVEN in the probe carries no reason",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      : verdict === 'UNPROVEN' ? `${run.stdout ?? ''}`.split('\\n').find(line => /^ {2}unproven: /.test(line))",
+      "to": "      : verdict === 'UNPROVEN' ? undefined",
+      "only": "corpus undecided-records: every reader answers as reviewed"
     }
   ]
 }

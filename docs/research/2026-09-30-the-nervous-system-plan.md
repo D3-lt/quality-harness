@@ -60,3 +60,8 @@ After N1 to N3, either of these ends the plan:
 - a peer session still meets a mutant from a campaign run here (BACKLOG §272's kind).
 
 Both are counted from records, not recalled.
+
+## Deferred here by ADR-077
+
+- `adr-verify` fences, `unasserted.mjs` and `campaign-parity.mjs` as lease participants: wait for N2's data on how often heavy runs collide.
+- The plan's three-day collision criterion: measured as a follow-up of ADR-077, once those participants are decided.

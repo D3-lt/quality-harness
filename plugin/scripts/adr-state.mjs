@@ -91,13 +91,16 @@ export function main(argv) {
   // A superseder that is there and could not be read is not "not in this corpus" (BACKLOG §350
   // C8): matched to an unread file by its stem, or by the number its name starts with.
   const numberOf = text => /^(?:adr[-_]?)?0*(\d{1,4})\b/i.exec(String(text))?.[1]
-  const unreadSuperseder = target => (corpus.unreadable ?? []).find(entry => {
+  // In the superseded record's own directory only: a number matched across corpora let another
+  // corpus's unreadable file hide a supersession that is dangling (a stand-in review of f8d1eaf).
+  const unreadSuperseder = record => (corpus.unreadable ?? []).find(entry => {
+    if (path.dirname(entry.file) !== path.dirname(record.file)) return false
     const stem = path.basename(entry.file).replace(/\.md$/i, '')
-    return stem === target || (numberOf(stem) !== undefined && numberOf(stem) === numberOf(target))
+    return stem === record.supersededBy || (numberOf(stem) !== undefined && numberOf(stem) === numberOf(record.supersededBy))
   })
   const superseded = corpus.filter(record => record.supersededBy && !byId.has(record.supersededBy))
-  const supersededByUnread = superseded.filter(record => unreadSuperseder(record.supersededBy))
-  const dangling = superseded.filter(record => !unreadSuperseder(record.supersededBy))
+  const supersededByUnread = superseded.filter(record => unreadSuperseder(record))
+  const dangling = superseded.filter(record => !unreadSuperseder(record))
   // Declared paths that match nothing git tracks, in the text AND the JSON: the text said
   // `--json for all` and the JSON had no such field (go-cli-adr-corpus's corpus-chaos
   // run, BACKLOG §319).
@@ -152,7 +155,7 @@ export function main(argv) {
     governsUnmatched: rotted.map(entry => entry.slice('governs:'.length)),
     danglingSupersession: dangling.map(record => ({ id: label(record), status: record.status })),
     supersededByUnreadable: supersededByUnread.map(record => ({ id: label(record), status: record.status, target: record.supersededBy,
-      file: relative(unreadSuperseder(record.supersededBy)), reason: unreadSuperseder(record.supersededBy).reason ?? 'its Status could not be read' })),
+      file: relative(unreadSuperseder(record)), reason: unreadSuperseder(record).reason ?? 'its Status could not be read' })),
     duplicateIds: duplicateIds.map(([id, records]) => ({ id, files: records.map(record => relative(record)) })),
   }, null, 2)}\n`)
   return 0
@@ -319,7 +322,7 @@ export function main(argv) {
   if (supersededByUnread.length) {
   say('\nSuperseded by a record that could not be read:\n')
   for (const record of supersededByUnread) {
-    say(`  ${label(record)}  ${record.status} → ${record.supersededBy} (${unreadSuperseder(record.supersededBy).reason ?? 'its Status could not be read'})\n`)
+    say(`  ${label(record)}  ${record.status} → ${record.supersededBy} (${unreadSuperseder(record).reason ?? 'its Status could not be read'})\n`)
   }
   }
 

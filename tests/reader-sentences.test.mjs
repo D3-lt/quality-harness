@@ -38,6 +38,15 @@ test('adr-state says a superseding record could not be read, not that it is abse
   const json = JSON.parse(state('--json').stdout)
   assert.deepEqual(json.danglingSupersession, [])
   assert.equal(json.supersededByUnreadable[0]?.target, 'ADR-002')
+  // In the superseded record's own directory only: another corpus's unreadable ADR-002 does not
+  // hide that this one's ADR-002 is missing (a stand-in review of f8d1eaf).
+  const other = repo('superseder-elsewhere')
+  writeFileSync(path.join(other, 'docs', 'adr', 'ADR-001-x.md'), '# ADR-001: x\n\n**Status:** Superseded by ADR-002\n\n## Context\n\nx\n')
+  mkdirSync(path.join(other, 'docs', 'decisions'), { recursive: true })
+  writeFileSync(path.join(other, 'docs', 'decisions', 'ADR-002-y.md'), 'a\0b')
+  const elsewhere = JSON.parse(spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'adr-state.mjs'), '--json', other],
+    { cwd: other, encoding: 'utf8', timeout: 60_000, windowsHide: true }).stdout)
+  assert.deepEqual([elsewhere.danglingSupersession.map(entry => entry.id), elsewhere.supersededByUnreadable], [['ADR-001'], []], JSON.stringify(elsewhere))
 })
 
 test('the long-path advice never prints a negative length', () => {
@@ -52,7 +61,8 @@ test('the long-path advice never prints a negative length', () => {
 })
 
 test('adr-lint says nothing about the content of a record or task it called not UTF-8 text', () => {
-  const root = repo('nul')
+  // Not `nul`: that name is a device on Windows, and a directory of it cannot be a spawn's cwd.
+  const root = repo('not-text')
   const record = path.join(root, 'docs', 'adr', 'ADR-001-x.md')
   writeFileSync(record, utf16(conforming))
   const run = lint(root, record)

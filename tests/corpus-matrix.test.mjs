@@ -161,11 +161,12 @@ for (const [name, dir] of corpora) {
       assert.ok(recordFiles.has(entry.file), `${name}: governingNothing names ${entry.file}, which no record has`)
     }
     // A FAIL says why, so a runner can report the cause and not only the verdict
-    // (BACKLOG §279 item 9).
-    for (const entry of report.adrLint.filter(e => e.verdict === 'FAIL')) {
-      assert.ok(typeof entry.reason === 'string' && entry.reason.length > 0, `${name}: ${entry.file} FAILs with no reason`)
+    // (BACKLOG §279 item 9). So does an UNPROVEN: a move to it said no reason (a stand-in review of
+    // f8d1eaf).
+    for (const entry of report.adrLint.filter(e => e.verdict === 'FAIL' || e.verdict === 'UNPROVEN')) {
+      assert.ok(typeof entry.reason === 'string' && entry.reason.length > 0, `${name}: ${entry.file} ${entry.verdict}s with no reason`)
     }
-    assert.ok(report.adrLint.filter(e => e.verdict !== 'FAIL').every(e => !('reason' in e)), `${name}: only a FAIL carries a reason`)
+    assert.ok(report.adrLint.filter(e => e.verdict !== 'FAIL' && e.verdict !== 'UNPROVEN').every(e => !('reason' in e)), `${name}: only a FAIL or an UNPROVEN carries a reason`)
     // Advice rides only under a verdict the gate reached: it prints advice below its [PASS] or
     // [FAIL] line and nowhere else, so a list on a record it never checked — madr's
     // not-recognised records here — would be an observation nobody made (ADR-005; the review of

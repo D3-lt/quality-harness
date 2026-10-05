@@ -98,6 +98,14 @@ vocabulary, and the cost is silent: forms nobody knows exist are forms nobody
 writes, so a shipped capability goes unused because the only document its author
 reads never mentioned it.
 
+## What your own ledgers say, in counts
+
+`node ${CLAUDE_PLUGIN_ROOT}/scripts/ledger-report.mjs [--json]` reads this checkout's ledgers and prints
+which of this plugin's skills its sessions invoked, how often `qh-check` reused a pass on the same tree
+(with the saving as an estimate), and the checks it ran. Counts only — no content, no paths — so it is
+the thing to paste when the maintainers ask what the harness costs you. A ledger it could not read
+whole is UNPROVEN, never zero (ADR-084).
+
 ## What belongs in a project's own instructions
 
 Only what is true of that project and false elsewhere: when a record is required,

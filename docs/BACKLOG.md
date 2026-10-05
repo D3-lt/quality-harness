@@ -18069,3 +18069,44 @@ entry matches.
 **Still open, and why:** the skill-usage counter and ledger reader (Batch C) wait for a record the owner
 Accepts; the ADR-081 measurement is due on or after 2026-10-08; §342 waits for its trigger, the next slow
 Windows run.
+
+**Deferred by ADR-084 (Proposed, 2026-10-05):** hook durations per event. No ledger records how long a
+hook took, so `ledger-report.mjs` cannot report it; recording one is a separate decision, with its own
+cost on every event.
+
+**The stand-in review of f8d1eaf (2026-10-05), and the push's own CI.** Every finding was reproduced by
+the reviewer in a scratch tree and is fixed here with a test and a killed catalogue mutant:
+- **A fail-open, introduced by f8d1eaf.** A done task saved as UTF-16 PASSed under strictFrom: the NUL
+  finding was demoted to advice, and the task's `None` info kept every evidence check off it. The
+  finding is now `evidence=True`, never demoted.
+- **A done task under a record with no readable Status** stood on an old record, where `Proposed`
+  blocks. `check_status_allows_execution`, inside `protected()`, now says UNPROVEN.
+- **A false refusal.** `--relock` called a body "moved" that `lock_findings` accepted through another
+  spelling; `moved_lock_bodies` takes the same `_same_file` lookup, with the root passed in (never put
+  into the lock map, which is encoded).
+- **Untrue or lost sentences:** the scrubber turned gateSaid's `~/x` into `~‹path›`; adr-state matched
+  an unreadable superseder by number across corpora; the probe's UNPROVEN entry carried no reason (the
+  matrix now requires one); work-next's count line said every held-back record "carries a status".
+Advice taken as it is: the dispatcher's exit-3 line carries the first `unproven:` finding and not the
+advice, as its could-not-run line carries one reason.
+
+The push's campaign (run 37354513065) then had three GREEN mutants and a red Windows job:
+- **`§350 C3: … against the unresolved root`** was GREEN on Linux, where `/tmp` is not a link. The test
+  now reaches the checkout through a symlink, so the two spellings differ on every platform.
+- **`chaos 916b515 C-5`** went GREEN because its test, renamed by C3, no longer reached adr-lint's main
+  could-not-run handler. A new test does — a task the record itself owns, unreadable — and it found that
+  the handler printed the absolute temp path on macOS (relpath of a listed path against a resolved cwd),
+  now compared by real path. Its sibling: a directory or FIFO named like another record's task still
+  made this record could-not-run through `refuse_irregular`; it is cycle-check advice now, like C3.
+- **`review e0ef6d4 F6`** went GREEN because the directory of an unopenable task is already readiness
+  UNPROVEN through `unopenable`; the second route through `unreadTasks` was removed as redundant. The
+  GREEN also showed that an unreadable task in a shared `tasks/` beside its sole record was named
+  "no record owning these tasks was found"; `unreadTasks` now count as owned.
+- **Windows:** `tests/adr-next.test.mjs` expected `tasks_dir` with backslashes (C9 changed it, by
+  design), and a scratch directory named `nul` — a device name there — could not be a spawn's cwd.
+  C9's own test ran green on that job, never having been seen red, as said above.
+
+**ADR-084 (Accepted by the owner, 2026-10-05) is executed for 3.8.7:** a PreToolUse `Skill` hook records
+`skill.invoked` for this plugin's skills and prints nothing; `plugin/scripts/ledger-report.mjs` reads the
+skill counts, same-tree skips and checks, UNPROVEN for a ledger not read whole. Each task has its red
+run, its exit-0 run and a killed mutant per Rests-on name in its own Mutation Log.

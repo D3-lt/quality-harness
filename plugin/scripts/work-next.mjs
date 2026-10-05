@@ -53,9 +53,10 @@ export function readinessFrom(corpus, directory, spawn = spawnGate, allowed = nu
     // `tasks/`, no archive, no fixture path), so the two views of "which tasks
     // exist" cannot drift apart — a record's `taskFiles` includes its archived
     // and nested files, and asking adr-next about those offered history as work.
-    // And the directory of a task nobody could read: whose it is is unknown, so it is
-    // asked about rather than dropped (Codex review of 3.1.0..e0ef6d4, F6; round 2, F5).
-    for (const file of [...(record.taskFiles ?? []), ...(record.unreadTasks ?? [])]) {
+    // A task nobody could read is not listed here: its directory is readiness UNPROVEN through
+    // `unopenable` below, which reads the same failure (Codex review of 3.1.0..e0ef6d4, F6, whose
+    // second route here went GREEN once that one existed).
+    for (const file of record.taskFiles ?? []) {
       if (allowed && !allowed.has(path.resolve(file))) continue
       dirs.add(path.dirname(path.resolve(file)))
     }
@@ -454,7 +455,9 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
   // checked (docs/BACKLOG.md §48).
   const owner = new Map()
   for (const record of corpus) {
-    for (const file of record.taskFiles ?? []) owner.set(path.resolve(file), record)
+    // A task its record owns and nobody could read is still that record's: counted as no record's,
+    // it was named "no record owning these tasks was found" — untrue (a stand-in review's GREEN, F6).
+    for (const file of [...(record.taskFiles ?? []), ...(record.unreadTasks ?? [])]) owner.set(path.resolve(file), record)
   }
   // A record whose status this reader does not recognise — `Proposed`, `Draft`,
   // anything a corpus spells its own way — is not in `corpus` at all; it is on
@@ -720,7 +723,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
   say(`${state.records} record(s), ${state.accepted} accepted, `
     + `${state.tasks} task file(s), ${state.specs} spec(s).`
     + (state.undecided
-      ? ` ${state.undecided} further record(s) carry a status this reader does not act on.\n`
+      ? ` ${state.undecided} further record(s) are not acted on: not yet Accepted, or with a Status this reader cannot read.\n`
       : '\n'))
   // A plan not yet decided is the ordinary case and stays a count; any other reason is named.
   const unusual = state.undecidedNamed.filter(entry => entry.reason !== 'a plan, not yet decided')

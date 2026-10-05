@@ -1583,7 +1583,9 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   // redacted too, and three review rounds found a leak each time the boundary
   // was made cleverer. A report that lost a reproduction hint costs one
   // question; a report that shipped a home directory cannot be recalled (§6).
-  const HEAD = /(?<![\w.\\/-])(?<!<(?:tmp|home|plugin|path)>)(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|(?<!:)\/\/[^\s'"`)\/]+\/|\/(?!\/))/.source
+  // `~` precedes no absolute path: gateSaid writes the home directory as `~` first, and `~/x` became
+  // `~‹path›` here (a stand-in review of f8d1eaf).
+  const HEAD = /(?<![\w.\\/~-])(?<!<(?:tmp|home|plugin|path)>)(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|(?<!:)\/\/[^\s'"`)\/]+\/|\/(?!\/))/.source
   const ABSOLUTE = new RegExp(`${HEAD}[^\\s'"\`)\\\\/]${TAIL}`, 'g')
   return text => {
     let out = String(text)
@@ -6032,6 +6034,18 @@ export async function handleHook(input) {
   // or read the parent's ledger wrongly (Codex, f14e4cd and b149b50).
   let recorded = null
   const guardAlone = event === 'PreToolUse' && readOnlyRole(input.agent_type) !== null
+  // ADR-084: a Skill call is counted and nothing else — before the generic event record, the pass
+  // import and every advisory, so it prints nothing and costs one Node start. Only this plugin's own
+  // skills: another plugin's skill names are not this plugin's to keep. A read-only role's Skill call
+  // is not the parent session's to log.
+  if (event === 'PreToolUse' && input.tool_name === 'Skill') {
+    const skill = input.tool_input?.skill
+    if (!guardAlone && typeof skill === 'string' && skill.startsWith('quality-harness:')
+      && !appendEvent(input.cwd ?? process.cwd(), input.session_id, { event: 'skill.invoked', skill })) {
+      process.stderr.write('[quality-harness] the skill use was not recorded in the session log.\n')
+    }
+    return
+  }
   if (!guardAlone) {
     try { recorded = recordHookEvent(input) } catch (failure) {
       process.stderr.write(`[quality-harness] the event log was not written (${failure?.message ?? failure}).\n`)

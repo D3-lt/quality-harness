@@ -123,6 +123,8 @@ test('a locked test reached through another spelling of the same file is not van
   // corpus does with the row spelled the way it was locked.
   assert.ok(!/Traceback/.test(said(same)), said(same))
   assert.equal(same.status, lint(locked({ oneTest: true })).status, said(same))
+  // And --relock reads it as `lock_findings` does: not a moved body (a stand-in review of f8d1eaf).
+  assert.doesNotMatch(said(relock(aliased)), /hashed body moved/)
   // The dirty twin: a real copy is another file, so the locked spelling is still gone.
   const copied = locked({ oneTest: true })
   cpSync(join(copied, 'src'), join(copied, 'lib'), { recursive: true })

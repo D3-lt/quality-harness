@@ -710,7 +710,8 @@ test('--json carries the same three buckets and the same exit codes', () => {
   assert.deepEqual(report.ready.map(t => t.id), ['T2'])
   assert.deepEqual(report.blocked.map(t => t.id), ['T3'])
   assert.deepEqual(report.blocked[0].blocked_by, ['T2'])
-  assert.equal(report.tasks_dir, tasksDir)
+  // Written with `/` on every platform (BACKLOG §350 C9).
+  assert.equal(report.tasks_dir, tasksDir.replaceAll('\\', '/'))
 
   const { tasksDir: allDone } = corpus([{ id: 'T1', evidence: true }])
   const finished = next([allDone, '--json'], root)

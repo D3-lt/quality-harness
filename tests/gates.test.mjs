@@ -1809,6 +1809,7 @@ test('a task whose archived path would exceed the Windows ceiling is advised, on
 test('a record older than strictFrom with no Status is advised, not UNPROVEN', () => {
   const aged = agedCorpus('qh-strict-status-', '{"strictFrom":"ADR-0012"}\n')
   writeFileSync(aged.adr, readFileSync(aged.adr, 'utf8').replace(/^\*\*Status:\*\*.*\n/m, ''))
+  // The fixture's README marks no task done, so nothing rests on the Status nobody could read.
   const old = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
   assert.equal(old.status, 0, old.stdout + old.stderr)
   assert.match(old.stdout, /advice: unproven: ADR-001-old\.md: no \*\*Status:\*\* line .*\[advisory: ADR-0001 predates strictFrom ADR-0012/, old.stdout)
@@ -1817,6 +1818,30 @@ test('a record older than strictFrom with no Status is advised, not UNPROVEN', (
   const current = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
   assert.equal(current.status, 1, current.stdout + current.stderr)
   assert.match(current.stdout, /^\s+unproven: ADR-001-old\.md: no \*\*Status:\*\* line/m, current.stdout)
+})
+
+// A stand-in review of f8d1eaf: with the Status line deleted, a done task under an old record stood,
+// where `**Status:** Proposed` blocks it. The evidence chain is never demoted.
+test('a done task under a record whose Status nobody could read is UNPROVEN, even before strictFrom', () => {
+  const aged = agedCorpus('qh-strict-done-', '{"strictFrom":"ADR-0012"}\n')
+  writeFileSync(aged.adr, readFileSync(aged.adr, 'utf8')
+    .replace(/(## Alternatives Considered\n)\n/, '$1\n- Nothing — rejected.\n').replace(/^\*\*Status:\*\*.*\n/m, ''))
+  writeFileSync(join(aged.tasks, 'README.md'), readFileSync(join(aged.tasks, 'README.md'), 'utf8').replace('| none | pending |', '| none | done |'))
+  const result = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  assert.notEqual(result.status, 0, result.stdout + result.stderr)
+  assert.match(result.stdout, /^\s+unproven: ADR-001-old\.md: T1 is marked done, and no Status could be read/m, result.stdout)
+})
+
+// A stand-in review of f8d1eaf, a fail-open: a done task saved as UTF-16 under strictFrom PASSed,
+// its NUL finding demoted to advice and nothing else reading the task.
+test('a done task nobody can read blocks, even before strictFrom', () => {
+  const aged = agedCorpus('qh-strict-nul-', '{"strictFrom":"ADR-0012"}\n')
+  const task = join(aged.tasks, 'T1-fixture.md')
+  writeFileSync(task, Buffer.from(`﻿${readFileSync(task, 'utf8')}`, 'utf16le'))
+  const result = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  assert.equal(result.status, 1, result.stdout + result.stderr)
+  assert.match(result.stdout, /^\s+T1-fixture\.md: holds NUL bytes/m, result.stdout)
+  assert.doesNotMatch(result.stdout, /advice: T1-fixture\.md: holds NUL bytes/, result.stdout)
 })
 test('strictFrom lets a corpus adopt these gates without failing on its own history', () => {
   // A project that adopts the gates late lights up on every record written
@@ -1892,16 +1917,35 @@ test("a task file's own done claim needs evidence, whatever the README says", ()
 // owns, locked, made adr-lint crash with a traceback while linting a record that never
 // named it, and the probe read the exit as a verdict with no reason. A directory named
 // like a task is unreadable on every platform, so it stands in for the lock here.
-test('a task file adr-lint cannot read is could-not-run, never a traceback', () => {
+// A directory named like another record's task was refused by `refuse_irregular` and made THIS
+// record's lint could-not-run — §350 C3's sibling, found when that class's catalogue mutant went
+// GREEN. It is the cycle check's gap now, as an unreadable file is.
+test('a task-named directory under another record is advice on the cycle check, never could-not-run', () => {
   const aged = agedCorpus('qh-unreadable-task-', '{"strictFrom":"ADR-0012"}\n')
   const adrDir = join(aged.repo, 'docs', 'adr')
   cpSync(join(fixture, 'ADR-001-selftest.md'), join(adrDir, 'ADR-002-other.md'))
   mkdirSync(join(adrDir, 'ADR-002-other', 'tasks', 'T1-dir.md'), { recursive: true })
   const result = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
   const said = `${result.stdout}${result.stderr}`
-  expectExit(result, 2, 'a file that could not be read is could-not-run')
-  assert.doesNotMatch(said, /Traceback/, said)
-  assert.match(said, /could not run: \S*T1-dir\.md/, said)
+  expectExit(result, 0, 'a file the linted record does not own does not stop its lint')
+  assert.doesNotMatch(said, /Traceback|could not run/, said)
+  assert.match(said, /`docs\/adr\/ADR-002-other\/tasks\/T1-dir\.md`: not a regular file\): a cycle through them is UNPROVEN/, said)
+})
+
+// The handler that turns any other OSError into could-not-run, reached by a task file the linted
+// record itself owns: its own tasks are read in full, so one it cannot read stops it, named relative.
+test('a task file this record owns and cannot read is could-not-run, never a traceback', t => {
+  if (process.platform === 'win32' || process.getuid?.() === 0) { t.skip('a mode of 000 does not refuse a read here'); return }
+  const aged = agedCorpus('qh-unreadable-own-', '{"strictFrom":"ADR-0012"}\n')
+  const task = join(aged.tasks, 'T1-fixture.md')
+  chmodSync(task, 0o000)
+  try {
+    const result = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+    const said = `${result.stdout}${result.stderr}`
+    expectExit(result, 2, 'a file that could not be read is could-not-run')
+    assert.doesNotMatch(said, /Traceback/, said)
+    assert.match(said, /could not run: docs\/adr\/tasks\/T1-fixture\.md — Permission denied/, said)
+  } finally { chmodSync(task, 0o644) }
 })
 
 // The directory case above is now answered by `refuse_irregular` before anything is read, so
@@ -1920,7 +1964,12 @@ test('a permission-denied task file another record owns is advice on the cycle c
   writeFileSync(task, '# Task ADR-002-T1: locked\n')
   chmodSync(task, 0o000)
   try {
-    const result = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+    // Through a link to the checkout, so the listed spelling and the resolved root differ on every
+    // platform, not only where `/var` is `/private/var` (the GREEN catalogue mutant on Linux CI).
+    const via = `${aged.repo}-via`
+    symlinkSync(aged.repo, via, 'dir')
+    agedRepos.push(via)
+    const result = run('adr-lint', [join(via, 'docs', 'adr', 'ADR-001-old.md'), join(via, 'docs', 'adr', 'tasks')], via)
     const said = `${result.stdout}${result.stderr}`
     expectExit(result, 0, 'a file the linted record does not own does not stop its lint')
     assert.doesNotMatch(said, /Traceback|could not run/, said)

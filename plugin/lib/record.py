@@ -3174,7 +3174,7 @@ def lock_snapshot_suffix(snap, kind):
     return f" · test-lock-sha256:{digest} · test-lock-b64:{token} · test-lock-kind:{kind}"
 
 
-def moved_lock_bodies(vlog, *, current):
+def moved_lock_bodies(vlog, *, current, root=None):
     """Recorded hashed bodies that vanished or whose digest moved.
 
     Its one caller, `adr-verify --relock`, refuses first when a Tests-row file is there and could
@@ -3185,6 +3185,11 @@ def moved_lock_bodies(vlog, *, current):
     moved = []
     for (rel, name), digest in (recorded["map"].get("bodies") or {}).items():
         now = current["bodies"].get((rel, name))
+        if now is None:
+            # The alias `lock_findings` accepts, accepted here too: lint passed a row spelled through
+            # a link while `--relock` called the same body moved (a stand-in review of f8d1eaf).
+            now = next((d for (r, n), d in current["bodies"].items()
+                        if n == name and r != rel and _same_file(root, r, rel)), None)
         if now is None or now != digest:
             moved.append((rel, name))
     return moved

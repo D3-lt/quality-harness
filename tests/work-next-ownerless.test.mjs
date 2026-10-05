@@ -4,7 +4,7 @@
 // they are a work order is UNKNOWN. A task no record owns is named, with that reason, and the
 // answer is not an all-clear.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
@@ -59,4 +59,23 @@ test('a task adr-next could not read is not an unbacked done claim', () => {
   const state = observe(root, { spawn: unread, listing })
   assert.deepEqual(state.unbacked, [], JSON.stringify(state.unbacked))
   assert.ok(state.readinessUnproven.some(dir => dir === tasks), JSON.stringify(state.readinessUnproven))
+})
+
+// A stand-in review's GREEN (F6): an unreadable task in a shared `tasks/` beside one record is that
+// record's (`unreadTasks`), and was named "no record owning these tasks was found". It is UNPROVEN, and
+// still its record's.
+test('a task its record owns and nobody could read is not called ownerless', t => {
+  if (process.platform === 'win32' || process.getuid?.() === 0) { t.skip('no mode bit denies this process a read here'); return }
+  const root = path.join(scratch, 'owned-unread')
+  const tasks = path.join(root, 'docs', 'adr', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  writeFileSync(path.join(root, 'docs', 'adr', 'ADR-002-a.md'), '# ADR-002: a\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+  writeFileSync(path.join(tasks, 'T1-locked.md'), '# Task ADR-002-T1: a\n\n## Acceptance\n\n```bash\ntrue\n```\n')
+  const listing = ['docs/adr/ADR-002-a.md', 'docs/adr/tasks/T1-locked.md']
+  chmodSync(path.join(tasks, 'T1-locked.md'), 0o000)
+  try {
+    const state = observe(root, { spawn, listing })
+    assert.deepEqual(state.ownerless, [], JSON.stringify(state.ownerless))
+    assert.ok(state.readinessUnproven.includes(tasks), JSON.stringify(state.readinessUnproven))
+  } finally { chmodSync(path.join(tasks, 'T1-locked.md'), 0o644) }
 })

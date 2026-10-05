@@ -85,3 +85,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-081](ADR-081-qh-check-reads-its-own-ledger.md) | qh-check reads its own ledger | Accepted |
 | [ADR-082](ADR-082-an-attestation-says-what-changed.md) | An attestation says what its run changed | Accepted |
 | [ADR-083](ADR-083-the-lexer-reads-jsx.md) | The lexer reads JSX | Accepted |
+| [ADR-084](ADR-084-count-the-skills-adopters-use.md) | Count the skills adopters use, and read the ledgers in one report | Accepted |

@@ -1612,8 +1612,11 @@ def check_task(path, all_stems, errors, root, tracked):
     if "\x00" in text:
         # Said first and plainly: the section findings below are about a file nobody
         # can read (a Windows chaos round, 2.111.0-rc: a UTF-16 task).
+        # `evidence=True`: strictFrom must not demote it. With the task's info None, no evidence
+        # check sees it, so a demoted NUL line let a README `done` row PASS under strictFrom with
+        # nothing behind it (a stand-in review of f8d1eaf, a fail-open).
         errors.append(f"{path.name}: holds NUL bytes, so it is not UTF-8 text (saved as UTF-16, or binary?) "
-                      f"and no gate can read it. Save it as UTF-8.")
+                      f"and no gate can read it. Save it as UTF-8.", evidence=True)
         # And nothing more, as for a record: a task nobody can read has no sections, tests or
         # log to judge, and its `None` info keeps every later check off it (BACKLOG §350 C8).
         return set(), None
@@ -2199,6 +2202,16 @@ def check_cross_record_cycles(root, corpus_dir, tracked, errors):
     # never the lint of this record: one locked task turned 57–76 records into could-not-run on
     # Windows (BACKLOG §350 C3). Each is named, relative, with the reason in words.
     unread = []
+
+    def shown(f):
+        # Relative to the repository by REAL path: `/var` is `/private/var` on macOS, and the listed
+        # spelling against the resolved root printed `../../../../var/…`, a home or temp path in all
+        # but name. Outside it, or on another drive, only the file's name.
+        try:
+            rel = os.path.relpath(os.path.realpath(f), os.path.realpath(root))
+        except ValueError:
+            rel = os.pardir
+        return Path(rel).as_posix() if not rel.startswith(os.pardir) else f.name
     for record, record_number in records:
         tasks = record.with_suffix("") / "tasks"
         if not tasks.is_dir():
@@ -2207,24 +2220,21 @@ def check_cross_record_cycles(root, corpus_dir, tracked, errors):
         for f in sorted(tasks.glob("*.md")):
             if f.name.lower() == "readme.md":
                 continue
-            refuse_irregular(f)
             local = re.search(r"(?<!\w)T\d+(?!\w)", f.stem, re.I)
             if not local:
                 continue
             node = f"{here}-{local.group(0).upper()}"
             nodes.add(node)
+            # A directory or a FIFO named like another record's task is refused unread, as a read
+            # that fails is, never this record's could-not-run (§350 C3's sibling, found when its
+            # catalogue mutant went GREEN: `refuse_irregular` here exited 2 first).
+            if f.exists() and not f.is_file():
+                unread.append(f"`{shown(f)}`: not a regular file")
+                continue
             try:
                 text = f.read_text(encoding="utf-8", errors="replace")
             except OSError as exc:
-                # Relative to the repository by REAL path: `/var` is `/private/var` on macOS, and the
-                # listed spelling against the resolved root printed `../../../../var/…`, a home or
-                # temp path in all but name. Outside it, or on another drive, only the file's name.
-                try:
-                    rel = os.path.relpath(os.path.realpath(f), os.path.realpath(root))
-                except ValueError:
-                    rel = os.pardir
-                shown = Path(rel).as_posix() if not rel.startswith(os.pardir) else f.name
-                unread.append(f"`{shown}`: {os_reason(exc)}")
+                unread.append(f"`{shown(f)}`: {os_reason(exc)}")
                 continue
             qualified, _ = split_dependencies(header_val(text, "Depends-on") or "")
             for pointer in qualified:
@@ -2797,7 +2807,12 @@ def check_status_allows_execution(adr_path, readme_text, errors):
     text = Path(adr_path).read_text(errors="replace", encoding="utf-8")
     status, _ = record_status(text)
     if status is None:
-        return  # check_adr already made the verdict UNPROVEN: this check cannot run without a Status
+        # Inside `protected()`: a done task under a record whose Status nobody could read is UNPROVEN
+        # whatever strictFrom says. check_adr's own line is demoted on an old record, and a missing
+        # Status then let a done row stand where `Proposed` blocks (a stand-in review of f8d1eaf).
+        errors.unprove(f"{adr_path.name}: {', '.join(sorted(done))} {'is' if len(done) == 1 else 'are'} marked "
+                       f"done, and no Status could be read, so whether the decision was taken is unknown")
+        return
     # ADR-074: the shared reading. Pending (Proposed, Draft) and Rejected were never executed.
     if status_kind(status) == "pending" or record_status_word(status) == "rejected":
         errors.append(f"{adr_path.name}: Status is '{status}' but "
@@ -6758,8 +6773,11 @@ if __name__ == "__main__":
         # outside the working directory, or on another Windows drive, is shown as the OS gave it.
         shown = exc.filename or "a file"
         try:
-            if exc.filename and not os.path.relpath(exc.filename).startswith(".."):
-                shown = os.path.relpath(exc.filename)
+            # By real path: the working directory is resolved (`/private/var` on macOS) while a listed
+            # path may not be, and the two spellings printed the absolute path this exists to avoid.
+            rel = os.path.relpath(os.path.realpath(exc.filename), os.path.realpath(os.curdir)) if exc.filename else ""
+            if rel and not rel.startswith(".."):
+                shown = Path(rel).as_posix()
         except ValueError:
             pass
         print(f"[adr-lint] could not run: {one_line(shown)} — {one_line(os_reason(exc))}", file=sys.stderr)

@@ -216,6 +216,10 @@ const READERS = {
   // to what is said, never remove one, and neither builds a verdict.
   importPassVerdicts: { unexecuted: 'ADR-080 T1 — needs a fixture that tears the log beside a pass ledger' },
   startArtifactPass: { unexecuted: 'ADR-080 T1 — needs a fixture that tears the log when a pass cannot start' },
+  // ADR-084 T2. Not a hook, so no boundary drives it: `tested` names the test that tears its log, where
+  // a torn session log is named UNPROVEN and the look is PARTIAL — a lost line can lower a count, never
+  // pass for one read whole.
+  ledgerReport: { tested: 'tests/ledger-report.test.mjs' },
 }
 
 test('every reader of the session log is driven above, or says why a lost line cannot flatter it', () => {
@@ -240,7 +244,8 @@ test('every reader of the session log is driven above, or says why a lost line c
   for (const [name, entry] of Object.entries(READERS)) {
     if (entry.driven) assert.ok(entry.driven in SURFACES, `${name} claims a surface that does not exist`)
     if (entry.executed) assert.ok(entry.executed in BOUNDARIES, `${name} claims a boundary that does not exist`)
-    assert.ok(entry.driven || entry.executed || entry.unexecuted, `${name} must be driven, executed, or admit it is neither`)
+    if (entry.tested) assert.ok(existsSync(join(repoRoot, entry.tested)), `${name} claims a test file that does not exist`)
+    assert.ok(entry.driven || entry.executed || entry.unexecuted || entry.tested, `${name} must be driven, executed, tested, or admit it is none`)
   }
 
   // ⚠ AND THE TWO WAYS A READER ESCAPES A SWEEP FOR `readEvents(`. The first
@@ -254,6 +259,7 @@ test('every reader of the session log is driven above, or says why a lost line c
     'lifecycle.mjs': 'by function, above',
     'statusline.mjs': { driven: 'statusline reading -> render' },
     'publish-hook.mjs': 'by function, above',
+    'ledger-report.mjs': 'by function, above (ledgerReport)',
   }
   const LOG_TAKERS = {
     observedFacts: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },

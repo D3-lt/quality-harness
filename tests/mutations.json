@@ -12044,8 +12044,8 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "    return out.replace(QUOTED, '$1<path>$1').replace(ABSOLUTE, '<path>')",
-      "to": "    return out.replace(ABSOLUTE, '<path>')",
+      "from": "    return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')",
+      "to": "    return out.replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')",
       "only": "^(?:scrubber: every absolute path is a placeholder, and a repository-relative one is untouched)$"
     },
     {
@@ -20807,6 +20807,16 @@
       "from": "...(unproven.length ? { unproven } : {}), ",
       "to": "",
       "only": "^(?:the probe keeps what adr-lint could not decide, under whatever verdict it reached)$"
+    },
+    {
+      "label": "§350 RC: a Windows path under ~ prints whole",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": ".replace(HOME_RELATIVE, '~<path>')",
+      "to": "",
+      "only": "^(?:a path under the home directory is a placeholder in either separator)$"
     }
   ]
 }

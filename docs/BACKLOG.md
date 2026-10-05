@@ -18129,3 +18129,7 @@ OS's periodic cleanup, and failed with ERR_MODULE_NOT_FOUND — a fresh clone, n
   under the FAIL — FAIL outranks UNPROVEN, by design — and the probe kept only the FAIL's first finding and
   its advice, so the record's one Status signal was in no report. The probe now carries `unproven` lines
   under any reached verdict and `--diff` compares them. rust-adr-corpus also saw the `~` leak, fixed above.
+- **The Windows CI job of the dispatched campaign at 91c62db** found the `~` leak in its other spelling:
+  `~\elsewhere\x.md` met no absolute-path head (a `/`, a drive letter or a UNC prefix) and printed whole,
+  in 3.8.6 as well. A `~` followed by either separator is now `~<path>`, with a test that runs everywhere.
+  The same campaign's other jobs were cancelled by GitHub ("not acquired by Runner of type hosted").

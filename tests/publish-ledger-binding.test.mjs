@@ -319,3 +319,22 @@ test("git's own hook says a torn ledger is unknown, at commit and at push", { sk
     }
   }
 })
+
+// A review of 8fe4fa8: rule P's dedupe key did not change when the ledger tore, so advice already
+// given on a tree swallowed the could-not-look advice that followed. A newly torn ledger is said once.
+test('a ledger torn after the advice was given is said once', () => {
+  const dir = repository('said-')
+  const session = `ledger-said-${process.pid}`
+  start(dir, session)
+  writeFileSync(path.join(dir, 'a.md'), 'bad\n')
+  const mention = () => {
+    const run = hook(dir, { hook_event_name: 'PreToolUse', tool_name: 'Bash', session_id: session, tool_input: { command: "grep -n 'git push' a.md" } })
+    return hookSaid(run.stdout, run.stderr).text
+  }
+  assert.match(mention(), /unchecked/, 'the first mention is told')
+  assert.doesNotMatch(mention(), /quality-harness/, 'the twin: the same state is not told twice')
+  mkdirSync(path.dirname(ledger(dir)), { recursive: true })
+  writeFileSync(ledger(dir), '{\n')
+  assert.match(mention(), /whether this repository is checked is unknown/, 'a newly torn ledger was not said')
+  assert.doesNotMatch(mention(), /quality-harness/, 'and it is said once')
+})

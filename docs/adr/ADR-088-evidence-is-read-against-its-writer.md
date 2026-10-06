@@ -193,4 +193,8 @@ Revert T1's and T2's commits. No stored format changes: rows, `checks.jsonl` and
   Left as they are, by judgement:
   - a publish on a tree and index that equal the session's baseline is still `null` beside a torn ledger. ADR-061 asks for no check there, and no check event, whether bound, dropped or torn, enters that decision. Saying "unknown" there would speak of a check the verdict does not need;
   - siblings of the unterminated-line class not changed here: `latestFastPass` (`fast-checks.jsonl`) and qh-check's `passedAlready`;
-  - writer-side readers of the lock rows, which take no repository (`lock_hasher` and `moved_lock_bodies`, both used by `--relock`), still read every width.
+  - writer-side readers of the lock rows that take no repository (`lock_hasher` and `moved_lock_bodies`, used by `--relock`) still read every width. So does `record_relock`'s own `vlog_has_test_lock(text)` check.
+
+  A review of 8fe4fa8 found two more gaps, each fixed with a test that failed first and a mutant RED:
+  - the recovery-lock readers `vlog_has_test_lock` and `vlog_has_red` now take the repository's width through `first_red_lock_suffix` and `lock_suffix_for_run`;
+  - rule P's dedupe key now carries `:unknown` when the record was not read whole, so a ledger torn after advice was given is said, and said once.

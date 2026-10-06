@@ -832,6 +832,38 @@ export function commitOnlyCommand(command) {
   return only.argv[index] === 'commit'
 }
 
+/**
+ * freshRepositoryCommit proves from the text alone that a command commits into a
+ * repository it created in a fresh `mktemp -d` directory (ADR-086 Decision 2): an
+ * `&&`-chain from that variable's assignment through `cd "$V"` and a bare `git init`,
+ * then only `git add` and `git commit`. No program may run in between, since any
+ * program can write `$V/.git` as a gitfile pointing elsewhere, and a `;`, `||`, `|`,
+ * `&`, newline, subshell or `!` lets the chain go on after `mktemp` or `cd` failed —
+ * measured: a failed `mktemp` then `;` and `cd "$R"` commits HERE. The commands are
+ * `cd` and `git` only, so `HOOK_UNSAFE_FIRST` has nothing left to exclude. Anything
+ * this cannot prove is not one, and keeps ADR-061's refusal.
+ */
+export function freshRepositoryCommit(command) {
+  if (typeof command !== 'string' || /[!{}`]/.test(command) || /(?<![\w.-])push(?![\w-])/.test(command)) return false
+  if (HOOK_ENVIRONMENT_NAMES.test(command)) return false
+  const { commands, complete } = shellWords(command)
+  if (!complete || commands.length < 4) return false
+  const last = commands.length - 1
+  if (commands.some((step, k) => step.heredocs.length || step.redirects || step.pipeTo !== null || step.ended !== (k === last ? '' : '&&'))) return false
+  const [made, enter, init, ...rest] = commands
+  const name = /^([A-Za-z_]\w*)=/.exec(made.assignments[0] ?? '')?.[1]
+  if (made.argv.length || !freshDirectoryVariables(commands).has(name)) return false
+  if (enter.assignments.length || enter.argv.length !== 2 || enter.argv[0] !== 'cd' || enter.argv[1] !== `$${name}` || !enter.dynamic.includes(1)) return false
+  const plain = step => !step.assignments.length && !step.substitutions.length && !step.dynamic.length && !step.code.some(Boolean)
+  if (!plain(init) || init.argv[0] !== 'git' || init.argv[1] !== 'init' || !init.argv.slice(2).every(word => word === '-q' || word === '--quiet')) return false
+  return rest.every(step => {
+    if (!plain(step) || step.argv[0] !== 'git') return false
+    let at = 1
+    while (step.argv[at] === '-c' && /^user\.(?:name|email)=/.test(step.argv[at + 1] ?? '')) at += 2
+    return step.argv[at] === 'add' || step.argv[at] === 'commit'
+  })
+}
+
 export function checkCommandOrigin(cwd = process.cwd(), discovery = null) {
   const directory = nearestExistingDirectory(path.resolve(cwd))
   if (!directory) return { command: null, origin: 'none' }
@@ -4907,9 +4939,11 @@ function plainGitArguments(verb, args) {
 }
 
 // One segment: -1 when it could turn the hook off or run git some other way, 1 for a
-// plain publish, 0 for anything else.
-function segmentVerdict(words) {
+// plain publish, 0 for anything else. The one bare assignment of a fresh-directory
+// variable (ADR-086 T1) is plain; every other `NAME=` segment is not.
+function segmentVerdict(words, fresh = NO_FRESH_DIRECTORIES) {
   const [first] = words
+  if (words.length === 1 && fresh.has(/^([A-Za-z_]\w*)=/.exec(first)?.[1])) return 0
   if (/^[A-Za-z_]\w*=/.test(first) || HOOK_UNSAFE_FIRST.has(first)) return -1
   if (first !== 'git') {
     // A wrapper that runs git: `bash -c 'git commit'`, `xargs git push`.
@@ -4940,7 +4974,7 @@ function segmentVerdict(words) {
 // after `(` — counts under the command that encloses it. A heredoc whose command
 // pipes its output on — `cat <<EOF | docker … sh` — may carry the body anywhere, so
 // it counts for none.
-function plainPublishes(text, depth, inherited = false) {
+function plainPublishes(text, depth, inherited = false, fresh = NO_FRESH_DIRECTORIES) {
   if (depth > 4) return -1
   const { commands, complete } = shellWords(text)
   if (!complete) return -1
@@ -4962,11 +4996,94 @@ function plainPublishes(text, depth, inherited = false) {
     }
     const words = wordsOf(command)
     if (words.length === 0) continue
-    const verdict = segmentVerdict(words)
+    const verdict = segmentVerdict(words, fresh)
     if (verdict < 0) return -1
     found += verdict
   }
   return found
+}
+
+// ADR-086: a fresh-directory variable is a name the command assigns exactly once, as
+// a bare `V=$(mktemp -d [template])` whose template is a plain literal, and names
+// nowhere else as a word (`export V`, `read V`, `local V`, `for V`). A name git or
+// this session reads from the environment never is one.
+// A name git or this session reads from the environment, anywhere in a text:
+// `printf -v GIT_CONFIG_COUNT %s 0` assigns one with no builtin listed (round 4).
+const HOOK_ENVIRONMENT_NAMES = /\b(?:GIT_\w*|CLAUDE_\w*|PATH|HOME|XDG_CONFIG_HOME|env)\b/
+const NO_FRESH_DIRECTORIES = new Set()
+const FRESH_TEMPLATE = /^[\w./@%+:,][\w./@%+:,-]*$/
+export function freshDirectoryVariables(commands) {
+  const assigned = new Map()
+  const named = new Set()
+  for (const command of commands) {
+    for (const assignment of command.assignments) {
+      const name = assignment.slice(0, assignment.indexOf('='))
+      assigned.set(name, (assigned.get(name) ?? 0) + 1)
+    }
+    for (const word of command.argv) named.add(word.split('=')[0])
+  }
+  const fresh = new Set()
+  for (const command of commands) {
+    if (command.argv.length || command.assignments.length !== 1 || command.substitutions.length !== 1
+      || command.heredocs.length || command.redirects) continue
+    const [assignment] = command.assignments
+    const name = /^([A-Za-z_]\w*)=/.exec(assignment)?.[1]
+    if (!name || assigned.get(name) !== 1 || named.has(name)) continue
+    if (HOOK_ENVIRONMENT_NAMES.test(name)) continue
+    const [inner] = command.substitutions
+    if (assignment !== `${name}=$(${inner})`) continue
+    const parsed = shellWords(inner)
+    if (!parsed.complete || parsed.commands.length !== 1) continue
+    const [made] = parsed.commands
+    if (made.assignments.length || made.dynamic.length || made.substitutions.length || made.heredocs.length || made.redirects) continue
+    const [program, flag, ...templates] = made.argv
+    if (program !== 'mktemp' || flag !== '-d' || templates.length > 1 || !templates.every(word => FRESH_TEMPLATE.test(word))) continue
+    fresh.add(name)
+  }
+  return fresh
+}
+
+// How many of `command`'s words are `operand` standing as a directory: the only
+// operand of `cd`, the value of `git -C`, or the directory of `git init` (ADR-086).
+function directoryOperands(command, operand) {
+  const { argv } = command
+  const expanded = k => argv[k] === operand && command.dynamic.includes(k)
+  if (argv[0] === 'cd') return argv.length === 2 && expanded(1) ? 1 : 0
+  if (argv[0] !== 'git') return 0
+  let found = 0
+  let at = 1
+  while (at < argv.length && argv[at].startsWith('-')) {
+    if (argv[at] === '-C') { if (expanded(at + 1)) found += 1; at += 2 } else at += 1
+  }
+  if (argv[at] !== 'init') return found
+  const rest = argv.slice(at + 1).map((word, k) => [word, at + 1 + k])
+  const directories = rest.filter(([, k]) => expanded(k))
+  const quiet = rest.every(([word, k]) => expanded(k) || word === '-q' || word === '--quiet')
+  return found + (directories.length === 1 && quiet ? 1 : 0)
+}
+
+// ADR-086 T1: `text` with each fresh-directory variable's assignment, and every use of
+// it as a directory operand, made plain. When any `$V` stands anywhere else, or the
+// text names a push, the text is returned as it came, and its `$` keeps the refusal.
+function freshDirectoryText(text) {
+  if (!/[$`]/.test(text)) return { raw: text, fresh: NO_FRESH_DIRECTORIES }
+  const { commands } = shellWords(text)
+  const fresh = freshDirectoryVariables(commands)
+  const unchanged = { raw: text, fresh: NO_FRESH_DIRECTORIES }
+  if (fresh.size === 0 || /(?<![\w.-])push(?![\w-])/.test(text)) return unchanged
+  let plain = text
+  for (const name of fresh) {
+    const at = commands.findIndex(command => command.argv.length === 0 && command.assignments[0]?.startsWith(`${name}=`))
+    const [assignment] = commands[at].assignments
+    const [template = ''] = shellWords(commands[at].substitutions[0]).commands[0].argv.slice(2)
+    if (plain.split(assignment).length !== 2) return unchanged
+    const uses = commands.slice(at + 1).reduce((sum, command) => sum + directoryOperands(command, `$${name}`), 0)
+    const references = plain.match(new RegExp(`\\$\\{?${name}(?!\\w)`, 'g'))?.length ?? 0
+    const operand = new RegExp(`(?<=^|[\\s;&|(])(?:"\\$${name}"|\\$${name})(?=$|[\\s;&|)])`, 'g')
+    if (uses !== references || (plain.match(operand)?.length ?? 0) !== references) return unchanged
+    plain = plain.replace(assignment, () => `${name}=${template}`).replace(operand, () => 'fresh')
+  }
+  return { raw: plain, fresh }
 }
 
 /**
@@ -4985,7 +5102,10 @@ function plainPublishes(text, depth, inherited = false) {
  */
 export function leavesHookInPlace(command) {
   // The shell joins a backslash-newline before anything else reads the line.
-  const raw = String(command ?? '').replace(/\\\r?\n/g, '')
+  const joined = String(command ?? '').replace(/\\\r?\n/g, '')
+  // ADR-086 T1: a fresh-directory variable used as a directory is plain text; git's
+  // own hook then judges the repository the commit lands in.
+  const { raw, fresh } = freshDirectoryText(joined)
   // A `$` or a backtick can build any argument at run time.
   if (/[$`]/.test(raw)) return false
   // Outside quotes the shell also EXPANDS — braces, globs, a tilde — so what stands
@@ -4996,8 +5116,8 @@ export function leavesHookInPlace(command) {
   if (/\.git\/|hookspath/i.test(raw)) return false
   // A name git or this session reads from the environment, anywhere in the text:
   // `printf -v GIT_CONFIG_COUNT %s 0` assigns one with no builtin listed (round 4).
-  if (/\b(?:GIT_\w*|CLAUDE_\w*|PATH|HOME|XDG_CONFIG_HOME|env)\b/.test(raw)) return false
-  return plainPublishes(raw, 0) > 0
+  if (HOOK_ENVIRONMENT_NAMES.test(raw)) return false
+  return plainPublishes(raw, 0, false, fresh) > 0
 }
 
 /**
@@ -5125,6 +5245,15 @@ function publishUnchecked(input, requested) {
   if (verdict.deny && input.tool_name === 'Bash' && leavesHookInPlace(input.tool_input?.command)
     && readEvents(input.cwd, input.session_id).some(entry => entry.event === 'publish.hook-ran')) {
     verdict = { ...verdict, deny: false, text: `${verdict.text} In this session git's own hook refuses it at the event (ADR-066), so this is advice.` }
+  }
+  // ADR-086 T2: in a Bash session, a commit the text proves lands in a repository the
+  // same command created in a fresh `mktemp -d` directory is told, not refused. Its key
+  // is its own, so a later mention on this tree is still told.
+  if (verdict.deny && input.tool_name === 'Bash' && freshRepositoryCommit(input.tool_input?.command)) {
+    verdict = {
+      ...verdict, deny: false, key: `${verdict.key}:fresh`,
+      text: 'quality-harness: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout\'s unchecked state does not refuse it (ADR-086). If the commit was meant for this checkout, run `qh-check` first.',
+    }
   }
   // A denial has to happen on every attempt. Saying it once and then allowing
   // the same command is the warning's dedupe applied to a refusal.

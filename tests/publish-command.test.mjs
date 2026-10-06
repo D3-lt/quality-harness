@@ -11,13 +11,13 @@
 // or inside the quoted string of a known executor — and nothing that is data.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
-import { containsCommitOrPush, leavesHookInPlace, mentionsCommitOrPush, publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
+import { containsCommitOrPush, freshRepositoryCommit, leavesHookInPlace, mentionsCommitOrPush, publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
 
 // Invocations a session could publish with. Each must be refused on an
@@ -335,26 +335,29 @@ function armedSession(prefix, { armed = true, offered = false } = {}) {
   git('add', '-A')
   git('commit', '-q', '-m', 'base')
   const session = `${prefix}${process.pid}`
-  const hook = payload => {
+  // What the hook said, whole: ADR-086 T2 reads the advisory text as well as the decision.
+  const said = payload => {
     const run = spawnSync(process.execPath, [hookLifecycle], {
       cwd: hookTmp, input: JSON.stringify({ session_id: session, cwd: dir, ...payload }), encoding: 'utf8', timeout: 120_000,
       env: { ...process.env, ...IDENTITY, TMPDIR: hookTmp, TMP: hookTmp, TEMP: hookTmp, CLAUDE_ENV_FILE: '' },
     })
     assert.equal(run.status, 0, run.stderr)
-    const text = hookSaid(run.stdout, run.stderr).stdout
-    return text.startsWith('{') ? JSON.parse(text).hookSpecificOutput?.permissionDecision ?? null : null
+    return hookSaid(run.stdout, run.stderr).stdout
   }
+  const hook = payload => decisionIn(said(payload))
   hook({ hook_event_name: 'SessionStart', source: 'startup' })
   if (offered) appendEvent(dir, session, { event: 'publish.offered' })
   if (armed) appendEvent(dir, session, { event: 'publish.hook-ran', hook: 'prepare-commit-msg' })
   writeFileSync(path.join(dir, 'a.md'), 'changed\n')
   const decide = (command, extra = {}) => hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, ...extra })
+  const tell = (command, extra = {}) => said({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, ...extra })
   const check = () => {
     const run = spawnSync('python3', [hookQhCheck], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, run.stderr)
   }
-  return { decide, check }
+  return { decide, check, dir, tell }
 }
+const decisionIn = text => (text.startsWith('{') ? JSON.parse(text).hookSpecificOutput?.permissionDecision ?? null : null)
 
 // Plain invocations: with git's hook in place, each is advice. The quoted-data rows
 // that were here are no longer matched at all (ADR-067).
@@ -955,4 +958,188 @@ test('an alias is read as git expands it, and a call inside a string is data', (
     assert.equal(unarmed.decide(command), 'deny', command)
   }
   for (const command of REVIEWED_CONTROLS) assert.equal(publishCommandIn(command), null, command)
+})
+
+// ── ADR-086 T1: an armed session leaves a commit into a mktemp directory to git ──
+//
+// A `$NAME` assigned from `mktemp -d` and used only as a directory operand cannot
+// switch git's injected hook off, so the commit is left to git, which judges the
+// repository it lands in. Every other `$` keeps the refusal (CLAUDE.md §16 twins).
+const freshTemplate = () => path.join(hookTmp, 'x.XXXX')
+const FRESH_DIRECTORY_COMMITS = () => [
+  `R=$(mktemp -d ${freshTemplate()}); cd $R && git init -q && git add . && git commit -qm f`,
+  `R=$(mktemp -d ${freshTemplate()}) && cd "$R" && git init -q && git add . && git commit -qm f`,
+  `R=$(mktemp -d ${freshTemplate()}) && git init -q "$R" && git -C "$R" add -A && git -C "$R" commit -qm f`,
+]
+const DOLLARS_NOT_A_DIRECTORY = session => [
+  'cd "$R" && git init -q && git commit -qm f',
+  'git -C $R commit -qm f',
+  'R=$(git rev-parse --show-toplevel) && cd "$R" && git commit -qm f',
+  'R=$(mktemp -d "$T") && cd "$R" && git init -q && git commit -qm f',
+  'R=$(mktemp -d) && R=$(pwd) && cd "$R" && git commit -qm f',
+  'export R=$(mktemp -d) && cd "$R" && git commit -qm f',
+  'R=$(mktemp -d) && git -c core.hooksPath="$R" commit -qm f',
+  'R=$(mktemp -d) && cd "$R/.." && git commit -qm f',
+  'R=$(mktemp -d) && cd "${R}" && git commit -qm f',
+  'R=$(mktemp -d) && git commit -qm "$R"',
+  'GIT_DIR=$(mktemp -d) && git commit -qm f',
+  'R=$(mktemp -d; git config hook.qh-publish-commit.enabled false) && cd "$R" && git commit -qm f',
+  `R=$(mktemp -d) && cd "$R" && git init -q && git remote add o ${session} && git push o HEAD:x`,
+]
+
+test('an armed session leaves a commit into a mktemp directory to git', () => {
+  const armed = armedSession('fresh-armed-')
+  const rows = FRESH_DIRECTORY_COMMITS()
+  for (const command of rows) assert.notEqual(armed.decide(command), 'deny', command)
+  // DIRTY twin: in a session whose hook never ran, the `;` row and the `-C` row are refused.
+  const unarmed = armedSession('fresh-unarmed-', { armed: false })
+  for (const command of [rows[0], rows[2]]) assert.equal(unarmed.decide(command), 'deny', command)
+})
+
+test('an armed session still refuses a dollar it cannot place as a directory', () => {
+  const armed = armedSession('fresh-dollar-')
+  const rows = DOLLARS_NOT_A_DIRECTORY(armed.dir)
+  for (const command of rows) assert.equal(armed.decide(command), 'deny', command)
+  // CLEAN twin: on a checked tree the same rows are not refused.
+  armed.check()
+  for (const command of rows) assert.notEqual(armed.decide(command), 'deny', command)
+})
+
+// ADR-086 Context, re-measured on every run: the armed arm rests on a target
+// repository's own config being unable to remove a hook injected through
+// GIT_CONFIG_COUNT. Skipped where git runs no config hooks at all.
+const configHookProbe = (() => {
+  const dir = mkdtempSync(path.join(hookTmp, 'config-probe-'))
+  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 10_000 })
+  const run = spawnSync('git', ['-c', 'hook.qhprobe.command=true', '-c', 'hook.qhprobe.event=pre-commit', 'hook', 'list', 'pre-commit'],
+    { cwd: dir, encoding: 'utf8', timeout: 10_000 })
+  return /\bqhprobe\b/.test(run.stdout ?? '') ? false : 'this git does not run config-based hooks (git 2.54 or later does)'
+})()
+test('a target repository config does not switch off the injected hook', { skip: configHookProbe }, () => {
+  const dir = mkdtempSync(path.join(hookTmp, 'config-target-'))
+  const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_CONFIG')))
+  const git = (...args) => spawnSync('git', ['-C', dir, ...args], {
+    encoding: 'utf8', timeout: 30_000,
+    env: {
+      ...clean, GIT_CONFIG_COUNT: '3',
+      GIT_CONFIG_KEY_0: 'hook.qhprobe.command', GIT_CONFIG_VALUE_0: 'echo qhprobe-ran',
+      GIT_CONFIG_KEY_1: 'hook.qhprobe.event', GIT_CONFIG_VALUE_1: 'prepare-commit-msg',
+      GIT_CONFIG_KEY_2: 'hook.qhprobe.enabled', GIT_CONFIG_VALUE_2: 'true',
+    },
+  })
+  assert.equal(git('init', '-q').status, 0)
+  for (const [key, value] of [['hook.qhprobe.command', 'true'], ['hook.qhprobe.event', ''], ['hook.qhprobe.enabled', 'false'], ['core.hooksPath', '/dev/null']]) {
+    assert.equal(spawnSync('git', ['-C', dir, 'config', key, value], { encoding: 'utf8', timeout: 10_000 }).status, 0, key)
+    const run = git('hook', 'run', 'prepare-commit-msg', '--', 'x')
+    assert.match(`${run.stdout}${run.stderr}`, /qhprobe-ran/, `a local ${key} switched the injected hook off`)
+    assert.equal(spawnSync('git', ['-C', dir, 'config', '--unset', key], { encoding: 'utf8', timeout: 10_000 }).status, 0, key)
+  }
+})
+
+// ── ADR-086 T2: an unarmed commit into a repository the command creates is advised ──
+//
+// With no git hook to judge at the event, only the text can prove where the commit
+// lands: an `&&`-chain from `V=$(mktemp -d …)` through `cd "$V"` and a bare `git init`,
+// then only `git add` and `git commit`. Every row is executed under bash below.
+const slashed = file => file.replace(/\\/g, '/')
+const freshParent = () => slashed(mkdtempSync(path.join(hookTmp, 'fresh-parent-')))
+const FRESH_REPOSITORY_ROWS = (parent, session) => [
+  `R=$(mktemp -d ${parent}/fresh.XXXX) && cd "$R" && git init -q && git add -A && git commit -q --allow-empty -m f`,
+  `R=$(mktemp -d ${parent}/fresh.XXXX) && cd $R && git init -q && git add -A && git commit -q --allow-empty -m f`,
+  `R=$(mktemp -d ${session}/fresh.XXXX) && cd "$R" && git init -q && git add -A && git commit -q --allow-empty -m f`,
+  `R=$(mktemp -d ${parent}/fresh.XXXX) && cd "$R" && git init -q && git add -A && git -c user.name=q -c user.email=q@e.invalid commit -q --allow-empty -m f`,
+]
+const FRESH_REPOSITORY_TWINS = (parent, session) => [
+  `R=$(mktemp -d ${parent}/fresh.XXXX); cd "$R" && git init -q && git commit -qm f`,
+  `R=$(mktemp -d ${parent}/fresh.XXXX); cd $R && git init -q && git add . && git commit -qm f`,
+  `cd ${session} && git commit -qm f`,
+  'git -C . commit -qm f',
+  'cd "$R"; cd -; git commit -qm f',
+  'git init -q x && git commit -qm f',
+  ...[
+    '(cd "$R" && git init -q) && git commit -qm f',
+    'cd "$R" && git init -q && cd - && git commit -qm f',
+    'cd "$R" && git commit -qm f',
+    'cd "$R" && git init -q && git commit -qm f && git push',
+    'cd "$R" && git init -q || git commit -qm f',
+    'cd "$R" && git init -q | cat && git commit -qm f',
+    `cd "$R" && git init -q && GIT_DIR=${session}/.git git commit -qm f`,
+    `cd "$R" && git init -q --separate-git-dir=${session}/.git && git commit -qm f`,
+    `cd "$R" && printf 'gitdir: ${session}/.git\\n' > .git && git init -q && git commit -qm f`,
+    `cd "$R" && git init -q && git -C ${session} commit -qm f`,
+    `cd "$R" && git init -q && git --git-dir=${session}/.git commit -qm f`,
+    'git init -q "$R" && git -C "$R" commit -qm f',
+  ].map(rest => `R=$(mktemp -d) && ${rest}`),
+  'R=$(mktemp -d) && R=. && cd "$R" && git init -q && git commit -qm f',
+  'R=$(mktemp -d; echo .) && cd "$R" && git init -q && git commit -qm f',
+]
+
+test('an unarmed commit into a repository the command creates is advised, not refused', () => {
+  const parent = freshParent()
+  for (let k = 0; k < FRESH_REPOSITORY_ROWS('', '').length; k++) {
+    // One session per row: an advisory is said once per tree, so a second row on the
+    // same tree would be silent and could not show that it names ADR-086.
+    const unarmed = armedSession(`fresh-advised-${k}-`, { armed: false })
+    const command = FRESH_REPOSITORY_ROWS(parent, slashed(unarmed.dir))[k]
+    const text = unarmed.tell(command)
+    assert.notEqual(decisionIn(text), 'deny', command)
+    assert.match(text, /ADR-086/, command)
+    // The fresh advice carries its own key, so a later mention on this tree is still told.
+    if (k === 0) assert.match(unarmed.tell('grep -n commit a.md'), /only mentions commit or push/, 'a later mention keeps its own advisory')
+  }
+})
+
+test('an unarmed chain the text cannot place in a fresh repository is still refused', () => {
+  const unarmed = armedSession('fresh-twin-', { armed: false })
+  const rows = FRESH_REPOSITORY_TWINS(freshParent(), slashed(unarmed.dir))
+  for (const command of rows) assert.equal(unarmed.decide(command), 'deny', command)
+  // CLEAN twin: on a checked tree the same rows are not refused.
+  unarmed.check()
+  for (const command of rows) assert.notEqual(unarmed.decide(command), 'deny', command)
+})
+
+// Executed, because the grammar is a claim about where bash puts the commit
+// (CLAUDE.md §16). The environment carries no git or session variable, so no row can
+// reach the repository running this suite (CLAUDE.md §9). Bash is found as
+// tests/shell-words.test.mjs finds it.
+const FRESH_BASH = ['/bin/bash'].find(shell => process.platform !== 'win32' && existsSync(shell))
+test('the fresh-repository rows commit where the classifier says they do', { skip: FRESH_BASH ? false : 'no /bin/bash on this platform' }, () => {
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:GIT_|CLAUDE_)/.test(name) && name !== 'XDG_CONFIG_HOME')),
+    ...IDENTITY, HOME: mkdtempSync(path.join(hookTmp, 'fresh-home-')),
+  }
+  const git = (dir, ...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', timeout: 30_000, env })
+  const repository = () => {
+    const dir = mkdtempSync(path.join(hookTmp, 'fresh-session-'))
+    assert.equal(git(dir, 'init', '-q').status, 0)
+    writeFileSync(path.join(dir, 'a.md'), 'a\n')
+    assert.equal(git(dir, 'add', '-A').status, 0)
+    assert.equal(git(dir, 'commit', '-q', '-m', 'base').status, 0)
+    return dir
+  }
+  const head = dir => git(dir, 'rev-parse', 'HEAD').stdout.trim()
+  const bash = (dir, command) => spawnSync(FRESH_BASH, ['-c', command], { cwd: dir, encoding: 'utf8', timeout: 30_000, env })
+  for (let k = 0; k < FRESH_REPOSITORY_ROWS('', '').length; k++) {
+    const session = repository()
+    const parent = freshParent()
+    const command = FRESH_REPOSITORY_ROWS(parent, slashed(session))[k]
+    assert.equal(freshRepositoryCommit(command), true, command)
+    const before = head(session)
+    const run = bash(session, command)
+    assert.equal(run.status, 0, `${command}\n${run.stderr}`)
+    assert.equal(head(session), before, `the session repository moved: ${command}`)
+    const where = k === 2 ? session : parent
+    const made = readdirSync(where).filter(name => name.startsWith('fresh.'))
+    assert.equal(made.length, 1, command)
+    assert.match(head(path.join(where, made[0])), /^[0-9a-f]{40,64}$/, `no commit in the directory mktemp made: ${command}`)
+  }
+  // The measured fail-open, replayed: where mktemp fails, `;` carries on, `cd "$R"`
+  // stays here, and the commit lands in the session repository.
+  const session = repository()
+  writeFileSync(path.join(session, 'a.md'), 'changed\n')
+  const replay = `R=$(mktemp -d ${slashed(path.join(hookTmp, 'fresh-missing'))}/x.XXXX); cd "$R" && git init -q && git add -A && git commit -qm f`
+  assert.equal(freshRepositoryCommit(replay), false)
+  const before = head(session)
+  bash(session, replay)
+  assert.notEqual(head(session), before, 'the replay row did not commit into the session repository')
 })

@@ -88,6 +88,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
 from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402
 from record import git_root, os_reason  # noqa: E402
 from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW  # noqa: E402
+from record import row_date_problem  # noqa: E402
 from record import record_status, status_kind, unsigned_human_proof_steps  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
@@ -487,6 +488,9 @@ def is_done(text, digest, human, fence=None, first=None, root=None):
         want_legacy = first.replace("`", "'")
     for line in log.split("\n"):
         line = line.strip()
+        # A row dated on a day that does not exist, or ahead of today, is not one adr-verify wrote.
+        if row_date_problem(line):
+            continue
         if human and (m := VLOG_HUMAN_RE.match(line)) and not HUMAN_MUTANT_NOTE.match(m.group("note")):
             # A sign-off is evidence. Whether the LAST one takes it back is `human_stop`'s
             # question, which both callers ask before this one (Codex review of 3ff59fb). Asked

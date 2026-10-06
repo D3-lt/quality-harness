@@ -306,3 +306,4 @@ None — no persistent state, contract or external integration changes. Revertin
 - [ ] Owner decision: ADR-066's armed grammar refusing `-c commit.gpgsign=false` (L5).
 - [ ] Owner decision: `VERB_VALUED` (`lifecycle.mjs:3875`) reads `-Fm` as taking the next word; git reads `m` as the file.
 - [ ] Owner decision: is `-m "$(cat <<'EOF' … EOF)"` worth its own exemption and twins (Alternatives (f))?
+- [x] Executed 2026-10-06: T1-T3 done, each with its red run, killed mutants and catalogue entries (`tests/mutations.json`, labels `ADR-090 T1:`/`T2:`/`T3:`); T1's lock map was retaken with `adr-verify --relock --replace-hashes` after a reviewed swap of one arithmetic row.

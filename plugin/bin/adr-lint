@@ -123,6 +123,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
 from record import git_root, os_reason  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
+from record import row_date_problem  # noqa: E402
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
 # check read a record's Status with the task parser (the Codex round of 3.1.6, finding 1).
@@ -1876,6 +1877,9 @@ def check_task(path, all_stems, errors, root, tracked):
                           f"grammar '- YYYY-MM-DD · <sha[*]|no-git> · exit N · `cmd` · "
                           f"acceptance-sha256:<64 hex>' (legacy no-digest rows remain parseable) "
                           f"(or '· human-observed · …'): {where_it_stopped(VLOG_RE, b)}")
+        elif (problem := row_date_problem(b)):
+            errors.append(f"{path.name}: Verification Log entry {problem}, so adr-verify did not write "
+                          f"it: `{b[:60]}…`. Re-run `adr-verify <task.md>` rather than editing the log")
     mlog = [ln.strip() for ln in unfenced_lines(secs.get("Mutation Log", []))
             if ln.strip().startswith("- ")]
     for b in mlog:
@@ -2633,8 +2637,13 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
         # Filtered through VLOG_RE on BOTH sides because `committed` returns every
         # line of the committed file, and an unfiltered comparison would accuse the
         # correction notes this corpus writes into task files routinely.
+        # Against the WHOLE current file, never only its Verification Log: a `--human-mutant` row in
+        # the Mutation Log matches VLOG_RE too, and on a clean tree it was reported as removed, with
+        # an instruction to re-run adr-verify (a Windows corpus-chaos run of v3.8.9). Sorted, so the
+        # advice comes out in one order: a set made it flip between runs.
         if known is not None:
-            for gone in [b for b in known if VLOG_RE.match(b) and b not in inf["vlog"]]:
+            here = {ln.strip() for ln in (inf.get("text") or "").split("\n")}
+            for gone in sorted({b for b in known if VLOG_RE.match(b) and b.strip() not in here}):
                 errors.advise(
                     f"{inf['path'].name}: {tid} had an acceptance entry that the committed "
                     f"file still holds and this file no longer has — `{gone.strip()}` is no "
@@ -6606,7 +6615,10 @@ def main():
         status_text = record_status(body)[0] or ""
         if status_kind(status_text) == "pending":
             named = implementation_paths(body)
-            tracked = tracked_or_unignored_paths(root) if named else None
+            # `tracked` is the listing taken for this whole record above. Re-taking it here as None
+            # when ## Implementation named nothing told a pending record its corpus "could not be
+            # listed from git", and let its Enforced-by resolve to a git-ignored file on disk (a
+            # Windows corpus-chaos run of v3.8.9, CLAUDE.md §8).
             if named and tracked is None:
                 errors.advise(
                     f"{adr.name}: Status is `{status_text}` and no tasks/ directory carries "

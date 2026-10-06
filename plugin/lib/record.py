@@ -3245,6 +3245,25 @@ def _row_lock_sha(line):
                      r"(?: · test-lock-kind:(relock|replace))?"
                      r"[ \t]*$", line)
 
+def row_date_problem(line, today=None):
+    """Why a log row's date cannot be one adr-verify wrote, or None.
+
+    adr-verify writes today's date. A row dated on a day that does not exist (2026-02-30), or more
+    than a day ahead (the day absorbs a clock in another zone), was not written by it, yet linted PASS
+    and counted done (BACKLOG §351 23.4, measured again on Windows, 2026-10-06). 1970 is a real date:
+    nothing here can tell how early is too early, and that limit is named, not guessed."""
+    import datetime
+    found = re.match(r"^- (\d{4})-(\d{2})-(\d{2}) · ", line.strip())
+    if not found:
+        return None
+    try:
+        day = datetime.date(*(int(part) for part in found.groups()))
+    except ValueError:
+        return f"is dated {found.group(0)[2:12]}, a day that does not exist"
+    if day > (today or datetime.date.today()) + datetime.timedelta(days=1):
+        return f"is dated {found.group(0)[2:12]}, after today"
+    return None
+
 def vlog_row_is_lock_snapshot(line):
     """True when the row is a --relock/--replace-hashes snapshot, not an Acceptance run."""
     sha = _row_lock_sha(line.strip())

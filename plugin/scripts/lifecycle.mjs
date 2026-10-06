@@ -278,7 +278,7 @@ function deletedTrackedPaths(cwd) {
   const root = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
   if (root.status !== 0) return null
   const deleted = spawnSync('git', ['-C', cwd, '-c', 'core.quotePath=false', 'diff', '--no-renames', '--name-only', '--diff-filter=D', 'HEAD'],
-    { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    { encoding: 'utf8', timeout: 10_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
   if (deleted.status !== 0) return null
   const top = root.stdout.trim()
   return deleted.stdout.split('\n')
@@ -854,6 +854,8 @@ const INHERITED_REDIRECTS = /^(?:GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_COMMON
  */
 export function freshRepositoryCommit(command, env = process.env) {
   if (typeof command !== 'string') return false
+  // ADR-090 T1: a quoted message is one literal word, so no rule below reads it as code.
+  command = maskedMessages(command)
   // One terminal newline ends the last command as the end of the text does; a newline
   // with anything after it is still a separator (Codex re-review of a14a751, P3).
   const text = command.replace(/\n$/, '')
@@ -2550,6 +2552,12 @@ function recordFilesFromListing(root, tracked, reader) {
   return files
 }
 
+// Room for a whole listing. Node's default 1 MiB cut `git ls-files -z` on a 27,289-file repository
+// (2.3 MB) with ENOBUFS, and every reader said "git could not list the tree" over a listing git produced
+// (a Windows corpus-chaos run of v3.8.9, php-dated-adr). Every git call whose output grows with the tree
+// takes it: the listing, the deleted-file diff, `gitLines` and the harness status read.
+const GIT_LISTING_BUFFER = 256 * 1024 * 1024
+
 /**
  * Repository-relative paths git knows about, or null when git cannot answer.
  *
@@ -2573,7 +2581,7 @@ export function trackedPaths(root) {
   // tracked_paths already used `-z`; this copy did not.
   for (const args of [['ls-files', '-z'], ['ls-files', '--others', '--exclude-standard', '-z']]) {
     const run = spawnSync('git', ['-C', root, '-c', 'core.quotePath=false', ...args],
-      { encoding: 'utf8', timeout: 30000, windowsHide: true })
+      { encoding: 'utf8', timeout: 30000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
     if (run.error || run.status !== 0 || typeof run.stdout !== 'string') return null
     for (const value of run.stdout.split('\0')) {
       if (value) found.add(value)
@@ -3793,6 +3801,12 @@ const programName = word => String(word).split(/[\\/]/).pop().replace(/\.exe$/i,
 const isGit = name => /^git(?:\.cmd)?$/i.test(name)
 const isFlag = word => typeof word === 'string' && word.startsWith('-')
 
+// ADR-090 T3: a wrapper written as an absolute path (`/usr/bin/env`, `C:/tools/env.exe`)
+// is that wrapper. A relative path (`./env`) is a program of the user's own, and stays one.
+const WRAPPERS = new Set(['exec', 'nohup', 'doas', 'command', 'time', 'nice', 'sudo', 'timeout', 'xargs', 'env'])
+const ABSOLUTE = /^(?:[\\/]|[A-Za-z]:[\\/])/
+const wrapperWord = word => (ABSOLUTE.test(word) && WRAPPERS.has(programName(word)) ? programName(word) : word)
+
 // Where a command's program starts, past control keywords and the wrappers that run
 // their arguments (`exec`, `env`, `sudo`, `time`, `nice`, `doas`, `timeout N`,
 // `xargs`), each with the options that take a value. `{ text }` when the wrapper
@@ -3800,7 +3814,7 @@ const isFlag = word => typeof word === 'string' && word.startsWith('-')
 function programIndex(argv) {
   let k = 0
   while (k < argv.length) {
-    const word = argv[k]
+    const word = wrapperWord(argv[k])
     // cmd's `if [/i] [not] <condition> <command>` runs its command: the condition is
     // `errorlevel N`, `exist P`, `defined V`, `cmdextversion N`, `a==b`, or `a <op> b`
     // (a Windows chaos round of 9cc9a35: `cmd /c if 1==1 git push` pushed under cmd,
@@ -4935,6 +4949,14 @@ const HOOK_SAFE_OPTIONS = {
 // 4: `bash -c "git commit -m x;"`; a heredoc fed to a container runs without it).
 const HOOK_DATA_COMMANDS = new Set(['echo', 'printf', 'cat', 'git', 'node'])
 
+// The short-cluster rule (ADR-066 round 3): in `-<letters>`, the first letter that
+// takes a value takes the rest of the cluster as that value, or the next word when it
+// ends the cluster. Its index in `arg`, or -1 when no letter of `takes` is there.
+function valuedLetter(arg, takes) {
+  for (let at = 1; at < arg.length; at += 1) if (takes.includes(arg[at])) return at
+  return -1
+}
+
 // Whether a `git commit` / `git push` segment's arguments are all known to leave
 // hooks alone; anything unlisted is not. A word hiding quoted code (a NUL) is not
 // known — `git commit '-nm;x'` hands git `-n` (round 4).
@@ -4949,10 +4971,9 @@ function plainGitArguments(verb, args) {
     if (safe.long.has(arg) || safe.valued.test(arg)) continue
     if (safe.takesNext.has(arg)) { i += 1; continue }
     if (!/^-[A-Za-z]/.test(arg)) return false
-    for (let at = 1; at < arg.length; at += 1) {
-      if (safe.takes.includes(arg[at])) { if (at === arg.length - 1) i += 1; break }
-      if (!safe.short.includes(arg[at])) return false
-    }
+    const at = valuedLetter(arg, safe.takes)
+    if (![...arg.slice(1, at < 0 ? arg.length : at)].every(letter => safe.short.includes(letter))) return false
+    if (at === arg.length - 1) i += 1
   }
   return true
 }
@@ -5084,10 +5105,69 @@ function directoryOperands(command, operand) {
   return found + (directories.length === 1 && quiet ? 1 : 0)
 }
 
+// The short letters of `git commit` that take a value: VERB_VALUED's measured set.
+// `-Cm x` gives `m` to `-C`, so its `x` is a pathspec, not a message (ADR-090 T1).
+const COMMIT_VALUED_LETTERS = 'mFCctU'
+
+/**
+ * maskedMessages is `text` with each message value of a `git commit` that the shell
+ * and git both read as one literal word replaced by the plain word `msg` (ADR-090 T1),
+ * so the downgrade rules that read raw text read no message as code. A value is the
+ * word after `-m`, `--message`, `-F` or `--file`, the tail of `--message=` or
+ * `--file=`, or a short cluster's value by `valuedLetter`, before any `--`, in a
+ * command whose program is the literal `git` and whose verb is `commit`. It is masked
+ * only when its word is not dynamic, its value part was written as one single- or
+ * double-quoted span whose spelling occurs exactly once in the text, and the text read
+ * again has `msg` in that same word. Anything unproven is left as it came (§16).
+ */
+function maskedMessages(text) {
+  const { commands, complete } = shellWords(text)
+  if (!complete) return text
+  let masked = text
+  commands.forEach(({ argv, dynamic }, n) => {
+    if (argv[0] !== 'git' || dynamic.includes(0)) return
+    const verb = gitVerbIndex(argv, 0)
+    if (argv[verb] !== 'commit') return
+    for (let k = verb + 1; k < argv.length && argv[k] !== '--'; k += 1) {
+      const word = argv[k]
+      let prefix = ''
+      let at = k
+      if (word === '--message' || word === '--file') at = k + 1
+      else if (/^--(?:message|file)=/.test(word)) prefix = word.slice(0, word.indexOf('=') + 1)
+      else if (/^-[A-Za-z]/.test(word)) {
+        const letter = valuedLetter(word, COMMIT_VALUED_LETTERS)
+        if (letter < 0) continue
+        if (letter === word.length - 1) at = k + 1
+        else prefix = word.slice(0, letter + 1)
+        if (!'mF'.includes(word[letter])) { k = at; continue }
+      } else continue
+      k = at
+      const plain = `${prefix}msg`
+      if (at >= argv.length || dynamic.includes(at) || argv[at] === plain) continue
+      const value = argv[at].slice(prefix.length)
+      // The spelling the value was written in, rebuilt: double quotes only when no
+      // character in it could have been an escape the lexer already removed.
+      const spellings = [...(value.includes("'") ? [] : [`'${value}'`]), ...(/["\\]/.test(value) ? [] : [`"${value}"`])]
+      for (const spelling of spellings) {
+        const written = `${prefix}${spelling}`
+        if (masked.split(written).length !== 2) continue
+        // Every occurrence goes, so only the count above stops a second one being hidden;
+        // and the one there was must be this word, not the same spelling elsewhere.
+        const next = masked.split(written).join(plain)
+        if (shellWords(next).commands[n]?.argv[at] === plain) { masked = next; break }
+      }
+    }
+  })
+  return masked
+}
+
 // ADR-086 T1: `text` with each fresh-directory variable's assignment, and every use of
 // it as a directory operand, made plain. When any `$V` stands anywhere else, or the
 // text names a push, the text is returned as it came, and its `$` keeps the refusal.
 function freshDirectoryText(text) {
+  // ADR-090 T1: every rule reading this text, here and in leavesHookInPlace, reads each
+  // quoted commit message masked.
+  text = maskedMessages(text)
   if (!/[$`]/.test(text)) return { raw: text, fresh: NO_FRESH_DIRECTORIES }
   const { commands } = shellWords(text)
   const fresh = freshDirectoryVariables(commands)
@@ -5318,7 +5398,7 @@ function mark(lines, ok, why = '') {
 // after the first was fixed (CLAUDE.md §5). `nul` splits on NUL and trims nothing —
 // a name may end in a space.
 function gitLines(root, args, { nul = false } = {}) {
-  const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+  const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
   if (run.error || run.status !== 0) {
     const verb = args.find(arg => /^[a-z][a-z-]*$/.test(arg)) ?? args[0]
     const why = run.error ? run.error.message : `git ${verb} exited ${run.status}`
@@ -5475,7 +5555,7 @@ function statusPaths(root) {
   // `-z` quotes nothing: NUL-terminated, and a rename's ORIGINAL path follows as
   // its own field, which is skipped — the new name is the path that exists.
   const run = spawnSync('git', ['-C', root, 'status', '--porcelain', '-z', '-uall', ...harnessPathspecs(root)],
-    { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+    { encoding: 'utf8', timeout: 5_000, maxBuffer: GIT_LISTING_BUFFER, windowsHide: true })
   if (run.error || run.status !== 0) {
     return mark([], false, run.error ? run.error.message : `git status exited ${run.status}`)
   }

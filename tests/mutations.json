@@ -5184,8 +5184,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if known is not None:\n            for gone in [b for b in known if VLOG_RE.match(b) and b not in inf[\"vlog\"]]:",
-      "to": "        if False:\n            for gone in []:",
+      "from": "        if known is not None:\n            here = {ln.strip() for ln in (inf.get(\"text\") or \"\").split(\"\\n\")}",
+      "to": "        if False:\n            here = {ln.strip() for ln in (inf.get(\"text\") or \"\").split(\"\\n\")}",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -13936,8 +13936,8 @@
         "tests/publish-command.test.mjs"
       ],
       "only": "grammar of plain forms",
-      "from": "      if (safe.takes.includes(arg[at])) { if (at === arg.length - 1) i += 1; break }",
-      "to": "      if (safe.takes.includes(arg[at])) { if (at === arg.length - 1) i += 1; continue }"
+      "from": "    if (![...arg.slice(1, at < 0 ? arg.length : at)].every(letter => safe.short.includes(letter))) return false",
+      "to": "    if (![...arg.slice(1)].every(letter => safe.short.includes(letter) || safe.takes.includes(letter))) return false"
     },
     {
       "label": "publish armed: an unlisted git option before the verb keeps the refusal",
@@ -20435,7 +20435,7 @@
       "tests": [
         "tests/one-unreadable-task.test.mjs"
       ],
-      "from": "      note(`adr-lint ${rel(record.file)}`, `${run.stderr ?? ''}`.split('\\n').find(line => line.trim()) ?? 'exit 2')",
+      "from": "      note(`adr-lint ${rel(record.file)}`, `${run.stderr ?? ''}`.split('\\n').find(line => line.trim())?.trim() ?? 'exit 2')",
       "to": "      void 0",
       "only": "^corpus-probe counts an adr-lint that could not run, by record$"
     },
@@ -21316,7 +21316,7 @@
       "tests": [
         "tests/not-recognised-reason.test.mjs"
       ],
-      "from": "      : verdict === 'not-recognised' ? (first.match(/This file: .*$/) ?? [])[0] : undefined",
+      "from": "      : verdict === 'not-recognised' ? (first.match(/This file: [^\\r\\n]*/) ?? [])[0] : undefined",
       "to": "      : undefined",
       "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
     },
@@ -21379,6 +21379,156 @@
       "from": "        and row[2:12] >= rows[signed[-1][0]][2:12]",
       "to": "        and True",
       "only": "^(?:an exit-0 row dated before a stop does not clear it, wherever it sits)$"
+    },
+    {
+      "label": "ADR-090 T1: a quoted message value is masked before the downgrade rules read the text",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "function maskedMessages(text) {",
+      "to": "function maskedMessages(text) { return text",
+      "only": "^(?:a quoted commit message is data to the armed and fresh-repository downgrades)$"
+    },
+    {
+      "label": "ADR-090 T1: a value that is not one quoted literal keeps today's verdict",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (at >= argv.length || dynamic.includes(at) || argv[at] === plain) continue",
+      "to": "      if (at >= argv.length || argv[at] === plain) continue",
+      "only": "^(?:a message value that can run code keeps the refusal)$"
+    },
+    {
+      "label": "ADR-090 T1: a spelling that occurs twice is not masked",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "        if (masked.split(written).length !== 2) continue",
+      "to": "        if (masked.split(written).length < 2) continue",
+      "only": "^(?:a message value that can run code keeps the refusal)$"
+    },
+    {
+      "label": "ADR-090 T2: an unquoted heredoc body's substitution is a command",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
+      "from": "      if (!doc.quoted) doc.owner.substitutions.push(...substitutionsIn(body, false))",
+      "to": "      if (false) doc.owner.substitutions.push(...substitutionsIn(body, false))"
+    },
+    {
+      "label": "ADR-090 T2: a substitution after a parameter in double quotes is recorded",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
+      "from": "      while (/\\w/.test(src[e] ?? '')) e++",
+      "to": "      while (/[\\w$]/.test(src[e] ?? '')) e++"
+    },
+    {
+      "label": "ADR-090 T2: a function keyword body is read as commands",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
+      "from": "    if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; return }",
+      "to": "    if (false) { naming = true; return }"
+    },
+    {
+      "label": "ADR-090 T3: a wrapper named by an absolute path is read as that wrapper",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    const word = wrapperWord(argv[k])",
+      "to": "    const word = argv[k]",
+      "only": "^(?:a wrapper named by its absolute path runs the publish it wraps)$"
+    },
+    {
+      "label": "ADR-090 T3: a relative path is not a wrapper",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const ABSOLUTE = /^(?:[\\\\/]|[A-Za-z]:[\\\\/])/",
+      "to": "const ABSOLUTE = /[\\\\/]/",
+      "only": "^(?:a relative path or a look-alike wrapper name stays a mention)$"
+    },
+    {
+      "label": "3.8.10: a pending record's git listing is re-taken as None",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/adr-lint-pending-tracked.test.mjs"
+      ],
+      "from": "            named = implementation_paths(body)",
+      "to": "            named = implementation_paths(body); tracked = tracked if named else None",
+      "only": "^(?:a pending record is read against git like an accepted one)$"
+    },
+    {
+      "label": "3.8.10: a git listing gets Node's default 1 MiB buffer",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/large-listing.test.mjs"
+      ],
+      "from": "const GIT_LISTING_BUFFER = 256 * 1024 * 1024",
+      "to": "const GIT_LISTING_BUFFER = 1024 * 1024",
+      "only": "^(?:a tracked listing larger than 1 MiB is read whole)$"
+    },
+    {
+      "label": "3.8.10: a Mutation Log row still in the file is reported as removed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/mutation-log-row-kept.test.mjs"
+      ],
+      "from": "            for gone in sorted({b for b in known if VLOG_RE.match(b) and b.strip() not in here}):",
+      "to": "            for gone in sorted({b for b in known if VLOG_RE.match(b) and b not in inf[\"vlog\"]}):",
+      "only": "^(?:a Mutation Log row still in the file is not reported as removed, and a removed row still is)$"
+    },
+    {
+      "label": "3.8.10: a row dated on a day that does not exist is evidence",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/impossible-row-date.test.mjs"
+      ],
+      "from": "        return f\"is dated {found.group(0)[2:12]}, a day that does not exist\"",
+      "to": "        return None",
+      "only": "^(?:a Verification Log row dated on a day that does not exist, or in the future, is not evidence)$"
+    },
+    {
+      "label": "3.8.10: a row dated in the future is evidence",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/impossible-row-date.test.mjs"
+      ],
+      "from": "    if day > (today or datetime.date.today()) + datetime.timedelta(days=1):",
+      "to": "    if False:",
+      "only": "^(?:a Verification Log row dated on a day that does not exist, or in the future, is not evidence)$"
+    },
+    {
+      "label": "3.8.10: adr-next counts a row with an impossible date",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/impossible-row-date.test.mjs"
+      ],
+      "from": "        if row_date_problem(line):\n            continue",
+      "to": "        if False:\n            continue",
+      "only": "^(?:a Verification Log row dated on a day that does not exist, or in the future, is not evidence)$"
+    },
+    {
+      "label": "3.8.10: adr-lint does not name a row with an impossible date",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/impossible-row-date.test.mjs"
+      ],
+      "from": "        elif (problem := row_date_problem(b)):",
+      "to": "        elif False and (problem := row_date_problem(b)):",
+      "only": "^(?:a Verification Log row dated on a day that does not exist, or in the future, is not evidence)$"
     }
   ]
 }

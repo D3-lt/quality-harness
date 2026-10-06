@@ -22,9 +22,9 @@ must land before any release (the owner's rule for a fail-open).
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | a quoted commit message is masked before the downgrade rules read the text | pending | none — no spec | `node --test tests/publish-command.test.mjs` (four named tests pass) |
-| T2 | the lexer reads a heredoc body, a quoted substitution and a function body as the shell runs them | pending | none — no spec | `node --test tests/shell-words.test.mjs tests/publish-command.test.mjs` (three named tests pass) |
-| T3 | a wrapper named by its absolute path is that wrapper | pending | none — no spec | `node --test tests/publish-command.test.mjs` (two named tests pass) |
+| T1 | a quoted commit message is masked before the downgrade rules read the text | done | none — no spec | `node --test tests/publish-command.test.mjs` (four named tests pass) |
+| T2 | the lexer reads a heredoc body, a quoted substitution and a function body as the shell runs them | done | none — no spec | `node --test tests/shell-words.test.mjs tests/publish-command.test.mjs` (three named tests pass) |
+| T3 | a wrapper named by its absolute path is that wrapper | done | none — no spec | `node --test tests/publish-command.test.mjs` (two named tests pass) |
 
 ## Contract Coupling
 

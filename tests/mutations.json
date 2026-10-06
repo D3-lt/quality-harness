@@ -5933,8 +5933,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "r\"abort(?:ed|s|ing)?\")",
-      "to": "r\"abort(?:ed)?\")",
+      "from": "                 r\"abort(?:ed|s|ing)?|\"",
+      "to": "                 r\"abort(?:ed)?|\"",
       "only": "^(?:the verb forms of a negative word are still read as a stop)$"
     },
     {
@@ -5943,8 +5943,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if negated_verdict(outside):\n        return \"stop\"",
-      "to": "    if False:\n        return \"stop\"",
+      "from": "    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside):\n        return \"stop\"",
+      "to": "    if QUESTIONED_VERDICT.search(outside):\n        return \"stop\"",
       "only": "^(?:a negator directly before an affirmative is a stop, and a bare \"not\" elsewhere is not|a \"NOT done:\" follow-up list after an affirmation is not a stop, and the bare label still is)$"
     },
     {
@@ -20957,6 +20957,26 @@
       "from": "      if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)",
       "to": "      if (false) throw new Error(`${file} is not a regular file`)",
       "only": "^(?:a FIFO named like a task is stopped unopened, and the other tasks are read)$"
+    },
+    {
+      "label": "§351: a sign-off that takes the approval back reads as a pass",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-outcome-negatives.test.mjs"
+      ],
+      "from": "                 r\"revok(?:ed|ing)|revert(?:ed|ing)|roll(?:ed|ing)\\s+back|❌\")",
+      "to": "                 r\"zzzq\")",
+      "only": "^(?:a sign-off that takes the approval back is a stop, and a real approval stays done)$"
+    },
+    {
+      "label": "§351: an affirmative asked and answered no reads as a pass",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-outcome-negatives.test.mjs"
+      ],
+      "from": "    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside):",
+      "to": "    if negated_verdict(outside):",
+      "only": "^(?:a sign-off that takes the approval back is a stop, and a real approval stays done)$"
     }
   ]
 }

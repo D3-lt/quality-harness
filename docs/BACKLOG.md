@@ -18287,6 +18287,7 @@ Every item of §295 was checked against the working-tree readers at a0d963d. The
 - **Fail-open:**
   - 8: a duplicate Verification Log row, a 41-character sha, and a sha naming no commit each lint PASS with no finding.
   - 22.1: `human_outcome` reads "revoked", "rolled back", ❌, "done? no" and "passed? not really" as pass.
+    - **Fixed 2026-10-06.** "revoked", "reverted", "rolled back" (verb forms only) and ❌ are stop words, and an affirmative asked and answered no ("done? no") is a stop. The noun "rollback" is left alone, because a real approval's follow-up uses it (§287). Measured over the 13 unique human-observed sign-offs under the owner's projects directory: none carries any of these. `tests/human-outcome-negatives.test.mjs` has six stops and three controls. Two new mutants and one repointed, all RED.
   - 20.Q5: corpus-probe output saved as `T3-report.md` is ready in adr-next and work-next, while adr-lint FAILs it.
   - 22.2: a spec symlinked outside the repository is listed in `uncoveredReadySpecs`.
   - 9: lifecycle accepts any `check.*` event whose `after.tree` matches, unbound to `checks.jsonl`. This needs a record.

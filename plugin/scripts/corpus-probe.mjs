@@ -565,7 +565,9 @@ export function diffReports(before, after, scrub = text => String(text)) {
     setChange('records', before.records.map(record => record.file), after.records.map(record => record.file))
     const was = new Map(before.records.map(record => [record.file, record.status ?? null]))
     for (const record of after.records) {
-      if (was.has(record.file) && was.get(record.file) !== (record.status ?? null)) {
+      // Compared as printed, after scrubbing both sides: a report from before the Status scrub holds the
+      // raw text, and a change that was only redaction printed "X → X" (an outside run of ca3d61d, php-react-app).
+      if (was.has(record.file) && scrub(String(was.get(record.file))) !== scrub(String(record.status ?? null))) {
         say(`records ${record.file} status: ${was.get(record.file) ?? '(none)'} → ${record.status ?? '(none)'}`)
       }
     }

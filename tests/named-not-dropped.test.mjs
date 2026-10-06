@@ -255,3 +255,13 @@ test('--diff names a record whose Status changed, and a record that came or went
   // The control: identical records say nothing.
   assert.deepEqual(diffReports(side([{ file: 'a.md', status: 'Accepted' }]), side([{ file: 'a.md', status: 'Accepted' }])), ['nothing changed'])
 })
+
+// An outside run of ca3d61d (php-react-app): a Status the older report held raw and the newer one scrubbed
+// printed "X → X" — a change that was only redaction, shown as a change of nothing.
+test('--diff does not report a Status whose only change is redaction', () => {
+  const scrub = scrubber({ root: null, pluginRoot: null, tmp: null, home: null })
+  const side = status => ({ look: 'ok', corpora: ['docs/adr'], records: [{ file: 'a.md', status }] })
+  assert.deepEqual(diffReports(side('Accepted (see ~/secret/x.md)'), side('Accepted (see ~<path>)'), scrub), ['nothing changed'])
+  // The control: a Status that really moved is still named.
+  assert.ok(diffReports(side('Proposed'), side('Accepted'), scrub).includes('records a.md status: Proposed → Accepted'))
+})

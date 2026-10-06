@@ -14269,7 +14269,7 @@ pinned copy), one gate per change, each with the numbered corpora as its control
 
 **Declined 2026-09-24.** Per-gate id unification is not scheduled; ADR-063 stands, one gate per change when taken up.
 
-## 253. OPEN 2026-09-24 — A build diagnostic anywhere in a failing fence makes a real kill inconclusive (2026-09-22)
+## 253. CLOSED 2026-10-06 — A build diagnostic anywhere in a failing fence makes a real kill inconclusive (2026-09-22)
 
 `adr-verify` classifies a mutant run as `inconclusive` when any `BUILD_BROKE` pattern matches
 anywhere in the fence output (`plugin/bin/adr-verify`, the `elif any(re.search(pat, out, re.M) for pat
@@ -14289,6 +14289,12 @@ guard in `plugin/scripts/lifecycle.mjs` failed the fence and was graded `inconcl
 failed on a build/parse error, not an assertion", because the full suite's output contains a
 `BUILD_BROKE` pattern somewhere. The same mutant is RED in `scripts/mutate.mjs`'s campaign, which
 grades by the named test file.
+
+**Closed 2026-10-06 by ADR-085** (Accepted by the owner, with T1 and T2).
+- **T1.** Go's `[build failed]` row is anchored to its own column-0 verdict line. A nested build failure quoted inside a failing assertion now grades killed. A package that does not build at top level stays inconclusive. Measured on go1.27.1, cases A to D.
+- **T2.** The audit found two false KILLS in the shipped list, and both now grade inconclusive: a Go `[setup failed]` (an import cycle, a missing import), and node's parse error behind TAP's `# `. A SyntaxError quoted inside a failing assertion (node spec and tap, pytest) stays a kill.
+- **Evidence.** Five Rests-on mechanisms, each with a killed mutant recorded through `adr-verify --covers` and catalogued.
+- **Still open.** Which pattern matched in ADR-063 T2's run is UNKNOWN, as ADR-085 says. `Cannot find module` and the PHP, cargo and rustc rows are unmeasured and unchanged.
 
 ## 254. DECLINED 2026-09-24 — `adr-debt` reports follow-ups that a later Accepted record disposes of (2026-09-22)
 

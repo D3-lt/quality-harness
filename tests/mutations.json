@@ -21007,6 +21007,36 @@
       "from": "    r\"^FAIL\\s+\\S+ \\[build failed\\]\",      # go",
       "to": "    r\"^FAIL\\s+\\S+ \\[build failed\\] \",      # go",
       "only": "^(?:a Go package that does not build at top level stays inconclusive)$"
+    },
+    {
+      "label": "ADR-085 T2: the Go setup-failed row",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^FAIL\\s+\\S+ \\[setup failed\\]\",      # go: an import cycle or a missing import (ADR-085)",
+      "to": "    r\"^FAIL\\s+\\S+ \\[zzsetup failed\\]\",      # go: an import cycle or a missing import (ADR-085)",
+      "only": "^(?:a Go setup failure is inconclusive, not a kill)$"
+    },
+    {
+      "label": "ADR-085 T2: the tap-prefixed SyntaxError row",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^(?:# )?SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
+      "to": "    r\"^SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
+      "only": "^(?:a TAP-prefixed SyntaxError is inconclusive, not a kill)$"
+    },
+    {
+      "label": "ADR-085 T2: the SyntaxError row ignores an indented line",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^(?:# )?SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
+      "to": "    r\"^\\s*(?:# )?SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
+      "only": "^(?:a SyntaxError quoted inside a failing assertion is still a kill)$"
     }
   ]
 }

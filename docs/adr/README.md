@@ -92,3 +92,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-088](ADR-088-evidence-is-read-against-its-writer.md) | Evidence is read against its writer | Accepted |
 | [ADR-089](ADR-089-the-probe-says-what-it-did-not-compare.md) | The probe says what it did not compare | Accepted |
 | [ADR-090](ADR-090-a-quoted-message-is-data.md) | A quoted message is data | Accepted |
+| [ADR-091](ADR-091-the-catalogue-is-a-file-per-source.md) | The catalogue is a file per source | Accepted |

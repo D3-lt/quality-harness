@@ -17352,7 +17352,7 @@ modes, measured separately here.
 - `recover_mutant` has no lock between reading a journal, probing its owner and unlinking it; that race
   predates §339. Trigger: a report of two recoveries interleaving.
 
-## 342. OPEN 2026-10-02 (instrumented for 3.8.2; trigger: the next slow Windows run) — the artifact-gate budget test is bimodal on Windows
+## 342. CLOSED 2026-10-06 (not reproduced in 17 Windows runs since it was instrumented; the sampler stays) — the artifact-gate budget test is bimodal on Windows
 
 The push run of 4171b6e (36992722231, v3.8.0's sha) failed one job on `windows`, one test:
 `the artifact gate budget is raisable, and running out of it names the budget` (tests/lifecycle.test.mjs:891).
@@ -17392,6 +17392,12 @@ T2), so the instrument sits outside it in `tests/lifecycle.test.mjs`:
 Only executable names are written (`ps … comm`, `tasklist`'s image name), never arguments.
 `QH_SAMPLE_PRINT_MS=0` showed it printing on a fast run here. The next slow Windows run shows whether a
 python process outlives the starved call.
+
+**Closed 2026-10-06, not reproduced.** Every Windows job since the instrument landed, read from each run's
+log: 17 runs from 37007601613 (2026-10-02 12:35) to 37411500980 (2026-10-06 03:58), the test took 6.9–14.4 s
+every time, the fast mode; the slow 122–136 s mode last appeared before 2026-10-02 12:00. The sampler stays
+in `tests/lifecycle.test.mjs` and prints itself on any run over 60 s, so a recurrence arrives with the process
+evidence the hypothesis needs; reopen then. The same disposition as §333 and §334.
 
 **A Windows 11 desktop, 2026-10-02** (node 24.20.0, Python 3.14.7, Git Bash msys 3.5.7, NTFS), its user
 approving the run: ten runs at 8fe7ae2 all passed in 7.2–8.7 s. None went past 60 s, so the sampler
@@ -18162,3 +18168,8 @@ OS's periodic cleanup, and failed with ERR_MODULE_NOT_FOUND — a fresh clone, n
   snapshot was simply older than the commit. The first instance was not timed and is not claimed either way.
 - **Outside runs at 4283d6a, filed:** react-spa (2), python-adr-corpus (78) and laravel-react-monorepo (95),
   all passToFail 0 — `docs/corpus-reports/2026-10-06-*-3.8.7-4283d6a.json`.
+- **ADR-081 and ADR-084 follow-ups, done 2026-10-06** (the owner: no dated leftovers). Six adopters ran a
+  read-only, counts-only command over their own ledgers: before v3.6.0, 6 of 344 checks re-ran on an
+  already-passed tree; after, 3 checks in all, none, and 0 same-tree skips anywhere. Too few runs since 3.6.0 to
+  compare with the spec's 53 of 280: UNPROVEN, not shown. From now on every outside run also pastes
+  `ledger-report.mjs --json` (docs/corpus-reports/README.md), so both counts repeat per release.

@@ -57,3 +57,9 @@ digest, the readers fingerprint and the plugin version are the ones git gives at
 writing nothing, when any key is outside the schema above, the kind is not `probe`, or the run is
 already filed. `--check` does all of it but the write; exit 3 means `at` is not in this clone yet.
 A `kind: hand` attestation, with no digest to check, is still written by hand.
+
+**With every outside run, ask for the ledger counts too** (ADR-081, ADR-084): `node <plugin>/scripts/ledger-report.mjs
+--json` from the runner's repository root, using the installed plugin (it reads that repository's own
+`.git/quality-harness/` ledgers). It prints counts only — skills invoked, same-tree skips with an estimated
+saving, checks run — and says UNPROVEN for a ledger it could not read whole. Paste it into the release's
+BACKLOG entry; it is not an attestation and is never filed here.

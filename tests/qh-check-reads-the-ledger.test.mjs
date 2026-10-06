@@ -250,6 +250,19 @@ test('a commit fed by an expanding here-document is refused, and a quoted one is
   } finally { done(fixture) }
 })
 
+// Since ADR-090 T2 the lexer reads an unquoted body's `$(…)` as a substitution, so the case above is
+// refused before the here-document guard is reached, and that guard's mutant went GREEN (the
+// dispatched campaign at df11e2e). The guard still refuses ANY unquoted body, including one that names
+// nothing the lexer would flag: this pins it.
+test('a commit fed by an unquoted here-document is refused even when its body names nothing to expand', () => {
+  const fixture = repository({ check: FULL, fastCheck: FAST })
+  try {
+    changed(fixture)
+    fastPassed(fixture)
+    assert.equal(decision(hook(fixture, 'git commit -F - <<EOF\nplain\nEOF', 'ledger-heredoc-plain')), 'deny', 'an unquoted body is not proven data')
+  } finally { done(fixture) }
+})
+
 test('a write the ledger counts after the pass is seen, even when the clock went back', () => {
   const fixture = repository()
   try {

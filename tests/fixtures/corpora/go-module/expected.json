@@ -1,0 +1,68 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/adr"
+  ],
+  "records": [
+    [
+      "docs/adr/ADR-001-cart-totals-are-integer-cents.md",
+      "governing",
+      false
+    ]
+  ],
+  "workNext": {
+    "records": 1,
+    "accepted": 1,
+    "tasks": 2,
+    "ready": [
+      "docs/adr/ADR-001-cart-totals-are-integer-cents/tasks/T2-remove-items.md"
+    ],
+    "unbacked": [],
+    "retirable": [],
+    "readinessUnproven": [],
+    "specs": 1,
+    "unprovenSpecs": [],
+    "partialBecause": [],
+    "next": "adr-execute",
+    "readyButClaimedDone": []
+  },
+  "adrState": {
+    "read": 1,
+    "governing": 1
+  },
+  "adrNext": [
+    {
+      "tasksDir": "docs/adr/ADR-001-cart-totals-are-integer-cents/tasks",
+      "ready": [
+        "T2"
+      ]
+    }
+  ],
+  "adrLint": [
+    {
+      "file": "docs/adr/ADR-001-cart-totals-are-integer-cents.md",
+      "verdict": "PASS"
+    }
+  ],
+  "sweep": [
+    {
+      "root": "docs/adr",
+      "claims": 1,
+      "held": 1,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [
+      "inferred `go test \\./\\.\\.\\.` from a manifest",
+      "T2 is ready .*go test \\./internal/cart -run '\\^TestRemove\\$'"
+    ],
+    "mustNotMatch": [
+      "T1 is ready"
+    ]
+  },
+  "couldNotRun": []
+}

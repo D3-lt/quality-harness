@@ -142,11 +142,7 @@ AFFIRMATIVE = re.compile(r"(?<![a-z])(pass(?:ed|es)?|confirm(?:ed|s)?|observed|"
 NEGATIVE_WORD = (r"block(?:ed|s|ing)|stop(?:ped|s|ping)?|"
                  r"fail(?:ed|s|ing)?|refus(?:e|ed|es|ing)?|"
                  r"withdraw(?:n|s|ing)?|reject(?:ed|s|ing)?|cannot|"
-                 r"abort(?:ed|s|ing)?|"
-                 # Taking an approval back (BACKLOG §351, §295 item 22.1). Past and progressive
-                 # forms only, and never the noun: a real approval's follow-up says "no real
-                 # rollback to a tag" (§287), and 13 sign-offs on disk carried none of these.
-                 r"revok(?:ed|ing)|revert(?:ed|ing)|roll(?:ed|ing)\s+back|❌")
+                 r"abort(?:ed|s|ing)?")
 NEGATIVE = re.compile(r"(?<![a-z])(" + NEGATIVE_WORD + r")(?![a-z])", re.I)
 
 # ⚠ `not ` AND `never ` USED TO SIT IN NEGATIVE AND COULD NEVER MATCH A WORD: the
@@ -173,6 +169,17 @@ NEGATED_AFFIRMATIVE = re.compile(r"(?<![a-z])" + NEGATOR + AFFIRMATIVE.pattern[l
 NEGATION_LABEL = re.compile(r"\s*:")
 # An affirmative asked and answered no, "done? no" or "passed? not really", is no verdict of done (§351).
 QUESTIONED_VERDICT = re.compile(AFFIRMATIVE.pattern + r"\s*\?\s*(?:no|not)(?![a-z])", re.I)
+# Taking an approval back (BACKLOG §351, §295 22.1). The verb has to attach to the verdict: right
+# after it, past a clause break and an optional "then"/"later", or with the approval as its subject.
+# Bare, it stopped success prose — "the expired token was revoked", "verified: rolled back to the
+# previous release successfully" (Codex review of 3ff59fb). A colon introduces what was verified,
+# so it is no clause break here. The noun "rollback" is never read: a real approval's follow-up
+# says "no real rollback to a tag" (§287).
+TAKEN_BACK = re.compile(
+    AFFIRMATIVE.pattern + r"\s*[,;.—–]\s*(?:(?:then|later|since|subsequently|now|but)\s+)?"
+    r"(?:revoked|reverted|rolled\s+back)(?![a-z])"
+    r"|(?<![a-z])(?:approval|sign[- ]?off|verdict)\s+(?:(?:was|is|has|been|now)\s+){0,2}"
+    r"(?:revoked|reverted|rolled\s+back)(?![a-z])", re.I)
 
 
 def negated_verdict(text):
@@ -291,7 +298,10 @@ def human_outcome(note):
     outside = program_output_removed(note)
     # A negator directly before an affirmative is the note saying NOT done, and it
     # wins before anything else can find the affirmative inside it (§287).
-    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside):
+    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside) or TAKEN_BACK.search(outside):
+        return "stop"
+    # A cross is a stop wherever it sits, "❌observed" too: it is no word for a boundary to guard.
+    if "❌" in outside:
         return "stop"
     # "not blocked" and a counter named `refused-unverifiable 0` are not verdicts.
     outside = NEUTRALISED.sub(" ", outside)
@@ -595,14 +605,16 @@ def human_stop(text):
     tuple it does not need. The log is short and already in memory.
     """
     log = "\n".join(sections_of(text).get("Verification Log", []))
-    for line in log.split("\n"):
-        if (m := VLOG_HUMAN_RE.match(line.strip())) and human_outcome(m.group("note")) == "stop":
-            # ⚠ THE REASON CARRIES ITS OWN PROVENANCE. Both stop routes print through
-            # one site, and that site used to say "a human sign-off says stop" — true
-            # of this Verification Log note and FALSE of a `**Status:**` header nobody
-            # signed. A gate does not report an observation it did not make
-            # (CLAUDE.md §3), including about where its own reason came from.
-            return f"a human sign-off says stop: {m.group('note')}"
+    # The LAST sign-off decides: an approval later taken back is not done, and a stop later
+    # approved after a fix is (Codex review of 3ff59fb). The first one used to win both ways.
+    signed = [m for line in log.split("\n") if (m := VLOG_HUMAN_RE.match(line.strip()))]
+    if signed and human_outcome(signed[-1].group("note")) == "stop":
+        # ⚠ THE REASON CARRIES ITS OWN PROVENANCE. Both stop routes print through
+        # one site, and that site used to say "a human sign-off says stop" — true
+        # of this Verification Log note and FALSE of a `**Status:**` header nobody
+        # signed. A gate does not report an observation it did not make
+        # (CLAUDE.md §3), including about where its own reason came from.
+        return f"a human sign-off says stop: {signed[-1].group('note')}"
     return None
 
 def read_named(path):
@@ -631,7 +643,14 @@ def load(tasks_dir):
             # a directory named `T4-x.md` stopped the whole directory (BACKLOG §351). Never
             # opened: that one task is UNPROVEN and the others are read, as adr-lint refuses it.
             m = TID_RE.search(path.name.upper())
-            if m and m.group(0) not in infos:
+            if m and m.group(0) in infos:
+                # It shares an id with a task already read: neither is that task until one is
+                # renamed, whichever sorts first (Codex review of 3ff59fb).
+                infos[m.group(0)] = unreadable_task(m.group(0), path, (
+                    f"could not tell which file is {m.group(0)}: {Path(infos[m.group(0)]['path']).name} "
+                    f"and {path.name} both declare it, and {path.name} is not a regular file, so its "
+                    f"state is UNPROVEN"))
+            elif m:
                 infos[m.group(0)] = unreadable_task(m.group(0), path, (
                     f"could not read it: {path.name} is not a regular file (a FIFO, a directory or "
                     f"a device), so it was not opened and its state is UNPROVEN"))
@@ -668,7 +687,10 @@ def load(tasks_dir):
         # BACKLOG §295 item 7: a file holding both sides of a merge is not evidence
         # of either, however its log reads. It is stopped, with the lines named.
         conflicted = conflict_markers(text)
-        done = not conflicted and is_done(text, digest, human, fence, first, root)
+        # A task titled for another record, or whose LAST sign-off takes it back, is not done here
+        # whatever else its log holds: classify reads done before any stop (Codex review of 3ff59fb).
+        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)
+                and is_done(text, digest, human, fence, first, root))
         infos[tid] = {
             "id": tid,
             # POSIX separators in every path a caller reads: Windows printed `docs\\adr\\…` here
@@ -810,6 +832,10 @@ def foreign_state(pointer, corpus_dir):
             if f.name.lower() == "readme.md":
                 continue
             if TID_RE.search(f.stem.upper()) and TID_RE.search(f.stem.upper()).group(0) == want:
+                # A FIFO here waited forever in a reader that guards its own tasks (Codex review
+                # of 3ff59fb): never opened, so the edge cannot be evaluated.
+                if not f.is_file():
+                    return "unknown"
                 text = read_named(f)
                 # A conflicted foreign task is both sides of a merge, so its state
                 # cannot be read and the edge is unknown (Codex review of §295.7).
@@ -820,7 +846,7 @@ def foreign_state(pointer, corpus_dir):
                 # digest, or an affirmative human sign-off. A second definition
                 # of "done" is how two tools come to disagree about one corpus.
                 fence, first, digest = acceptance(text)
-                return ("done" if is_done(text, digest, first == "human-observed",
+                return ("done" if not human_stop(text) and is_done(text, digest, first == "human-observed",
                                           fence, first, git_root(tasks))
 
                         else "pending")

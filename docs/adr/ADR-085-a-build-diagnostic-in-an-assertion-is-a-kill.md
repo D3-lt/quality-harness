@@ -215,3 +215,4 @@ written stay in their logs as history.
 
 - [ ] Re-run ADR-063 T2's date-guard mutant after T1 lands; whether it is in this class is UNKNOWN today.
 - [ ] Tell go-recall-service through its wing's inbox when T1 ships, so ADR-015 T8 can bind its kill.
+- [x] The Codex review of 3ff59fb (2026-10-06) found the column-0 anchor fails open on a prefixed line: `svc-1  | FAIL	ex/a [build failed]` graded killed. Both Go rows now treat any line that does not start with whitespace as the run's own, and only an indented line as nested. Test `a Go build failure behind a log prefix stays inconclusive`; mutant `Codex 3ff59fb: a log prefix hides Go's build-failed line`, RED. The task rows' digests are unchanged. The three Go mutants were repointed and are RED.

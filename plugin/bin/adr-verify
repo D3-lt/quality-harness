@@ -302,10 +302,11 @@ def scored_nothing(output):
 # "inconclusive" is an annoyance, a false "killed" is the defect this exists to
 # stop, but a list that cries wolf is a list people route around.
 BUILD_BROKE = [
-    # Go's own verdict line, at column 0: a nested `go test` quoted inside a failing assertion is
-    # indented under it, and is the test noticing, not the fence failing to build (ADR-085).
-    r"^FAIL\s+\S+ \[build failed\]",      # go
-    r"^FAIL\s+\S+ \[setup failed\]",      # go: an import cycle or a missing import (ADR-085)
+    # Go's own verdict line. A nested `go test` quoted inside a failing assertion is INDENTED under
+    # it, and is the test noticing, not the fence failing to build (ADR-085). Any other prefix — a
+    # compose `svc-1  | `, a `[go] ` tag — is still the run's own line (Codex review of 3ff59fb).
+    r"^(?!\s)(?:.*\s)?FAIL\s+\S+ \[build failed\]",      # go
+    r"^(?!\s)(?:.*\s)?FAIL\s+\S+ \[setup failed\]",      # go: an import cycle or a missing import (ADR-085)
     r"^PHP Parse error",                   # php
     r"^Parse error: syntax error",         # php
     r"^(?:# )?SyntaxError:",                # python / node; TAP prints node's behind `# ` (ADR-085)

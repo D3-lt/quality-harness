@@ -5933,8 +5933,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "                 r\"abort(?:ed|s|ing)?|\"",
-      "to": "                 r\"abort(?:ed)?|\"",
+      "from": "                 r\"abort(?:ed|s|ing)?\")",
+      "to": "                 r\"abort(?:ed)?\")",
       "only": "^(?:the verb forms of a negative word are still read as a stop)$"
     },
     {
@@ -5943,8 +5943,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside):\n        return \"stop\"",
-      "to": "    if QUESTIONED_VERDICT.search(outside):\n        return \"stop\"",
+      "from": "    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside) or TAKEN_BACK.search(outside):\n        return \"stop\"",
+      "to": "    if QUESTIONED_VERDICT.search(outside) or TAKEN_BACK.search(outside):\n        return \"stop\"",
       "only": "^(?:a negator directly before an affirmative is a stop, and a bare \"not\" elsewhere is not|a \"NOT done:\" follow-up list after an affirmation is not a stop, and the bare label still is)$"
     },
     {
@@ -12475,8 +12475,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "        done = not conflicted and is_done(",
-      "to": "        done = is_done(",
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)",
+      "to": "        done = (not foreign_stop(text, owner) and not human_stop(text)",
       "only": "^(?:a task holding unresolved merge-conflict markers is stopped, not done)$"
     },
     {
@@ -20964,8 +20964,8 @@
       "tests": [
         "tests/human-outcome-negatives.test.mjs"
       ],
-      "from": "                 r\"revok(?:ed|ing)|revert(?:ed|ing)|roll(?:ed|ing)\\s+back|❌\")",
-      "to": "                 r\"zzzq\")",
+      "from": "    AFFIRMATIVE.pattern + r\"\\s*[,;.—–]\\s*(?:(?:then|later|since|subsequently|now|but)\\s+)?\"",
+      "to": "    AFFIRMATIVE.pattern + r\"\\s*[zz]\\s*(?:(?:then|later|since|subsequently|now|but)\\s+)?\"",
       "only": "^(?:a sign-off that takes the approval back is a stop, and a real approval stays done)$"
     },
     {
@@ -20974,8 +20974,8 @@
       "tests": [
         "tests/human-outcome-negatives.test.mjs"
       ],
-      "from": "    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside):",
-      "to": "    if negated_verdict(outside):",
+      "from": "    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside) or TAKEN_BACK.search(outside):",
+      "to": "    if negated_verdict(outside) or TAKEN_BACK.search(outside):",
       "only": "^(?:a sign-off that takes the approval back is a stop, and a real approval stays done)$"
     },
     {
@@ -20994,7 +20994,7 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    r\"^FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "from": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[build failed\\]\",      # go",
       "to": "    r\"\\[build failed\\]\",      # go",
       "only": "^(?:a nested Go build failure inside a failing assertion is a kill)$"
     },
@@ -21004,8 +21004,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    r\"^FAIL\\s+\\S+ \\[build failed\\]\",      # go",
-      "to": "    r\"^FAIL\\s+\\S+ \\[build failed\\] \",      # go",
+      "from": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "to": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[build failed\\] \",      # go",
       "only": "^(?:a Go package that does not build at top level stays inconclusive)$"
     },
     {
@@ -21014,8 +21014,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    r\"^FAIL\\s+\\S+ \\[setup failed\\]\",      # go: an import cycle or a missing import (ADR-085)",
-      "to": "    r\"^FAIL\\s+\\S+ \\[zzsetup failed\\]\",      # go: an import cycle or a missing import (ADR-085)",
+      "from": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[setup failed\\]\",      # go: an import cycle or a missing import (ADR-085)",
+      "to": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[zzsetup failed\\]\",      # go: an import cycle or a missing import (ADR-085)",
       "only": "^(?:a Go setup failure is inconclusive, not a kill)$"
     },
     {
@@ -21037,6 +21037,97 @@
       "from": "    r\"^(?:# )?SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
       "to": "    r\"^\\s*(?:# )?SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
       "only": "^(?:a SyntaxError quoted inside a failing assertion is still a kill)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a log prefix hides Go's build-failed line",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "to": "    r\"^FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "only": "^(?:a Go build failure behind a log prefix stays inconclusive)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a cross reads as a stop only beside a space",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs",
+        "tests/human-outcome-negatives.test.mjs"
+      ],
+      "from": "    if \"❌\" in outside:",
+      "to": "    if False:",
+      "only": "^(?:success prose about revoking or rolling back is not a taken-back approval, and an unspaced cross is|a sign-off that takes the approval back is a stop, and a real approval stays done)$"
+    },
+    {
+      "label": "Codex 3ff59fb: an approval taken back by name reads as a pass",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "    r\"|(?<![a-z])(?:approval|sign[- ]?off|verdict)\\s+(?:(?:was|is|has|been|now)\\s+){0,2}\"",
+      "to": "    r\"|(?<![a-z])(?:zzapproval)\\s+(?:(?:was|is|has|been|now)\\s+){0,2}\"",
+      "only": "^(?:success prose about revoking or rolling back is not a taken-back approval, and an unspaced cross is|the last human sign-off decides: an approval taken back is not done, a stop later approved is)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a task titled for another record counts done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)",
+      "to": "        done = (not conflicted and not human_stop(text)",
+      "only": "^(?:a task titled for another record is not done under this one, whatever its evidence)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a taken-back sign-off still counts done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)",
+      "to": "        done = (not conflicted and not foreign_stop(text, owner)",
+      "only": "^(?:the last human sign-off decides: an approval taken back is not done, a stop later approved is)$"
+    },
+    {
+      "label": "Codex 3ff59fb: the first sign-off decides",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "    if signed and human_outcome(signed[-1].group(\"note\")) == \"stop\":",
+      "to": "    if signed and human_outcome(signed[0].group(\"note\")) == \"stop\":",
+      "only": "^(?:the last human sign-off decides: an approval taken back is not done, a stop later approved is)$"
+    },
+    {
+      "label": "Codex 3ff59fb: an irregular duplicate is skipped",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "            if m and m.group(0) in infos:",
+      "to": "            if False:",
+      "only": "^(?:an irregular entry sharing a done task's id withholds it, whichever name sorts first)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a foreign FIFO is opened",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "                if not f.is_file():\n                    return \"unknown\"",
+      "to": "                if False:\n                    return \"unknown\"",
+      "only": "^(?:a FIFO behind a cross-record dependency is not opened)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a foreign task's taken-back approval meets a dependency",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "                return (\"done\" if not human_stop(text) and is_done(text, digest, first == \"human-observed\",",
+      "to": "                return (\"done\" if is_done(text, digest, first == \"human-observed\",",
+      "only": "^(?:a dependency on another record's task whose approval was taken back is not met)$"
     }
   ]
 }

@@ -48,3 +48,23 @@ test('a human stop older than later exit-0 evidence does not take that evidence 
   // The control: the same stop recorded AFTER the evidence still takes it back.
   assert.deepEqual(doneIds(fenced(`${EXIT0}\n- 2026-08-27 · human-observed · not approved, it froze\n`)), [])
 })
+
+// The Codex review of 73f930f: each of the three rules above was wider than its case, and each width
+// turned a stop into done. The inputs are the review's own.
+test('a numbered failure is a stop; only a test summary is a count', () => {
+  for (const note of ['observed; step 2 failed on Safari', 'Safari 18 failed the manual check']) assert.deepEqual(doneIds(watched(note)), [], note)
+  for (const note of ['pytest exit 1, 2374 passed / 1 failed — the same unrelated test', 'pytest: 1 failed, 2374 passed, unrelated']) assert.deepEqual(doneIds(watched(note)), ['T1'], note)
+})
+
+test('"no" names one absent thing and never spans into another clause', () => {
+  for (const note of ['observed no progress and stopped the rollout', 'No we must stop', 'observed no change yet blocking the release']) assert.deepEqual(doneIds(watched(note)), [], note)
+  for (const note of ['observed; no visible blocking', 'approved; no blocking issues']) assert.deepEqual(doneIds(watched(note)), ['T1'], note)
+})
+
+test('only later evidence for the CURRENT Acceptance outranks an older stop', () => {
+  const other = createHash('sha256').update('echo old', 'utf8').digest('hex')
+  const rows = `${EXIT0}\n- 2026-08-27 · human-observed · not approved, it froze\n- 2026-08-28 · no-git · exit 0 · \`echo old\` · acceptance-sha256:${other}\n`
+  assert.deepEqual(doneIds(fenced(rows)), [])
+  // And a human-only Acceptance has no evidence to outrank its own stop.
+  assert.deepEqual(doneIds(watched('not approved, it froze') + `${EXIT0}\n`), [])
+})

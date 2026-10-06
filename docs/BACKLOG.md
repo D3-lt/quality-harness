@@ -18311,3 +18311,12 @@ Every item of §295 was checked against the working-tree readers at a0d963d. The
   - 23.4: impossible and 1970 dates PASS.
   - 21.3: a sparse checkout counts "0 task file(s)".
 - **Not checked here (Windows):** 16, 19.3's wording, 23.3, 23.6. 20.Q4's line key is UNKNOWN.
+
+**Codex review before 3.8.8 (gpt-6-astra, xhigh, 4283d6a...3ff59fb, REQUEST CHANGES, 2026-10-06): six findings. All six were confirmed against source and fixed, each with a test that failed first. They are in `tests/adr-next-codex-3-8-8.test.mjs` and one evidence-chain test.**
+- **P1, a stop that still counted done.** `classify` reads `done` before any stop. So a task titled for another record (§292) with exit-0 evidence counted done under this one and released its dependents. A human approval later taken back did the same, because `is_done` took the FIRST non-stop sign-off. Now `done` is withheld by `foreign_stop` and by `human_stop`. `human_stop` reads the LAST sign-off: a stop later approved after a fix is done. `foreign_state` applies the same rule to a cross-record dependency.
+- **P1, a prefixed build failure graded killed** (ADR-085). See the Follow-up in that record.
+- **P2, `foreign_state` opened a FIFO** that `load` had guarded. Now it is unknown, unopened.
+- **P2, an irregular entry sharing an id was skipped** when it sorted after the evidenced file. Now both names are given and the task is UNPROVEN.
+- **P2, my take-back words stopped success prose.** "the expired token was revoked" and "verified: rolled back … successfully" were both stops. `TAKEN_BACK` now requires the verb to attach to the verdict: after a clause break that follows an affirmative, or with "approval", "sign-off" or "verdict" as its subject.
+- **P2, `❌observed` passed**, since the word boundary excluded it. A cross is now a stop wherever it sits.
+- Eight catalogue entries repointed; nine added. All 17 are RED.

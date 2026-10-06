@@ -3410,6 +3410,17 @@ test('a SyntaxError quoted inside a failing assertion is still a kill', () => {
   }
 })
 
+// The Codex review of 3ff59fb: a log prefix in front of Go's verdict line (docker compose prints
+// `svc-1  | `) moved it off column 0, so a package that never built graded KILLED. Only an
+// INDENTED line is nested output; a line that starts with anything else is the run's own.
+test('a Go build failure behind a log prefix stays inconclusive', () => {
+  for (const prefix of ['svc-1  | ', '[go] ']) {
+    const { log, said } = goMutantGrade([`${prefix}# ex/a [ex/a.test]`, `${prefix}FAIL\tex/a [build failed]`, `${prefix}FAIL`])
+    assert.match(log, /mutant inconclusive/, `${prefix}: ${said}`)
+    assert.doesNotMatch(log, /mutant killed/, `${prefix}: a package that never built is not a test that noticed`)
+  }
+})
+
 // BACKLOG §203: adr-verify's comment-only refusal had no comment marker for
 // Swift, so a mutant that edited only a `//` line in a .swift file reached the
 // fence and was graded as if it had changed the program.

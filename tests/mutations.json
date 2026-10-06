@@ -21165,8 +21165,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  if (verdict.deny && input.tool_name === 'Bash' && freshRepositoryCommit(input.tool_input?.command)) {",
-      "to": "  if (false && freshRepositoryCommit(input.tool_input?.command)) {",
+      "from": "  if (verdict.deny && input.tool_name === 'Bash' && freshRepositoryCommit(input.tool_input?.command, env)) {",
+      "to": "  if (false && freshRepositoryCommit(input.tool_input?.command, env)) {",
       "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
     },
     {
@@ -21178,6 +21178,76 @@
       "from": "      ...verdict, deny: false, key: `${verdict.key}:fresh`,",
       "to": "      ...verdict, deny: false, key: verdict.key,",
       "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
+    },
+    {
+      "label": "ADR-086 re-review P1: a fresh substitution is that one mktemp command, word for word",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (inner !== made.argv.join(' ')) continue",
+      "to": "    if (false) continue",
+      "only": "^(?:an unarmed fresh substitution is one foreground mktemp and nothing after it)$"
+    },
+    {
+      "label": "ADR-086 re-review P1: the unarmed proof refuses arithmetic anywhere in the text",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (ARITHMETIC.test(text)) return false",
+      "to": "  if (false) return false",
+      "only": "^(?:an unarmed fresh commit is refused when arithmetic can reassign its directory)$"
+    },
+    {
+      "label": "ADR-086 re-review P1: the armed grammar refuses arithmetic outside quotes",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (ARITHMETIC.test(unquoted)) return false",
+      "to": "  if (false) return false",
+      "only": "^(?:an armed session refuses arithmetic, which can assign a variable named only in a value)$"
+    },
+    {
+      "label": "ADR-086 re-review P1: an inherited redirecting environment keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (Object.keys(env ?? {}).some(name => INHERITED_REDIRECTS.test(name))) return false",
+      "to": "  if (false) return false",
+      "only": "^(?:an inherited git or bash environment keeps an unarmed fresh commit refused)$"
+    },
+    {
+      "label": "ADR-086 re-review P1: an inherited environment name matches in any case",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "|BASH_ENV|ENV)$|^BASH_FUNC_/i",
+      "to": "|BASH_ENV|ENV)$|^BASH_FUNC_/",
+      "only": "^(?:an inherited git or bash environment keeps an unarmed fresh commit refused)$"
+    },
+    {
+      "label": "ADR-086 re-review P3: one terminal newline is dropped before the proof",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const text = command.replace(/\\n$/, '')",
+      "to": "  const text = command",
+      "only": "^(?:a single terminal newline ends an unarmed fresh commit like the end of the text)$"
+    },
+    {
+      "label": "ADR-086 re-review P3: only a TERMINAL newline is dropped",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const text = command.replace(/\\n$/, '')",
+      "to": "  const text = command.replace(/\\n/g, ' ')",
+      "only": "^(?:a single terminal newline ends an unarmed fresh commit like the end of the text)$"
     }
   ]
 }

@@ -832,6 +832,15 @@ export function commitOnlyCommand(command) {
   return only.argv[index] === 'commit'
 }
 
+// Arithmetic assigns variables, and shellWords reads no command in it: `((R=1))` between
+// `mktemp` and `cd "$R"` moves the commit (Codex re-review of a14a751, 2026-10-06).
+// Bash also evaluates a variable's VALUE as an expression, so `((X))` can assign a name
+// the text never spells (measured: `x=y=5; ((x)); echo "$y"` prints 5).
+const ARITHMETIC = /\(\(|\$\[|(?<![\w-])let\s/
+// What the hook process inherits that moves a repository or redefines a command before
+// the text runs. Windows names are case-insensitive (CLAUDE.md §7), so any case counts.
+const INHERITED_REDIRECTS = /^(?:GIT_DIR|GIT_WORK_TREE|GIT_INDEX_FILE|GIT_COMMON_DIR|GIT_OBJECT_DIRECTORY|BASH_ENV|ENV)$|^BASH_FUNC_/i
+
 /**
  * freshRepositoryCommit proves from the text alone that a command commits into a
  * repository it created in a fresh `mktemp -d` directory (ADR-086 Decision 2): an
@@ -843,10 +852,20 @@ export function commitOnlyCommand(command) {
  * `cd` and `git` only, so `HOOK_UNSAFE_FIRST` has nothing left to exclude. Anything
  * this cannot prove is not one, and keeps ADR-061's refusal.
  */
-export function freshRepositoryCommit(command) {
-  if (typeof command !== 'string' || /[!{}`]/.test(command) || /(?<![\w.-])push(?![\w-])/.test(command)) return false
-  if (HOOK_ENVIRONMENT_NAMES.test(command)) return false
-  const { commands, complete } = shellWords(command)
+export function freshRepositoryCommit(command, env = process.env) {
+  if (typeof command !== 'string') return false
+  // One terminal newline ends the last command as the end of the text does; a newline
+  // with anything after it is still a separator (Codex re-review of a14a751, P3).
+  const text = command.replace(/\n$/, '')
+  if (/[!{}`]/.test(text) || /(?<![\w.-])push(?![\w-])/.test(text)) return false
+  if (HOOK_ENVIRONMENT_NAMES.test(text)) return false
+  if (ARITHMETIC.test(text)) return false
+  // ⚠ RESIDUAL: Bash may hold state this hook cannot see — a function or variable set by
+  // an earlier command in the same shell, a startup file — and with no git hook armed
+  // nothing judges at the event. That is why this unarmed path is this strict: what the
+  // hook process inherits is read here, and anything else unproven keeps the refusal.
+  if (Object.keys(env ?? {}).some(name => INHERITED_REDIRECTS.test(name))) return false
+  const { commands, complete } = shellWords(text)
   if (!complete || commands.length < 4) return false
   const last = commands.length - 1
   if (commands.some((step, k) => step.heredocs.length || step.redirects || step.pipeTo !== null || step.ended !== (k === last ? '' : '&&'))) return false
@@ -5038,6 +5057,9 @@ export function freshDirectoryVariables(commands) {
     if (made.assignments.length || made.dynamic.length || made.substitutions.length || made.heredocs.length || made.redirects) continue
     const [program, flag, ...templates] = made.argv
     if (program !== 'mktemp' || flag !== '-d' || templates.length > 1 || !templates.every(word => FRESH_TEMPLATE.test(word))) continue
+    // The substitution is that ONE foreground command, word for word: an `&`, a `;`, a
+    // pipe, a group or an arithmetic construct beside it is not (Codex re-review of a14a751).
+    if (inner !== made.argv.join(' ')) continue
     fresh.add(name)
   }
   return fresh
@@ -5112,6 +5134,11 @@ export function leavesHookInPlace(command) {
   // there must be plain text, and a carriage return or a form feed is no separator.
   const unquoted = raw.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, ' ')
   if (/[^\w \t\n./:=@,%+\-;&|()<>\\]/.test(unquoted)) return false
+  // Arithmetic outside quotes can assign any variable, even one named only in another
+  // variable's value (`((X))` with X=`GIT_CONFIG_COUNT=0`), which the name check below
+  // cannot see. Deferring to git's hook is sound only while the hook stays injected, so
+  // the armed arm refuses it too (Codex re-review of a14a751, 2026-10-06).
+  if (ARITHMETIC.test(unquoted)) return false
   // A write into the repository's own configuration, or a hooks path named at all.
   if (/\.git\/|hookspath/i.test(raw)) return false
   // A name git or this session reads from the environment, anywhere in the text:
@@ -5228,7 +5255,7 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
   }
 }
 
-function publishUnchecked(input, requested) {
+function publishUnchecked(input, requested, env = process.env) {
   if (requested?.event !== 'publish.requested' && requested?.event !== 'publish.mentioned') return
   let verdict = publishVerdict({
     cwd: input.cwd, session: input.session_id, observation: requested.observation,
@@ -5249,7 +5276,7 @@ function publishUnchecked(input, requested) {
   // ADR-086 T2: in a Bash session, a commit the text proves lands in a repository the
   // same command created in a fresh `mktemp -d` directory is told, not refused. Its key
   // is its own, so a later mention on this tree is still told.
-  if (verdict.deny && input.tool_name === 'Bash' && freshRepositoryCommit(input.tool_input?.command)) {
+  if (verdict.deny && input.tool_name === 'Bash' && freshRepositoryCommit(input.tool_input?.command, env)) {
     verdict = {
       ...verdict, deny: false, key: `${verdict.key}:fresh`,
       text: 'quality-harness: this commit lands in a repository the same command creates in a fresh `mktemp -d` directory, so this checkout\'s unchecked state does not refuse it (ADR-086). If the commit was meant for this checkout, run `qh-check` first.',

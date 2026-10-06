@@ -206,6 +206,9 @@ NEUTRALISED = re.compile(
     # name as ABSENT is a finding, not a verdict. An approval saying a codec check found "no visible
     # blocking" stopped its task (an outside run of 3.8.8). "no, it failed" keeps its comma and stops.
     r"|(?<![a-z])no\s+(?:[a-z-]+\s+){0,2}(?:" + NEGATIVE_WORD + r")(?![a-z])"
+    # "2374 passed / 1 failed": a negative word right after a number is a test COUNT, not the note's
+    # verdict (an outside run of 3.8.9). "it failed 3 times" puts the number after, and still stops.
+    r"|(?<![\w.])\d+\s+(?:" + NEGATIVE_WORD + r")(?![a-z])"
     # The WHOLE label, then a separator, then a whole number: with the separator
     # optional, backtracking read the digits inside `failed-on-ios18` as its count
     # and erased a real stop (Codex review of 2f45348).
@@ -633,17 +636,23 @@ def human_stop(text):
     log = "\n".join(sections_of(text).get("Verification Log", []))
     # The LAST sign-off decides: an approval later taken back is not done, and a stop later
     # approved after a fix is (Codex review of 3ff59fb). The first one used to win both ways.
-    signed = [m for line in log.split("\n") if (m := VLOG_HUMAN_RE.match(line.strip()))
+    rows = [line.strip() for line in log.split("\n")]
+    signed = [(i, m) for i, row in enumerate(rows) if (m := VLOG_HUMAN_RE.match(row))
               and not HUMAN_MUTANT_NOTE.match(m.group("note"))]
-    if signed and human_outcome(signed[-1].group("note")) == "stop":
+    # A stop older than tool-written exit-0 evidence recorded after it cannot take that evidence back:
+    # a sign-off from the day before the passing rows withheld done (an outside run of 3.8.9).
+    later_pass = bool(signed) and any((d := VLOG_DIGEST_RE.match(row)) and d.group("exit") == "0"
+                                      for row in rows[signed[-1][0] + 1:])
+    last = signed[-1][1] if signed else None
+    if last and not later_pass and human_outcome(last.group("note")) == "stop":
         # ⚠ THE REASON CARRIES ITS OWN PROVENANCE. Both stop routes print through
         # one site, and that site used to say "a human sign-off says stop" — true
         # of this Verification Log note and FALSE of a `**Status:**` header nobody
         # signed. A gate does not report an observation it did not make
         # (CLAUDE.md §3), including about where its own reason came from.
-        words = stop_words(signed[-1].group("note"))
-        return (f"a human sign-off says stop on «{words}»: {signed[-1].group('note')}" if words
-                else f"a human sign-off says stop: {signed[-1].group('note')}")
+        words = stop_words(last.group("note"))
+        return (f"a human sign-off says stop on «{words}»: {last.group('note')}" if words
+                else f"a human sign-off says stop: {last.group('note')}")
     return None
 
 def read_named(path):

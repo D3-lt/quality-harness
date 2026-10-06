@@ -88,3 +88,7 @@ whose catalog says what each one's decision effect is now.
 | [ADR-084](ADR-084-count-the-skills-adopters-use.md) | Count the skills adopters use, and read the ledgers in one report | Accepted |
 | [ADR-085](ADR-085-a-build-diagnostic-in-an-assertion-is-a-kill.md) | A build diagnostic inside a failing assertion is a kill | Accepted |
 | [ADR-086](ADR-086-a-fresh-repository-commit-is-not-refused.md) | A commit into a repository the command creates is not this checkout's publish | Accepted |
+| [ADR-087](ADR-087-measured-status-shapes-are-read.md) | Measured status shapes are read | Accepted |
+| [ADR-088](ADR-088-evidence-is-read-against-its-writer.md) | Evidence is read against its writer | Accepted |
+| [ADR-089](ADR-089-the-probe-says-what-it-did-not-compare.md) | The probe says what it did not compare | Accepted |
+| [ADR-090](ADR-090-a-quoted-message-is-data.md) | A quoted message is data | Accepted |

@@ -5,7 +5,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { lstatSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -35,7 +35,9 @@ function record(make) {
   return { repo, tasks, made: make(join(tasks, 'T3-odd.md')) }
 }
 
+// Git Bash's mkfifo on Windows exits 0 and makes no FIFO (CI c88b546), so the node is checked.
 const fifo = path => spawnSync('mkfifo', [path], { timeout: 10_000, windowsHide: true }).status === 0
+  && (() => { try { return lstatSync(path).isFIFO() } catch { return false } })()
 const directory = path => { mkdirSync(path); return true }
 // Git cannot track a FIFO, but it tracks a link to one, so this is the shape git LISTS.
 const trackedLinkToFifo = path => {

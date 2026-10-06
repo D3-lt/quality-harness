@@ -18151,3 +18151,8 @@ OS's periodic cleanup, and failed with ERR_MODULE_NOT_FOUND — a fresh clone, n
   uncommitted` labelled "read 60s ago" about an hour after 3706765 was committed and the tree was clean;
   `branch-state.mjs --brief` run by hand answered correctly. Whether the snapshot ADR-065 serves can carry an
   age younger than its content is unverified, and is the next thing to look at in branch-state.
+- **The runs at ca3d61d** (react-spa 2, python-adr-corpus 78, laravel-react-monorepo 95, all passToFail 0).
+  php-react-app: the new records diff printed "X → X" where the older report held a raw Status and the newer a
+  scrubbed one; it now compares after scrubbing both sides, so a redaction-only change is not a change. Its
+  other lead, `let's /work` in a quoted chat line becoming `<path>`, is the scrubber's documented safe
+  direction (over-scrubbing), kept.

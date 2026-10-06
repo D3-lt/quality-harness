@@ -20824,9 +20824,19 @@
       "tests": [
         "tests/named-not-dropped.test.mjs"
       ],
-      "from": "      if (was.has(record.file) && was.get(record.file) !== (record.status ?? null)) {",
+      "from": "      if (was.has(record.file) && scrub(String(was.get(record.file))) !== scrub(String(record.status ?? null))) {",
       "to": "      if (false) {",
       "only": "^(?:--diff names a record whose Status changed, and a record that came or went)$"
+    },
+    {
+      "label": "§350 RC: --diff calls a redaction-only Status a change",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "scrub(String(was.get(record.file))) !== scrub(String(record.status ?? null))",
+      "to": "String(was.get(record.file)) !== String(record.status ?? null)",
+      "only": "^(?:--diff does not report a Status whose only change is redaction)$"
     }
   ]
 }

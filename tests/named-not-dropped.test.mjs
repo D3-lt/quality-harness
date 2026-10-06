@@ -243,3 +243,15 @@ test('the probe scrubs a Status line it copies into the report', () => {
   assert.match(status ?? '', /^Accepted \(recorded in ~<path>\)$/, JSON.stringify(report.records))
   assert.doesNotMatch(JSON.stringify(report), /secret-repo/)
 })
+
+// An outside run of the 3.8.7 RC (php-react-app): a record's Status changed between two reports and --diff
+// compared no field of records[] at all.
+test('--diff names a record whose Status changed, and a record that came or went', () => {
+  const side = records => ({ look: 'ok', corpora: ['docs/adr'], records })
+  const lines = diffReports(side([{ file: 'a.md', status: 'Proposed' }, { file: 'b.md', status: 'Accepted' }]),
+    side([{ file: 'a.md', status: 'Accepted' }, { file: 'c.md', status: 'Accepted' }]))
+  assert.ok(lines.includes('records: + c.md, - b.md'), lines.join('\n'))
+  assert.ok(lines.includes('records a.md status: Proposed → Accepted'), lines.join('\n'))
+  // The control: identical records say nothing.
+  assert.deepEqual(diffReports(side([{ file: 'a.md', status: 'Accepted' }]), side([{ file: 'a.md', status: 'Accepted' }])), ['nothing changed'])
+})

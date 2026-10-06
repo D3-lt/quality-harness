@@ -1584,9 +1584,10 @@ export function scrubber({ root, pluginRoot, tmp = os.tmpdir(), home = os.homedi
   // was made cleverer. A report that lost a reproduction hint costs one
   // question; a report that shipped a home directory cannot be recalled (§6).
   // ⚠ A `~` BEFORE A PATH DOES NOT EXEMPT IT. A stand-in review of f8d1eaf called gateSaid's `~‹path›`
-  // cosmetic and the lookbehind took `~`; the next outside run (php-react-app, 3.8.7 RC) then printed
-  // `~/<private repository>/…` from a record's Cross-references in place of `~‹path›`. A path under the
-  // home directory names the owner's other work, so it stays a placeholder (CLAUDE.md §6).
+  // cosmetic and this lookbehind took `~`; the next outside run (php-react-app, 3.8.7 RC) then printed
+  // `~/<private repository>/…` from a record's Cross-references. A path under the home directory names
+  // the owner's other work, so it stays a placeholder — HOME_RELATIVE below now does that for both
+  // separators before this pattern runs (CLAUDE.md §6).
   const HEAD = /(?<![\w.\\/-])(?<!<(?:tmp|home|plugin|path)>)(?:file:\/\/\/?|[A-Za-z]:[\\/]|\\\\[^\s'"`)\\]+\\|(?<!:)\/\/[^\s'"`)\/]+\/|\/(?!\/))/.source
   const ABSOLUTE = new RegExp(`${HEAD}[^\\s'"\`)\\\\/]${TAIL}`, 'g')
   // A path under the home directory in either separator: `~/x` meets HEAD's `/`, but Windows's `~\x`

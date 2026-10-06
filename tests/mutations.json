@@ -196,8 +196,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "focused false-green regressions remain closed",
-      "from": "            if timed and timed.group(\"ms\") and not vlog_row_is_lock_snapshot(row) \\",
-      "to": "            if timed and timed.group(\"ms\") \\"
+      "from": "            if timed and timed.group(\"ms\") and timed.group(\"exit\") == \"0\" and not vlog_row_is_lock_snapshot(row) \\",
+      "to": "            if timed and timed.group(\"ms\") and timed.group(\"exit\") == \"0\" \\"
     },
     {
       "label": "adr-lint: cargo's --test is not a test-name filter",
@@ -5204,7 +5204,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if timed and timed.group(\"ms\") and not vlog_row_is_lock_snapshot(row) \\\n                    and implausibly_fast(int(timed.group(\"ms\")),\n                                                                inf.get(\"acc_all\", \"\")):",
+      "from": "            if timed and timed.group(\"ms\") and timed.group(\"exit\") == \"0\" and not vlog_row_is_lock_snapshot(row) \\\n                    and implausibly_fast(int(timed.group(\"ms\")),\n                                                                inf.get(\"acc_all\", \"\")):",
       "to": "            if False:",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
@@ -13414,7 +13414,7 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "  if (state.readyButClaimedDone.length) {",
+      "from": "  if (claimedWithout.length) {",
       "to": "  if (false) {",
       "only": "both READY"
     },
@@ -20877,6 +20877,26 @@
       "from": "      const reading = [readiness, undecidedReading].find(answer => answer.listed.has(resolved))",
       "to": "      const reading = [readiness].find(answer => answer.listed.has(resolved))",
       "only": "^(?:a signed-off human-observed task is finished, not ready forever)$"
+    },
+    {
+      "label": "§349.2: a task held only by a moved lock is called without evidence",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "  const heldByLock = state.readyButClaimedDone.filter(file => moved.has(path.resolve(file)))",
+      "to": "  const heldByLock = []",
+      "only": "^(?:work-next says a ready task held back by a moved lock carries its evidence, and names the relock)$"
+    },
+    {
+      "label": "§349.4: the floor judges a fast failing row",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "timed.group(\"exit\") == \"0\" and ",
+      "to": "",
+      "only": "^(?:focused false-green regressions remain closed)$"
     }
   ]
 }

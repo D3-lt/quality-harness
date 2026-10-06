@@ -18321,6 +18321,11 @@ Every item of §295 was checked against the working-tree readers at a0d963d. The
 - **P2, `❌observed` passed**, since the word boundary excluded it. A cross is now a stop wherever it sits.
 - Eight catalogue entries repointed; nine added. All 17 are RED.
 
+**ADR-086 residual false refusals (Codex re-review of a14a751, 2026-10-06, P2, left open).** `freshRepositoryCommit` refuses a fresh-repository commit whose message says "push" or holds a quoted `;`, because it reads raw text: `/push/` over the whole command, and `step.code` for a quoted span holding an operator. Both were refused before ADR-086 as well, so nothing regressed. Inputs, each `freshRepositoryCommit(…, {})` false at the working tree after the fix:
+- `R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m "push the fix"`
+- `R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m "a;b"`
+- Smallest fix the review suggests: classify the invoked verbs and git argument positions instead of raw text — a `push` only as a git subcommand, and a quoted operator only where git or a shell would run it, never in a `-m` value.
+
 ## 352. OPEN 2026-10-06 — The GitHub scout: what outside projects offer, and what each needs before it is taken
 
 The owner asked for a scout of GitHub projects that could help, ranked by stars and by stack, including

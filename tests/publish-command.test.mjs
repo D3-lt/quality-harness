@@ -1143,3 +1143,60 @@ test('the fresh-repository rows commit where the classifier says they do', { ski
   bash(session, replay)
   assert.notEqual(head(session), before, 'the replay row did not commit into the session repository')
 })
+
+// ── Codex re-review of a14a751, 2026-10-06: F is freshRepositoryCommit, the unarmed
+// exemption; H is leavesHookInPlace, the armed one. Each review input is a row, and
+// each test carries the control twin that must still be accepted. Nothing here is run.
+const FRESH_CONTROL = 'R=$(mktemp -d /dev/null/x.XXXX) && cd "$R" && git init -q && git commit --allow-empty -m f'
+
+test('an unarmed fresh substitution is one foreground mktemp and nothing after it', () => {
+  for (const command of [
+    'R=$(mktemp -d /dev/null/x.XXXX &) && cd "$R" && git init -q && git commit --allow-empty -m f',
+    'R=$(mktemp -d /dev/null/x.XXXX | cat) && cd "$R" && git init -q && git commit --allow-empty -m f',
+    'R=$( (mktemp -d /dev/null/x.XXXX) ) && cd "$R" && git init -q && git commit --allow-empty -m f',
+  ]) {
+    assert.equal(freshRepositoryCommit(command, {}), false, command)
+    assert.equal(leavesHookInPlace(command), false, command)
+  }
+  assert.equal(freshRepositoryCommit(FRESH_CONTROL, {}), true)
+  assert.equal(leavesHookInPlace(FRESH_CONTROL), true)
+})
+
+test('an unarmed fresh commit is refused when arithmetic can reassign its directory', () => {
+  for (const command of [
+    'R=$(mktemp -d) && ((R=1)) && cd "$R" && git init -q && git commit --allow-empty -m f',
+    'R=$(mktemp -d /dev/null/x.XXXX; ((1))) && cd "$R" && git init -q && git commit --allow-empty -m f',
+    'R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m "$[1]"',
+    'R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m "let R=1"',
+  ]) assert.equal(freshRepositoryCommit(command, {}), false, command)
+  assert.equal(freshRepositoryCommit('R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m f', {}), true)
+})
+
+// Bash evaluates a variable's VALUE as an arithmetic expression, so `((X))` with X
+// inherited as `GIT_CONFIG_COUNT=0` assigns the hook's variable while the text names
+// none (measured: `x=y=5; ((x)); echo "$y"` prints 5 under bash 3.2).
+test('an armed session refuses arithmetic, which can assign a variable named only in a value', () => {
+  for (const command of [
+    'R=$(mktemp -d) && ((R=1)) && cd "$R" && git init -q && git commit --allow-empty -m f',
+    '((X)) && git commit -m f',
+    'let X && git commit -m f',
+  ]) assert.equal(leavesHookInPlace(command), false, command)
+  // Control: the same characters inside quotes are a message, not arithmetic.
+  for (const command of ['git commit -m f', "git commit -m 'x ((1)) let y'"]) assert.equal(leavesHookInPlace(command), true, command)
+})
+
+test('an inherited git or bash environment keeps an unarmed fresh commit refused', () => {
+  for (const name of ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_INDEX_FILE', 'GIT_COMMON_DIR', 'GIT_OBJECT_DIRECTORY', 'BASH_FUNC_cd%%', 'BASH_FUNC_git%%', 'BASH_ENV', 'ENV', 'git_dir']) {
+    assert.equal(freshRepositoryCommit(FRESH_CONTROL, { [name]: '' }), false, name)
+  }
+  // Control: an environment that redirects nothing leaves the proof standing.
+  assert.equal(freshRepositoryCommit(FRESH_CONTROL, { GIT_AUTHOR_NAME: 'q', ENVIRONMENT: 'x', LANG: 'C' }), true)
+})
+
+test('a single terminal newline ends an unarmed fresh commit like the end of the text', () => {
+  assert.equal(freshRepositoryCommit(`${FRESH_CONTROL}\n`, {}), true)
+  // Twin: a newline then another command runs it even where mktemp failed.
+  for (const command of [`${FRESH_CONTROL}\ngit commit --allow-empty -m g`, `${FRESH_CONTROL}\n\n`]) {
+    assert.equal(freshRepositoryCommit(command, {}), false, JSON.stringify(command))
+  }
+})

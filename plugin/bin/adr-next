@@ -472,12 +472,11 @@ def is_done(text, digest, human, fence=None, first=None, root=None):
         want_legacy = first.replace("`", "'")
     for line in log.split("\n"):
         line = line.strip()
-        if human and (m := VLOG_HUMAN_RE.match(line)):
-            # Only a stated stop withholds done. An affirmative note, or one this
-            # cannot classify, is evidence (see human_outcome), and `human_verdict`
-            # below carries a stop's reason so the report says which it was.
-            if human_outcome(m.group("note")) != "stop":
-                return True
+        if human and VLOG_HUMAN_RE.match(line):
+            # A sign-off is evidence. Whether the LAST one takes it back is `human_stop`'s
+            # question, which both callers ask before this one (Codex review of 3ff59fb). Asked
+            # here as well it decided nothing, and a campaign mutant went GREEN to say so.
+            return True
         m = VLOG_DIGEST_RE.match(line)
         if m and m.group("exit") == "0" and digest and m.group("digest") == digest:
             if vlog_row_is_lock_snapshot(line):

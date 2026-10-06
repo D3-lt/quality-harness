@@ -113,4 +113,6 @@ written stay in session logs and are ignored by every other reader.
 
 ## Follow-ups
 
-- [ ] Run `ledger-report.mjs` at the peers on or after 2026-10-08, with ADR-081's measurement.
+- [x] Folded into the outside-run request (docs/corpus-reports/README.md, 2026-10-06): each runner pastes
+  `ledger-report.mjs --json` counts beside its attestation. Skill counts can exist only where 3.8.7 is installed;
+  on 2026-10-06 no adopter had it, so the first counts arrive with the next release's runs.

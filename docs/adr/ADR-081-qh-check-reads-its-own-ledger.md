@@ -107,5 +107,12 @@ Revert the commits. `fast-checks.jsonl` is then read by nothing, so no fast reco
 
 ## Follow-ups
 
-- [ ] Measure the same-tree skips at the adopters a week after release, against the 53 of 280 measured before it.
-- [ ] Count the skips from `.git/quality-harness/skips.jsonl`, written from 3.8.3 on, one row per skip with `passId`, `tree` and `savedMs` (the reused pass's duration, an estimate of the time saved, not a measurement). The owner asked for it on 2026-10-02 because a skip had left no trace. Before 3.8.3, skips can only be inferred.
+- [x] Measured 2026-10-06, five days after release rather than seven (the owner asked for no dated leftovers), from
+  six adopters' own ledgers with a read-only counts-only command (BACKLOG §350 tail). Before v3.6.0: 6 of 344 checks
+  re-ran on a tree that had already passed (3/95, 2/54, 1/184, 0/8, 0/3; one adopter has no ledger). After: 3
+  checks in all, none on an already-passed tree, and no adopter has a `skips.jsonl` — 0 same-tree skips. The
+  adopters have barely run `qh-check` since 3.6.0, so the effect against the spec's 53 of 280 is UNPROVEN, not
+  shown. The 53-of-280 adopter is not among the six.
+- [x] Skips are read from `.git/quality-harness/skips.jsonl` (from 3.8.3) by `plugin/scripts/ledger-report.mjs`
+  (ADR-084, 3.8.7), and every outside run now carries its counts (docs/corpus-reports/README.md), so the
+  measurement repeats with each release instead of waiting on a date.

@@ -18401,3 +18401,8 @@ A fixture corpus with this shape belongs in `tests/fixtures/corpora/`, following
   - **Later evidence (3.8.10 RC):** an exit-0 row for a DIFFERENT fence cleared a real stop. Only a row with the current Acceptance's digest outranks an older stop, never a relock snapshot. A human-only Acceptance has no digest and so nothing to outrank it.
   - Two guards in my first narrowing were redundant, and their mutants went GREEN; both are removed. Four mutants were added and three repointed; all 21 sign-off mutants re-ran RED.
   - **Process slip:** 3.8.9 shipped without the §12 review that would have caught the first of these. 3.8.10 fixes it.
+- **Codex re-review of ee82e08 (REQUEST CHANGES): the count rule was still wider than its case, and an order-only check could be gamed.**
+  - "Safari 17 passed; 18 failed the manual check", "Safari 18 failed, 17 passed" and "step 1 passed; 2 cannot proceed" counted done. Text cannot tell a test summary from a version or a step number, so **the count rule is removed.** A pasted summary that is the LAST sign-off is a stop again, the conservative reading. T11's case is covered by the older-stop rule, because its summary predates its exit-0 rows.
+  - An exit-0 row DATED before a refusal, but placed below it, cleared the refusal. Now a clearing row must be dated on or after the sign-off; same-day rows keep their append order.
+  - **Left open, the safe direction:** "approved; no tests failed" and "approved; no failed tests" are false stops. This predates 3.8.9, and a bounded absence form is a later decision.
+  - Two count entries were deleted with their rule and one date mutant added; all 20 sign-off mutants re-ran RED.

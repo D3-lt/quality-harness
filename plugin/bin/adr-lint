@@ -1140,7 +1140,12 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
     check_conflict_markers(Path(adr_path), text, errors, blocking=False)
     alts = [ln for ln in secs.get("Alternatives Considered", []) if ln.strip().startswith("-")]
     if not alts:
-        errors.append(f"{adr_path.name}: Alternatives Considered has no entries")
+        # An absent section is not an empty one: a record with `## Rejected Alternatives` holding two
+        # entries was told it "has no entries" (an outside run over a public corpus, 2026-10-06).
+        absent = "" if "Alternatives Considered" in secs else (
+            ": the record has no `## Alternatives Considered` section"
+            + "".join(f"; it has `## {h}`" for h in secs if "alternative" in h.lower())[:200])
+        errors.append(f"{adr_path.name}: Alternatives Considered has no entries" + absent)
     wiring = [ln for ln in secs.get("Wiring & Contract Changes", []) if ln.strip()]
     if not wiring:
         errors.append(f"{adr_path.name}: Wiring & Contract Changes empty "
@@ -6491,13 +6496,30 @@ def main():
     status_value, _ = record_status(text)
     content = (status_value is not None and _RECORD_SECTION.search(text)
                and (re.search(r"^\*\*Status:\*\*", text, re.M) or kept_as_records))
+    def _not_recognised_because(text, status_value, kept_as_records):
+        """What THIS file lacks, so 32 not-recognised records do not all say one sentence
+        (an outside run over a public corpus, 2026-10-06)."""
+        lacks = []
+        if status_value is None:
+            lacks.append("no Status line")
+        elif not re.search(r"^\*\*Status:\*\*", text, re.M) and not kept_as_records:
+            lacks.append("a Status other than `**Status:**`, outside an `adr` or `decisions` directory")
+        elif not status_kind(status_value):
+            # A YAML `status: active` IS read as a Status; what no reader does is act on `active`.
+            lacks.append(f"its Status `{status_value[:40]}` is not a status any reader acts on "
+                         f"(Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated)")
+        if not _RECORD_SECTION.search(text):
+            lacks.append("no `## Context` or `## Decision` heading")
+        return lacks or ["nothing a record needs is missing, yet it was not read as one"]
+
     if not (canonical or spec or content):
         print(f"not-recognised: {one_line(adr)} is not named ADR-<n> and does not read as a record "
               f"(a Status, and a `## Context` or `## Decision` heading; any Status but `**Status:**` only "
               f"under an `adr` or `decisions` directory), so nothing here was checked. "
               f"This is not a finding about that file — `adr-lint` reads one record at a time, and a "
               f"backlog, a README, a report or a pre-registration kept beside the records is not one. "
-              f"`adr-debt <corpus-dir>` reads a whole directory.")
+              f"`adr-debt <corpus-dir>` reads a whole directory. "
+              f"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records))}.")
         sys.exit(2)
     errors = Findings()
     # Listed ONCE for the whole record. Three checks resolve pointers against the

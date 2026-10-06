@@ -6930,8 +6930,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "              f\"`adr-debt <corpus-dir>` reads a whole directory.\")\n        sys.exit(2)",
-      "to": "              f\"`adr-debt <corpus-dir>` reads a whole directory.\")\n        pass",
+      "from": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records))}.\")\n        sys.exit(2)",
+      "to": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records))}.\")\n        pass",
       "only": "^(?:missing file, directory, and not-recognised stay their current exits|a document that never claimed to be a record is not judged as a malformed one \\(BACKLOG §141\\))$"
     },
     {
@@ -15475,8 +15475,8 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "      : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\\n').find(line => line.trim()) : undefined",
-      "to": "      : undefined",
+      "from": "      : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\\n').find(line => line.trim())",
+      "to": "      : /^exit /.test(verdict) ? undefined",
       "only": "only an exit code carries"
     },
     {
@@ -21096,8 +21096,8 @@
       "tests": [
         "tests/adr-next-codex-3-8-8.test.mjs"
       ],
-      "from": "    if signed and human_outcome(signed[-1].group(\"note\")) == \"stop\":",
-      "to": "    if signed and human_outcome(signed[0].group(\"note\")) == \"stop\":",
+      "from": "    last = signed[-1][1] if signed else None",
+      "to": "    last = signed[0][1] if signed else None",
       "only": "^(?:the last human sign-off decides: an approval taken back is not done, a stop later approved is)$"
     },
     {
@@ -21266,7 +21266,7 @@
       "tests": [
         "tests/human-stop-3-8-9.test.mjs"
       ],
-      "from": "        words = stop_words(signed[-1].group(\"note\"))",
+      "from": "        words = stop_words(last.group(\"note\"))",
       "to": "        words = None",
       "only": "^(?:a stop names the words that stopped it before the note it quotes)$"
     },
@@ -21299,6 +21299,66 @@
       "from": "            if not any(\"· human-observed ·\" in b and \"· human-observed · mutant \" not in b for b in inf[\"vlog\"]):",
       "to": "            if not any(\"· human-observed ·\" in b for b in inf[\"vlog\"]):",
       "only": "^(?:adr-lint does not take a human-mutant row for a done human-observed task's sign-off)$"
+    },
+    {
+      "label": "§354.3: an absent Alternatives section reads as an empty one",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/alternatives-heading.test.mjs"
+      ],
+      "from": "        absent = \"\" if \"Alternatives Considered\" in secs else (",
+      "to": "        absent = \"\" if True else (",
+      "only": "^(?:an Alternatives section under another name is named as absent, with the heading found)$"
+    },
+    {
+      "label": "§354.1: the probe drops a not-recognised file's reason",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/not-recognised-reason.test.mjs"
+      ],
+      "from": "      : verdict === 'not-recognised' ? (first.match(/This file: .*$/) ?? [])[0] : undefined",
+      "to": "      : undefined",
+      "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
+    },
+    {
+      "label": "§354.1: an unrecognised Status value goes unnamed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/not-recognised-reason.test.mjs"
+      ],
+      "from": "        elif not status_kind(status_value):\n            # A YAML `status: active` IS read as a Status; what no reader does is act on `active`.",
+      "to": "        elif False:\n            # A YAML `status: active` IS read as a Status; what no reader does is act on `active`.",
+      "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
+    },
+    {
+      "label": "§354.1: a not-recognised file is not told what it lacks",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/not-recognised-reason.test.mjs"
+      ],
+      "from": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records))}.\")",
+      "to": "              f\"\")",
+      "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
+    },
+    {
+      "label": "3.8.10: a test count reads as a verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "    r\"|(?<![\\w.])\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
+      "to": "    r\"|(?<![\\w.])zz\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
+      "only": "^(?:a test count like \"1 failed\" in a sign-off is a count, not a verdict)$"
+    },
+    {
+      "label": "3.8.10: an older stop takes back later exit-0 evidence",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "    if last and not later_pass and human_outcome(last.group(\"note\")) == \"stop\":",
+      "to": "    if last and human_outcome(last.group(\"note\")) == \"stop\":",
+      "only": "^(?:a human stop older than later exit-0 evidence does not take that evidence back)$"
     }
   ]
 }

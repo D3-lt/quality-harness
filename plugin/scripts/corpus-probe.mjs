@@ -313,7 +313,10 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     const finding = verdict === 'FAIL'
       ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}\S/.test(line) && !/^ {2}advice:/.test(line))
       : verdict === 'UNPROVEN' ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}unproven: /.test(line))
-      : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\n').find(line => line.trim()) : undefined
+      : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\n').find(line => line.trim())
+      // A not-recognised file carries what IT lacks, the clause adr-lint ends its sentence with: 32
+      // records of a public corpus all read "not-recognised" and nothing else (an outside run, 2026-10-06).
+      : verdict === 'not-recognised' ? (first.match(/This file: .*$/) ?? [])[0] : undefined
     // Advice leaves with the verdict. Only the verdict did, so a PASS the gate had advised on
     // read as a bare PASS and the advice a runner meant to report was invisible (a corpus-chaos
     // run of cd7e6ab, BACKLOG §319's addendum). Every advice line the gate printed, a withheld

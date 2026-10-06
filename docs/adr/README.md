@@ -87,3 +87,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-083](ADR-083-the-lexer-reads-jsx.md) | The lexer reads JSX | Accepted |
 | [ADR-084](ADR-084-count-the-skills-adopters-use.md) | Count the skills adopters use, and read the ledgers in one report | Accepted |
 | [ADR-085](ADR-085-a-build-diagnostic-in-an-assertion-is-a-kill.md) | A build diagnostic inside a failing assertion is a kill | Accepted |
+| [ADR-086](ADR-086-a-fresh-repository-commit-is-not-refused.md) | A commit into a repository the command creates is not this checkout's publish | Accepted |

@@ -3285,8 +3285,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "            if human_outcome(m.group(\"note\")) != \"stop\":",
-      "to": "            if True:",
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)",
+      "to": "        done = (not conflicted and not foreign_stop(text, owner)",
       "only": "^(?:a human sign-off that reports a STOP is not counted as done|a negative word inside quoted program output does not stop an affirmative sign-off|the verb forms of a negative word are still read as a stop|a negator directly before an affirmative is a stop, and a bare \"not\" elsewhere is not|a negated stop word and a counter name are not verdicts, and the plain stop still is|a task whose sign-off says stop is not offered as ready|a corpus root whose records have nothing ready exits 3, not 0|a fully-read corpus with nothing ready is exit 3, a real verdict|a \"NOT done:\" follow-up list after an affirmation is not a stop, and the bare label still is|a hostile task heading is quoted and defanged in the human output)$"
     },
     {
@@ -13575,8 +13575,8 @@
         "tests/publish-command.test.mjs"
       ],
       "only": "an armed session still refuses every form that can disable the hook",
-      "from": "  const raw = String(command ?? '').replace(/\\\\\\r?\\n/g, '')",
-      "to": "  const raw = String(command ?? '')"
+      "from": "  const joined = String(command ?? '').replace(/\\\\\\r?\\n/g, '')",
+      "to": "  const joined = String(command ?? '')"
     },
     {
       "label": "ADR-066 T3: an unquoted expansion keeps the refusal (round 2)",
@@ -13995,8 +13995,8 @@
         "tests/publish-command.test.mjs"
       ],
       "only": "reads words, quoted code and heredocs",
-      "from": "  if (/\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/.test(raw)) return false",
-      "to": "  if (/\\b(?:CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/.test(raw)) return false"
+      "from": "const HOOK_ENVIRONMENT_NAMES = /\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/",
+      "to": "const HOOK_ENVIRONMENT_NAMES = /\\b(?:CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/"
     },
     {
       "label": "ADR-066 T3: env named anywhere keeps the refusal (round 4)",
@@ -14005,8 +14005,8 @@
         "tests/publish-command.test.mjs"
       ],
       "only": "reads words, quoted code and heredocs",
-      "from": "  if (/\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/.test(raw)) return false",
-      "to": "  if (/\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME)\\b/.test(raw)) return false"
+      "from": "const HOOK_ENVIRONMENT_NAMES = /\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME|env)\\b/",
+      "to": "const HOOK_ENVIRONMENT_NAMES = /\\b(?:GIT_\\w*|CLAUDE_\\w*|PATH|HOME|XDG_CONFIG_HOME)\\b/"
     },
     {
       "label": "lock: an object argument at depth 0 is skipped, not hashed as the body (§305)",
@@ -21128,6 +21128,56 @@
       "from": "                return (\"done\" if not human_stop(text) and is_done(text, digest, first == \"human-observed\",",
       "to": "                return (\"done\" if is_done(text, digest, first == \"human-observed\",",
       "only": "^(?:a dependency on another record's task whose approval was taken back is not met)$"
+    },
+    {
+      "label": "ADR-086 T1: an armed session admits a fresh-directory variable as a directory operand",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const { raw, fresh } = freshDirectoryText(joined)",
+      "to": "  const raw = joined, fresh = new Set()",
+      "only": "^(?:an armed session leaves a commit into a mktemp directory to git)$"
+    },
+    {
+      "label": "ADR-086 T1: a dollar outside a directory operand keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (uses !== references || (plain.match(operand)?.length ?? 0) !== references) return unchanged",
+      "to": "    if ((plain.match(operand)?.length ?? 0) !== references) return unchanged",
+      "only": "^(?:an armed session still refuses a dollar it cannot place as a directory)$"
+    },
+    {
+      "label": "ADR-086 T2: the fresh-repository grammar accepts only an and-chain from mktemp to commit",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (commands.some((step, k) => step.heredocs.length || step.redirects || step.pipeTo !== null || step.ended !== (k === last ? '' : '&&'))) return false",
+      "to": "  if (commands.some((step, k) => step.heredocs.length || step.redirects || step.pipeTo !== null || (step.ended !== (k === last ? '' : '&&') && step.ended !== ';'))) return false",
+      "only": "^(?:an unarmed chain the text cannot place in a fresh repository is still refused)$"
+    },
+    {
+      "label": "ADR-086 T2: an unarmed fresh-repository commit is advised, not refused",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (verdict.deny && input.tool_name === 'Bash' && freshRepositoryCommit(input.tool_input?.command)) {",
+      "to": "  if (false && freshRepositoryCommit(input.tool_input?.command)) {",
+      "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
+    },
+    {
+      "label": "ADR-086 T2: the fresh-repository advice carries its own key",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      ...verdict, deny: false, key: `${verdict.key}:fresh`,",
+      "to": "      ...verdict, deny: false, key: verdict.key,",
+      "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
     }
   ]
 }

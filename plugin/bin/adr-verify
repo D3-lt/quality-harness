@@ -305,9 +305,10 @@ BUILD_BROKE = [
     # Go's own verdict line, at column 0: a nested `go test` quoted inside a failing assertion is
     # indented under it, and is the test noticing, not the fence failing to build (ADR-085).
     r"^FAIL\s+\S+ \[build failed\]",      # go
+    r"^FAIL\s+\S+ \[setup failed\]",      # go: an import cycle or a missing import (ADR-085)
     r"^PHP Parse error",                   # php
     r"^Parse error: syntax error",         # php
-    r"^SyntaxError:",                       # python / node
+    r"^(?:# )?SyntaxError:",                # python / node; TAP prints node's behind `# ` (ADR-085)
     r"^IndentationError:",
     r"error: could not compile",            # cargo
     r"^error\[E\d+\]",                     # rustc

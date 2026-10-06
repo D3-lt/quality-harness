@@ -19,7 +19,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | a nested build failure inside a failing assertion is a kill | done | none — no spec | `node --test tests/evidence-chain.test.mjs` (three named tests pass) |
-| T2 | a Go setup failure or a TAP parse error is not a kill | pending | none — no spec | `node --test tests/evidence-chain.test.mjs` (four named tests pass) |
+| T2 | a Go setup failure or a TAP parse error is not a kill | done | none — no spec | `node --test tests/evidence-chain.test.mjs` (four named tests pass) |
 
 ## Contract Coupling
 

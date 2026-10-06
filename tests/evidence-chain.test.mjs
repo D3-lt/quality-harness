@@ -3332,7 +3332,7 @@ function goMutantGrade(lines) {
   const copy = corpus()
   addMutationLog(copy)
   addBlindSpot(copy)
-  const printed = lines.map(line => `  printf '%s\\n' '${line}'`).join('\n')
+  const printed = lines.map(line => `  printf '%s\\n' '${line.replaceAll("'", "'\\''")}'`).join('\n')
   writeTask(copy, readTask(copy).replace(
     /## Acceptance\n\n```bash\n[\s\S]*?```/,
     '## Acceptance\n\n```bash\n'
@@ -3374,6 +3374,39 @@ test('a Go package that does not build at top level stays inconclusive', () => {
     const { log, said } = goMutantGrade(lines)
     assert.match(log, /mutant inconclusive/, `case ${name}: ${said}`)
     assert.doesNotMatch(log, /mutant killed/, `case ${name}: a build that failed is not a test that noticed`)
+  }
+})
+
+// ADR-085 T2: two failures the shipped list graded KILLED, measured 2026-10-06 — a Go package that
+// fails setup (an import cycle, a missing import) and a Node parse error behind TAP's `# `. The twin:
+// a SyntaxError QUOTED inside a failing assertion (node spec and tap, pytest) is the test noticing.
+test('a Go setup failure is inconclusive, not a kill', () => {
+  const cycle = ['# ex/a', 'package ex/a', '\timports ex/b', '\timports ex/a: import cycle not allowed', 'FAIL\tex/a [setup failed]', 'FAIL']
+  const missing = ['# ex/c', 'c/c.go:2:8: package ex/nosuch is not in std', 'FAIL\tex/c [setup failed]', 'FAIL']
+  for (const [name, lines] of [['import cycle', cycle], ['missing import', missing]]) {
+    const { log, said } = goMutantGrade(lines)
+    assert.match(log, /mutant inconclusive/, `${name}: ${said}`)
+    assert.doesNotMatch(log, /mutant killed/, `${name}: a package that never built is not a test that noticed`)
+  }
+})
+
+test('a TAP-prefixed SyntaxError is inconclusive, not a kill', () => {
+  const topLevel = ['TAP version 13', "# SyntaxError: Unexpected token ';'", 'not ok 1 - broken.test.mjs', '# pass 0', '# fail 1']
+  const imported = ['TAP version 13', "# SyntaxError: Unexpected token '=>'", 'not ok 1 - uselib.test.mjs', '# pass 0', '# fail 1']
+  for (const [name, lines] of [['top level', topLevel], ['imported module', imported]]) {
+    const { log, said } = goMutantGrade(lines)
+    assert.match(log, /mutant inconclusive/, `${name}: ${said}`)
+    assert.doesNotMatch(log, /mutant killed/, `${name}: a file that never parsed is not a test that noticed`)
+  }
+})
+
+test('a SyntaxError quoted inside a failing assertion is still a kill', () => {
+  const spec = ['✖ the child parses (12.3ms)', '  AssertionError [ERR_ASSERTION]: child exited 1', "  SyntaxError: Unexpected token ';'", 'ℹ pass 0', 'ℹ fail 1']
+  const tap = ['TAP version 13', 'not ok 1 - the child parses', '  ---', '  error: |-', '    child exited 1', "    SyntaxError: Unexpected token ';'", '  ...', '# pass 0', '# fail 1']
+  const pytest = ['F', "E         SyntaxError: '(' was never closed", 'FAILED test_child.py::test_child_parses - AssertionError', '1 failed in 0.05s']
+  for (const [name, lines] of [['node spec', spec], ['node tap', tap], ['pytest', pytest]]) {
+    const { log, said } = goMutantGrade(lines)
+    assert.match(log, /mutant killed/, `${name}: ${said}`)
   }
 })
 

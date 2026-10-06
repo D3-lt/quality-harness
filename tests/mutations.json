@@ -19847,7 +19847,7 @@
       ],
       "from": "  if (only.heredocs.some(document => !document.quoted)) return false",
       "to": "  if (false) return false",
-      "only": "^a commit fed by an expanding here-document is refused, and a quoted one is told$"
+      "only": "^(?:a commit fed by an expanding here-document is refused, and a quoted one is told|a commit fed by an unquoted here-document is refused even when its body names nothing to expand)$"
     },
     {
       "label": "ADR-081 review: an unseen write is judged by its clock alone",

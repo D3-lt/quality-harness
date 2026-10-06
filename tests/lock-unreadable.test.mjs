@@ -216,3 +216,18 @@ test('a task file nobody could read is not an unbacked done claim, and its direc
     assert.ok(state.readinessUnproven.some(dir => dir.split('\\').join('/') === rel.slice(0, rel.lastIndexOf('/'))), JSON.stringify(state.readinessUnproven))
   } finally { chmodSync(task, 0o644) }
 })
+
+// BACKLOG §349 item 2 (the first Windows outside run): a task with exit-0 evidence whose locked test later
+// moved was listed as "READY and claimed done without evidence — `adr-verify` them first". It has the
+// evidence, and bare adr-verify is refused again; the line says so and names the relock.
+test('work-next says a ready task held back by a moved lock carries its evidence, and names the relock', () => {
+  const repo = locked({ oneTest: true })
+  const verified = spawnSync('python3', [join(repoRoot, 'plugin', 'bin', 'adr-verify'), join(repo, TASK), '--cwd', repo],
+    { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  assert.equal(verified.status, 0, said(verified))
+  writeFileSync(cart(repo), readFileSync(cart(repo), 'utf8').replace("'sku-1').items", "'sku-2').items"))
+  const run = workNext(repo)
+  assert.equal(run.status, 0, said(run))
+  assert.match(run.stdout, /carr(?:y|ies) exit-0 evidence, held back only by a moved test lock[\s\S]*adr-verify --relock --replace-hashes/, run.stdout)
+  assert.doesNotMatch(run.stdout, /both READY and claimed done without evidence[^\n]*\n {2}docs\/adr\/ADR-001-the-cart/, run.stdout)
+})

@@ -17684,7 +17684,7 @@ The stand-in review APPROVED with three advisories, all taken:
 Statusline test: `a workflow whose jobs were not read is counted apart from jobs`. All four §348 mutants
 were killed.
 
-## 349. OPEN 2026-10-02 (leads from the first Windows outside run; the owner's call on each) — a Go ADR corpus on Windows: no verdict moved, five readings to judge
+## 349. CLOSED 2026-10-06 (items 2 and 4 fixed after 3.8.7; 1 fixed earlier; 3 no change; 5 not reproduced) — a Go ADR corpus on Windows: no verdict moved, five readings to judge
 
 The first Windows outside run, on a Go CLI ADR corpus of 70 records and 177 tasks, attested as
 `windows-go-cli-adr-heavy` at 8fe7ae2: `compared` 70, PASS → FAIL 0, no disagreements, nothing that
@@ -17717,6 +17717,20 @@ could not run. Its runner flagged five things:
    possibly noise. To re-measure before reading anything into it.
 
 `readinessUnproven: 0` beside adr-next's unproven reasons is §345's name clash, not a count error.
+
+**Closed 2026-10-06:**
+- **Item 2, fixed.** adr-next's own human line already said why (the ⚠ "carries exit-0 evidence, but its test
+  lock withholds done" line). work-next's did not: a ready task held only by a moved lock was listed as "READY
+  and claimed done without evidence — `adr-verify` them first", untrue twice over. It is now a line of its own
+  naming the relock. Test: `tests/lock-unreadable.test.mjs::work-next says a ready task held back by a moved lock
+  carries its evidence, and names the relock`; one mutant killed, and the older entry on the line repointed.
+- **Item 4, fixed — a false advisory.** The floor asks whether a command could have FINISHED in its time; a
+  failing one can stop at its first error, and GitHub #6 was about exit 0 in 3 ms. Only exit-0 rows are judged
+  now. Test: `tests/gate-regressions.py::test_a_failing_row_may_be_fast`, with an exit-0 twin; one mutant killed,
+  two older entries repointed and RED. The fence-segments count advice is §17's work, not a false advisory.
+- **Item 5, not reproduced.** Re-measured 2026-10-06 on macOS, three runs each, v3.7.2 against HEAD: ADR-060
+  562–707 ms → 557–570 ms, ADR-061 90–93 → 82, ADR-081 233–241 → 213–216. HEAD is not slower here. Windows was
+  not re-measured; the report was one run per record.
 
 ## 350. CLOSED 2026-10-06 (all of C1–C10 and items 1–9 released in v3.8.7) — Windows corpus-chaos on 3.8.3: one crash, three could-not-look read as absence
 

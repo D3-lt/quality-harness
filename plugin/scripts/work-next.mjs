@@ -810,13 +810,26 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
     for (const file of state.lockUnreadable.slice(0, 5)) say(`  ${shown(file)}\n`)
     if (n > 5) say(`  (+${n - 5} more; --json for all)\n`)
   }
-  if (state.readyButClaimedDone.length) {
-    const n = state.readyButClaimedDone.length
+  // A task whose only obstacle is a moved test lock HAS its exit-0 evidence, and bare `adr-verify` is
+  // refused again: "claimed done without evidence — adr-verify them first" was untrue of it twice over
+  // (the first Windows outside run, BACKLOG §349 item 2). Said apart, with the relock it needs.
+  const moved = new Set(state.relock.map(file => path.resolve(file)))
+  const heldByLock = state.readyButClaimedDone.filter(file => moved.has(path.resolve(file)))
+  const claimedWithout = state.readyButClaimedDone.filter(file => !moved.has(path.resolve(file)))
+  if (claimedWithout.length) {
+    const n = claimedWithout.length
     // One task in three lists read as a contradiction (BACKLOG §289 item 2): these
     // are a subset of the ready list AND of the unbacked claims, said here once.
     say(`\n${n} task${n === 1 ? ' is' : 's are'} both READY and claimed done without evidence — \`adr-verify\` ${n === 1 ? 'it' : 'them'} first `
       + `(${n === 1 ? 'it is' : 'they are'} also counted among the ready tasks and the unbacked done claims):\n`)
-    for (const file of state.readyButClaimedDone.slice(0, 5)) say(`  ${shown(file)}\n`)
+    for (const file of claimedWithout.slice(0, 5)) say(`  ${shown(file)}\n`)
+    if (n > 5) say(`  (+${n - 5} more; --json for all)\n`)
+  }
+  if (heldByLock.length) {
+    const n = heldByLock.length
+    say(`\n${n} ready task${n === 1 ? ' carries' : 's carry'} exit-0 evidence, held back only by a moved test lock — once the `
+      + `change to the test is reviewed, \`adr-verify --relock --replace-hashes <task file>\`; bare \`adr-verify\` is refused again:\n`)
+    for (const file of heldByLock.slice(0, 5)) say(`  ${shown(file)}\n`)
     if (n > 5) say(`  (+${n - 5} more; --json for all)\n`)
   }
   for (const archive of state.unmarkedArchives) {

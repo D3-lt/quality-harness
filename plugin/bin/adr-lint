@@ -2649,7 +2649,10 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
             timed = VLOG_TIMED_RE.match(row)
             # A lock snapshot runs no fence by design and records ms:0; it claims no run,
             # so the floor has nothing to judge (reported from outside, 2026-09-26).
-            if timed and timed.group("ms") and not vlog_row_is_lock_snapshot(row) \
+            # Exit 0 only: a failing command may stop at its first error — a `go test` red-first row
+            # exits 1 in 192 ms because the test does not exist yet (BACKLOG §349 item 4). Only a
+            # command that PASSED must have finished, and that is what the floor asks.
+            if timed and timed.group("ms") and timed.group("exit") == "0" and not vlog_row_is_lock_snapshot(row) \
                     and implausibly_fast(int(timed.group("ms")),
                                                                 inf.get("acc_all", "")):
                 errors.advise(

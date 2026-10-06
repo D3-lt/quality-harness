@@ -742,6 +742,7 @@ def main():
 
     test_the_floor_runs_on_a_done_row(lint)
     test_a_relock_row_is_not_a_fast_run(lint)
+    test_a_failing_row_may_be_fast(lint)
     test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint)
     test_a_committed_evidence_row_that_has_gone_missing_is_reported(bin_dir, lint)
     test_a_fence_declaration_is_read_or_reported(bin_dir, lint, repo_root)
@@ -3815,6 +3816,34 @@ def test_a_relock_row_is_not_a_fast_run(lint):
     # DIRTY twin: the same zero duration on a row that claims the fence ran is still said.
     ran = said(f"- {after} · abc1234 · exit 0 · `{acceptance}` · acceptance-sha256:{digest} · ms:0")
     assert "too short to have run" in ran, f"a 0ms fence run must still be reported: {ran}"
+
+
+# BACKLOG §349 item 4 (the first Windows outside run): the floor advised "too short to have run this
+# task's Acceptance fence" on old red-first rows — a `go test` that exits 1 in 192 ms because the test
+# does not exist yet is the expected shape, not a hand-typed row. The floor asks whether a command could
+# have FINISHED in that time; a failing one can stop at its first error, so only an exit-0 row is judged.
+def test_a_failing_row_may_be_fast(lint):
+    """The floor judges exit-0 rows only; a fast failure is not implausible."""
+    acceptance = "go test ./internal/cart -run TestAdd"
+    digest = lint.acceptance_digest(lint.normalize_acceptance(acceptance))
+    after = lint.DURATION_REQUIRED_FROM
+
+    def said(row):
+        found = lint.Findings()
+        lint.check_verification({"T1": {
+            "human": False, "vlog": [row],
+            "mlog": [f"- {after} · abc1234 · mutant killed · exit 1 · `x.go` · why · "
+                     f"acceptance-sha256:{digest}"],
+            "has_mlog": True, "acc_all": acceptance, "acc_first": acceptance,
+            "path": Path("tasks/T1-probe.md"),
+        }}, "| T1 | probe | done |", found, committed=lambda path: None)
+        return "\n".join(str(e) for e in found) + "\n".join(found.advice)
+
+    red = said(f"- {after} · abc1234 · exit 1 · `{acceptance}` · acceptance-sha256:{digest} · ms:192")
+    assert "too short to have run" not in red, f"a fast red-first row is not implausible: {red}"
+    # DIRTY twin: the same 192 ms on a row that claims the fence passed is still said.
+    green = said(f"- {after} · abc1234 · exit 0 · `{acceptance}` · acceptance-sha256:{digest} · ms:192")
+    assert "too short to have run" in green, f"a 192ms exit-0 go test must still be reported: {green}"
 
 # Reported 2026-09-01 while auditing the class GitHub issue #6 named: the floor
 # T1 shipped is CALLED now, but on a narrower set of rows than T1's own

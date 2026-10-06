@@ -18140,3 +18140,14 @@ OS's periodic cleanup, and failed with ERR_MODULE_NOT_FOUND — a fresh clone, n
   (never in --diff or --attest). It and `workNext.partialBecause[].reason`, which can carry a Status, are
   scrubbed now; the audit was `mrw read --grep '(goal|title|stopped_by|reason|why|status): [a-z]' corpus-probe.mjs`
   for fields emitted without `scrub(`, which found those two and nothing else carrying corpus text.
+- **The runs at 3706765** (react-spa 2, python-adr-corpus 78, laravel-react-monorepo 95 compared, all passToFail
+  0) confirmed the Status scrub. php-react-app noted that `--diff` compared no field of `records[]`, so that very fix
+  was invisible to it; the owner chose to fix it before the tag: `--diff` now names records that came or went
+  and a Status that changed. The campaign at 3706765 also had one GREEN: `§350 RC: a path under ~ is printed
+  whole` became equivalent once HOME_RELATIVE ran first (e3f77ce), and I had not re-run that function's
+  other mutants after adding it — the §18 class. The entry is removed; HOME_RELATIVE's own mutant holds the
+  mechanism.
+- **A lead, not yet proven:** the installed 3.8.6 per-prompt branch-state brief once printed `main @ e3f77ce, 4
+  uncommitted` labelled "read 60s ago" about an hour after 3706765 was committed and the tree was clean;
+  `branch-state.mjs --brief` run by hand answered correctly. Whether the snapshot ADR-065 serves can carry an
+  age younger than its content is unverified, and is the next thing to look at in branch-state.

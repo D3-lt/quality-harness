@@ -559,6 +559,17 @@ export function diffReports(before, after, scrub = text => String(text)) {
       if (was.has(entry.file) && was.get(entry.file) !== (entry.reason ?? null)) say(`undecided ${entry.file}: reason changed — ${entry.reason ?? '(none)'}`)
     }
   }
+  // The records themselves, by file: which are new or gone, and a Status that changed. A record's Status
+  // moved and --diff said nothing (an outside run of the 3.8.7 RC, php-react-app; §346's class).
+  if (!lacks('records', before.records, after.records)) {
+    setChange('records', before.records.map(record => record.file), after.records.map(record => record.file))
+    const was = new Map(before.records.map(record => [record.file, record.status ?? null]))
+    for (const record of after.records) {
+      if (was.has(record.file) && was.get(record.file) !== (record.status ?? null)) {
+        say(`records ${record.file} status: ${was.get(record.file) ?? '(none)'} → ${record.status ?? '(none)'}`)
+      }
+    }
+  }
   for (const key of absent.has('workNext') ? [] : ['ready', 'unbacked', 'readinessUnproven', 'unmarkedArchives', 'readyButClaimedDone']) {
     setChange(`workNext.${key}`, before.workNext?.[key], after.workNext?.[key])
   }

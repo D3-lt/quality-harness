@@ -20689,16 +20689,6 @@
       "only": "^(?:a locked test reached through another spelling of the same file is not vanished)$"
     },
     {
-      "label": "§350 RC: a path under ~ is printed whole",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/named-not-dropped.test.mjs"
-      ],
-      "from": "  const HEAD = /(?<![\\w.\\\\/-])",
-      "to": "  const HEAD = /(?<![\\w.\\\\/~-])",
-      "only": "^(?:SessionStart never repeats an absolute path a gate printed)$"
-    },
-    {
       "label": "§350 review: an unreadable superseder in another corpus hides a dangling one",
       "file": "plugin/scripts/adr-state.mjs",
       "tests": [
@@ -20827,6 +20817,16 @@
       "from": "status: record.status == null ? null : scrub(record.status), kind",
       "to": "status: record.status ?? null, kind",
       "only": "^(?:the probe scrubs a Status line it copies into the report)$"
+    },
+    {
+      "label": "§350 RC: --diff says nothing of a record's Status",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "      if (was.has(record.file) && was.get(record.file) !== (record.status ?? null)) {",
+      "to": "      if (false) {",
+      "only": "^(?:--diff names a record whose Status changed, and a record that came or went)$"
     }
   ]
 }

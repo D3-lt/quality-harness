@@ -16930,7 +16930,7 @@ whose branch is not the checkout's — should be shown at all is a product judge
   check (`plugin/bin/adr-lint:4900`) still read with hasher 1's masker; and the records whose locks hasher 2 reads
   differently are relocked one by one, as each maintainer chooses.
 
-## 325. OPEN 2026-10-01 — A session start spends its time starting processes, and reads the six oldest records
+## 325. PARTLY CLOSED 2026-10-06 — A session start spends its time starting processes, and reads the six oldest records
 
 Reported by the owner from Windows on 2026-10-01: SessionStart hooks take long to complete. Measured the
 same day on macOS with a `startup` payload, tracing every child process:
@@ -16948,6 +16948,8 @@ yet. **Lead:** one `adr-next` process reading every task directory removes five 
 the cap together. `branch-state` at SessionStart could serve its git half and refresh `gh` in the
 background, as the brief already does. Both change what a shipped reader prints, so each needs a measured
 target first (a Windows timing), then a spec and an outside run (§18).
+
+**Triaged 2026-10-06.** The "six oldest" half is fixed. `taskDirectories` (`plugin/scripts/lifecycle.mjs`, the comment citing §325) ranks directories by their newest change. SessionStart says so: "reads the 6 most recently changed per session start". The process-start half is still open, and it stays without an ADR on purpose, under the owner's measured-target rule (2026-09-26). Measured on macOS 2026-10-06: about 65 ms per adr-next start, so the six cost about 0.4 s of a 1.1–1.5 s SessionStart. That is too thin a target to justify a new multi-directory CLI contract. A Windows timing is still the missing number, and the draft waits for it. If it is ever written, the draft must keep two things. Each directory's could-not-look stays its own, so one locked directory does not blind the batch (§350 C3). And the single-directory invocation stays byte-identical.
 
 ## 326. FIXED 2026-10-01 — The Codex round on ADR-078 (01443dd): seven findings, four of them fail-opens
 
@@ -18289,6 +18291,7 @@ Every item of §295 was checked against the working-tree readers at a0d963d. The
   - 22.2: a spec symlinked outside the repository is listed in `uncoveredReadySpecs`.
   - 9: lifecycle accepts any `check.*` event whose `after.tree` matches, unbound to `checks.jsonl`. This needs a record.
 - **Hang:** item 1 and 19.3, one cause. A FIFO or a directory named `*.md` in `tasks/` hangs work-next, adr-next and corpus-probe (rc 124 at 25 s), or stops the whole directory. adr-lint already refuses non-regular entries. Give the other readers the same per-entry stop.
+  - **Fixed 2026-10-06.** adr-next stops a non-regular task entry as unreadable, without opening it, and reads the rest. work-next and the corpus reader in lifecycle never open one. That covers a FIFO, a directory named `T3-x.md`, and a git-tracked link to a FIFO, which is the shape git lists. corpus-probe over a FIFO corpus now finishes in 0.8 s; adr-lint still refuses the record (§319). The test is `tests/irregular-task-entry.test.mjs`, three cases. Four catalogue mutants, all RED.
 - **Untrue sentence or blind spot:**
   - 10: `attestation()` has no `look`; with git absent it says "not a git checkout"; `diffReports` never compares specs.
   - 22.3: ENOBUFS is worded "did not start", and there is no `maxBuffer`.

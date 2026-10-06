@@ -20584,8 +20584,8 @@
       "tests": [
         "tests/named-not-dropped.test.mjs"
       ],
-      "from": "    text: once(file => readFileSync(file, 'utf8').replace(/\\r(?!\\n)/g, '\\n')),",
-      "to": "    text: once(file => readFileSync(file, 'utf8')),",
+      "from": "      return readFileSync(file, 'utf8').replace(/\\r(?!\\n)/g, '\\n')",
+      "to": "      return readFileSync(file, 'utf8')",
       "only": "^(?:a CR-only task file loses none of its Affected Files)$"
     },
     {
@@ -20917,6 +20917,46 @@
       "from": "                if nested else f\"{tasks_dir}: no task files\")",
       "to": "                if False else f\"{tasks_dir}: no task files\")",
       "only": "^(?:a tasks directory holding only a subdirectory of tasks names it, not \"no task files\")$"
+    },
+    {
+      "label": "§351: adr-next opens a non-regular task entry",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/irregular-task-entry.test.mjs"
+      ],
+      "from": "        if not path.is_file():",
+      "to": "        if False:",
+      "only": "^(?:a FIFO named like a task is stopped unopened, and the other tasks are read|a directory named like a task is stopped unopened, and the other tasks are read)$"
+    },
+    {
+      "label": "§351: work-next reads a non-regular task entry",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/irregular-task-entry.test.mjs"
+      ],
+      "from": "    return !stat.isFile() || stat.size > 512 * 1024 ? '' : readFileSync(file, 'utf8')",
+      "to": "    return stat.size > 512 * 1024 ? '' : readFileSync(file, 'utf8')",
+      "only": "^(?:a FIFO named like a task is stopped unopened, and the other tasks are read)$"
+    },
+    {
+      "label": "§351: work-next opens a non-regular task entry to test it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/irregular-task-entry.test.mjs"
+      ],
+      "from": "    try { if (!statSync(file).isFile()) return true; closeSync(openSync(file, 'r')); return false } catch { return true }",
+      "to": "    try { closeSync(openSync(file, 'r')); return false } catch { return true }",
+      "only": "^(?:a tracked link to a FIFO named like a task is stopped unopened, and the other tasks are read)$"
+    },
+    {
+      "label": "§351: the corpus reader opens a non-regular task entry",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/irregular-task-entry.test.mjs"
+      ],
+      "from": "      if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)",
+      "to": "      if (false) throw new Error(`${file} is not a regular file`)",
+      "only": "^(?:a FIFO named like a task is stopped unopened, and the other tasks are read)$"
     }
   ]
 }

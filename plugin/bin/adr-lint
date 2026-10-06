@@ -124,6 +124,7 @@ from record import sections_of, repeated_headings, unterminated_fence, acceptanc
 from record import git_root, os_reason  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
+from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
 # check read a record's Status with the task parser (the Codex round of 3.1.6, finding 1).
@@ -158,16 +159,10 @@ PROOF_MAP_LEGACY_ADVICE = (
     "the Tests table's Steps column reaches them. To run it, add `**Proof map:** v1` "
     "beside the other headers, give each step an `[S<n>]` id, and name those ids in "
     "the Tests table's Steps column")
-# The sha field of a tool-written entry, in ONE place. It was five literal copies
-# here and a sixth in adr-verify, every one accepting 7 to 40 hex characters — and
-# adr-verify WRITES whatever `git rev-parse --short HEAD` returns, unvalidated.
-# git honours `core.abbrev`, which it allows down to 4, and a SHA-256 repository
-# emits up to 64. Reproduced 2026-08-29 with `core.abbrev=4`: adr-verify wrote
-# `6aaf*` and exited 0, and every reader rejected its own entry — so the sweep
-# dropped the claim from its denominator, flattering the false-success rate, AND
-# adr-lint blocked the `done` row that evidence was written for. Widening an
-# ACCEPTING grammar invalidates nothing: every entry that parsed before parses.
-SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
+# The sha field of a tool-written entry, `SHA_FIELD`, is record.py's (ADR-088 T1), imported above. It
+# was five literal copies here and a sixth in adr-verify, every one accepting 7 to 40 hex characters,
+# while git honours `core.abbrev` down to 4 and a SHA-256 repository emits up to 64 (BACKLOG §47).
+# `sha_fits` narrows it to the repository's object format in the row check below.
 # Tool-written mutation evidence. Same shape and same purpose as VLOG_RE: an entry
 # off this grammar was typed by a person, and a typed mutant is the thing the log
 # replaced. `killed` is the only verdict that is evidence — see adr-verify --mutant.
@@ -1871,6 +1866,9 @@ def check_task(path, all_stems, errors, root, tracked):
     # off-grammar entries (record.unfenced_lines; reported 2026-09-23).
     vlog = [ln.strip() for ln in unfenced_lines(secs.get("Verification Log", []))
             if ln.strip().startswith("- ")]
+    # ADR-088 T1: the object format bounds what git can print. Asked once, of this task's repository;
+    # could-not-look is None, and every width then fits.
+    sha_format = object_format(git_root(path.parent)) if vlog else None
     for b in vlog:
         if not VLOG_RE.match(b):
             errors.append(f"{path.name}: Verification Log entry doesn't match the adr-verify "
@@ -1880,6 +1878,11 @@ def check_task(path, all_stems, errors, root, tracked):
         elif (problem := row_date_problem(b)):
             errors.append(f"{path.name}: Verification Log entry {problem}, so adr-verify did not write "
                           f"it: `{b[:60]}…`. Re-run `adr-verify <task.md>` rather than editing the log")
+        elif not sha_fits(sha := row_sha(b), sha_format):
+            errors.append(f"{path.name}: Verification Log entry's sha `{sha}` is {len(sha.rstrip('*'))} "
+                          f"characters, and git prints at most 40 in this {sha_format} repository, so "
+                          f"adr-verify did not write it: `{b[:60]}…`. Re-run `adr-verify <task.md>` "
+                          f"rather than editing the log (ADR-088)")
     mlog = [ln.strip() for ln in unfenced_lines(secs.get("Mutation Log", []))
             if ln.strip().startswith("- ")]
     for b in mlog:

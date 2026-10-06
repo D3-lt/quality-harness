@@ -89,11 +89,12 @@ from record import sections_of, acceptance_fence, unterminated_fence, normalize_
 from record import git_root, os_reason  # noqa: E402
 from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW  # noqa: E402
 from record import row_date_problem  # noqa: E402
+from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 from record import record_status, status_kind, unsigned_human_proof_steps  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
-    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
+    r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     # ADR-020 appends an optional ` · ms:<integer>`. THREE gates read this grammar
     # and tests/gate-regressions.py asserts they agree, because a third drifting is
     # what makes this tool call a verified task unverified and hand a session work
@@ -115,7 +116,7 @@ HUMAN_MUTANT_NOTE = re.compile(r"^mutant \w+ · test exit \d+ · ")
 # cutover date, with the honest alternative (an Acceptance edited after its
 # evidence) ruled out by git log (docs/BACKLOG.md §58).
 VLOG_LEGACY_RE = re.compile(
-    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
+    r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)`$")
 
 # A human sign-off is the ONE route with no exit code and no fence digest, so the
@@ -483,6 +484,8 @@ def is_done(text, digest, human, fence=None, first=None, root=None):
     observe.
     """
     log = "\n".join(sections_of(text).get("Verification Log", []))
+    # ADR-088 T1: a sha wider than git prints in this repository is not a row adr-verify wrote.
+    sha_format = object_format(root)
     want_legacy = None
     if fence is not None and first is not None and "\n" not in fence:
         want_legacy = first.replace("`", "'")
@@ -497,7 +500,8 @@ def is_done(text, digest, human, fence=None, first=None, root=None):
             # here as well it decided nothing, and a campaign mutant went GREEN to say so.
             return True
         m = VLOG_DIGEST_RE.match(line)
-        if m and m.group("exit") == "0" and digest and m.group("digest") == digest:
+        if m and m.group("exit") == "0" and digest and m.group("digest") == digest \
+                and sha_fits(row_sha(line), sha_format):
             if vlog_row_is_lock_snapshot(line):
                 continue
             if lock_blocks_done(text, root):
@@ -505,7 +509,7 @@ def is_done(text, digest, human, fence=None, first=None, root=None):
             return True
 
         if want_legacy is not None and (m := VLOG_LEGACY_RE.match(line)) \
-                and m.group("exit") == "0" \
+                and m.group("exit") == "0" and sha_fits(row_sha(line), sha_format) \
                 and not m.group("command").rstrip().endswith(" …") \
                 and m.group("command").strip() == want_legacy:
             return True
@@ -537,8 +541,11 @@ def unprovable_evidence(text, digest, fence, first, root=None):
                 "`## Acceptance` heading needs a plain space after `##`, and the section a ```bash "
                 "fence — so adr-verify has nothing to run until the task file says what to run")
     current = other = legacy = False
+    sha_format = object_format(root)
     for line in log.split("\n"):
         line = line.strip()
+        if not sha_fits(row_sha(line), sha_format):
+            continue
         m = VLOG_DIGEST_RE.match(line)
         if m and m.group("exit") == "0":
             if vlog_row_is_lock_snapshot(line):
@@ -632,7 +639,7 @@ def stop_words(note):
             return m.group(0)
     return None
 
-def human_stop(text):
+def human_stop(text, root=None):
     """The sign-off note that says STOP, or None when none does.
 
     Deliberately re-reads the log rather than having `is_done` return two things:
@@ -654,6 +661,7 @@ def human_stop(text):
     later_pass = bool(signed) and digest is not None and any(
         (d := VLOG_DIGEST_RE.match(row)) and d.group("exit") == "0" and d.group("digest") == digest
         and not d.group("command").startswith("adr-verify --relock")
+        and sha_fits(row_sha(row), object_format(root))
         # Dated on or after the sign-off: a row dated before a refusal cleared it by sitting below it
         # (Codex review of ee82e08). Same-day rows keep their append order.
         and row[2:12] >= rows[signed[-1][0]][2:12]
@@ -742,7 +750,7 @@ def load(tasks_dir):
         conflicted = conflict_markers(text)
         # A task titled for another record, or whose LAST sign-off takes it back, is not done here
         # whatever else its log holds: classify reads done before any stop (Codex review of 3ff59fb).
-        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)
+        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text, root)
                 and is_done(text, digest, human, fence, first, root))
         infos[tid] = {
             "id": tid,
@@ -786,7 +794,7 @@ def load(tasks_dir):
             # refused the row on a fenced task, so the write was always allowed and
             # only the read was gated: the worst half to gate, because the author
             # sees their stop recorded and the router ignores it.
-            "stopped_by": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or status_stop(text) or acceptance_stop(text),
+            "stopped_by": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),
             # ADR-014 T2, and the SECOND route to "a human said do not start yet".
             # The 2026-09-02 report above was closed by handling a sign-off that
             # says STOP; `Blocked-on` — a task waiting on an event OUTSIDE this
@@ -899,7 +907,7 @@ def foreign_state(pointer, corpus_dir):
                 # digest, or an affirmative human sign-off. A second definition
                 # of "done" is how two tools come to disagree about one corpus.
                 fence, first, digest = acceptance(text)
-                return ("done" if not human_stop(text) and is_done(text, digest, first == "human-observed",
+                return ("done" if not human_stop(text, git_root(tasks)) and is_done(text, digest, first == "human-observed",
                                           fence, first, git_root(tasks))
 
                         else "pending")

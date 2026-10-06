@@ -179,7 +179,18 @@ Revert T1's and T2's commits. No stored format changes: rows, `checks.jsonl` and
 
 ## Follow-ups
 
-- [ ] Owner decision: approve T2's relock of `an unresolved check order is not worded as unchecked` (ADR-066 T1's lock). Its fixture gains ledger lines and its assertions stay the same. Without it, T2 cannot land.
+- [x] Owner decision: approve T2's relock of `an unresolved check order is not worded as unchecked` (ADR-066 T1's lock). Its fixture gains ledger lines and its assertions stay the same. Approved 2026-10-06; relocked with `adr-verify --relock --replace-hashes` in ADR-066 T1's log and in T2's.
 - [ ] Owner decision: should the Stop, SessionStart, SessionEnd and statusline readers be bound too (Alternative i)? That changes the SessionEnd status ADR-068 T2's locked test pins.
 - [ ] Owner decision: does T2 earn its surface, given that a five-field ledger line still forges silently (Consequences)? Withdrawing it leaves item 9 as a stated limit, and T1 stands alone.
 - [ ] Observed while drafting, not investigated: one honest run appears to have been written twice. ADR-076 T2's `ms:7223` row is repeated in `26d099f`.
+- [x] ADR-088 executed 2026-10-06 (uncommitted at 3ae6c8c): T1 and T2 done, each with its red row and killed mutants in its own log. T1's S5 names a human proof (a reviewer reads the adr-execute paragraph against Decision 2) that no human has signed off yet. Two Codex reviews of the diff found five more gaps in Decision 1's class and Decision 3's reach. Each was fixed with a test that failed first and a mutant RED:
+  - the sweep's claim reader counted a sha that does not fit;
+  - the test lock's row reader let a snapshot whose sha does not fit release a moved lock;
+  - a torn ledger left a pass standing in silence at git's own hook, which records no `check.source-unreadable`. `ledgerBoundLog` now reports `torn`, and `publishVerdict` reads that as could-not-look, whoever imported the ledger;
+  - git's hook printed no could-not-look verdict. It now says it at the commit and push events, at exit 0;
+  - an unterminated last ledger line was read as a whole record.
+
+  Left as they are, by judgement:
+  - a publish on a tree and index that equal the session's baseline is still `null` beside a torn ledger. ADR-061 asks for no check there, and no check event, whether bound, dropped or torn, enters that decision. Saying "unknown" there would speak of a check the verdict does not need;
+  - siblings of the unterminated-line class not changed here: `latestFastPass` (`fast-checks.jsonl`) and qh-check's `passedAlready`;
+  - writer-side readers of the lock rows, which take no repository (`lock_hasher` and `moved_lock_bodies`, both used by `--relock`), still read every width.

@@ -774,8 +774,14 @@ TEST_LOCK_FIELD_ANON = (
 )
 _LOCK_SHA = re.compile(r"test-lock-sha256:([0-9a-f]{64})")
 _LOCK_B64 = re.compile(r"test-lock-b64:([A-Za-z0-9_-]+)")
+# The sha field of a tool-written row, in ONE place (ADR-088 T1). It was a literal copy in
+# adr-lint, adr-verify, adr-next (twice) and here, and adr-next's copies still read 7 to 40 when the
+# others read 4 to 64, so one task was `done` to adr-lint and `READY` to adr-next. git honours
+# `core.abbrev` down to 4, and a SHA-256 repository prints up to 64 (BACKLOG §47). The pattern stays
+# 4-64 for every format; `sha_fits` is what narrows it to the repository's object format.
+SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
 _MACHINE = re.compile(
-    r"^- (?P<date>\d{4}-\d{2}-\d{2}) · (?:[0-9a-f]{4,64}\*?|no-git) · "
+    r"^- (?P<date>\d{4}-\d{2}-\d{2}) · " + SHA_FIELD + r" · "
     r"exit (?P<exit>\d+) · `"
 )
 _BDD_CALL_HEAD = re.compile(r"\b(?:it|test)\s*\(")
@@ -3053,6 +3059,49 @@ def git_root(d):
     return None
 
 
+@lru_cache(maxsize=None)
+def _object_format(root):
+    try:
+        r = subprocess.run(["git", "-C", root, "rev-parse", "--show-object-format"],
+                           capture_output=True, text=True, timeout=10,
+                           encoding="utf-8", errors="replace", **NO_WINDOW)
+    except Exception:
+        return None
+    # Only git's two words are an answer. A git older than the flag echoes an option it does not
+    # know back at exit 0, so exit 0 alone is not an answer (CLAUDE.md §16).
+    answer = r.stdout.strip()
+    return answer if r.returncode == 0 and answer in ("sha1", "sha256") else None
+
+
+def object_format(root):
+    """`sha1` or `sha256` for the repository at `root`, or None when git could not say.
+
+    One bounded `git rev-parse --show-object-format`, cached per root, so a corpus of many records
+    pays it once. None is could-not-look, and `sha_fits` then accepts every width (ADR-005).
+    """
+    if root is None:
+        return None
+    return _object_format(str(root))
+
+
+def sha_fits(sha, object_format):
+    """Whether a row's sha is one git could print in a repository of `object_format` (ADR-088 T1).
+
+    A SHA-1 name is 40 hex characters, and `git rev-parse --short=41` prints 40 there, so a wider sha
+    in a SHA-1 repository was not written by git. `no-git`, and a line with no sha field (None),
+    always fit; so does any width when the format is `sha256` or could not be read.
+    """
+    if sha is None or sha == "no-git" or object_format != "sha1":
+        return True
+    return len(sha.rstrip("*")) <= 40
+
+
+def row_sha(row):
+    """The sha field of a Verification Log row (`- date · sha · …`), or None."""
+    fields = row.strip().split(" · ")
+    return fields[1] if len(fields) > 2 else None
+
+
 def _is_link(path):
     """Whether a directory entry is a symlink or a Windows junction. A lookup that failed says yes:
     a walk that cannot tell does not enter."""
@@ -3209,8 +3258,11 @@ def lock_hasher(vlog):
     return ((recorded or {}).get("map") or {}).get("hasher", 1)
 
 
-def _vlog_machine_rows(vlog):
-    """Yield (line, match) for each machine row outside a fenced excerpt."""
+def _vlog_machine_rows(vlog, sha_format=None):
+    """Yield (line, match) for each machine row outside a fenced excerpt.
+
+    A row whose sha `sha_fits` rejects for `sha_format` is not one adr-verify wrote, so it is not
+    yielded: a lock snapshot carrying one released a moved lock (a Codex review of ADR-088)."""
     fence = None
     for raw in vlog:
         # A fenced excerpt can hold a printed example row. That is output, not
@@ -3226,7 +3278,7 @@ def _vlog_machine_rows(vlog):
             continue
         line = raw.strip()
         m = _MACHINE.match(line)
-        if m:
+        if m and sha_fits(row_sha(line), sha_format):
             yield line, m
 
 
@@ -3270,13 +3322,13 @@ def vlog_row_is_lock_snapshot(line):
     return bool(sha and sha.group(2))
 
 
-def _recorded_lock(vlog):
+def _recorded_lock(vlog, sha_format=None):
     """Lock parsed from the first TDD-red row, a recovery lock, or a later relock."""
     first_date = None
     first_red = None
     later_red_locks = []
     kind_rows = []
-    for line, m in _vlog_machine_rows(vlog):
+    for line, m in _vlog_machine_rows(vlog, sha_format):
         if first_date is None:
             first_date = m.group("date")
         sha = _row_lock_sha(line)
@@ -3303,7 +3355,7 @@ def _recorded_lock(vlog):
             # machine row that carries a trailing lock (any exit). Weaker than
             # first-red; later reds after that with a different sha still conflict.
             past = False
-            for line, _m in _vlog_machine_rows(vlog):
+            for line, _m in _vlog_machine_rows(vlog, sha_format):
                 if not past:
                     if line == first_red:
                         past = True
@@ -3341,7 +3393,9 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
     (ADR-078; 7.7 s at 3.3.0, 15.7 s at 3.4.0, measured 2026-10-01).
     """
     prefix = f"{label}: " if label else ""
-    date, recorded = _recorded_lock(vlog)
+    # ADR-088 T1: the rows a lock is read from take the repository's sha width, as every row reader does.
+    sha_format = object_format(root)
+    date, recorded = _recorded_lock(vlog, sha_format)
     if recorded is None:
         missing = (
             f"{prefix}marked done but has no first-red test-lock-sha256 — "
@@ -3352,7 +3406,7 @@ def lock_findings(vlog, *, root, tests, label="", advise=True):
         # A later green attaches a recovery lock only when the log already holds a
         # red row (lock_suffix_for_run). With none, "run adr-verify again" appends
         # another lockless green for ever — the loop a real corpus hit (§274).
-        if not any(m.group("exit") != "0" for _line, m in _vlog_machine_rows(vlog)):
+        if not any(m.group("exit") != "0" for _line, m in _vlog_machine_rows(vlog, sha_format)):
             missing = (
                 f"{prefix}marked done but has no first-red test-lock-sha256 — "
                 "UNPROVEN, not a skip of the lock; the log holds no red row and a "

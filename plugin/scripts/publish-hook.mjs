@@ -86,8 +86,9 @@ export function runPublishHook({ event, cwd = process.cwd(), env = process.env }
   const verdict = publishVerdict({ cwd, session, observation: observe(cwd, observeBudgetMs(env)), invoked, commitOnly: event === 'prepare-commit-msg' })
   // An unreadable tree is said at the event too; a refusal is only ever code 1.
   if (verdict?.unobserved) return { code: 0, message: verdict.text }
-  // A commit let through on a fast check is told so at the event; other advice stays the hook's.
-  if (!verdict?.deny) return verdict?.fast ? { code: 0, message: verdict.text } : { code: 0 }
+  // A commit let through on a fast check is told so at the event, and so is a verdict that could
+  // not be read whole (ADR-088): advice, exit 0, never a silent pass. Other advice stays the hook's.
+  if (!verdict?.deny) return verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 }
   return { code: 1, message: `${verdict.text}\n(refused by git's ${event} hook — ADR-066)` }
 }
 

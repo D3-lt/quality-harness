@@ -20907,6 +20907,16 @@
       "from": "  const temp = `${file}.${process.pid}.tmp`",
       "to": "  const temp = file",
       "only": "^(?:the catalogue is written through a temporary file and a rename, and a failed write leaves it whole)$"
+    },
+    {
+      "label": "§313: a shared tasks directory's subdirectories are not named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/adr-lint-nested-tasks.test.mjs"
+      ],
+      "from": "                if nested else f\"{tasks_dir}: no task files\")",
+      "to": "                if False else f\"{tasks_dir}: no task files\")",
+      "only": "^(?:a tasks directory holding only a subdirectory of tasks names it, not \"no task files\")$"
     }
   ]
 }

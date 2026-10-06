@@ -6617,7 +6617,20 @@ def main():
             refuse_irregular(p)
         stems = [p.stem for p in task_files]
         if not task_files:
-            errors.append(f"{tasks_dir}: no task files")
+            # A shared tasks/ holding one subdirectory per record (BACKLOG §313) is not entered;
+            # say which ones hold task files rather than call the directory empty.
+            try:
+                nested = sorted(d.name for d in tasks_dir.iterdir() if d.is_dir()
+                                and any(p.name.lower() != "readme.md" for p in d.glob("*.md")))
+            except OSError:
+                nested = []
+            errors.append(
+                f"{tasks_dir}: no task files directly in it — "
+                + ", ".join(f"{name}/" for name in nested)
+                + (" holds" if len(nested) == 1 else " hold")
+                + " task files, which this gate has not entered; name this record's own as the "
+                "second argument (`adr-lint <record> <tasks dir>`)"
+                if nested else f"{tasks_dir}: no task files")
         check_reachability_consistency(task_files, errors)
         infos = {}
         for p in task_files:

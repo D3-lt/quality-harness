@@ -12512,7 +12512,7 @@ serious were introduced BY the previous round's fix. That is the argument for th
 gate rather than the formality, and for holding a release rather than naming a known fail-open in the
 notes.
 
-## 194. OPEN 2026-09-09 — round six: five real findings, all on inputs no reporting corpus has produced
+## 194. PARTLY CLOSED 2026-10-06 — round six: five real findings, all on inputs no reporting corpus has produced
 
 Round six of the release-candidate review returned REQUEST CHANGES with three HIGH and two MEDIUM
 against `0234e81`. **All five are real and none is being fixed before v2.97.0 ships.** That is a
@@ -12564,6 +12564,11 @@ was dropped. Both are reproduced in `test_a_fenced_example_is_not_a_title_and_th
 and outside fenced code. Two new mutants, and the two row-2 mutants follow the moved lines.
 
 **Codex review, round 2 (high, 2026-09-24): the fence reading was its own, and wrong.** A line like ```` ```python ```` inside a ```` ```markdown ```` fence closed it, so the example after it was read as a title again; tildes did the same; and a backtick "opener" whose info string holds a backtick hid a real title. `_record_title` now reads fences with the corpus's rule, `record._fence_opened` and `_fence_closes`. Test `test_a_fence_is_read_with_the_corpus_rule`, one mutant.
+
+**Triaged 2026-10-06: row 2 is closed; rows 1, 3, 4 and 5 stay parked on this entry's own condition.** No outside report has produced their inputs since. That was checked with `grep -n -i 'gitlink\|submodule\|case-only\|sparse checkout' docs/BACKLOG.md` over the later sections:
+- The sparse-checkout hits (§309-era, the probe's `unread`) are about the probe and work-next, not adr-lint's enumeration (row 3).
+- The case-only hits (§350 F4, C5) are about twins in git's index, not a corpus path spelled in another case (row 1). They are tracked in §350's Batch D.
+- No hit names a submodule tasks directory (row 4) or an invalid-UTF-8 filename (row 5).
 
 ## 195. DECLINED 2026-09-24 — OpenCode support: what is already portable, what is not, and the one question that decides it
 
@@ -15216,7 +15221,7 @@ Nine outside runs at dbeb5cf: Laravel, React SPA, a Rust corpus, a PHP/React pro
 
 ADR-064 T6 adds three fixture corpora for the shapes the 2.108.0 round found: a Rust crate, a PHP repository with three corpus roots, and a JS/vitest SPA. Go is not among them, although three of this week's outside reports came from a Go repository (§273, §277, §278). Each of those is pinned by a unit test, not by a corpus the matrix runs on every platform. A `go-module` corpus would carry `[no test files]` packages, a `go test -run` fence that selects nothing, and a spec bound to Go tests. Deferred rather than added because T6 is sized to the shapes the round reported as still wrong; pick it up when a Go run next reports a reader defect, or with ADR-064's first follow-up batch.
 
-**Closed 2026-10-06.** `tests/fixtures/corpora/go-module/` carries the three shapes: an `internal/money` package with `[no test files]`, a `go test -run` fence guarded by a `grep` for the test it names, and spec fact F-1 plus a Tests row bound to a Go test holding a `t.Run` subtest. Its `expected.json` was reviewed against a probe of a git-staged copy: adr-lint PASS, T2 ready, the inferred check named as `go test ./...`. The matrix discovers it by directory (`node --test tests/corpus-matrix.test.mjs`: 13 pass, 0 fail). It was shown dirty first: with T1's only row dated after 2026-09-13, adr-lint FAILed on the missing first-red lock and SessionStart named T1 ready, which `mustNotMatch: "T1 is ready"` rejects. The fixture dates that row 2026-08-20, as `rust-crate` does, so it models a record from before the lock. A Go corpus with a real red-green-lock chain is not built here; it would need adr-verify run against a red tree and a green tree in a fixture repository.
+**Closed 2026-10-06.** `tests/fixtures/corpora/go-module/` carries the three shapes: an `internal/money` package with `[no test files]`, a `go test -run` fence guarded by a `grep` for the test it names, and spec fact F-1 plus a Tests row bound to a Go test holding a `t.Run` subtest. **Only some of them are asserted.** `expected.json` asserts the record PASS, T2 ready, spec F-1 read, and the inferred check named as `go test ./...`. No reader in the matrix reads the `[no test files]` package. A vacuous `-run` is caught when `adr-verify` runs the fence, and the matrix runs no fence. A scratch probe confirmed it: an unguarded `go test ./internal/cart -run '^TestTotal$'` on a pending task draws no advice from adr-lint, and work-next lists the task as ready. Both shapes are carried for the day a reader does read them. The matrix discovers the corpus by directory: 13 pass, 0 fail. It was run red: with T1's row dated 2026-10-06, after the 2026-09-13 first-red lock, `node --test --test-name-pattern go-module tests/corpus-matrix.test.mjs` failed at the work-next assertion. The fixture dates that row 2026-08-20, as `rust-crate` does, so it models a record from before the lock.
 
 ## 283. CLOSED 2026-09-25 — The §61 Produces advisory could never fire on a real record (found while fixing §280 item 2)
 
@@ -15495,7 +15500,7 @@ Also found while fixing: this session's file-writing tool decoded some `\uXXXX` 
 
 Tests (three older expectations and three fixture `mustMatch` lines gain the ready line's code span) and three mutants, all RED.
 
-## 295. OPEN — The 2.110.0-rc chaos round: leads for the next batch (reported from outside runs at 026658a)
+## 295. PARTLY CLOSED 2026-10-06 — The 2.110.0-rc chaos round: leads for the next batch (reported from outside runs at 026658a); what is still open moved to §351
 
 None of these is fixed in 2.110.0. Each needs its fix weighed, or its own record. The runner and replay are in that session's report.
 
@@ -16321,7 +16326,7 @@ The readers changed with this batch (lifecycle.mjs, corpus-probe.mjs, work-next.
 
 Not scanned: the shell scripts, because no standard dead-code tool reads bash. **Left:** `dead-code-scan.sh` has no test showing it dirty, since it needs `uvx` and `npx`. The dirty runs above were probes, not a test.
 
-## 313. OPEN — The outside run for 3.1.1, and the leads it and the refused runs brought
+## 313. CLOSED 2026-10-06 — The outside run for 3.1.1, and the leads it and the refused runs brought
 
 **Outside run at 7cccbac** (§18), by a peer session over a Laravel 7 / PHP 7.4 e-commerce admin: Darwin 27.0.0 arm64, node 24.11.1, python 3.14.7. Their tree was not clean: 7 uncommitted paths, none of them ADR or decision files. The run was a probe with exit 0: 17 records, 24 tasks, 7 task directories, couldNotRun 0, disagreements 0, readinessUnproven 0. It is filed as `docs/corpus-reports/2026-09-28-laravel-cms-3.1.0-7cccbac.json`, and `attest-import --check` agreed with the commit. The runner verified `partialBecause` (an archive record with no catalog row) and `unprovenSpecs` (a spec with no Status line) against their corpus as real. Their adr-lint gave 6 FAIL, 1 not-recognised and 17 PASS, and they read each FAIL as the corpus's own gap.
 
@@ -16331,6 +16336,11 @@ Not scanned: the shell scripts, because no standard dead-code tool reads bash. *
 - **adr-retire-check reads a status exactly; every other reader reads its first word.** An archived governing record whose status is `Accepted (2026-07-17 — …)` fails with "archived governing decision is not Accepted" (`is_accepted_status`, plugin/bin/adr-retire-check). adr-state, work-next and adr-lint count the same record as governing (§309, "by design"). The strict docstring says the difference is deliberate, and no record decides it either way. It was measured with 3.0.1 on an Ansible corpus and needs the owner's decision.
 - **adr-lint FAILs `./docs/decisions/tasks: no task files`** where that directory holds only a subdirectory: `docs/decisions/tasks/007_ledger_rollup/` has a README and T1. The corpus keeps legacy `docs/decisions/NNN_*.md` records beside `docs/adr/`. Whether the task walk should enter `tasks/<NNN>/` for that shape is the question, and whether this FAIL speaks about a directory it never looked into.
 - `not-recognised` for a legacy `docs/decisions/005_*.md` record reads as the reader declining a shape, which is correct.
+
+**Closed 2026-10-06, each lead checked against the code at a0d963d.**
+- **Lead 1 (the strict status) is fixed.** `is_accepted_status` in `plugin/bin/adr-retire-check` reads the first word through ADR-074's `status_kind`, so `Accepted (2026-07-17 — …)` is Accepted there as in every other reader.
+- **Lead 2 was an untrue sentence, now fixed.** Reproduced in a scratch corpus: a `docs/decisions/007_ledger_rollup.md` record whose shared `docs/decisions/tasks/` holds only `007_ledger_rollup/T1-x.md` drew `docs/decisions/tasks: no task files`. The FAIL stays, since adr-lint reads no task there. The sentence now names the subdirectories that hold task files, says they were not entered, and names the remedy: pass the record's own directory as the second argument, which was run and reads the task. Whether the walk should enter `tasks/<stem>/` by itself is a layout decision and is not made here. Test `tests/adr-lint-nested-tasks.test.mjs`, with the flat layout as its control; catalogue mutant `§313: a shared tasks directory's subdirectories are not named`, RED.
+- **Lead 3 is by design**, as the entry says.
 
 ## 314. FIXED 2026-09-28 — Where git outran observe()'s budget, an unchecked publish passed in silence; and what the 3.1.1 batch's failures now cost to repeat
 
@@ -16551,7 +16561,7 @@ The CI run of fe918bb, 36486684619, was red in three jobs.
 - **One more slip, found by a STALE mutant:** the agent tool decoded a backslash-u escape for U+FEFF in a plan into a raw BOM inside adr-lint's source. It is written `chr(0xFEFF)` now.
 - (fixture-waived: the findings fixed from this section are names holding a newline, a tag or a NUL byte, and trees holding a FIFO or a dangling link. A Windows checkout of `tests/fixtures/corpora/` cannot hold any of them. Each has a regression that builds its own scratch tree, and skips where the platform refuses the name: `tests/chaos-e016066.test.mjs`, `tests/chaos-315-codex-render.test.mjs` and `tests/chaos-315-codex-status.test.mjs`.)
 
-## 320. OPEN 2026-09-29 — The inbox, reviewed: seventeen findings, two not yet recorded anywhere
+## 320. CLOSED 2026-10-06 — The inbox, reviewed: seventeen findings, two not yet recorded anywhere
 
 The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date from 2026-09-24 to 2026-09-28. Each one was matched to the section that answered it, and every "fixed" claim below was checked against the code at 1ba1681, not taken from the prose.
 
@@ -16591,6 +16601,11 @@ The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date 
 - Both sites now read the value on its own line (`[ \t]*`). An empty Status line is now said to be empty, as advice.
 - A regression is in `tests/chaos-e016066.test.mjs`. Its controls: a real `Proposed` over a done task is still refused, and the no-tasks advice no longer quotes the next line. Three mutants, all RED.
 - The rest of §307 F-1 (invalid UTF-8, `Acceptable`, `**Statusas:**`) still lints PASS. That is silence, not a refusal, so it stays in the next batch.
+
+**Closed 2026-10-06.** Both new findings are fixed in code:
+- §320.1: adr-lint's name arm no longer admits `adr<digit>` (the comment at its record discriminator names §320.1; ADR-074 T3).
+- §320.2: `record.visible` escapes control bytes before `fence_safe` (§321).
+The "recorded and still open" pointers are answered as follows. §291 and §293 are closed. §253 goes to an ADR draft, because its fix changes a verdict's strength. §307 F-1 now draws advice. The trailing-space task file is fixed in §321 (`tests/chaos-315-trailing-space.test.mjs`).
 
 ## 321. FIXED 2026-09-29 — The 3.1.5 batch: output that forges the tool, two readers that named the wrong thing, and ADR-073's first campaign
 
@@ -16657,6 +16672,7 @@ The owner asked for the inbox to be reviewed (2026-09-29). Its 17 findings date 
 - **lifecycle and adr-lint still disagree about names.** lifecycle's `ADR_FILE` admits `adr018-…` and `0005-…` by name; adr-lint admits only the canonical `ADR-<n>`. A numbered note with no record content (`docs/adr/0005-notes.md`) is a record to lifecycle and not-recognised to adr-lint.
 - **ADR-074's Context sweep command does not run.** `git ls-files … | mrw read --files-from - --grep …` is refused by mrw v1.31.0 (`--grep and --files-from are two sources of specs`). The sweep was taken with `mrw read --grep '…' plugin/bin plugin/lib plugin/scripts`.
 - **A candidate false refusal in the publish hook.** A `git commit` in a scratch repository under the session scratchpad was refused because this checkout had no qh-check pass on its current tree; the commit was not in this checkout. Teaching the hook where a command commits is the direction §16 warns about (a command can `cd` into this checkout as easily).
+  - **It recurred on 2026-10-06, twice.** Once while staging `tests/fixtures/corpora/go-module` for a probe, and once inside a read-only triage subagent. Both were `git commit` in a fresh repository under the session scratchpad. Both were worked around by moving git into a node script, which is the hook's blind spot rather than a fix. Put to the owner as a decision; nothing changed in the hook.
 - **The the Go kernel corpus corpus-chaos report at e0348fb** (palace inbox 47979ad5): a FIFO named as a task file hangs corpus-probe, work-next and adr-next (the 3.1.6 FIFO fix covered adr-lint); a FIFO record is skipped by work-next's count; `corpus-probe.mjs` crashes on a missing or read-only TMPDIR (an unguarded `mkdtempSync`); `record.decode_lock` never compares a lock payload with its declared sha, so a tampered payload gets the wrong diagnosis (done is still refused).
 
 **ADR-074's corpus-chaos round at 559827d (2026-09-29).** Seven local sessions were asked; six ran it (the PHP/Laravel corpus, the TS generator corpus, the React SPA corpus, the Laravel/React corpus, the Go CLI corpus, the Go kernel corpus); the Rust corpus's classifier refused foreign code. No record on any real corpus changed its Status or its kind; every prediction about adr-lint's admission held. Fixed in the same batch, each with a failing test first: the not-recognised sentence repeated a fragment; lifecycle's content test and record.py's `looks_like_record` ignored a `## Status` section and lifecycle looked only under `adr`, so a record adr-lint reads was absent from corpus-probe, work-next, adr-state and adr-retire-check (T3's out-of-scope premise was false); the human-proof advice named README.md, was silent on steps without an `[S<n>]` id, and said "names" for two; the no-Status advice now names the section form, and the unrecognised advice names a leading non-letter such as `：`. Left:
@@ -18263,3 +18279,24 @@ OS's periodic cleanup, and failed with ERR_MODULE_NOT_FOUND — a fresh clone, n
   already-passed tree; after, 3 checks in all, none, and 0 same-tree skips anywhere. Too few runs since 3.6.0 to
   compare with the spec's 53 of 280: UNPROVEN, not shown. From now on every outside run also pastes
   `ledger-report.mjs --json` (docs/corpus-reports/README.md), so both counts repeat per release.
+
+## 351. OPEN 2026-10-06 — §295 triaged against a0d963d: what is still open
+Every item of §295 was checked against the working-tree readers at a0d963d. The check was a read-only subagent reproducing each item in scratch copies of `tests/fixtures/corpora/go-module`. FIXED: items 2, 3, 4, 5, 7, 12, 13, 17, 18, 19.1/2/4, 21.1/2, 22.4, 23.1/2, 24, and the duplicate-id half of 11. BY DESIGN: 19's `--json` data, 22.5, 23.5's `Accepted (partially)`, 23.7. Still open, worst direction first:
+- **Fail-open:**
+  - 8: a duplicate Verification Log row, a 41-character sha, and a sha naming no commit each lint PASS with no finding.
+  - 22.1: `human_outcome` reads "revoked", "rolled back", ❌, "done? no" and "passed? not really" as pass.
+  - 20.Q5: corpus-probe output saved as `T3-report.md` is ready in adr-next and work-next, while adr-lint FAILs it.
+  - 22.2: a spec symlinked outside the repository is listed in `uncoveredReadySpecs`.
+  - 9: lifecycle accepts any `check.*` event whose `after.tree` matches, unbound to `checks.jsonl`. This needs a record.
+- **Hang:** item 1 and 19.3, one cause. A FIFO or a directory named `*.md` in `tasks/` hangs work-next, adr-next and corpus-probe (rc 124 at 25 s), or stops the whole directory. adr-lint already refuses non-regular entries. Give the other readers the same per-entry stop.
+- **Untrue sentence or blind spot:**
+  - 10: `attestation()` has no `look`; with git absent it says "not a git checkout"; `diffReports` never compares specs.
+  - 22.3: ENOBUFS is worded "did not start", and there is no `maxBuffer`.
+  - 14: `--adopt` echoes absolute paths, and work-next says "adopts it".
+- **Hardening:**
+  - 11/20.Q6: homoglyph and fullwidth ids (`АDR-005`, `T６`) count with no remark.
+  - 20.Q1: only `<>«»` are mapped.
+  - 6: adr-next prints a ZWSP raw.
+  - 23.4: impossible and 1970 dates PASS.
+  - 21.3: a sparse checkout counts "0 task file(s)".
+- **Not checked here (Windows):** 16, 19.3's wording, 23.3, 23.6. 20.Q4's line key is UNKNOWN.

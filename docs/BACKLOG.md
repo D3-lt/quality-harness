@@ -18367,3 +18367,10 @@ was cloned or run. Plan of record: `ok-plan-this-properly-flickering-lightning` 
     - app-ts-monorepo: 12 sessions, 0 skills, 0 skips, 95 checks (80 passed).
     - web-app-no-adr-corpus: 1 session, 0 skills, 0 skips, 2 checks.
     The skill counter shipped in 3.8.7, so no adopter has recorded a skill call yet.
+
+## 353. CLOSED 2026-10-06 — A 3.8.8 regression from an outside run: "no visible blocking" stopped an approval
+An outside run after the tag (laravel-react-monorepo: 93 records, 278 tasks; 95 compared, passToFail 0, filed) found two tasks moving done → stopped at 944bb37.
+- **A false stop.** An approval of a video check ended "no visible blocking on a busy mid-clip frame", and "blocking" was read as the verdict. The reading was wrong before 3.8.8 too. 3.8.8 exposed it by making the LAST sign-off decide, and in that task this note is the last one. `NEUTRALISED` now also neutralises a negative word that "no" and at most two words name as absent: "no visible blocking", "no blocking issues". The twins still stop: "blocking on legal", and "no, it failed", which keeps its comma.
+- **A right stop with an unreadable reason.** The note ended "The post-deploy demo eye check (S6) is NOT done", but the printed reason quoted the note from its start and was cut before that clause. The reason now names the words that stopped it first: `a human sign-off says stop on «NOT done»: …`. They come from `stop_words`, in `human_outcome`'s own order.
+- Test `tests/human-stop-3-8-9.test.mjs`. Two new mutants; all 13 catalogue entries on the edited verdict code re-run RED.
+- Not checked: php-react-app's other tasks that were already unbacked at v3.8.7, because of moved test locks.

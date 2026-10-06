@@ -21248,6 +21248,26 @@
       "from": "  const text = command.replace(/\\n$/, '')",
       "to": "  const text = command.replace(/\\n/g, ' ')",
       "only": "^(?:a single terminal newline ends an unarmed fresh commit like the end of the text)$"
+    },
+    {
+      "label": "3.8.9: \"no visible blocking\" reads as a stop",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-9.test.mjs"
+      ],
+      "from": "    r\"|(?<![a-z])no\\s+(?:[a-z-]+\\s+){0,2}(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
+      "to": "    r\"|(?<![a-z])zzno\\s+(?:[a-z-]+\\s+){0,2}(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
+      "only": "^(?:\"no visible blocking\" in an approval is a finding, not a stop)$"
+    },
+    {
+      "label": "3.8.9: a stop does not name the words that stopped it",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-9.test.mjs"
+      ],
+      "from": "        words = stop_words(signed[-1].group(\"note\"))",
+      "to": "        words = None",
+      "only": "^(?:a stop names the words that stopped it before the note it quotes)$"
     }
   ]
 }

@@ -197,6 +197,10 @@ def negated_verdict(text):
 # real approval reporting zero refusals read as a stop (laravel-cms ADR-017 T4).
 NEUTRALISED = re.compile(
     r"(?<![a-z])" + NEGATOR + r"(?:" + NEGATIVE_WORD + r")(?![a-z])"
+    # "no visible blocking", "no blocking issues": a negative word that "no" and at most two words
+    # name as ABSENT is a finding, not a verdict. An approval saying a codec check found "no visible
+    # blocking" stopped its task (an outside run of 3.8.8). "no, it failed" keeps its comma and stops.
+    r"|(?<![a-z])no\s+(?:[a-z-]+\s+){0,2}(?:" + NEGATIVE_WORD + r")(?![a-z])"
     # The WHOLE label, then a separator, then a whole number: with the separator
     # optional, backtracking read the digits inside `failed-on-ios18` as its count
     # and erased a real stop (Codex review of 2f45348).
@@ -595,6 +599,24 @@ def human_proof_note(inf):
             f"and no human-observed sign-off is recorded)")
 
 
+def stop_words(note):
+    """The words that made a note a stop, in `human_outcome`'s own order, or None.
+
+    A reason that quotes the note from its start was cut, on a long note, before the clause that
+    stopped it, so nobody could check the reading (an outside run of 3.8.8). It is named first."""
+    outside = program_output_removed(note)
+    if negated_verdict(outside):
+        return NEGATED_AFFIRMATIVE.search(outside).group(0)
+    for rx in (QUESTIONED_VERDICT, TAKEN_BACK):
+        if (m := rx.search(outside)):
+            return m.group(0)
+    if outside.count("❌"):
+        return "❌"
+    for text in (NEUTRALISED.sub(" ", outside), NEUTRALISED.sub(" ", note)):
+        if (m := NEGATIVE.search(text)):
+            return m.group(0)
+    return None
+
 def human_stop(text):
     """The sign-off note that says STOP, or None when none does.
 
@@ -613,7 +635,9 @@ def human_stop(text):
         # of this Verification Log note and FALSE of a `**Status:**` header nobody
         # signed. A gate does not report an observation it did not make
         # (CLAUDE.md §3), including about where its own reason came from.
-        return f"a human sign-off says stop: {signed[-1].group('note')}"
+        words = stop_words(signed[-1].group("note"))
+        return (f"a human sign-off says stop on «{words}»: {signed[-1].group('note')}" if words
+                else f"a human sign-off says stop: {signed[-1].group('note')}")
     return None
 
 def read_named(path):

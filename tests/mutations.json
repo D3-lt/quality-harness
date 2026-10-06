@@ -4644,8 +4644,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (/^[ \\t]*Acceptance is human-observed:/im.test(text)\n      && /^- \\d{4}-\\d{2}-\\d{2} · human-observed · \\S/m.test(text)) return false",
-      "to": "    if (false) return false",
+      "from": "    if (/^[ \\t]*Acceptance is human-observed:/im.test(text)) {",
+      "to": "    if (false) {",
       "only": "^(?:a signed-off human-observed task is finished, not ready forever)$"
     },
     {
@@ -12485,8 +12485,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "            \"stopped_by\": conflict_stop(conflicted) or human_stop(text)",
-      "to": "            \"stopped_by\": human_stop(text)",
+      "from": "foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text)",
+      "to": "foreign_stop(text, owner) or human_stop(text)",
       "only": "^(?:a task holding unresolved merge-conflict markers is stopped, not done)$"
     },
     {
@@ -20837,6 +20837,46 @@
       "from": "scrub(String(was.get(record.file))) !== scrub(String(record.status ?? null))",
       "to": "String(was.get(record.file)) !== String(record.status ?? null)",
       "only": "^(?:--diff does not report a Status whose only change is redaction)$"
+    },
+    {
+      "label": "§291: a golden fixture tree's spec is gated as the repository's own",
+      "file": "plugin/scripts/uninteresting.mjs",
+      "tests": [
+        "tests/fixture-edit-gate.test.mjs"
+      ],
+      "from": "|testdata|golden(?:[-_].*)?)$/i",
+      "to": "|testdata)$/i",
+      "only": "^(?:a spec under a golden fixture tree is not gated, judged from the payload cwd, and a real spec still is)$"
+    },
+    {
+      "label": "§292: a task another record's title names is offered under this record",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-foreign-task.test.mjs"
+      ],
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop",
+      "to": "            \"stopped_by\": conflict_stop",
+      "only": "^(?:a task whose title names another record is stopped, not offered under this record's name)$"
+    },
+    {
+      "label": "§290: any human sign-off is taken as finished",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-ownerless.test.mjs"
+      ],
+      "from": "      return reading ? !reading.done.has(resolved) : true",
+      "to": "      return false",
+      "only": "^(?:a task under an undecided record whose sign-off is a stop is still named, not counted finished)$"
+    },
+    {
+      "label": "§290: the undecided records' tasks are not read by adr-next",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      const reading = [readiness, undecidedReading].find(answer => answer.listed.has(resolved))",
+      "to": "      const reading = [readiness].find(answer => answer.listed.has(resolved))",
+      "only": "^(?:a signed-off human-observed task is finished, not ready forever)$"
     }
   ]
 }

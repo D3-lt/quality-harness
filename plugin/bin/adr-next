@@ -601,6 +601,11 @@ def read_named(path):
 def load(tasks_dir):
     infos = {}
     root = git_root(tasks_dir)
+    # The record this directory belongs to, by the LISTED path's number (`ADR-018/tasks`,
+    # `ADR-018-x/tasks`), never the link's target: a tasks directory that is a link to another
+    # record's offered that record's tasks as READY under this one's name (BACKLOG §292).
+    owner = RECORD_NUMBER.match(Path(os.path.abspath(tasks_dir)).parent.name)
+    owner = int(owner.group(1)) if owner else None
 
     for path in sorted(tasks_dir.glob("*.md")):
         if path.name.lower() == "readme.md":
@@ -680,7 +685,7 @@ def load(tasks_dir):
             # refused the row on a fenced task, so the write was always allowed and
             # only the read was gated: the worst half to gate, because the author
             # sees their stop recorded and the router ignores it.
-            "stopped_by": conflict_stop(conflicted) or human_stop(text) or status_stop(text),
+            "stopped_by": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or status_stop(text),
             # ADR-014 T2, and the SECOND route to "a human said do not start yet".
             # The 2026-09-02 report above was closed by handling a sign-off that
             # says STOP; `Blocked-on` — a task waiting on an event OUTSIDE this
@@ -725,7 +730,19 @@ def load(tasks_dir):
     return infos
 
 
+TASK_RECORD = re.compile(r"^#\s+(?:Task\s+)?ADR[-\s]?0*(\d{1,4})[-/]T\d+\b", re.I)
 
+
+def foreign_stop(text, owner):
+    """Why a task is stopped when its own title names another record, or None.
+
+    Only where both are known: a title with no record number (`# Task T1: …`) and a directory
+    whose name carries none say nothing about each other, and are left alone."""
+    named = TASK_RECORD.match(text.lstrip(chr(0xFEFF)))
+    if owner is None or not named or int(named.group(1)) == owner:
+        return None
+    return (f"its title names ADR-{int(named.group(1)):03d}, not ADR-{owner:03d}, whose tasks directory "
+            f"it was read from (a link, or a copy) — prove it from ADR-{int(named.group(1)):03d}'s own tasks")
 def unreadable_task(tid, path, why):
     """An entry for a task this reader could not read: stopped, with the reason, so
     what depends on it is blocked and no all-clear is printed over it. `unreadable`

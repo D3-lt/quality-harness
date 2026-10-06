@@ -142,7 +142,11 @@ AFFIRMATIVE = re.compile(r"(?<![a-z])(pass(?:ed|es)?|confirm(?:ed|s)?|observed|"
 NEGATIVE_WORD = (r"block(?:ed|s|ing)|stop(?:ped|s|ping)?|"
                  r"fail(?:ed|s|ing)?|refus(?:e|ed|es|ing)?|"
                  r"withdraw(?:n|s|ing)?|reject(?:ed|s|ing)?|cannot|"
-                 r"abort(?:ed|s|ing)?")
+                 r"abort(?:ed|s|ing)?|"
+                 # Taking an approval back (BACKLOG §351, §295 item 22.1). Past and progressive
+                 # forms only, and never the noun: a real approval's follow-up says "no real
+                 # rollback to a tag" (§287), and 13 sign-offs on disk carried none of these.
+                 r"revok(?:ed|ing)|revert(?:ed|ing)|roll(?:ed|ing)\s+back|❌")
 NEGATIVE = re.compile(r"(?<![a-z])(" + NEGATIVE_WORD + r")(?![a-z])", re.I)
 
 # ⚠ `not ` AND `never ` USED TO SIT IN NEGATIVE AND COULD NEVER MATCH A WORD: the
@@ -167,6 +171,8 @@ NEGATOR = r"(?:not|never|no\s+longer|[a-z]+n['’]t)\s+(?:(?:yet|been|be|being|e
 # "confirm" (Codex review of f905d8a).
 NEGATED_AFFIRMATIVE = re.compile(r"(?<![a-z])" + NEGATOR + AFFIRMATIVE.pattern[len("(?<![a-z])"):], re.I)
 NEGATION_LABEL = re.compile(r"\s*:")
+# An affirmative asked and answered no, "done? no" or "passed? not really", is no verdict of done (§351).
+QUESTIONED_VERDICT = re.compile(AFFIRMATIVE.pattern + r"\s*\?\s*(?:no|not)(?![a-z])", re.I)
 
 
 def negated_verdict(text):
@@ -285,7 +291,7 @@ def human_outcome(note):
     outside = program_output_removed(note)
     # A negator directly before an affirmative is the note saying NOT done, and it
     # wins before anything else can find the affirmative inside it (§287).
-    if negated_verdict(outside):
+    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside):
         return "stop"
     # "not blocked" and a counter named `refused-unverifiable 0` are not verdicts.
     outside = NEUTRALISED.sub(" ", outside)

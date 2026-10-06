@@ -18353,3 +18353,17 @@ was cloned or run. Plan of record: `ok-plan-this-properly-flickering-lightning` 
   - hook-input adapters for Codex and Copilot CLI (probity);
   - `ccusage` as the instrument for the next §19 footprint measurement.
 - **Not taken:** code from unlicensed repositories (scott-cc); any blocking behaviour.
+- **Released as v3.8.8 at 944bb37 (2026-10-06), Latest.** release-evidence said SUCCESS: 55 jobs green, including the dispatched full campaign (run 37457712766). Before that, the campaign at e39ace5 failed one Windows test, fixed in 944bb37.
+  - **Outside runs attested** (`docs/corpus-reports/*-3.8.8-944bb37.json`):
+    - react-spa: 2 compared, passToFail 0.
+    - pub-laravel-adr (public/laravel-adr, public, no `--sweep`): 66 compared, passToFail 0. All 66 are FAIL at both revisions; 52 records against 66 compared, 14 undecided. Why every record FAILs there was not checked; that is a lead for corpus shape, not for 3.8.8.
+    - php-laravel-monolith: 17 records. `verdictChanges` is null because the look is PARTIAL. The runner compared it by hand: all 23 adr-lint verdicts unchanged, and the §313 sentence fired on a real case and is accurate there.
+    - app-ts-monorepo and web-app-no-adr-corpus: 0 records each.
+  - **Could not run:** rust-adr-corpus, whose "Code from External" classifier needs its user's approval. Not yet replied: php-react-app and a11y-tooling-ad.
+  - **My request was wrong once.** It asked for `--sweep` on public corpora, which re-runs a stranger's acceptance commands. Two peers refused and said why, and I sent a correction to all six. Future requests ask for public corpora WITHOUT `--sweep`.
+  - **Ledger counts (ADR-081, ADR-084; counts only):**
+    - react-spa: 9 sessions, 0 skills, 0 skips, 8 checks (7 passed).
+    - php-laravel-monolith: 13 sessions, 0 skills, 0 skips, 3 checks.
+    - app-ts-monorepo: 12 sessions, 0 skills, 0 skips, 95 checks (80 passed).
+    - web-app-no-adr-corpus: 1 session, 0 skills, 0 skips, 2 checks.
+    The skill counter shipped in 3.8.7, so no adopter has recorded a skill call yet.

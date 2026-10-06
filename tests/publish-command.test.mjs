@@ -965,7 +965,9 @@ test('an alias is read as git expands it, and a call inside a string is data', (
 // A `$NAME` assigned from `mktemp -d` and used only as a directory operand cannot
 // switch git's injected hook off, so the commit is left to git, which judges the
 // repository it lands in. Every other `$` keeps the refusal (CLAUDE.md §16 twins).
-const freshTemplate = () => path.join(hookTmp, 'x.XXXX')
+// Forward slashes on every platform: a Windows path's backslashes, unquoted, are shell escapes, so
+// the classifier rightly refuses that template (dispatched campaign at e39ace5; CLAUDE.md §7).
+const freshTemplate = () => path.join(hookTmp, 'x.XXXX').replaceAll('\\', '/')
 const FRESH_DIRECTORY_COMMITS = () => [
   `R=$(mktemp -d ${freshTemplate()}); cd $R && git init -q && git add . && git commit -qm f`,
   `R=$(mktemp -d ${freshTemplate()}) && cd "$R" && git init -q && git add . && git commit -qm f`,

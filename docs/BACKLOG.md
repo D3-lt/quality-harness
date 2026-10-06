@@ -18345,6 +18345,7 @@ was cloned or run. Plan of record: `ok-plan-this-properly-flickering-lightning` 
 - **Each needs a measured target and an Accepted record before it is built:**
   - per-test kill attribution, a fence test that killed nothing (scott-cc; `killedBy` already holds the
     data);
+    - **Measured 2026-10-06: INCONCLUSIVE.** The v3.8.7 release campaign (run 37411500980) printed 2082 RED rows and 1258 distinct killing test names, from all 48 shard logs fetched with `gh run view --job`. But 53 narrowed entries that WERE red have an `only` pattern matching none of those printed names. So killer names cannot be matched back to the catalogue, and the logs never list the tests a baseline RAN, only the killers. A "test that killed nothing" count needs `mutate.mjs` to emit each baseline's run test names. That is a change to the campaign's output, and it needs a record.
   - a Mutation Log export in Stryker's `mutation-testing-elements` schema;
   - a check that a record's Decision, its tasks and its Tests table agree (spec-kit `analyze`, OpenSpec
     `validate --strict`);

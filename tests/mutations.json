@@ -21268,6 +21268,36 @@
       "from": "        words = stop_words(signed[-1].group(\"note\"))",
       "to": "        words = None",
       "only": "^(?:a stop names the words that stopped it before the note it quotes)$"
+    },
+    {
+      "label": "3.8.9: a human-mutant row stops an evidenced task",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-mutant-row.test.mjs"
+      ],
+      "from": "              and not HUMAN_MUTANT_NOTE.match(m.group(\"note\"))]",
+      "to": "              ]",
+      "only": "^(?:a human-mutant row after exit-0 evidence does not take the task back)$"
+    },
+    {
+      "label": "3.8.9: a human-mutant row signs off a human-observed task (adr-next)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-mutant-row.test.mjs"
+      ],
+      "from": "        if human and (m := VLOG_HUMAN_RE.match(line)) and not HUMAN_MUTANT_NOTE.match(m.group(\"note\")):",
+      "to": "        if human and (m := VLOG_HUMAN_RE.match(line)):",
+      "only": "^(?:a human-mutant row is not a human-observed task's sign-off)$"
+    },
+    {
+      "label": "3.8.9: a human-mutant row signs off a human-observed task (adr-lint)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/human-mutant-row.test.mjs"
+      ],
+      "from": "            if not any(\"· human-observed ·\" in b and \"· human-observed · mutant \" not in b for b in inf[\"vlog\"]):",
+      "to": "            if not any(\"· human-observed ·\" in b for b in inf[\"vlog\"]):",
+      "only": "^(?:adr-lint does not take a human-mutant row for a done human-observed task's sign-off)$"
     }
   ]
 }

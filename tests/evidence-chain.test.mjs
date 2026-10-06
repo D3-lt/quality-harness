@@ -467,7 +467,7 @@ test('adr-verify requires a clean fence before it mutates', () => {
   ].join('\n'), { QUALITY_HARNESS_FENCE_TIMEOUT: '1' })
   const mutantBuild = execute('mutant-build', [
     "if grep -q 'THRESHOLD = 99' unused.py; then",
-    "  echo '[build failed]'; exit 1",
+    "  printf '# ex/a [ex/a.test]\\nFAIL\\tex/a [build failed]\\nFAIL\\n'; exit 1",
     'else',
     "  echo '1 passed in 0.01s'",
     'fi',
@@ -3323,6 +3323,58 @@ test('a coloured build error is inconclusive, not a kill', () => {
   const log = readTask(copy).split('## Mutation Log')[1]
   assert.match(log, /mutant inconclusive/, `${result.stdout}\n${result.stderr}`)
   assert.doesNotMatch(log, /mutant killed/, 'a build that failed is not a test that noticed')
+})
+
+// ADR-085 T1 (BACKLOG §253): Go's `[build failed]` anywhere in the output made a kill
+// inconclusive, so a test that ASSERTS a nested build succeeds could never record one. The
+// fences print the bytes measured 2026-10-06 (go1.27.1, ADR-085 Context, cases A-D) when mutated.
+function goMutantGrade(lines) {
+  const copy = corpus()
+  addMutationLog(copy)
+  addBlindSpot(copy)
+  const printed = lines.map(line => `  printf '%s\\n' '${line}'`).join('\n')
+  writeTask(copy, readTask(copy).replace(
+    /## Acceptance\n\n```bash\n[\s\S]*?```/,
+    '## Acceptance\n\n```bash\n'
+    + "if grep -q 'THRESHOLD = 99' unused.py; then\n"
+    + `${printed}\n  exit 1\n`
+    + 'else\n'
+    + "  echo '1 passed in 0.01s'\n"
+    + 'fi\n```'))
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  const result = runWith(journal, [
+    'tasks/T1-fixture.md', '--cwd', '.', '--mutant', 'unused.py',
+    '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99',
+    '--why', 'the fence notices this change',
+  ], copy)
+  const log = readTask(copy).split('## Mutation Log')[1]
+  return { log, said: `${result.stdout}\n${result.stderr}` }
+}
+
+const GO_CASE_A = ['# ex/a [ex/a.test]', 'a/a.go:3:23: cannot use "x" (untyped string constant) as int value in return statement',
+  'FAIL\tex/a [build failed]', 'FAIL']
+const GO_NESTED = ['        # ex/live', '        ../live/live.go:3:23: cannot use "y" (untyped string constant) as int value in return statement',
+  '        FAIL\tex/live [build failed]', '        FAIL']
+
+test('a nested Go build failure inside a failing assertion is a kill', () => {
+  const { log, said } = goMutantGrade(['--- FAIL: TestLiveFilesCompile (0.03s)', '    checker_test.go:11: live files do not compile:',
+    ...GO_NESTED, 'FAIL', 'FAIL\tex/checker\t0.261s', 'FAIL'])
+  assert.match(log, /mutant killed/, said)
+})
+
+test('a Go package that does not build at top level stays inconclusive', () => {
+  const caseC = ['# ex/live', 'live/live.go:3:23: cannot use "y" (untyped string constant) as int value in return statement',
+    'ok  \tex/a\t0.173s', '--- FAIL: TestLiveFilesCompile (0.02s)', '    checker_test.go:11: live files do not compile:',
+    ...GO_NESTED, 'FAIL', 'FAIL\tex/checker\t0.099s', 'FAIL\tex/live [build failed]', 'FAIL']
+  const caseD = ['# ex/live', '../live/live.go:3:23: cannot use "y" (untyped string constant) as int value in return statement',
+    'FAIL\tex/live [build failed]', 'FAIL', '--- FAIL: TestLiveFilesCompile (0.03s)', '    checker_test.go:11: exit status 1',
+    'FAIL', 'FAIL\tex/checker\t0.226s', 'FAIL']
+  for (const [name, lines] of [['A', GO_CASE_A], ['C', caseC], ['D', caseD]]) {
+    const { log, said } = goMutantGrade(lines)
+    assert.match(log, /mutant inconclusive/, `case ${name}: ${said}`)
+    assert.doesNotMatch(log, /mutant killed/, `case ${name}: a build that failed is not a test that noticed`)
+  }
 })
 
 // BACKLOG §203: adr-verify's comment-only refusal had no comment marker for

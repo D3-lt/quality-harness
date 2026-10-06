@@ -20987,6 +20987,26 @@
       "from": "    if re.search(r\"acceptance\", text, re.I):",
       "to": "    if True:",
       "only": "^(?:a file with no Acceptance section in tasks/ is stopped, not ready)$"
+    },
+    {
+      "label": "ADR-085 T1: the Go build-failed row ignores an indented line",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "to": "    r\"\\[build failed\\]\",      # go",
+      "only": "^(?:a nested Go build failure inside a failing assertion is a kill)$"
+    },
+    {
+      "label": "ADR-085 T1: the Go build-failed row still matches a top-level failure",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "to": "    r\"^FAIL\\s+\\S+ \\[build failed\\] \",      # go",
+      "only": "^(?:a Go package that does not build at top level stays inconclusive)$"
     }
   ]
 }

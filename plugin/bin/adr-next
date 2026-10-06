@@ -610,6 +610,16 @@ def load(tasks_dir):
     for path in sorted(tasks_dir.glob("*.md")):
         if path.name.lower() == "readme.md":
             continue
+        if not path.is_file():
+            # A FIFO named like a task blocked the read below until the process was killed, and
+            # a directory named `T4-x.md` stopped the whole directory (BACKLOG §351). Never
+            # opened: that one task is UNPROVEN and the others are read, as adr-lint refuses it.
+            m = TID_RE.search(path.name.upper())
+            if m and m.group(0) not in infos:
+                infos[m.group(0)] = unreadable_task(m.group(0), path, (
+                    f"could not read it: {path.name} is not a regular file (a FIFO, a directory or "
+                    f"a device), so it was not opened and its state is UNPROVEN"))
+            continue
         text = read_named(path)
         unreadable = ("holds NUL bytes (saved as UTF-16, or binary?)" if "\x00" in text
                       else "is empty" if not text.strip() else None)

@@ -2340,7 +2340,12 @@ function corpusReader() {
   return {
     // A lone CR ends a line too: a CR-only file was one line here, so every path in its
     // `Affected Files` was lost without a word (BACKLOG §350 C5). CRLF is left as it is.
-    text: once(file => readFileSync(file, 'utf8').replace(/\r(?!\n)/g, '\n')),
+    // Only a regular file is opened: a FIFO named like a task blocked this read until the
+    // process was killed (BACKLOG §351). Anything else throws, and is read as unread.
+    text: once(file => {
+      if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)
+      return readFileSync(file, 'utf8').replace(/\r(?!\n)/g, '\n')
+    }),
     entries: once(directory => readdirSync(directory, { withFileTypes: true })),
   }
 }

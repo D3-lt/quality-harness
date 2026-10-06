@@ -164,9 +164,12 @@ export const STAGES = [
   },
 ]
 
+// A FIFO named like a task blocked the open until the process was killed (BACKLOG §351), so
+// only a regular file is opened; anything else reads as nothing, like a file that is gone.
 const read = file => {
   try {
-    return statSync(file).size > 512 * 1024 ? '' : readFileSync(file, 'utf8')
+    const stat = statSync(file)
+    return !stat.isFile() || stat.size > 512 * 1024 ? '' : readFileSync(file, 'utf8')
   } catch { return '' }
 }
 
@@ -429,7 +432,7 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
   // A task file this reader cannot open is not a claim it read: `read` returns '' for it, and a
   // README row then made it an "unbacked done claim" nobody had looked at (BACKLOG §350 C2).
   const unopenable = new Set(tasks.filter(file => {
-    try { closeSync(openSync(file, 'r')); return false } catch { return true }
+    try { if (!statSync(file).isFile()) return true; closeSync(openSync(file, 'r')); return false } catch { return true }
   }).map(file => path.resolve(file)))
   const unbacked = tasks.filter(file => {
     const text = read(file)

@@ -5921,11 +5921,12 @@
       "label": "next: a negative word is matched as a verb, so a noun is not a verdict",
       "file": "plugin/bin/adr-next",
       "tests": [
-        "tests/adr-next.test.mjs"
+        "tests/adr-next.test.mjs",
+        "tests/human-stop-3-8-9.test.mjs"
       ],
       "from": "NEGATIVE_WORD = (r\"block(?:ed|s|ing)|stop(?:ped|s|ping)?|\"",
       "to": "NEGATIVE_WORD = (r\"block(?:ed|s|ing)?|stop(?:ped|s|ping)?|\"",
-      "only": "^(?:a negative word used as a noun is not read as a verdict|the verb forms of a negative word are still read as a stop)$"
+      "only": "^(?:a negative word used as a noun is not read as a verdict|the verb forms of a negative word are still read as a stop|\"block\" as a noun with no \"no\" before it is not a verdict, and \"blocked\" still is)$"
     },
     {
       "label": "next: the -s and -ing forms of a stop word are caught, not only -ed",

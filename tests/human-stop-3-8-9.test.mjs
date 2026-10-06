@@ -48,3 +48,11 @@ test('a stop names the words that stopped it before the note it quotes', () => {
   const t1 = (answer(long).stopped ?? []).find(t => t.id === 'T1')
   assert.match(t1?.stopped_by ?? '', /^a human sign-off says stop on «NOT done»/, JSON.stringify(t1))
 })
+
+// The "no + two words" neutraliser above also absorbs "no server-level block", the phrase that pinned
+// the verb-only reading of "block" (campaign at e3e34ff: that mutant went GREEN). A noun with no "no"
+// before it pins it again.
+test('"block" as a noun with no "no" before it is not a verdict, and "blocked" still is', () => {
+  assert.ok(isDone(answer('observed: the hero block renders at 375 px')), 'a noun')
+  assert.ok(!isDone(answer('observed; the deploy is blocked on legal')), 'the verb')
+})

@@ -57,3 +57,33 @@ test('a fixture record is not gated on edit, and the same record under docs/adr 
   const gated = gate(real)
   assert.match(`${gated.stdout}${gated.stderr}`, /Alternatives Considered/, `the real record is still gated:\n${gated.stdout}${gated.stderr}`)
 })
+
+// BACKLOG §291 (an inbox from ts-generator): rendered golden output kept under `tests/golden-*`
+// carried `docs/specs/*.md`, and every commit touching it ran `spec-verify --draft` over them as the
+// repository's own specs. `golden`, `golden-*` and `golden_*` are excluded since 3.8.7, and the skip is
+// judged from the PAYLOAD's cwd — here the hook process runs from another directory, which the report
+// suspected might decide it.
+test('a spec under a golden fixture tree is not gated, judged from the payload cwd, and a real spec still is', () => {
+  const root = path.join(scratch, 'golden')
+  mkdirSync(path.join(root, 'tests', 'golden-founder', 'docs', 'specs'), { recursive: true })
+  mkdirSync(path.join(root, 'docs', 'specs'), { recursive: true })
+  const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, encoding: 'utf8', timeout: 15_000 })
+  assert.equal(init.status ?? 0, 0, init.stderr)
+  const SPEC = '# Spec: rendered\n\n**Status:** Draft\n'
+  const golden = path.join(root, 'tests', 'golden-founder', 'docs', 'specs', '2026-09-24-rendered.md')
+  const real = path.join(root, 'docs', 'specs', '2026-09-24-rendered.md')
+  writeFileSync(golden, SPEC)
+  writeFileSync(real, SPEC)
+  const elsewhere = path.join(scratch, 'elsewhere')
+  mkdirSync(elsewhere, { recursive: true })
+  const gate = file => spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
+    cwd: elsewhere, encoding: 'utf8', timeout: 120_000,
+    input: JSON.stringify({ hook_event_name: 'PostToolUse', tool_name: 'Write', session_id: 'golden-edit', cwd: root, tool_input: { file_path: file } }),
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(scratch, 'data'), TMPDIR: scratch, TMP: scratch, TEMP: scratch },
+  })
+  const skipped = gate(golden)
+  assert.equal(skipped.status, 0, skipped.stderr)
+  assert.equal(`${skipped.stdout}${skipped.stderr}`.trim(), '', `a golden spec draws nothing from the gate:\n${skipped.stdout}${skipped.stderr}`)
+  const gated = gate(real)
+  assert.match(`${gated.stdout}${gated.stderr}`, /spec-verify/, `the real spec is still gated:\n${gated.stdout}${gated.stderr}`)
+})

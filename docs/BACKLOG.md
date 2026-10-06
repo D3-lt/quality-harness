@@ -15356,11 +15356,22 @@ The leads, all wording or performance:
 6. **Fixed.** `diffReports` says a reader absent on one side as ONE line and skips its fields. A missing single field is still named, as the existing test shows.
 7. **Deferred:** a design lead that needs its own record. Nothing warns at merge time when a later record edits a test that older records lock.
 
-## 290. OPEN — work-next counts a STOP sign-off as backing a done claim (2026-09-25, found closing §287)
+## 290. CLOSED 2026-10-06 (fixed after 3.8.7) — work-next counts a STOP sign-off as backing a done claim (2026-09-25, found closing §287)
 
+
+**Closed 2026-10-06.** Since §279 item 8 the `unbacked` list already takes adr-next's own verdict for every
+task adr-next read, so what was left was `unfinished`, which `notYetDecided` uses for tasks under an
+undecided record — directories adr-next is not asked about. There a "not approved" sign-off still read as
+finished, and the task left the list. Now work-next asks adr-next about those directories too, for its done
+verdict only, and a human-observed task is finished only when adr-next says done; where adr-next could not
+answer, it is not taken as done. A first version took no sign-off as done there and broke a locked test
+(ADR-068 T2: a signed-off pass under a Proposed record IS finished) — asking adr-next satisfies both without
+a second copy of its word rules (§16). Test: `tests/work-next-ownerless.test.mjs::a task under an undecided
+record whose sign-off is a stop is still named, not counted finished`, against the real adr-next and in the
+format adr-verify --human writes; two mutants killed, and the older human-observed entry repointed and RED.
 `unfinished` in `plugin/scripts/work-next.mjs` (the `Acceptance is human-observed:` branch) returns false (finished) for any `· human-observed · \S` line, whatever it says. adr-next reads the same line's outcome (`human_outcome`) and withholds done on a stop, so the two readers disagree about a task whose only sign-off says "not approved" or "decision BLOCKED": adr-next says not done, and work-next does not list its done claim as unbacked. Readiness is unaffected, because work-next takes it from adr-next. What is affected is only the `unbacked` list and its count. It is the same rule spelled twice. The fix asks adr-next rather than copying the classifier, so there is one reading.
 
-## 291. OPEN — The artifact gate reads generated fixture trees as the repository's own specs (2026-09-25, inbox from ts-generator, 2026-09-24)
+## 291. CLOSED 2026-10-06 (3.8.7 excludes golden trees; tested through the hook) — The artifact gate reads generated fixture trees as the repository's own specs (2026-09-25, inbox from ts-generator, 2026-09-24)
 
 Reported from ts-generator (plugin 2.106.0, main bbac79c, macOS). On every commit touching `tests/golden*`, the artifact validation ran `spec-verify --draft` on rendered founder-project output kept as byte-for-byte golden fixtures (`tests/golden-baselines/*/docs/specs/*.md`). It also printed "could not classify" for their `.ts` sources. It ended "Fix the artifact, not the gate", which is the wrong instruction for a fixture. The session learned to ignore the block entirely.
 
@@ -15373,7 +15384,15 @@ A name rule for `golden`, or a `.quality-harness.json` key naming fixture roots,
 
 The report's second point is fixed in this batch. corpus-probe's work-next summary now carries `specs` and `unprovenSpecs`, which the text's "N spec file(s) have an UNPROVEN Status" line had and the JSON summary dropped. `expected.json` of `js-vitest-spa` pins the fields, plus a mutant (RED).
 
-## 292. OPEN — A symlinked tasks directory makes adr-next offer another record's tasks under the requesting record's name (2026-09-25, 2.110.0-rc chaos round, macOS Laravel corpus, seed 1790359703, code A9)
+**Closed 2026-10-06.** 3.8.7 names `golden`, `golden-*` and `golden_*` among the excluded directories (§350
+C8). The unverified point is settled: the artifact batch passes its `cwd` into each per-file payload
+(`run-shell-hook.mjs`), and the skip is judged from the payload's cwd, not the process's. The test is
+`tests/fixture-edit-gate.test.mjs::a spec under a golden fixture tree is not gated, judged from the payload
+cwd, and a real spec still is`, run from another directory, with a control under `docs/specs`; a catalogue
+mutant dropping `golden` from the rule is killed. The `.quality-harness.json` key for fixture roots is not
+needed while the name rule covers the reported shape.
+
+## 292. CLOSED 2026-10-06 (fixed after 3.8.7: a task whose title names another record is stopped) — A symlinked tasks directory makes adr-next offer another record's tasks under the requesting record's name (2026-09-25, 2.110.0-rc chaos round, macOS Laravel corpus, seed 1790359703, code A9)
 
 Reported from outside, as the first finding of the Chaos section. The record's own `tasks/` directory was replaced by a symlink to another record's (`ln -s ../ADR-006/tasks docs/adr/ADR-018/tasks`), and then `adr-next docs/adr/ADR-018/tasks --json` ran. The answer carried `"tasks_dir": "docs/adr/ADR-018/tasks"` and `"status": "Accepted"`, and its `ready` list held ADR-006's six tasks, with paths spelled under ADR-018. Only each goal string ("Task ADR-006-T1: …") showed the mismatch. A session acting on `ready` would work the wrong record's task under the right record's name.
 
@@ -15381,7 +15400,14 @@ Not confirmed here yet. Triage: an instruction that is wrong to follow, from an 
 
 Also reported, and not a tool leak: when `adr-next` is run by hand, it prints a task's Acceptance command verbatim, including an absolute path that is the corpus's own content. The probe's scrubber covers the probe's output only.
 
-## 293. OPEN — A record whose Status line uses a fullwidth colon is lost by the probe, and work-next routes as if no corpus existed (2026-09-25, 2.110.0-rc chaos round, macOS Laravel corpus, shrunk from abomination X1)
+**Closed 2026-10-06, reproduced first** on 3.8.7: a tasks directory linked to ADR-006's offered ADR-006's T1
+as READY under ADR-018. adr-next now reads a task's own title: a `# Task ADR-<n>-T<k>` whose `<n>` is not the
+record of the directory it was read from (by the listed path, never the link's target) is stopped, naming
+both records and where to prove it. A title with no record number is left alone. Test:
+`tests/adr-next-foreign-task.test.mjs`, with its control from ADR-006's own directory; one catalogue mutant
+killed. SessionStart and work-next already read each directory once by real path (§350 item 3).
+
+## 293. CLOSED 2026-10-06 (3.8.7 names and lints the record; a fullwidth colon stays unread, by decision) — A record whose Status line uses a fullwidth colon is lost by the probe, and work-next routes as if no corpus existed (2026-09-25, 2.110.0-rc chaos round, macOS Laravel corpus, shrunk from abomination X1)
 
 
 **Half fixed in the 2.110.0 re-cut (§294):** work-next no longer routes "No QH corpus is in use" while it counts a record it cannot classify. It says a corpus is in use and none of its records carries a status it acts on. A php-react-app run argued that half was fail-open-shaped. The probe's silence is the half still open.
@@ -15397,6 +15423,12 @@ Triage: a silent skip in the probe, plus a routing sentence that contradicts the
 - The probe reports work-next's `undecidedRecords`, and lints every record-shaped file, not only the classified ones.
 - work-next does not say "No QH corpus is in use" while it counts a record it could not classify.
 Whether a fullwidth colon should be READ as a colon is a separate question, for §16: measure before deciding.
+
+**Closed 2026-10-06.** Re-run on 3.8.7 with the same one-record corpus: the probe lists the record under
+`undecided` with "no status line this reader can read" and lints it; work-next names it ("not acted on") and
+says a corpus is in use; adr-state says it could not be read as a record. The open question is decided, not
+measured: a fullwidth colon is not read as a colon. Folding look-alike characters is the exemption §16 warns
+about, and a Status no reader can read is reported as UNPROVEN rather than guessed.
 
 **Two notes on the Chaos section itself from the same run**, for its next revision:
 - The runner's permission classifier refused a Bash `printf` that built B10's literal backticks and `${}`, reading them as injection-shaped. The runner then built the content with its file tool, and described the characters rather than writing them. The catalogue should say to write such bytes with the file-writing tool, or with `node -e` reading a separate file, rather than a shell literal.
@@ -17285,7 +17317,7 @@ labelled `§339:`.
 Limit, named: a journal written by a release before 3.7.3 names no owner. Such a journal is still
 recovered as before, so a run started under an older plugin is unprotected until it ends.
 
-## 340. OPEN 2026-10-02 (dated trigger 2026-10-08) — 3.8.0 released; ADR-081's measurement is due
+## 340. CLOSED 2026-10-06 (3.8.0 released; ADR-081's measurement taken 2026-10-06, see §350 tail) — 3.8.0 released; ADR-081's measurement is due
 
 main at f992e4f carried §339's journal owner, ADR-082 and ADR-083: green in CI and unreleased. The owner
 first chose to hold the tag for the different-lineage round (§12), whose budget returns 2026-10-07, then
@@ -17559,7 +17591,7 @@ end: 55 `.tsx` and 19 `.ts`, with `ts` set for both and `jsx` set for `.tsx`. It
 - the same JSX with `jsx=True` reads to the end.
 So the zero is not vacuous: ADR-083's JSX mode is what reads this corpus.
 
-## 346. OPEN 2026-10-02 (trigger: the next corpus-probe change) — `--diff` never compares `undecided[]`
+## 346. CLOSED 2026-10-06 (3.8.7: --diff compares undecided[], records and the environment) — `--diff` never compares `undecided[]`
 
 The laravel-react-monorepo runner's 3.8.2 report changed in one section only: `undecided[]` gained
 §345's reasons. Its `--diff` against 3.8.1 printed only the readers line. `diffReports`
@@ -17686,7 +17718,7 @@ could not run. Its runner flagged five things:
 
 `readinessUnproven: 0` beside adr-next's unproven reasons is §345's name clash, not a count error.
 
-## 350. OPEN 2026-10-02 (C1, C6 and C7 fixed for 3.8.5; the rest is the next reader batch, the owner picks the order) — Windows corpus-chaos on 3.8.3: one crash, three could-not-look read as absence
+## 350. CLOSED 2026-10-06 (all of C1–C10 and items 1–9 released in v3.8.7) — Windows corpus-chaos on 3.8.3: one crash, three could-not-look read as absence
 
 A Windows 11 desktop (NTFS, 8.3 names on, LongPathsEnabled, Git for Windows 2.49.0) ran the corpus-chaos
 skill with the installed 3.8.3 readers, whose readers digest matched the release byte for byte. Its user

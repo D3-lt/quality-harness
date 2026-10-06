@@ -380,6 +380,13 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
   const nestedSpecPaths = nestedSpecFiles(directory, listing) ?? []
 
   const readiness = readinessFrom(corpus, directory, spawn, new Set(tasks.map(file => path.resolve(file))))
+  // adr-next's DONE verdict on the tasks of records not yet decided, too — read for nothing else: it
+  // weighs a human sign-off's words (`not approved`, `BLOCKED`), and taking any sign-off as finished
+  // here dropped a stopped task from the undecided list (BACKLOG §290). A locked test holds the other
+  // half: a sign-off that IS a pass under a Proposed record is finished (ADR-068 T2).
+  const undecidedReading = readinessFrom((corpus.unreadable ?? [])
+    .filter(entry => !entry.alias && !entry.frozen && entry.taskFiles?.length)
+    .map(entry => ({ ...entry, kind: 'governing' })), directory, spawn, new Set(tasks.map(file => path.resolve(file))))
 
   // A task that CLAIMS done — in its own `**Status:**`, or in its directory's
   // tasks/README.md row — that adr-next does not call done. This read the task
@@ -491,13 +498,17 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
     // human-observed by design: the observation is a person watching another
     // program on their own machine.
     //
-    // The sign-off is the evidence, and it is the SAME rule adr-lint applies —
-    // such a task needs a `human-observed` Verification Log entry and nothing else
-    // satisfies it. This is not a way to hand-declare done: an ordinary fenced task
-    // is unaffected, because the acceptance must say so in the words the writer
-    // uses (`adr-verify --human` exists for exactly these).
-    if (/^[ \t]*Acceptance is human-observed:/im.test(text)
-      && /^- \d{4}-\d{2}-\d{2} · human-observed · \S/m.test(text)) return false
+    // The sign-off is the evidence, read by ONE reader: adr-next weighs its words (`not approved`,
+    // `BLOCKED`) and withholds done on a stop, while this took any sign-off as finished, so a task
+    // under an undecided record whose only sign-off was a stop left the list (BACKLOG §290). Where
+    // adr-next read the task, its verdict; where it did not, a sign-off is not taken as done — the
+    // safe direction names the task, and a second copy of adr-next's word rules here would be an
+    // unmeasured classifier (CLAUDE.md §16). An ordinary fenced task is unaffected.
+    if (/^[ \t]*Acceptance is human-observed:/im.test(text)) {
+      const resolved = path.resolve(file)
+      const reading = [readiness, undecidedReading].find(answer => answer.listed.has(resolved))
+      return reading ? !reading.done.has(resolved) : true
+    }
     return true
   }
   // Two filters for two questions. `readinessFrom` asks adr-next only about the

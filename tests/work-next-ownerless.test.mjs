@@ -79,3 +79,22 @@ test('a task its record owns and nobody could read is not called ownerless', t =
     assert.ok(state.readinessUnproven.includes(tasks), JSON.stringify(state.readinessUnproven))
   } finally { chmodSync(path.join(tasks, 'T1-locked.md'), 0o644) }
 })
+
+// BACKLOG §290: `unfinished` read any `· human-observed ·` sign-off as finished, whatever it said, so a task
+// under an undecided record whose only sign-off was "not approved" left tasksUnderAnUndecidedRecord. adr-next
+// reads the outcome and withholds done on a stop; where it was not asked, a sign-off is not taken as done.
+test('a task under an undecided record whose sign-off is a stop is still named, not counted finished', () => {
+  const root = path.join(scratch, 'stop-signoff')
+  const tasks = path.join(root, 'docs', 'adr', 'ADR-003-x', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  writeFileSync(path.join(root, 'docs', 'adr', 'ADR-003-x.md'), '# ADR-003: x\n\n**Status:** Proposed\n\n## Context\n\nx\n')
+  writeFileSync(path.join(tasks, 'T1-watch.md'), '# Task ADR-003-T1: watch it\n\n## Acceptance\n\nAcceptance is human-observed: a person watches it run.\n\n'
+    + '## Verification Log\n- 2026-09-25 · human-observed · not approved — it froze\n')
+  writeFileSync(path.join(tasks, 'T2-run.md'), '# Task ADR-003-T2: run it\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n- 2026-09-25 · abc1234 · exit 0 · `true` · ms:3\n')
+  const listing = ['docs/adr/ADR-003-x.md', 'docs/adr/ADR-003-x/tasks/T1-watch.md', 'docs/adr/ADR-003-x/tasks/T2-run.md']
+  // The real adr-next: its reading of the sign-off is the point.
+  const state = observe(root, { listing })
+  assert.deepEqual(state.notYetDecided.map(file => path.relative(root, file).split(path.sep).join('/')),
+    ['docs/adr/ADR-003-x/tasks/T1-watch.md'], JSON.stringify(state.notYetDecided))
+})

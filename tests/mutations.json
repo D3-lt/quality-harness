@@ -7500,8 +7500,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "a sign-off that says stop is honoured whatever the Acceptance is",
-      "from": "human_stop(text) or status_stop(text),",
-      "to": "(human_stop(text) if human else None) or status_stop(text),"
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or status_stop(text) or acceptance_stop(text),",
+      "to": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or (human_stop(text) if human else None) or status_stop(text) or acceptance_stop(text),"
     },
     {
       "label": "lint: the status advisory says WHEN Blocked-on is legal, so it does not walk a reader into a refusal",
@@ -7711,8 +7711,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "withdrawn in its own Status",
-      "from": "human_stop(text) or status_stop(text),",
-      "to": "human_stop(text),"
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or status_stop(text) or acceptance_stop(text),",
+      "to": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or acceptance_stop(text),"
     },
     {
       "label": "adr-next: an unrecognised Status is not actionable, so unknown does not mean ready",
@@ -20977,6 +20977,16 @@
       "from": "    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside):",
       "to": "    if negated_verdict(outside):",
       "only": "^(?:a sign-off that takes the approval back is a stop, and a real approval stays done)$"
+    },
+    {
+      "label": "§351: a file with no Acceptance in tasks/ is offered as ready",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/no-acceptance-task.test.mjs"
+      ],
+      "from": "    if re.search(r\"acceptance\", text, re.I):",
+      "to": "    if True:",
+      "only": "^(?:a file with no Acceptance section in tasks/ is stopped, not ready)$"
     }
   ]
 }

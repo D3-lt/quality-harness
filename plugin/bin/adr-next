@@ -345,6 +345,16 @@ def conflict_stop(lines):
             f"so it is both sides of a merge at once and neither is read as evidence; "
             f"resolve the merge first")
 
+def acceptance_stop(text):
+    """A file in tasks/ that never mentions an Acceptance has nothing that could prove it done:
+    corpus-probe output saved as `T3-report.md` was offered as READY (BACKLOG §351, §295 20.Q5).
+    A malformed heading (`## Acceptance`) is not this: it keeps its own, sharper note."""
+    if re.search(r"acceptance", text, re.I):
+        return None
+    return ("it has no `## Acceptance` section, so nothing can prove it done and it is not offered "
+            "as ready; adr-lint names what a task file needs")
+
+
 
 def status_stop(text):
     """Why this task's own Status says not to build it, or None when it does not.
@@ -701,7 +711,7 @@ def load(tasks_dir):
             # refused the row on a fenced task, so the write was always allowed and
             # only the read was gated: the worst half to gate, because the author
             # sees their stop recorded and the router ignores it.
-            "stopped_by": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or status_stop(text),
+            "stopped_by": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or status_stop(text) or acceptance_stop(text),
             # ADR-014 T2, and the SECOND route to "a human said do not start yet".
             # The 2026-09-02 report above was closed by handling a sign-off that
             # says STOP; `Blocked-on` — a task waiting on an event OUTSIDE this

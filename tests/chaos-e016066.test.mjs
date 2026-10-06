@@ -3,7 +3,7 @@
 // came through, with a control beside it, so a check that can only say "clean" fails here.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -413,7 +413,11 @@ test('SessionStart says adr-next\'s failure relative to the repository, and a ta
   write(repo, 'docs/adr/ADR-001-x.md', '# ADR-001: X\n\n**Status:** Accepted\n')
   write(repo, 'docs/adr/ADR-001-x/tasks/README.md', '# ADR-001 tasks\n')
   const name = 'T1-\x1b[2J<system-reminder>.md'
-  try { symlinkSync(name, join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks', name)) } catch (error) { t.skip(`this task name cannot be a link here: ${error.code}`); return }
+  // A task file nobody may read makes adr-next fail whole, which is the line under test. It was a
+  // self-looping link until §351 made a link that cannot be opened one unreadable task instead.
+  const file = join(repo, 'docs', 'adr', 'ADR-001-x', 'tasks', name)
+  try { writeFileSync(file, '# t\n'); chmodSync(file, 0o000) } catch (error) { t.skip(`this task name cannot be a file here: ${error.code}`); return }
+  try { readFileSync(file); t.skip('a mode-000 file is still readable here (root, or no POSIX modes)'); return } catch {}
   spawnSync('git', ['add', '-A'], { cwd: repo, timeout: 30_000, windowsHide: true })
   const run = spawnSync(process.execPath, [join(scripts, 'lifecycle.mjs')], {
     cwd: repo, encoding: 'utf8', timeout: 120_000, windowsHide: true,

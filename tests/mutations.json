@@ -21256,8 +21256,8 @@
       "tests": [
         "tests/human-stop-3-8-9.test.mjs"
       ],
-      "from": "    r\"|(?<![a-z])no\\s+(?:[a-z-]+\\s+){0,2}(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
-      "to": "    r\"|(?<![a-z])zzno\\s+(?:[a-z-]+\\s+){0,2}(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
+      "from": "    r\"|(?<![a-z])no\\s+(?:[a-z-]+\\s+)?\"",
+      "to": "    r\"|(?<![a-z])zzno\\s+(?:[a-z-]+\\s+)?\"",
       "only": "^(?:\"no visible blocking\" in an approval is a finding, not a stop)$"
     },
     {
@@ -21346,8 +21346,8 @@
       "tests": [
         "tests/human-stop-3-8-10.test.mjs"
       ],
-      "from": "    r\"|(?<![\\w.])\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
-      "to": "    r\"|(?<![\\w.])zz\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
+      "from": "    r\"|(?<![\\w.])\\d+\\s+passed\\s*[,/;]\\s*\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
+      "to": "    r\"|(?<![\\w.])zz\\d+\\s+passed\\s*[,/;]\\s*\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
       "only": "^(?:a test count like \"1 failed\" in a sign-off is a count, not a verdict)$"
     },
     {
@@ -21359,6 +21359,36 @@
       "from": "    if last and not later_pass and human_outcome(last.group(\"note\")) == \"stop\":",
       "to": "    if last and human_outcome(last.group(\"note\")) == \"stop\":",
       "only": "^(?:a human stop older than later exit-0 evidence does not take that evidence back)$"
+    },
+    {
+      "label": "3.8.10: \"no\" spans a conjunction into another clause",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "    r\"|(?<![a-z])no\\s+(?:[a-z-]+\\s+)?\"",
+      "to": "    r\"|(?<![a-z])no\\s+(?:[a-z-]+\\s+){0,2}\"",
+      "only": "^(?:\"no\" names one absent thing and never spans into another clause)$"
+    },
+    {
+      "label": "3.8.10: any number before a negative word is a count",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "    r\"|(?<![\\w.])\\d+\\s+passed\\s*[,/;]\\s*\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
+      "to": "    r\"|(?<![\\w.])\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
+      "only": "^(?:a numbered failure is a stop; only a test summary is a count)$"
+    },
+    {
+      "label": "3.8.10: later evidence for another fence outranks a stop",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "        (d := VLOG_DIGEST_RE.match(row)) and d.group(\"exit\") == \"0\" and d.group(\"digest\") == digest",
+      "to": "        (d := VLOG_DIGEST_RE.match(row)) and d.group(\"exit\") == \"0\"",
+      "only": "^(?:only later evidence for the CURRENT Acceptance outranks an older stop)$"
     }
   ]
 }

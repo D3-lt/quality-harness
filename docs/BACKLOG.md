@@ -18395,3 +18395,9 @@ A fixture corpus with this shape belongs in `tests/fixtures/corpora/`, following
   - Its last human sign-off pasted "2374 passed / 1 failed", and «failed» read as a verdict. A negative word right after a number is now a count. "it failed 3 times" still stops.
   - That sign-off was a day OLDER than the task's tool-written exit-0 rows. A stop now takes back only evidence recorded before it. Implemented as one filtered list of sign-offs, which keeps the human-mutant filter testable: a first version recomputed the filter and turned its mutant GREEN.
   Test `tests/human-stop-3-8-10.test.mjs`, with controls. Two mutants RED; all 18 sign-off mutants re-ran RED.
+- **Codex review of 944bb37..73f930f (gpt-6-astra, high, REQUEST CHANGES): three P1 fail-opens in my 3.8.9 and 3.8.10 rules.** Each rule was wider than its case, and each width turned a stop into done. The review's own inputs are now tests:
+  - **"no + two words" (shipped in 3.8.9):** "observed no progress and stopped the rollout" and "No we must stop" counted done. Now "no" takes at most one modifier and only a gerund ("no visible blocking"). "no change yet blocking the release" pins the width.
+  - **The count rule (3.8.10 RC):** "step 2 failed on Safari" counted done. Only test-summary syntax ("N passed / N failed", "N failed, N passed") is a count now.
+  - **Later evidence (3.8.10 RC):** an exit-0 row for a DIFFERENT fence cleared a real stop. Only a row with the current Acceptance's digest outranks an older stop, never a relock snapshot. A human-only Acceptance has no digest and so nothing to outrank it.
+  - Two guards in my first narrowing were redundant, and their mutants went GREEN; both are removed. Four mutants were added and three repointed; all 21 sign-off mutants re-ran RED.
+  - **Process slip:** 3.8.9 shipped without the §12 review that would have caught the first of these. 3.8.10 fixes it.

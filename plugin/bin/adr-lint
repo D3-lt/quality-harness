@@ -2594,7 +2594,9 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                           f"record what a human observed with `adr-verify {inf['path'].name} --human \"…\"`. "
                           f"This is advice: done is unchanged")
         if inf["human"]:
-            if not any("· human-observed ·" in b for b in inf["vlog"]):
+            # A `--human-mutant` row also says `· human-observed ·`, but it is mutation evidence,
+            # never a sign-off (an outside run of 3.8.8): it does not satisfy this check.
+            if not any("· human-observed ·" in b and "· human-observed · mutant " not in b for b in inf["vlog"]):
                 errors.append(f"{where}: {tid} marked done but its Verification Log has no "
                               f"'· human-observed ·' sign-off entry (adr-verify --human)")
             continue

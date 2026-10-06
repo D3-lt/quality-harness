@@ -101,6 +101,11 @@ VLOG_DIGEST_RE = re.compile(
     # ADR-028 T1: the steps a run exercised. FOUR gates read this grammar now.
     r"(?: · steps:S[1-9]\d*(?:,S[1-9]\d*)*)?" + TEST_LOCK_FIELD_ANON + r"$")
 VLOG_HUMAN_RE = re.compile(r"^- \d{4}-\d{2}-\d{2} · human-observed · (?P<note>.+)$")
+# `adr-verify --human-mutant` writes `· human-observed · mutant killed · test exit N · …`, which the
+# sign-off pattern above also matches. It is mutation evidence, never a sign-off: read as one, its
+# `--why` stopped an evidenced task, and counted as a human-observed task's approval (an outside run
+# of 3.8.8). Both readers of a sign-off skip it.
+HUMAN_MUTANT_NOTE = re.compile(r"^mutant \w+ · test exit \d+ · ")
 # An entry written before acceptance digests existed. `adr-lint` has always
 # accepted these under a narrow allowance its own help text documents, and
 # `work-next` honours them too; this reader accepted only digest rows, so one
@@ -476,7 +481,7 @@ def is_done(text, digest, human, fence=None, first=None, root=None):
         want_legacy = first.replace("`", "'")
     for line in log.split("\n"):
         line = line.strip()
-        if human and VLOG_HUMAN_RE.match(line):
+        if human and (m := VLOG_HUMAN_RE.match(line)) and not HUMAN_MUTANT_NOTE.match(m.group("note")):
             # A sign-off is evidence. Whether the LAST one takes it back is `human_stop`'s
             # question, which both callers ask before this one (Codex review of 3ff59fb). Asked
             # here as well it decided nothing, and a campaign mutant went GREEN to say so.
@@ -628,7 +633,8 @@ def human_stop(text):
     log = "\n".join(sections_of(text).get("Verification Log", []))
     # The LAST sign-off decides: an approval later taken back is not done, and a stop later
     # approved after a fix is (Codex review of 3ff59fb). The first one used to win both ways.
-    signed = [m for line in log.split("\n") if (m := VLOG_HUMAN_RE.match(line.strip()))]
+    signed = [m for line in log.split("\n") if (m := VLOG_HUMAN_RE.match(line.strip()))
+              and not HUMAN_MUTANT_NOTE.match(m.group("note"))]
     if signed and human_outcome(signed[-1].group("note")) == "stop":
         # ⚠ THE REASON CARRIES ITS OWN PROVENANCE. Both stop routes print through
         # one site, and that site used to say "a human sign-off says stop" — true

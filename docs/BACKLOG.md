@@ -18320,3 +18320,30 @@ Every item of §295 was checked against the working-tree readers at a0d963d. The
 - **P2, my take-back words stopped success prose.** "the expired token was revoked" and "verified: rolled back … successfully" were both stops. `TAKEN_BACK` now requires the verb to attach to the verdict: after a clause break that follows an affirmative, or with "approval", "sign-off" or "verdict" as its subject.
 - **P2, `❌observed` passed**, since the word boundary excluded it. A cross is now a stop wherever it sits.
 - Eight catalogue entries repointed; nine added. All 17 are RED.
+
+## 352. OPEN 2026-10-06 — The GitHub scout: what outside projects offer, and what each needs before it is taken
+
+The owner asked for a scout of GitHub projects that could help, ranked by stars and by stack, including
+those that mention a Claude plugin. It used `gh search repos`, `gh search code` and `gh api` only; nothing
+was cloned or run. Plan of record: `ok-plan-this-properly-flickering-lightning` (2026-10-06).
+- **Outside corpora** (for 3.8.8 and after): public/php-dated-adr `adr/` (167, dated names);
+  public/rst-nested-adr (142 `.rst` records in 39 nested `docs/decisions`); public/go-sdk-adr
+  `docs/architecture` (63, `adr-NNN-`); vectordotdev/vector `rfcs/` (76, date plus issue number);
+  public/laravel-adr `docs/adr` (66, Laravel monorepo); public/swift-adrs `docs/decisions` (61,
+  Swift). Windows-shaped: public/dir-status-rfc (status set by directory), public/spec-folder-adr
+  (`#1043 - Title` spec folders). Peers are asked first. A run made by the releasing session is labelled
+  as its own and is never imported as an attestation (§18).
+- **Inputs for §16:** the test suites of kenryu42/cc-safety-net and nizos/probity (both MIT), harvested
+  as commands our publish classifier must classify. Inputs only; no code copied, and no blocking taken (§3).
+- **Done now:** `mutation-audit` names Infection, gremlins or go-mutesting, and muter, plus the static
+  no-assertion linters (`expect-expect`, `testifylint`).
+- **Each needs a measured target and an Accepted record before it is built:**
+  - per-test kill attribution, a fence test that killed nothing (scott-cc; `killedBy` already holds the
+    data);
+  - a Mutation Log export in Stryker's `mutation-testing-elements` schema;
+  - a check that a record's Decision, its tasks and its Tests table agree (spec-kit `analyze`, OpenSpec
+    `validate --strict`);
+  - skill-call duration beside ADR-084's count (claude-night-market);
+  - hook-input adapters for Codex and Copilot CLI (probity);
+  - `ccusage` as the instrument for the next §19 footprint measurement.
+- **Not taken:** code from unlicensed repositories (scott-cc); any blocking behaviour.

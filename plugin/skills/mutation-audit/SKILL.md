@@ -97,7 +97,8 @@ The classes worth hand-writing, because no language mutation tool reaches them:
   an `&&` whose left side short-circuited before the thing ever launched.
 
 For ordinary code — flipped comparisons, off-by-one, negated conditions — use the
-language's own mutation tool (`cargo-mutants`, `mutmut`, Stryker, PIT). It does that
+language's own mutation tool (`cargo-mutants`, `mutmut`, Stryker, PIT; Infection for PHP,
+`gremlins` or `go-mutesting` for Go, `muter` for Swift). It does that
 better than a hand-written list, and leaves you free to spend the list on the above.
 
 ## Choosing what to gate at all
@@ -219,6 +220,9 @@ fails the campaign; a baseline that could not be shown to run anything is UNPROV
 (ADR-005). Check what your runner
 reports RAN, not just what it exited with — and use the same filter for the mutant and
 its baseline, or the baseline licenses a different measurement than the one taken.
+A test that runs and asserts nothing is the other half, and no filter check sees it: the
+linters `expect-expect` (eslint-plugin-jest, eslint-plugin-vitest) and `testifylint` (Go)
+catch it without running anything.
 
 Five rules, in the order they save the most:
 

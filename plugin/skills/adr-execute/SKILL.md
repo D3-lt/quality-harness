@@ -116,6 +116,12 @@ and requires a killed mutant beside the pass — so forging costs about as much 
 completed task with an empty Verification Log violates the global anti-pattern list; this is the
 one on-disk write the no-artifacts rule does not cover.
 
+Three properties of a row are deliberately not checked (ADR-088). A row's sha is not looked up in
+git: the lookup fails on every honest row of a shallow or rebased clone, and a forger defeats it by
+copying any real sha. A repeated row is not flagged: `adr-verify` has written duplicates itself.
+Row dates are not ordered: no reader reads rows in date order, so a reorder changes no verdict. What
+IS checked is the sha's width: in a SHA-1 repository a sha over 40 characters is off-grammar.
+
 1. Run `adr-next <ADR.md> --all` for the authoritative state. It computes readiness from the task
    files themselves — `Depends-on` plus the `Consumes`/`Produces` contract edges, the same edges
    `adr-lint` builds its DAG from — and counts a task done only when its Verification Log holds an

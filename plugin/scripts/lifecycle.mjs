@@ -4440,7 +4440,12 @@ export function importCheckRecords(cwd, session) {
   // order two interleaved importers happen to append in — a wall clock can tie and
   // can run backwards, so `startedAt` could never be the authority.
   let sequence = 0
-  for (const line of text.split('\n')) {
+  // ⚠ qh-check ends every record with a newline, so a last line without one was not written
+  // whole even when it parses — a pass cut right after its `}` is valid JSON. It is torn, and
+  // never imported (a Codex review of ADR-088).
+  const lines = text.split('\n')
+  if (lines.pop().trim()) whole = false
+  for (const line of lines) {
     if (!line.trim()) continue
     let record
     try { record = JSON.parse(line) } catch { whole = false; continue }
@@ -4457,6 +4462,52 @@ export function importCheckRecords(cwd, session) {
     imported += 1
   }
   return { imported, complete: whole }
+}
+
+/**
+ * The session log `publishVerdict` judges, with every check event `checks.jsonl` does not hold
+ * removed, and how many were (ADR-088 T2).
+ *
+ * The session log is appended to by every hook, and one hand-written `check.passed` line in it
+ * cleared ADR-061's refusal (BACKLOG §295 item 9), while the one writer of check events is the
+ * importer above, which copies `checks.jsonl`. So a `check.*` event is kept only when its `record`
+ * names a ledger record whose grade by `checkEventName` and whose `after.tree` are the event's.
+ * `check.source-unreadable` is kept always: it is the could-not-look marker, not a check.
+ *
+ * ⚠ A LEDGER NOT READ WHOLE BINDS NOTHING, AND SAYS SO. It returns the log unchanged with `torn`
+ * set, and `publishVerdict` reads that as could-not-look: ADR-061's advice, never a refusal, and
+ * never a silent pass. It cannot rely on the importer's `check.source-unreadable`, because git's
+ * own hook discards the importer's answer and records none (a Codex review of ADR-088). A last line
+ * with no terminating newline is torn, as the importer reads it. An absent ledger is read whole:
+ * no check has been recorded, so every check event is unbound. It never writes, and the log keeps
+ * its `complete` flag, which `.filter` would otherwise drop (see `logIncomplete`).
+ */
+export function ledgerBoundLog(cwd, log) {
+  const torn = { log, dropped: 0, torn: true }
+  let text
+  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch (error) {
+    if (error?.code !== 'ENOENT') return torn
+    text = ''
+  }
+  const lines = text.split('\n')
+  if (lines.pop().trim()) return torn
+  const records = new Map()
+  for (const line of lines) {
+    if (!line.trim()) continue
+    let record
+    try { record = JSON.parse(line) } catch { return torn }
+    if (typeof record?.id !== 'string') return torn
+    // The first record of an id is the one the importer copied.
+    if (!records.has(record.id)) records.set(record.id, record)
+  }
+  const bound = entry => {
+    if (typeof entry?.event !== 'string' || !entry.event.startsWith('check.') || entry.event === 'check.source-unreadable') return true
+    const record = typeof entry.record === 'string' ? records.get(entry.record) : undefined
+    return record !== undefined && checkEventName(record) === entry.event && record.after?.tree === entry.after?.tree
+  }
+  const kept = log.filter(bound)
+  kept.complete = log.complete
+  return { log: kept, dropped: log.length - kept.length }
 }
 
 export function sameObservation(a, b) {
@@ -5258,7 +5309,11 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
     }
   }
   const now = observation
-  const log = readEvents(cwd, session)
+  // ADR-088 T2: only check events `checks.jsonl` holds can clear the refusal. A ledger not read
+  // whole is could-not-look here whoever imported it, as a `check.source-unreadable` would say.
+  const bound = ledgerBoundLog(cwd, readEvents(cwd, session))
+  const { dropped } = bound
+  const log = bound.torn ? Object.assign([...bound.log, { event: 'check.source-unreadable' }], { complete: bound.log.complete }) : bound.log
   // A start that could not look, judged by git's own hook, which prepares no late baseline:
   // the rule recordHookEvent adopts by, applied without writing. Only where this log holds
   // that start, so a linked worktree's empty log is not handed one (ADR-068).
@@ -5306,6 +5361,9 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
   }
   return {
     deny, key, detail: { tree: now.tree, revision },
+    // A record that could not be read whole is could-not-look, which git's hook says at the event
+    // rather than passing in silence (ADR-088; a Codex review of its diff).
+    unknown: !deny && logIncomplete(log),
     // On a torn log this still warns — it must — but says UNKNOWN, not "no check
     // has": a check may have succeeded and its record be what was lost (ADR-005).
     // An order that cannot be established is the same kind of could-not-look.
@@ -5331,6 +5389,7 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
       + (invoked !== null
         ? `about to run names commit or push (\`${invoked}\`). Run \`qh-check\` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes.`
         : 'about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.')
+      + (dropped > 0 ? ` ${dropped} check event(s) in this session's log name no \`qh-check\` record and were not counted.` : '')
       + `${inferredCheckCaveat(cwd)}${publishSettingNote(setting)}`,
   }
 }

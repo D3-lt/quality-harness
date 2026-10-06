@@ -197,6 +197,7 @@ from record import sections_of, section_span, repeated_headings, unterminated_fe
 from record import os_reason  # noqa: E402
 from record import record_id, title_line, NO_WINDOW, walk  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock, lock_hasher, LOCK_HASHERS  # noqa: E402
+from record import SHA_FIELD, git_root, object_format, sha_fits, row_sha  # noqa: E402
 
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
@@ -1999,10 +2000,9 @@ def relative_to_repo(path, cwd):
 # NOT recorded — the entry keeps the fence's first line and a hash of the whole
 # thing — so re-running a claim means running the task's CURRENT fence, and the
 # digest is what says whether that is the same command the entry proved.
-# The sha field, mirrored from adr-lint::SHA_FIELD and pinned to it by
+# The sha field is record.py's `SHA_FIELD` (ADR-088 T1), imported above and pinned by
 # tests/gate-regressions.py::SHA_GRAMMAR. 4 to 64 hex is what git can actually
 # produce: `core.abbrev` goes down to 4, and a SHA-256 repository emits 64.
-SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
 CLAIM_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit 0 · "
     # Anything after the digest — ADR-020's ` · ms:N`, ADR-050's lock suffix —
@@ -2144,7 +2144,7 @@ def refuse_unreadable(entry, sha):
     fail(f"refusing to write an entry the evidence grammar cannot read: `{entry}`. "
          f"The sha field is `{sha}` — git's `core.abbrev` decides its width, and this "
          f"grammar accepts 4 to 64 hex characters (or `no-git`). Set `core.abbrev` to a "
-         f"width in that range, or update SHA_FIELD in both gates together.")
+         f"width in that range, or update SHA_FIELD in plugin/lib/record.py.")
 
 
 def readable_entry(entry):
@@ -2414,7 +2414,10 @@ def claims_in(task):
     # enter the sweep's denominator — the same exclusion adr-lint applies to
     # passing evidence. Admitted by the widened suffix until the Codex review of
     # c1f546a caught it (2026-09-23).
-    rows = [ln for ln in body if not vlog_row_is_lock_snapshot(ln)]
+    # ADR-088 T1: a sha wider than git prints in this repository is not a row adr-verify wrote, so
+    # it is not a claim, as adr-next does not count it as evidence (a Codex review of ADR-088).
+    sha_format = object_format(git_root(task.parent))
+    rows = [ln for ln in body if not vlog_row_is_lock_snapshot(ln) and sha_fits(row_sha(ln), sha_format)]
     return {m.group("digest") for m in CLAIM_RE.finditer("\n".join(rows))}
 
 
@@ -3186,8 +3189,10 @@ def main():
     # is still appended, whatever it exits: an append-only log is the contract
     # (CLAUDE.md §4). What was missing is being told BEFORE the run what a failure
     # here will read as, while there is still time to fix the fence first.
+    sha_format = object_format(git_root(task.parent))
     prior = sum(1 for ln in text.splitlines()
-                if re.match(r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · ", ln.strip())
+                if re.match(r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit 0 · ", ln.strip())
+                and sha_fits(row_sha(ln), sha_format)
                 and not vlog_row_is_lock_snapshot(ln))
     if prior:
         print(f"[adr-verify] {task.name} already carries {prior} exit-0 "

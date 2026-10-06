@@ -3285,7 +3285,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)",
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text, root)",
       "to": "        done = (not conflicted and not foreign_stop(text, owner)",
       "only": "^(?:a human sign-off that reports a STOP is not counted as done|a negative word inside quoted program output does not stop an affirmative sign-off|the verb forms of a negative word are still read as a stop|a negator directly before an affirmative is a stop, and a bare \"not\" elsewhere is not|a negated stop word and a counter name are not verdicts, and the plain stop still is|a task whose sign-off says stop is not offered as ready|a corpus root whose records have nothing ready exits 3, not 0|a fully-read corpus with nothing ready is exit 3, a real verdict|a \"NOT done:\" follow-up list after an affirmation is not a stop, and the bare label still is|a hostile task heading is quoted and defanged in the human output)$"
     },
@@ -3840,7 +3840,7 @@
     },
     {
       "label": "lint: the sha grammar accepts every width git can produce",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -3994,8 +3994,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "SHA_FIELD = r\"(?:[0-9a-f]{4,64}\\*?|no-git)\"",
-      "to": "SHA_FIELD = r\"(?:[0-9a-f]{7,40}\\*?|no-git)\"",
+      "from": "from record import SHA_FIELD, git_root, object_format, sha_fits, row_sha  # noqa: E402",
+      "to": "from record import git_root, object_format, sha_fits, row_sha  # noqa: E402\nSHA_FIELD = r\"(?:[0-9a-f]{7,40}\\*?|no-git)\"",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -7501,8 +7501,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "a sign-off that says stop is honoured whatever the Acceptance is",
-      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or status_stop(text) or acceptance_stop(text),",
-      "to": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or (human_stop(text) if human else None) or status_stop(text) or acceptance_stop(text),"
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),",
+      "to": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or (human_stop(text, root) if human else None) or status_stop(text) or acceptance_stop(text),"
     },
     {
       "label": "lint: the status advisory says WHEN Blocked-on is legal, so it does not walk a reader into a refusal",
@@ -7712,8 +7712,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "withdrawn in its own Status",
-      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or status_stop(text) or acceptance_stop(text),",
-      "to": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text) or acceptance_stop(text),"
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),",
+      "to": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or acceptance_stop(text),"
     },
     {
       "label": "adr-next: an unrecognised Status is not actionable, so unknown does not mean ready",
@@ -10103,7 +10103,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if not any(m.group(\"exit\") != \"0\" for _line, m in _vlog_machine_rows(vlog)):",
+      "from": "        if not any(m.group(\"exit\") != \"0\" for _line, m in _vlog_machine_rows(vlog, sha_format)):",
       "to": "        if False:",
       "only": "green-only log is told"
     },
@@ -12476,8 +12476,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)",
-      "to": "        done = (not foreign_stop(text, owner) and not human_stop(text)",
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text, root)",
+      "to": "        done = (not foreign_stop(text, owner) and not human_stop(text, root)",
       "only": "^(?:a task holding unresolved merge-conflict markers is stopped, not done)$"
     },
     {
@@ -12486,8 +12486,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text)",
-      "to": "foreign_stop(text, owner) or human_stop(text)",
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),",
+      "to": "            \"stopped_by\": foreign_stop(text, owner) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),",
       "only": "^(?:a task holding unresolved merge-conflict markers is stopped, not done)$"
     },
     {
@@ -19815,7 +19815,7 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "if (!verdict?.deny) return verdict?.fast ? { code: 0, message: verdict.text } : { code: 0 }",
+      "from": "if (!verdict?.deny) return verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 }",
       "to": "if (!verdict?.deny) return { code: 0 }",
       "only": "^git's own hooks let a commit through with the warning and refuse a push$"
     },
@@ -21076,8 +21076,8 @@
       "tests": [
         "tests/adr-next-codex-3-8-8.test.mjs"
       ],
-      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)",
-      "to": "        done = (not conflicted and not human_stop(text)",
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text, root)",
+      "to": "        done = (not conflicted and not human_stop(text, root)",
       "only": "^(?:a task titled for another record is not done under this one, whatever its evidence)$"
     },
     {
@@ -21086,7 +21086,7 @@
       "tests": [
         "tests/adr-next-codex-3-8-8.test.mjs"
       ],
-      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text)",
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text, root)",
       "to": "        done = (not conflicted and not foreign_stop(text, owner)",
       "only": "^(?:the last human sign-off decides: an approval taken back is not done, a stop later approved is)$"
     },
@@ -21126,7 +21126,7 @@
       "tests": [
         "tests/adr-next-codex-3-8-8.test.mjs"
       ],
-      "from": "                return (\"done\" if not human_stop(text) and is_done(text, digest, first == \"human-observed\",",
+      "from": "                return (\"done\" if not human_stop(text, git_root(tasks)) and is_done(text, digest, first == \"human-observed\",",
       "to": "                return (\"done\" if is_done(text, digest, first == \"human-observed\",",
       "only": "^(?:a dependency on another record's task whose approval was taken back is not met)$"
     },
@@ -21529,6 +21529,136 @@
       "from": "        elif (problem := row_date_problem(b)):",
       "to": "        elif False and (problem := row_date_problem(b)):",
       "only": "^(?:a Verification Log row dated on a day that does not exist, or in the future, is not evidence)$"
+    },
+    {
+      "label": "ADR-088 T1: adr-next reads the one sha field, so a 4-character row is done to it as to adr-lint",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "VLOG_DIGEST_RE = re.compile(\n    r\"^- \\d{4}-\\d{2}-\\d{2} · \" + SHA_FIELD + r\" · exit",
+      "to": "VLOG_DIGEST_RE = re.compile(\n    r\"^- \\d{4}-\\d{2}-\\d{2} · (?:[0-9a-f]{7,40}\\*?|no-git) · exit",
+      "only": "^(?:every row reader takes the sha width git can print)$"
+    },
+    {
+      "label": "ADR-088 T1: a sha wider than 40 characters does not fit a SHA-1 repository",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    return len(sha.rstrip(\"*\")) <= 40",
+      "to": "    return True",
+      "only": "^(?:a sha wider than the object format is not evidence)$"
+    },
+    {
+      "label": "ADR-088 T2: the publish verdict judges the ledger-bound log, not the bare session log",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "  const bound = ledgerBoundLog(cwd, readEvents(cwd, session))",
+      "to": "  const bound = { log: readEvents(cwd, session), dropped: 0 }",
+      "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
+    },
+    {
+      "label": "ADR-088 T2: a ledger record binds an event only on the event's own tree",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": " && record.after?.tree === entry.after?.tree",
+      "to": "",
+      "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
+    },
+    {
+      "label": "ADR-088 T2: a check event the ledger holds is kept and still clears the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "    return record !== undefined && checkEventName(record)",
+      "to": "    return false && checkEventName(record)",
+      "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
+    },
+    {
+      "label": "ADR-088 T2: a torn ledger binds nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "    try { record = JSON.parse(line) } catch { return torn }",
+      "to": "    try { record = JSON.parse(line) } catch { continue }",
+      "only": "^(?:a torn ledger is could-not-look to git's hook as well)$"
+    },
+    {
+      "label": "ADR-088 review: the sweep's claim reader takes the one sha width",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "vlog_row_is_lock_snapshot(ln) and sha_fits(row_sha(ln), sha_format)]",
+      "to": "vlog_row_is_lock_snapshot(ln)]",
+      "only": "^(?:the sweep counts a claim only when its sha fits the repository)$"
+    },
+    {
+      "label": "ADR-088 review: a torn ledger is could-not-look to the publish verdict, whoever imported it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "  const log = bound.torn ? Object.assign(",
+      "to": "  const log = false ? Object.assign(",
+      "only": "^(?:a torn ledger is could-not-look to git's hook as well)$"
+    },
+    {
+      "label": "ADR-088 review: ledgerBoundLog reads an unterminated last line as torn",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "  if (lines.pop().trim()) return torn",
+      "to": "  lines.pop()",
+      "only": "^(?:an unterminated last ledger line is torn)$"
+    },
+    {
+      "label": "ADR-088 review: the importer reads an unterminated last line as torn",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "  if (lines.pop().trim()) whole = false",
+      "to": "  lines.pop()",
+      "only": "^(?:an unterminated last ledger line is torn)$"
+    },
+    {
+      "label": "ADR-088 review 2: the test lock reads only rows whose sha fits",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "        if m and sha_fits(row_sha(line), sha_format):",
+      "to": "        if m:",
+      "only": "^(?:a lock snapshot whose sha does not fit does not release a moved lock)$"
+    },
+    {
+      "label": "ADR-088 review 2: git's hook says a could-not-look verdict",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "verdict?.fast || verdict?.unknown ?",
+      "to": "verdict?.fast ?",
+      "only": "^(?:git's own hook says a torn ledger is unknown, at commit and at push)$"
+    },
+    {
+      "label": "ADR-088 review 2: the verdict marks could-not-look for git's hook",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "    unknown: !deny && logIncomplete(log),",
+      "to": "    unknown: false,",
+      "only": "^(?:git's own hook says a torn ledger is unknown, at commit and at push)$"
     }
   ]
 }

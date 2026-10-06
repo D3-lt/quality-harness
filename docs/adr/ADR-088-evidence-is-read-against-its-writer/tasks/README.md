@@ -18,8 +18,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | every row reader takes one sha width, keyed to the object format | pending | none — no spec | `node --test tests/vlog-sha-width.test.mjs` (two named tests pass) |
-| T2 | the publish verdict counts only check events its ledger holds | pending | none — no spec | `node --test tests/publish-ledger-binding.test.mjs tests/fail-open.test.mjs` (four named tests pass) |
+| T1 | every row reader takes one sha width, keyed to the object format | done | none — no spec | `node --test tests/vlog-sha-width.test.mjs` (two named tests pass) |
+| T2 | the publish verdict counts only check events its ledger holds | done | none — no spec | `node --test tests/publish-ledger-binding.test.mjs tests/fail-open.test.mjs` (four named tests pass) |
 
 ## Contract Coupling
 
@@ -27,4 +27,4 @@ None — T1 and T2 share no symbol and may run in either order.
 
 ## Notes
 
-- T2 waits on the owner's approval to relock ADR-066 T1's locked test (ADR-088 Follow-ups). T1 does not.
+- T2 waited on the owner's approval to relock ADR-066 T1's locked test (ADR-088 Follow-ups); it was approved 2026-10-06 and the relock is recorded in that task's log.

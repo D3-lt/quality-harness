@@ -414,6 +414,12 @@ test('an unresolved check order is not worded as unchecked', () => {
   writeFileSync(path.join(dir, 'a.md'), 'changed\n')
   const now = lifecycle.observe(dir)
   assert.equal(now.ok, true)
+  // ADR-088 T2: the publish verdict counts only events `checks.jsonl` holds, so the two events name
+  // records it does — a pass and a failure on this tree, as every event the importer writes does.
+  mkdirSync(lifecycle.stateDir(dir), { recursive: true })
+  appendFileSync(path.join(lifecycle.stateDir(dir), 'checks.jsonl'),
+    JSON.stringify({ id: 'a', exit: 0, git: true, before: now, after: now }) + '\n'
+    + JSON.stringify({ id: 'b', exit: 1, git: true, before: now, after: now }) + '\n')
   appendFileSync(lifecycle.sessionLogFile(dir, session),
     JSON.stringify({ event: 'check.passed', after: { tree: now.tree }, seq: 1, record: 'a' }) + '\n'
     + JSON.stringify({ event: 'check.failed', after: { tree: now.tree }, seq: 1, record: 'b' }) + '\n')

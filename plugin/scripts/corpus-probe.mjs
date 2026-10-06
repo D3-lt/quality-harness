@@ -293,7 +293,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     // never claimed to be a record, and two such notes were counted as could-not-run (an outside run
     // of the 3.8.7 RC, laravel-cms). Any other exit 2 is counted.
     if (run.status === 2 && !/not-recognised|NOT A DECISION RECORD/.test(`${run.stdout ?? ''}${run.stderr ?? ''}`)) {
-      note(`adr-lint ${rel(record.file)}`, `${run.stderr ?? ''}`.split('\n').find(line => line.trim()) ?? 'exit 2')
+      // Trimmed: on Windows each of adr-lint's lines ends in a CR (a Windows corpus-chaos run of v3.8.9).
+      note(`adr-lint ${rel(record.file)}`, `${run.stderr ?? ''}`.split('\n').find(line => line.trim())?.trim() ?? 'exit 2')
     }
     // The verdict line by name, never "the first line opening with `[`": on a record older than
     // the corpus's strictFrom, adr-lint prints `[strictFrom] …` ABOVE its verdict, and a PASS read
@@ -316,7 +317,9 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\n').find(line => line.trim())
       // A not-recognised file carries what IT lacks, the clause adr-lint ends its sentence with: 32
       // records of a public corpus all read "not-recognised" and nothing else (an outside run, 2026-10-06).
-      : verdict === 'not-recognised' ? (first.match(/This file: .*$/) ?? [])[0] : undefined
+      // Up to the end of the line, never across a CR: on Windows each output line ends in one, and
+      // `.*$` then matched nothing (the dispatched campaign's Windows job at 271e6ac).
+      : verdict === 'not-recognised' ? (first.match(/This file: [^\r\n]*/) ?? [])[0] : undefined
     // Advice leaves with the verdict. Only the verdict did, so a PASS the gate had advised on
     // read as a bare PASS and the advice a runner meant to report was invisible (a corpus-chaos
     // run of cd7e6ab, BACKLOG §319's addendum). Every advice line the gate printed, a withheld

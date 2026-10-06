@@ -1169,7 +1169,8 @@ test('an unarmed fresh commit is refused when arithmetic can reassign its direct
     'R=$(mktemp -d) && ((R=1)) && cd "$R" && git init -q && git commit --allow-empty -m f',
     'R=$(mktemp -d /dev/null/x.XXXX; ((1))) && cd "$R" && git init -q && git commit --allow-empty -m f',
     'R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m "$[1]"',
-    'R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m "let R=1"',
+    // `let` as a command after the cd; quoted as a message it is data (ADR-090 T1's data test).
+    'R=$(mktemp -d) && cd "$R" && let R=1 && git init -q && git commit --allow-empty -m f',
   ]) assert.equal(freshRepositoryCommit(command, {}), false, command)
   assert.equal(freshRepositoryCommit('R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m f', {}), true)
 })
@@ -1200,5 +1201,172 @@ test('a single terminal newline ends an unarmed fresh commit like the end of the
   // Twin: a newline then another command runs it even where mktemp failed.
   for (const command of [`${FRESH_CONTROL}\ngit commit --allow-empty -m g`, `${FRESH_CONTROL}\n\n`]) {
     assert.equal(freshRepositoryCommit(command, {}), false, JSON.stringify(command))
+  }
+})
+
+// ── ADR-090 T1: a quoted commit message is data to the two downgrades ──
+//
+// A value of commit's `-m`, `--message`, `-F` or `--file`, written as one quoted
+// literal, is one word to the shell and to git, so the raw rules of ADR-066's armed
+// grammar and ADR-086's fresh repository no longer read it as code. Every value that
+// can run code keeps the refusal beside it (CLAUDE.md §16). Each row is the value
+// and the message git records for it.
+const QUOTED_MESSAGES = [
+  ['-m "push the fix"', 'push the fix'],
+  ['-m "a;b"', 'a;b'],
+  ['-m "use ((x)) here"', 'use ((x)) here'],
+  ['-m "let it be"', 'let it be'],
+  ['--message="push the fix"', 'push the fix'],
+  ["-m 'push; then {braces} and !bang'", 'push; then {braces} and !bang'],
+  ['-m "fix PATH handling"', 'fix PATH handling'],
+  ['-m "a|b"', 'a|b'],
+  ["-m '$(git push)'", '$(git push)'],
+  // ADR-086's arithmetic row, quoted: bash never evaluates a message.
+  ['-m "let R=1"', 'let R=1'],
+]
+const ARMED_QUOTED_MESSAGES = ['-m "fix PATH handling"', '-m "see .git/config"', "-m 'costs $5'", '-m "env cleanup"']
+const CODE_MESSAGES = [
+  '-m "$(git push)"', '-m "`git push`"', '--message="$(git push)"', '-m "$GIT_DIR"', '-m x; git push',
+  '-F <(git push)', '-m "${x:-$(git push)}"', '-m x && git push', '-m "push" && git push', '-- -m "push"',
+  '-Fm "push"', '-m push',
+]
+const ARMED_CODE_MESSAGES = session => [
+  `-m "$(git -C ${session} commit -qm y)"`, '-nm "push"', '-m {x,--no-verify}',
+  '-m x; GIT_CONFIG_COUNT=0 git commit -qm y', "-m '.git/hooks' && cp x '.git/hooks'",
+]
+const quotedFresh = (parent, value) => `R=$(mktemp -d ${parent}/fresh.XXXX) && cd "$R" && git init -q && git commit -q --allow-empty ${value}`
+const quotedArmed = value => `cd ${slashed(hookTmp)}/scratch && git commit ${value}`
+
+test('a quoted commit message is data to the armed and fresh-repository downgrades', () => {
+  const parent = freshParent()
+  const unarmed = armedSession('quoted-unarmed-', { armed: false })
+  for (const [value] of QUOTED_MESSAGES) {
+    const command = quotedFresh(parent, value)
+    assert.equal(freshRepositoryCommit(command, {}), true, command)
+    assert.notEqual(unarmed.decide(command), 'deny', command)
+  }
+  const armed = armedSession('quoted-armed-')
+  for (const value of ARMED_QUOTED_MESSAGES) {
+    const command = quotedArmed(value)
+    assert.equal(leavesHookInPlace(command), true, command)
+    assert.notEqual(armed.decide(command), 'deny', command)
+  }
+})
+
+test('a message value that can run code keeps the refusal', () => {
+  const parent = freshParent()
+  const unarmed = armedSession('code-unarmed-', { armed: false })
+  const fresh = CODE_MESSAGES.map(value => quotedFresh(parent, value))
+  for (const command of fresh) {
+    assert.equal(freshRepositoryCommit(command, {}), false, command)
+    assert.equal(unarmed.decide(command), 'deny', command)
+  }
+  const armed = armedSession('code-armed-')
+  const rows = ARMED_CODE_MESSAGES(slashed(armed.dir)).map(quotedArmed)
+  for (const command of rows) {
+    assert.equal(leavesHookInPlace(command), false, command)
+    assert.equal(armed.decide(command), 'deny', command)
+  }
+  // CLEAN twin: on a checked tree the same rows are not refused.
+  unarmed.check()
+  armed.check()
+  for (const command of fresh) assert.notEqual(unarmed.decide(command), 'deny', command)
+  for (const command of rows) assert.notEqual(armed.decide(command), 'deny', command)
+})
+
+// Executed, as ADR-086 T2's rows are: each data row commits in the directory mktemp
+// made, with the message as written, and never in the session repository.
+test('the masked fresh-repository rows commit where the classifier says they do', { skip: FRESH_BASH ? false : 'no /bin/bash on this platform' }, () => {
+  const env = {
+    ...Object.fromEntries(Object.entries(process.env).filter(([name]) => !/^(?:GIT_|CLAUDE_)/.test(name) && name !== 'XDG_CONFIG_HOME')),
+    ...IDENTITY, HOME: mkdtempSync(path.join(hookTmp, 'masked-home-')),
+  }
+  const git = (dir, ...args) => spawnSync('git', ['-C', dir, ...args], { encoding: 'utf8', timeout: 30_000, env })
+  const head = dir => git(dir, 'rev-parse', 'HEAD').stdout.trim()
+  for (const [value, message] of QUOTED_MESSAGES) {
+    const session = mkdtempSync(path.join(hookTmp, 'masked-session-'))
+    assert.equal(git(session, 'init', '-q').status, 0)
+    assert.equal(git(session, 'commit', '-q', '--allow-empty', '-m', 'base').status, 0)
+    const parent = freshParent()
+    const command = quotedFresh(parent, value)
+    assert.equal(freshRepositoryCommit(command, {}), true, command)
+    const before = head(session)
+    const run = spawnSync(FRESH_BASH, ['-c', command], { cwd: session, encoding: 'utf8', timeout: 30_000, env })
+    assert.equal(run.status, 0, `${command}\n${run.stderr}`)
+    assert.equal(head(session), before, `the session repository moved: ${command}`)
+    const made = readdirSync(parent).filter(name => name.startsWith('fresh.'))
+    assert.equal(made.length, 1, command)
+    assert.equal(git(path.join(parent, made[0]), 'log', '-1', '--format=%B').stdout.replace(/\n+$/, ''), message, command)
+  }
+})
+
+// ── ADR-090 T2: what the shell runs from a heredoc body, `"$x$(…)"` or a `function`
+// body is a publish; the same words as data stay a mention. Measured under bash and
+// zsh in tests/shell-words.test.mjs.
+const RUN_FROM_A_BODY = [
+  'cat <<EOF\n$(git push)\nEOF', 'cat <<EOF\n`git push`\nEOF', 'cat <<-EOF\n\t$(git push)\n\tEOF',
+  'echo "$x$(git push)"', 'echo "${x}$(git push)"', 'function g { git push; }\ng', 'function g () { git push; }; g',
+]
+const HELD_AS_DATA = [
+  "cat <<'EOF'\n$(git push)\nEOF", 'cat <<"EOF"\n$(git push)\nEOF', 'cat <<EOF\n\\$(git push)\nEOF',
+  'echo "$x"', "echo '$x$(git push)'", 'echo function g { git push; }',
+]
+
+test('a publish run from a heredoc body, a quoted substitution or a function body is refused', () => {
+  const unarmed = armedSession('body-unarmed-', { armed: false })
+  for (const command of RUN_FROM_A_BODY) assert.equal(unarmed.decide(command), 'deny', command)
+  // CLEAN twin: on a checked tree the same rows are not refused.
+  unarmed.check()
+  for (const command of RUN_FROM_A_BODY) assert.notEqual(unarmed.decide(command), 'deny', command)
+})
+
+test('a heredoc body, a parameter and a function name that only hold a publish stay data', () => {
+  HELD_AS_DATA.forEach((command, k) => {
+    // One session per row: a mention is said once per tree.
+    const unarmed = armedSession(`body-data-${k}-`, { armed: false })
+    const text = unarmed.tell(command)
+    assert.equal(publishCommandIn(command), null, command)
+    assert.notEqual(decisionIn(text), 'deny', command)
+    // `echo "$x"` names no publish at all, so it has nothing to be told.
+    if (mentionsCommitOrPush(command)) assert.match(text, /only mentions commit or push/, command)
+  })
+})
+
+// ── ADR-090 T3: a wrapper named by its absolute path is that wrapper ──
+const PATH_WRAPPED = [
+  '/usr/bin/env git push', '/usr/bin/env -- git push', '/usr/bin/env -S "git push"', '/bin/env git push',
+  '/usr/bin/sudo git push', '/usr/bin/time git push', '/usr/bin/nice git push', '/usr/bin/nohup git push',
+]
+// Run under bash with a stand-in git, where the wrapper exists; `sudo` is lexed only (ADR-067 Decision 2).
+const PATH_WRAPPED_RUN = ['/usr/bin/env git push', '/usr/bin/env -- git push', '/bin/env git push', '/usr/bin/time git push', '/usr/bin/nice git push']
+
+test('a wrapper named by its absolute path runs the publish it wraps', () => {
+  for (const command of PATH_WRAPPED) assert.equal(publishCommandIn(command), 'git push', command)
+  // A Windows drive path is absolute too (CLAUDE.md §7); lexed only.
+  assert.equal(publishCommandIn('C:/tools/env.exe git push'), 'git push')
+  const unarmed = armedSession('wrapped-unarmed-', { armed: false })
+  for (const command of PATH_WRAPPED) assert.equal(unarmed.decide(command), 'deny', command)
+  // CLEAN twin: on a checked tree the same rows are not refused.
+  unarmed.check()
+  for (const command of PATH_WRAPPED) assert.notEqual(unarmed.decide(command), 'deny', command)
+  if (!FRESH_BASH) return
+  const scratch = mkdtempSync(path.join(hookTmp, 'wrapped-run-'))
+  const record = path.join(scratch, 'argv.log')
+  writeFileSync(path.join(scratch, 'git'), '#!/bin/sh\nprintf \'%s \' git "$@" >> "$QH_ARGV"\nprintf \'\\n\' >> "$QH_ARGV"\n', { mode: 0o755 })
+  for (const command of PATH_WRAPPED_RUN) {
+    // A wrapper this host does not have is a row it cannot measure, not a pass.
+    if (!existsSync(command.split(' ')[0])) continue
+    writeFileSync(record, '')
+    const run = spawnSync(FRESH_BASH, ['-c', command], { cwd: scratch, encoding: 'utf8', timeout: 10_000, env: { PATH: scratch, QH_ARGV: record, HOME: scratch } })
+    assert.equal(run.status, 0, `${command}\n${run.stderr}`)
+    assert.equal(readFileSync(record, 'utf8'), 'git push \n', command)
+  }
+})
+
+test('a relative path or a look-alike wrapper name stays a mention', () => {
+  const unarmed = armedSession('wrapped-mention-', { armed: false })
+  for (const command of ['./env git push', '/usr/bin/envsubst git push', 'echo /usr/bin/env git push']) {
+    assert.equal(publishCommandIn(command), null, command)
+    assert.notEqual(unarmed.decide(command), 'deny', command)
   }
 })

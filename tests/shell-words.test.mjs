@@ -11,6 +11,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { shellWords } from '../plugin/scripts/shell-words.mjs'
+import { publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
 
 const POSIX = process.platform !== 'win32'
 const SHELLS = ['/bin/bash', '/bin/zsh'].filter(shell => POSIX && existsSync(shell))
@@ -164,3 +165,40 @@ const BEFORE_UNCLOSED = {
   'git push; echo "unclosed': { bash: [], zsh: [] },
   'git push\necho "unclosed': { bash: [['git', 'push']], zsh: [] },
 }
+
+// ADR-090 T2: a publish run from an unquoted heredoc body, from `"$x$(…)"`, or from a
+// `function NAME { … }` body, beside the spellings that only hold one as data.
+const RUNS_A_PUBLISH = [
+  'cat <<EOF\n$(git push)\nEOF',
+  'cat <<EOF\n`git push`\nEOF',
+  'cat <<-EOF\n\t$(git push)\n\tEOF',
+  'echo "$x$(git push)"',
+  'echo "${x}$(git push)"',
+  'function g { git push; }\ng',
+  'function g () { git push; }; g',
+  // cc-safety-net tests/gate/behavioral-contract-cases.ts:1009 and :1045, CR-delimited.
+  "cat <<EOF\nEOF\r\ncat <<'EOF'\n$(git push --force)\nEOF",
+  'cat <<EOF\r\n$(git push)\r\nEOF\r\n',
+]
+const HOLDS_A_PUBLISH = [
+  "cat <<'EOF'\n$(git push)\nEOF",
+  'cat <<"EOF"\n$(git push)\nEOF',
+  'cat <<EOF\n\\$(git push)\nEOF',
+  'echo "$x"',
+  "echo '$x$(git push)'",
+  'echo function g { git push; }',
+]
+
+test('a heredoc body, a quoted substitution and a function body are lexed as the shell runs them', { skip: SHELLS.length ? false : 'no POSIX shell to diff against' }, () => {
+  const { run } = harness()
+  for (const shell of SHELLS) {
+    assert.deepEqual(run(shell, '/usr/bin/env git --version'), [['git', '--version']],
+      `${shell}: the stand-in did not answer, so a row could reach a real git; stopping`)
+    for (const row of [...RUNS_A_PUBLISH, ...HOLDS_A_PUBLISH]) {
+      const ran = run(shell, row)
+      assert.equal(ran.length > 0, RUNS_A_PUBLISH.includes(row), `${shell} ran ${JSON.stringify(ran)}: ${JSON.stringify(row)}`)
+      // What the classifier names is the invocation the shell ran, or null when none ran.
+      assert.equal(publishCommandIn(row), ran.length ? `git ${ran[0][1]}` : null, `${shell}: ${JSON.stringify(row)}`)
+    }
+  }
+})

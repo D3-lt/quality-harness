@@ -31,6 +31,7 @@ export function shellWords(text) {
   let word = null
   let pending = []
   let pipeNext = false
+  let naming = false
   let i = 0
 
   function fresh() {
@@ -45,6 +46,10 @@ export function shellWords(text) {
     word = null
     const leading = command.argv.length === 0
     const raw = w.chars.map(x => x.c).join('')
+    // `function NAME` opens a definition, as `NAME()` does: neither word is a command,
+    // and the body's commands are read as commands (ADR-090 T2).
+    if (naming) { naming = false; return }
+    if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; return }
     if (leading && isAssignment(w.chars)) {
       command.assignments.push(raw)
       return
@@ -63,6 +68,7 @@ export function shellWords(text) {
 
   function endCommand(operator) {
     endWord()
+    naming = false
     // A command of redirections alone still runs its substitutions: `<$(git push)`
     // pushes before the open fails (Codex review of 341c49c).
     const empty = command.argv.length === 0 && command.assignments.length === 0 && command.heredocs.length === 0
@@ -133,9 +139,14 @@ export function shellWords(text) {
       command.substitutions.push(...substitutionsIn(src.slice(k + 2, end)))
       return end + 1
     }
-    let e = k + 1
-    while (e < src.length && /[\w@*#?$!-]/.test(src[e])) { e++; if (!/\w/.test(src[e - 1])) break }
-    return e
+    // A name runs to its last word character; a special parameter (`$$`, `$1`, `$?`) is one
+    // character, so `"$x$(git push)"` leaves its `$(` to be read (ADR-090 T2).
+    if (/[A-Za-z_]/.test(src[k + 1] ?? '')) {
+      let e = k + 2
+      while (/\w/.test(src[e] ?? '')) e++
+      return e
+    }
+    return /[\w@*#?$!-]/.test(src[k + 1] ?? '') ? k + 2 : k + 1
   }
 
   const balanced = (k, open, close) => closing(src, k, open, close)
@@ -155,7 +166,11 @@ export function shellWords(text) {
         lines.push(line)
       }
       if (!closed) complete = false
-      doc.owner.heredocs.push({ delimiter: doc.delimiter, quoted: doc.quoted, body: lines.map(l => `${l}\n`).join('') })
+      const body = lines.map(l => `${l}\n`).join('')
+      // POSIX expands an unquoted delimiter's body: its `$(…)` and backticks run, and a
+      // quote there is a plain character (ADR-090 T2). A quoted delimiter's body is data.
+      if (!doc.quoted) doc.owner.substitutions.push(...substitutionsIn(body, false))
+      doc.owner.heredocs.push({ delimiter: doc.delimiter, quoted: doc.quoted, body })
     }
     pending = []
   }
@@ -316,13 +331,14 @@ export function shellWords(text) {
 
 // The command substitutions an expression runs. Inside `${…}`, `$((…))` and `((…))`
 // the text around them is not a command — reading it as one took `<<` for a heredoc —
-// but a `$(…)` or a backtick in it runs.
-function substitutionsIn(text) {
+// but a `$(…)` or a backtick in it runs. In a heredoc body (`quotes` false) a single
+// quote is a plain character, so it hides nothing.
+function substitutionsIn(text, quotes = true) {
   const found = []
   for (let k = 0; k < text.length; k++) {
     const c = text[k]
     if (c === '\\') { k++; continue }
-    if (c === "'") {
+    if (quotes && c === "'") {
       const end = text.indexOf("'", k + 1)
       if (end < 0) break
       k = end

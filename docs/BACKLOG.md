@@ -18325,6 +18325,7 @@ Every item of §295 was checked against the working-tree readers at a0d963d. The
 - `R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m "push the fix"`
 - `R=$(mktemp -d) && cd "$R" && git init -q && git commit --allow-empty -m "a;b"`
 - Smallest fix the review suggests: classify the invoked verbs and git argument positions instead of raw text — a `push` only as a git subcommand, and a quoted operator only where git or a shell would run it, never in a `-m` value.
+- **Fixed by ADR-090 (executed 2026-10-06, uncommitted at 2cb2d28).** T1 masks a commit's message value written as one quoted, non-dynamic literal whose spelling occurs once, before ADR-066's armed grammar and ADR-086's fresh-repository proof read the text; both inputs above, and `-m "let R=1"`, are now advised. Still open: an unquoted value (`-m push`) and the common `-m "$(cat <<'EOF' … EOF)"` stay refused (ADR-090 Out of Scope, Alternatives (e) and (f)), as do the owner decisions in ADR-090 Follow-ups.
 
 ## 352. OPEN 2026-10-06 — The GitHub scout: what outside projects offer, and what each needs before it is taken
 
@@ -18406,3 +18407,27 @@ A fixture corpus with this shape belongs in `tests/fixtures/corpora/`, following
   - An exit-0 row DATED before a refusal, but placed below it, cleared the refusal. Now a clearing row must be dated on or after the sign-off; same-day rows keep their append order.
   - **Left open, the safe direction:** "approved; no tests failed" and "approved; no failed tests" are false stops. This predates 3.8.9, and a bounded absence form is a later decision.
   - Two count entries were deleted with their rule and one date mutant added; all 20 sign-off mutants re-ran RED.
+
+## 355. PARTLY CLOSED 2026-10-06 — Five Windows corpus-chaos runs of v3.8.9: one blinding bug, three fail-opens, and leads
+The owner brought five Windows 11 desktops back for testing. Each ran the probe and the chaos catalogue on v3.8.9 (4ff7518) over its own corpus or a public one: go-sdk-adr, php-dated-adr, a 70-record Go CLI corpus (twice), and a 209-task Python backend corpus with CRLF files. Each run diffed against v3.8.8 where it had a baseline. **No CRLF defect was found anywhere.** adr-lint's own stdout is CRLF on Windows, and the probe trims it. Attestations at 4ff7518: 62, 70 and 70 compared, all passToFail 0; one has no baseline. Replies came over the bridge, because none of the sessions has the palace tools.
+**Fixed for 3.8.10:**
+- **The plugin was blind on large repositories (php-dated-adr, 27,289 files).** `trackedPaths` ran `git ls-files -z` under Node's 1 MiB default buffer and hit ENOBUFS at 2.3 MB. Every JS reader then said "git could not list the tree" (UNPROVEN). Class, by `grep -n "spawnSync('git'" plugin/scripts/*.mjs`: the four calls whose output grows with the tree, the listing, the deleted-file diff, `gitLines` and the status read, now share `GIT_LISTING_BUFFER` (256 MiB). The others read one value. Test `tests/large-listing.test.mjs` (skipped on Windows, because MAX_PATH caps the long names); mutant RED. The constant's mutant covers the listing site only; the other three sites have no large-output test.
+- **A pending record lost its git listing** (go-sdk-adr). adr-lint reassigned `tracked` to None for a pending record with no tasks and no ## Implementation paths. It then said "could not be listed from git", and resolved Enforced-by from disk, an ignored file included (§8). The reassignment is removed. Test `tests/adr-lint-pending-tracked.test.mjs`; mutant RED.
+- **False "row removed" advice** (Python corpus). Mutation Log `--human-mutant` rows match VLOG_RE, but were compared only with the Verification Log. On a clean tree they were reported removed, with an instruction to re-run adr-verify, in an order that flipped between runs. Now compared with the whole file, and sorted. Test `tests/mutation-log-row-kept.test.mjs`; mutant RED; one entry repointed.
+- **Impossible dates** (§351 23.4, measured again). A row dated 2026-02-30, 2026-02-31 or 2099-01-01 linted PASS and counted done. The shared `record.row_date_problem` makes such a row off-grammar in adr-lint, and not evidence in adr-next. 1970 is a real date and is still accepted: that limit is named, not guessed. Test `tests/impossible-row-date.test.mjs`; four mutants RED.
+- The probe's could-not-run note for adr-lint exit 2 is trimmed, since a Windows line keeps its CR.
+**Leads, not fixed:**
+- A duplicate record number is counted twice and named by no reader (two runs).
+- A Status with invalid UTF-8 gets PASS plus advice, while a fullwidth colon gets UNPROVEN (two runs).
+- A trailing-DOT task or record name ("T99.md.") is named nowhere: the Windows twin of §321's trailing space.
+- Two Status lines (Superseded, then Accepted) read silently as the first.
+- `records[].status` loses underscores through `recordStatus`.
+- The scrubber over-redacts: `https://<host>[/<path>]` and "`a`/`b`".
+- adr-lint cuts quotes at [:70] and [:80] with no "…".
+- adr-lint prints a content claim about a task before saying the file holds NUL bytes, so the probe's reason hides the encoding cause.
+- SessionStart says nothing about unreadable records, and calls their directories "fully evidenced".
+- On a junction loop, work-next's headline says "a listed record could not be read" though every record was read.
+- php-dated-adr's 168 front-matter records are counted nowhere (ADR-087 territory).
+- A lone CR cuts a SessionStart title with no marker.
+- The UTF-16 hook-payload sentence could say "UTF-16?".
+**A doc error, for the owner:** `git -c core.longpaths=true clone` does not persist the setting; `git clone -c core.longpaths=true` does. It is wrong in CLAUDE.md §7 and .claude/rules/07, and it was wrong in my request too.

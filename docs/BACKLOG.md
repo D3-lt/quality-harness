@@ -18156,3 +18156,9 @@ OS's periodic cleanup, and failed with ERR_MODULE_NOT_FOUND — a fresh clone, n
   scrubbed one; it now compares after scrubbing both sides, so a redaction-only change is not a change. Its
   other lead, `let's /work` in a quoted chat line becoming `<path>`, is the scrubber's documented safe
   direction (over-scrubbing), kept.
+- **The branch-state lead above is withdrawn.** Two later instances were timed: a brief reading `@ 3706765,
+  read 312s ago` and one reading `@ ca3d61d, 4 uncommitted, read 56s ago` were each taken before the commit
+  that followed (06:47 against 06:51:11; ~06:58:10 against 06:58:24), so the age each said was true and the
+  snapshot was simply older than the commit. The first instance was not timed and is not claimed either way.
+- **Outside runs at 4283d6a, filed:** react-spa (2), python-adr-corpus (78) and laravel-react-monorepo (95),
+  all passToFail 0 — `docs/corpus-reports/2026-10-06-*-3.8.7-4283d6a.json`.

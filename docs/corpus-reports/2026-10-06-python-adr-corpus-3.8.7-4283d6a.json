@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-06",
+  "at": "4283d6a77a4bccc02513431d822000f1fbac9c3c",
+  "plugin": "3.8.7",
+  "kind": "probe",
+  "probeSha256": "80b42362b536205a7b22042b52acb25bb826fbf67638e64bae00b41120996c6e",
+  "readers": "2e3bee5d69761a3940f31ffee07d534fca650aa1a758668bce29ceeabb002574",
+  "platform": "Darwin 27.0.0",
+  "node": "26.10.0",
+  "python": "3.14.8",
+  "corpus": {
+    "records": 72,
+    "tasks": 219,
+    "taskDirectories": 19
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "verdictChanges": {
+    "compared": 78,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "python-adr-corpus",
+  "found": ""
+}

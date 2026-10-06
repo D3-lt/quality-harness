@@ -15212,9 +15212,11 @@ Nine outside runs at dbeb5cf: Laravel, React SPA, a Rust corpus, a PHP/React pro
 - Item 7: the "hash moved" refusal names `adr-verify --relock --replace-hashes`, gated on the test change being reviewed. work-next keeps adr-next's per-task reason and puts the remedy in `next.remedy` and in the text.
 - Item 8: the sentence now reads "a step the inference did not pick, such as a typecheck or lint".
 
-## 282. OPEN — A Go fixture corpus, deferred by ADR-064 T6 (2026-09-24)
+## 282. CLOSED 2026-10-06 — A Go fixture corpus, deferred by ADR-064 T6 (2026-09-24)
 
 ADR-064 T6 adds three fixture corpora for the shapes the 2.108.0 round found: a Rust crate, a PHP repository with three corpus roots, and a JS/vitest SPA. Go is not among them, although three of this week's outside reports came from a Go repository (§273, §277, §278). Each of those is pinned by a unit test, not by a corpus the matrix runs on every platform. A `go-module` corpus would carry `[no test files]` packages, a `go test -run` fence that selects nothing, and a spec bound to Go tests. Deferred rather than added because T6 is sized to the shapes the round reported as still wrong; pick it up when a Go run next reports a reader defect, or with ADR-064's first follow-up batch.
+
+**Closed 2026-10-06.** `tests/fixtures/corpora/go-module/` carries the three shapes: an `internal/money` package with `[no test files]`, a `go test -run` fence guarded by a `grep` for the test it names, and spec fact F-1 plus a Tests row bound to a Go test holding a `t.Run` subtest. Its `expected.json` was reviewed against a probe of a git-staged copy: adr-lint PASS, T2 ready, the inferred check named as `go test ./...`. The matrix discovers it by directory (`node --test tests/corpus-matrix.test.mjs`: 13 pass, 0 fail). It was shown dirty first: with T1's only row dated after 2026-09-13, adr-lint FAILed on the missing first-red lock and SessionStart named T1 ready, which `mustNotMatch: "T1 is ready"` rejects. The fixture dates that row 2026-08-20, as `rust-crate` does, so it models a record from before the lock. A Go corpus with a real red-green-lock chain is not built here; it would need adr-verify run against a red tree and a green tree in a fixture repository.
 
 ## 283. CLOSED 2026-09-25 — The §61 Produces advisory could never fire on a real record (found while fixing §280 item 2)
 
@@ -15816,7 +15818,7 @@ Residuals, for 2.112.0:
 - The guard's comment claimed the self-edge printed READY. That was stale since the self-dependency fix and is corrected.
 - The other 47 mutation shards were green. The class is the same as §18's refactor rule: a fix that moves an observable turns the old site's test vacuous.
 
-## 301. OPEN — Roadmap: take the model out of the loop, and a terse state protocol (2026-09-26)
+## 301. CLOSED 2026-10-06 (stages 1, 3–7 delivered or declined by measurement; see the end) — Roadmap: take the model out of the loop, and a terse state protocol (2026-09-26)
 
 The owner's direction after 2.111.0. The reasoning, the measurements and the papers are in
 `docs/research/2026-09-26-model-out-of-the-loop.md`. Each stage is work only once its ADR is
@@ -15866,6 +15868,21 @@ Non-goals: binary or hex encoding, lossy compression on evidence, a semantic ans
 **Stage 5, 2026-09-27: ADR-070 (Accepted) takes `attest-import`.** `node scripts/attest-import.mjs --check <file>` over each of the 59 files in `docs/corpus-reports/` at 916b515, counting every reason but "a duplicate" (each is already filed): 40 agree with their commit on the probe digest, the readers fingerprint and the plugin version; 10 are refused because they carry no `readers` field (they predate ADR-064 T1's fingerprint), 9 of them also for a `plugin` annotated by hand; 9 are `kind: hand`, which it does not check. ADR-070's Context expected 41 and 9: the audit script behind it skipped the readers check when the field was absent, and so counted one of the ten as consistent. The importer refuses a run whose readers cannot be checked, which is the rule for anything filed from now on; the ten stay as history. Deferred from ADR-070 and still Stage 5's: a hand attestation, and an audit of every filed attestation in CI.
 
 **Stage 4, 2026-09-28: ADR-072 (Accepted, T1 to T5 done) narrows the catalogue, measured.** 811 of 1,582 entries now run only the tests that killed their mutant (T3, 953a882). The next dispatched campaign, 36476465667 at e016066, summed 10,304 shard runner-seconds against 50,430 for 36413858960, a 79.6% saving. Its slowest shard took 382 s (was 1,258 s) and its median 212 s (was 1,084 s). Two Codex rounds reviewed T1 and T2, then T4, and T4 and T5 closed their findings. BACKLOG §318 records what the literal reader still misreads. ADR-073 (Proposed) takes the check that would not depend on it: a narrowed baseline that runs fewer tests than it names is STALE. The narrowing's own measurement ran by hand in a linked worktree, since peer sessions run this checkout's hooks. Such a worktree must live outside the temp root, because tests/lifecycle.test.mjs rightly treats a checkout under it as a real project. Still Stage 4's: worktree-isolated campaigns as a tool, and multi-line and insert-only entries.
+
+**Closed 2026-10-06 — the roadmap as it stands, stage by stage** (the owner: address every open topic):
+1. Measure: done 2026-09-26 (`session-profile --attribute`), and since then every outside run carries ledger counts.
+2. qh1: declined on its own numbers — it could save at most this plugin's 1.9–2.6% of injected bytes (above).
+3. Shell lexer for the publish classifier: superseded by ADR-066 (git refuses at the event) and ADR-067.
+4. Mutation tooling: ADR-069 (`--repoint`), ADR-071 (re-anchoring), ADR-072 (a mutant runs only its killers —
+   the test-impact selection), ADR-073, ADR-075 and ADR-076 (worktree isolation).
+5. Finding to fixture: ADR-064 (fixture corpora and the matrix), ADR-070 (`attest-import`), ADR-082 (verdict
+   changes counted); `scripts/verdict-diff.sh` is the differential reader.
+6. Latency: ADR-065 (branch-state snapshot), ADR-080 (no hook waits on the artifact pass), ADR-081 (a passed
+   tree is not checked again). A daemon or a Rust core had no measured target and is not work (the owner,
+   2026-09-26: a stage ships only on a measured target). §325 is the next measured latency item.
+7. Research-grade: ADR-077 (a heavy run holds a lease). Cascades, Datalog gates, mutant schemata, predictive
+   mutation testing and a Merkle release root have no measured target; they stay ideas in
+   `docs/research/2026-09-26-model-out-of-the-loop.md`, not open work here.
 
 ## 302. The 2026-09-26 inbox: one regression of mine, four false blocks and advisories fixed for 3.0, two left open
 
@@ -16377,7 +16394,7 @@ The selftest's node suite was 151s at 8cc0327. One test was 59s of it: "every ca
 - The 30s scripted-session and 23s false-green tests are next on the list.
 - The compile cache saves about 17ms a hook: measured, small, cheap.
 
-## 317. OPEN 2026-09-28 — §241's race has a second reader: the hook's own test executes the mutant the suite installed
+## 317. CLOSED 2026-10-06 (by ADR-075; one inert residual in a locked test) — §241's race has a second reader: the hook's own test executes the mutant the suite installed
 
 **Found running the gate for ADR-072 T1** (`qh-check`, 2026-09-28, load about 8 to 16 on 10 cores). `tests/post-edit-check.test.mjs` "the hook only acts on the tools it is for, and on files that exist" failed once: `run('Bash', broken.sh)` printed bash's `syntax error near unexpected token 'then'` for its scratch file. `plugin/scripts/post-edit-check.sh` exits at once for any tool but Edit, Write, MultiEdit and NotebookEdit (:7-9). The file then passed 3/3 alone, and the re-run passed 1471/1471.
 
@@ -16389,7 +16406,15 @@ The selftest's node suite was 151s at 8cc0327. One test was 59s of it: "every ca
 
 Nothing changed here. §241's fix, moving the guard test's campaign into a disposable repository as `tests/mutation-cache-merge.test.mjs` does, closes both readers. It was declined on 2026-09-24; this is the evidence that it now fails the gate.
 
-## 318. OPEN 2026-09-28 — What ADR-072's literal reader still misreads, and the check that would not depend on it
+**Closed 2026-10-06.** ADR-075 moved every arm of `the mutation runner refuses to run over an editor, or beside
+another runner` that PROCEEDS into a fixture repository (`inFixture`), and made isolation the default, so no
+campaign this test starts installs a mutant in this checkout: the race §241 and this entry describe is gone. Two
+arms still write into the checkout — a `# scratch` line in `plugin/scripts/post-edit-check.sh` and a comment in
+`plugin/scripts/adr-state.mjs`, each restored in a `finally` — and the test is locked (ADR-075 T2), so it stays
+byte-identical. Both writes are comments, so nothing that EXECUTES the code can observe them, which was the
+failure here; a reader of the text could, for the length of one test.
+
+## 318. CLOSED 2026-10-06 (its check exists since ADR-073; the torn catalogue write fixed) — What ADR-072's literal reader still misreads, and the check that would not depend on it
 
 **Found by the second Codex review** (gpt-6-astra, xhigh, read-only, of ADR-072 T4 at cd7e6ab). T5 fixed the two inputs where a quoted name inside a regular expression counted as a definition: after a control statement's condition, and after a postfix `++` or `--`. The review's other inputs are recorded here, not fixed. Each was reproduced by the reviewer in memory, not by a campaign.
 - `const q = {} / 2; const r = /'ghost'/;`: `}` is read as a statement's end, so the division opens a regular expression, the reader loses its place, and `ghost` counts as defined (fail-open). An object literal followed by a division is rare in a test file.
@@ -16402,6 +16427,14 @@ Nothing changed here. §241's fix, moving the guard test's campaign into a dispo
 **Why this is recorded, not chased.** The owner's rule for a heuristic reader is one different-lineage round per change, then outside runs (2026-09-24). Over the 81 test files the catalogue names, the reader and the old quoted-substring rule agree on 1,386 of 1,387 runner-reported names; the one difference is a name that sits only in a comment, which the reader correctly refuses. That measurement cannot see a false definition the two rules share.
 
 **The check that would not depend on the reader.** A narrowing's killers are real tests by construction: the campaign that recorded them ran exactly the entry's files, at the key the narrowing reads. The fail-open that matters is later, when a killer is renamed or deleted and its name survives as some other literal: `--stale` then says nothing, the entry stays RED through its other killers, and it runs fewer tests than its pattern names. The campaign's own baseline already runs the pattern. Comparing the number of tests it ran (`leafTestsRun`) with the number of names in the pattern would catch that, whatever the source text says. That is a campaign change and is not scheduled here.
+
+**Closed 2026-10-06.** The check this entry proposed — comparing the tests a narrowed baseline ran with the names
+its pattern holds — is ADR-073's: a baseline that runs fewer tests than its pattern names is `short`, and no
+mutant is graded under it (`scripts/mutate.mjs`), so a renamed killer no longer hides behind the reader. The
+reader's remaining misreads are rare inputs, kept under the owner's rule for heuristic readers (one different-
+lineage round, then outside runs). The torn-file risk is fixed: `mutate --repoint --write` and `--narrow --write`
+write the catalogue through a temporary file and a rename (`writeCatalogue`), tested with a failing-rename twin
+in `tests/mutate-catalogue-write.test.mjs`; one mutant killed.
 
 ## 319. PARTLY FIXED 2026-09-29 — The corpus-chaos round of e016066 (plugin/ = v3.1.3): four fail-opens, a forged line, and two repository leads
 
@@ -16956,7 +16989,7 @@ hasher 1 bounds, drops no top-level test, and stops early on no file.
    `at`. The regression replaces the snapshot under a kept stamp; two catalogue entries cover it, both RED. The
    reviewer found nothing else material in the lock or ranking changes, and probed both with simulated Windows paths.
 
-## 328. OPEN 2026-10-01 — A campaign printed nothing on Windows, once, inside a locked test
+## 328. CLOSED 2026-10-06 (not reproduced; its instrument stays) — A campaign printed nothing on Windows, once, inside a locked test
 
 The Windows job of push run 36837928673, at 9845434 (a docs-only commit), failed
 `tests/mutate-runner.test.mjs` "the campaign cache records the tests that killed each RED entry", at its
@@ -16979,7 +17012,12 @@ say why.
   `regex_literals`, plus `registered_test_names`, and a JavaScript suffix list without `.mts` or `.cts`. The
   record is history and stays as written; this line is the correction.
 
-## 329. OPEN 2026-10-01 — ADR-079 (every gate reads JavaScript one way) is parked on its review
+**Closed 2026-10-06, not reproduced.** The Windows job has run `tests/mutate-runner.test.mjs` in every push and
+dispatch since — 17 Windows runs from 2026-10-02 to 2026-10-06 alone — and the campaign printed its summary each
+time. The test added beside the locked one prints exit, signal, error and stderr when it fails, so a recurrence
+arrives with its cause; reopen then.
+
+## 329. CLOSED 2026-10-06 (reworked, Accepted, shipped in 3.7.0) — ADR-079 (every gate reads JavaScript one way) is parked on its review
 
 A cold Codex review (gpt-6-astra, xhigh) of the Proposed ADR-079, its spec and its stubs asked for changes,
 with eight findings, each reproduced by the reviewer.
@@ -17013,6 +17051,9 @@ to fold them in and accept without a fourth review of the record; the implementa
 outside corpus runs. The new rule: a test not found in a file the lexer did not read to its end, or found with a
 body that cannot be bounded, is UNPROVEN. ADR-079 lists the full class, the residuals it does not claim to fix,
 and the comparator its T4 runs against `plugin/` at cd8f95f.
+
+**Closed 2026-10-06.** ADR-079 was reworked against these findings and accepted (031ffb6), executed (efd7cdf),
+its Codex round folded in (6f258e2, §336), and released as 3.7.0 (723fa19). `adr-next` reads all four tasks done.
 ## 330. DEFERRED 2026-10-01 — the artifact batch gates each path in its own shell
 
 `runArtifactBatch` (`plugin/scripts/run-shell-hook.mjs:600`) starts one bash per path through
@@ -17171,7 +17212,7 @@ Owner's decision 2026-10-02: the spec changes and the lock does not. A moved loc
 `strictFrom` never demotes evidence; UNPROVEN is advice there because it is could-not-look. F-11 now
 says so. Its bound test keeps the name it was locked under, and the spec row notes that.
 
-## 336. OPEN 2026-10-01 — ADR-079's Codex round on efd7cdf: four findings fixed, residuals named
+## 336. CLOSED 2026-10-06 (residuals are ADR-079's stated limits) — ADR-079's Codex round on efd7cdf: four findings fixed, residuals named
 
 One round (gpt-6-astra, xhigh, read-only, REQUEST CHANGES). Each finding was reproduced against
 source before it was fixed, and each fix has a regression with an adverse twin in
@@ -17192,6 +17233,9 @@ Residuals the reviewer named and nothing here changes: a named callback (`test('
 by an identifier blocks `done` as UNPROVEN, which is the ADR's rule for a body that cannot be
 bounded; `test.each(table)(…)`, generic callbacks and escape decoding keep their earlier limits.
 Not rerun by the reviewer: the CLI fixtures and the corpus comparison (rerun here: no verdict changed).
+
+**Closed 2026-10-06.** The four fixes shipped in 3.7.0. The named residuals are the record's own rule, not
+leftovers: a body that cannot be bounded is UNPROVEN and blocks `done`, which is the safe direction.
 
 ## 337. CLOSED 2026-10-02 (ADR-083, for 3.9.0) — the JavaScript lexer has no JSX mode; 3.7.0 refused real tests in React corpora
 

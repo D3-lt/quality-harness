@@ -222,6 +222,24 @@ const thisScript = fileURLToPath(import.meta.url)
 // scripts/unasserted.mjs.
 
 /**
+ * writeCatalogue writes the catalogue through a temporary file and a rename: a plain `writeFileSync`
+ * killed mid-write left a torn tests/mutations.json, which every later campaign and the selftest then
+ * refuse to parse (BACKLOG §318). A failed write or rename leaves `file` as it was.
+ */
+export function writeCatalogue(file, catalogue, { fs: io = {} } = {}) {
+  const write = io.writeFileSync ?? writeFileSync
+  const rename = io.renameSync ?? renameSync
+  const temp = `${file}.${process.pid}.tmp`
+  try {
+    write(temp, `${JSON.stringify(catalogue, null, 2)}\n`)
+    rename(temp, file)
+  } catch (error) {
+    rmSync(temp, { force: true })
+    throw error
+  }
+}
+
+/**
  * writeBackCache puts the child's verdict cache over the checkout's through a temporary file and
  * a rename, in the child's own shape, which is mutate's and what CI's merge job reads (spec F-12).
  * A read, write or rename that fails leaves `to` byte-identical, and says so.
@@ -1422,7 +1440,7 @@ export function main(argv) {
       entry.from = answer.from
       entry.to = answer.to
     }
-    writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\n`)
+    writeCatalogue(paths.catalogue, catalogue)
     console.log(`${stale} stale: ${proposed} rewritten in ${path.relative(root, paths.catalogue)}, ${stale - proposed} refused. Measuring the rewritten ${proposed === 1 ? 'entry' : 'entries'}:`)
     repointed = { labels: new Set(proposals.map(({ entry }) => entry.label)), stillStale: stale - proposed }
   }
@@ -1791,7 +1809,7 @@ export function main(argv) {
       delete catalogue.mutations.find(m => m.label === result.label).only
       console.log(`UNDONE   ${result.label} — ${result.verdict} under its pattern, so it keeps running its whole files`)
     }
-    if (undone.length < narrowed.labels.size) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\n`)
+    if (undone.length < narrowed.labels.size) writeCatalogue(paths.catalogue, catalogue)
     return undone.length ? 1 : 0
   }
   // ADR-069 T2: the write is trusted only when every rewritten entry is RED and nothing

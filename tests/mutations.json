@@ -20897,6 +20897,16 @@
       "from": "timed.group(\"exit\") == \"0\" and ",
       "to": "",
       "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "§318: the catalogue is written in place",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-write.test.mjs"
+      ],
+      "from": "  const temp = `${file}.${process.pid}.tmp`",
+      "to": "  const temp = file",
+      "only": "^(?:the catalogue is written through a temporary file and a rename, and a failed write leaves it whole)$"
     }
   ]
 }

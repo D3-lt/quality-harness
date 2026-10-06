@@ -21341,16 +21341,6 @@
       "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
     },
     {
-      "label": "3.8.10: a test count reads as a verdict",
-      "file": "plugin/bin/adr-next",
-      "tests": [
-        "tests/human-stop-3-8-10.test.mjs"
-      ],
-      "from": "    r\"|(?<![\\w.])\\d+\\s+passed\\s*[,/;]\\s*\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
-      "to": "    r\"|(?<![\\w.])zz\\d+\\s+passed\\s*[,/;]\\s*\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
-      "only": "^(?:a test count like \"1 failed\" in a sign-off is a count, not a verdict)$"
-    },
-    {
       "label": "3.8.10: an older stop takes back later exit-0 evidence",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -21371,16 +21361,6 @@
       "only": "^(?:\"no\" names one absent thing and never spans into another clause)$"
     },
     {
-      "label": "3.8.10: any number before a negative word is a count",
-      "file": "plugin/bin/adr-next",
-      "tests": [
-        "tests/human-stop-3-8-10.test.mjs"
-      ],
-      "from": "    r\"|(?<![\\w.])\\d+\\s+passed\\s*[,/;]\\s*\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
-      "to": "    r\"|(?<![\\w.])\\d+\\s+(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"",
-      "only": "^(?:a numbered failure is a stop; only a test summary is a count)$"
-    },
-    {
       "label": "3.8.10: later evidence for another fence outranks a stop",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -21389,6 +21369,16 @@
       "from": "        (d := VLOG_DIGEST_RE.match(row)) and d.group(\"exit\") == \"0\" and d.group(\"digest\") == digest",
       "to": "        (d := VLOG_DIGEST_RE.match(row)) and d.group(\"exit\") == \"0\"",
       "only": "^(?:only later evidence for the CURRENT Acceptance outranks an older stop)$"
+    },
+    {
+      "label": "3.8.10: an exit-0 row dated before a stop clears it",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "        and row[2:12] >= rows[signed[-1][0]][2:12]",
+      "to": "        and True",
+      "only": "^(?:an exit-0 row dated before a stop does not clear it, wherever it sits)$"
     }
   ]
 }

@@ -36,11 +36,15 @@ const watched = note => '# Task ADR-003-T1: watch\n\n**Depends-on:** none\n\n## 
   + `Acceptance is human-observed: a person watches it.\n\n## Verification Log\n- 2026-08-27 · human-observed · ${note}\n`
 const fenced = rows => '# Task ADR-003-T1: one\n\n**Depends-on:** none\n\n## Acceptance\n\n```bash\ntrue\n```\n\n## Verification Log\n' + rows
 
-test('a test count like "1 failed" in a sign-off is a count, not a verdict', () => {
-  assert.deepEqual(doneIds(watched('make lint exit 0 · pytest exit 1, 2374 passed / 1 failed — the same unrelated test')), ['T1'])
-  // The controls: a failure stated as the verdict still stops.
-  assert.deepEqual(doneIds(watched('the deploy failed on Safari')), [])
-  assert.deepEqual(doneIds(watched('observed; it failed 3 times')), [])
+test('a number never turns a failure word into a count', () => {
+  // A count rule was tried and twice reviewed wider than its case: text cannot tell "2374 passed /
+  // 1 failed" from "Safari 17 passed; 18 failed the manual check" (Codex reviews of 73f930f and
+  // ee82e08). Every one of these stops; T11's summary is cleared by the older-stop rule below instead.
+  for (const note of ['make lint exit 0 · pytest exit 1, 2374 passed / 1 failed — the same unrelated test',
+    'observed; Safari 17 passed; 18 failed the manual check', 'observed; Safari 18 failed, 17 passed',
+    'observed; step 1 passed; 2 cannot proceed', 'observed; step 2 failed on Safari']) assert.deepEqual(doneIds(watched(note)), [], note)
+  // The control: an approval is still done.
+  assert.deepEqual(doneIds(watched('observed end to end')), ['T1'])
 })
 
 test('a human stop older than later exit-0 evidence does not take that evidence back', () => {
@@ -49,11 +53,11 @@ test('a human stop older than later exit-0 evidence does not take that evidence 
   assert.deepEqual(doneIds(fenced(`${EXIT0}\n- 2026-08-27 · human-observed · not approved, it froze\n`)), [])
 })
 
-// The Codex review of 73f930f: each of the three rules above was wider than its case, and each width
-// turned a stop into done. The inputs are the review's own.
-test('a numbered failure is a stop; only a test summary is a count', () => {
-  for (const note of ['observed; step 2 failed on Safari', 'Safari 18 failed the manual check']) assert.deepEqual(doneIds(watched(note)), [], note)
-  for (const note of ['pytest exit 1, 2374 passed / 1 failed — the same unrelated test', 'pytest: 1 failed, 2374 passed, unrelated']) assert.deepEqual(doneIds(watched(note)), ['T1'], note)
+// The Codex review of ee82e08: an exit-0 row dated BEFORE a stop cleared it by sitting below it.
+test('an exit-0 row dated before a stop does not clear it, wherever it sits', () => {
+  assert.deepEqual(doneIds(fenced(`- 2026-08-27 · human-observed · not approved, it froze\n${EXIT0}\n`)), [])
+  // The control: the same row dated after the stop does clear it.
+  assert.deepEqual(doneIds(fenced(`- 2026-08-27 · human-observed · not approved, it froze\n${EXIT0.replace('2026-08-26', '2026-08-28')}\n`)), ['T1'])
 })
 
 test('"no" names one absent thing and never spans into another clause', () => {

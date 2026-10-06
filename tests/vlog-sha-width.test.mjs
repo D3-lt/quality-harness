@@ -168,3 +168,26 @@ test('a lock snapshot whose sha does not fit does not release a moved lock', () 
   writeFileSync(file, text.replace(snapshot, snapshot.replace(snapshot.split(' · ')[1], hex(41))))
   assert.equal(done(dir), false, 'a snapshot whose sha git cannot print here released the lock')
 })
+
+// A review of 8fe4fa8: the writer's own lock readers (`vlog_has_test_lock`, `vlog_has_red`) took
+// every width, so a 41-character snapshot in a SHA-1 repository stood in for a lock, and adr-verify
+// wrote no recovery lock after a lockless red, although the lock reader finds none there.
+test('a lock snapshot whose sha does not fit does not stand in for the recovery lock', () => {
+  const digest = '623181b72832111cc47bf1d638a511e35e20e2c913c90ee60fd97acfb278635e'
+  for (const width of [41, 7]) {
+    const dir = corpus('sha1', hex(7))
+    const file = path.join(dir, T1)
+    const red = `- 2026-10-06 · ${hex(7)} · exit 1 · \`grep -q 'func TestAdd' internal/cart/cart_test.go\` · acceptance-sha256:${digest} · ms:5`
+    const snapshot = `- 2026-10-06 · ${hex(width)} · exit 0 · \`adr-verify --relock\` · acceptance-sha256:${digest} · ms:0 · test-lock-sha256:${'0'.repeat(64)} · test-lock-b64:AAAA · test-lock-kind:relock`
+    writeFileSync(file, readFileSync(file, 'utf8').replace(/\n- 2026-08-\d\d · [^\n]*/, `\n${red}\n${snapshot}`))
+    const run = spawnSync(python, [adrVerify, file], { cwd: dir, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    const written = readFileSync(file, 'utf8').split('\n').filter(line => / · exit 0 · `grep /.test(line)).at(-1)
+    if (width === 41) {
+      assert.match(written, /test-lock-sha256:/, `no recovery lock was written: ${written}`)
+    } else {
+      // The twin: a snapshot git could have written is a lock, and no recovery lock is added.
+      assert.doesNotMatch(written, /test-lock-sha256:/, written)
+    }
+  }
+})

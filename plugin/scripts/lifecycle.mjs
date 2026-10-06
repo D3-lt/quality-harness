@@ -5331,7 +5331,9 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
   const couldNotLook = treeStanding === 'could-not-look'
   const indexUnknown = indexStanding === 'unresolved' || indexStanding === 'could-not-look'
   const revision = checkRevision(log, now.tree)
-  const key = `${now.tree}:${now.index}:${revision}`
+  // A record that could not be read whole is a state of its own: advice already given on this tree
+  // must not swallow the could-not-look advice that follows it (a review of 8fe4fa8).
+  const key = `${now.tree}:${now.index}:${revision}${logIncomplete(log) ? ':unknown' : ''}`
   // ⚠ ONLY THE TREE CAN REFUSE. A check runs on the working tree, and the index is
   // compared against those trees, so a staged change beside an untracked file
   // equals no checked tree and was denied after every pass (found live by a peer,

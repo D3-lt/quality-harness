@@ -867,18 +867,21 @@ def tests_table_rows(text):
     return rows
 
 
-def vlog_has_test_lock(text):
-    """Whether any Verification Log machine row already carries a trailing lock."""
+def vlog_has_test_lock(text, sha_format=None):
+    """Whether any Verification Log machine row already carries a trailing lock.
+
+    Rows whose sha does not fit `sha_format` are not read, as the lock reader does not read them:
+    otherwise such a row stood in for a lock and no recovery lock was written (a review of 8fe4fa8)."""
     return any(_row_lock_sha(line)
                for line, _m in _vlog_machine_rows(
-                   sections_of(text).get("Verification Log", [])))
+                   sections_of(text).get("Verification Log", []), sha_format))
 
 
-def vlog_has_red(text):
-    """Whether any Verification Log machine row has a non-zero exit."""
+def vlog_has_red(text, sha_format=None):
+    """Whether any Verification Log machine row has a non-zero exit (rows whose sha fits)."""
     return any(m.group("exit") != "0"
                for _line, m in _vlog_machine_rows(
-                   sections_of(text).get("Verification Log", [])))
+                   sections_of(text).get("Verification Log", []), sha_format))
 
 
 def declared_check(root):
@@ -3201,7 +3204,7 @@ def decode_lock(token):
 
 def first_red_lock_suffix(text, root):
     """Suffix for the first TDD-red row, or empty when a lock already exists."""
-    if vlog_has_test_lock(text):
+    if vlog_has_test_lock(text, object_format(root)):
         return ""
     digest, token = encode_lock(snapshot_lock(root, tests_table_rows(text)))
     return f" · test-lock-sha256:{digest} · test-lock-b64:{token}"
@@ -3212,7 +3215,7 @@ def lock_suffix_for_run(text, root, code):
 
     A first-ever green (empty log, exit 0) is not first-red and must not lock.
     """
-    if code != 0 or vlog_has_red(text):
+    if code != 0 or vlog_has_red(text, object_format(root)):
         return first_red_lock_suffix(text, root)
     return ""
 

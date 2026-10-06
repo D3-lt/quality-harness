@@ -10113,7 +10113,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if code != 0 or vlog_has_red(text):",
+      "from": "    if code != 0 or vlog_has_red(text, object_format(root)):",
       "to": "    if code != 0:",
       "only": "later green attaches a recovery lock"
     },
@@ -10123,7 +10123,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    return any(_row_lock_sha(line)\n               for line, _m in _vlog_machine_rows(\n                   sections_of(text).get(\"Verification Log\", [])))",
+      "from": "    return any(_row_lock_sha(line)\n               for line, _m in _vlog_machine_rows(\n                   sections_of(text).get(\"Verification Log\", []), sha_format))",
       "to": "    return bool(_LOCK_SHA.search(text))",
       "only": "later green attaches a recovery lock"
     },
@@ -21659,6 +21659,26 @@
       "from": "    unknown: !deny && logIncomplete(log),",
       "to": "    unknown: false,",
       "only": "^(?:git's own hook says a torn ledger is unknown, at commit and at push)$"
+    },
+    {
+      "label": "ADR-088 review 3: the writer's lock reader takes the repository's sha width",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    if vlog_has_test_lock(text, object_format(root)):",
+      "to": "    if vlog_has_test_lock(text):",
+      "only": "^(?:a lock snapshot whose sha does not fit does not stand in for the recovery lock)$"
+    },
+    {
+      "label": "ADR-088 review 3: a newly torn ledger has its own advice key",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "${revision}${logIncomplete(log) ? ':unknown' : ''}`",
+      "to": "${revision}`",
+      "only": "^(?:a ledger torn after the advice was given is said once)$"
     }
   ]
 }

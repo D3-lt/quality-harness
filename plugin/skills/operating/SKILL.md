@@ -30,8 +30,7 @@ narrower than it is.
 
 - A **forwarder** carries the line `quality-harness-forwarder` and resolves the
   newest installed plugin *at call time*. It is current by construction. **Never
-  delete one.** An earlier version of the adopter's own notes advised deleting
-  them, and that advice would have broken a working install.
+  delete one**: removing it breaks a working install.
 - A **copy** is a real file standing where a forwarder should be — a fork that no
   release ever updates. It is the one state that is a finding, and it is not
   cosmetic: a standalone gate has been measured passing a record the plugin's own
@@ -53,7 +52,7 @@ invoking gates by bare name goes on running the old build with no warning.
 IT was loaded from, read from the manifest beside it:
 
     $ adr-lint --version
-    adr-lint 2.63.0 (/Users/you/.claude/plugins/cache/quality-harness/quality-harness/2.63.0)
+    adr-lint 2.63.0 (~/…/plugins/cache/quality-harness/quality-harness/2.63.0)
 
 Ask the gate whose output you are questioning, not a resolver. `qh-root` and
 `qh-doctor` answer "which copy is newest on this machine" — a different question,
@@ -68,12 +67,6 @@ Two calls still earn their place when the answer surprises you:
    and needs `/reload-plugins`.
 2. `node "${CLAUDE_PLUGIN_ROOT}/scripts/qh-doctor.mjs"` — the fuller inventory:
    what is installed, and how many findings block versus advise.
-
-⚠ This section used to open "Verifying an upgrade takes three calls, because no
-gate answers `--version`", and its third step was to run a gate against a real
-record and diff the output against the bare name. That was true until 2026-09-04
-and is the workaround GitHub issue #9's adopter had to invent. ADR-031 removed the
-need for it.
 
 ## Severity is a word, and the word is checkable
 

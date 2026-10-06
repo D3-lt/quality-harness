@@ -26,8 +26,8 @@ task directories as UNPROVEN instead of leaving them alone.
 bytes. `Decision effect` is exactly `governing`, `superseded by <record>`, or `withdrawn`, where
 `<record>` is `ADR-NNN` or a dated record's stem or path.
 
-A record whose name carries no ADR number, such as `YYYY-MM-DD-slug.md`, is named by its stem
-(ADR-063): its row links to it, `[YYYY-MM-DD-slug](YYYY-MM-DD-slug/YYYY-MM-DD-slug.md)`, and a
+A record whose name carries no ADR number, such as `YYYY-MM-DD-slug.md`, is named by its stem:
+its row links to it, `[YYYY-MM-DD-slug](YYYY-MM-DD-slug/YYYY-MM-DD-slug.md)`, and a
 receipt or a `superseded by` names that stem or a path to the record. A four-digit name followed by
 a month and a separator reads as a date, so name such a record with an `# ADR-N` title instead.
 

@@ -1,3 +1,11 @@
+---
+paths:
+  - "plugin/scripts/branch-state.mjs"
+  - "tests/branch-state.test.mjs"
+  - "plugin/hooks/hooks.json"
+  - "scripts/release-evidence.mjs"
+---
+
 # Why §15: ask what CI says about this branch before you plan anything on it
 
 The rule is in `CLAUDE.md` §15. This file is the evidence behind it, and it is one incident.
@@ -47,8 +55,9 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
   `git describe` reads LOCAL refs and `gh release create` tags the remote, so the machine that cuts
   the releases is the one whose anchor goes stale — it printed "a green shipped change is released,
   not parked" over four already-published releases, on every prompt. The count was true and the
-  conclusion was false. It now says *"since v2.81.0, the newest tag THIS CLONE holds — … check `gh
-  release view` before treating this as unreleased"*.
+  conclusion was false. It now says *"plugin/ changed in N file(s) since v2.81.0, the newest tag
+  reachable from HEAD in this clone — a forge release MAY NOT be tagged here, so check `gh release
+  view` before treating this as unreleased (§13)."*
 - ⚠ **A forge lookup was built for this and REMOVED.** It asked `gh release view` and anchored on the
   published release; it worked, and five different-lineage review rounds each found a real defect in
   it — every one in classifying how `gh` can fail (a spent budget, an auth error, a 404 meaning four
@@ -70,16 +79,17 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
   GitLab, `gh run list` took 4,214ms merely to fail, and in a live session it spent the whole
   collection budget — so the HOST killed the hook at 20s and discarded the whole render, including
   the git half. A reader built to end a silence produced one, on every prompt. The discriminator is
-  local: `git config --get-regexp '^remote\..*\.url$'`. **And the skip must not speak for a lookup
-  that never happened** — that command exits 1 when nothing matched, which is a real answer, while a
-  spent budget or an absent git is not. The first fix folded both into "no remote names a GitHub
-  host"; `shell` now carries the exit status so the two keep different words.
+  local: `git remote -v`, searched for a GitHub host. **And the skip must not speak for a lookup
+  that never happened.** It was first `git config --get-regexp '^remote\..*\.url$'`, which exits 1
+  when nothing matched — but a forcibly killed Windows process also exits 1, so "no remote" and
+  "could not ask" looked alike there. `git remote -v` exits 0 with empty output for a repository
+  with no remotes, so the two are told apart by whether the command succeeded, never by an exit code.
 - **A killed run leaves a cache entry.** `cached` used to write only after `gather` returned, so a
   host kill cached nothing and the next prompt re-paid in full — three consecutive 20s timeouts,
   none cheaper than the last. `collect` checkpoints the git half BEFORE `gh` is attempted, and that
   checkpoint says in its own notes what it does not yet know. A floor, never a clean bill.
 - **It reports state, never permission.** `scripts/release-evidence.mjs <sha>` is still the only
   thing that answers "may this sha be released", and this reader deliberately does not restate its
-  verdict (§13.4).
+  verdict (§13.5).
 - `run` is the seam (`CLAUDE.md` §7): every process goes through it, so every arm — red CI, missing
   `gh`, a run still in flight — is reachable from a test on a host with no network and no remote.

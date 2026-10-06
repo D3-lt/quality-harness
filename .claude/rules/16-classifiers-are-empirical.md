@@ -1,3 +1,14 @@
+---
+paths:
+  - "plugin/scripts/lifecycle.mjs"
+  - "plugin/scripts/shell-words.mjs"
+  - "plugin/bin/adr-lint"
+  - "plugin/bin/spec-verify"
+  - "tests/publish-command.test.mjs"
+  - "tests/shell-words.test.mjs"
+  - "tests/lifecycle.test.mjs"
+---
+
 # Why §16: a classifier is an empirical claim, and an unrecognised input is not a safe one
 
 The rule is in `CLAUDE.md` §16. This file is the evidence, and all of it is one day: 2026-09-08,
@@ -95,7 +106,7 @@ subprocess.run(["find", ".", "-exec", "./mutate", "{}", ";"])
 subprocess.run(["grep", "x", "in"], stdout=open("out.txt", "w"))  # writes a file the argv never names
 ```
 
-It is an allowlist now. The same inversion produced the Markdown-only marker suppression that let
+It became an allowlist, and ADR-060 T7 later deleted the classifier outright (2026-09-18). The same inversion produced the Markdown-only marker suppression that let
 `python3 -c "open(\"plugin/bin/adr-lint\",\"w\")…" docs/BACKLOG.md` launder a gate rewrite through
 the docs-only escape.
 

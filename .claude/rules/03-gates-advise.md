@@ -5,7 +5,7 @@ paths:
   - "scripts/**"
 ---
 
-# Why §3: gates instruct; they never block
+# Why §3: gates instruct; two refusals are sanctioned
 
 The rule is in `CLAUDE.md` §3. This file is the evidence behind it.
 
@@ -50,8 +50,10 @@ the plugin every session on the machine loads, so a peer session met the refusal
 release. It was denied a correct commit after a passing check, on every retry. The cause was the
 index being looked up among checked trees; that is fixed, and only the tree can refuse now. The
 session that fixed it was refused once too, by a heredoc whose body contained the word "commit".
-That false refusal is kept by the owner's choice, because narrowing it needs command parsing, which
-ADR-060 retired.
+That false refusal was kept at first, by the owner's choice, because narrowing it needed command
+parsing, which ADR-060 had retired; since ADR-067 (2026-09-23) the refusal reads the command as the
+shell splits it, so a heredoc body is data and a mere mention is warned about, not refused
+(`plugin/scripts/lifecycle.mjs`, BACKLOG §269).
 
 So the exception comes with its own rule: **a refusal needs an Accepted record and an opt-out.**
 Here the opt-out is `"publish": "warn"` in `.quality-harness.json`. Only that exact value counts;

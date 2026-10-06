@@ -153,6 +153,28 @@ does. Config-only assertions are invisible to every gate here — such a test ge
 not for the reason anyone cares about — so this one is caught by an independent reviewer or not at
 all.
 
+### 2026-09-01 — a `done` forged by transcription
+
+Reported 2026-09-01 as quality-harness GitHub issue #4 and reproduced end to end: a task was driven
+from `pending` to `done` past `adr-lint` at exit 0 with hand-typed Verification Log entries and no
+command executed. The acceptance digest is a pure function of the task file's text, so a local gate
+cannot tell a run from a transcription; the pipeline raises the cost of forging instead.
+
+### 2026-09-02 — the mutation pass already ran the clean fence
+
+From quality-harness ADR-025 the `--mutant` pass records the Verification Log entry its clean fence
+earned instead of discarding it. Measured 2026-09-02, a second plain `adr-verify` after it was 94 of
+281 fence executions across the quality-harness corpus, and on a corpus whose suite takes 40s it is
+minutes per task.
+
+### 2026-09-07 — a fence bound that lived only in the environment
+
+Reported from an outside corpus, 2026-09-07: the fence timeout was environment-only, so a task whose
+Acceptance is a full container suite needed `QUALITY_HARNESS_FENCE_TIMEOUT` exported by whatever
+launched the gate, and forgetting cost `UNPROVEN` after thirty minutes — the right failure, at the
+price of a thirty-minute discovery. `fenceTimeout` in `.quality-harness.json` is the project's
+standing answer.
+
 ### 2026-09-10 — `adr-next` reads "withdrawn" in a human sign-off as STOP
 
 A negative word anywhere in `--human` text wins (`withdraw`, `not `, `fail`, `stop`, …). A task whose prescribed sign-off is `withdrawn in <sha>` — the criterion's success branch, not a stop — routed `stopped` while its README said `done`. State an affirmative verb (`observed`, `signed-off`) and name a retired arm as `retired`, not `withdrawn`. Do not edit the first log line: append a second.

@@ -47,11 +47,9 @@ Status: `pending` | `partial` | `blocked` | `done`.
   only someone with other access can confirm it, say who.
 - `done` — finished, with tool-written acceptance and mutation evidence to match.
 
-`running` and `failed` are NOT in this vocabulary. They were in an earlier version of this
-legend and the gates never acted on them, so a task following the template was reported as
-carrying a status the checks skipped. One word with two corpora behind it is a decision;
-five words with one legend behind them is a taxonomy, and taxonomies are where vocabularies
-go to rot (ADR-014).
+Use only these four words here: the gates act on no other status in this index. A task that will
+never be built says so in its own file — `**Status:** withdrawn`, `superseded`, `abandoned` or
+`cancelled` — and `adr-next` reports it as stopped.
 
 ## Contract Coupling
 

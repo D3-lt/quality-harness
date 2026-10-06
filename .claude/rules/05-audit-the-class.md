@@ -16,12 +16,12 @@ it. Siblings you leave are new tasks, named in the record.
 
 ## The class includes the change you are writing
 
-Measured 2026-09-08. `plugin/scripts/lifecycle.mjs:1026` carries this comment, from a live report on
+Measured 2026-09-08. `plugin/scripts/lifecycle.mjs:1026` then carried this comment (deleted with the command classifiers by ADR-060 T7 on 2026-09-18), from a live report on
 2026-08-26:
 
 > `(?<![-\w])` not `\b`: a hyphen is a word boundary, so `--rm` matched the `rm` command.
 
-The instance was fixed there. The class was never swept. Four months of that comment sitting in the
+The instance was fixed there. The class was never swept. Under two weeks of that comment sitting in the
 repository did not stop the same author writing `go\s+test\b` into `plugin/bin/adr-lint` two files
 away, where it matched `go test-helper`, `cargo test-fuzz run` and `node --test-reporter=x` — each
 then classified as a MEASURED runner, which is the half that permits a blocking failure (BACKLOG

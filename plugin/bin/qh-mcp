@@ -369,15 +369,18 @@ reading_tool(
     "Check one ADR and its task files against the quality-harness rules: status "
     "line, alternatives, wiring, out-of-scope dispositions, task acceptance "
     "fences, the task DAG, and whether a task claiming `done` carries matching "
-    "exit-0 evidence. Exit 0 = well formed; exit 1 = findings, which are ADVICE "
-    "and never a refusal — read them and decide. Reads only; changes nothing.",
+    "exit-0 evidence. Exit 0 = no failures, though `advice:` lines may still be "
+    "printed and are findings to read; exit 1 = failures found. Neither is a "
+    "refusal — read them and decide. Reads only; changes nothing.",
     {
         "type": "object",
         "properties": {
             "adr": {"type": "string", "description": "Path to the ADR markdown file."},
             "tasks_dir": {"type": "string",
-                          "description": "Path to its tasks directory. Defaults to a `tasks/` "
-                                         "directory beside the ADR."},
+                          "description": "Path to its tasks directory. Omitted, the first that exists of "
+                                         "`tasks/` beside the ADR, `<ADR file name without .md>/tasks/`, or "
+                                         "`ADR-NNN/tasks/` is used; with none, only ADR-level checks run and "
+                                         "no task evidence is checked."},
         },
         "required": ["adr"],
         "additionalProperties": False,
@@ -389,7 +392,11 @@ reading_tool(
     "qh_adr_next",
     "Report which task of an ADR is ready to start and why the others are not, "
     "computed from the task files' Depends-on headers and their recorded "
-    "evidence. Exit 0 = report printed. Reads only; changes nothing.",
+    "evidence. Exit 0 = a task is ready (printed alone, or among `all`'s rows); "
+    "exit 3 = nothing is ready: every task is done, blocked or stopped (`all` "
+    "still prints every row) - an answer, not a failure; exit 1 = the ADR or "
+    "tasks directory could not be read, or holds no task files, so there is no "
+    "report. Reads only; changes nothing.",
     {
         "type": "object",
         "properties": {
@@ -409,8 +416,8 @@ reading_tool(
     "`(deferred: <pointer>)` and every unchecked follow-up, with the pointers "
     "resolved. Permanent entries are chosen boundaries or cited facts; neither "
     "kind is reported, including legacy permanent spellings. Exit 0 = report "
-    "printed and every pointer resolves; exit 1 = a "
-    "pointer resolves to nothing. Reads only; changes nothing.",
+    "printed and every pointer resolves; exit 1 = a deferral with nothing after "
+    "the colon, or a pointer that resolves to nothing. Reads only; changes nothing.",
     {
         "type": "object",
         "properties": {
@@ -427,13 +434,15 @@ reading_tool(
     "qh_adr_judge",
     "Judge an ADR on the two axes a schema cannot see — whether it rests on "
     "anything observable, and whether a future reader will know what was decided "
-    "— using rules rather than a model verdict. ALWAYS advisory: the exit code is "
-    "0 whatever it finds, and the only non-zero exit is a broken invocation. Pass "
+    "— using rules rather than a model verdict. Always advisory: the exit code is "
+    "0 whatever it finds. Its only non-zero exit, 2, means it could not run — a "
+    "broken invocation, or a named path that exists but could not be read (a "
+    "directory, say) — and comes back as an error, not as content. Pass "
     "`rubric` to print the questions instead of answering them. Reads only.",
     {
         "type": "object",
         "properties": {
-            "adr": {"type": "string", "description": "Path to the ADR markdown file."},
+            "adr": {"type": "string", "description": "Path to the ADR markdown file. Required unless `rubric` is true; a call with neither is refused."},
             "rubric": {"type": "boolean",
                        "description": "Print the rubric questions instead of judging a record."},
         },
@@ -446,8 +455,9 @@ reading_tool(
     "qh_arch_lint",
     "Check a per-repo architecture document: required sections, a module map with "
     "real paths, and — the part that matters — that every rule row names an "
-    "executable check which exists and can actually fail. Exit 0 = well formed; "
-    "exit 1 = findings, which are ADVICE. Reads only; changes nothing.",
+    "executable check which exists and can actually fail. Exit 0 = no failures, "
+    "though `advice:` lines may still be printed and are findings to read; exit 1 "
+    "= failures found. Both are ADVICE. Reads only; changes nothing.",
     {
         "type": "object",
         "properties": {
@@ -578,7 +588,8 @@ reading_tool(
     "Which accepted decisions govern the given paths, and which retired ones were "
     "killed there — the context a Claude Code session gets from the plugin's hooks "
     "before it edits, for a client that runs no hooks. Reads the ADR corpus under "
-    "the repository root (derived from the first path, or given); changes nothing.",
+    "the repository root (derived from the first path, or given); changes nothing. "
+    "Exit 0 whatever it finds: 'no decision governs this path' is an answer, not a finding.",
     {
         "type": "object",
         "properties": {
@@ -608,7 +619,9 @@ reading_tool(
     "The session orientation Claude Code gets from this plugin's SessionStart hook, "
     "for a client that runs no hooks: the project's own check and how the gates "
     "treat it, ADR tasks in flight, and whether a stale standalone copy would "
-    "answer instead of the plugin. Reads the directory named; changes nothing.",
+    "answer instead of the plugin. Reads the directory named; changes nothing. "
+    "Exit 0 either way; an empty orientation is said in one line ('Nothing to orient "
+    "in <directory>') rather than returned blank.",
     {
         "type": "object",
         "properties": {

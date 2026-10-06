@@ -53,9 +53,10 @@ resolve to nothing:
     **Enforced-by:** `tests/package.test.mjs::every shipped gate carries at least one mutation`
     **Enforced-by:** `adr-lint`
 
-A MUTATION LABEL is the strongest: `mutate.mjs` grades it RED or GREEN on every campaign, so the
-claim is measured rather than asserted. A TEST ID proves the check exists, not that it can fail —
-that is ADR-003's rule and the campaign's job. A GATE NAME is the weakest and the broadest.
+A MUTATION LABEL is the strongest: a label in the repository's `tests/mutations.json` names a
+mutation its campaign grades RED or GREEN on every run, so the claim is measured rather than
+asserted. A TEST ID proves the check exists, not that it can fail — that is the mutation's job. A
+GATE NAME is the weakest and the broadest.
 
 `None — <reason>` is a first-class answer, not a failure to fill something in. Most durable decisions
 have no cheap mechanical enforcement, and a record that says so is carrying information the corpus
@@ -165,7 +166,7 @@ sweep reports clean while the work exists nowhere. Measured 2026-08-20 on a nine
 75 deferrals named a destination that had never heard of them. Same shape as the capability that is
 finished and unreachable — the link exists, the receiving end does not know it. So: write the entry
 at the destination in the SAME commit as the deferral, and name the source ADR there so the tie is
-greppable. `adr-debt` now reports `UNRECEIPTED` when it is not.>
+greppable. `adr-debt` reports `UNRECEIPTED` when it is not.>
 
 - <explicit non-goal> (permanent: boundary: <why this is a chosen limit, not a punt>)
 - <fact-based non-goal> (permanent: fact: <external claim>; citation: <typed receipt>)

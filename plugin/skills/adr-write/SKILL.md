@@ -75,11 +75,10 @@ Ask one concise question for anything missing:
 
 ## Workflow
 
-**These reads are independent of each other — issue them in ONE call.** Measured 2026-09-02 on a
-26-record corpus: the six commands below cost 1.87s run separately and 1.34s chained. Half a second.
-The compute is not what this stage costs — the TURNS are, and six to eight round trips before a word
-is drafted is where the minutes a user notices actually go. Nothing here needs the previous answer,
-so nothing here needs its own turn:
+**These reads are independent of each other — issue them in ONE call.** The compute is not what this
+stage costs — the TURNS are, and six to eight round trips before a word is drafted is where the
+minutes a user notices go. Nothing here needs the previous answer, so nothing here needs its own
+turn:
 
 ```bash
 A=docs/adr   # your corpus root; every command below reads and none of them writes
@@ -114,8 +113,8 @@ careful read of all of it. What is being removed is round trips, never attention
 2. Draft the ADR as `Proposed`. When a spec exists: set the `Spec:` header to its path; inherit
    Contracts/Non-Goals/Risks by reference (deltas only — never re-transcribe the tables); distribute
    every @spec fact/scenario ID into task `Covers:` headers so the union covers the spec.
-3. If implementation has more than 3 small tasks, create `tasks/README.md` plus one task file per
-   independently executable task. Task files are the source of truth; the README is a derived index.
+3. Create `tasks/README.md` plus one task file per independently executable task, at every size (see
+   Task Layout by Size). Task files are the source of truth; the README is a derived index.
 
    Four things an author gets wrong by default. Each cost a real debug cycle:
 
@@ -170,8 +169,7 @@ leaving the reader to guess.
 - Each task file carries a `## Mutation Log` section. It is TOOL-WRITTEN by `adr-verify --mutant` at
   execution time and empty at authoring — but the section has to exist, because `adr-verify` refuses
   to record a mutant into a task that has nowhere to put it, and `adr-lint` requires a `mutant
-  killed` entry before a task recorded from 2026-08-22 can be `done`. The old hand-filled
-  `## Mutants` table it replaces was the last piece of self-declared evidence in the pipeline.
+  killed` entry before a task recorded from 2026-08-22 can be `done`.
 - A plan may not say "implement X" unless it also states how execution proves X is done.
 - Every new task retains `**Proof map:** v1`. Each top-level Ordered Step starts with a stable
   `[S<n>]` identity, independent of its list ordinal, and the Tests table uses the exact header
@@ -204,7 +202,7 @@ leaving the reader to guess.
   limit this ADR chooses, `(permanent: fact: <claim>; citation: <typed receipt>)` for an external
   premise, and `(deferred: <pointer>)` for punted work. A typed receipt is `file` followed by a
   backticked `<repository-path>:<line>`, `version` followed by a backticked `<name>@<version>`, or
-  `url` followed by `https://<host>[/<path>]`. `adr-lint` advises on legacy `(permanent)` /
+  `url` followed by `https://<host>[/<path>]`. `adr-lint` gives advice on legacy `(permanent)` /
   `(permanent: <reason>)` spellings without changing their permanent meaning; `adr-debt` sweeps
   only deferred entries so they resurface.
 
@@ -219,15 +217,9 @@ detour or weakens the proof.
 ## Task Layout by Size
 
 - **≤3 tasks**: `tasks/` directory with task files and a flat `README.md`, same as 4–5. It is
-  three small files, and it is the only shape the evidence chain can cover.
-
-  This used to say "inline numbered list inside the ADR, no `tasks/` directory", and that
-  advice routed small work into the one place the anti-fabrication guarantee does not apply.
-  `adr-verify` appends its Verification Log and Mutation Log to a TASK FILE; without one
-  there is nowhere for tool-written evidence to land. `adr-lint` runs ADR-level checks only
-  when there is no tasks directory, so `done_task_ids` and `evidenced_task_ids` read an index
-  that does not exist. Measured 2026-08-26: an ADR with three inline tasks all marked
-  **done**, and no evidence anywhere, passes `adr-lint` with exit 0.
+  three small files, and it is the only shape the evidence chain can cover: `adr-verify` appends its
+  Verification Log and Mutation Log to a task file, and without a tasks directory `adr-lint` runs
+  ADR-level checks only.
 - **4–5 tasks**: `tasks/` directory with task files + a flat `README.md` listing tasks in execution order with `Depends-on` per task. Skip the ASCII DAG diagram.
 - **>5 tasks**: full `tasks/README.md` with wave table (parallel-safe groups); ASCII DAG only when it clarifies complex branching (matches the template).
 

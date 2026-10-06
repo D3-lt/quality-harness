@@ -1,7 +1,7 @@
 export const meta = {
   name: 'quality-cycle',
   description: 'Read-only high-risk review: correctness and scope/simplicity passes, optional Codex, then one evidence-bound synthesis',
-  whenToUse: 'After caller-observed validation for high-risk changes. args: {repo, scope, requirements, nonGoals, evidence, codex, cursor, pi, externalReviews}. codex/cursor/pi each REQUEST a host review: first run node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host <host> --repo <root> --scope <scope> and pass its JSON in externalReviews, or the cycle is reviewer-unavailable. Not for tiny or routine changes.',
+  whenToUse: 'After caller-observed validation for high-risk changes. args: {repo, scope: "uncommitted" | "commit <sha>" | "base <ref>" (default "uncommitted"; the same string is passed to host-review.mjs --scope), requirements, nonGoals, evidence, codex, cursor, pi, externalReviews}. codex/cursor/pi each REQUEST a host review: first run node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host <host> --repo <root> --scope <scope> and pass its JSON in externalReviews, or the cycle is reviewer-unavailable. Not for tiny or routine changes.',
   phases: [{ title: 'Review' }, { title: 'Synthesize' }],
 }
 

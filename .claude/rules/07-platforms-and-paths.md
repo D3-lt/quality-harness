@@ -54,7 +54,7 @@ file — what matters is the answer git gives for the path.
   returns status `null`, which is not an error and not a failure. Spawn through the interpreter.
 - Git Bash resolution must exclude the `System32` WSL stub and the WindowsApps launcher — both are
   named `bash` and neither is one. Both are filtered, at both sites, by one pattern:
-  `[\\/](?:system32|windowsapps)[\\/]?$` in `resolve_bash()` (`plugin/bin/adr-verify`) and in
+  `[\\/](?:system32|windowsapps)[\\/]?$` in `resolve_bash()` (`plugin/lib/fence.py`, which `plugin/bin/adr-verify` star-imports) and in
   `resolveBashExecutable` (`plugin/scripts/run-shell-hook.mjs`). **What makes that sentence usable
   is not this file — it is `tests/gates.test.mjs` and `tests/lifecycle.test.mjs`, which drive each
   resolver through its `(platform, env, exists)` seam on the PATH BACKLOG §91 measured and assert

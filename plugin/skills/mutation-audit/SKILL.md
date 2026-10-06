@@ -103,7 +103,7 @@ better than a hand-written list, and leaves you free to spend the list on the ab
 ## Choosing what to gate at all
 
 This skill measures what a suite detects. The question upstream of it — what
-deserves a gate — has one answer, and ADR-003 in this repository records it:
+deserves a gate — has one answer, and this plugin's design records it:
 
 > **Don't ask for simple code, ask for code whose mechanism a deleted line
 > breaks.**
@@ -173,7 +173,7 @@ otherwise is decoration. The pattern that works: put the platform's vocabulary i
 **classifier** with its own table of strings and exit codes, test the classifier
 directly on that vocabulary, and mutate the table.
 
-This repository's `validationVerdict` is the worked example — `cmd.exe`, PowerShell,
+This plugin's `validationVerdict` (`scripts/lifecycle.mjs`) is the worked example — `cmd.exe`, PowerShell,
 Win32 and Docker Desktop failure text and exits 126/127/9009 map to a verdict, and
 deleting an entry from the table fails a test on any host. The audit is of the
 mapping, which is where the bug was: before the taxonomy, 8 of 9 Windows shapes were
@@ -212,8 +212,11 @@ in the entry, and prove the narrowed run still kills the mutant before you trust
 `node --test` exits **0** and reports the FILE as one passing test, so a mutant under
 it reads GREEN — "the tests did not notice", said of tests that never ran. pytest
 exits **5** (no tests collected), so a runner checking only `!= 0` calls it a kill.
-Opposite symptoms, one rule: a filter that selected nothing is an UNRUN baseline and
-its mutant is UNPROVEN, never a verdict either way (ADR-005). Check what your runner
+Opposite symptoms, one rule: a filter that selected nothing measured nothing, so its
+mutant is neither GREEN nor RED. A runner that knows how many tests a narrowed entry
+names should report a baseline that ran fewer of them, none included, as STALE, which
+fails the campaign; a baseline that could not be shown to run anything is UNPROVEN
+(ADR-005). Check what your runner
 reports RAN, not just what it exited with — and use the same filter for the mutant and
 its baseline, or the baseline licenses a different measurement than the one taken.
 
@@ -265,15 +268,18 @@ replacement, and the tests that should notice:
 `from` must match **exactly once** in the file, or the entry no longer describes the
 code and asserts nothing.
 
-Four verdicts, and two of them are not the pair people expect:
+Five verdicts, and three of them are not the pair people expect:
 
 - **RED** — the tests noticed. This is success.
 - **GREEN** — the tests did not. The mechanism is broken and the suite is content.
 - **HUNG** — noticed, but by never terminating. Real: removing an upward-walk guard
   makes the loop run forever because a filesystem root is its own parent. A hang is
   not a pass and not an ordinary failure.
-- **STALE** — the string matched zero or many times. The entry has rotted and is
-  measuring nothing, which looks identical to passing until you check.
+- **STALE** — the string matched zero or many times, or a narrowed entry's baseline ran
+  fewer tests than it names. The entry has rotted and is measuring nothing, which looks
+  identical to passing until you check.
+- **UNPROVEN** — the unmutated baseline did not pass, or could not be shown to run
+  anything, so whatever the mutant did proves nothing either way.
 
 When a mutation comes back GREEN, **fix the test, not the code**. The code was
 correct before you broke it. What is missing is the assertion, and writing one that

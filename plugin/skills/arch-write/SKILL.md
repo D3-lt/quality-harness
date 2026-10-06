@@ -79,9 +79,9 @@ Grill rules (inherited from /quality-harness:spec-write):
    fix the code or supersede the rule, never soften the check.
 6. **Red proof for every new check:** deliberately violate the rule (or mutate the input),
    observe the check FAIL, revert. A gate never seen red is unverified — the vacuous-pass modes
-   in `references/gate-catalog.md` (escaped `\|`, `! grep` on a missing path, zero-match `-k`
-   selectors) all read as coverage while checking nothing. `arch-lint` catches the static ones;
-   the red proof catches the rest.
+   in `references/gate-catalog.md` (escaped `\|`, `! grep` on a missing path, a selector that
+   matches nothing under a runner or wrapper that exits 0 on it) all read as coverage while checking
+   nothing. `arch-lint` catches the static ones; the red proof catches the rest.
 
 ## grill-only mode
 

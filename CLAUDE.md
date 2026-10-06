@@ -59,12 +59,12 @@ python3 scripts/test-locks.py <test-file> [name]    # before editing an existing
 
 Why: `.claude/rules/02-running-the-checks.md`
 
-## 3. Gates instruct; one refusal is sanctioned
+## 3. Gates instruct; two refusals are sanctioned
 
 - A gate advises and never prevents an attempt. `errors.advise(...)` is advisory,
   `errors.append(...)` is blocking; moving a finding between them is a behaviour change.
-- **Two refusals are sanctioned, and no others.** ADR-061's publish refusal: a command naming
-  commit or push on a tree no `qh-check` has passed on, when the session log was read whole — and,
+- **Two refusals are sanctioned, and no others.** ADR-061's publish refusal: a command that invokes
+  `git commit` or `git push` (a mention is warned about, not refused) on a tree no `qh-check` has passed on, when the session log was read whole — and,
   where the session's git hook has run (ADR-066), the commit or push refused by git at the event
   itself, whatever launched it; a
   project turns it back into a warning with `"publish": "warn"` in `.quality-harness.json`. A command
@@ -207,7 +207,7 @@ CI not finished means not green.
    to tag**: `gh run list --commit <sha> --limit 1` until it answers, then `gh workflow run
    selftest.yml --ref main`. A push measures only what its cache could not reuse; only a dispatched
    run measures the whole catalogue, and `release-evidence` refuses a sha whose newest run was a
-   push. Dispatching immediately loses that ordering by a second, three times in four (§159).
+   push. Dispatching immediately can lose that ordering by a second (BACKLOG §159).
 4. Wait for **every** CI job — ask for the list, never carry a count.
 5. `node scripts/release-evidence.mjs <sha>` and act only on its **SUCCESS**. Never read a watch's
    exit code. Its own header defines its exit codes; when a summary elsewhere disagrees, the header
@@ -235,7 +235,8 @@ Why: `.claude/rules/13-releasing.md`
 - **Read before you write; it is enforced per line.** A refusal is the tool working — read what it
   names and re-read the range. Never `--force` past one.
 - **All-or-nothing.** A failed hunk writes nothing. Read the exit code, never through a pipe;
-  `--json` for a receipt, `--check` to run the affected tests after applying.
+  `--json` for a receipt. The declared check runs after a write to a non-prose path unless you pass
+  `--no-check`; `--check` forces it on a prose-only plan; exit 3 means the write applied and the check failed.
 - **Wake up in the palace before touching code:** `am_status`, then `am_search` for the subsystem
   or symbol, then the inbox. Query memory before grepping unfamiliar code; grep only the gap.
 - **This project's wing is `wing_quality-harness`.** Craft that would be true in a repository
@@ -259,7 +260,7 @@ Why: `.claude/rules/14-mrw-and-team-memory.md`
   every prompt. An unchanged brief reprint is unread; suppress it. It reads, blocks nothing, and exits 0
   whatever it finds. Run it by hand any time.
 - It reports state, never permission. **`node scripts/release-evidence.mjs <sha>` remains the only
-  answer to "may this be released"** (§13.4).
+  answer to "may this be released"** (§13.5).
 
 Why: `.claude/rules/15-know-what-ci-says.md`
 

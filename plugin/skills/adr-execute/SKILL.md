@@ -35,10 +35,8 @@ The verdict line says `[strictFrom] …` whenever it is in effect, so a demoted 
 mistaken for a clean one.
 
 **A fence that legitimately takes longer than half an hour.** The same file takes
-`{"fenceTimeout": 3600}`, in seconds. Without it the bound was environment-only, so a task whose
-Acceptance is a full container suite needed `QUALITY_HARNESS_FENCE_TIMEOUT` exported by whatever
-launched the gate — and forgetting cost `UNPROVEN` after thirty minutes, which is the right failure
-at the price of a thirty-minute discovery. Reported from an outside corpus, 2026-09-07.
+`{"fenceTimeout": 3600}`, in seconds. Without it, a fence that runs past the thirty-minute default
+records `UNPROVEN` unless whatever launched the gate exported `QUALITY_HARNESS_FENCE_TIMEOUT`.
 
 The environment variable still wins where both are set: it is a per-RUN override and the suite's own
 seam, while the file is your project's standing answer. ⚠ A value that is not a positive number of
@@ -109,9 +107,9 @@ it proves, and it is worth having.
 
 **What it does NOT prove is that a command ran.** The digest is a pure function of text already in
 the task file, so anyone holding the file can compute it; a local gate reading local files cannot
-distinguish a run from a transcription, and no version of this will. Reported 2026-09-01 (GitHub
-issue #4), reproduced end to end: a task was driven from `pending` to `done` past `adr-lint` at
-exit 0 with hand-typed entries and no command executed. What the pipeline does is raise the COST —
+distinguish a run from a transcription, and no version of this will. Hand-typed entries in the
+right grammar have driven a task from `pending` to `done` past `adr-lint` at exit 0 with no command
+executed. What the pipeline does is raise the COST —
 `adr-lint` rejects any entry off-grammar, refuses a digest-less row that is not already committed,
 and requires a killed mutant beside the pass — so forging costs about as much as complying. Read a
 `done` as "evidence was recorded in the shape a run produces", never as "a run happened". A
@@ -156,7 +154,7 @@ the step exists for.
 
 ⚠ **Never chain a commit onto a check.** `<check> ; git commit` reports the exit status of the
 COMMIT, so a failing gate sails straight into history — and `<check> && git commit` is right only if
-you then read the result. Both spellings have put a red tree on `main` in this repository.
+you then read the result. Both spellings have put a red tree on `main`.
 
 
 1. **Research & Plan**: Quickly read the task spec and affected files. Resolve ambiguities.
@@ -198,7 +196,7 @@ you then read the result. Both spellings have put a red tree on `main` in this r
    **This does not make the task `done`.** The `done` gate wants a killed mutant carrying the
    acceptance digest of the fence it proved, and a hand-reported row has none because no fence ran.
    A task with real work, real verification and a real hand-performed kill behind an unrunnable
-   fence is `partial` (ADR-014) — record the kill, then say the task is not finished. The lane
+   fence is `partial` — record the kill, then say the task is not finished. The lane
    raises the floor, never the ceiling: if a typed row unlocked `done`, declaring a fence unrunnable
    would be the cheap path to the strongest claim in the system, resting on the one field nothing
    can check.
@@ -227,13 +225,11 @@ you then read the result. Both spellings have put a red tree on `main` in this r
 4. **Validate**: Run `adr-verify <task.md>` (it runs the Acceptance fence and
    appends the log entry itself).
 
-   ⚠ **If you just recorded a mutation, this is already done.** Since ADR-025 the
-   `--mutant` pass records the Verification Log entry its clean fence earned: it runs the exact
-   normalized fence before applying the mutant, requires it to pass, and now writes down what it
-   observed instead of discarding it. Running `adr-verify <task.md>` after `adr-verify <task.md>
-   --mutant …` is the SAME fence on the SAME bytes a second time — measured 2026-09-02, that
-   duplicate was 94 of 281 fence executions across this corpus, and on a corpus whose suite takes
-   40s it is minutes per task.
+   ⚠ **If you just recorded a mutation, this is already done.** The `--mutant` pass
+   records the Verification Log entry its clean fence earned: it runs the exact normalized fence
+   before applying the mutant, requires it to pass, and writes down what it observed. Running
+   `adr-verify <task.md>` after `adr-verify <task.md> --mutant …` is the SAME fence on the SAME
+   bytes a second time, which on a slow suite costs minutes per task.
 
    **Two cases still need their own run, and skipping them removes a check rather than a
    duplicate.** A task with **no mutation to record** — a `--human` sign-off, or a task whose
@@ -273,7 +269,7 @@ Prefer inline execution. Use subagents only when they save more parent context t
 
 When dispatching a subagent, the prompt must enforce:
 
-- **No preamble.** No "I'll analyze...", no plan recap, no warm-up.
+- **Lead with the result.** The coordinator reads only the final message.
 - **No restating the task.** The coordinator already has it.
 - **Read budget.** Read only the task's `Affected Files` plus what they directly import. Cap at 10 files. If more is needed, return `blocked: needs <paths>`.
 - **Search before read.** Use `Grep`/`Glob` to locate symbols. Do not read whole large files to find one definition.
@@ -282,9 +278,9 @@ When dispatching a subagent, the prompt must enforce:
   - `result`: `done` | `blocked` | `failed`
   - `files_changed`: list of paths
   - `acceptance`: command + exit code + last 10 lines of output
-  - `notes`: ≤5 bullets of deltas the coordinator cannot see in the diff
+  - `notes`: only the deltas the coordinator cannot see in the diff
 - **One stage per dispatch.** Do not chain research + implement + review in one subagent.
-- **Output cap:** 400 words. Over budget = truncate and mark `blocked`.
+- **Return only what the coordinator acts on:** the structured fields above, not narrative.
 - **No speculation.** If ambiguous, return `blocked` with the question.
 
 ## Audit the class, not the instance
@@ -354,7 +350,7 @@ report, for each defect this execution hit that a rule could have prevented:
    rule plus the mechanism that made it invisible — not a narrative of what happened. The test for
    whether it belongs in `wing_craft`: would the sentence still be true in a repository sharing no
    code with this one?
-2. **If it is a rule for THIS stage, append it to the Lessons section below**, dated, one or two
+2. **If it is a rule for THIS stage, append it to [references/lessons.md](references/lessons.md)**, dated, one or two
    sentences. That is what makes the skill mutate instead of the same defect being rediscovered by
    whoever executes next.
 3. **If a gate could have caught it mechanically, change the gate** (`adr-lint`,
@@ -373,10 +369,7 @@ debug cycle. **Read it before writing an acceptance fence or judging whether a t
 where the gate-that-cannot-fail cases live: a filter that matches nothing exiting 0, a mutant nobody
 killed, a `done` row with no exit-0 entry behind it.
 
-It is a supporting file rather than part of this skill's body on purpose. It was 155 of this file's
-396 lines, all of it accumulated history, loaded in full on every invocation — and the behavioural
-evals showed this skill's instructions were not reaching the model. Guidance at word 3,000 competes
-with everything above it.
+It is a supporting file so that this skill's instructions are not buried under accumulated history.
 
 ## Completion Report
 

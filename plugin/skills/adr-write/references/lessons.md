@@ -84,3 +84,14 @@ The rule: when a defect comes from a shared shape rather than a typo, enumerate 
 the question. Reading tells you which are candidates; only running tells you which are defects. And
 write the audit as a test over the CLASS, so the next sibling added is asked the same question
 without anyone remembering to ask it.
+
+### 2026-08-26 — this skill routed small work around the evidence chain
+
+It said "≤3 tasks: inline numbered list inside the ADR, no `tasks/` directory", the one place the
+anti-fabrication guarantee does not apply. Measured 2026-08-26: an ADR with three inline tasks all
+marked **done**, and no evidence anywhere, passes `adr-lint` with exit 0.
+
+### 2026-09-02 — the authoring reads cost turns, not compute
+
+Measured 2026-09-02 on a 26-record corpus: the six pre-drafting commands cost 1.87s run separately
+and 1.34s chained — half a second. The cost a user notices is the round trips.

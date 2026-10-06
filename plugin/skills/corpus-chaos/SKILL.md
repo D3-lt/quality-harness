@@ -68,19 +68,17 @@ Two roles. Run the one you are in.
 4. **Where the probe cannot reach, run the readers by hand** and paste the output whole:
    `work-next.mjs --json`, `adr-state.mjs`, `adr-next <tasks-dir> --json`, `adr-lint <record>
    <tasks-dir>`, and a real SessionStart (a new session, or the hook fed a valid JSON payload on
-   stdin — an unparsable payload is now said on stderr).
+   stdin — the hook reports an unparsable payload on stderr).
    ⚠ **The hooks that fire in your session are the INSTALLED plugin's, not the checkout's.** A
    clone checked out at the revision under test changes nothing about what your Bash calls run
-   through; a Windows runner measured 2.105.0's hook while standing in a b149b50 clone and said so
-   rather than pasting it. To test a checkout's hook, feed it the payload yourself, with `cwd`
+   through. To test a checkout's hook, feed it the payload yourself, with `cwd`
    naming a scratch clone (Chaos step 1), never the probed repository:
 
        printf '%s' '{"hook_event_name":"PreToolUse","tool_name":"Bash","cwd":"<scratch clone>","session_id":"probe","tool_input":{"command":"grep -rn \"git push\" docs/"}}' | node <checkout>/plugin/scripts/lifecycle.mjs
 
    and paste stdout and stderr whole, saying which revision `<checkout>` was at.
    ⚠ **The hook WRITES.** It appends to `<cwd>/.git/quality-harness/sessions/<session_id>.jsonl`,
-   so pointed at the probed repository it changes what step 6 says must not change (a
-   corpus-chaos run of e016066 left 218 rows there before this said so).
+   so pointed at the probed repository it changes what step 6 says must not change.
 5. **Check the redaction before pasting.** Every path in the output should be relative to the
    repository or a placeholder (`<path>`, `<home>`, `<tmp>`, `<plugin>`). Search the text for
    your home directory and drive letters anyway; the scrubber over-redacts by design, and a
@@ -163,8 +161,8 @@ faithful run, when the asker asks for chaos or says "go wild", do this as well.
 
 - **The first line of your request states that a reply IS the deliverable** and that "it could
   not run because X" is a useful answer. A request that says "no reply needed" gets none.
-- **Probe once per batch, at one sha.** Ask when the batch's fixes are in and the release
-  candidate is pushed. Name that sha, and ask each runner once. The roster is by shape, so each run
+- **Probe once per batch, at one sha.** Ask when the batch's fixes are in, the release candidate is
+  pushed, and that push's own CI run is green. Name that sha, and ask each runner once. The roster is by shape, so each run
   covers something the others do not: Rust, Go, a PHP/Laravel repository, a PHP/React product, a
   JS SPA, a static site, and at least two Windows sessions.
 - **One request, the same for everyone:** "A reply IS the deliverable; 'could not run because X'

@@ -8,7 +8,7 @@ it has is the best form — `commit <sha> is an ancestor of master (git merge-ba
 reach, a person who has to look — say who, with `checked by: <who>`; the gate reads that marker
 and stops asking. Not a mood, and not
 a second Stop Condition: that section says when to abandon, this one says what to wait for. A task
-with a runnable ```bash fence MAY use this header (BACKLOG §155): a conditional measurement runs
+with a runnable ```bash fence MAY use this header: a conditional measurement runs
 fine, and running it before its event is simply worthless. What it may NOT name is a sibling task
 in this corpus — that is `Depends-on`.>
 
@@ -17,9 +17,9 @@ record and is written `ADR-003-T4` or `ADR-003/T4` — `adr-lint` resolves it ag
 one naming no record, or a record with no such task, is an error for the same reason a cited ADR must
 resolve.
 
-Use the qualified form when your task must not start until another RECORD's task lands. Before this
-existed the constraint could only be written as prose, in whichever record noticed it — which is
-never the record that has to obey it.>
+Use the qualified form when your task must not start until another RECORD's task lands. Without it
+the constraint lives only in prose, in whichever record noticed it — which is never the record that
+has to obey it.>
 **Awaiting-decision:** <OPTIONAL: the choice nobody has made yet, written so the person who can
 settle it does not have to reconstruct it — `keep the arm, or delete it`, or a question. The third
 kind of waiting, and it is a different KIND from the two above rather than a softer one:
@@ -92,17 +92,16 @@ a test semantically proves the step.>
 
 <Ask what this command does when the task's tests DO NOT EXIST YET, which is its state the moment you
 write it. `go test -run <no match>`, `phpunit --filter <no match>` and `cargo test <name>` all print a
-summary and exit 0 — so the gate passes with nothing built. `adr-verify` now records a run that
+summary and exit 0 — so the gate passes with nothing built. `adr-verify` records a run that
 scored no tests as a failure, but write the fence so it is obviously red first. A portable guard:
 
     set -o pipefail
     <runner> <args> 2>&1 | tee /tmp/acc.out && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/acc.out
 
-`set -o pipefail` and `&&`, not `;`, and this is a correction rather than a style note. Without
-pipefail the pipeline's exit status is `tee`'s, and `;` then discards even that — so the ONLY thing
-tested is the grep, and a runner that never starts prints nothing the grep matches. Measured
-2026-08-28: `nosuchrunner --test x` exits 0 through the `;` form and 127 through this one. This
-template recommended the broken form until then, and ten task fences in its own corpus inherited it.
+`set -o pipefail` and `&&`, not `;`. Without pipefail the pipeline's exit status is `tee`'s, and
+`;` then discards even that — so the ONLY thing tested is the grep, and a runner that never starts
+prints nothing the grep matches. Measured 2026-08-28: `nosuchrunner --test x` exits 0 through the
+`;` form and 127 through this one.
 
 `adr-verify` does not save you here: `scored_nothing()` recognises only a runner's own "nothing to
 run" vocabulary, and `environment_failure()` is consulted only when the exit code is already
@@ -164,8 +163,8 @@ work looks unverified when it was merely unfinished. Run such a fence detached a
 completes quickly, or narrow the fence to the subset this task actually proves and say in the task
 what the wider run covers.
 
-`adr-verify` deliberately offers no detached mode of its own, decided 2026-08-28 (ADR-002
-follow-up). The whole guarantee is that the tool which RAN the command is the tool that wrote the
+`adr-verify` deliberately offers no detached mode of its own (decided 2026-08-28). The whole
+guarantee is that the tool which RAN the command is the tool that wrote the
 entry; a mode that records a result someone else obtained reintroduces the hand-pasted evidence the
 Verification Log exists to eliminate. A slow fence is a fence problem, and it is yours to shape.
 
@@ -208,7 +207,7 @@ line-based rule cited for something spanning lines. It then reads as enforcement
 and is decoration. The test is cheap and nobody runs it: DELETE the thing this
 task protects and watch the named check go red. If it stays green, the rung names
 the wrong check. Nothing can decide this mechanically, which is why it is asked
-here rather than enforced (BACKLOG §53).>
+here rather than enforced.>
 
 <Rung 3 is the one that is missed. A tool argument the handler honours but the schema never
 advertises works for anyone who sends it, so every behavioural test passes — and the caller who
@@ -236,8 +235,8 @@ declare only disposable generated outputs whose command-entry state should be re
 
 `--covers <mechanism>` is optional and names one mechanism from this task's `**Rests-on:**` header.
 A name the task did not declare is refused before anything is mutated: the tool records which
-mechanism a mutant bound, and never invents one. Without `--covers` the row is exactly the row it
-has always been.
+mechanism a mutant bound, and never invents one. Without `--covers` the row ends at the acceptance
+digest.
 The acceptance digest binds the mutant to the exact fence it proved could fail; changing the fence
 invalidates both passing and mutation evidence.
 
@@ -260,7 +259,7 @@ What it cannot check is that you applied the diff at all. That is what this lane
 THE LANE RAISES THE FLOOR, NEVER THE CEILING. It does not make a task `done`. The `done` gate wants a
 killed mutant carrying the acceptance digest of the fence it proved, and a hand-reported row has no
 digest because no fence ran — so a task with real work, real verification and a real hand-performed
-kill sitting behind an unrunnable fence is not `done` and not `pending`. It is `partial` (ADR-014),
+kill sitting behind an unrunnable fence is not `done` and not `pending`. It is `partial`,
 which is a status with obligations rather than an exemption.
 
 The reason it stops there is an incentive, not a technicality. If a hand-typed row unlocked `done`,
@@ -268,17 +267,17 @@ then *declaring your fence unrunnable* would become the cheap path to the strong
 system — and that claim is the one half of the row nothing can verify. The mutation half is checkable
 against the file; "the fence could not run" is prose. Do not build `done` on the unverifiable half.
 
-Why the table that used to live here became a tool: every other check in this pipeline proves a
+Why this section is tool-written: every other check in this pipeline proves a
 command exited 0, and nothing proved a command CAN exit non-zero — so a test bound to nothing passes
-exactly like a test bound to the mechanism. The old `| Mutation | Compiles? | Test that goes red |`
-table was hand-filled, which is the same hole the Verification Log narrows — narrows rather than
-closes: a local gate reading local files cannot tell a run from a transcription, and issue #4
-reproduced a full hand-typed `pending` -> `done` on 2026-09-01. What both sections buy is cost, and
+exactly like a test bound to the mechanism. A hand-filled mutation table has the same hole the
+Verification Log narrows — narrows rather than closes: a local gate reading local files cannot
+tell a run from a transcription, and a full hand-typed `pending` -> `done` was reproduced on
+2026-09-01. What both sections buy is cost, and
 drift-binding to the fence they were taken against. Measured 2026-08-21: a harness whose edit silently no-opped printed
 "mutant applied" for a file that never changed, and an assertion matching a config file's COMMENTS
 survived deletion of the real key. Both were declared mutation-checked; neither had been.
 
-adr-verify now does the parts an author gets wrong: it refuses a `--from` that is absent or
+adr-verify does the parts an author gets wrong: it refuses a `--from` that is absent or
 non-unique, refuses a mutant that only changes comments, syntax-checks the mutated file where the
 language makes that cheap, restores the file in a `finally`, and grades the run. Only `killed`
 counts. `survived` means the fence passed with the mechanism broken — the test is decoration.

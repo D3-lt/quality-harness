@@ -18471,3 +18471,14 @@ The second half of ADR-092's review finding 13, confirmed by its last review rou
 8 MiB allocation (v3.8.10 read it twice; the fixes read it once). Not fail-open: every answer is still
 the answer for the whole file. Not built: no Python reader declares a byte budget, and a cap would
 change adr-lint's verdict on a large real record. The JS screen is bounded since the same fixes.
+
+## 360. CLOSED 2026-10-07 — History rewritten a second time, for strings copied from other repositories' corpora
+
+§357 removed other projects' NAMES. The same day showed that their file names, path stems, directory
+names and document titles had been committed too: a parity row reproducing an outside probe's finding
+quoted the corpus's own paths and titles, and older fixtures, tests, records and this backlog carried
+record stems and file names from outside runs. Each was replaced, in the tree and in all history, by an
+invented equivalent that keeps the property its test reads (a date prefix, a sort order, a case quirk).
+Every commit sha changed again: shas written before this entry, attestations at 13136e6, a48fa5f and
+fb27573 included, refer to an earlier history and are left as written (§10). A finding from outside is
+reproduced from now on with invented names, never with the corpus's own (CLAUDE.md §6).

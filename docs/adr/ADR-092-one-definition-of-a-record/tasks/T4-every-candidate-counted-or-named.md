@@ -12,14 +12,14 @@
 
 ## Goal
 
-Every numbered candidate (ADR-092 Decision 9) is counted by a reader or named in `notRead` (finding 8); a candidate whose read failed is named in `partialBecause` and makes the look PARTIAL (finding 9); a candidate's content is read whole up to 512 KiB, so a Status past ADR-087's 64 KiB head is read and only content past 512 KiB is could-not-look (finding 10).
+Every numbered candidate (ADR-092 Decision 9) is counted by a reader, held undecided, or named in `notRead` (finding 8); a candidate whose read failed is named in `partialBecause` and makes the look PARTIAL (finding 9); a candidate's content is read whole up to 512 KiB, so a Status past ADR-087's 64 KiB head is read and only content past 512 KiB is could-not-look (finding 10).
 
 ## Affected Files
 
 | File | Change | Why |
 |------|--------|-----|
 | `plugin/scripts/work-next.mjs` | edit | `notReadFiles` takes the candidate rule over eligible paths: a record directory or a letter prefix decides by path, otherwise any Status form decides by content; `headOf` becomes a regular-file read of up to 512 KiB (the corpus reader's budget, lifecycle.mjs:2735) that says when it stopped short; its failures are returned, not dropped (work-next.mjs:222); `observe` folds them into `look` and `partialBecause` (work-next.mjs:657-662) with one reason per kind; the comment at work-next.mjs:180-187 and the 64 KiB reason at :662 change with it |
-| `tests/record-naming.test.mjs` | add | this task's five tests |
+| `tests/record-naming.test.mjs` | add | this task's six tests |
 | `tests/mutations.json` | edit | one entry per Rests-on name |
 
 ## Ordered Steps
@@ -44,18 +44,20 @@ On Windows only, the FIFO test may report `# SKIP` (the third test proves the sa
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `every row of the recognition table reads its approved answer in work-next` | `tests/record-naming.test.mjs` | rows R2-R33 laid out as one tracked repository: the map row id → work-next's answer (counted, `notRead`, `partialBecause`, or in no list) deepStrictEquals the table's work-next column, the three finding-8 inputs included | — | S1, S3 |
-| `the link rows read their approved answers in work-next` | `tests/record-naming.test.mjs` | row R1 and layouts L1-L4 give the table's work-next cells exactly; skipped on Windows only if a link cannot be made | — | S1, S3 |
+| `every row of the recognition table reads its approved answer in work-next` | `tests/record-naming.test.mjs` | rows R2-R36 laid out as one tracked repository: the map row id → work-next's answer (counted, undecided, `notRead`, `partialBecause`, or in no list) deepStrictEquals the table's work-next column, the three finding-8 inputs included | — | S1, S3 |
+| `the link rows read their approved answers in work-next` | `tests/record-naming.test.mjs` | row R1 and layouts L1-L4, L7 and L8 give the table's work-next cells exactly; skipped on Windows only if a link cannot be made | — | S1, S3 |
 | `a numbered file that is no candidate is neither counted nor named` | `tests/record-naming.test.mjs` | a numbered `notes/01-rule.md` and a dated `docs/specs/2026-10-07-x.md`, neither carrying a Status, and a 67 KiB numbered spec without one, are in no list and `look` is ok, as this repository's 51 are | — | S1, S2, S3 |
-| `a numbered candidate that cannot be read makes the look PARTIAL and is named` | `tests/record-naming.test.mjs` | layout L5 with a directory, and layout L6, give the table's work-next answers: `Final/RFC0007-x.md` (absent) and the directory are in `partialBecause` with their reasons, `notes/07-gone.md` is in no list, `look` is PARTIAL; runs on every platform | — | S1, S3 |
+| `a numbered candidate that cannot be read makes the look PARTIAL and is named` | `tests/record-naming.test.mjs` | layouts L5 (a directory), L6 and L9 give the table's work-next answers: `Final/RFC0007-x.md` (absent), the directory and the NUL-bearing record are in `partialBecause` with their reasons, `notes/07-gone.md` is in no list, `look` is PARTIAL; runs on every platform | — | S1, S3 |
 | `a candidate past the read budget is PARTIAL and named` | `tests/record-naming.test.mjs` | rows R15 and R16 are in `partialBecause` with a reason naming 512 KiB; row R14 (Status after 70 KiB) and row R13 are in `notRead` | — | S1, S3 |
 | `a FIFO candidate is named and never opened` | `tests/record-naming.test.mjs` | `Final/RFC0008-x.md` replaced on disk by a FIFO is in `partialBecause` and work-next finishes within the test's bound; skipped on Windows | — | S1, S3 |
+
+The first test's range is R2-R41; layout L10 is in the link test.
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the five tests |
+| 1 — exists | the six tests |
 | 2 — something selects it | `observe` builds `notRead` and `partialBecause` from `notReadFiles`; mutants dropping the rule or a reason are caught |
 | 3 — the caller can discover it | work-next's text line and JSON; corpus-probe carries both |
 | 4 — it is used | an outside corpus run after release; nothing measures this yet |

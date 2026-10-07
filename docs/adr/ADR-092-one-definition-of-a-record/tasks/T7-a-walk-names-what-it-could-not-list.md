@@ -5,10 +5,10 @@
 **Estimated scope:** M (adr-debt, adr-lint, adr-verify, arch-lint, spec-verify, tests, campaign entries)
 **Owner:** unassigned
 **Produces:** a could-not-look line from every `walk` caller for each directory it could not list; adr-debt's and adr-verify's `*.md` walks matching `.md` in any case
-**Consumes:** `walk(..., unlisted)` (T2)
+**Consumes:** `walk(..., unlisted, list_dir)` and `tests/helpers/unlistable.py` (T2)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `adr-debt's unlisted report`, `adr-lint's unlisted report`, `adr-verify's unlisted report`, `arch-lint's unlisted report`, `spec-verify's unlisted report`, `adr-debt's any-case suffix`, `adr-verify's any-case suffix`
+**Rests-on:** `adr-debt's unlisted report`, `adr-lint's unlisted report`, `adr-verify's unlisted report`, `arch-lint's unlisted report`, `spec-verify's unlisted report`, `adr-debt's any-case suffix`, `adr-verify's any-case suffix`, `adr-debt's regular-file read`
 
 ## Goal
 
@@ -18,17 +18,17 @@
 
 | File | Change | Why |
 |------|--------|-----|
-| `plugin/bin/adr-debt` | edit | its three walks pass `unlisted`; each directory is a could-not-look line and the run is not a clean answer; the two `*.md` walks keep a file whose name ends `.md` in any case |
+| `plugin/bin/adr-debt` | edit | its three walks pass `unlisted`; each directory is a could-not-look line and the run is not a clean answer; the two `*.md` walks keep a file whose name ends `.md` in any case; its read at :480-482 goes through `read_regular` (T2), so a FIFO or other non-regular `.md` is could-not-run at exit 2 naming it and never opened (ADR-092 Decision 10) |
 | `plugin/bin/adr-lint` | edit | the walk at :2933 passes `unlisted`; a directory it could not list is said beside the finding that walk serves |
 | `plugin/bin/adr-verify` | edit | the walk at :2444 passes `unlisted`, says what it could not list, and keeps a task file whose name ends `.md` in any case |
 | `plugin/bin/arch-lint` | edit | the walk at :328 the same |
 | `plugin/bin/spec-verify` | edit | the walk at :427 the same |
-| `tests/walk-unlisted.test.mjs` | add | this task's two tests |
+| `tests/walk-unlisted.test.mjs` | add | this task's five tests; the injected-failure one runs each gate through T2's `tests/helpers/unlistable.py` |
 | `tests/mutations.json` | edit | one entry per Rests-on name |
 
 ## Ordered Steps
 
-1. [S1] Write this task's two tests and record the red run (TDD red): today each of the five gates, given a walked tree holding a `chmod 000` directory, says nothing about it, and adr-debt and adr-verify skip a `.MD` file off Windows.
+1. [S1] Write this task's five tests and record the red run (TDD red): today each of the five gates, given a walked tree holding a directory whose listing fails, says nothing about it, on every platform through the injected failure; adr-debt and adr-verify skip a `.MD` file off Windows; and adr-debt opens a FIFO named `ADR-001-x.md` and blocks until the test's bound.
 2. [S2] Read each gate's could-not-look vocabulary (ADR-005: `UNRUN`, `PARTIAL`, `UNPROVEN`, could-not-run) and record in this task's prose which one each caller uses and why. [proof: human: the executor records the five choices in this task's prose]
 3. [S3] Pass `unlisted` in each caller and say each directory in that vocabulary; match `.md` in any case in the three `*.md` walks.
 4. [S4] Record one killed mutant per Rests-on name (one per caller) and add them to the catalogue. [proof: mutation]
@@ -37,20 +37,25 @@
 
 ```bash
 noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac
+win="$noperm"
 if [ "$(id -u 2>/dev/null)" = 0 ]; then noperm='( # SKIP [^#]*)?'; fi
 out=$(node --test --test-reporter=tap tests/walk-unlisted.test.mjs 2>&1) \
-  && for t in 'adr-debt and adr-verify read a .MD file'; do if [ "$(printf '%s\n' "$out" | grep -cE "^ *ok [0-9]+ - $t$")" != 1 ]; then exit 1; fi; done \
-  && for t in 'every walk caller names a directory it could not list'; do if [ "$(printf '%s\n' "$out" | grep -cE "^ *ok [0-9]+ - $t$noperm$")" != 1 ]; then exit 1; fi; done
+  && for t in 'every walk caller names a directory whose listing failed' 'adr-debt and adr-verify read a .MD file' 'adr-debt never reads a path that is not a regular file'; do if [ "$(printf '%s\n' "$out" | grep -cE "^ *ok [0-9]+ - $t$")" != 1 ]; then exit 1; fi; done \
+  && for t in 'every walk caller names a chmod 000 directory'; do if [ "$(printf '%s\n' "$out" | grep -cE "^ *ok [0-9]+ - $t$noperm$")" != 1 ]; then exit 1; fi; done \
+  && for t in 'adr-debt never opens a FIFO'; do if [ "$(printf '%s\n' "$out" | grep -cE "^ *ok [0-9]+ - $t$win$")" != 1 ]; then exit 1; fi; done
 ```
 
-The unlistable-directory test may report `# SKIP` on Windows, where `chmod 000` does not stop a listing, and as root, which lists such a directory anyway; the fence accepts a skip there and nowhere else. The `.MD` test runs everywhere.
+The injected-failure test runs on every platform and is red before the work there too, Windows included, so the fence cannot be green before S3. The `chmod 000` test may report `# SKIP` on Windows, where `chmod 000` does not stop a listing, and as root, which lists such a directory anyway; the fence accepts a skip there and nowhere else.
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `every walk caller names a directory it could not list` | `tests/walk-unlisted.test.mjs` | for each of the five gates, a tree holding a `chmod 000` directory where that gate walks gives a line naming the directory in the vocabulary S2 recorded, and never the gate's clean answer; the same tree without the directory gives the clean answer; skipped on Windows and as root | — | S1, S3 |
+| `every walk caller names a directory whose listing failed` | `tests/walk-unlisted.test.mjs` | for each of the five gates, run through `tests/helpers/unlistable.py` (T2) so one directory where that gate walks raises `PermissionError`, the output names the directory in the vocabulary S2 recorded and never gives the gate's clean answer; with nothing failing, the clean answer; runs on every platform | — | S1, S3 |
+| `every walk caller names a chmod 000 directory` | `tests/walk-unlisted.test.mjs` | the same, with a real `chmod 000` directory and no injection; skipped on Windows and as root | — | S1, S3 |
 | `adr-debt and adr-verify read a .MD file` | `tests/walk-unlisted.test.mjs` | a record `docs/adr/ADR-001-x.MD` with a deferred Out of Scope item is reported by adr-debt, and a task `T1-x.MD` is read by adr-verify's walk, on every platform; the same names in `.md` read as today | — | S1, S3 |
+| `adr-debt never reads a path that is not a regular file` | `tests/walk-unlisted.test.mjs` | a directory named `docs/adr/ADR-001-x.md` makes adr-debt could-not-run at exit 2 naming it; runs on every platform | — | S1, S3 |
+| `adr-debt never opens a FIFO` | `tests/walk-unlisted.test.mjs` | a FIFO named `docs/adr/ADR-001-x.md` with no writer: adr-debt finishes within the test's bound at exit 2 naming it; skipped on Windows | — | S1, S3 |
 
 ## Reachability
 

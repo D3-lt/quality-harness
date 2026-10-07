@@ -1189,6 +1189,13 @@ export { listedUnderUninterestingDirectory } from './uninteresting.mjs'
 export function posixListed(rel) {
   return String(rel).replaceAll('\\', '/')
 }
+// A path as git LISTED it, in `/` form. Git lists `/` on every platform, so a backslash in a listed name
+// separates directories only on Windows; on POSIX it is part of one name, and rewriting it there made a
+// root-level `docs\tasks\T1-x.md` a task directory and `docs\adr\001-x.md` a decision corpus (ADR-092's
+// review, finding 4 and its siblings). `posixListed` stays for `path.relative` output, which is native.
+export function listedPath(rel, platform = process.platform) {
+  return platform === 'win32' ? posixListed(rel) : String(rel)
+}
 
 // SessionStart used to slice(0, 3) and hide a later directory's UNPROVEN
 // behind "(+N more)". A could-not-look is never an ordinary ready line: it
@@ -1516,14 +1523,14 @@ function newestTaskChange(root, files) {
   }
   return newest
 }
-export function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP) {
+export function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP, platform = process.platform) {
   if (listing == null) return { read: [], unread: 0 }
   const found = []
   const seen = new Map()
   const frozen = new Map()
-  const listed = new Set(listing.map(rel => posixListed(rel)))
+  const listed = new Set(listing.map(rel => listedPath(rel, platform)))
   for (const rel of listing) {
-    const norm = posixListed(rel)
+    const norm = listedPath(rel, platform)
     const parts = norm.split('/').filter(Boolean)
     const index = parts.indexOf('tasks')
     if (index < 0) continue
@@ -2969,7 +2976,7 @@ function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET, p
     // root-level file named `docs\adr\001-x.md` as that one name, and rewriting it to `docs/adr/001-x.md`
     // made it a record directory's file that was then absent, PARTIAL, where record.py reads one root-level
     // file that is no record (a gpt-6.1-sol review of ADR-092's execution, finding 4, on the reader path).
-    const norm = platform === 'win32' ? posixListed(rel) : String(rel)
+    const norm = listedPath(rel, platform)
     if (!corpusEligible(norm)) continue
     const slash = norm.lastIndexOf('/')
     const base = slash < 0 ? norm : norm.slice(slash + 1)
@@ -4079,10 +4086,10 @@ export function staleVersionNotice(pluginRoot = PLUGIN_ROOT, homeDirectory = os.
 
 const CORPUS_DIR_NAMES = ['docs/adr', 'docs/specs', 'docs/decisions', 'adr', 'specs']
 
-export function hasDecisionCorpus(root, listing = trackedPaths(root)) {
+export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = process.platform) {
   if (listing == null) return 'UNPROVEN'
   for (const rel of listing) {
-    const norm = posixListed(rel)
+    const norm = listedPath(rel, platform)
     for (const dir of CORPUS_DIR_NAMES) {
       if (norm === dir || norm.startsWith(`${dir}/`)) return true
     }

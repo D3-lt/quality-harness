@@ -190,3 +190,44 @@ test('adr-lint enumerates a corpus by the one definition', () => {
   const resolved = call(gate('adr-lint'), `[module.resolve_qualified_dep(pointer, Path(${py(dir)}), Path(${py(corpus)}), ${py(tracked)}) for pointer in ("ADR-001-T1", "ADR-005-T1")]`)
   assert.deepStrictEqual(resolved.value, [false, true])
 })
+
+// The last review round of ADR-092's fixes (gpt-6.1-sol, 2026-10-07): the enumeration above read a record
+// through `read_regular`, so a NUL-bearing file the record reader refuses was counted and its dependency
+// resolved, where v3.8.10 counted nothing and resolved False (a fail-open these fixes introduced).
+test('adr-lint counts no record its record reader refuses as text', () => {
+  const dir = tree({
+    'docs/adr/foo.md': '# ADR-005: X\n\nStatus: Accepted\n\n## Decision\n\nx\u0000y\n',
+    'docs/adr/foo/tasks/T1-y.md': '# Task ADR-005-T1: y\n',
+    'docs/adr/bar.md': '# ADR-006: Y\n\nStatus: Accepted\n\n## Decision\n\ny\n',
+    'docs/adr/bar/tasks/T1-z.md': '# Task ADR-006-T1: z\n',
+  }, { repo: true })
+  const tracked = ['docs/adr/bar.md', 'docs/adr/bar/tasks/T1-z.md', 'docs/adr/foo.md', 'docs/adr/foo/tasks/T1-y.md']
+  const corpus = join(dir, 'docs', 'adr')
+  const resolved = call(gate('adr-lint'), `[module.resolve_qualified_dep(pointer, Path(${py(dir)}), Path(${py(corpus)}), ${py(tracked)}) for pointer in ("ADR-005-T1", "ADR-006-T1")]`)
+  assert.deepStrictEqual(resolved.value, [false, true])
+})
+
+// The same review: an archive citation resolved by a NAME alone, so a sibling archive's `001-note.md`
+// holding only `Status: Accepted`, which the one definition rejects, resolved `ADR-001` (finding 1's
+// archive half, in v3.8.10 too); and the archive catalog was opened without asking whether it is a FIFO
+// (finding 11's archive half).
+test('an archive citation resolves only a file the one definition calls a record', () => {
+  const dir = tree({
+    'docs/adr/ADR-003-x.md': '# ADR-003: X\n\nStatus: Accepted\n\n## Decision\n\nx\n',
+    'docs/adr-archive/README.md': '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n',
+    'docs/adr-archive/001-note.md': 'Status: Accepted\n',
+    'docs/adr-archive/ADR-002-y.md': '# ADR-002: Y\n\nStatus: Accepted\n\n## Decision\n\ny\n',
+  }, { repo: true })
+  const tracked = ['docs/adr-archive/001-note.md', 'docs/adr-archive/ADR-002-y.md', 'docs/adr-archive/README.md', 'docs/adr/ADR-003-x.md']
+  const corpus = join(dir, 'docs', 'adr')
+  const resolved = call(gate('adr-lint'), `[module.resolve_record_number(pointer, Path(${py(dir)}), Path(${py(corpus)}), ${py(tracked)}) for pointer in ("ADR-001", "ADR-002", "ADR-003")]`)
+  assert.deepStrictEqual(resolved.value, [false, true, true])
+})
+
+test('an archive catalog that is a FIFO contributes nothing and is never opened', t => {
+  const dir = tree({ 'docs/adr/ADR-003-x.md': '# ADR-003: X\n\nStatus: Accepted\n\n## Decision\n\nx\n', 'docs/adr-archive/ADR-002-y.md': '# ADR-002: Y\n\nStatus: Accepted\n\n## Decision\n\ny\n' }, { repo: true })
+  if (!fifo(dir, 'docs/adr-archive/README.md')) { t.skip('a FIFO cannot be made here'); return }
+  const tracked = ['docs/adr-archive/ADR-002-y.md', 'docs/adr-archive/README.md', 'docs/adr/ADR-003-x.md']
+  const answer = call(gate('adr-lint'), `sorted(module.archived_record_numbers(Path(${py(dir)}), Path(${py(join(dir, 'docs', 'adr'))}), ${py(tracked)}))`)
+  assert.deepStrictEqual(answer.value, [])
+})

@@ -4179,7 +4179,7 @@ def invalidates_pointer(text):
 # so the retire gate and this one read one spelling: RECORD_FILE_RE,
 # TASK_SHAPED_RE (`003-T2.md`, a task file) and DATE_SHAPED_RE (`2026-07-12-x.md`
 # in every separator and width — a dated note, or an ADR-2026).
-from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, read_regular, record_id, title_line  # noqa: E402
+from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, NotText, read_record_text, read_regular, record_id, title_line  # noqa: E402
 from functools import lru_cache  # noqa: E402
 # Checked in this order: `# ADR-003-T2` is both, and it is a task.
 TITLE_TASK_RE = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I)
@@ -4224,13 +4224,17 @@ def _corpus_record_number(path, root):
     enumeration unproven as before."""
     name = Path(path).name
     try:
-        text = read_regular(path)
+        text = read_record_text(path)
     except FileNotFoundError:
         found = RECORD_FILE_RE.match(name)
         if not found:
             return False
         ambiguous = TASK_SHAPED_RE.match(name[:-len(".md")]) or DATE_SHAPED_RE.match(name)
         return None if ambiguous else int(found.group(1))
+    except NotText:
+        # A NUL-bearing file is no record a reader can read, and `check_adr` FAILs it by name; counting it
+        # here resolved its dependency where v3.8.10 resolved none (the last review round of ADR-092's fixes).
+        return False
     except OSError:
         return None
     if not recognised_as_record(Path(path), text, None if root is None else Path(root))[0]:
@@ -4331,16 +4335,20 @@ def archived_record_numbers(root, corpus_dir, tracked):
         if "README.md" not in names:
             continue
         try:
-            catalog = (Path(root) / parent / directory / "README.md").read_text(
-                encoding="utf-8", errors="replace")
+            # `read_regular`, so a catalog that is a FIFO is never opened (finding 11's archive half).
+            catalog = read_regular(Path(root) / parent / directory / "README.md")
         except OSError:
             continue
         if not ARCHIVE_LIFECYCLE_RE.search(catalog):
             continue
         for name in names:
             shaped = RECORD_FILE_RE.match(name)
+            # A name is not a record: the one definition decides, as it does for the active corpus, so a
+            # `001-note.md` holding only `Status: Accepted` resolves no citation (finding 1's archive half).
             if (shaped and name.lower().endswith(".md") and not DATE_SHAPED_RE.match(name)
-                    and not TASK_SHAPED_RE.match(name[:-len(".md")])):
+                    and not TASK_SHAPED_RE.match(name[:-len(".md")])
+                    and (number := _corpus_record_number(str(Path(root) / parent / directory / name), str(root)))
+                    is not False and number == int(shaped.group(1))):
                 numbers.add(int(shaped.group(1)))
     return numbers
 

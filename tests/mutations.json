@@ -23367,14 +23367,65 @@
       "only": "^the lint helper calls nothing recognised that did not lint the file$"
     },
     {
-      "label": "ADR-092 review: the corpus reader rewrites a backslash on POSIX",
+      "label": "ADR-092 review: a listed path rewrites a backslash on POSIX",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/record-definition-parity.test.mjs"
+        "tests/record-definition-parity.test.mjs",
+        "tests/listed-backslash.test.mjs"
       ],
-      "from": "    const norm = platform === 'win32' ? posixListed(rel) : String(rel)",
-      "to": "    const norm = posixListed(rel)",
-      "only": "^a path component holding a line feed or a backslash reads alike in both languages$"
+      "from": "  return platform === 'win32' ? posixListed(rel) : String(rel)",
+      "to": "  return posixListed(rel)",
+      "only": "^a (path component holding a line feed or a backslash reads alike in both languages|backslash in a listed (task|corpus) path is one name on POSIX and a separator on Windows)$"
+    },
+    {
+      "label": "ADR-092 review: taskDirectories reads a listing as Windows by default",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/listed-backslash.test.mjs"
+      ],
+      "from": "export function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP, platform = process.platform) {",
+      "to": "export function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP, platform = 'win32') {",
+      "only": "^a backslash in a listed task path is one name on POSIX and a separator on Windows$"
+    },
+    {
+      "label": "ADR-092 review: hasDecisionCorpus reads a listing as Windows by default",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/listed-backslash.test.mjs"
+      ],
+      "from": "export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = process.platform) {",
+      "to": "export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = 'win32') {",
+      "only": "^a backslash in a listed corpus path is one name on POSIX and a separator on Windows$"
+    },
+    {
+      "label": "ADR-092 last review: adr-lint enumerates a record through the raw reader",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        text = read_record_text(path)",
+      "to": "        text = read_regular(path)",
+      "only": "^adr-lint counts no record its record reader refuses as text$"
+    },
+    {
+      "label": "ADR-092 last review: an archive citation resolves by name alone",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "                    is not False and number == int(shaped.group(1))):",
+      "to": "                    is not None):",
+      "only": "^an archive citation resolves only a file the one definition calls a record$"
+    },
+    {
+      "label": "ADR-092 last review: the archive catalog is opened without asking what it is",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "            catalog = read_regular(Path(root) / parent / directory / \"README.md\")",
+      "to": "            catalog = (Path(root) / parent / directory / \"README.md\").read_text(encoding=\"utf-8\", errors=\"replace\")",
+      "only": "^an archive catalog that is a FIFO contributes nothing and is never opened$"
     }
   ]
 }

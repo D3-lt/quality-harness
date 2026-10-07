@@ -16,11 +16,11 @@
 //
 // Reads only. Suggests only. Exit 0 whatever it finds, and 2 on an option it does
 // not know; a router that refused would be the thing this harness spent a week removing.
-import { accessSync, closeSync, constants, openSync, readFileSync, statSync } from 'node:fs'
+import { accessSync, closeSync, constants, openSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, aliasReason, corpusEligible, danglingCorpusLinks, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, RECORD_DIRECTORY, recordId, recordStatus, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
+import { adrCorpus, aliasReason, corpusEligible, danglingCorpusLinks, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, readRegularText, RECORD_DIRECTORY, recordId, recordStatus, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
@@ -165,12 +165,11 @@ export const STAGES = [
 ]
 
 // A FIFO named like a task blocked the open until the process was killed (BACKLOG §351), so
-// only a regular file is opened; anything else reads as nothing, like a file that is gone.
+// only a regular file is opened; anything else reads as nothing, like a file that is gone. Past
+// 512 KiB of bytes READ it is nothing too: a size asked first is not what a read spends (a
+// gpt-6.1-sol review of ADR-092's execution, finding 12).
 const read = file => {
-  try {
-    const stat = statSync(file)
-    return !stat.isFile() || stat.size > 512 * 1024 ? '' : readFileSync(file, 'utf8')
-  } catch { return '' }
+  try { return readRegularText(file, 512 * 1024) } catch { return '' }
 }
 
 function posixRel(rel) {
@@ -247,7 +246,13 @@ function notReadFiles(directory, listing, corpus) {
       continue
     }
     let text
-    try { text = readFileSync(file, 'utf8') } catch (error) { failed.push({ file, reason: `it could not be read (${error?.code ?? 'unreadable'})` }); continue }
+    // Bounded by the bytes read: a candidate that grew after `candidateProblem` asked its size is past the
+    // budget all the same (finding 12).
+    try { text = readRegularText(file, CANDIDATE_BYTES) } catch (error) {
+      failed.push({ file, reason: error?.code === 'EFBIG' ? `it runs past ${CANDIDATE_BYTES / 1024} KiB, so whether it carries a status was not read`
+        : `it could not be read (${error?.code ?? 'unreadable'})` })
+      continue
+    }
     if (recordStatus(text) !== null) found.push(file)
   }
   return { files: found, failed }

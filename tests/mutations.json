@@ -11598,7 +11598,7 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "^a record under a frozen archive with no record-directory name is listed by its content$",
-      "from": "      if (screenAdmits(absolute)) files.push(absolute)",
+      "from": "      if (admitted) files.push(absolute)",
       "to": "      if (false) files.push(absolute)"
     },
     {
@@ -11728,8 +11728,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "^a catalog this reader cannot read, under a non-record name, leaves the record listed$",
-      "from": "      if (screenAdmits(absolute)) files.push(absolute)",
-      "to": "      if (screenAdmits(absolute) && frozenArchiveOf(root, tracked)(norm) !== 'unknown') files.push(absolute)"
+      "from": "      if (admitted) files.push(absolute)",
+      "to": "      if (admitted && frozenArchiveOf(root, tracked)(norm) !== 'unknown') files.push(absolute)"
     },
     {
       "label": "ADR-063: a supersession must name a record to be an effect",
@@ -15227,8 +15227,8 @@
       "tests": [
         "tests/record-budget.test.mjs"
       ],
-      "from": "      Object.defineProperty(files, 'unexamined', { value: listedAbsolute(root, rel), enumerable: false })",
-      "to": "      void (files, 'unexamined', { value: listedAbsolute(root, rel), enumerable: false })",
+      "from": "    if (charged >= RECORD_BUDGET) {",
+      "to": "    if (false) {",
       "only": "a corpus past the record budget"
     },
     {
@@ -15237,8 +15237,8 @@
       "tests": [
         "tests/record-budget.test.mjs"
       ],
-      "from": "    unreadable.push({ file: files.unexamined, status: null, taskFiles: [],",
-      "to": "    void ({ file: files.unexamined, status: null, taskFiles: [],",
+      "from": "      unreadable.push({ file, status: null, taskFiles: [],\n        reason: `record budget",
+      "to": "      void ({ file, status: null, taskFiles: [],\n        reason: `record budget",
       "only": "a corpus past the record budget"
     },
     {
@@ -16377,8 +16377,8 @@
       "tests": [
         "tests/chaos-e016066.test.mjs"
       ],
-      "from": "    if (text.includes('\\u0000')) {\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
-      "to": "    if (false) {\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
+      "from": "    if (text.includes('\\u0000')) {\n      charged += 1\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
+      "to": "    if (false) {\n      charged += 1\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
       "only": "a record holding a NUL byte"
     },
     {
@@ -20139,8 +20139,8 @@
       "tests": [
         "tests/corpus-link-loop.test.mjs"
       ],
-      "from": "    const first = firstPathTo.get(real)",
-      "to": "    const first = undefined",
+      "from": "    const at = firstPathTo.get(real)",
+      "to": "    const at = undefined",
       "only": "^a record reached again through a link that loops is read once, and the copies are named$"
     },
     {
@@ -20925,12 +20925,12 @@
     },
     {
       "label": "§351: work-next reads a non-regular task entry",
-      "file": "plugin/scripts/work-next.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/irregular-task-entry.test.mjs"
       ],
-      "from": "    return !stat.isFile() || stat.size > 512 * 1024 ? '' : readFileSync(file, 'utf8')",
-      "to": "    return stat.size > 512 * 1024 ? '' : readFileSync(file, 'utf8')",
+      "from": "  if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)\n  const fd = openSync(file, 'r')",
+      "to": "  const fd = openSync(file, 'r')",
       "only": "^(?:a FIFO named like a task is stopped unopened, and the other tasks are read)$"
     },
     {
@@ -22312,7 +22312,7 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    return linksIn(file, linkLimit) < linksIn(first, linkLimit)",
+      "from": "    return linksOf(file) < linksOf(first)",
       "to": "    return false",
       "only": "a link and its target are read once, as the target, and the link is the alias"
     },
@@ -22672,7 +22672,7 @@
       "tests": [
         "tests/record-discovery.test.mjs"
       ],
-      "from": "      if (screenAdmits(absolute)) files.push(absolute)",
+      "from": "      if (admitted) files.push(absolute)",
       "to": "      if (null) files.push(absolute)",
       "only": "^every row of the recognition table reads its approved answer in lifecycle$"
     },
@@ -22682,8 +22682,8 @@
       "tests": [
         "tests/record-discovery.test.mjs"
       ],
-      "from": "    if (streamed + size > screenBudget) { unscreened = absolute; continue }",
-      "to": "    if (false) { unscreened = absolute; continue }",
+      "from": "        if (budget.left < 0) return null",
+      "to": "        if (false) return null",
       "only": "^the content screen stops at its budget and names the first path it did not screen$"
     },
     {
@@ -23115,6 +23115,86 @@
       "from": "  const status = recordStatus(text)\n  const placedDirectories",
       "to": "  const status = inlineStatus(text) ?? statusSection(text)\n  const placedDirectories",
       "only": "^the definition returns the normalised Status in both languages for every plain row$"
+    },
+    {
+      "label": "ADR-092 review: the record budget is charged to every file discovered",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-reading-bounds.test.mjs"
+      ],
+      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }\n    charged += 1",
+      "to": "    charged += 1\n    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
+      "only": "^two hundred ordinary notes before a record read as v3.8.10 read them$"
+    },
+    {
+      "label": "ADR-092 review: the content screen ignores the bytes it read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-reading-bounds.test.mjs"
+      ],
+      "from": "        if (budget.left < 0) return null",
+      "to": "        if (false) return null",
+      "only": "^the content screen stops at the bytes it was given, whatever size it was told$"
+    },
+    {
+      "label": "ADR-092 review: a bounded read ignores its limit",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-reading-bounds.test.mjs"
+      ],
+      "from": "      if (total > limit) throw",
+      "to": "      if (false) throw",
+      "only": "^the content screen stops at the bytes it was given, whatever size it was told$"
+    },
+    {
+      "label": "ADR-092 review: each chunk of a long line is scanned with all before it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-reading-bounds.test.mjs"
+      ],
+      "from": "      let start = pendingCr && chunk.startsWith('\\n') ? 1 : 0",
+      "to": "      chunk = parts.join('') + chunk\n      parts = []\n      let start = pendingCr && chunk.startsWith('\\n') ? 1 : 0",
+      "only": "^the content screen scans each character once however long a line runs$"
+    },
+    {
+      "label": "ADR-092 review: a CRLF across two chunks is two breaks",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-reading-bounds.test.mjs"
+      ],
+      "from": "        if (found[0] === '\\r' && start === chunk.length) pendingCr = true",
+      "to": "        if (false) pendingCr = true",
+      "only": "^the content screen scans each character once however long a line runs$"
+    },
+    {
+      "label": "ADR-092 review: alias replacement searches kept and rescans every alias",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-reading-bounds.test.mjs"
+      ],
+      "from": "      kept[at] = file\n      const moved = aliasesOf.get(first) ?? []\n      for (const entry of moved) entry.sameAs = file",
+      "to": "      kept[kept.indexOf(first)] = file\n      const moved = aliasesOf.get(first) ?? []\n      for (const entry of aliases) if (entry.sameAs === first) entry.sameAs = file",
+      "only": "^alias replacement grows with the paths listed, not with their square$"
+    },
+    {
+      "label": "ADR-092 review: an archive README is opened however it is made",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-reading-bounds.test.mjs"
+      ],
+      "from": "        try { frozen = readRegularText(readme).split(",
+      "to": "        try { frozen = readFileSync(readme, 'utf8').split(",
+      "only": "^an archive README that is a FIFO is unknown, and is never opened$"
+    },
+    {
+      "label": "ADR-092 review: a README spelled otherwise is opened however it is made",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-reading-bounds.test.mjs"
+      ],
+      "from": "        file => readRegularText(file))",
+      "to": "        file => readFileSync(file, 'utf8'))",
+      "only": "^an archive README that is a FIFO is unknown, and is never opened$"
     }
   ]
 }

@@ -1368,6 +1368,19 @@ export function unmarkedArchives(root, listing) {
 // read once, by the first listed path to its real path; every other path is returned as an alias
 // for the caller to name. A path whose real path cannot be taken is kept: it is not known to be a
 // copy, and the reader that opens it says what it finds.
+// ⚠ THE TARGET, NOT THE LINK, when a link is listed first: `Final/001-link.md` sorts before
+// `docs/decisions/001-rule.md`, and the target — the file adr-lint lints — was named as the copy (a
+// gpt-6.1-sol delta review, 2026-10-07). The path with fewer links anywhere in it wins, a linked parent
+// directory counted as much as a linked file (the owner, 2026-10-07: nothing left open). Counted, not
+// compared with its real path, since a checkout under `/tmp` or `/var` on macOS is linked in every path
+// alike. Between two paths with as many links, the first listed stays, so a junction loop reads as before.
+const linksIn = file => {
+  let count = 0
+  for (let at = path.resolve(file); ; at = path.dirname(at)) {
+    try { if (lstatSync(at).isSymbolicLink()) count += 1 } catch { /* unreadable: not known to be a link */ }
+    if (path.dirname(at) === at) return count
+  }
+}
 export function onceByRealPath(paths) {
   const firstPathTo = new Map()
   const kept = []
@@ -1377,6 +1390,13 @@ export function onceByRealPath(paths) {
     try { real = realpathSync.native(file) } catch { kept.push(file); continue }
     const first = firstPathTo.get(real)
     if (first === undefined) { firstPathTo.set(real, file); kept.push(file); continue }
+    if (linksIn(file) < linksIn(first)) {
+      firstPathTo.set(real, file)
+      kept[kept.indexOf(first)] = file
+      for (const alias of aliases) if (alias.sameAs === first) alias.sameAs = file
+      aliases.push({ file: first, sameAs: file })
+      continue
+    }
     aliases.push({ file, sameAs: first })
   }
   return { kept, aliases }
@@ -2027,7 +2047,9 @@ function markdownSection(text, heading) {
 // both remove — a no-break space included, which governed at ebfaee0 (the React SPA corpus at 084d925).
 // The value may be empty, as in record.py: a bare `Status:` is an undecided first label, never a line
 // skipped so a later one governs (the Codex round of 3.1.6, finding 2).
-const STATUS_LABEL = /^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$/
+// Indented by at most three spaces: four, or a tab, make an indented code block, whose `Status:` is an
+// example, as the MADR 2 bullet's is below (the owner, 2026-10-07: nothing found along the way is left open).
+const STATUS_LABEL = /^ {0,3}\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$/
 const EDGE_CODES = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,
   0x2005, 0x2006, 0x2007, 0x2008, 0x2009, 0x200A, 0x2028, 0x2029, 0x202F, 0x205F, 0x3000]
 const codeClass = codes => `[${codes.map(code => String.fromCodePoint(code).replace(/[\\\]^-]/g, '\\$&')).join('')}]`
@@ -2065,7 +2087,7 @@ function fencedLines(text) {
 // text's first line is `---` (after a byte-order mark, with trailing blanks), and the block ends at
 // the next `---` or `...` line; an unclosed block is not one. `[first, last]`, the 0-based indices of
 // those two lines, or null.
-const FRONTMATTER_OPEN = /^﻿?---[ \t]*$/
+export const FRONTMATTER_OPEN = /^﻿?---[ \t]*$/
 const FRONTMATTER_CLOSE = /^(?:---|\.\.\.)[ \t]*$/
 export function frontmatterBlock(text) {
   const lines = String(text).split(/\r\n|\r|\n/)
@@ -2089,15 +2111,21 @@ function frontmatterValue(value) {
 // a leading frontmatter block is read as YAML writes it (ADR-087 T1), so `rawStatus` and
 // `recordStatus` both see `"accepted"` as `accepted`. With no label anywhere, a MADR 2 bullet
 // (`* Status: accepted`) above the first `## ` heading is the label (ADR-087 T2), as in record.py.
-const STATUS_BULLET = /^[ \t]*[*-][ \t]+\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$/
+// The bullet is indented by at most three spaces: four, or a tab, make an indented code block, whose
+// `- Status: accepted` is an example (a gpt-6.1-sol review of ADR-087, finding 2).
+const STATUS_BULLET = /^ {0,3}[*-][ \t]+\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$/
 function inlineStatus(text) {
   const block = frontmatterBlock(text)
   let bullet = null
   let above = true
   for (const [index, [line, fenced]] of fencedLines(text).entries()) {
     if (fenced) continue
+    const inBlock = block && block[0] < index && index < block[1]
+    // Inside the frontmatter only a top-level key is the record's own: an indented line belongs to a
+    // nested value, such as a `|` literal block quoting an example (the same review, finding 1).
+    if (inBlock && /^[ \t]/.test(line)) continue
     const found = line.match(STATUS_LABEL)
-    if (found) return block && block[0] < index && index < block[1] ? frontmatterValue(found[1]) : found[1]
+    if (found) return inBlock ? frontmatterValue(found[1]) : found[1]
     if (above && STATUS_HEADING.test(line)) above = false
     else if (above && bullet === null) bullet = line.match(STATUS_BULLET)
   }
@@ -2546,7 +2574,35 @@ function readsAsRecord(text) {
   // A `## Status` section is a Status too (ADR-074 T2): a section-only record was linted by
   // adr-lint and absent from every corpus reader until the corpus-chaos runs of 559827d.
   return (inlineStatus(text) !== null || statusSection(text) !== null)
-    && /^##\s+(Context|Decision)\b/im.test(text)
+    && RECORD_SECTION.test(text)
+}
+
+// The owner, 2026-10-07: a file adr-lint does not recognise as a record is not a record to any
+// reader. adr-lint's rule, in its main beside `_not_recognised_because`: a name starting `ADR-<n>` or
+// `spec-<n>`, or by content a Status and a `## Context` or `## Decision` heading, the Status written
+// `**Status:**` unless the file is kept where records are (a RECORD_DIRECTORY, never under `tasks/`).
+// record.py's `_RECORD_SECTION` and `_NUMBERED_REF`, spelled the same; tests/corpus-shapes.test.mjs
+// runs adr-lint and every reader over one corpus and holds them to one answer.
+// ⚠ SPELLED, NOT `\s` AND `^`/m: Python's `\s` holds U+0085 and U+001C-U+001F and JS's does not,
+// JS's holds U+FEFF and Python's does not, and JS's `^` under /m starts a line after U+2028 and
+// U+2029 where Python's starts one after `\n` only (a gpt-6.1-sol delta review, 2026-10-07, finding 3).
+const PY_SPACE = '[\\t\\n\\v\\f\\r \\x1c-\\x1f\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]'
+const RECORD_SECTION = new RegExp(`(?<![^\\n])##${PY_SPACE}+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])`)
+function recognisedAsRecord(root, file, text) {
+  const base = path.basename(file)
+  if (/^ADR-[0-9]+(?![A-Za-z0-9_])/i.test(base) || /^spec[-_]?\p{Nd}/iu.test(base)) return true
+  if ((inlineStatus(text) === null && statusSection(text) === null) || !RECORD_SECTION.test(text)) return false
+  // Placed where adr-lint places it: the real path, relative to the real root, and the path as listed
+  // only when the real one leaves the root (adr-lint's ValueError arm). A link outside a record
+  // directory to a record inside one is kept there (the same review, finding 2).
+  let placed = null
+  try { placed = path.relative(realpathSync.native(root), realpathSync.native(file)) } catch { placed = null }
+  if (placed === null || placed === '..' || placed.startsWith(`..${path.sep}`) || path.isAbsolute(placed)) {
+    placed = path.relative(path.resolve(root), path.resolve(file))
+  }
+  const directories = path.dirname(placed).split(/[\\/]/).map(part => part.toLowerCase())
+  return /(?<![^\n])\*\*Status:\*\*/.test(text)
+    || (!directories.includes('tasks') && directories.some(part => RECORD_DIRECTORY.test(part)))
 }
 
 function recordFilesFromListing(root, tracked, reader) {
@@ -2638,6 +2694,10 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   const records = []
   const unreadable = []
   Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })
+  // Files listed by name that adr-lint does not recognise as records: counted by nobody, named by
+  // work-next's notRead (the owner, 2026-10-07).
+  const notRecognised = []
+  Object.defineProperty(records, 'notRecognised', { value: notRecognised, enumerable: false })
   Object.defineProperty(records, 'look', {
     value: tracked == null ? 'UNPROVEN' : 'ok', enumerable: false, writable: true,
   })
@@ -2694,6 +2754,12 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       records.look = 'PARTIAL'
       continue
     }
+    // A file adr-lint does not recognise is a record to no reader (the owner, 2026-10-07): not counted,
+    // and not undecided either, since undecided is a RECORD whose status no reader acts on. work-next
+    // names it as not read. Its text was read, so this is an observation. Before the catalog is asked:
+    // a frozen archive's row does not make a record of a file adr-lint rejects (a gpt-6.1-sol delta
+    // review, 2026-10-07, finding 1), and a file that is not a record makes no look PARTIAL.
+    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }
     // A frozen record's effect comes from its archive's catalog; `governing` there
     // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
     // and the record then governs nothing here rather than whatever it last said.
@@ -2819,9 +2885,11 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // ADR-087 T3: a graveyard record whose Status names nothing takes its replacement from
       // its frontmatter `superseded_by` (public/swift-adrs, public/active-status-adr). Its kind
       // still comes from its own Status alone, so the key never moves a governing record.
-      supersededBy: /^superseded\s+by\b/i.test(status)
-        ? supersessionTarget(retired ? status : rawStatus(text), status)
-        : kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null,
+      // `superseded by` with no record after it names nothing too, so the key is asked then as well
+      // (Decision 4; a gpt-6.1-sol review of ADR-087, finding 5).
+      supersededBy: (/^superseded\s+by\b/i.test(status)
+        ? supersessionTarget(retired ? status : rawStatus(text), status) : null)
+        ?? (kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null),
       governs: [...governs],
       // What FAILS when this decision is violated, or null. `Governs:` on its
       // own tells an agent a rule exists and nothing about what happens if it

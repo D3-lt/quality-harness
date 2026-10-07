@@ -127,7 +127,9 @@ test('a record named with the ADR prefix is found at any width, and a bare short
   try {
     mkdirSync(join(dir, 'docs', 'adr'), { recursive: true })
     for (const name of ['ADR-7-a.md', 'ADR-12-b.md', 'adr_3-c.md', '1-intro.md']) {
-      writeFileSync(join(dir, 'docs', 'adr', name), `# ${name}\n\n**Status:** Accepted\n`)
+      // `adr_3` is no `ADR-<n>` name to adr-lint, so it is a record by its content, a `## Decision`
+      // included (the owner, 2026-10-07: a file adr-lint does not recognise is a record to no reader).
+      writeFileSync(join(dir, 'docs', 'adr', name), `# ${name}\n\n**Status:** Accepted\n${name === 'adr_3-c.md' ? '\n## Decision\n\nd\n' : ''}`)
     }
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
     const state = stateOf(dir)

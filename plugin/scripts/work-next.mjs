@@ -20,7 +20,7 @@ import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, aliasReason, danglingCorpusLinks, frontmatterBlock, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, RECORD_DIRECTORY, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
+import { adrCorpus, aliasReason, danglingCorpusLinks, FRONTMATTER_OPEN, frontmatterBlock, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, RECORD_DIRECTORY, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
@@ -182,21 +182,35 @@ function posixRel(rel) {
 // directory (lifecycle's RECORD_DIRECTORY). public/dir-status-rfc keeps 63 such files and got `look:
 // ok` and nothing else (BACKLOG §353). They are named, never read as records: ADR-074 Decision 5 defines
 // a record by its content, and these have none of it. A file the record reader already lists is its
-// own, and not named twice. Only names that already match are opened, at most their first 64 lines.
+// own, and not named twice. Only names that already match are opened, and only their first 64 KiB.
+// The record reader's own `notRecognised` are named here too: files listed by name that adr-lint does
+// not recognise as records, which no reader counts (the owner, 2026-10-07).
 const NUMBERED_NAME = /^[A-Za-z]*-?\d{2,}[-_]/
-const HEAD_LINES = 64
+const HEAD_BYTES = 64 * 1024
+// The head of a regular file, and whether the file runs past it. A FIFO named like a record blocked a
+// bare open until the process was killed (BACKLOG §351; a gpt-6.1-sol review of ADR-087, finding 6),
+// so anything else throws, as `read` above reads it as nothing. Bytes, not lines: a 64-line cut lost
+// the closing `---` of a long frontmatter and the file was neither read nor named (finding 4).
 function headOf(file) {
+  if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)
   const fd = openSync(file, 'r')
   try {
-    const buffer = Buffer.alloc(64 * 1024)
+    const buffer = Buffer.alloc(HEAD_BYTES + 1)
     const read = readSync(fd, buffer, 0, buffer.length, 0)
-    return buffer.toString('utf8', 0, read).split(/\r\n|\r|\n/).slice(0, HEAD_LINES).join('\n')
+    const text = buffer.toString('utf8', 0, Math.min(read, HEAD_BYTES))
+    if (read <= HEAD_BYTES) return { text, cut: false }
+    // Cut: only complete lines are read. A cut that ends on the `---` of a longer line read as the
+    // closing delimiter (a gpt-6.1-sol delta review, 2026-10-07, finding 4).
+    return { text: text.slice(0, Math.max(text.lastIndexOf('\n'), text.lastIndexOf('\r')) + 1), cut: true }
   } finally { closeSync(fd) }
 }
+// `files` are named as not read; `unknown` are files whose frontmatter opens and does not close within
+// the budget, so whether they carry a status was not read: could-not-look, never silence.
 function notReadFiles(directory, listing, corpus) {
-  if (listing == null) return []
-  const listed = new Set([...corpus, ...(corpus.unreadable ?? [])].map(entry => path.resolve(entry.file)))
-  const found = []
+  const found = [...(corpus.notRecognised ?? [])]
+  const unknown = []
+  if (listing == null) return { files: found, unknown }
+  const listed = new Set([...corpus, ...(corpus.unreadable ?? []), ...found.map(file => ({ file }))].map(entry => path.resolve(entry.file)))
   for (const rel of listing) {
     const parts = posixRel(rel).split('/')
     const base = parts.pop()
@@ -206,10 +220,14 @@ function notReadFiles(directory, listing, corpus) {
     if (listed.has(path.resolve(file))) continue
     let head
     try { head = headOf(file) } catch { continue }
-    const block = frontmatterBlock(head)
-    if (block && head.split('\n').slice(block[0] + 1, block[1]).some(line => /^status[ \t]*:/i.test(line))) found.push(file)
+    const block = frontmatterBlock(head.text)
+    if (!block) {
+      if (head.cut && FRONTMATTER_OPEN.test(head.text.split(/\r\n|\r|\n/, 1)[0])) unknown.push(file)
+      continue
+    }
+    if (head.text.split(/\r\n|\r|\n/).slice(block[0] + 1, block[1]).some(line => /^status[ \t]*:/i.test(line))) found.push(file)
   }
-  return found
+  return { files: found, unknown }
 }
 
 
@@ -402,8 +420,9 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
   const listedTasks = taskFiles(directory, listing)
   const taskAliases = listedTasks?.aliases ?? []
   const dangling = danglingCorpusLinks(directory)
+  const notRead = notReadFiles(directory, listing, corpus)
   const look = listing == null ? 'UNPROVEN'
-    : (corpus.look ?? 'ok') === 'ok' && (taskAliases.length || dangling.length) ? 'PARTIAL' : (corpus.look ?? 'ok')
+    : (corpus.look ?? 'ok') === 'ok' && (taskAliases.length || dangling.length || notRead.unknown.length) ? 'PARTIAL' : (corpus.look ?? 'ok')
   // ⚠ LISTED IS NOT PRESENT. A sparse or partial checkout lists a task git tracks
   // and leaves the file off the disk; it was counted as a task, asked about nowhere,
   // and a done claim on it vanished (a Windows chaos round, 2026-09-25). The file's
@@ -630,15 +649,17 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
     undecidedNamed: (corpus.unreadable ?? []).filter(entry => !entry.alias)
       .map(entry => ({ file: entry.file, reason: entry.reason ?? undecidedReason(entry) })),
     undecided: (corpus.unreadable ?? []).filter(entry => !entry.alias).length,
-    // Numbered files with a frontmatter status outside every record directory: named, not read (ADR-087 T4).
-    notRead: notReadFiles(directory, listing, corpus),
+    // Numbered files with a frontmatter status outside every record directory, and files adr-lint does
+    // not recognise as records: named, not read (ADR-087 T4; the owner, 2026-10-07).
+    notRead: notRead.files,
     // WHICH records made the look PARTIAL, and why: a bare PARTIAL sent the reader
     // hunting through the corpus for the one file (BACKLOG §289 item 3).
     partialBecause: look === 'PARTIAL'
       ? [...(corpus.unreadable ?? []).filter(entry => entry.reason || /effect UNPROVEN/.test(entry.status ?? ''))
         .map(entry => ({ file: entry.file, reason: entry.reason ?? entry.status })),
       ...taskAliases.map(({ file, sameAs }) => ({ file, reason: aliasReason(directory, sameAs) })),
-      ...dangling.map(file => ({ file, reason: 'a link whose target does not exist, so the corpus behind it could not be read' }))]
+      ...dangling.map(file => ({ file, reason: 'a link whose target does not exist, so the corpus behind it could not be read' })),
+      ...notRead.unknown.map(file => ({ file, reason: `its frontmatter runs past ${HEAD_BYTES / 1024} KiB, so whether it carries a status was not read` }))]
       : [],
     tasks: tasks.length,
     unbacked,
@@ -785,7 +806,8 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
   if (unusual.length > 5) say(`  (+${unusual.length - 5} more; --json for all)\n`)
   if (state.notRead.length) {
     const n = state.notRead.length
-    say(`  not read: ${n} numbered file(s) with a frontmatter status sit outside any adr or decisions directory, `
+    say(`  not read: ${n} file(s) are not records adr-lint recognises (a numbered file with a frontmatter status `
+      + 'outside any adr or decisions directory, or one with no Status or no `## Context` or `## Decision` heading), '
       + `so no reader reads them as records: ${state.notRead.slice(0, 3).map(file => pathInCode(relative(file))).join(', ')}`
       + `${n > 3 ? ` (+${n - 3} more; --json for all)` : ''}\n`)
   }

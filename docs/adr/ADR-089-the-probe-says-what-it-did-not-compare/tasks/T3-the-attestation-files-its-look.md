@@ -106,3 +106,4 @@ Stop and ask if a locked test pins the `attested` reason's exact text. (This lin
   ```
   ```
 - 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/attest-look.test.mjs 2>&1) \ …` · acceptance-sha256:6a7b1d3e9247a589948ecb3b9b066f6fb15d1f3c909ee63efebef5d5fb08841b · ms:4407
+- 2026-10-07 · human-observed · approved by the owner (Zy, 2026-10-07): the docs/corpus-reports/README.md schema block lists look and notCompared in KEYS order and says a PARTIAL attestation counts only beside an ok one; approved

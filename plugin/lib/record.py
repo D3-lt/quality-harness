@@ -541,12 +541,16 @@ _RECORD_SECTION = re.compile(r"^##\s+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc
 # The value may be empty: a bare `Status:` is the record's first label, with nothing written after
 # it, so the record is undecided — not a line to skip so a later label or a `## Status` section can
 # govern instead (the Codex round of 3.1.6, finding 2). `Status: ` with a trailing space already read so.
-_STATUS_LINE = re.compile(r"^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$")
+# Indented by at most three spaces: four, or a tab, make an indented code block, whose `Status:` is an
+# example, as the MADR 2 bullet's is below (the owner, 2026-10-07: nothing found along the way is left open).
+_STATUS_LINE = re.compile(r"^ {0,3}\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$")
 # ADR-087 T2: MADR 2's list-item Status, `* Status: accepted` or `- Status: accepted`, is the same
 # label after a bullet, read only above the record's first unfenced `## ` heading; below it a bullet is
 # body text. An inline label anywhere still wins, and a bullet wins over a `## Status` section.
 # lifecycle.mjs's STATUS_BULLET is the same pattern.
-_STATUS_BULLET = re.compile(r"^[ \t]*[*-][ \t]+\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$")
+# Indented by at most three spaces: four, or a tab, make an indented code block, whose
+# `- Status: accepted` is an example (a gpt-6.1-sol review of ADR-087, finding 2).
+_STATUS_BULLET = re.compile(r"^ {0,3}[*-][ \t]+\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$")
 # The only whitespace at a value's edges, in both languages: exactly what `str.strip()` and JS
 # `trim()` BOTH remove, so a no-break space after the label reads as it did at ebfaee0 (the React SPA corpus
 # at 084d925: leaving it out made a governing record undecided, invisibly), while the two they
@@ -735,10 +739,15 @@ def record_status(text):
     block = frontmatter_block(text)
     bullet, above = None, True
     for index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)]):
+        in_block = block is not None and block[0] < index < block[1]
+        # Inside the frontmatter only a top-level key is the record's own: an indented line belongs to
+        # a nested value, such as a `|` literal block quoting an example (the same review, finding 1).
+        if in_block and line[:1] in (" ", "\t"):
+            continue
         found = _STATUS_LINE.match(line)
         if found:
             value = found.group(1)
-            if block is not None and block[0] < index < block[1]:
+            if in_block:
                 value = _frontmatter_value(value)
             return _STATUS_MARKUP.sub("", value).strip(_EDGE_SPACE), "inline"
         if above and _HEADING.match(line):

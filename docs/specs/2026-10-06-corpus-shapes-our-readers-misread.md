@@ -140,4 +140,4 @@ Each decision below is the drafter's proposal from the measurements, and awaits 
 | 5 | Does an unread corpus outside a record directory turn `look` PARTIAL? | F-9 | No. The readers looked, so PARTIAL would report a look that did not fail (ADR-005). They name the files instead. |
 | 6 | Is the MADR 2 bullet a label? | F-4 | Yes, above the first `##` heading only. |
 | 7 | Should `active` govern only in frontmatter? | F-3 | No: the owner accepted ADR-087 with `active` read as a status in every form. |
-| 8 | Is naming RFC-style files (F-9) enough? | F-9 | For this record, yes: ADR-087 was accepted with reading them as records under Out of Scope, so a later record would have to define an RFC corpus. |
+| 8 | Is naming RFC-style files (F-9) enough? | F-9 | Yes — the owner's answer, 2026-10-07: naming is enough for this record; a later ADR would define an RFC corpus. |

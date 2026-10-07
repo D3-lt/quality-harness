@@ -99,3 +99,4 @@ Stop and ask if any honest `adr-verify` row is refused, if a locked test would h
 - 2026-10-06 · 3ae6c8c* · exit 0 · `out=$(node --test --test-reporter=tap tests/vlog-sha-width.test.mjs 2>&1) \ …` · acceptance-sha256:245e5928c506ebd59c9692f0b28bd80eea51da2a857b2b851c36722a2bdb9bed · ms:3153
 - 2026-10-06 · 3ae6c8c* · exit 0 · `out=$(node --test --test-reporter=tap tests/vlog-sha-width.test.mjs 2>&1) \ …` · acceptance-sha256:245e5928c506ebd59c9692f0b28bd80eea51da2a857b2b851c36722a2bdb9bed · ms:4406
 - 2026-10-06 · 8fe4fa8* · exit 0 · `out=$(node --test --test-reporter=tap tests/vlog-sha-width.test.mjs 2>&1) \ …` · acceptance-sha256:245e5928c506ebd59c9692f0b28bd80eea51da2a857b2b851c36722a2bdb9bed · ms:5102
+- 2026-10-07 · human-observed · approved by the owner (Zy, 2026-10-07): read the adr-execute SKILL.md paragraph on the three unchecked row properties and the sha width against ADR-088 Decision 2; approved as written

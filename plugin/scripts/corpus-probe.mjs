@@ -294,7 +294,9 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   // (ADR-037 T1), and this probe promises to write nothing under root (a Windows
   // chaos round of 626934a, F-5a): the note goes to a scratch state directory.
   const lintState = scratchDirectory('qh-corpus-probe-lint-')
-  const adrLint = [...corpus, ...(corpus.unreadable ?? [])].map(record => {
+  // …and each file the corpus reader dropped because adr-lint does not recognise it as a record (the
+  // owner, 2026-10-07): the readers name it in notRead, and adr-lint's verdict here says what it lacks.
+  const adrLint = [...corpus, ...(corpus.unreadable ?? []), ...(corpus.notRecognised ?? []).map(file => ({ file }))].map(record => {
     // A file the corpus reader never opened (not on disk in a sparse checkout, over the
     // size bound, past the record budget) has no verdict to take: spawning adr-lint for
     // each of 164 such paths cost 48 s against 4 s (a corpus-chaos run of 916b515). It is

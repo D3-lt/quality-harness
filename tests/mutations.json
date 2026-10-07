@@ -15620,16 +15620,6 @@
       "only": "ADR prefix is found at any width"
     },
     {
-      "label": "chaos 916b515 C-2: a bare short number is not a record",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-budget.test.mjs"
-      ],
-      "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i",
-      "to": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?)?\\d{1,4}[-._]/i",
-      "only": "ADR prefix is found at any width"
-    },
-    {
       "label": "chaos 916b515: a record nobody opened is named unread, not linted",
       "file": "plugin/scripts/corpus-probe.mjs",
       "tests": [

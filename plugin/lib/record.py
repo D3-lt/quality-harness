@@ -524,20 +524,45 @@ def acceptance_digest(command):
 # above `record_files` and BACKLOG §193.
 # ⚠ TWO DIGIT CLASSES, ON PURPOSE (Codex, 2026-09-22, three rounds). A NUMBER is
 # read with `[0-9]`: Python's `\d` also matches Unicode digits, so `ADR-٠١٢-x.md` was
-# record 12 here and nothing in lifecycle.mjs. An EXCLUSION guard keeps `\d`, as
-# adr-lint always had it, so `003-T٢-plan.md` stays a task and `2026-٠٧-15-x.md` a
-# date; the JS copy matches those with `\p{Nd}`. `re.ASCII` is not the fix: it
-# also narrows `\s`, and a title `#<NBSP>ADR-012` then split the two copies.
+# record 12 here and nothing in lifecycle.mjs. An EXCLUSION guard reads any decimal
+# digit, as adr-lint always had it, so `003-T٢-plan.md` stays a task and `2026-٠٧-15-x.md` a
+# date. `re.ASCII` is not the fix: it also narrows `\s`, and a title `#<NBSP>ADR-012` then
+# split the two copies.
+# ⚠ AND "ANY DECIMAL DIGIT" IS THIS TABLE, NOT THE RUNTIME'S. Python's `\d` is its own Unicode
+# version's Nd and Node's `\p{Nd}` is Node's, so U+11DE0 was a digit to Node 26 (Unicode 17) and not
+# to Python 3.14 (Unicode 16): `spec-𑷠-x.md` was a record to one reader only (a gpt-6.1-sol review of
+# ADR-092's execution, 2026-10-07, finding 3). Unicode 16.0's Nd ranges, frozen here and spelled the
+# same in lifecycle.mjs's DECIMAL_DIGIT_RANGES; tests/record-definition-parity.test.mjs holds the two
+# tables equal. Every digit guard on a name (the spec arm, TASK_SHAPED_RE, DATE_SHAPED_RE, a bare-number
+# directory) reads it.
+DECIMAL_DIGIT_RANGES = (
+    (0x30, 0x39), (0x660, 0x669), (0x6F0, 0x6F9), (0x7C0, 0x7C9), (0x966, 0x96F), (0x9E6, 0x9EF),
+    (0xA66, 0xA6F), (0xAE6, 0xAEF), (0xB66, 0xB6F), (0xBE6, 0xBEF), (0xC66, 0xC6F), (0xCE6, 0xCEF),
+    (0xD66, 0xD6F), (0xDE6, 0xDEF), (0xE50, 0xE59), (0xED0, 0xED9), (0xF20, 0xF29), (0x1040, 0x1049),
+    (0x1090, 0x1099), (0x17E0, 0x17E9), (0x1810, 0x1819), (0x1946, 0x194F), (0x19D0, 0x19D9),
+    (0x1A80, 0x1A89), (0x1A90, 0x1A99), (0x1B50, 0x1B59), (0x1BB0, 0x1BB9), (0x1C40, 0x1C49),
+    (0x1C50, 0x1C59), (0xA620, 0xA629), (0xA8D0, 0xA8D9), (0xA900, 0xA909), (0xA9D0, 0xA9D9),
+    (0xA9F0, 0xA9F9), (0xAA50, 0xAA59), (0xABF0, 0xABF9), (0xFF10, 0xFF19), (0x104A0, 0x104A9),
+    (0x10D30, 0x10D39), (0x10D40, 0x10D49), (0x11066, 0x1106F), (0x110F0, 0x110F9), (0x11136, 0x1113F),
+    (0x111D0, 0x111D9), (0x112F0, 0x112F9), (0x11450, 0x11459), (0x114D0, 0x114D9), (0x11650, 0x11659),
+    (0x116C0, 0x116C9), (0x116D0, 0x116E3), (0x11730, 0x11739), (0x118E0, 0x118E9), (0x11950, 0x11959),
+    (0x11BF0, 0x11BF9), (0x11C50, 0x11C59), (0x11D50, 0x11D59), (0x11DA0, 0x11DA9), (0x11F50, 0x11F59),
+    (0x16130, 0x16139), (0x16A60, 0x16A69), (0x16AC0, 0x16AC9), (0x16B50, 0x16B59), (0x16D70, 0x16D79),
+    (0x1CCF0, 0x1CCF9), (0x1D7CE, 0x1D7FF), (0x1E140, 0x1E149), (0x1E2F0, 0x1E2F9), (0x1E4F0, 0x1E4F9),
+    (0x1E5F1, 0x1E5FA), (0x1E950, 0x1E959), (0x1FBF0, 0x1FBF9),
+)
+DECIMAL_DIGIT = "".join(f"{chr(first)}-{chr(last)}" for first, last in DECIMAL_DIGIT_RANGES)
 RECORD_FILE_RE = re.compile(r"^(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
 # The same shape, read as a NUMBER: ASCII digits only, for `record_id`.
 _RECORD_NUMBER = re.compile(r"^(?:adr[-_]?)?([0-9]{1,4})[-._]", re.I)
 # `003-T2.md`, `003-T2-plan.md` — a task file, or a record with a slug of `t2`.
-TASK_SHAPED_RE = re.compile(r"^(?:adr[-_]?)?\d{1,4}[-._]T\d+(?:[-._]|$)", re.I)
+# `\Z`, never `$`, on a name: `$` also matches before a final line feed, which JS's does not.
+TASK_SHAPED_RE = re.compile(rf"^(?:adr[-_]?)?[{DECIMAL_DIGIT}]{{1,4}}[-._]T[{DECIMAL_DIGIT}]+(?:[-._]|\Z)", re.I)
 # `2026-07-12-x.md` in every separator and width — a dated note, or an ADR-2026.
 # ⚠ The owner KEPT this shape on 2026-09-22, so a four-digit number with a
 # numeric slug (`0012-3-tier-cache.md`) is date-shaped too, and is a stem
 # (ADR-063 Risks). A title `# ADR-12` still gives it 12.
-DATE_SHAPED_RE = re.compile(r"^\d{4}[-_.]\d{1,2}[-_.]")
+DATE_SHAPED_RE = re.compile(rf"^[{DECIMAL_DIGIT}]{{4}}[-_.][{DECIMAL_DIGIT}]{{1,2}}[-_.]")
 # A reference that is nothing but a date, `(2026-07-12)` beside a path: a date,
 # never the name of a record.
 _BARE_DATE = re.compile(r"[0-9]{4}[-_.][0-9]{1,2}[-_.][0-9]{1,2}")
@@ -602,7 +627,9 @@ _EDGE_SPACE = "".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680
 # this pattern, so adr-lint and the corpus readers look in the same places.
 # ASCII case folding only: `re.I` alone folds `ı` and `ſ` into `i` and `s`, which JS's `/i` does not,
 # so `decıſıons/` was a record directory here and nowhere else (the Codex round of 3.1.6, finding 5).
-_RECORD_DIRECTORY = re.compile(r"^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$", re.I | re.A)
+# `\Z`, never `$`: `$` also matches before a final line feed, so a directory named `adr<LF>` was a
+# record directory here and not in lifecycle.mjs (a gpt-6.1-sol review of ADR-092's execution, finding 4).
+_RECORD_DIRECTORY = re.compile(r"^(?:adrs?|decisions?)(?:[-_]archived?s?)?\Z|^archives?[-_](?:adrs?|decisions?|records?)\Z", re.I | re.A)
 _STATUS_MARKUP = re.compile(r"[*_`]")
 _STATUS_RUN = re.compile(r"[^\W_]+")
 # ADR-087 adds `active`: four public corpora write it for a record in force (public/swift-adrs,
@@ -772,9 +799,11 @@ def first_reference(text):
 #
 # No file under a directory named `templates` is a record, by either arm (the owner, 2026-10-07).
 _TEMPLATES_DIRECTORY = re.compile(r"templates", re.I | re.A)
-# The spec name arm. `re.I` folds `ſpec` to `spec` and `\d` takes any decimal digit; lifecycle
-# reproduces both by hand (ADR-092 Decision 5).
-_SPEC_NAME = re.compile(r"spec[-_]?\d", re.I)
+# The spec name arm. `re.I` folds `ſpec` to `spec`, and the digit is any in DECIMAL_DIGIT_RANGES;
+# lifecycle reproduces both by hand (ADR-092 Decision 5).
+_SPEC_NAME = re.compile(rf"spec[-_]?[{DECIMAL_DIGIT}]", re.I)
+# A bare run of decimal digits (`2024/`): a year, never another record's own directory.
+_BARE_NUMBER = re.compile(rf"[{DECIMAL_DIGIT}]+")
 # The content arm's exact label, the line this plugin's template writes (BACKLOG §141).
 _BOLD_STATUS = re.compile(r"\*\*Status:\*\*")
 # plugin/scripts/uninteresting.mjs's UNINTERESTING_DIRECTORY, in Python: fixture and generated trees
@@ -809,6 +838,21 @@ def _listed_relative(path, root):
             if found is not None:
                 return found
     return None
+
+
+def _spelled_relatives(path, root):
+    """`path` exactly as spelled, relative to `root` as spelled and to the root's real path: no link
+    on the way to it is resolved, so a `templates` directory that is a link to `docs/adr` is still
+    `templates` here (a gpt-6.1-sol review of ADR-092's execution, finding 2). `_listed_relative`
+    resolves the file's directory first, which erased that component."""
+    absolute = Path(os.path.abspath(path))
+    bases = [Path(os.path.abspath(root))]
+    try:
+        bases.append(Path(os.path.realpath(root)))
+    except OSError:
+        pass
+    found = (_relative_to(absolute, base) for base in bases)
+    return [relative for relative in found if relative is not None]
 
 
 def record_placement(path, root):
@@ -852,8 +896,9 @@ def _kept_where_records_are(directories, name):
 
 def _another_records_directory(directory, own):
     """Whether `directory` is a record's own directory, and not the one whose identity is `own`."""
-    # `isdecimal`, not `isdigit`: a run of decimal digits, as JS's `\p{Nd}` reads it in lifecycle.mjs.
-    found = None if directory.isdecimal() else record_id(directory)
+    # The frozen digit table, not `isdecimal` (this runtime's Unicode): a run of decimal digits as
+    # lifecycle.mjs reads it.
+    found = None if _BARE_NUMBER.fullmatch(directory) else record_id(directory)
     return found is not None and found != own
 
 
@@ -873,8 +918,8 @@ def record_discriminators(text):
 def recognised_as_record(path, text, root):
     """ADR-092 Decision 1: `(recognised, status_value, kept, arm)` for a file and its text.
 
-    Not a record, by either arm, when a `templates` directory is on its path as listed or on its
-    placed path (`arm` is "templates"). Otherwise a record when its name starts `ADR-<n>`
+    Not a record, by either arm, when a `templates` directory is on its path as listed, as spelled
+    (no link resolved) or on its placed path (`arm` is "templates"). Otherwise a record when its name starts `ADR-<n>`
     ("canonical") or `spec-<n>` ("spec"), whatever its directory. Otherwise, never for a file named
     `README.md` (a catalog; `arm` is "readme"), it is a record by content when it carries a Status
     (ADR-074 Decision 1) and a one-line `## Context` or `## Decision` heading, and either a
@@ -886,7 +931,8 @@ def recognised_as_record(path, text, root):
     listed = (_listed_relative(path, root) if root is not None else None) or path
     status_value = record_status(text)[0]
     kept = _kept_where_records_are(list(placed.parent.parts), placed.name)
-    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts)):
+    spelled = [part for one in (_spelled_relatives(path, root) if root is not None else [path]) for part in one.parent.parts]
+    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts, *spelled)):
         return False, status_value, kept, "templates"
     if _NUMBERED_REF.match(path.name):
         return True, status_value, kept, "canonical"

@@ -3605,8 +3605,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "    if checked == 0:\n        return 1",
-      "to": "    if False:\n        return 1",
+      "from": "    if checked == 0 or unlisted:",
+      "to": "    if unlisted:",
       "only": "^(?:a corpus with no claim reports no rate rather than a clean one|a human-observed entry is not a claim|an empty corpus reports no claim rather than a clean sweep|a corpus whose evidence predates the tool reports no claim, not a clean bill|an entry after the Verification Log section belongs to no claim)$"
     },
     {
@@ -22864,6 +22864,86 @@
       "from": "      if (underFrozenArchive(root, parts.slice(0, depth + 1), cache, listed) === false) found.add(parts.slice(0, depth).join('/'))",
       "to": "      found.add(parts.slice(0, depth).join('/'))",
       "only": "^a listed Lifecycle marker freezes the archive in both paths$"
+    },
+    {
+      "label": "ADR-092 T7: adr-debt's unlisted report",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "    if unlisted:\n        for directory in unlisted:\n            print(f\"[adr-debt] could not run",
+      "to": "    if False:\n        for directory in unlisted:\n            print(f\"[adr-debt] could not run",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 T7: adr-lint's unlisted report",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "        UNLISTED_DIRECTORIES.extend(d for d in unlisted if d not in UNLISTED_DIRECTORIES)",
+      "to": "        pass",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 T7: adr-verify's unlisted report",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "    if checked == 0 or unlisted:",
+      "to": "    if checked == 0:",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 T7: arch-lint's unlisted report",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "        if unlisted:\n            for directory in unlisted:\n                print(f\"[arch-lint] could not run",
+      "to": "        if False:\n            for directory in unlisted:\n                print(f\"[arch-lint] could not run",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 T7: spec-verify's unlisted report",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "            if unlisted:\n                return None",
+      "to": "            if False:\n                return None",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 T7: adr-debt's any-case suffix",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "    paths = sorted(p for p in walk(scan_dir, unlisted=unlisted) if not markdown or p.name.lower().endswith(\".md\"))",
+      "to": "    paths = sorted(p for p in walk(scan_dir, unlisted=unlisted) if not markdown or p.name.endswith(\".md\"))",
+      "only": "^adr-debt and adr-verify read a .MD file$"
+    },
+    {
+      "label": "ADR-092 T7: adr-verify's any-case suffix",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "    tasks = sorted(q for q in walk(root, unlisted=unlisted) if q.name.lower().endswith(\".md\") and q.is_file())",
+      "to": "    tasks = sorted(q for q in walk(root, unlisted=unlisted) if q.name.endswith(\".md\") and q.is_file())",
+      "only": "^adr-debt and adr-verify read a .MD file$"
+    },
+    {
+      "label": "ADR-092 T7: adr-debt's regular-file read",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "                text = read_regular(md)",
+      "to": "                text = md.read_text(errors=\"replace\", encoding=\"utf-8\")",
+      "only": "^adr-debt never opens a FIFO$"
     }
   ]
 }

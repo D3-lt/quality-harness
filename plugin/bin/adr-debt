@@ -19,7 +19,8 @@ Exit: 0 = report printed, every path/ADR pointer resolves
       1 = malformed pointer (deferred with nothing after the colon) or
           a path/ADR pointer that resolves to nothing
       2 = could not run: plugin/lib/record.py is not beside this gate's bin/
-          (a gate copied on its own; ADR-045), or a named path that exists but could not be read.
+          (a gate copied on its own; ADR-045), a named path that exists but could not be read
+          or is not a regular file, or a directory a walk could not list (ADR-092 Decision 10).
 
 The loop: run this at /adr-write time. Every reported item is either pulled
 into the new ADR's Context, re-deferred with a fresh pointer, or classified as
@@ -72,7 +73,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, NO_WINDOW, walk  # noqa: E402
+from record import sections_of, NO_WINDOW, walk, read_regular  # noqa: E402
 from record import os_reason  # noqa: E402
 
 
@@ -298,6 +299,21 @@ def resolve(pointer, md_file, scan_dir):
     return "ref", True  # F-n, issue key, prose — listed, not resolved here
 
 
+def _walked(scan_dir, markdown=False):
+    """Every path under `scan_dir`, sorted; with `markdown`, only names ending `.md` in any case (a
+    `.MD` record's debt was missed off Windows by a case-sensitive `*.md`). A directory the walk could
+    not list is could-not-run, exit 2, named: a report over part of a tree is not a report of it
+    (ADR-092 Decision 10, ADR-005)."""
+    unlisted = []
+    paths = sorted(p for p in walk(scan_dir, unlisted=unlisted) if not markdown or p.name.lower().endswith(".md"))
+    if unlisted:
+        for directory in unlisted:
+            print(f"[adr-debt] could not run: {directory} — this directory could not be listed, so the "
+                  f"scan under {scan_dir} is incomplete", file=sys.stderr)
+        sys.exit(2)
+    return paths
+
+
 def _resolve_adr_id(token, scan_dir):
     """("adr", whether this corpus holds a record with that number).
 
@@ -306,9 +322,10 @@ def _resolve_adr_id(token, scan_dir):
     come to disagree about what counts as the same record (ADR-009).
     """
     pat = re.sub(r"[-_\s]", "", token).lower()
-    hits = [f for f in walk(scan_dir, "*.md")
-            if pat in re.sub(r"[-_]", "", f.stem).lower()] + \
-           [d for d in walk(scan_dir) if d.is_dir()
+    walked = _walked(scan_dir)
+    hits = [f for f in walked if f.name.lower().endswith(".md")
+            and pat in re.sub(r"[-_]", "", f.stem).lower()] + \
+           [d for d in walked if d.is_dir()
             and pat == re.sub(r"[-_]", "", d.name).lower()]
     return "adr", bool(hits)
 
@@ -477,9 +494,11 @@ def main():
     # than a missing one.
     waiting = []
     for scan_dir in dirs:
-        for md in sorted(walk(scan_dir, "*.md")):
+        for md in _walked(scan_dir, markdown=True):
             try:
-                text = md.read_text(errors="replace", encoding="utf-8")
+                # A regular file only: a FIFO named like a record blocked this read until the process
+                # was killed, and a directory named `x.md` is never opened (ADR-092 Decision 10).
+                text = read_regular(md)
             except OSError as exc:
                 print(f"[adr-debt] could not run: {md} — {os_reason(exc)}", file=sys.stderr)
                 sys.exit(2)

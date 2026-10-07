@@ -24,7 +24,8 @@ Checks:
              pass). A check whose path doesn't exist yet is tagged (deferred: <pointer>).
 
 Exit: 0 pass · 1 failures found · 2 could not run: plugin/lib/record.py is not
-beside this gate's bin/ (a gate copied on its own; ADR-045), or a named path that exists but could not be read
+beside this gate's bin/ (a gate copied on its own; ADR-045), a named path that exists but could not be read,
+or a directory the repository walk could not list (ADR-092 Decision 10)
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a
@@ -321,11 +322,12 @@ def tracked_paths(root):
     return {(root / os.fsdecode(name)).resolve() for name in r.stdout.split(b"\0") if name}
 
 
-def repo_files(root, limit=6000):
-    """Text files under root, cheaply — enough to resolve a symbol name."""
+def repo_files(root, limit=6000, unlisted=None):
+    """Text files under root, cheaply — enough to resolve a symbol name. A directory the walk could
+    not list is appended to `unlisted`."""
     out = []
     tracked = tracked_paths(root)
-    for q in walk(root):
+    for q in walk(root, unlisted=unlisted):
         if len(out) >= limit:
             break
         if not q.is_file():
@@ -568,7 +570,15 @@ def main():
     if widest is None:
         widest = roots[-1] if roots else None
     if widest is not None and widest.is_dir():
-        index = repo_files(widest)
+        unlisted = []
+        index = repo_files(widest, unlisted=unlisted)
+        # A symbol lookup over part of the repository would call a check missing that sits in the part
+        # it did not see: could-not-run, naming the directory (ADR-092 Decision 10, ADR-005).
+        if unlisted:
+            for directory in unlisted:
+                print(f"[arch-lint] could not run: {directory} — this directory could not be listed, so "
+                      f"a symbol defined under it would not be found", file=sys.stderr)
+            sys.exit(2)
 
     secs = sections_of(text)
     for s in ALL_SECTIONS:

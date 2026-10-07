@@ -2932,12 +2932,18 @@ def resolve_test_file(root, rel, tracked=None):
         if len(hits) == 1 and not hits[0].is_file():
             return None
     else:
-        hits = [q for q in walk(root, base)
+        unlisted = []
+        hits = [q for q in walk(root, base, unlisted=unlisted)
                 if q.is_file() and not any(part in str(q) for part in excluded)]
+        # Said beside the finding this walk serves: a file there was not looked for (ADR-092 Decision 10).
+        UNLISTED_DIRECTORIES.extend(d for d in unlisted if d not in UNLISTED_DIRECTORIES)
     return hits[0] if len(hits) == 1 else None
 
 
 _BASENAME_INDEX = {}
+# Directories `resolve_test_file`'s walk could not list, reported once each as could-not-look beside the
+# record's verdict (ADR-092 Decision 10).
+UNLISTED_DIRECTORIES = []
 
 
 def _tracked_by_basename(tracked):
@@ -6730,6 +6736,9 @@ def main():
             else:
                 withheld.setdefault(owner, []).append(a)
         errors.advice[:] = kept
+    for directory in UNLISTED_DIRECTORIES:
+        errors.unproven.append(f"{directory} could not be listed, so a file a Tests row names by its basename "
+                               f"was not looked for there")
     status = "FAIL" if errors else "UNPROVEN" if errors.unproven else "PASS"
     if errors.demotion:
         print(f"[strictFrom] {one_line(errors.demotion)}")

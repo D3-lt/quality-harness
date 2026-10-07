@@ -3453,6 +3453,22 @@ def regular_file_problem(path):
     return None if stat.S_ISREG(mode) else "not a regular file"
 
 
+def special_file_problem(path):
+    """Why a walked path that is not a directory cannot be read as a file, in words, or None: it exists
+    and is not a regular file (a FIFO, a socket, a device), or asking about it failed. A regular file, a
+    directory and an absent path (a dangling link) are None. A walk's caller that filters with
+    `is_file()` drops exactly these in silence, which sealed an archive unit without its FIFO
+    attachment and swept a corpus past a FIFO task (a gpt-6.1-sol review of ADR-092's execution,
+    findings 7 and 8); the caller names them instead. Asked with `os.stat`, which never opens."""
+    try:
+        mode = os.stat(path).st_mode
+    except FileNotFoundError:
+        return None
+    except OSError as exc:
+        return os_reason(exc)
+    return None if stat.S_ISREG(mode) or stat.S_ISDIR(mode) else "not a regular file"
+
+
 def read_regular(path):
     """The text of a regular file, decoded as every gate decodes one. Raises `NotARegularFile` for a
     path that is not one, before it is opened, and `OSError` for a read that failed. Every read in
@@ -3477,7 +3493,7 @@ def _list_directory(directory):
     return directory.iterdir()
 
 
-def walk(root, pattern="*", is_link=_is_link, unlisted=None, list_dir=None):
+def walk(root, pattern="*", is_link=_is_link, unlisted=None, list_dir=None, inspect=None):
     """`Path(root).rglob(pattern)`, except that it never enters a symlink or a junction.
 
     `rglob` enters a Windows junction, which pathlib does not take for a symlink: a junction under
@@ -3492,8 +3508,14 @@ def walk(root, pattern="*", is_link=_is_link, unlisted=None, list_dir=None):
     passes none gets the old silence. `list_dir` is the listing seam a test sets to make one
     directory fail on every platform (tests/helpers/unlistable.py), since `chmod 000` stops no
     listing on Windows or as root.
+
+    A listed entry that cannot be inspected (a directory that may be listed but not searched answers
+    EACCES for every child) is appended to `unlisted` too: whether a tree is below it is unknown, and
+    `is_dir()` suppressed the error, so the walk went on as if it held nothing (a gpt-6.1-sol review of
+    ADR-092's execution, finding 6). `inspect` is the seam a test sets to make one entry fail anywhere.
     """
     list_dir = list_dir or _list_directory
+    inspect = inspect or os.lstat
     stack = [Path(root)]
     while stack:
         directory = stack.pop()
@@ -3508,10 +3530,17 @@ def walk(root, pattern="*", is_link=_is_link, unlisted=None, list_dir=None):
             if fnmatch.fnmatch(entry.name, pattern):
                 yield entry
             try:
-                if entry.is_dir() and not is_link(entry):
-                    below.append(entry)
-            except OSError:
+                mode = inspect(entry).st_mode
+            except FileNotFoundError:
+                # Gone between the listing and the look: nothing is below it to miss.
                 continue
+            except OSError:
+                if unlisted is not None:
+                    unlisted.append(entry)
+                continue
+            # `lstat`: a link is never entered, and `is_link` also catches a junction.
+            if stat.S_ISDIR(mode) and not is_link(entry):
+                below.append(entry)
         stack.extend(reversed(below))
 
 

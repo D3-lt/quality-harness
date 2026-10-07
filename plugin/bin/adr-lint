@@ -4179,7 +4179,8 @@ def invalidates_pointer(text):
 # so the retire gate and this one read one spelling: RECORD_FILE_RE,
 # TASK_SHAPED_RE (`003-T2.md`, a task file) and DATE_SHAPED_RE (`2026-07-12-x.md`
 # in every separator and width — a dated note, or an ADR-2026).
-from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, title_line  # noqa: E402
+from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, read_regular, record_id, title_line  # noqa: E402
+from functools import lru_cache  # noqa: E402
 # Checked in this order: `# ADR-003-T2` is both, and it is a task.
 TITLE_TASK_RE = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I)
 TITLE_RECORD_RE = re.compile(r"^﻿?#\s*ADR[-_ ]?\d", re.I)
@@ -4202,33 +4203,62 @@ def corpus_prefix(root, corpus_dir):
     return "" if prefix == "." else prefix + "/"
 
 
-def _title_says_record(path):
-    """True record, False not a record, None could not read the file.
+@lru_cache(maxsize=None)
+def _corpus_record_number(path, root):
+    """The number of the record at `path` by the one definition, False when it is no record or has no
+    number, or None when it could not be read (a read failed, or it is not a regular file).
 
-    The title is `title_line`'s: the first `# ` heading after any frontmatter
-    and outside fenced code. A file with no heading at all stays "not a record":
-    dated notes carry none and a corpus holds them, and demoting every such corpus
-    to could-not-look would trade one false answer for a blind gate. The caller
-    compares the title's number with the filename's, from the same title.
-    """
+    ⚠ THE ONE DEFINITION, NOT A NAME TEST. This enumeration counted a name alone: `001-note.md` holding
+    only `Status: Accepted`, which `recognised_as_record` rejects, was record 1 here and resolved
+    `ADR-001-T1` against its tasks, while a content record named without a number (`foo.md` titled
+    `# ADR-005: X`) was never enumerated (a gpt-6.1-sol review of ADR-092's execution, finding 1). So
+    every `.md` directly in the corpus is read, once per process (BACKLOG §162: this check runs per
+    record), and asked the definition. A recognised record keeps the number its NAME gives, as before;
+    one whose name gives none is numbered by its ADR-063 identity, title first. A task-shaped or dated
+    name still needs a title that says record and agrees with its number. The read goes through
+    `read_regular`, so a FIFO is never opened.
+
+    A file git tracks and the worktree does not hold (a sparse checkout) cannot be read, and the
+    enumeration comes from git, never the disk (CLAUDE.md §8): it keeps the number its name gives, as
+    every tracked record kept it before, unless only a title could settle the name, which leaves the
+    enumeration unproven as before."""
+    name = Path(path).name
     try:
-        text = Path(path).read_text(encoding="utf-8", errors="replace")
+        text = read_regular(path)
+    except FileNotFoundError:
+        found = RECORD_FILE_RE.match(name)
+        if not found:
+            return False
+        ambiguous = TASK_SHAPED_RE.match(name[:-len(".md")]) or DATE_SHAPED_RE.match(name)
+        return None if ambiguous else int(found.group(1))
     except OSError:
         return None
-    title = title_line(text)
-    if title is None or TITLE_TASK_RE.match(title):
+    if not recognised_as_record(Path(path), text, None if root is None else Path(root))[0]:
         return False
-    return bool(TITLE_RECORD_RE.match(title))
+    title = title_line(text)
+    found = RECORD_FILE_RE.match(name)
+    if not found:
+        identity = record_id(name, title)
+        return int(identity[len("ADR-"):]) if identity and identity.startswith("ADR-") else False
+    if TASK_SHAPED_RE.match(name[:-len(".md")]) or DATE_SHAPED_RE.match(name):
+        # A file with no heading at all stays "not a record" here: dated notes carry none and a corpus
+        # holds them, and demoting every such corpus to could-not-look would trade one false answer
+        # for a blind gate.
+        if title is None or TITLE_TASK_RE.match(title) or not TITLE_RECORD_RE.match(title):
+            return False
+        numbered = re.match(r"^﻿?#\s*ADR[-_ ]?(\d{1,4})\b", title, re.I)
+        if numbered and int(numbered.group(1)) != int(found.group(1)):
+            return False
+    return int(found.group(1))
 
 
 def record_files(root, corpus_dir, tracked):
     """(path, number) for every record in the corpus, or None for could-not-look.
 
-    Named-based only, deliberately: reading every file's title to resolve a
-    number would open the whole corpus on a check that runs per record, and an
-    outside corpus has already reported this gate as slow (BACKLOG §162). A
-    record whose NAME carries no number and whose title does is not enumerated
-    here; that is a known limit, not an oversight.
+    A record is what record.py's one definition says (`_corpus_record_number`), read once per file per
+    process; a file this could not read leaves the WHOLE enumeration unproven, since dropping just that
+    file would answer a question this never asked (ADR-005) and a dependency check then BLOCKS on a
+    could-not-look (CLAUDE.md §16).
 
     ⚠ ENUMERATED FROM GIT, NEVER FROM THE DISK, and NONE IS NOT AN EMPTY CORPUS.
     `Path.glob` suppresses the error it hits: an unreadable `docs/adr/` returned
@@ -4251,31 +4281,13 @@ def record_files(root, corpus_dir, tracked):
         if prefix and not entry.startswith(prefix):
             continue
         name = entry[len(prefix):]
-        if not name or "/" in name or not name.lower().endswith(".md"):
+        if not name or "/" in name or not name.lower().endswith(".md") or name.lower() == "readme.md":
             continue
-        found = RECORD_FILE_RE.match(name)
-        if not found:
-            continue
-        stem = name[:-len(".md")]
-        if TASK_SHAPED_RE.match(stem) or DATE_SHAPED_RE.match(name):
-            says = _title_says_record(corpus_dir / name)
-            if says is None:
-                # An ambiguous name whose title cannot be read leaves the WHOLE
-                # enumeration unproven. Dropping just that file would answer a
-                # question this never asked (ADR-005).
-                return None
-            if not says:
-                continue
-            try:
-                title_text = (corpus_dir / name).read_text(encoding="utf-8", errors="replace")
-            except OSError:
-                return None
-            numbered = re.match(r"^﻿?#\s*ADR[-_ ]?(\d{1,4})\b", title_line(title_text) or "", re.I)
-            title_n = int(numbered.group(1)) if numbered else None
-            file_n = int(found.group(1))
-            if title_n is not None and title_n != file_n:
-                continue
-        out.append((corpus_dir / name, int(found.group(1))))
+        number = _corpus_record_number(str(corpus_dir / name), None if root is None else str(root))
+        if number is None:
+            return None
+        if number is not False:
+            out.append((corpus_dir / name, number))
     return sorted(out)
 
 

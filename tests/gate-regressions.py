@@ -2444,19 +2444,23 @@ def main():
         amb_root = Path(amb)
         amb_dir = amb_root / "docs" / "adr"
         (amb_dir / "003-real" / "tasks").mkdir(parents=True)
+        # A record carries a Status and a `## Decision` heading, so the one definition (ADR-092)
+        # admits it from the corpus directory and the NAME and TITLE are what these rows read
+        # (record_files asks that definition since a review of ADR-092's execution, finding 1).
+        body = "\nStatus: Accepted\n\n## Decision\n\nx\n"
         for name, text in (
-            ("003-real.md", "# ADR-003: the real record\n"),
+            ("003-real.md", "# ADR-003: the real record\n" + body),
             # A task in BOTH title spellings. `# Task ADR-…` is refused by the
             # record pattern anyway; only `# ADR-003-T2` — which reads as a
             # record until you notice the `-T2` — needs the task pattern, and a
             # fixture carrying only the first spelling left that guard GREEN
             # under mutation while appearing to test it.
             ("003-T2-plan.md", "# Task ADR-003-T2: a plan\n"),
-            ("003-T3.md", "# ADR-003-T3: a plan with no Task prefix\n"),
+            ("003-T3.md", "# ADR-003-T3: a plan with no Task prefix\n" + body),
             # a RECORD whose slug merely opens with a T and a number
-            ("004-t2.md", "# ADR-004: slug t2\n"),
+            ("004-t2.md", "# ADR-004: slug t2\n" + body),
             # a record numbered like a year — the `19|20` anchor excluded it
-            ("2000-13-storage.md", "# ADR-2000: storage\n"),
+            ("2000-13-storage.md", "# ADR-2000: storage\n" + body),
             # dated notes in two spellings; neither is a record
             ("2026-9-9-router.md", "router notes\n"),
             ("1899-9-9-notes.md", "older notes\n"),
@@ -2487,7 +2491,7 @@ def main():
         assert lint.record_files(amb_root, amb_dir,
                                  amb_tracked | {"docs/adr/2027-1-1-gone.md"}) is None
         clash = amb_dir / "003-T2.md"
-        clash.write_text("# ADR-4: filename and title disagree\n", encoding="utf-8")
+        clash.write_text("# ADR-4: filename and title disagree\n" + body, encoding="utf-8")
         clash_tracked = amb_tracked | {"docs/adr/003-T2.md"}
         clash_numbers = {p.name: n for p, n in lint.record_files(amb_root, amb_dir, clash_tracked)}
         assert "003-T2.md" not in clash_numbers, clash_numbers
@@ -5371,16 +5375,22 @@ def test_a_record_title_below_frontmatter_or_a_blank_line_is_read(lint):
         root = Path(tmp)
         corpus = root / "docs" / "adr"
         corpus.mkdir(parents=True)
+        # Each file carries a Status and a `## Decision` heading, so the one definition (ADR-092)
+        # admits it from the corpus directory and the TITLE is what this test reads; record_files
+        # asks that definition since a review of ADR-092's execution (finding 1).
+        body = "\nStatus: Accepted\n\n## Decision\n\nx\n"
         files = {
-            "001-plain.md": "# ADR-001: a plain record\n",
+            "001-plain.md": "# ADR-001: a plain record\n" + body,
             # Task-shaped names, so the TITLE decides. Each of the next two was
             # dropped from the enumeration while only line one was read.
-            "005-T1-notes.md": "\n# ADR-005: a blank line above the title\n",
-            "006-T1-front.md": "---\nid: 6\n# a yaml comment, not a title\n---\n# ADR-006: below frontmatter\n",
+            "005-T1-notes.md": "\n# ADR-005: a blank line above the title\n" + body,
+            "006-T1-front.md": "---\nid: 6\n# a yaml comment, not a title\n---\n# ADR-006: below frontmatter\n" + body,
             # ...and the must-fail direction: a task below frontmatter is still a
-            # task, and a file with no heading at all is still not a record.
-            "007-T2-plan.md": "---\na: b\n---\n# Task ADR-007-T2: a plan\n",
-            "008-T1-bare.md": "no heading at all\n",
+            # task, a file with no heading at all is still not a record, and a title
+            # alone is no record to the one definition.
+            "007-T2-plan.md": "---\na: b\n---\n# Task ADR-007-T2: a plan\n" + body,
+            "008-T1-bare.md": "no heading at all\n" + body,
+            "009-title-only.md": "# ADR-009: a title and nothing else\n",
         }
         for name, text in files.items():
             (corpus / name).write_text(text, encoding="utf-8")
@@ -5421,12 +5431,15 @@ def test_a_fenced_example_is_not_a_title_and_the_number_comes_from_the_title(lin
         root = Path(tmp)
         corpus = root / "docs" / "adr"
         corpus.mkdir(parents=True)
+        # Records carry a Status and a `## Decision` heading, so the one definition admits them and the
+        # TITLE is what this test reads (ADR-092; record_files asks the definition).
+        body = "\nStatus: Accepted\n\n## Decision\n\nx\n"
         files = {
-            "001-plain.md": "# ADR-001: a plain record\n",
+            "001-plain.md": "# ADR-001: a plain record\n" + body,
             # A task file whose body opens with a fenced example of a record title.
             "009-T1-fenced.md": "```\n# ADR-009: an example\n```\n# Task ADR-009-T1: the real title\n",
             # A real record whose frontmatter carries a YAML comment naming another number.
-            "010-T1-yaml.md": "---\n# ADR-999: a yaml comment\n---\n# ADR-010: the real title\n",
+            "010-T1-yaml.md": "---\n# ADR-999: a yaml comment\n---\n# ADR-010: the real title\n" + body,
         }
         for name, text in files.items():
             (corpus / name).write_text(text, encoding="utf-8")
@@ -5443,13 +5456,16 @@ def test_a_fence_is_read_with_the_corpus_rule(lint):
         root = Path(tmp)
         corpus = root / "docs" / "adr"
         corpus.mkdir(parents=True)
+        # Records carry a Status and a `## Decision` heading, so the one definition admits them and the
+        # TITLE is what this test reads (ADR-092; record_files asks the definition).
+        body = "\nStatus: Accepted\n\n## Decision\n\nx\n"
         files = {
-            "001-plain.md": "# ADR-001: a plain record\n",
+            "001-plain.md": "# ADR-001: a plain record\n" + body,
             # "```python" inside a ```markdown fence is content, not a closer.
             "009-T1-example.md": "```markdown\n```python\n# ADR-009 example\n```\n# Task ADR-009-T1 real\n",
             "012-T1-tilde.md": "~~~md\n~~~py\n# ADR-012 example\n~~~\n# Task ADR-012-T1 real\n",
             # A backtick "opener" whose info string holds a backtick is not a fence at all.
-            "011-T1-inline.md": "```inline ` code```\n# ADR-011: the real title\n",
+            "011-T1-inline.md": "```inline ` code```\n# ADR-011: the real title\n" + body,
         }
         for name, text in files.items():
             (corpus / name).write_text(text, encoding="utf-8")

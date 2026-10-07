@@ -81,7 +81,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, extract_test_names, _mask_lock_noncode, _matching_js_brace, JS_FAMILY_SUFFIXES, js_reading, walk  # noqa: E402
-from record import os_reason  # noqa: E402
+from record import os_reason, regular_file_problem  # noqa: E402
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -306,6 +306,11 @@ def test_definition_exists(path, name, stack):
     """Prove a binding names an actual language-level test definition."""
     # Strict: a test file that is not UTF-8 text cannot be checked, and a lenient read
     # reported its test missing (BACKLOG §350 item 6). Could-not-check is None.
+    # Never opened unless it is a regular file: a FIFO `.rs` reached by a Cargo walk blocked this read
+    # until the process was killed (a gpt-6.1-sol review of ADR-092's execution, finding 11).
+    problem = regular_file_problem(path)
+    if problem:
+        return None, f"could not check '{name}': {path.name} is {problem}, so a test there is UNPROVEN, not missing"
     try:
         text = path.read_text(encoding="utf-8")
     except UnicodeDecodeError:
@@ -418,7 +423,9 @@ def test_exists(test, root, stack, collect):
         # comment, docstring, fixture string, or Tests-table echo is not a test.
         if path:
             f = root / path
-            if not f.is_file():
+            # A file that exists and is not a regular file is could-not-check, never "file not found"
+            # (the same review, finding 9); `test_definition_exists` says so without opening it.
+            if not f.is_file() and not regular_file_problem(f):
                 return False, f"file not found: {path}"
             ok, why = test_definition_exists(f, name, stack)
             return ok, "" if ok is True else f"{why} in {path}"

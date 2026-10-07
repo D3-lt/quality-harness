@@ -229,14 +229,22 @@ NEUTRALISED = re.compile(
 # Text cannot tell that from "observed; step 2 failed on Safari", so the exemption is the literal
 # pair, and narrow: the note affirms BEFORE the last red run, a green run follows that red run's
 # clause, and the green clause has its own pass word. Then the red clause (to its first break)
-# is blanked, and so is a parenthesised aside AFTER the green clause's pass word ("ok … unable to
-# skip (TestGamma fails on a missing tool)"). Everything else still speaks: an earlier red run, a
-# clause between them, a negative word in the green clause outside an aside, anything after it.
-# Known width, pinned by a test: "green run 222: ok (the deploy failed)" reads as a run report.
+# is blanked, and so is a parenthesised aside AFTER the green clause's pass word whose negative
+# words are all present tense, which says how something behaves rather than what happened ("ok …
+# unable to skip (TestGamma fails on a missing tool)"). "(the deploy failed)" still stops.
+# Everything else still speaks: an earlier red run, a clause between them, a negative word in the
+# green clause outside such an aside, anything after it.
+# ⚠ KNOWN FAIL-OPEN, pinned by a test: "green run 222: ok (the deploy fails)" reads as done.
 RED_RUN = re.compile(r"(?<![a-z])red\s+run(?![a-z])", re.I)
 GREEN_RUN = re.compile(r"(?<![a-z])green\s+run(?![a-z])", re.I)
 CLAUSE_BREAK = re.compile(r"[;—–]|\.(?=\s|$)|(?<![a-z])(?:but|then|however)(?![a-z])", re.I)
 ASIDE = re.compile(r"\([^()]*\)")
+
+
+def present_failure_aside(aside):
+    """A blank for an aside whose negative words are all `fail`/`fails`, else the aside unchanged."""
+    words = [word.lower() for word in NEGATIVE.findall(aside.group(0))]
+    return " " if all(word in ("fail", "fails") for word in words) else aside.group(0)
 
 
 def run_report_removed(text):
@@ -255,7 +263,7 @@ def run_report_removed(text):
     if not passed:
         return text
     return (text[:red.start()] + " " + text[brk.start():passed.end()]
-            + ASIDE.sub(" ", text[passed.end():end]) + text[end:])
+            + ASIDE.sub(present_failure_aside, text[passed.end():end]) + text[end:])
 
 
 def not_the_verdict(text):

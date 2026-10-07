@@ -23623,7 +23623,7 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    return (text[:red.start()] + \" \" + text[brk.start():passed.end()]\n            + ASIDE.sub(\" \", text[passed.end():end]) + text[end:])",
+      "from": "    return (text[:red.start()] + \" \" + text[brk.start():passed.end()]\n            + ASIDE.sub(present_failure_aside, text[passed.end():end]) + text[end:])",
       "to": "    return (text[:red.start()] + \" \" + ASIDE.sub(\" \", text[brk.start():end]) + text[end:])",
       "only": "^a run report whose own verdict is a failure still stops$"
     },
@@ -23643,7 +23643,7 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "            + ASIDE.sub(\" \", text[passed.end():end]) + text[end:])",
+      "from": "            + ASIDE.sub(present_failure_aside, text[passed.end():end]) + text[end:])",
       "to": "            + text[passed.end():end] + text[end:])",
       "only": "^an affirmed red-then-green run report is evidence, not a stop$"
     },
@@ -23705,6 +23705,26 @@
       ],
       "from": "    r\"|(?<![a-z])no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
       "to": "    r\"|(?<![a-z])zzno\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
+      "only": "names an absent failure; anything wider still stops$"
+    },
+    {
+      "label": "§361: an aside reporting a past failure is blanked too",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    return \" \" if all(word in (\"fail\", \"fails\") for word in words) else aside.group(0)",
+      "to": "    return \" \"",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: the absence form spans a comma",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"|(?<![a-z])no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
+      "to": "    r\"|(?<![a-z])no\\W+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
       "only": "names an absent failure; anything wider still stops$"
     }
   ]

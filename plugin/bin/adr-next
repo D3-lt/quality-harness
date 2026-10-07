@@ -91,6 +91,7 @@ from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW  # noq
 from record import row_date_problem  # noqa: E402
 from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 from record import record_status, status_kind, unsigned_human_proof_steps  # noqa: E402
+from record import NotARegularFile, NotText, read_record_text, recognised_as_record  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -1086,7 +1087,8 @@ def record_undecided(status):
 
 
 def owning_record(tasks_dir, record_dir=None):
-    """(found, Status): whether a record owning these tasks was found, and its Status or None.
+    """(found, Status, why): whether a record owning these tasks was found, its Status or None, and
+    why a found owner gave none (None when it gave one, or none was found).
 
     `work-next` joins every task to its record and refuses to call an undecided
     record's tasks ready (docs/BACKLOG.md §48). This tool never looked, so the
@@ -1100,6 +1102,11 @@ def owning_record(tasks_dir, record_dir=None):
     Returns the status verbatim, because the caller reports it rather than
     judging it: this gate instructs and never blocks (CLAUDE.md §3), so an
     undecided record still gets its answer, with the status said out loud.
+
+    ADR-092 Decision 4: a candidate the one definition does not recognise is found with no Status
+    (`docs/decisions/001-note.md` carrying only `Status: Accepted` was a decided owner here and no
+    record to adr-lint), and a candidate that exists and is not a regular file is found and
+    unreadable, never skipped as missing and never opened.
     """
     # Resolved, because a RELATIVE `tasks` argument makes the parent `.`, whose
     # `with_suffix` raises "has an empty name" — a traceback out of a status
@@ -1128,16 +1135,20 @@ def owning_record(tasks_dir, record_dir=None):
     # `ADR-002/`, not to read an arbitrary directory of markdown. A corpus
     # directory holds tens of records; anything past a couple of hundred is not
     # a corpus and this question is not worth asking there.
-    siblings = sorted(record_dir.parent.glob("*.md"))[:200]
+    # `.md` in any case, as every corpus walk reads it (ADR-092 Decision 3).
+    try:
+        siblings = sorted(entry for entry in record_dir.parent.iterdir() if entry.name.lower().endswith(".md"))[:200]
+    except OSError:
+        siblings = []
     # Found but unreadable (binary, empty, no Status line) is told apart from not
     # found: only the first is an owner this reader could not read (2.111.0-rc, P3).
-    seen = False
+    seen, why = False, None
     # `record_dir/<name>.md` is the record-in-folder layout (`ADR-002-x/ADR-002-x.md` beside its
     # `tasks/`): missing it, SessionStart hedged an owned task as ownerless (a stand-in review of
     # 3.8.5).
     for candidate in (record_dir.with_suffix(".md"), record_dir / f"{record_dir.name}.md", *siblings):
         try:
-            if not candidate.is_file():
+            if not candidate.exists():
                 continue
         except OSError:
             continue
@@ -1151,17 +1162,30 @@ def owning_record(tasks_dir, record_dir=None):
             theirs = RECORD_NUMBER.match(candidate.name)
             if not (mine and theirs and int(mine.group(1)) == int(theirs.group(1))):
                 continue
-        text = read_named(candidate)
-        if "\x00" in text:
-            # NUL bytes: an ASCII Status line inside a binary or UTF-16 file is not a
-            # record's Status (Codex review of 2.111.0-rc2).
-            seen = True
+        seen = True
+        try:
+            # NUL bytes: an ASCII Status line inside a binary or UTF-16 file is not a record's
+            # Status (Codex review of 2.111.0-rc2); a FIFO or a directory is never opened.
+            text = read_record_text(candidate)
+        except NotARegularFile:
+            why = why or "it is not a regular file"
+            continue
+        except NotText:
+            why = why or "it holds a NUL byte, so it is not text"
+            continue
+        except OSError as exc:
+            # A regular file that failed to open (permissions) stays could-not-run, as it was
+            # through `read_named`: the gate could not look at the owner it found.
+            print(f"[adr-next] could not run: {candidate} — {os_reason(exc)}", file=sys.stderr)
+            sys.exit(1)
+        if not recognised_as_record(candidate, text, git_root(candidate.parent))[0]:
+            why = why or "it is not recognised as a record"
             continue
         found, _ = record_status(text)
         if found is not None:
-            return True, found
-        seen = True
-    return seen, None
+            return True, found, None
+        why = why or "it has no Status line"
+    return seen, None, why
 
 
 def owning_record_status(tasks_dir, record_dir=None):
@@ -1493,7 +1517,7 @@ def main():
     # that is not Accepted is a plan or history, never a work order (CLAUDE.md
     # §10) — but this gate instructs and never blocks, so the tasks are still
     # reported and the reader decides.
-    owner_found, status = owning_record(tasks_dir)
+    owner_found, status, owner_why = owning_record(tasks_dir)
     owner_unreadable = owner_found and status is None
     # A record that cannot be found cannot be Accepted (BACKLOG §350 C6, a fail-open a Windows
     # corpus-chaos run found): with the record deleted, these tasks came back READY with no word.
@@ -1513,9 +1537,9 @@ def main():
         # The corpus path says this and the single-record one did not: tasks under an
         # owner record that is binary, empty or has no Status line were offered as
         # ready with no word (a Windows chaos round, 2.111.0-rc, P3).
-        print("adr-next: the record owning these tasks was found but could not be read as one "
-              "(binary, empty, or no Status line), so whether it is Accepted is UNKNOWN — its "
-              "ready task(s) below may not be a work order.", file=sys.stderr)
+        print(f"adr-next: the record owning these tasks was found but could not be read as one "
+              f"({owner_why}), so whether it is Accepted is UNKNOWN — its "
+              f"ready task(s) below may not be a work order.", file=sys.stderr)
     if owner_missing and ready:
         print("adr-next: no record owning these tasks was found beside them, so whether they are a work "
               "order is UNKNOWN — the ready task(s) below may not be one.", file=sys.stderr)
@@ -1530,6 +1554,7 @@ def main():
         print(json.dumps({"tasks_dir": Path(tasks_dir).as_posix(), "ready": ready,
                           "done": done, "blocked": blocked, "stopped": stopped,
                           "status": status, "undecided": undecided, "owner_unreadable": owner_unreadable,
+                          "owner_unreadable_because": owner_why if owner_unreadable else None,
                           "owner_missing": owner_missing},
                          indent=2))
         return 0 if ready else 3

@@ -15,7 +15,9 @@ which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
 
 Exit: 0 the contract holds · 1 it does not · 2 could not run: plugin/lib/record.py
-is not beside this gate's bin/ (a gate copied on its own; ADR-045), or a named path that exists but could not be read.
+is not beside this gate's bin/ (a gate copied on its own; ADR-045), a named path that exists but
+could not be read, a corpus file that is not a regular file or not text, or a directory a walk
+could not list (ADR-092 Decision 10).
 """
 
 import hashlib
@@ -24,6 +26,7 @@ import os
 import re
 import sys
 from collections import Counter
+from functools import lru_cache
 from pathlib import Path
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
@@ -57,15 +60,66 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of  # noqa: E402
 from record import os_reason  # noqa: E402
-from record import first_number_id, first_reference, looks_like_record, record_id, references_in, title_line, walk  # noqa: E402
+from record import first_number_id, first_reference, record_id, references_in, title_line, walk  # noqa: E402
+from record import corpus_eligible, git_root, read_record_text, read_regular, recognised_as_record  # noqa: E402
 from record import record_status, status_kind  # noqa: E402
 
 
 PLACEHOLDERS = {"", "none", "none.", "_none._", "(empty at authoring)"}
 
 
+def _shown(path):
+    """A path as the working directory names it, or as given: never a resolved home path in a
+    report meant to be pasted (ADR-089 T5)."""
+    absolute = Path(os.path.abspath(path))
+    try:
+        return absolute.relative_to(Path(os.path.abspath(os.getcwd()))).as_posix()
+    except ValueError:
+        return Path(path).as_posix()
+
+
+def _could_not_run(path, reason):
+    """Exit 2, naming the path this gate could not read or list: a count, a seal or a PASS over a
+    tree it did not see would be a verdict about something it never looked at (ADR-005)."""
+    print(f"[adr-retire-check] could not run: {_shown(path)} — {reason}", file=sys.stderr)
+    raise SystemExit(2)
+
+
 def _read(path):
-    return path.read_text(errors="replace", encoding="utf-8")
+    """Any walked file's text, for attribution and obligations: a regular file only, never opened
+    otherwise, since a FIFO blocks its reader (ADR-092 Decision 10). A binary attachment is read
+    and attributed by its name; only a record's text read refuses a NUL byte (`_read_record`)."""
+    try:
+        return read_regular(path)
+    except OSError as exc:
+        _could_not_run(path, os_reason(exc))
+
+
+def _read_record(path):
+    """A file read AS a record: a regular file holding text, or could-not-run naming it."""
+    try:
+        return read_record_text(path)
+    except OSError as exc:
+        _could_not_run(path, os_reason(exc))
+
+
+def _walked(root):
+    """Every path under `root`, sorted. A directory the walk could not list is could-not-run,
+    named, never a count or a seal over part of the tree (ADR-092 Decision 10)."""
+    unlisted = []
+    paths = sorted(walk(root, unlisted=unlisted))
+    for directory in unlisted[1:]:
+        print(f"[adr-retire-check] could not list: {_shown(directory)}", file=sys.stderr)
+    if unlisted:
+        _could_not_run(unlisted[0], f"this directory could not be listed, so the walk under {_shown(root)} "
+                                    f"is incomplete")
+    return paths
+
+
+@lru_cache(maxsize=None)
+def _repository(root):
+    """The git root a walked root is in, computed once per root (a non-repository spawns git)."""
+    return git_root(root)
 
 
 def disposition_span(text):
@@ -130,8 +184,9 @@ def closes_the_line(text, end):
 
 
 def status_of(path):
-    """A record's Status by ADR-074's one reading, or "" when it has none."""
-    text = path.read_text(errors="replace", encoding="utf-8")
+    """A record's Status by ADR-074's one reading, or "" when it has none. A record that is not a
+    regular text file is could-not-run, never a Status that governs (ADR-092 L9)."""
+    text = _read_record(path)
     return record_status(text)[0] or ""
 
 
@@ -145,25 +200,26 @@ def is_accepted_status(status):
 def adr_files(root, unidentified=None):
     """Every record under `root`, keyed by its ADR-063 identity.
 
-    A file is a record when its name starts `ADR-` (the glob this gate used before
-    ADR-063, kept so a numbered corpus reads exactly as it did) or when its content
-    reads as one: a Status line and a `## Context` or `## Decision`. That second arm
-    is what finds `012-slug.md` and `2026-07-15-slug.md`. A file the content test
-    admits but no rule identifies is appended to `unidentified`, so the caller can
-    say so; it is never counted and never silently dropped (ADR-005).
+    A record is what record.py's one definition says (ADR-092): its walk considers the paths
+    `corpus_eligible` admits below `root` (`.md` in any case, never a README, nothing under
+    `tasks/`, `templates/` or a fixture tree), and asks `recognised_as_record` of each, with the
+    repository's root computed once. A recognised record with an identity is counted; every other
+    recognised record, the name arm included (`ADR-12345-x.md`, `spec-01-x.md`), is appended to
+    `unidentified`, so the caller says so; it is never counted and never silently dropped (ADR-063
+    Decision 4, ADR-005). A file that is not a regular text file, or a directory the walk could not
+    list, is could-not-run.
     """
     records = {}
-    for path in sorted(walk(root, "*.md")):
-        relative = path.relative_to(root)
-        if "tasks" in {part.lower() for part in relative.parts[:-1]} or path.name.lower() == "readme.md":
+    repository = _repository(Path(os.path.abspath(root)))
+    for path in _walked(root):
+        if not corpus_eligible(path.relative_to(root).as_posix()):
             continue
-        named = path.name.startswith("ADR-")
-        text = _read(path)
-        if not named and not looks_like_record(text):
+        text = _read_record(path)
+        if not recognised_as_record(path, text, repository)[0]:
             continue
         adr_id = record_id(path.name, title_line(text))
         if adr_id is None:
-            if not named and unidentified is not None:
+            if unidentified is not None:
                 unidentified.append(path)
             continue
         records.setdefault(adr_id, []).append(path)
@@ -198,7 +254,10 @@ def adr_id_for_file(path, root, known=frozenset()):
         if found:
             return found
     in_tasks = "tasks" in {part.lower() for part in relative.parts[:-1]}
-    if not in_tasks and looks_like_record(text):
+    # The definition, never asked of NUL text: a binary attachment is attributed by its name and
+    # sealed raw (ADR-092 Decision 10).
+    if not in_tasks and "\x00" not in text and recognised_as_record(
+            path, text, _repository(Path(os.path.abspath(root))))[0]:
         found = record_id(path.name, title_line(text))
         if found:
             return found
@@ -220,7 +279,11 @@ def adr_id_for_file(path, root, known=frozenset()):
 
 def meaningful_obligations(root, known=frozenset()):
     counts = Counter()
-    for path in sorted(walk(root, "*.md")):
+    # `.md` in any case, on every platform: `walk(root, "*.md")` matched case-sensitively off
+    # Windows, so a `.MD` record's obligations were never counted there (ADR-092 Decision 10).
+    for path in _walked(root):
+        if not path.name.lower().endswith(".md"):
+            continue
         if path.resolve() == (root / "README.md").resolve():
             continue
         adr_id = adr_id_for_file(path, root, known)
@@ -343,9 +406,9 @@ def unit_order(paths):
 
 def decision_unit_files(archive_root, adr_id, source, known=frozenset()):
     if source.parent != archive_root:
-        return unit_order(path for path in walk(source.parent) if path.is_file())
+        return unit_order(path for path in _walked(source.parent) if path.is_file())
     files = {source}
-    for path in walk(archive_root):
+    for path in _walked(archive_root):
         if path.is_file() and path.name != "README.md" and adr_id_for_file(path, archive_root, known) == adr_id:
             files.add(path)
     return unit_order(files)
@@ -398,9 +461,9 @@ def adoption_report(active_root, archive_root):
     unidentified = []
     active_records, archive_records = adr_files(active_root, unidentified), adr_files(archive_root, unidentified)
     for adr_id in sorted(set(active_records) | set(archive_records)):
-        total = len(active_records.get(adr_id, [])) + len(archive_records.get(adr_id, []))
-        if total != 1:
-            errors.append(f"{adr_id} exists {total} times across active/archive roots")
+        paths = active_records.get(adr_id, []) + archive_records.get(adr_id, [])
+        if len(paths) != 1:
+            errors.append(f"{adr_id} exists {len(paths)} times across active/archive roots{one_file(paths)}")
 
     active_readme = active_root / "README.md"
     linked, broken = set(), []
@@ -455,9 +518,20 @@ def adoption_report(active_root, archive_root):
     # The same advice the catalog check prints: an adoption report that dropped
     # these in silence would call a corpus adopted with records nothing counted.
     for path in unidentified:
-        print(f"  advice: {path.relative_to(active_root.parent).as_posix()}: reads as a record (a Status line "
-              f"and a ## Context or ## Decision) but carries no ADR number and no dated name, so it is not counted")
+        print(f"  advice: {path.relative_to(active_root.parent).as_posix()}: is recognised as a record but "
+              f"carries no ADR number and no dated name, so it is not counted")
     raise SystemExit(0 if not errors else 1)
+
+
+def one_file(paths):
+    """` (a, b are one file on disk)` when every path in `paths` reaches one file, else `""`. A
+    link and its target in one walked root are a layout defect the duplicate error names, and it
+    now says the two spellings are one file (ADR-092 Decision 4)."""
+    try:
+        same = len({os.path.realpath(path) for path in paths}) == 1
+    except OSError:
+        return ""
+    return f" ({', '.join(_shown(path) for path in paths)} are one file on disk)" if same else ""
 
 
 def reject_unknown_flags(known=()):
@@ -604,12 +678,12 @@ def main():
     active_records = adr_files(active_root, unidentified) if active_root and active_root.is_dir() else {}
     known = frozenset(active_records) | frozenset(archive_records)
     for path in unidentified:
-        errors.advise(f"{path.relative_to(archive_root.parent).as_posix()}: reads as a record (a Status line and "
-                      f"a ## Context or ## Decision) but carries no ADR number and no dated name, so it is not counted")
+        errors.advise(f"{path.relative_to(archive_root.parent).as_posix()}: is recognised as a record but "
+                      f"carries no ADR number and no dated name, so it is not counted")
     for adr_id in sorted(set(active_records) | set(archive_records)):
         all_paths = active_records.get(adr_id, []) + archive_records.get(adr_id, [])
         if len(all_paths) != 1:
-            errors.append(f"{adr_id} exists {len(all_paths)} times across active/archive roots")
+            errors.append(f"{adr_id} exists {len(all_paths)} times across active/archive roots{one_file(all_paths)}")
 
     rows = catalog_rows(archive_readme, errors)
     for adr_id in sorted(set(archive_records) - set(rows)):

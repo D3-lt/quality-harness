@@ -96,7 +96,11 @@ __all__ = [
     "record_id",
     "references_in",
     "first_reference",
-    "looks_like_record",
+    "read_regular",
+    "read_record_text",
+    "NotARegularFile",
+    "NotText",
+    "regular_file_problem",
     "recognised_as_record",
     "record_placement",
     "record_discriminators",
@@ -762,13 +766,6 @@ def first_reference(text):
     return None
 
 
-def looks_like_record(text):
-    """Whether `text` reads as a decision record: a Status — an inline line or, since the
-    corpus-chaos runs of 559827d, a `## Status` section (ADR-074 T2) — and a `## Context` or
-    `## Decision` section (lifecycle's `looksLikeRecord`). A section-only record was linted by
-    adr-lint and silently absent from adr-retire-check's listing until then."""
-    return bool(record_status(text)[0] is not None and _RECORD_SECTION.search(text))
-
 # ADR-092: ONE DEFINITION OF A RECORD. adr-lint asks it for its verdict and its not-recognised
 # message, and every other Python corpus reader for what it counts; lifecycle.mjs's
 # `recognisedAsRecord` is its only mirror, held to it by tests/fixtures/record-recognition.json.
@@ -835,19 +832,29 @@ def record_placement(path, root):
     return listed if listed is not None else path
 
 
-def _kept_where_records_are(directories):
-    """Whether a file whose directories are `directories` is kept where records are: under a
-    directory `_RECORD_DIRECTORY` names, never under `tasks/`, and not inside a record's own
-    directory below it (`docs/adr/ADR-132/GAPS.md` is a note beside record 132, and a `## Status`
-    section in it made it a record to adr-lint; an outside probe run, 2026-10-07). A record's
-    own directory is one ADR-063 gives an identity; a bare number (`2024/`) is a year, not one."""
+def _kept_where_records_are(directories, name):
+    """Whether a file named `name` whose directories are `directories` is kept where records are:
+    under a directory `_RECORD_DIRECTORY` names, never under `tasks/`, and not inside another
+    record's own directory below it (`docs/adr/ADR-132/GAPS.md` is a note beside record 132, and a
+    `## Status` section in it made it a record to adr-lint; an outside probe run, 2026-10-07). A
+    record's own directory is one ADR-063 gives an identity; a bare number (`2024/`) is a year, not
+    one. The file's OWN folder is not another record's: `0002-x/0002-x.md`, the record-in-folder
+    layout, is kept, as it was before the rule (ADR-092 T2 found the rule dropping it)."""
     if "tasks" in (part.lower() for part in directories):
         return False
+    own = record_id(name)
     for index, part in enumerate(directories):
         if _RECORD_DIRECTORY.match(part) and not any(
-                record_id(below) is not None and not below.isdigit() for below in directories[index + 1:]):
+                _another_records_directory(below, own) for below in directories[index + 1:]):
             return True
     return False
+
+
+def _another_records_directory(directory, own):
+    """Whether `directory` is a record's own directory, and not the one whose identity is `own`."""
+    # `isdecimal`, not `isdigit`: a run of decimal digits, as JS's `\p{Nd}` reads it in lifecycle.mjs.
+    found = None if directory.isdecimal() else record_id(directory)
+    return found is not None and found != own
 
 
 def record_discriminators(text):
@@ -878,7 +885,7 @@ def recognised_as_record(path, text, root):
     placed = record_placement(path, root)
     listed = (_listed_relative(path, root) if root is not None else None) or path
     status_value = record_status(text)[0]
-    kept = _kept_where_records_are(list(placed.parent.parts))
+    kept = _kept_where_records_are(list(placed.parent.parts), placed.name)
     if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts)):
         return False, status_value, kept, "templates"
     if _NUMBERED_REF.match(path.name):
@@ -3379,7 +3386,52 @@ def _is_link(path):
         return True
 
 
-def walk(root, pattern="*", is_link=_is_link):
+class NotARegularFile(OSError):
+    """A path that exists and is not a regular file: a directory, a FIFO, a socket, a device. It is
+    never opened, because opening a FIFO with no writer blocks the reader until it is killed
+    (BACKLOG §319, ADR-092 Decision 10)."""
+
+
+class NotText(OSError):
+    """A regular file whose text holds a NUL byte, so it is not text a record reader can read."""
+
+
+def regular_file_problem(path):
+    """Why `path` may not be opened as a file, in words, or None: a path that exists and is not a
+    regular file. Asked with `os.stat`, which follows links and never opens. A missing path is
+    None, left to the open that raises for it."""
+    try:
+        mode = os.stat(path).st_mode
+    except OSError:
+        return None
+    return None if stat.S_ISREG(mode) else "not a regular file"
+
+
+def read_regular(path):
+    """The text of a regular file, decoded as every gate decodes one. Raises `NotARegularFile` for a
+    path that is not one, before it is opened, and `OSError` for a read that failed. Every read in
+    the record class goes through it, an attachment's attribution included (ADR-092 Decision 10)."""
+    problem = regular_file_problem(path)
+    if problem:
+        raise NotARegularFile(None, problem, str(path))
+    return Path(path).read_text(errors="replace", encoding="utf-8")
+
+
+def read_record_text(path):
+    """`read_regular`, refusing also a text holding a NUL byte: a binary or UTF-16 file's ASCII
+    Status line is not a record's Status (ADR-092 Decision 10). Used only where a file is read AS a
+    record; an attachment is attributed and sealed raw through `read_regular`."""
+    text = read_regular(path)
+    if "\x00" in text:
+        raise NotText(None, "it holds a NUL byte, so it is not text a record reader can read", str(path))
+    return text
+
+
+def _list_directory(directory):
+    return directory.iterdir()
+
+
+def walk(root, pattern="*", is_link=_is_link, unlisted=None, list_dir=None):
     """`Path(root).rglob(pattern)`, except that it never enters a symlink or a junction.
 
     `rglob` enters a Windows junction, which pathlib does not take for a symlink: a junction under
@@ -3388,13 +3440,22 @@ def walk(root, pattern="*", is_link=_is_link):
     matches, as rglob yields one, and is never entered. The pattern is matched per name with the
     platform's case rule, as rglob matches it. `is_link` is the seam a test sets, since a junction
     cannot be made off Windows.
+
+    A directory whose listing raised is appended to `unlisted` when the caller passes a list, so a
+    walk that could not see all of its tree can say so (ADR-092 Decision 10, ADR-005); a caller that
+    passes none gets the old silence. `list_dir` is the listing seam a test sets to make one
+    directory fail on every platform (tests/helpers/unlistable.py), since `chmod 000` stops no
+    listing on Windows or as root.
     """
+    list_dir = list_dir or _list_directory
     stack = [Path(root)]
     while stack:
         directory = stack.pop()
         try:
-            entries = sorted(directory.iterdir())
+            entries = sorted(list_dir(directory))
         except OSError:
+            if unlisted is not None:
+                unlisted.append(directory)
             continue
         below = []
         for entry in entries:

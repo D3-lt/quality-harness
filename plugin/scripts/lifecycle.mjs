@@ -5145,14 +5145,15 @@ function recordFileWritten(input) {
 
 // The number of records in a ledger (`checks.jsonl` or `fast-checks.jsonl`), counted
 // the way `importCheckRecords` numbers `seq`. Null when the file exists and cannot be
-// read: a count that was not taken is not zero (ADR-005).
+// read: a count that was not taken is not zero (ADR-005). A last line with no terminating
+// newline was not written whole, and the importer does not number it, so neither does this.
 function ledgerRecordCount(cwd, file) {
   let text
   try { text = readFileSync(path.join(stateDir(cwd), file), 'utf8') } catch (error) {
     return error?.code === 'ENOENT' ? 0 : null
   }
   let count = 0
-  for (const line of text.split('\n')) {
+  for (const line of text.split('\n').slice(0, -1)) {
     if (!line.trim()) continue
     try { if (typeof JSON.parse(line)?.id === 'string') count += 1 } catch { /* the importer skips it too */ }
   }

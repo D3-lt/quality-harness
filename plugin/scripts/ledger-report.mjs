@@ -16,7 +16,8 @@ import { readEvents, stateDir } from './event-log.mjs'
 import { isMainModule } from './main-module.mjs'
 
 // One JSONL ledger: its rows, and whether every line was read. Absent is an empty ledger; any other
-// failure, or a line that is not JSON, is a ledger not read whole.
+// failure, or a line that is not JSON, is a ledger not read whole. So is a last line with no
+// terminating newline: qh-check ends every row with one, and the importer reads such a line as torn.
 function readLedger(file) {
   let text
   try { text = readFileSync(file, 'utf8') } catch (error) {
@@ -24,7 +25,9 @@ function readLedger(file) {
   }
   const rows = []
   let complete = true
-  for (const line of text.split('\n')) {
+  const lines = text.split('\n')
+  if (lines.pop().trim()) complete = false
+  for (const line of lines) {
     if (!line.trim()) continue
     try { rows.push(JSON.parse(line)) } catch { complete = false }
   }

@@ -18484,3 +18484,32 @@ invented equivalent that keeps the property its test reads (a date prefix, a sor
 Every commit sha changed again: shas written before this entry, attestations at 13136e6, a48fa5f and
 fb27573 included, refer to an earlier history and are left as written (§10). A finding from outside is
 reproduced from now on with invented names, never with the corpus's own (CLAUDE.md §6).
+
+## 361. CLOSED 2026-10-08 — A sign-off that quotes its red run before the green one read as a stop
+
+From an outside session (reproduced here with invented names). A human-observed sign-off affirmed what
+it saw, "observed: … red run 111 (tests alone on main): TestAlphaRefusesFirst failed …; green run 222 on
+head …: ok …, with all three tests unable to skip (TestGammaNeedsTool fails on …)", and adr-next stopped
+on «failed» while adr-lint said PASS. The rows around it could not clear it: the exit-0 fence rows were
+dated the same day ABOVE it, and the rows below were `adr-verify --relock --replace-hashes`, which never
+outrank a stop (§354). Not fail-open: the safe direction, but a done task held back from its dependents.
+
+- **Class: a negative word the note QUOTES as evidence, read as the note's own verdict.** §281 (program
+  output after a marker), §353 ("no visible blocking") and §354's open "approved; no tests failed" are
+  members already found. Two are closed here.
+- **The red→green run report.** `run_report_removed` in `plugin/bin/adr-next` blanks the last red run's
+  clause (to its first break) only when the note affirms before it, a green run follows that clause, and
+  the green clause has its own pass word; a parenthesised aside after that pass word is blanked too.
+  Everything else still speaks. `not_the_verdict` applies it with `NEUTRALISED` in `human_outcome` and in
+  `stop_words`, so a stop's reason names its own word, never the red run's.
+- **The absence form.** `NEUTRALISED` reads "no tests failed" and "no failed tests" as an absence for a
+  closed list of nouns only (tests, checks, jobs, cases). "No it failed" and "no deploys failed" stop.
+- **Known width, pinned by a test:** "green run 222: ok (the deploy failed)" reads as a run report. Text
+  cannot tell that aside from the one in the report. A first cut also required the green run to be the
+  very next clause. Its mutant stayed GREEN: the red clause is blanked only to its first break, so a
+  clause between them already speaks. The guard is removed.
+- **Enumeration:** `mrw read --grep 'AFFIRMATIVE|NEGATIVE_WORD|human_outcome|humanOutcome|NEUTRALISED'
+  plugin/` returns two files: `plugin/bin/adr-next`, the only classifier, and `plugin/lib/record.py:1048`,
+  a docstring naming it. No JavaScript copy exists to drift.
+- Test `tests/human-stop-red-green.test.mjs`: seven false-stop rows are now done, and 21 twins still stop.
+  Twelve new mutants are RED. The repointed entry, and the 39 existing entries that the sign-off labels select, re-ran RED.

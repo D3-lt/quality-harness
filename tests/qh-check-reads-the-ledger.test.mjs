@@ -449,3 +449,26 @@ test('an unterminated last line proves nothing, in either ledger', () => {
     } finally { done(fast) }
   }
 })
+
+// ADR-088 Follow-ups: a write stamps how many records each ledger held, numbered as the importer
+// numbers them, so a last line with no terminating newline is not counted.
+test('a write counts only the ledger records written whole', () => {
+  for (const cut of [true, false]) {
+    const fixture = repository({ check: FULL, fastCheck: FAST })
+    const session = `ledger-count-${cut ? 'cut' : 'kept'}`
+    try {
+      assert.equal(check(fixture).status, 0)
+      fastPassed(fixture)
+      for (const name of ['checks.jsonl', 'fast-checks.jsonl']) {
+        const file = join(state(fixture), name)
+        const text = readFileSync(file, 'utf8')
+        assert.ok(text.endsWith('}\n'), text)
+        if (cut) writeFileSync(file, text.slice(0, -1))
+      }
+      assert.equal(post(fixture, session, 'notes.txt').status, 0)
+      const written = jsonl(join(state(fixture), 'sessions', `${session}.jsonl`)).filter(entry => entry.event === 'file.written').at(-1)
+      assert.ok(written, 'the write was recorded')
+      assert.deepEqual([written.checksSeen, written.fastSeen], cut ? [0, 0] : [1, 1])
+    } finally { done(fixture) }
+  }
+})

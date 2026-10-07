@@ -65,3 +65,28 @@ test('ledger-report says UNPROVEN for a ledger it could not read whole', () => {
   const empty = JSON.parse(report(checkout('empty'), '--json').stdout)
   assert.deepEqual([empty.look, empty.skills, empty.skips, empty.unproven], ['ok', [], { count: 0, savedMsEstimate: 0 }, []])
 })
+
+// ADR-088 Follow-ups: a ledger whose last line has no terminating newline was not written whole,
+// as the importer reads it, even when that line parses.
+test('ledger-report reads an unterminated last line as not read whole', () => {
+  for (const cut of [true, false]) {
+    const root = checkout(cut ? 'cut' : 'kept')
+    const rows = [check('passed', '2026-10-05T10:00:00.000Z', '2026-10-05T10:00:30.000Z'), check('failed', '2026-10-05T11:00:00.000Z', '2026-10-05T11:00:10.000Z')]
+    const skips = [{ savedMs: 1000 }, { savedMs: 2500 }]
+    mkdirSync(stateDir(root), { recursive: true })
+    writeFileSync(path.join(stateDir(root), 'checks.jsonl'), cut ? jsonl(rows).slice(0, -1) : jsonl(rows))
+    writeFileSync(path.join(stateDir(root), 'skips.jsonl'), cut ? jsonl(skips).slice(0, -1) : jsonl(skips))
+    const answer = JSON.parse(report(root, '--json').stdout)
+    if (cut) {
+      assert.equal(answer.look, 'PARTIAL')
+      assert.deepEqual(answer.unproven.sort(), ['checks.jsonl', 'skips.jsonl'])
+      assert.equal(answer.checks, null, 'a ledger cut after its last brace is not two checks')
+      assert.equal(answer.skips, null)
+    } else {
+      // The twin: the same rows, terminated, are counted.
+      assert.equal(answer.look, 'ok')
+      assert.equal(answer.checks.count, 2)
+      assert.equal(answer.skips.count, 2)
+    }
+  }
+})

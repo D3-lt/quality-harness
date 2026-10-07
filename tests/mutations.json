@@ -21925,6 +21925,26 @@
       "only": "^(?:relock compares bodies with the lock whose sha fits)$"
     },
     {
+      "label": "ADR-088 follow-up: a write's ledger count skips an unterminated last line",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "  for (const line of text.split('\\n').slice(0, -1)) {",
+      "to": "  for (const line of text.split('\\n')) {",
+      "only": "^(?:a write counts only the ledger records written whole)$"
+    },
+    {
+      "label": "ADR-088 follow-up: ledger-report reads an unterminated last line as not read whole",
+      "file": "plugin/scripts/ledger-report.mjs",
+      "tests": [
+        "tests/ledger-report.test.mjs"
+      ],
+      "from": "  if (lines.pop().trim()) complete = false",
+      "to": "  ;",
+      "only": "^(?:ledger-report reads an unterminated last line as not read whole)$"
+    },
+    {
       "label": "ADR-089 T1: a PARTIAL pair compares no verdict (comparable requires ok)",
       "file": "plugin/scripts/corpus-probe.mjs",
       "tests": [

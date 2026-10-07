@@ -274,13 +274,28 @@ export function outsideRun(changed, reports, covers) {
         + '— read its --diff, fix the reader or confirm each row is stale, and attest a run that moved none (ADR-082)',
     }
   }
-  const attested = covering.filter(countsAsRun)
+  // ADR-089: an UNPROVEN run attests nothing, whatever it counts. Each is excluded on its own, so an
+  // ok run beside it does not carry it into the attested list (a review of ADR-089).
+  const blind = covering.filter(report => report.look === 'UNPROVEN')
+  const attested = covering.filter(report => countsAsRun(report) && report.look !== 'UNPROVEN')
+  const blindNote = blind.length ? `${blind.map(r => r.file).join(', ')} could not look at its corpus (look UNPROVEN) and attests nothing; ` : ''
+  // ADR-089 Alternative (d), the owner's decision on Accepting it: a PARTIAL run corroborates a release
+  // and can refuse one (`regressed`, above), but attests it only beside a run whose look is ok. An
+  // attestation from before `look` is judged as before.
+  const sawAll = report => !('look' in report) || report.look === 'ok'
+  if (attested.length && !attested.some(sawAll)) {
+    return {
+      verdict: 'unproven', kind: 'partial-only',
+      reason: `${blindNote}${attested.map(r => `${r.file} (look ${r.look})`).join(', ')} read only part of the corpus: a PARTIAL run attests a `
+        + 'release only beside an attestation whose look is ok (ADR-089)',
+    }
+  }
   if (attested.length === 0) {
     if (covering.length) {
       const unverified = checked.filter(v => v.c === null).map(v => v.r.file)
       return {
         verdict: 'unproven', kind: 'uncompared',
-        reason: `${covering.map(r => r.file).join(', ')} compared nothing: from 3.8.0 an outside run attests only with the `
+        reason: `${blindNote}${covering.map(r => r.file).join(', ')} compared nothing: from 3.8.0 an outside run attests only with the `
           + 'verdictChanges that `corpus-probe --attest … --since <earlier report>` counts (ADR-082)'
           + (unverified.length ? `; ${unverified.join(', ')} could not be checked against this sha (fetch the revision)` : ''),
       }
@@ -301,9 +316,14 @@ export function outsideRun(changed, reports, covers) {
         + 'somebody else has run it (CLAUDE.md §18)',
     }
   }
+  // What a run did not see rides in the reason: a PARTIAL look, and records it did not compare (ADR-089).
+  const unseen = r => {
+    const parts = [...('look' in r && r.look !== 'ok' ? [`look ${r.look}`] : []), ...(r.notCompared > 0 ? [`${r.notCompared} not compared`] : [])]
+    return parts.length ? ` (${parts.join(', ')})` : ''
+  }
   return {
     verdict: 'attested',
-    reason: `outside run attested by ${attested.map(r => `${r.file} at ${String(r.at).slice(0, 7)}${r.verdictChanges?.failToPass ? ` (failToPass ${r.verdictChanges.failToPass})` : ''}`).join(', ')}`,
+    reason: `outside run attested by ${attested.map(r => `${r.file} at ${String(r.at).slice(0, 7)}${r.verdictChanges?.failToPass ? ` (failToPass ${r.verdictChanges.failToPass})` : ''}${unseen(r)}`).join(', ')}`,
   }
 }
 
@@ -390,7 +410,8 @@ const USAGE = [
   '  1  a job did not conclude success (failed, cancelled, timed out, skipped)',
   '  2  could not look (no gh, no run for this sha, unreadable answer, bad usage, or readers',
   '     changed since the last tag with no outside run attested in docs/corpus-reports/ — §18,',
-  '     or with an outside run that regressed or compared nothing — ADR-082)',
+  '     or with an outside run that regressed, compared nothing, or read only part of its corpus',
+  '     (partial-only) — ADR-082, ADR-089)',
   '  3  the run is not finished yet',
 ].join('\n')
 
@@ -407,6 +428,8 @@ export function tagAdvice(kind) {
       + 'each row is stale, and file a run that moved none (ADR-082).',
     uncompared: 'Do NOT tag this sha. The outside run compared nothing — ask for `corpus-probe --attest <label> <report> '
       + '--since <earlier report>`, file that attestation, and ask again (ADR-082).',
+    'partial-only': 'Do NOT tag this sha. Every outside run that attests it read only part of its corpus — a PARTIAL run '
+      + 'attests a release only beside one whose look is ok: get a run over a corpus the readers read whole, file it, and ask again (ADR-089).',
   }
   return advice[kind] ?? ('Do NOT tag this sha. Whether its readers changed since the last tag could not be established from git '
     + 'here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.')

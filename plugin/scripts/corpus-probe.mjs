@@ -31,6 +31,17 @@
 // runs nothing, so a runner probes once and compares against its own last report
 // (ADR-064 T2).
 //
+// Every line `--diff` prints has one of these shapes (ADR-089), so a reader sees which way a thing
+// moved without reading the element itself, whose text may carry `, ` and ` - ` of its own:
+//   <field>: + <element>   /   <field>: - <element>     one element per line, additions first
+//   adrLint: + <file> (<verdict>)   /   adrLint: - <file> (was <verdict>)
+//   <field>: <before> → <after>[ — <reason>]           a scalar or a verdict that moved
+//   <field>: <verdict>, reason changed — <reason>
+//   a line naming what was not compared: `look: … not compared`, `corpora differ …`,
+//   `before lacks …` / `after lacks …`, `<reader>: … has no answer …`
+// Under a PARTIAL look the counts are not compared, and the adr-lint verdicts are, over the records
+// both runs read; an UNPROVEN look compares nothing.
+//
 // `--sweep` re-runs every recorded claim through `adr-verify --sweep`, which
 // EXECUTES the corpus's acceptance fences; it is opt-in for that reason, and it
 // has its own budget: `--timeout` bounds one reader, `--sweep-budget` (default 30
@@ -52,6 +63,10 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const bin = path.join(here, '..', 'bin')
 const DEFAULT_TIMEOUT_MS = 120_000
 const DEFAULT_SWEEP_BUDGET_MS = 1_800_000
+// What one reader may print before the probe stops reading it (ADR-089 T4). spawnSync's default is
+// 1 MiB, and adr-lint over a 4,002-task corpus printed past it (BACKLOG §295 item 22).
+const READER_OUTPUT_LIMIT = 64 * 1024 * 1024
+const bufferSize = bytes => (bytes % 1_048_576 === 0 ? `${bytes / 1_048_576} MiB` : `${bytes}-byte`)
 
 /**
  * The digest of THIS FILE ALONE, so a pasted report says which probe produced it.
@@ -112,7 +127,10 @@ export function readerFingerprint(pluginRoot, { run = args => spawnSync('git', [
     const status = run(['status', '--porcelain', '--untracked-files=all', '--', ...READER_DIRECTORIES])
     dirty = !status.error && status.status === 0 ? String(status.stdout).trim() !== '' : null
   }
-  return { sha256, git, dirty, ...(reason ? { reason } : {}) }
+  // git that could not be run is not a plugin outside a checkout: both left `git` null and no reason,
+  // so an attestation could only say "not a git checkout" when git was absent (ADR-089).
+  const gitReason = head.error ? `git could not be run (${head.error.code ?? head.error.message})` : null
+  return { sha256, git, dirty, ...(reason ? { reason } : {}), ...(gitReason ? { gitReason } : {}) }
 }
 
 function parseJson(text) {
@@ -126,7 +144,10 @@ function parseJson(text) {
  * `reader()` and left adr-lint and SessionStart saying "did not start" for a
  * killed child (Codex review of bdeba73, P3).
  */
-export function failedToRun(error, budgetMs = null) {
+export function failedToRun(error, budgetMs = null, outputLimit = READER_OUTPUT_LIMIT) {
+  // ENOBUFS is a child that started, ran and printed past the buffer: it was cut off, and what it
+  // said was lost. It read "did not start: ENOBUFS" (ADR-089 T4).
+  if (error.code === 'ENOBUFS') return `ran, and its output passed the probe's ${bufferSize(outputLimit)} buffer (ENOBUFS), so what it said was not read`
   return error.code === 'ETIMEDOUT'
     ? `killed at the probe's ${budgetMs ? `${Math.round(budgetMs / 1000)}s ` : ''}budget before it finished (ETIMEDOUT); raise the budget`
     : `did not start: ${error.code ?? error.message}`
@@ -172,11 +193,11 @@ export function compareReaders(adrNext, workNext) {
  * be read. A reader that did not start, died, or printed no JSON is a
  * could-not-run entry (ADR-005), never a silent gap in the report.
  */
-function reader(name, run, note, budgetMs = null) {
+function reader(name, run, note, budgetMs = null, outputLimit = READER_OUTPUT_LIMIT) {
   let result
   try { result = run() } catch (error) { result = { error } }
   if (result.error) {
-    const why = failedToRun(result.error, budgetMs)
+    const why = failedToRun(result.error, budgetMs, outputLimit)
     note(name, why)
     return null
   }
@@ -216,7 +237,7 @@ function scratchDirectory(prefix) {
 
 // `listing` is the seam a test sets, as work-next's is: git on macOS and Linux does not list through a
 // symlinked directory, so a link copy is reachable from a test only by naming the listing.
-export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, sweepTimeoutSeconds = 60, sweepBudgetMs = DEFAULT_SWEEP_BUDGET_MS, listing: given } = {}) {
+export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, sweepTimeoutSeconds = 60, sweepBudgetMs = DEFAULT_SWEEP_BUDGET_MS, listing: given, outputLimit = READER_OUTPUT_LIMIT } = {}) {
   const resolved = realpathSync(root)
   const rel = target => publicPath(target, resolved)
   // Every reader's free text goes through here before it is emitted (see `scrubber`).
@@ -229,8 +250,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const couldNotRun = []
   const note = (readerName, why) => couldNotRun.push({ reader: scrub(readerName), why: scrub(why) })
   const node = (script, args, options = {}) => spawnSync(process.execPath, [path.join(here, script), ...args],
-    { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, windowsHide: true, ...options })
-  const gate = (tool, args, timeout = timeoutMs) => spawnGate(path.join(bin, tool), args, { cwd: resolved, encoding: 'utf8', timeout })
+    { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, windowsHide: true, maxBuffer: outputLimit, ...options })
+  const gate = (tool, args, timeout = timeoutMs) => spawnGate(path.join(bin, tool), args, { cwd: resolved, encoding: 'utf8', timeout, maxBuffer: outputLimit })
   // ADR-064 T4: every spawn is timed, including one that failed, so a reader that
   // is `null` below still has its time here. A disk walk that took minutes per
   // record and an adr-next past work-next's 60 s budget were found only because a
@@ -281,9 +302,9 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     if (record.reason) return { file: rel(record.file), exit: null, verdict: 'unread', reason: scrub(record.reason), ...frozen(record), undecided: true }
     const tasksDir = (record.taskFiles ?? []).length ? path.dirname(record.taskFiles[0]) : null
     const run = timed('adr-lint', rel(record.file), () => spawnGate(path.join(bin, 'adr-lint'), tasksDir ? [record.file, tasksDir] : [record.file],
-      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, env: { ...process.env, QUALITY_HARNESS_STATE_DIR: lintState } }))
+      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, maxBuffer: outputLimit, env: { ...process.env, QUALITY_HARNESS_STATE_DIR: lintState } }))
     if (run.error) {
-      note(`adr-lint ${rel(record.file)}`, failedToRun(run.error, timeoutMs))
+      note(`adr-lint ${rel(record.file)}`, failedToRun(run.error, timeoutMs, outputLimit))
       return { file: rel(record.file), exit: null, verdict: null, ...frozen(record) }
     }
     // adr-lint answered could-not-run (exit 2, a file it could not read): counted where every other
@@ -338,8 +359,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   })
   try { rmSync(lintState, { recursive: true, force: true }) } catch { /* scratch outlives us */ }
 
-  const workNext = reader('work-next', () => timed('work-next', null, () => node('work-next.mjs', ['--json'])), note)
-  const adrState = reader('adr-state', () => timed('adr-state', null, () => node('adr-state.mjs', ['--json'])), note)
+  const workNext = reader('work-next', () => timed('work-next', null, () => node('work-next.mjs', ['--json'])), note, null, outputLimit)
+  const adrState = reader('adr-state', () => timed('adr-state', null, () => node('adr-state.mjs', ['--json'])), note, null, outputLimit)
 
   // adr-next per task directory of a governing, unfrozen record — the same set
   // SessionStart and work-next ask about. A frozen archive's tasks are history;
@@ -350,7 +371,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   const liveTaskDirs = [...new Set(corpus.filter(record => !record.frozen)
     .flatMap(record => (record.taskFiles ?? []).map(file => path.dirname(file))))]
   const adrNext = liveTaskDirs.map(dir => {
-    const answer = reader(`adr-next ${rel(dir)}`, () => timed('adr-next', rel(dir), () => gate('adr-next', [dir, '--json'])), note)
+    const answer = reader(`adr-next ${rel(dir)}`, () => timed('adr-next', rel(dir), () => gate('adr-next', [dir, '--json'])), note, null, outputLimit)
     return {
       tasksDir: rel(dir),
       ready: answer?.ready?.map(task => ({ id: task.id, path: rel(path.resolve(resolved, task.path)), unproven: task.unproven ? scrub(task.unproven) : null })) ?? null,
@@ -374,7 +395,7 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     // JSON the host expects made no observation; it is could-not-run, not an
     // empty orientation (Codex review of c1f546a, P2). An empty stdout with exit
     // 0 IS an observation: a corpus with nothing to say.
-    if (hook.error) note('SessionStart', failedToRun(hook.error, timeoutMs))
+    if (hook.error) note('SessionStart', failedToRun(hook.error, timeoutMs, outputLimit))
     else if (hook.status !== 0 || hook.signal) note('SessionStart', `exit ${hook.status}${hook.signal ? ` (${hook.signal})` : ''}: ${String(hook.stderr ?? '').trim().split('\n')[0] ?? ''}`)
     else {
       const said = (hook.stdout ?? '').trim() === '' ? {} : parseJson(hook.stdout)
@@ -389,14 +410,14 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
   }
 
   const corpusReport = corpusDirs.map(dir => {
-    const report = reader(`corpus-report ${rel(dir)}`, () => timed('corpus-report', rel(dir), () => node('corpus-report.mjs', [dir, '--json'])), note)
+    const report = reader(`corpus-report ${rel(dir)}`, () => timed('corpus-report', rel(dir), () => node('corpus-report.mjs', [dir, '--json'])), note, null, outputLimit)
     return { root: rel(dir), totals: report?.totals ?? null, records: report?.records ?? null }
   })
 
   const sweeps = sweep
     ? corpusDirs.map(dir => {
       const answer = reader(`adr-verify --sweep ${rel(dir)}`,
-        () => timed('adr-verify --sweep', rel(dir), () => gate('adr-verify', ['--sweep', dir, '--json', '--timeout', String(sweepTimeoutSeconds)], sweepBudgetMs)), note, sweepBudgetMs)
+        () => timed('adr-verify --sweep', rel(dir), () => gate('adr-verify', ['--sweep', dir, '--json', '--timeout', String(sweepTimeoutSeconds)], sweepBudgetMs)), note, sweepBudgetMs, outputLimit)
       return answer ? { root: rel(dir), claims: answer.claims, held: answer.held, false: answer.false, superseded: answer.superseded, unrunnable: answer.unrunnable } : { root: rel(dir), buckets: null }
     })
     : null
@@ -439,6 +460,8 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       // a pasted probe said less than the reader (inbox, ts-generator 2026-09-24).
       specs: workNext.specs ?? null,
       unprovenSpecs: workNextPaths('unprovenSpecs'),
+      // Ready specs no record covers: work-next prints them and this summary dropped them (ADR-089).
+      uncoveredReadySpecs: workNextPaths('uncoveredReadySpecs'),
       partialBecause: (workNext.partialBecause ?? []).map(entry => ({ file: normal(entry.file), reason: entry.reason == null ? null : scrub(entry.reason) })),
       next: workNext.next,
     },
@@ -472,57 +495,113 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
  * empty. A timing is a line only when it at least doubled AND grew by a second, so
  * load noise on a fast reader stays quiet.
  */
-/** Whether two reports describe one corpus that both looked at, so their fields compare. */
+/** The looks under which a run read records: an UNPROVEN run read nothing it can vouch for. */
+const LOOKED = new Set(['ok', 'PARTIAL'])
+
+/**
+ * Whether two reports describe one corpus that both looked at, so their fields compare. A PARTIAL
+ * run looked at what it could read, and is compared over that (ADR-089); an UNPROVEN one is not.
+ */
 function comparable(before, after) {
   const corpora = report => (report.corpora ?? []).join(', ')
-  return before.look === 'ok' && after.look === 'ok' && corpora(before) === corpora(after)
+  return LOOKED.has(before.look) && LOOKED.has(after.look) && corpora(before) === corpora(after)
 }
 
 /**
  * verdictMoves is every adr-lint record present in both reports whose verdict moved, as
- * `{ file, from, to, reason }`, and how many records were compared. It is the one comparison
- * `--diff` prints from and an attestation counts (ADR-082), so the two cannot disagree.
+ * `{ file, from, to, reason }`, how many records were compared, and how many listed in either
+ * report were not. It is the one comparison `--diff` prints from and an attestation counts
+ * (ADR-082), so the two cannot disagree. A record is compared only when at least one run gave it a
+ * verdict, `unread` and null being none (ADR-089): a PASS that became unreadable is still a move
+ * out of PASS, and a record neither run read is counted as not compared, never as unchanged.
  */
 export function verdictMoves(before, after) {
   // By file, the last entry winning, as `diffReports` reads them: a record listed twice is one record.
   const was = new Map((before.adrLint ?? []).map(entry => [entry.file, entry]))
   const now = new Map((after.adrLint ?? []).map(entry => [entry.file, entry]))
+  const answered = entry => entry.verdict != null && entry.verdict !== 'unread'
   const moves = []
   let compared = 0
   for (const entry of now.values()) {
     const old = was.get(entry.file)
-    if (!old) continue
+    if (!old || (!answered(old) && !answered(entry))) continue
     compared += 1
     if (old.verdict !== entry.verdict) moves.push({ file: entry.file, from: old.verdict, to: entry.verdict, reason: entry.reason })
   }
-  return { compared, moves }
+  return { compared, notCompared: new Set([...was.keys(), ...now.keys()]).size - compared, moves }
+}
+
+/**
+ * One marked line per element that came or went, additions first, each side in its list's order.
+ * Several elements on one line, joined with `, `, could not be read: advice text carries `, ` and
+ * ` - ` itself, and two outside runs of v3.8.10 read a removed line as an added one (ADR-089).
+ */
+function elementLines(field, before, after) {
+  const [was, now] = [new Set(before), new Set(after)]
+  return [...[...now].filter(x => !was.has(x)).map(x => `${field}: + ${x}`), ...[...was].filter(x => !now.has(x)).map(x => `${field}: - ${x}`)]
+}
+
+/**
+ * A diff line with every control character escaped, so one value is one line: a file name or a
+ * reason carrying a line break printed as two lines and forged a line of its own (a review of ADR-089).
+ */
+const ESCAPES = { '\n': '\\n', '\r': '\\r', '\t': '\\t' }
+function oneLine(text) {
+  return text.replace(/[\u0000-\u001f\u007f]/g, c => ESCAPES[c] ?? `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
 }
 
 export function diffReports(before, after, scrub = text => String(text)) {
   const lines = []
-  const say = text => lines.push(scrub(text))
-  if (before.look !== 'ok' || after.look !== 'ok') {
-    // The counts are not compared, but what made a side PARTIAL, what it held back and which
-    // reader did not answer are: `--diff` said only "not compared", never what dropped out
-    // (BACKLOG §350 C5).
-    say(`look: ${before.look} → ${after.look}: not compared`)
-    const named = (field, b, a) => {
-      const [was, now] = [new Set(b), new Set(a)]
-      const changes = [...[...now].filter(x => !was.has(x)).map(x => `+ ${x}`), ...[...was].filter(x => !now.has(x)).map(x => `- ${x}`)]
-      if (changes.length) say(`${field}: ${changes.join(', ')}`)
-    }
-    named('partialBecause', ...[before, after].map(report => (report.workNext?.partialBecause ?? []).map(entry => `${entry.file} (${entry.reason})`)))
-    named('undecided', ...[before, after].map(report => (report.undecided ?? []).map(entry => entry.file)))
-    named('couldNotRun', ...[before, after].map(report => (report.couldNotRun ?? []).map(entry => entry.reader)))
-    return lines
-  }
-  const corpora = report => (report.corpora ?? []).join(', ')
-  if (!comparable(before, after)) return [scrub(`corpora differ (${corpora(before)} → ${corpora(after)}): not compared`)]
+  const say = text => lines.push(oneLine(scrub(text)))
+  const named = (field, b, a) => { for (const line of elementLines(field, b, a)) say(line) }
   const lacks = (field, b, a) => {
     if (b === undefined && a !== undefined) { say(`before lacks ${field}`); return true }
     if (a === undefined && b !== undefined) { say(`after lacks ${field}`); return true }
     return b === undefined
   }
+  const setChange = (field, b, a) => {
+    if (lacks(field, b, a)) return
+    named(field, b ?? [], a ?? [])
+  }
+  // The adr-lint verdicts, by file: which records came or went, a verdict that moved, a reason that
+  // changed under one that held, and its advice. Under a PARTIAL look too (ADR-089).
+  const lintLines = () => {
+    if (lacks('adrLint', before.adrLint, after.adrLint)) return
+    const was = new Map(before.adrLint.map(entry => [entry.file, entry]))
+    const now = new Map(after.adrLint.map(entry => [entry.file, entry]))
+    const moved = new Map(verdictMoves(before, after).moves.map(move => [move.file, move]))
+    for (const [file, entry] of now) {
+      const old = was.get(file)
+      const move = moved.get(file)
+      if (!old) say(`adrLint: + ${file} (${entry.verdict})`)
+      else if (move) say(`adrLint ${file}: ${move.from} → ${move.to}${move.reason ? ` — ${move.reason}` : ''}`)
+      // A FAIL that stays a FAIL for another reason — one defect fixed, another
+      // exposed — is a change too (Codex review of 833ea52).
+      else if ((old.reason ?? null) !== (entry.reason ?? null)) say(`adrLint ${file}: ${entry.verdict}, reason changed — ${entry.reason ?? '(none)'}`)
+      // Advice that came or went under a verdict that held is a change too: a PASS that gained
+      // advice compared as "nothing changed". A verdict that moved is its own line already.
+      if (old && old.verdict === entry.verdict) setChange(`adrLint ${file} advice`, old.advice, entry.advice)
+      if (old && old.verdict === entry.verdict && (old.unproven || entry.unproven)) setChange(`adrLint ${file} unproven`, old.unproven ?? [], entry.unproven ?? [])
+    }
+    for (const [file, old] of was) if (!now.has(file)) say(`adrLint: - ${file} (was ${old.verdict})`)
+  }
+  const corpora = report => (report.corpora ?? []).join(', ')
+  if (before.look !== 'ok' || after.look !== 'ok') {
+    // A run that could not look is said and not compared. A PARTIAL pair of one corpus compares its
+    // adr-lint verdicts over the records both runs read, and not its counts (ADR-089): a PASS → FAIL
+    // inside a PARTIAL corpus printed only "not compared".
+    const looked = LOOKED.has(before.look) && LOOKED.has(after.look)
+    if (looked && !comparable(before, after)) return [oneLine(scrub(`corpora differ (${corpora(before)} → ${corpora(after)}): not compared`))]
+    say(`look: ${before.look} → ${after.look}: ${looked ? 'counts not compared; adr-lint verdicts compared over the records both runs read' : 'not compared'}`)
+    // What made a side PARTIAL, what it held back and which reader did not answer are compared:
+    // `--diff` said only "not compared", never what dropped out (BACKLOG §350 C5).
+    named('partialBecause', ...[before, after].map(report => (report.workNext?.partialBecause ?? []).map(entry => `${entry.file} (${entry.reason})`)))
+    named('undecided', ...[before, after].map(report => (report.undecided ?? []).map(entry => entry.file)))
+    named('couldNotRun', ...[before, after].map(report => (report.couldNotRun ?? []).map(entry => entry.reader)))
+    if (comparable(before, after)) lintLines()
+    return lines
+  }
+  if (!comparable(before, after)) return [oneLine(scrub(`corpora differ (${corpora(before)} → ${corpora(after)}): not compared`))]
   // A reader that did not answer on one side is ONE line, naming it; its fields
   // were then listed one by one as "after lacks workNext.records" and so on
   // before `couldNotRun` said why (BACKLOG §289 item 6).
@@ -538,18 +617,12 @@ export function diffReports(before, after, scrub = text => String(text)) {
   if (!lacks('probe.readers', ...readers) && readers[0].sha256 !== readers[1].sha256) {
     say(`readers: ${String(readers[0].sha256).slice(0, 12)}… → ${String(readers[1].sha256).slice(0, 12)}…`)
   }
-  for (const [group, keys] of [['workNext', ['records', 'accepted', 'tasks']], ['adrState', ['read', 'governing']]]) {
+  for (const [group, keys] of [['workNext', ['records', 'accepted', 'tasks', 'specs']], ['adrState', ['read', 'governing', 'contested']]]) {
     if (absent.has(group)) continue
     for (const key of keys) {
       const [b, a] = [before[group]?.[key], after[group]?.[key]]
       if (!lacks(`${group}.${key}`, b, a) && b !== a) say(`${group}.${key}: ${b} → ${a}`)
     }
-  }
-  const setChange = (field, b, a) => {
-    if (lacks(field, b, a)) return
-    const [was, now] = [new Set(b ?? []), new Set(a ?? [])]
-    const changes = [...[...now].filter(x => !was.has(x)).map(x => `+ ${x}`), ...[...was].filter(x => !now.has(x)).map(x => `- ${x}`)]
-    if (changes.length) say(`${field}: ${changes.join(', ')}`)
   }
   // The run's environment: a verdict that moved with the interpreter carried no hint of why
   // (BACKLOG §346, a 3.8.4 run whose Python moved 3.14.7 → 3.14.8 between two reports).
@@ -578,34 +651,38 @@ export function diffReports(before, after, scrub = text => String(text)) {
       }
     }
   }
-  for (const key of absent.has('workNext') ? [] : ['ready', 'unbacked', 'readinessUnproven', 'unmarkedArchives', 'readyButClaimedDone']) {
+  // Every work-next list is compared; specs, retirable, underUndecided and unprovenSpecs were not, and
+  // a hand-varied report changing all of them printed nothing about any (ADR-089 Context).
+  for (const key of absent.has('workNext') ? [] : ['ready', 'unbacked', 'readinessUnproven', 'unmarkedArchives', 'readyButClaimedDone',
+    'underUndecided', 'retirable', 'unprovenSpecs', 'uncoveredReadySpecs']) {
     setChange(`workNext.${key}`, before.workNext?.[key], after.workNext?.[key])
   }
-  if (!lacks('adrLint', before.adrLint, after.adrLint)) {
-    const was = new Map(before.adrLint.map(entry => [entry.file, entry]))
-    const now = new Map(after.adrLint.map(entry => [entry.file, entry]))
-    const moved = new Map(verdictMoves(before, after).moves.map(move => [move.file, move]))
-    for (const [file, entry] of now) {
-      const old = was.get(file)
-      const move = moved.get(file)
-      if (!old) say(`adrLint ${file}: new, ${entry.verdict}`)
-      else if (move) say(`adrLint ${file}: ${move.from} → ${move.to}${move.reason ? ` — ${move.reason}` : ''}`)
-      // A FAIL that stays a FAIL for another reason — one defect fixed, another
-      // exposed — is a change too (Codex review of 833ea52).
-      else if ((old.reason ?? null) !== (entry.reason ?? null)) say(`adrLint ${file}: ${entry.verdict}, reason changed — ${entry.reason ?? '(none)'}`)
-      // Advice that came or went under a verdict that held is a change too: a PASS that gained
-      // advice compared as "nothing changed". A verdict that moved is its own line already.
-      if (old && old.verdict === entry.verdict) setChange(`adrLint ${file} advice`, old.advice, entry.advice)
-      if (old && old.verdict === entry.verdict && (old.unproven || entry.unproven)) setChange(`adrLint ${file} unproven`, old.unproven ?? [], entry.unproven ?? [])
-    }
-    for (const file of was.keys()) if (!now.has(file)) say(`adrLint ${file}: removed`)
+  // The stage work-next names, by id: `next` is an object, and null is a stage of its own.
+  const nextId = report => (report.workNext?.next === undefined ? undefined : (report.workNext.next?.id ?? null))
+  if (!absent.has('workNext') && !lacks('workNext.next.id', nextId(before), nextId(after)) && nextId(before) !== nextId(after)) {
+    say(`workNext.next.id: ${nextId(before)} → ${nextId(after)}`)
   }
+  // adr-state's lists, by an element that reads as a line: a record governing nothing by file, a
+  // dangling supersession by id and Status. Both are lists of objects, never compared as scalars.
+  if (!absent.has('adrState')) {
+    const files = list => list?.map(entry => entry.file) ?? list
+    setChange('adrState.governingNothing', files(before.adrState?.governingNothing), files(after.adrState?.governingNothing))
+    const dangling = list => list?.map(entry => `${entry.id} (${entry.status})`) ?? list
+    setChange('adrState.danglingSupersession', dangling(before.adrState?.danglingSupersession), dangling(after.adrState?.danglingSupersession))
+  }
+  // adr-next per task directory: a directory that came or went, and the ready task ids of one both
+  // reports hold. A directory adr-next could not answer for is in couldNotRun, not a change of its set.
+  if (!lacks('adrNext', before.adrNext, after.adrNext)) {
+    const ready = report => new Map(report.adrNext.map(entry => [entry.tasksDir, entry.ready?.map(task => task.id) ?? null]))
+    const [was, now] = [ready(before), ready(after)]
+    named('adrNext', [...was.keys()], [...now.keys()])
+    for (const [dir, ids] of now) if (was.get(dir) && ids) setChange(`adrNext ${dir} ready`, was.get(dir), ids)
+  }
+  lintLines()
   setChange('couldNotRun', before.couldNotRun?.map(entry => entry.reader), after.couldNotRun?.map(entry => entry.reader))
   setChange('disagreements', before.disagreements?.map(entry => entry.task), after.disagreements?.map(entry => entry.task))
   if (!lacks('sessionStart', before.sessionStart, after.sessionStart) && before.sessionStart && after.sessionStart) {
-    const [was, now] = [new Set(before.sessionStart.lines), new Set(after.sessionStart.lines)]
-    for (const line of now) if (!was.has(line)) say(`SessionStart + ${line}`)
-    for (const line of was) if (!now.has(line)) say(`SessionStart - ${line}`)
+    named('SessionStart', before.sessionStart.lines, after.sessionStart.lines)
   }
   if (!lacks('timings', before.timings, after.timings)) {
     const key = entry => `${entry.reader}${entry.target ? ` ${entry.target}` : ''}`
@@ -676,6 +753,13 @@ function verdictChanges(before, after) {
   }
 }
 
+/** The worse of the looks a report carries, ok < PARTIAL < UNPROVEN, or null when it carries none. */
+const LOOK_ORDER = ['ok', 'PARTIAL', 'UNPROVEN']
+function runLook(report) {
+  const looks = [report.look, report.workNext?.look].filter(look => LOOK_ORDER.includes(look))
+  return looks.length ? LOOK_ORDER[Math.max(...looks.map(look => LOOK_ORDER.indexOf(look)))] : null
+}
+
 export function attestation(report, label, { since } = {}) {
   const readers = report.probe?.readers ?? {}
   const committed = typeof readers.git === 'string' && readers.dirty === false && !readers.moved
@@ -685,11 +769,12 @@ export function attestation(report, label, { since } = {}) {
   const looked = report.look !== 'UNPROVEN' && report.workNext?.look !== 'UNPROVEN'
   const vouched = committed && looked
   const count = list => (Array.isArray(list) ? list.length : null)
+  const changes = verdictChanges(since, report)
   return {
     date: report.probe?.date ?? null,
     at: vouched ? readers.git : null,
     ...(vouched ? {} : { atReason: !looked ? 'the probe could not look at the corpus (look UNPROVEN), so its readers ran over nothing'
-      : !readers.git ? 'the plugin is not a git checkout'
+      : !readers.git ? (readers.gitReason ? `${readers.gitReason}, so the readers' commit is unknown` : 'the plugin is not a git checkout')
         : readers.moved ? 'the readers changed while the probe ran'
           : readers.dirty === true ? 'reader files modified at HEAD'
             : 'whether the reader files match HEAD could not be checked' }),
@@ -707,7 +792,11 @@ export function attestation(report, label, { since } = {}) {
     couldNotRun: count(report.couldNotRun),
     disagreements: count(report.disagreements),
     readinessUnproven: count(report.workNext?.readinessUnproven),
-    verdictChanges: verdictChanges(since, report),
+    // What the run saw (ADR-089): its look, so a PARTIAL run never attests like an ok one, and how many
+    // records listed in either report were not compared, null whenever nothing was compared.
+    look: runLook(report),
+    notCompared: changes ? verdictMoves(since, report).notCompared : null,
+    verdictChanges: changes,
     runner: label,
     found: '',
   }

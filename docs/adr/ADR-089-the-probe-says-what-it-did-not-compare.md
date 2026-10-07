@@ -131,7 +131,7 @@ See `docs/adr/ADR-089-the-probe-says-what-it-did-not-compare/tasks/README.md`.
 ## Consequences
 
 - **Positive:** a runner reads one marked line per change and no longer compares JSON by hand. A PARTIAL corpus such as php-laravel-monolith counts verdict moves over what was read, and a regression inside it refuses the release. A release reader sees from the attestation alone whether part of the corpus was unread.
-- **Negative:** `--diff` output grows by one line per element where it used to join them. A PARTIAL-only release can now attest, which is more permissive than today (Decision, last paragraph; Alternative (d) is the stricter rule). The probe can now hold up to 64 MiB per reader in memory.
+- **Negative:** `--diff` output grows by one line per element where it used to join them. A PARTIAL attestation now carries a verdict count, but under Alternative (d), the owner's decision, it attests a release only beside an `ok` one, so a PARTIAL-only release stays UNPROVEN as before. The probe can now hold up to 64 MiB per reader in memory.
 - **Neutral:** two unlocked assertions change, because they pinned the joined form: `tests/corpus-probe.test.mjs:588` and `tests/named-not-dropped.test.mjs:100-101`. The PARTIAL control at `tests/named-not-dropped.test.mjs:106` changes too. All three are in files or tests with 0 locks, and the tasks re-check that before editing them.
 
 ## Out of Scope
@@ -147,7 +147,7 @@ See `docs/adr/ADR-089-the-probe-says-what-it-did-not-compare/tasks/README.md`.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| A PARTIAL attestation over a corpus whose most records were unread attests a release | Med | Med | `notCompared` and `look` ride in the attestation and in release-evidence's reason; Alternative (d) is ready if the owner wants it |
+| A PARTIAL attestation over a corpus whose most records were unread corroborates a release beside an `ok` one | Low | Med | `notCompared` and `look` ride in the attestation and in release-evidence's reason; under Alternative (d), the owner's decision, it never attests alone |
 | A record unread on one side only reads as a regression where the corpus changed, not the reader | Low | Low | it is a move out of PASS, so the release is refused and the runner says which record; that is the fail-closed direction |
 | A reader printing past 64 MiB | Low | Low | the ENOBUFS wording names it; the limit is one constant |
 | A test elsewhere pins the joined form | Low | Low | T1 S1 greps `tests/` for `, - ` and `, + ` forms and for `SessionStart + ` before the edit |
@@ -159,6 +159,7 @@ Revert the tasks' commits. Attestations filed with `look` and `notCompared` woul
 ## Follow-ups
 
 - [x] Owner decision (2026-10-06): Alternative (d). A PARTIAL attestation attests a release only beside an `ok` one.
+- [x] Corrected 2026-10-07, during execution, to match the owner's Accept decision (Alternative (d)): Consequences ("a PARTIAL-only release can now attest") and the first Risks row, and T3's Goal, Steps, Tests, Stop Condition and Out of Scope, which had excluded (d). No tool-written log was touched.
 - [ ] Owner action: file `plugin/bin/adr-verify:2566` (`{root}` echoed) and `plugin/scripts/lifecycle.mjs:6000` ("the process did not start") in docs/BACKLOG.md as siblings of §351's untrue-sentence list, naming this record; this drafting session was not permitted to edit BACKLOG.
 - [ ] Owner action: add a line to §351 and §353 naming ADR-089 as the record for items 10, 14, 22.3 and the `--diff` mark lead, so `adr-debt` finds the receipts.
 - [ ] Owner action: `adr-debt docs/adr` reported, 2026-10-06, four UNRECEIPTED deferrals from this record (the `--diff` privacy item, the dir-status-rfc `look: ok` item, and the `adr-verify:2566` / `lifecycle.mjs:6000` pair), because no BACKLOG destination names ADR-089 yet; filing the receipts above closes them.

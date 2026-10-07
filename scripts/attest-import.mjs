@@ -20,8 +20,10 @@ import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 /** The attestation schema of docs/corpus-reports/README.md, in the order a file is written. */
 export const KEYS = ['date', 'at', 'atReason', 'plugin', 'kind', 'probeSha256', 'readers', 'platform', 'node', 'python',
-  'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'verdictChanges', 'runner', 'found']
+  'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'look', 'notCompared', 'verdictChanges', 'runner', 'found']
 const CORPUS_KEYS = ['records', 'tasks', 'taskDirectories', 'countsFrom']
+// The looks a probe report carries (ADR-089), and null for a report that carried none.
+const LOOKS = ['ok', 'PARTIAL', 'UNPROVEN', null]
 
 /** Every top-level JSON object in `text`, in order; braces in prose that do not parse are skipped. */
 export function jsonObjects(text) {
@@ -126,6 +128,19 @@ export function check(text, root) {
   if ('verdictChanges' in attestation && !verdictChangesShape(attestation.verdictChanges)) {
     refused.push(`2: verdictChanges is ${JSON.stringify(attestation.verdictChanges)}; it is null, or exactly { compared, passToFail, failToPass }: `
       + 'non-negative integers with passToFail + failToPass <= compared (ADR-082)')
+  }
+  // ADR-089: what the run saw. `notCompared` counts the records a run did not compare, so it is null
+  // exactly when verdictChanges is: a run that compared nothing has nothing to count.
+  if ('look' in attestation && !LOOKS.includes(attestation.look)) {
+    refused.push(`2: look is ${JSON.stringify(attestation.look)}; it is ok, PARTIAL, UNPROVEN or null (ADR-089)`)
+  }
+  if ('notCompared' in attestation) {
+    const n = attestation.notCompared
+    const changes = attestation.verdictChanges ?? null
+    if (!(n === null || (Number.isInteger(n) && n >= 0))) refused.push(`2: notCompared is ${JSON.stringify(n)}; it is a non-negative integer or null (ADR-089)`)
+    else if ((n === null) !== (changes === null)) {
+      refused.push(`2: notCompared is ${JSON.stringify(n)} beside verdictChanges ${JSON.stringify(changes)}; it is null exactly when verdictChanges is (ADR-089)`)
+    }
   }
   // The date names the file, so it must be a date: `../../x` would have filed outside
   // docs/corpus-reports (Codex review of 3.1.0..e0ef6d4, F1).

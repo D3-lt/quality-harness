@@ -22,6 +22,7 @@
     "readinessUnproven": [],
     "specs": 1,
     "unprovenSpecs": [],
+    "uncoveredReadySpecs": [],
     "partialBecause": [],
     "next": "adr-execute",
     "readyButClaimedDone": []

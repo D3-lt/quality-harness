@@ -837,7 +837,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
   }
   for (const archive of state.unmarkedArchives) {
     say(`\n${pathInCode(archive)} looks like an archive but has no Lifecycle marker, so it is read as live; `
-      + '`adr-retire-check --adopt <active> <archive>` adopts it.\n')
+      + '`adr-retire-check --adopt <active> <archive>` reports what adopting it needs; it changes nothing.\n')
   }
   if (!stage) {
     if (state.tasks && !state.usesVerificationLog) {

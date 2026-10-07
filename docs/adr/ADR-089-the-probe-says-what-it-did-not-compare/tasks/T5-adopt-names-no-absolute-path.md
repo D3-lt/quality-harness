@@ -62,6 +62,10 @@ out=$(node --test --test-reporter=tap tests/adopt-wording.test.mjs 2>&1) \
 | 4 — it is used | an adopter with an unmarked archive; nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · the verdict line prints the resolved absolute root again · acceptance-sha256:a4c121a6d1fd53c4153d2181ad5c29f45c1fad8fc69fb3ab6e4c6ca7d316bb86 · covers:the roots printed relative
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/work-next.mjs` · work-next says --adopt adopts it again · acceptance-sha256:a4c121a6d1fd53c4153d2181ad5c29f45c1fad8fc69fb3ab6e4c6ca7d316bb86 · covers:the work-next remedy sentence
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · SessionStart says --adopt adopts it again · acceptance-sha256:a4c121a6d1fd53c4153d2181ad5c29f45c1fad8fc69fb3ab6e4c6ca7d316bb86 · covers:the SessionStart remedy sentence
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/bin/adr-retire-check` · --adopt stops naming an unidentified record as advice (record-identity kills it) · acceptance-sha256:a4c121a6d1fd53c4153d2181ad5c29f45c1fad8fc69fb3ab6e4c6ca7d316bb86 · covers:the unchanged adoption findings
 
 ## Invariants
 
@@ -81,3 +85,10 @@ Stop and ask if a skill or document quotes "adopts it" as the tool's behaviour b
 - `plugin/bin/adr-verify:2566`'s `{root}` echo — ADR-089 Out of Scope.
 
 ## Verification Log
+- 2026-10-07 · 49bd0c3* · exit 1 · `out=$(node --test --test-reporter=tap tests/adopt-wording.test.mjs 2>&1) \ …` · acceptance-sha256:a4c121a6d1fd53c4153d2181ad5c29f45c1fad8fc69fb3ab6e4c6ca7d316bb86 · ms:622 · test-lock-sha256:104e0ce72ab9e3e7830c0550bf255e6fc4b89b28fb77e379c0b67094a3e6b201 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYWRvcHQtd29yZGluZy50ZXN0Lm1qcwlhZG9wdCBwcmludHMgbm8gYWJzb2x1dGUgcGF0aAkyMWU0Y2M3NGJmNjRjYTVhMTkwYmIyZTA5Mjc1ZDdlZGM2MTBhZWMwNGU4NTk3Y2VkODNmN2NkOWMyNDE1NzE0CmJvZHkJdGVzdHMvYWRvcHQtd29yZGluZy50ZXN0Lm1qcwl0aGUgYWRvcHQgcmVtZWR5IHNheXMgaXQgcmVwb3J0cyBhbmQgY2hhbmdlcyBub3RoaW5nCTVlNjkzZDg1ZmI0NWY3YjYyMjBlZDA4NGQwNTI1OWE0Y2UxOGU5ZjA0OTQ5ZWY0YmU1ODU5MzM2NTg1ODhiOWQ
+  ```
+  ```
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/adopt-wording.test.mjs 2>&1) \ …` · acceptance-sha256:a4c121a6d1fd53c4153d2181ad5c29f45c1fad8fc69fb3ab6e4c6ca7d316bb86 · ms:5771
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/adopt-wording.test.mjs 2>&1) \ …` · acceptance-sha256:a4c121a6d1fd53c4153d2181ad5c29f45c1fad8fc69fb3ab6e4c6ca7d316bb86 · ms:4965
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/adopt-wording.test.mjs 2>&1) \ …` · acceptance-sha256:a4c121a6d1fd53c4153d2181ad5c29f45c1fad8fc69fb3ab6e4c6ca7d316bb86 · ms:4742
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/adopt-wording.test.mjs 2>&1) \ …` · acceptance-sha256:a4c121a6d1fd53c4153d2181ad5c29f45c1fad8fc69fb3ab6e4c6ca7d316bb86 · ms:4554

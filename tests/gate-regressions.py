@@ -3769,7 +3769,7 @@ def test_the_floor_runs_on_a_done_row(lint):
     lint.check_verification(infos(3), "| T1 | probe | done |", fast,
                             committed=lambda path: None)
     said = "\n".join(str(e) for e in fast) + "\n".join(fast.advice)
-    assert "3ms" in said or "could not" in said.lower() or "implausib" in said.lower(), \
+    assert "exit 0 in 3ms" in said or "could not" in said.lower() or "implausib" in said.lower(), \
         f"exit 0 in 3ms against a container fence must be reported: {said}"
 
     # The same fixture, an honest duration, silent. A floor that speaks on both is
@@ -3916,18 +3916,20 @@ def test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint):
 
     forged = f"- 2026-09-03 · deadbee · exit 0 · `{fence}` · ms:3"
     said = lint_with(forged)
-    assert "3ms" in said, (
+    assert "exit 0 in 3ms" in said, (
         "a row claiming exit 0 in 3ms against a container fence must be floored "
         f"whether or not it carries a digest: {said}")
     assert "no acceptance-sha256" in said, (
         "and the digest-less notice must see it too — appending ` · ms:N` is not "
         f"a way out of the check GitHub issue #4 bought: {said}")
 
+    # The floor's own words, never a bare "3ms": a temporary directory is a random
+    # name, and CI's `/tmp/tmp3mstqwxw` once matched "3ms" in the gate's path.
     # CAPABLE OF CLEAN, on the same fixture: the honest digest row with a duration
     # that fits its fence draws neither finding. Without this the two assertions
     # above pass against a gate that shouts at every corpus.
     quiet = lint_with(None)
-    assert "3ms" not in quiet and "no acceptance-sha256" not in quiet, (
+    assert "exit 0 in 3ms" not in quiet and "no acceptance-sha256" not in quiet, (
         f"an honest log must stay silent: {quiet}")
 
     # The wider pattern must never match a row the entry grammar rejects, or the

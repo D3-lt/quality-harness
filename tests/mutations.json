@@ -11848,8 +11848,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "the exclusion guards read any decimal digit",
-      "from": "TASK_SHAPED_RE = re.compile(r\"^(?:adr[-_]?)?\\d{1,4}[-._]T\\d+(?:[-._]|$)\", re.I)",
-      "to": "TASK_SHAPED_RE = re.compile(r\"^(?:adr[-_]?)?[0-9]{1,4}[-._]T[0-9]+(?:[-._]|$)\", re.I)"
+      "from": "TASK_SHAPED_RE = re.compile(rf\"^(?:adr[-_]?)?[{DECIMAL_DIGIT}]{{1,4}}[-._]T[{DECIMAL_DIGIT}]+(?:[-._]|\\Z)\", re.I)",
+      "to": "TASK_SHAPED_RE = re.compile(rf\"^(?:adr[-_]?)?[0-9]{{1,4}}[-._]T[0-9]+(?:[-._]|\\Z)\", re.I)"
     },
     {
       "label": "ADR-063: a bare leading number is a supersession candidate",
@@ -17319,8 +17319,8 @@
       "tests": [
         "tests/record-by-name.test.mjs"
       ],
-      "from": "_SPEC_NAME = re.compile(r\"spec[-_]?\\d\", re.I)",
-      "to": "_SPEC_NAME = re.compile(r\"(?:adr|spec)[-_]?\\d\", re.I)",
+      "from": "_SPEC_NAME = re.compile(rf\"spec[-_]?[{DECIMAL_DIGIT}]\", re.I)",
+      "to": "_SPEC_NAME = re.compile(rf\"(?:adr|spec)[-_]?[{DECIMAL_DIGIT}]\", re.I)",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
     },
     {
@@ -17400,8 +17400,8 @@
       "tests": [
         "tests/status-section.test.mjs"
       ],
-      "from": "  const status = inlineStatus(text) ?? statusSection(text)\n  const placedDirectories = directoriesOf(placed)",
-      "to": "  const status = inlineStatus(text)\n  const placedDirectories = directoriesOf(placed)",
+      "from": "  const status = recordStatus(text)\n  const placedDirectories = directoriesOf(placed, platform)",
+      "to": "  const status = inlineStatus(text)\n  const placedDirectories = directoriesOf(placed, platform)",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
     },
     {
@@ -18659,8 +18659,8 @@
       "tests": [
         "tests/status-codex-316.test.mjs"
       ],
-      "from": "|^archives?[-_](?:adrs?|decisions?|records?)$\", re.I | re.A)",
-      "to": "|^archives?[-_](?:adrs?|decisions?|records?)$\", re.I)",
+      "from": "|^archives?[-_](?:adrs?|decisions?|records?)\\Z\", re.I | re.A)",
+      "to": "|^archives?[-_](?:adrs?|decisions?|records?)\\Z\", re.I)",
       "only": "^the Codex round of 3.1.6: a directory is a record directory by ASCII letters only"
     },
     {
@@ -22482,7 +22482,7 @@
       "tests": [
         "tests/record-recognition.test.mjs"
       ],
-      "from": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts)):",
+      "from": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts, *spelled)):",
       "to": "    if False:",
       "only": "^a templates directory admits no record by either arm and the same file outside it is judged as any other$"
     },
@@ -22492,7 +22492,7 @@
       "tests": [
         "tests/record-recognition.test.mjs"
       ],
-      "from": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts)):",
+      "from": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts, *spelled)):",
       "to": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in placed.parent.parts):",
       "only": "^the link rows read their approved answers in record.py and adr-lint$"
     },
@@ -22692,7 +22692,7 @@
       "tests": [
         "tests/record-discovery.test.mjs"
       ],
-      "from": "  if ([...directoriesOf(listed), ...placedDirectories].some(part => TEMPLATES_DIRECTORY.test(part))) return answer(false, 'templates')",
+      "from": "  if ([...directoriesOf(listed, platform), ...placedDirectories, ...spelled].some(part => TEMPLATES_DIRECTORY.test(part))) return answer(false, 'templates')",
       "to": "  if (false) return answer(false, 'templates')",
       "only": "^the link rows read their approved answers in lifecycle$"
     },
@@ -23015,6 +23015,106 @@
       "from": "    if (!UNPARSED_FORMAT.test(entry.reason ?? '')) continue",
       "to": "    continue",
       "only": "^a numbered file in a format no reader parses is named, and an attachment of a counted record is not$"
+    },
+    {
+      "label": "ADR-092 review: the Python digit table drops a range",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "(0x1D7CE, 0x1D7FF), ",
+      "to": "",
+      "only": "^the name arms read one frozen table of decimal digits in both languages$"
+    },
+    {
+      "label": "ADR-092 review: the JS digit table drops a range",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "[0x1D7CE, 0x1D7FF], ",
+      "to": "",
+      "only": "^the name arms read one frozen table of decimal digits in both languages$"
+    },
+    {
+      "label": "ADR-092 review: the JS spec arm reads ASCII digits only",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "const SPEC_NAME = new RegExp(`^[sSſ][pP][eE][cC][-_]?[${DECIMAL_DIGIT}]`, 'u')",
+      "to": "const SPEC_NAME = new RegExp(`^[sSſ][pP][eE][cC][-_]?[0-9]`, 'u')",
+      "only": "^the name arms read one frozen table of decimal digits in both languages$"
+    },
+    {
+      "label": "ADR-092 review: the Python spec arm reads ASCII digits only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "_SPEC_NAME = re.compile(rf\"spec[-_]?[{DECIMAL_DIGIT}]\", re.I)",
+      "to": "_SPEC_NAME = re.compile(r\"spec[-_]?[0-9]\", re.I)",
+      "only": "^the name arms read one frozen table of decimal digits in both languages$"
+    },
+    {
+      "label": "ADR-092 review: a record directory's name may end in a line feed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "(?:[-_]archived?s?)?\\Z|",
+      "to": "(?:[-_]archived?s?)?$|",
+      "only": "^a path component holding a line feed or a backslash reads alike in both languages$"
+    },
+    {
+      "label": "ADR-092 review: a backslash separates on POSIX",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "const separatorsOf = platform => (platform === 'win32' ? /[\\\\/]/ : /\\//)",
+      "to": "const separatorsOf = platform => /[\\\\/]/",
+      "only": "^a path component holding a line feed or a backslash reads alike in both languages$"
+    },
+    {
+      "label": "ADR-092 review: a backslash never separates on Windows",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "const separatorsOf = platform => (platform === 'win32' ? /[\\\\/]/ : /\\//)",
+      "to": "const separatorsOf = platform => /\\//",
+      "only": "^a path component holding a line feed or a backslash reads alike in both languages$"
+    },
+    {
+      "label": "ADR-092 review: the Python templates check ignores the spelled path",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "*placed.parent.parts, *spelled)):",
+      "to": "*placed.parent.parts)):",
+      "only": "^a templates directory reached through a directory link admits no record in either language$"
+    },
+    {
+      "label": "ADR-092 review: the JS templates check ignores the spelled path",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": ", ...placedDirectories, ...spelled].some(",
+      "to": ", ...placedDirectories].some(",
+      "only": "^a templates directory reached through a directory link admits no record in either language$"
+    },
+    {
+      "label": "ADR-092 review: the JS definition returns the raw Status",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "  const status = recordStatus(text)\n  const placedDirectories",
+      "to": "  const status = inlineStatus(text) ?? statusSection(text)\n  const placedDirectories",
+      "only": "^the definition returns the normalised Status in both languages for every plain row$"
     }
   ]
 }

@@ -306,10 +306,11 @@ def _walked(scan_dir, markdown=False):
     (ADR-092 Decision 10, ADR-005)."""
     unlisted = []
     paths = sorted(p for p in walk(scan_dir, unlisted=unlisted) if not markdown or p.name.lower().endswith(".md"))
+    # A path is named with `/` on every platform, as every gate names one (CLAUDE.md §7); Windows printed `docs\adr\sub`.
     if unlisted:
         for directory in unlisted:
-            print(f"[adr-debt] could not run: {directory} — this directory could not be listed, so the "
-                  f"scan under {scan_dir} is incomplete", file=sys.stderr)
+            print(f"[adr-debt] could not run: {Path(directory).as_posix()} — this directory could not be listed, "
+                  f"so the scan under {Path(scan_dir).as_posix()} is incomplete", file=sys.stderr)
         sys.exit(2)
     return paths
 

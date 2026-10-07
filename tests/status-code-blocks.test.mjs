@@ -29,7 +29,7 @@ const PY = [
   'import json, sys',
   'sys.path.insert(0, sys.argv[1])',
   'import record',
-  'op, texts = json.load(sys.stdin)',
+  'op, texts = json.loads(sys.stdin.buffer.read().decode("utf-8"))',  // Windows' stdin is cp1252; a log row holds `·`
   'if op == "status":',
   '    print(json.dumps([record.record_status(t)[0] for t in texts]))',
   'else:',

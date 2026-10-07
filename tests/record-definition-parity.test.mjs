@@ -54,7 +54,8 @@ const PY = [
   'from pathlib import Path',
   'sys.path.insert(0, sys.argv[1])',
   'import record',
-  'op, items = json.load(sys.stdin)',
+  // UTF-8 by hand: Python on Windows decodes stdin as cp1252, and a row's path is not ASCII (`ſpec-02-x.md`).
+  'op, items = json.loads(sys.stdin.buffer.read().decode("utf-8"))',
   'if op == "digits":',
   '    print(json.dumps([list(pair) for pair in record.DECIMAL_DIGIT_RANGES]))',
   'else:',

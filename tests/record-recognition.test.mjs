@@ -71,7 +71,7 @@ const PY = [
   'from pathlib import Path',
   'sys.path.insert(0, sys.argv[1])',
   'import record',
-  'op, items = json.load(sys.stdin)',
+  'op, items = json.loads(sys.stdin.buffer.read().decode("utf-8"))',  // Windows' stdin is cp1252, rows are not ASCII
   'out = []',
   'for item in items:',
   '    if op == "eligible":',
@@ -200,7 +200,7 @@ const RETIRE_PY = [
   "loader = importlib.machinery.SourceFileLoader('adr_retire_check', sys.argv[1])",
   "module = importlib.util.module_from_spec(importlib.util.spec_from_loader('adr_retire_check', loader))",
   'loader.exec_module(module)',
-  'op, args = json.load(sys.stdin)',
+  'op, args = json.loads(sys.stdin.buffer.read().decode("utf-8"))',
   'err = io.StringIO()',
   'try:',
   '    with contextlib.redirect_stderr(err):',

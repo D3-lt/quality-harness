@@ -27,7 +27,7 @@ Within a wave no two tasks edit one source or test file; every task appends to t
 | T2 | every Python reader asks the one definition, and reads only regular text files (findings 3, 4, 5, 12) | done | — | `node --test tests/record-recognition.test.mjs` (ten named tests pass; three may skip on Windows, one as root) |
 | T3 | lifecycle mirrors the definition, discovers by it, and dedups by it (findings 5, 6, 11) | done | — | `node --test tests/record-discovery.test.mjs` (ten named tests pass; five may skip on Windows) |
 | T4 | every numbered candidate is counted or named, and a failed read is PARTIAL (findings 8, 9, 10) | pending | — | `node --test tests/record-naming.test.mjs` (six named tests pass; two may skip on Windows) |
-| T6 | an archive is named by what the definition admits, and never by a template | pending | — | `node --test tests/unmarked-archives.test.mjs` (three named tests pass) |
+| T6 | an archive is named by what the definition admits, and never by a template | done | — | `node --test tests/unmarked-archives.test.mjs` (three named tests pass) |
 | T7 | every walk names a directory it could not list, reads `.md` in any case, and opens no FIFO | pending | — | `node --test tests/walk-unlisted.test.mjs` (five named tests pass; the chmod test may skip on Windows or as root, the FIFO test on Windows) |
 
 ## Contract Coupling

@@ -53,6 +53,10 @@ out=$(node --test --test-reporter=tap tests/unmarked-archives.test.mjs 2>&1) \
 | 4 — it is used | every SessionStart and work-next run; nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-07 · 850a7a86* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the corpus reader names an archive by a name test instead of what it counted · acceptance-sha256:88c65242c0a99439452cf4db1172db93d007178210a64b245658c95dd2368738 · covers:the recognised set
+- 2026-10-07 · 850a7a86* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a spec-<n> record does not name its unmarked archive at SessionStart · acceptance-sha256:88c65242c0a99439452cf4db1172db93d007178210a64b245658c95dd2368738 · covers:the widened name test
+- 2026-10-07 · 850a7a86* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a template names its directory as an unmarked archive · acceptance-sha256:88c65242c0a99439452cf4db1172db93d007178210a64b245658c95dd2368738 · covers:the templates exclusion here
+- 2026-10-07 · 850a7a86* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a directory with a listed Lifecycle marker is named as unmarked · acceptance-sha256:88c65242c0a99439452cf4db1172db93d007178210a64b245658c95dd2368738 · covers:the frozen marker
 
 ## Invariants
 
@@ -74,3 +78,10 @@ Stop and ask if this repository's `unmarkedArchives` is not empty after S2.
 - Reading record content at SessionStart to find content-only records (permanent: boundary: CLAUDE.md §19, ADR-092 Decision 11)
 
 ## Verification Log
+- 2026-10-07 · 850a7a86* · exit 1 · `out=$(node --test --test-reporter=tap tests/unmarked-archives.test.mjs 2>&1) \ …` · acceptance-sha256:88c65242c0a99439452cf4db1172db93d007178210a64b245658c95dd2368738 · ms:296 · test-lock-sha256:876d9e0589048bf9d963d968fdb74023c66316bf556491fc566984e40f458daa · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvdW5tYXJrZWQtYXJjaGl2ZXMudGVzdC5tanMJYSBsaXN0ZWQgTGlmZWN5Y2xlIG1hcmtlciBmcmVlemVzIHRoZSBhcmNoaXZlIGluIGJvdGggcGF0aHMJMjUzMTdhNzhmNzk4MDUxNzAzZDVjZTlmNWEzMGI2NDNlYTE4OTg1YWMxOGMwYmE3YjE4N2U5ZjM4NGQzYjhjNApib2R5CXRlc3RzL3VubWFya2VkLWFyY2hpdmVzLnRlc3QubWpzCXRoZSBTZXNzaW9uU3RhcnQgYXJjaGl2ZSB0ZXN0IHJlYWRzIG5vIHJlY29yZCBjb250ZW50IGFuZCB0YWtlcyB0aGUgbmFtZSBhcm1zCTU2MWI0MzE0NjhhM2I4NzRkNWRjZjRkNjI3NWMwODNhNTNjMGQ4YWM2NWRiNjg2ZTIyNDFjMjM0MGRiZDRiZWQKYm9keQl0ZXN0cy91bm1hcmtlZC1hcmNoaXZlcy50ZXN0Lm1qcwl0aGUgY29ycHVzIHJlYWRlciBuYW1lcyBhbiBhcmNoaXZlIGJ5IHRoZSByZWNvcmRzIGl0IGhvbGRzIGFuZCBieSBub3RoaW5nIGVsc2UJN2EwMDE5Y2E1YjI5MzJmOTI0NWMwZWI0MTAxMzAyNGFiZDNmNWYzMDkyMmQ1NzM0ZGU5M2I5NzhiYmZjMTNjYg
+  ```
+  ```
+- 2026-10-07 · 850a7a86* · exit 0 · `out=$(node --test --test-reporter=tap tests/unmarked-archives.test.mjs 2>&1) \ …` · acceptance-sha256:88c65242c0a99439452cf4db1172db93d007178210a64b245658c95dd2368738 · ms:430
+- 2026-10-07 · 850a7a86* · exit 0 · `out=$(node --test --test-reporter=tap tests/unmarked-archives.test.mjs 2>&1) \ …` · acceptance-sha256:88c65242c0a99439452cf4db1172db93d007178210a64b245658c95dd2368738 · ms:430
+- 2026-10-07 · 850a7a86* · exit 0 · `out=$(node --test --test-reporter=tap tests/unmarked-archives.test.mjs 2>&1) \ …` · acceptance-sha256:88c65242c0a99439452cf4db1172db93d007178210a64b245658c95dd2368738 · ms:419
+- 2026-10-07 · 850a7a86* · exit 0 · `out=$(node --test --test-reporter=tap tests/unmarked-archives.test.mjs 2>&1) \ …` · acceptance-sha256:88c65242c0a99439452cf4db1172db93d007178210a64b245658c95dd2368738 · ms:436

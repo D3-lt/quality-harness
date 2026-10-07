@@ -63,25 +63,25 @@ test('...and it finds the two orphans this repository actually shipped', () => {
   // commits are in this repository's history, so this cannot rot into a tautology
   // the way a hand-built fixture can.
   //
-  // 6845564 (v2.47.0) shipped `implausibly_fast` — BACKLOG §99, GitHub issue #6.
+  // 818031c (in v2.47.0) shipped `implausibly_fast` — BACKLOG §99, GitHub issue #6.
   // It carries `gitBranch` too, which §100 later deleted.
-  const shipped = orphanDefinitions(shippedAt('6845564')).orphans.map(o => o.name).sort()
+  const shipped = orphanDefinitions(shippedAt('818031c')).orphans.map(o => o.name).sort()
   assert.deepEqual(shipped, ['DURATION_REQUIRED_FROM', 'VALIDATION_VERDICTS', '__declaredEnforcementForTest',
     '__pathMatchesDeclarationForTest', 'gitBranch', 'implausibly_fast'],
     'the sweep must catch the defect at the commit that shipped it')
 
-  // 15b5b9d is the commit that deleted gitBranch (§100), so its parent still has
+  // de4a2a7 is the commit that deleted gitBranch (§100), so its parent still has
   // it and no longer has implausibly_fast — a second, independent data point.
-  const before = orphanDefinitions(shippedAt('15b5b9d^')).orphans.map(o => o.name).sort()
+  const before = orphanDefinitions(shippedAt('de4a2a7^')).orphans.map(o => o.name).sort()
   assert.deepEqual(before, ['DURATION_REQUIRED_FROM', 'VALIDATION_VERDICTS', '__declaredEnforcementForTest',
     '__pathMatchesDeclarationForTest', 'gitBranch'])
 })
 
 test('a binding is a definition, and plugin/lib is shipped', () => {
-  // 03b5e21 (v3.0.2) shipped five bindings only tests read and one only repository
+  // v3.0.2 shipped five bindings only tests read and one only repository
   // tooling read. The sweep counted `function` and `def` alone and read no `.py`, so
   // it reported 0 of 726 there (2026-09-27).
-  const found = orphanDefinitions(shippedAt('03b5e21')).orphans.map(o => `${o.path}: ${o.name}`).sort()
+  const found = orphanDefinitions(shippedAt('v3.0.2')).orphans.map(o => `${o.path}: ${o.name}`).sort()
   assert.deepEqual(found, [
     'plugin/lib/record.py: _BDD_NAME',
     'plugin/scripts/lifecycle.mjs: SLOW_HOOK_NOTE',

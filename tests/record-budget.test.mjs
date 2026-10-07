@@ -131,9 +131,16 @@ test('a record named with the ADR prefix is found at any width, and a bare short
       // included (the owner, 2026-10-07: a file adr-lint does not recognise is a record to no reader).
       writeFileSync(join(dir, 'docs', 'adr', name), `# ${name}\n\n**Status:** Accepted\n${name === 'adr_3-c.md' ? '\n## Decision\n\nd\n' : ''}`)
     }
+    // Outside a record directory no place finds a file and `ADR_FILE` alone names one, and a name the
+    // ADR prefix makes record-shaped at any width is named as not a record the way a three-digit one is;
+    // a bare short number is not (ADR-092: only a file found by NAME is named, tests/fixtures R4 and R12).
+    mkdirSync(join(dir, 'notes'), { recursive: true })
+    for (const name of ['adr_3-x.md', 'adr7-y.md', 'adr_003-w.md', '1-z.md']) writeFileSync(join(dir, 'notes', name), '# A note\n\nText\n')
     assert.equal(spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 30_000 }).status, 0)
     const state = stateOf(dir)
     assert.equal(state.read, 3, JSON.stringify(state))
+    assert.deepEqual(state.notRead.map(entry => entry.file.replaceAll('\\', '/')).filter(file => file.startsWith('notes/')).sort(),
+      ['notes/adr7-y.md', 'notes/adr_003-w.md', 'notes/adr_3-x.md'], JSON.stringify(state.notRead))
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 

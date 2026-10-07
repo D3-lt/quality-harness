@@ -260,7 +260,8 @@ test('an unnumbered note or a record inside a record directory is not named as n
     'vault/note.md': '---\nstatus: draft\n---\n\n# A note\n',
     // A record inside a record directory is read as one, not named.
     'docs/decisions/001-x.md': frontmatter(['status: active'], 'x'),
-    // Inside a record directory, a numbered file that is not a record is still not this list's.
+    // Inside a record directory, a numbered file that is not a record is named since ADR-092 Decision 9
+    // (every numbered candidate is counted or named; the owner approved the change on 2026-10-07).
     'docs/decisions/RFC0003-z.md': rfc('Final'),
     // A numbered file with no Status, and a numbered file the record reader lists by its name, are not
     // records adr-lint recognises: since the owner's decision of 2026-10-07 no reader counts them, not
@@ -269,7 +270,7 @@ test('an unnumbered note or a record inside a record directory is not named as n
     'Final/0002-z.md': rfc('Final'),
   })
   const next = workNext(repo)
-  assert.deepEqual(next.notRead.map(entry => posix(entry.file)).sort(), ['Final/0002-z.md', 'notes/0001-x.md'])
+  assert.deepEqual(next.notRead.map(entry => posix(entry.file)).sort(), ['Final/0002-z.md', 'docs/decisions/RFC0003-z.md', 'notes/0001-x.md'])
   assert.deepEqual(next.undecidedNamed, [])
 })
 
@@ -402,11 +403,15 @@ test('a numbered file whose frontmatter runs past 64 lines is named, and past th
   const next = workNext(repo)
   assert.equal(next.look, 'ok')
   assert.deepEqual(next.notRead.map(entry => posix(entry.file)), ['Final/RFC0044-long.md'])
-  // Past the byte budget the closing line is not read either: said as could-not-look, never silence.
-  const huge = corpus({ 'Final/RFC0045-huge.md': `---\n${keys(4000).join('\n')}\nStatus: Final\n---\n\n# An RFC\n` })
+  // Past the read budget, now ADR-092's 512 KiB, a file whose candidacy needs its content is could-not-look,
+  // never silence. A letter-prefixed name is a candidate by its path and named unread at any size, so the
+  // budget is shown on a plain numbered note (the owner approved the change on 2026-10-07).
+  // Two digits, so no reader lists it by name (`0045-` is a record's name to the corpus reader, which
+  // would say "over 512 KiB" itself): only work-next's candidate rule reaches it.
+  const huge = corpus({ 'notes/45-huge.md': `---\n${keys(30000).join('\n')}\nStatus: Final\n---\n\n# An RFC\n` })
   const over = workNext(huge)
   assert.equal(over.look, 'PARTIAL')
-  assert.deepEqual(over.partialBecause.map(entry => posix(entry.file)), ['Final/RFC0045-huge.md'])
+  assert.deepEqual(over.partialBecause.map(entry => posix(entry.file)), ['notes/45-huge.md'])
 })
 
 test('a superseded status that names no record takes its target from superseded_by', () => {
@@ -492,15 +497,17 @@ test('a heading after whitespace only one runtime calls whitespace is read alike
 })
 
 test('a 64 KiB cut that ends on three dashes is not read as the closing delimiter', () => {
-  // Finding 4: the cut fell just after the `---` of a longer line, which read as a closed block.
+  // Finding 4: the cut fell just after the `---` of a longer line, which read as a closed block. ADR-092
+  // reads a candidate whole up to 512 KiB, so there is no cut: the `---example` line is text, the block
+  // closes at the bare `---`, and its Status makes the file a candidate, named as not read.
   const open = '---\nStatus: Final\n'
   const pad = `pad: ${'x'.repeat(64 * 1024 - 3 - open.length - 'pad: \n'.length)}\n`
   const text = `${open}${pad}---example: x\n---\n\n# An RFC\n`
   assert.equal(Buffer.byteLength(`${open}${pad}---`), 64 * 1024)
-  const next = workNext(corpus({ 'Final/RFC0046-edge.md': text }))
-  assert.equal(next.look, 'PARTIAL')
-  assert.deepEqual(next.partialBecause.map(entry => posix(entry.file)), ['Final/RFC0046-edge.md'])
-  assert.deepEqual(next.notRead, [])
+  const next = workNext(corpus({ 'notes/0046-edge.md': text }))
+  assert.equal(next.look, 'ok')
+  assert.deepEqual(next.partialBecause, [])
+  assert.deepEqual(next.notRead.map(entry => posix(entry.file)), ['notes/0046-edge.md'])
 })
 
 // The owner, 2026-10-07: nothing found along the way is left open.

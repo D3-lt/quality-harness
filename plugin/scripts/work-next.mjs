@@ -16,11 +16,11 @@
 //
 // Reads only. Suggests only. Exit 0 whatever it finds, and 2 on an option it does
 // not know; a router that refused would be the thing this harness spent a week removing.
-import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
+import { accessSync, closeSync, constants, openSync, readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, aliasReason, danglingCorpusLinks, FRONTMATTER_OPEN, frontmatterBlock, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, RECORD_DIRECTORY, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
+import { adrCorpus, aliasReason, corpusEligible, danglingCorpusLinks, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, RECORD_DIRECTORY, recordId, recordStatus, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
@@ -177,57 +177,80 @@ function posixRel(rel) {
   return String(rel).replaceAll('\\', '/')
 }
 
-// ADR-087 T4: tracked `.md` files no reader reads as records and that look like a corpus of their own —
-// a numbered name (`RFC0001-x.md`, `0044-y.md`) and a frontmatter `status:` key — outside every record
-// directory (lifecycle's RECORD_DIRECTORY). public/dir-status-rfc keeps 63 such files and got `look:
-// ok` and nothing else (BACKLOG §353). They are named, never read as records: ADR-074 Decision 5 defines
-// a record by its content, and these have none of it. A file the record reader already lists is its
-// own, and not named twice. Only names that already match are opened, and only their first 64 KiB.
-// The record reader's own `notRecognised` are named here too: files listed by name that adr-lint does
-// not recognise as records, which no reader counts (the owner, 2026-10-07).
+// ADR-092 Decision 9: EVERY NUMBERED CANDIDATE IS COUNTED, HELD UNDECIDED, OR NAMED. A candidate is an
+// eligible tracked `.md` file (lifecycle's `corpusEligible`) with a numbered name that sits in a record
+// directory, has a letter prefix before its number (`RFC0001-`), or carries a Status in any form. The
+// first two are decided by the path; the third by the content, read whole up to the corpus reader's
+// 512 KiB. A candidate no reader counts is named in `notRead` (the corpus reader's `notRecognised`
+// included). One decided by its path whose read failed (absent, unreadable, not a regular file), and one
+// whose content could not be read for any reason but its absence, or runs past 512 KiB, is named in
+// `partialBecause` and makes the look PARTIAL; a file only its content could make a candidate, absent
+// from the working tree, was observed to carry nothing. Until ADR-092 a numbered file outside the
+// frontmatter-`status:` shape (`RFC0001-x.md` with `# A note`, a headingless `docs/adr/01-x.md`) was
+// neither counted nor named, a failed read was dropped with `look ok`, and a 64 KiB head left a Status
+// past it unread (findings 8, 9, 10).
+// The decision's amendment (2026-10-07): in a record directory a number of any width makes a candidate
+// (`1-intro.md` beside the records was named nowhere: a coordinator's note); and a numbered `.rst`,
+// `.adoc` or `.txt` there is named in `partialBecause` as a format no reader parses, never parsed (the
+// owner, on a corpus of numbered `.rst` records), unless its identity is a record the corpus counts, whose
+// attachment it is (`ADR-001-attachment.txt`, which adr-retire-check seals).
 const NUMBERED_NAME = /^[A-Za-z]*-?\d{2,}[-_]/
-const HEAD_BYTES = 64 * 1024
-// The head of a regular file, and whether the file runs past it. A FIFO named like a record blocked a
-// bare open until the process was killed (BACKLOG §351; a gpt-6.1-sol review of ADR-087, finding 6),
-// so anything else throws, as `read` above reads it as nothing. Bytes, not lines: a 64-line cut lost
-// the closing `---` of a long frontmatter and the file was neither read nor named (finding 4).
-function headOf(file) {
-  if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)
-  const fd = openSync(file, 'r')
-  try {
-    const buffer = Buffer.alloc(HEAD_BYTES + 1)
-    const read = readSync(fd, buffer, 0, buffer.length, 0)
-    const text = buffer.toString('utf8', 0, Math.min(read, HEAD_BYTES))
-    if (read <= HEAD_BYTES) return { text, cut: false }
-    // Cut: only complete lines are read. A cut that ends on the `---` of a longer line read as the
-    // closing delimiter (a gpt-6.1-sol delta review, 2026-10-07, finding 4).
-    return { text: text.slice(0, Math.max(text.lastIndexOf('\n'), text.lastIndexOf('\r')) + 1), cut: true }
-  } finally { closeSync(fd) }
+const NUMBERED_IN_RECORD_DIRECTORY = /^[A-Za-z]*-?\d+[-_]/
+const LETTER_PREFIX = /^[A-Za-z]+-?\d/
+const UNSUPPORTED_FORMAT = /\.(rst|adoc|txt)$/i
+const CANDIDATE_BYTES = 512 * 1024
+// Why a path-decided candidate could not be read, or null. Asked of the file system and never by opening
+// anything but a regular file: a FIFO named like a record blocked a bare open until the process was
+// killed (BACKLOG §351; a gpt-6.1-sol review of ADR-087, finding 6).
+function candidateProblem(file) {
+  let stat
+  try { stat = statSync(file) } catch (error) {
+    return error?.code === 'ENOENT' ? { absent: true, reason: 'git lists it and it is absent from the working tree, so it could not be read' }
+      : { reason: `it could not be read (${error?.code ?? 'unreadable'})` }
+  }
+  if (!stat.isFile()) return { reason: 'it is not a regular file, so it was never opened' }
+  try { accessSync(file, constants.R_OK) } catch (error) { return { reason: `it could not be read (${error?.code ?? 'unreadable'})` } }
+  return { size: stat.size }
 }
-// `files` are named as not read; `unknown` are files whose frontmatter opens and does not close within
-// the budget, so whether they carry a status was not read: could-not-look, never silence.
+// `files` are named as not read; `failed` are `{ file, reason }` for the candidates that could not be read
+// or whose format no reader parses: could-not-look, never silence.
 function notReadFiles(directory, listing, corpus) {
   const found = [...(corpus.notRecognised ?? [])]
-  const unknown = []
-  if (listing == null) return { files: found, unknown }
+  const failed = []
+  if (listing == null) return { files: found, failed }
   const listed = new Set([...corpus, ...(corpus.unreadable ?? []), ...found.map(file => ({ file }))].map(entry => path.resolve(entry.file)))
+  const countedIds = new Set(corpus.map(record => record.id).filter(Boolean))
   for (const rel of listing) {
     const parts = posixRel(rel).split('/')
     const base = parts.pop()
-    if (!/\.md$/i.test(base) || !NUMBERED_NAME.test(base)) continue
-    if (parts.some(part => RECORD_DIRECTORY.test(part)) || listedUnderUninterestingDirectory(parts)) continue
     const file = path.join(directory, ...parts, base)
     if (listed.has(path.resolve(file))) continue
-    let head
-    try { head = headOf(file) } catch { continue }
-    const block = frontmatterBlock(head.text)
-    if (!block) {
-      if (head.cut && FRONTMATTER_OPEN.test(head.text.split(/\r\n|\r|\n/, 1)[0])) unknown.push(file)
+    const kept = parts.some(part => RECORD_DIRECTORY.test(part))
+    const format = UNSUPPORTED_FORMAT.exec(base)
+    if (format) {
+      if (kept && NUMBERED_IN_RECORD_DIRECTORY.test(base) && corpusEligible([...parts, 'x.md'].join('/')) && !countedIds.has(recordId(base))) {
+        failed.push({ file, reason: `its format (.${format[1].toLowerCase()}) is one no reader parses, so whether it is a record was not read` })
+      }
       continue
     }
-    if (head.text.split(/\r\n|\r|\n/).slice(block[0] + 1, block[1]).some(line => /^status[ \t]*:/i.test(line))) found.push(file)
+    if (!corpusEligible(posixRel(rel))) continue
+    if (!(kept ? NUMBERED_IN_RECORD_DIRECTORY : NUMBERED_NAME).test(base)) continue
+    const problem = candidateProblem(file)
+    if (kept || LETTER_PREFIX.test(base)) {
+      if (problem.reason) failed.push({ file, reason: problem.reason })
+      else found.push(file)
+      continue
+    }
+    if (problem.reason) { if (!problem.absent) failed.push({ file, reason: problem.reason }); continue }
+    if (problem.size > CANDIDATE_BYTES) {
+      failed.push({ file, reason: `it runs past ${CANDIDATE_BYTES / 1024} KiB, so whether it carries a status was not read` })
+      continue
+    }
+    let text
+    try { text = readFileSync(file, 'utf8') } catch (error) { failed.push({ file, reason: `it could not be read (${error?.code ?? 'unreadable'})` }); continue }
+    if (recordStatus(text) !== null) found.push(file)
   }
-  return { files: found, unknown }
+  return { files: found, failed }
 }
 
 
@@ -422,7 +445,7 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
   const dangling = danglingCorpusLinks(directory)
   const notRead = notReadFiles(directory, listing, corpus)
   const look = listing == null ? 'UNPROVEN'
-    : (corpus.look ?? 'ok') === 'ok' && (taskAliases.length || dangling.length || notRead.unknown.length) ? 'PARTIAL' : (corpus.look ?? 'ok')
+    : (corpus.look ?? 'ok') === 'ok' && (taskAliases.length || dangling.length || notRead.failed.length) ? 'PARTIAL' : (corpus.look ?? 'ok')
   // ⚠ LISTED IS NOT PRESENT. A sparse or partial checkout lists a task git tracks
   // and leaves the file off the disk; it was counted as a task, asked about nowhere,
   // and a done claim on it vanished (a Windows chaos round, 2026-09-25). The file's
@@ -649,8 +672,8 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
     undecidedNamed: (corpus.unreadable ?? []).filter(entry => !entry.alias)
       .map(entry => ({ file: entry.file, reason: entry.reason ?? undecidedReason(entry) })),
     undecided: (corpus.unreadable ?? []).filter(entry => !entry.alias).length,
-    // Numbered files with a frontmatter status outside every record directory, and files adr-lint does
-    // not recognise as records: named, not read (ADR-087 T4; the owner, 2026-10-07).
+    // Every numbered candidate no reader counts, and files adr-lint does not recognise as records: named,
+    // not read (ADR-087 T4; ADR-092 Decision 9; the owner, 2026-10-07).
     notRead: notRead.files,
     // WHICH records made the look PARTIAL, and why: a bare PARTIAL sent the reader
     // hunting through the corpus for the one file (BACKLOG §289 item 3).
@@ -659,7 +682,7 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
         .map(entry => ({ file: entry.file, reason: entry.reason ?? entry.status })),
       ...taskAliases.map(({ file, sameAs }) => ({ file, reason: aliasReason(directory, sameAs) })),
       ...dangling.map(file => ({ file, reason: 'a link whose target does not exist, so the corpus behind it could not be read' })),
-      ...notRead.unknown.map(file => ({ file, reason: `its frontmatter runs past ${HEAD_BYTES / 1024} KiB, so whether it carries a status was not read` }))]
+      ...notRead.failed]
       : [],
     tasks: tasks.length,
     unbacked,

@@ -21450,18 +21450,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (!/\\.md$/i.test(base) || !NUMBERED_NAME.test(base)) continue",
-      "to": "    if (!/\\.md$/i.test(base)) continue",
-      "only": "^(?:an unnumbered note or a record inside a record directory is not named as not read)$"
-    },
-    {
-      "label": "ADR-087 T4: notRead names a file inside a record directory",
-      "file": "plugin/scripts/work-next.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    if (parts.some(part => RECORD_DIRECTORY.test(part)) || listedUnderUninterestingDirectory(parts)) continue",
-      "to": "    if (listedUnderUninterestingDirectory(parts)) continue",
+      "from": "    if (!(kept ? NUMBERED_IN_RECORD_DIRECTORY : NUMBERED_NAME).test(base)) continue",
+      "to": "    if (false) continue",
       "only": "^(?:an unnumbered note or a record inside a record directory is not named as not read)$"
     },
     {
@@ -22122,7 +22112,7 @@
       ],
       "from": "  const found = [...(corpus.notRecognised ?? [])]",
       "to": "  const found = []",
-      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
+      "only": "^(?:a file adr-lint does not recognise is counted by no reader and named as not read|an unnumbered note or a record inside a record directory is not named as not read)$"
     },
     {
       "label": "ADR-087 review F1: an indented frontmatter line is read as the Status (lifecycle)",
@@ -22170,19 +22160,20 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (read <= HEAD_BYTES) return { text, cut: false }",
-      "to": "    if (true) return { text, cut: false }",
+      "from": "    if (problem.size > CANDIDATE_BYTES) {",
+      "to": "    if (false) {",
       "only": "a numbered file whose frontmatter runs past 64 lines is named, and past the budget is PARTIAL"
     },
     {
       "label": "ADR-087 review F4: the head is cut at 64 lines again",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [
-        "tests/corpus-shapes.test.mjs"
+        "tests/corpus-shapes.test.mjs",
+        "tests/record-naming.test.mjs"
       ],
-      "from": "    const block = frontmatterBlock(head.text)",
-      "to": "    const block = frontmatterBlock(head.text.split('\\n').slice(0, 64).join('\\n'))",
-      "only": "a numbered file whose frontmatter runs past 64 lines is named, and past the budget is PARTIAL"
+      "from": "    if (recordStatus(text) !== null) found.push(file)",
+      "to": "    if (recordStatus(text.split('\\n').slice(0, 64).join('\\n')) !== null) found.push(file)",
+      "only": "^(?:a numbered file whose frontmatter runs past 64 lines is named, and past the budget is PARTIAL|every row of the recognition table reads its approved answer in work-next)$"
     },
     {
       "label": "ADR-087 review F5: a bare superseded by does not fall back to superseded_by",
@@ -22196,12 +22187,12 @@
     },
     {
       "label": "ADR-087 review F6: the not-read look opens a FIFO",
-      "file": "plugin/scripts/work-next.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "  if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)",
-      "to": "  if (false) throw new Error(`${file} is not a regular file`)",
+      "from": "      if (!stat.isFile()) { failed.push({ file: absolute, reason: 'not a regular file, so the content screen could not read it' }); continue }",
+      "to": "      if (!stat.isFile() && false) continue",
       "only": "a FIFO in place of a numbered file is not opened by the not-read look"
     },
     {
@@ -22274,16 +22265,6 @@
       "from": "RegExp(`^##${PY_LINE_SPACE}",
       "to": "RegExp(`(?:^|\\u2028)##${PY_LINE_SPACE}",
       "only": "a heading after whitespace only one runtime calls whitespace is read alike by every reader"
-    },
-    {
-      "label": "ADR-087 delta review F4: a cut head keeps its partial last line",
-      "file": "plugin/scripts/work-next.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    return { text: text.slice(0, Math.max(text.lastIndexOf('\\n'), text.lastIndexOf('\\r')) + 1), cut: true }",
-      "to": "    return { text, cut: true }",
-      "only": "a 64 KiB cut that ends on three dashes is not read as the closing delimiter"
     },
     {
       "label": "owner 2026-10-07: a Status line in an indented code block is the Status (lifecycle)",
@@ -22944,6 +22925,96 @@
       "from": "                text = read_regular(md)",
       "to": "                text = md.read_text(errors=\"replace\", encoding=\"utf-8\")",
       "only": "^adr-debt never opens a FIFO$"
+    },
+    {
+      "label": "ADR-092 T4: the candidate rule",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "    if (kept || LETTER_PREFIX.test(base)) {",
+      "to": "    if (kept) {",
+      "only": "^every row of the recognition table reads its approved answer in work-next$"
+    },
+    {
+      "label": "ADR-092 T4: a numbered file in a record directory is a candidate by its path",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "    const kept = parts.some(part => RECORD_DIRECTORY.test(part))",
+      "to": "    const kept = false",
+      "only": "^every row of the recognition table reads its approved answer in work-next$"
+    },
+    {
+      "label": "ADR-092 T4: the failed-read reason",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "      if (problem.reason) failed.push({ file, reason: problem.reason })",
+      "to": "      if (problem.reason) void 0",
+      "only": "^a numbered candidate that cannot be read makes the look PARTIAL and is named$"
+    },
+    {
+      "label": "ADR-092 T4: the budget reason",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "    if (problem.size > CANDIDATE_BYTES) {",
+      "to": "    if (null) {",
+      "only": "^a candidate past the read budget is PARTIAL and named$"
+    },
+    {
+      "label": "ADR-092 T4: the regular-file guard (the screen work-next reads through)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "      if (!stat.isFile()) { failed.push({ file: absolute, reason: 'not a regular file, so the content screen could not read it' }); continue }",
+      "to": "      if (false) continue",
+      "only": "^a FIFO candidate is named and never opened$"
+    },
+    {
+      "label": "ADR-092 T4: the any-width number in a record directory",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "const NUMBERED_IN_RECORD_DIRECTORY = /^[A-Za-z]*-?\\d+[-_]/",
+      "to": "const NUMBERED_IN_RECORD_DIRECTORY = /^[A-Za-z]*-?\\d{2,}[-_]/",
+      "only": "^a numbered file in a record directory is named at any width$"
+    },
+    {
+      "label": "ADR-092 T4: the unsupported format",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "      if (kept && NUMBERED_IN_RECORD_DIRECTORY.test(base) && corpusEligible(",
+      "to": "      if (false && NUMBERED_IN_RECORD_DIRECTORY.test(base) && corpusEligible(",
+      "only": "^a numbered file in a format no reader parses is named, and an attachment of a counted record is not$"
+    },
+    {
+      "label": "ADR-092 T4: the attachment exception",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": " && !countedIds.has(recordId(base))) {",
+      "to": ") {",
+      "only": "^a numbered file in a format no reader parses is named, and an attachment of a counted record is not$"
+    },
+    {
+      "label": "ADR-092 T4: the probe's unread format",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "    if (!UNPARSED_FORMAT.test(entry.reason ?? '')) continue",
+      "to": "    continue",
+      "only": "^a numbered file in a format no reader parses is named, and an attachment of a counted record is not$"
     }
   ]
 }

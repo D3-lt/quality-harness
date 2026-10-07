@@ -13497,8 +13497,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  if (corpusLook === true) {\n    for (const archive of unmarkedArchives(root, listing)) {",
-      "to": "  if (true) {\n    for (const archive of unmarkedArchives(root, listing)) {",
+      "from": "  if (corpusLook === true) {\n    // The name test: SessionStart opens no record content (CLAUDE.md §19, ADR-092 Decision 11).\n    for (const archive of unmarkedArchives(root, listing)) {",
+      "to": "  if (true) {\n    // The name test: SessionStart opens no record content (CLAUDE.md §19, ADR-092 Decision 11).\n    for (const archive of unmarkedArchives(root, listing)) {",
       "only": "only in a decision corpus"
     },
     {
@@ -13507,7 +13507,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    if (!RECORD_SHAPED.test(rel.split('/').pop()) && !/(?:^|\\/)tasks\\//.test(rel)) continue",
+      "from": "    if (!record && !task) continue",
       "to": "    if (false) continue",
       "only": "only in a decision corpus"
     },
@@ -22814,6 +22814,56 @@
       "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
       "to": "    if (!recognisedAsRecord(root, file, text).recognised) { notRecognised.push(file); continue }",
       "only": "^every row of the recognition table reads its approved answer in lifecycle$"
+    },
+    {
+      "label": "ADR-092 T6: the recognised set",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/unmarked-archives.test.mjs"
+      ],
+      "from": "  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked, recognisedFiles), enumerable: false })",
+      "to": "  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked), enumerable: false })",
+      "only": "^the corpus reader names an archive by the records it holds and by nothing else$"
+    },
+    {
+      "label": "ADR-092 T6: the recognised set replaces the name test",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/unmarked-archives.test.mjs"
+      ],
+      "from": "    const record = recognised ? recognised.has(listedAbsolute(root, rel)) : RECORD_SHAPED",
+      "to": "    const record = recognised ? recognised.has(listedAbsolute(root, rel)) || RECORD_SHAPED.test(parts.at(-1)) : RECORD_SHAPED",
+      "only": "^the corpus reader names an archive by the records it holds and by nothing else$"
+    },
+    {
+      "label": "ADR-092 T6: the widened name test",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/unmarked-archives.test.mjs"
+      ],
+      "from": ": RECORD_SHAPED.test(parts.at(-1)) || SPEC_NAME.test(parts.at(-1))",
+      "to": ": RECORD_SHAPED.test(parts.at(-1))",
+      "only": "^the SessionStart archive test reads no record content and takes the name arms$"
+    },
+    {
+      "label": "ADR-092 T6: the templates exclusion here",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/unmarked-archives.test.mjs"
+      ],
+      "from": "    if (parts.slice(0, -1).some(part => TEMPLATES_DIRECTORY.test(part))) continue",
+      "to": "    if (false) continue",
+      "only": "^(?:the corpus reader names an archive by the records it holds and by nothing else|the SessionStart archive test reads no record content and takes the name arms)$"
+    },
+    {
+      "label": "ADR-092 T6: the frozen marker",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/unmarked-archives.test.mjs"
+      ],
+      "from": "      if (underFrozenArchive(root, parts.slice(0, depth + 1), cache, listed) === false) found.add(parts.slice(0, depth).join('/'))",
+      "to": "      found.add(parts.slice(0, depth).join('/'))",
+      "only": "^a listed Lifecycle marker freezes the archive in both paths$"
     }
   ]
 }

@@ -1337,19 +1337,29 @@ const ARCHIVE_DIRECTORY_NAME = /(?:^|[-_])archived?s?$|^archives?[-_](?:adrs?|de
 // Archive-named directories holding listed Markdown with no Lifecycle marker above
 // them. Each is read as live by every reader; this names it so its owner can adopt it
 // with `adr-retire-check --adopt`, rather than finding out from a ready task.
-// A file named the way a decision record is: `ADR-001-…`, `0001-…`, `2026-09-24-…`.
+// A file named the way a decision record is: `ADR-001-…` (any width), `0001-…`, `2026-09-24-…`, and
+// since ADR-092 Decision 11 `spec-<n>`, the definition's other name arm.
 const RECORD_SHAPED = /^(?:adr[-_]?\d+|\d{3,4}-|\d{4}-\d{2}-\d{2}-)/i
-export function unmarkedArchives(root, listing) {
+// ADR-092 Decision 11. Through `adrCorpus`, `recognised` is the set of absolute paths it counted or held
+// undecided, and a directory is named exactly when it holds one of them or a task file: the name test is
+// not consulted, so `archive/001-note.md` holding no record names nothing. The SessionStart callers pass
+// none and open no record content (CLAUDE.md §19; they read an archive's README for its marker, as ever),
+// so they keep the name test, widened to the name arms; a record-shaped name there is a hint about a
+// directory read without content. Neither path names a directory for a file under `templates/`.
+export function unmarkedArchives(root, listing, recognised = null) {
   if (listing == null) return []
   const listed = new Set(listing.map(rel => posixListed(rel)))
   const cache = new Map()
   const found = new Set()
   for (const rel of listed) {
     if (!/\.md$/i.test(rel) || /(?:^|\/)readme\.md$/i.test(rel)) continue
+    const parts = rel.split('/').filter(Boolean)
+    if (parts.slice(0, -1).some(part => TEMPLATES_DIRECTORY.test(part))) continue
     // Only a directory holding records or task files: an archive-named folder of
     // notes is not an archive of decisions (cold review of 833ea52).
-    if (!RECORD_SHAPED.test(rel.split('/').pop()) && !/(?:^|\/)tasks\//.test(rel)) continue
-    const parts = rel.split('/').filter(Boolean)
+    const task = /(?:^|\/)tasks\//.test(rel)
+    const record = recognised ? recognised.has(listedAbsolute(root, rel)) : RECORD_SHAPED.test(parts.at(-1)) || SPEC_NAME.test(parts.at(-1))
+    if (!record && !task) continue
     if (listedUnderUninterestingDirectory(parts.slice(0, -1))) continue
     for (let depth = 1; depth < parts.length; depth++) {
       if (!ARCHIVE_DIRECTORY_NAME.test(parts[depth - 1])) continue
@@ -1841,6 +1851,8 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
   // live, and its ready line said "Prove it with `adr-verify`" beside the warning
   // naming `--adopt`: the instruction a session acts on is the one it reads last
   // (BACKLOG §289 item 1). Such a line leads with the question instead.
+  // SessionStart opens no record content (CLAUDE.md §19), so the archive test is the name test (ADR-092
+  // Decision 11): no recognised set is passed.
   const unmarked = unmarkedArchives(root, listing)
   const { read, unread, aliases, absent } = taskDirectories(root, listing)
   for (const { directory, archive } of read) {
@@ -2938,7 +2950,6 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
     value: tracked == null ? 'UNPROVEN' : 'ok', enumerable: false, writable: true,
   })
   if (tracked == null) return records
-  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked), enumerable: false })
   const reader = corpusReader()
   const listedFiles = new Set(tracked.map(rel => listedAbsolute(root, rel)))
   const discovered = recordFilesFromListing(root, tracked, { screenBudget })
@@ -3177,6 +3188,11 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
       ],
     })
   }
+  // Named by what this reader counted or held undecided, and by task files, never by a name alone
+  // (ADR-092 Decision 11): after the read, since only the read knows what is a record.
+  const recognisedFiles = new Set([...records.map(record => record.file),
+    ...unreadable.filter(entry => !entry.reason && !entry.alias).map(entry => entry.file)])
+  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked, recognisedFiles), enumerable: false })
   return records
 }
 
@@ -3998,6 +4014,7 @@ export function sessionOrientation(cwd) {
   // Only where there is a decision corpus: a repository that never opted in was
   // told to adopt its blog's `content/archive/` (cold review of 833ea52).
   if (corpusLook === true) {
+    // The name test: SessionStart opens no record content (CLAUDE.md §19, ADR-092 Decision 11).
     for (const archive of unmarkedArchives(root, listing)) {
       lines.push(`${pathInCode(archive)} looks like an archive but has no Lifecycle marker, so it is read as live — `
         + '`adr-retire-check --adopt <active> <archive>` reports what adopting it needs; it changes nothing (skills/adr-retire §Existing Archives).')

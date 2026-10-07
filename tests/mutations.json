@@ -1928,7 +1928,7 @@
       ],
       "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} · .*· exit 0\\b/m.test(text)\n  })",
       "to": "    return false\n  })",
-      "only": "^(?:work-next: README shapes adr-lint reads are claims, and a task adr-next never read is not judged by its absence)$"
+      "only": "^(?:work-next: README shapes adr-lint reads are claims, and a task adr-next never read is not judged by its absence|work-next: a task adr-next was never asked about is judged by its own evidence)$"
     },
     {
       "label": "skills: adr-execute claims the stage that records evidence",
@@ -13139,7 +13139,7 @@
       ],
       "from": "    if (readiness.listed.has(path.resolve(file))) return",
       "to": "    if (true) return",
-      "only": "README shapes adr-lint reads"
+      "only": "README shapes adr-lint reads|a task adr-next was never asked about"
     },
     {
       "label": "probe: each repository keeps its own place under the state override",

@@ -21845,6 +21845,86 @@
       "only": "^(?:a ledger torn after the advice was given is said once)$"
     },
     {
+      "label": "ADR-088 follow-up: a baseline-equal publish says a record not read whole",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "    if (!logIncomplete(log)) return null",
+      "to": "    return null",
+      "only": "^(?:a baseline-equal publish beside a torn ledger is said once, and never refused)$"
+    },
+    {
+      "label": "ADR-088 follow-up: the baseline-equal advice is marked unknown for git's hook",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "      deny: false, unknown: true, key, detail: { tree: now.tree, revision },",
+      "to": "      deny: false, unknown: false, key, detail: { tree: now.tree, revision },",
+      "only": "^(?:git's own hook says a torn ledger at a baseline-equal commit and push)$"
+    },
+    {
+      "label": "ADR-088 follow-up: the fast exemption reads an unterminated last line as torn",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "  if (lines.pop().trim()) return null",
+      "to": "  ;",
+      "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
+    },
+    {
+      "label": "ADR-088 follow-up: qh-check's skip reads an unterminated last line as torn",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "  if (lines.pop().trim()) return null",
+      "to": "  ;",
+      "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
+    },
+    {
+      "label": "ADR-088 follow-up: relock's own lock check takes the repository's sha width",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    if not vlog_has_test_lock(text, object_format(cwd)):",
+      "to": "    if not vlog_has_test_lock(text):",
+      "only": "^(?:relock finds no lock in a row whose sha does not fit)$"
+    },
+    {
+      "label": "ADR-088 follow-up: lock_hasher takes the repository's sha width",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    _date, recorded = _recorded_lock(vlog, object_format(root))\n    if recorded is not None",
+      "to": "    _date, recorded = _recorded_lock(vlog)\n    if recorded is not None",
+      "only": "^(?:relock reads the hasher from the rows whose sha fits)$"
+    },
+    {
+      "label": "ADR-088 follow-up: relock hands lock_hasher its repository",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "        hasher = lock_hasher(vlog, root=cwd)",
+      "to": "        hasher = lock_hasher(vlog)",
+      "only": "^(?:relock reads the hasher from the rows whose sha fits)$"
+    },
+    {
+      "label": "ADR-088 follow-up: moved_lock_bodies takes the repository's sha width",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    _date, recorded = _recorded_lock(vlog, object_format(root))\n    if not recorded or",
+      "to": "    _date, recorded = _recorded_lock(vlog)\n    if not recorded or",
+      "only": "^(?:relock compares bodies with the lock whose sha fits)$"
+    },
+    {
       "label": "ADR-089 T1: a PARTIAL pair compares no verdict (comparable requires ok)",
       "file": "plugin/scripts/corpus-probe.mjs",
       "tests": [

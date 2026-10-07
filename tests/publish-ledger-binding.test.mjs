@@ -338,3 +338,63 @@ test('a ledger torn after the advice was given is said once', () => {
   assert.match(mention(), /whether this repository is checked is unknown/, 'a newly torn ledger was not said')
   assert.doesNotMatch(mention(), /quality-harness/, 'and it is said once')
 })
+
+// ADR-088 Follow-ups, a judgement reversed: a publish on a tree and index equal to the session's
+// baseline needs no check (ADR-061), and stayed silent beside a torn ledger. It is said, once, at
+// both entry points, and is still never refused.
+test('a baseline-equal publish beside a torn ledger is said once, and never refused', () => {
+  for (const torn of [true, false]) {
+    const dir = repository(torn ? 'base-torn-' : 'base-whole-')
+    const session = `ledger-base-${torn ? 'torn' : 'whole'}-${process.pid}`
+    start(dir, session)
+    mkdirSync(path.dirname(ledger(dir)), { recursive: true })
+    writeFileSync(ledger(dir), torn ? '{"id":\n' : '')
+    const first = publish(dir, session)
+    const again = publish(dir, session)
+    const verdict = gitHookVerdict(dir, session)
+    assert.notEqual(first.decision, 'deny', first.text)
+    if (torn) {
+      assert.match(first.text, /`checks\.jsonl`, where `qh-check` records its runs, could not be read whole/)
+      assert.match(first.text, /unchanged since the session started, which need no check, so nothing is refused/)
+      assert.doesNotMatch(again.text, /quality-harness/, 'and it is said once')
+      assert.equal(verdict?.deny, false, verdict?.text)
+      assert.equal(verdict.unknown, true, "git's hook prints only a verdict marked unknown")
+      assert.match(verdict.text, /could not be read whole/)
+    } else {
+      // The twin: read whole, a baseline-equal publish needs no check and says nothing.
+      assert.equal(first.decision, null, first.text)
+      assert.equal(first.text, '')
+      assert.equal(verdict, null)
+    }
+  }
+})
+
+test("git's own hook says a torn ledger at a baseline-equal commit and push", { skip: needsConfigHooks }, () => {
+  for (const torn of [true, false]) {
+    const dir = repository(torn ? 'base-hook-torn-' : 'base-hook-whole-')
+    const remote = mkdtempSync(path.join(testTmp, 'remote-'))
+    git(remote, 'init', '-q', '--bare')
+    git(dir, 'remote', 'add', 'origin', remote)
+    const session = `ledger-base-hook-${torn ? 'torn' : 'whole'}-${process.pid}`
+    start(dir, session)
+    mkdirSync(path.dirname(ledger(dir)), { recursive: true })
+    writeFileSync(ledger(dir), torn ? '{"id":\n' : '')
+    const run = script => {
+      const file = path.join(testTmp, `hook-${process.hrtime.bigint()}.sh`)
+      writeFileSync(file, script)
+      return spawnSync('sh', [file], { cwd: dir, encoding: 'utf8', timeout: 120_000, windowsHide: true,
+        env: { ...process.env, ...GIT_IDENTITY, ...OFFERED, CLAUDE_CODE_SESSION_ID: session } })
+    }
+    const commit = run('git commit -q --allow-empty -m same\n')
+    assert.equal(commit.status, 0, `a baseline-equal commit is never refused\n${commit.stderr}`)
+    const push = run('git push -q origin HEAD:refs/heads/main\n')
+    assert.equal(push.status, 0, push.stderr)
+    if (torn) {
+      assert.match(commit.stderr, /`checks\.jsonl`, where `qh-check` records its runs, could not be read whole/, 'the commit hook said nothing')
+      assert.match(push.stderr, /`checks\.jsonl`, where `qh-check` records its runs, could not be read whole/, 'the push hook said nothing')
+    } else {
+      assert.doesNotMatch(commit.stderr, /quality-harness/, commit.stderr)
+      assert.doesNotMatch(push.stderr, /quality-harness/, push.stderr)
+    }
+  }
+})

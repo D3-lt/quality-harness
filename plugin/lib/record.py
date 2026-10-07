@@ -171,11 +171,20 @@ def unfenced_lines(lines):
     return [line for _index, line in unfenced_numbered(lines)]
 
 
-def unfenced_numbered(lines):
+def unfenced_numbered(lines, document=False):
     """`(index, line)` for each line of `lines` outside a code fence: `unfenced_lines` with
-    each line's position kept, for a reader that must know where a line sits (ADR-087)."""
+    each line's position kept, for a reader that must know where a line sits (ADR-087).
+
+    `document` says `lines` are a whole document's, so a leading frontmatter block is delimited
+    before any fence is scanned and a fence marker inside a YAML value opens nothing (ADR-092
+    Decision 8). A section's lines are never a document: a log section opening with a `---` rule
+    keeps its fenced example hidden."""
     out, fence = [], None
+    head = _frontmatter_close(lines) if document else None
     for index, line in enumerate(lines):
+        if head is not None and index <= head:
+            out.append((index, line))
+            continue
         if fence is None:
             opened = _fence_opened(line)
             if opened:
@@ -185,6 +194,20 @@ def unfenced_numbered(lines):
         elif _fence_closes(line, fence):
             fence = None
     return out
+
+
+def indent_columns(line):
+    """The columns a line's leading spaces and tabs fill, a tab advancing to the next multiple of
+    four (ADR-092 Decision 8). Four or more make an indented code block, whose text is an example."""
+    column = 0
+    for char in line:
+        if char == " ":
+            column += 1
+        elif char == "\t":
+            column += 4 - column % 4
+        else:
+            break
+    return column
 
 
 def _sections(text):
@@ -251,10 +274,15 @@ def _scan(text):
     a record that does not exist (ADR-045 T8).
     """
     out, cur, fence, lineno = [], None, None, 0
+    # A whole document's frontmatter is delimited before any fence is scanned (ADR-092 Decision 8),
+    # so a fence marker inside a YAML value hides no heading below the block.
+    # The prefix test only spares a long record without frontmatter a second split.
+    block = frontmatter_block(text) if text.startswith(("---", "﻿---")) else None
+    head = None if block is None else block[1]
     for line, start, pos in split_lines(text):
         lineno += 1
         if fence is None:
-            opened = _fence_opened(line)
+            opened = None if head is not None and lineno <= head + 1 else _fence_opened(line)
             if opened:
                 fence = (lineno, line, opened)
         elif _fence_closes(line, fence[2]):
@@ -589,12 +617,18 @@ _FRONTMATTER_COMMENT = re.compile(r"[ \t]+#[^\r\n]*$")
 def frontmatter_block(text):
     """ADR-087 T1: `(first, last)`, the 0-based line indices of a leading frontmatter block's
     opening and closing `---` lines, or None when the text has no closed block at its top."""
-    lines = [line for line, _start, _end in split_lines(text)]
+    last = _frontmatter_close([line for line, _start, _end in split_lines(text)])
+    return None if last is None else (0, last)
+
+
+def _frontmatter_close(lines):
+    """The 0-based index of the line closing a leading frontmatter block in `lines`, or None: the
+    one rule `frontmatter_block` and the fence walk share."""
     if not lines or not _FRONTMATTER_OPEN.fullmatch(lines[0]):
         return None
     for index in range(1, len(lines)):
         if _FRONTMATTER_CLOSE.fullmatch(lines[index]):
-            return 0, index
+            return index
     return None
 
 
@@ -738,7 +772,7 @@ def record_status(text):
     a name (lifecycle.mjs `rawStatus`)."""
     block = frontmatter_block(text)
     bullet, above = None, True
-    for index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)]):
+    for index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)], document=True):
         in_block = block is not None and block[0] < index < block[1]
         # Inside the frontmatter only a top-level key is the record's own: an indented line belongs to
         # a nested value, such as a `|` literal block quoting an example (the same review, finding 1).
@@ -762,18 +796,23 @@ def record_status(text):
 
 @lru_cache(maxsize=16)
 def status_section(text):
-    """The first non-empty line of a record's `## Status` section, markup removed, or None
-    when it has none. The section is found by `_sections`, the one fence-aware walk, so a
-    `## Status` inside a code fence is text and a `### Status` is not the heading; a
-    repeated heading yields the last, as `sections_of` does. The heading is matched
-    case-insensitively, as lifecycle always matched it (ADR-074 T2)."""
+    """The first readable line of a record's `## Status` section, markup removed; `""` when the
+    section has none, and None when there is no such section. The section is found by `_sections`,
+    the one fence-aware walk, so a `## Status` inside a code fence is text and a `### Status` is not
+    the heading; a repeated heading yields the last, as `sections_of` does. The heading is matched
+    case-insensitively, as lifecycle always matched it (ADR-074 T2).
+
+    A readable line is non-empty, outside every fence inside the section (a fence's own marker
+    lines included), and indented less than four columns, since an indented code block's line is
+    an example (ADR-092 Decision 8). lifecycle.mjs's `statusSection` is the same rule."""
     lines = None
     for heading, body, _start, _body_start, _end in _sections(text):
         if heading.lower() == "status":
             lines = body
     if lines is None:
         return None
-    first = next((line.strip(_EDGE_SPACE) for line in lines if line.strip(_EDGE_SPACE)), "")
+    first = next((line.strip(_EDGE_SPACE) for _index, line in unfenced_numbered(lines)
+                  if line.strip(_EDGE_SPACE) and indent_columns(line) < 4), "")
     return _STATUS_MARKUP.sub("", first).strip(_EDGE_SPACE)
 
 

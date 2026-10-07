@@ -2064,10 +2064,15 @@ const STATUS_HEADING = new RegExp(`^## ([^\\r\\n]+?)${codeClass([...EDGE_CODES, 
 // Each line with whether it sits inside a code fence, by record.py's `_scan` rules: a line of
 // three or more ``` or ~~~ opens one (a ``` opener with a backtick after it does not), only a
 // closer of the same marker, at least as long, with nothing but spaces and tabs after it, ends it,
-// and the opener and closer count as fenced.
+// and the opener and closer count as fenced. `text` is always a whole document, so a leading
+// frontmatter block is delimited first and a fence marker inside a YAML value opens nothing
+// (ADR-092 Decision 8, as record.py's `unfenced_numbered(lines, document=True)`).
 function fencedLines(text) {
   let fence = null
-  return text.split(/\r\n|\r|\n/).map(line => {
+  const lines = text.split(/\r\n|\r|\n/)
+  const head = frontmatterClose(lines)
+  return lines.map((line, index) => {
+    if (head !== null && index <= head) return [line, false]
     // `[^\r\n]`, not `.`: the rest of an opener is the rest of its line, U+2028 and U+2029 included,
     // as `.` reads it in record.py's `_FENCE` (the Codex round of 3.1.6, finding 3).
     const marker = line.match(/^[ \t]*(`{3,}|~{3,})([^\r\n]*)$/)
@@ -2083,6 +2088,18 @@ function fencedLines(text) {
   })
 }
 
+// The columns a line's leading spaces and tabs fill, a tab advancing to the next multiple of four,
+// as record.py's `indent_columns`: four or more make an indented code block (ADR-092 Decision 8).
+function indentColumns(line) {
+  let column = 0
+  for (const char of line) {
+    if (char === ' ') column += 1
+    else if (char === '\t') column += 4 - (column % 4)
+    else break
+  }
+  return column
+}
+
 // ADR-087 T1: a leading YAML frontmatter block, as record.py's `frontmatter_block` finds it — the
 // text's first line is `---` (after a byte-order mark, with trailing blanks), and the block ends at
 // the next `---` or `...` line; an unclosed block is not one. `[first, last]`, the 0-based indices of
@@ -2090,10 +2107,16 @@ function fencedLines(text) {
 export const FRONTMATTER_OPEN = /^﻿?---[ \t]*$/
 const FRONTMATTER_CLOSE = /^(?:---|\.\.\.)[ \t]*$/
 export function frontmatterBlock(text) {
-  const lines = String(text).split(/\r\n|\r|\n/)
+  const last = frontmatterClose(String(text).split(/\r\n|\r|\n/))
+  return last === null ? null : [0, last]
+}
+
+// The index of the line closing a leading frontmatter block in `lines`, or null: the one rule
+// `frontmatterBlock` and `fencedLines` share, as record.py's `_frontmatter_close`.
+function frontmatterClose(lines) {
   if (!FRONTMATTER_OPEN.test(lines[0])) return null
   for (let index = 1; index < lines.length; index += 1) {
-    if (FRONTMATTER_CLOSE.test(lines[index])) return [0, index]
+    if (FRONTMATTER_CLOSE.test(lines[index])) return index
   }
   return null
 }
@@ -2142,15 +2165,20 @@ function rawStatus(text) {
   return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*`]/g, ''))
 }
 
-function recordStatus(text) {
-  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*_`]/g, ''))
+// The Status as record.py's `record_status` reads it: `''` for a `## Status` section with no
+// readable line, and null when the text has no label and no such section (ADR-092 Decision 8).
+export function recordStatus(text) {
+  const value = inlineStatus(text) ?? statusSection(text)
+  return value === null ? null : edgeTrim(value.replace(/[*_`]/g, ''))
 }
 
-// ADR-074 T2: the first non-empty line of a record's `## Status` section, or null when it has
-// none — found as record.py's `_sections` finds a section, so the two readers cannot disagree
-// about where it is. Level 2 only (`### Status` is not it); a `## ` line inside a ``` or ~~~
-// fence is text, and only a closer of the same marker, at least as long, with nothing but
-// spaces and tabs after it, ends the fence; a repeated heading yields the last. The generic
+// ADR-074 T2: the first readable line of a record's `## Status` section, `''` when it has none,
+// or null when there is no such section — found as record.py's `_sections` finds a section, so the
+// two readers cannot disagree about where it is. Level 2 only (`### Status` is not it); a `## `
+// line inside a ``` or ~~~ fence is text, and only a closer of the same marker, at least as long,
+// with nothing but spaces and tabs after it, ends the fence; a repeated heading yields the last.
+// A readable line is outside every fence (its marker lines included) and indented less than four
+// columns, as record.py's `status_section` reads it (ADR-092 Decision 8). The generic
 // `markdownSection` matches any level and ignores fences, which is right for the sections it
 // still reads and was how a fenced example's `## Status` governed here and nowhere else.
 function statusSection(text) {
@@ -2161,7 +2189,7 @@ function statusSection(text) {
     if (heading) {
       body = heading[1].toLowerCase() === 'status' ? [] : null
       if (body) found = body
-    } else if (body) {
+    } else if (body && !fenced && indentColumns(line) < 4) {
       body.push(line)
     }
   }

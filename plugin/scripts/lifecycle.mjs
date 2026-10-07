@@ -1305,10 +1305,13 @@ function underFrozenArchive(root, dirParts, cache, listed) {
       let frozen = false
       const readme = listedReadme(path.join(root, ...dirParts.slice(0, depth)),
         [...listed].filter(rel => rel.startsWith(prefix) && !rel.slice(prefix.length).includes('/')).map(rel => rel.slice(prefix.length)),
-        file => readFileSync(file, 'utf8'))
+        file => readRegularText(file))
       if (readme === README_UNKNOWN) frozen = 'unknown'
       else if (readme !== null) {
-        try { frozen = readFileSync(readme, 'utf8').split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE) } catch { frozen = 'unknown' }
+        // Through `readRegularText`, never a bare open: a FIFO named `README.md` blocked this read until
+        // the process was killed (a gpt-6.1-sol review of ADR-092's execution, finding 11). One that is not
+        // a regular file is a README whose marker could not be read: unknown.
+        try { frozen = readRegularText(readme).split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE) } catch { frozen = 'unknown' }
       }
       cache.set(key, frozen)
     }
@@ -1413,31 +1416,52 @@ export function linksIn(file, limit = 32) {
   }
   return count
 }
-export function onceByRealPath(paths, prefer = null, { linkLimit = 32 } = {}) {
+//
+// ⚠ ONE PASS. A replacement searched `kept` for the path it displaced and rescanned every alias to move
+// the ones naming it, so N files each listed first by a longer spelling cost N² (a gpt-6.1-sol review of
+// ADR-092's execution, finding 14). The index of each real path in `kept`, the aliases naming each kept
+// path, and each path's link count are kept instead. `realpath` and `links` are seams a test sets to
+// measure the work without the disk.
+export function onceByRealPath(paths, prefer = null, { linkLimit = 32, realpath = realpathSync.native, links = file => linksIn(file, linkLimit) } = {}) {
   const firstPathTo = new Map()
   const kept = []
   const aliases = []
+  const aliasesOf = new Map()
+  const counted = new Map()
+  const linksOf = file => {
+    if (!counted.has(file)) counted.set(file, links(file))
+    return counted.get(file)
+  }
   // The name preference first, and only it, when it separates two spellings; links only within a class.
   const better = (file, first) => {
     if (prefer) {
       const [mine, theirs] = [Boolean(prefer(file)), Boolean(prefer(first))]
       if (mine !== theirs) return mine
     }
-    return linksIn(file, linkLimit) < linksIn(first, linkLimit)
+    return linksOf(file) < linksOf(first)
+  }
+  const alias = (file, sameAs) => {
+    const entry = { file, sameAs }
+    aliases.push(entry)
+    if (!aliasesOf.has(sameAs)) aliasesOf.set(sameAs, [])
+    aliasesOf.get(sameAs).push(entry)
   }
   for (const file of paths) {
     let real
-    try { real = realpathSync.native(file) } catch { kept.push(file); continue }
-    const first = firstPathTo.get(real)
-    if (first === undefined) { firstPathTo.set(real, file); kept.push(file); continue }
+    try { real = realpath(file) } catch { kept.push(file); continue }
+    const at = firstPathTo.get(real)
+    if (at === undefined) { firstPathTo.set(real, kept.length); kept.push(file); continue }
+    const first = kept[at]
     if (better(file, first)) {
-      firstPathTo.set(real, file)
-      kept[kept.indexOf(first)] = file
-      for (const alias of aliases) if (alias.sameAs === first) alias.sameAs = file
-      aliases.push({ file: first, sameAs: file })
+      kept[at] = file
+      const moved = aliasesOf.get(first) ?? []
+      for (const entry of moved) entry.sameAs = file
+      aliasesOf.delete(first)
+      aliasesOf.set(file, moved)
+      alias(first, file)
       continue
     }
-    aliases.push({ file, sameAs: first })
+    alias(file, first)
   }
   return { kept, aliases }
 }
@@ -2793,21 +2817,74 @@ export function corpusEligible(relative) {
     && !listedUnderUninterestingDirectory(directories)
 }
 
+// A regular file's text, decoded as UTF-8, reading at most `limit` bytes: a file past it throws with code
+// `EFBIG`, however large it said it was when asked. A size from `stat` is a claim about the file; the bytes
+// read are the observation, and a file that grew after it was asked was read whole past every budget (a
+// gpt-6.1-sol review of ADR-092's execution, finding 12). Anything but a regular file throws before it is
+// opened, as every reader here asks it, so a FIFO is never waited on and a directory throws alike on every
+// platform.
+export function readRegularText(file, limit = Infinity) {
+  if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)
+  const fd = openSync(file, 'r')
+  try {
+    const chunks = []
+    let total = 0
+    const buffer = Buffer.alloc(64 * 1024)
+    for (let read; (read = readSync(fd, buffer, 0, buffer.length, null)) > 0;) {
+      total += read
+      if (total > limit) throw Object.assign(new Error(`${file} runs past ${limit} bytes`), { code: 'EFBIG' })
+      chunks.push(Buffer.from(buffer.subarray(0, read)))
+    }
+    return Buffer.concat(chunks).toString('utf8')
+  } finally { closeSync(fd) }
+}
+
+// Lines out of a stream of text chunks, each character scanned once. Joining every chunk of one unbroken
+// line to everything before it and splitting again made the screen's work grow with the square of the
+// line (the same review, finding 13). A CR at the end of one chunk and an LF at the start of the next are
+// one break. `scanned`, when given, counts the characters scanned, so a test can count the work.
+export function lineStream(take, scanned = null) {
+  let parts = []
+  let pendingCr = false
+  const breaks = /\r\n|\r|\n/g
+  return {
+    write(chunk) {
+      let start = pendingCr && chunk.startsWith('\n') ? 1 : 0
+      pendingCr = false
+      if (scanned) scanned.chars += chunk.length - start
+      breaks.lastIndex = start
+      for (let found; (found = breaks.exec(chunk)) !== null;) {
+        parts.push(chunk.slice(start, found.index))
+        take(parts.join(''))
+        parts = []
+        start = found.index + found[0].length
+        if (found[0] === '\r' && start === chunk.length) pendingCr = true
+      }
+      parts.push(chunk.slice(start))
+    },
+    end() {
+      take(parts.join(''))
+      parts = []
+    },
+  }
+}
+
 // ADR-092 Decision 5's content screen: whether a file holds both a line-start `**Status:**` and a record
 // heading outside every fence, streamed whole at any size, with the fence state kept as it streams. A
 // file without both lines cannot be a record by the content arm outside a record directory, so the screen
 // is exact. A leading frontmatter is delimited first, as `fencedLines` delimits it: the walk runs both as
 // if the block closes and as if there is none, and the end of the file says which one was true.
-export function screenAdmits(file) {
+// `budget`, when given, is `{ left }` bytes, spent by the bytes READ: past it the screen stops and answers
+// null, could not say, so a file that grew after its size was asked is not streamed past the budget.
+export function screenAdmits(file, budget = null) {
   const fd = openSync(file, 'r')
   try {
     const buffer = Buffer.alloc(64 * 1024)
     const decoder = new StringDecoder('utf8')
     // `head`: inside the assumed frontmatter; null once it closed, or when the file has none.
     const walks = { block: { fence: null, bold: false, heading: false, head: undefined }, plain: { fence: null, bold: false, heading: false } }
-    let carry = ''
     let first = true
-    const take = line => {
+    const lines = lineStream(line => {
       if (first) {
         first = false
         walks.block.head = FRONTMATTER_OPEN.test(line) ? true : null
@@ -2819,16 +2896,21 @@ export function screenAdmits(file) {
         stepWalk(walks.block, line, false)
       }
       stepWalk(walks.plain, line, false)
-    }
+    })
     // Which walk the file is: the frontmatter one once its block closed, the plain one when there is
     // none, and undecided while a block is still open.
     const decided = () => (walks.block.head === false ? walks.block : walks.block.head === null ? walks.plain : null)
     for (;;) {
       const read = readSync(fd, buffer, 0, buffer.length, null)
-      const chunk = read > 0 ? decoder.write(buffer.subarray(0, read)) : decoder.end()
-      const lines = (carry + chunk).split(/\r\n|\r|\n/)
-      carry = read > 0 ? lines.pop() : ''
-      for (const line of lines) take(line)
+      if (budget && read > 0) {
+        budget.left -= read
+        if (budget.left < 0) return null
+      }
+      if (read > 0) lines.write(decoder.write(buffer.subarray(0, read)))
+      else {
+        lines.write(decoder.end())
+        lines.end()
+      }
       const walk = decided()
       if (walk && walk.bold && walk.heading) return true
       if (read <= 0) break
@@ -2878,7 +2960,8 @@ function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET } 
       return placed !== null && directoriesOf(placed).some(part => RECORD_DIRECTORY.test(part))
     } catch { return false }
   }
-  let streamed = 0
+  // The screen's budget, spent by the bytes it reads (finding 12), not by the sizes it was told.
+  const budget = { left: screenBudget }
   let screened = 0
   let unscreened = null
   for (const rel of tracked) {
@@ -2887,13 +2970,10 @@ function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET } 
     const slash = norm.lastIndexOf('/')
     const base = slash < 0 ? norm : norm.slice(slash + 1)
     const dirNorm = slash < 0 ? '' : norm.slice(0, slash)
-    // ⚠ The budget STOPS the look; it must not end it silently. A `break` here read
-    // the first 200 and said `look ok` over 10,000 (a Windows chaos round of 916b515,
-    // C-1). The first file left unexamined is named, and adrCorpus says PARTIAL.
-    if (files.length >= RECORD_BUDGET) {
-      Object.defineProperty(files, 'unexamined', { value: listedAbsolute(root, rel), enumerable: false })
-      break
-    }
+    // The record budget is charged where a file is recognised, in adrCorpus's read: charged here, to every
+    // path discovered, two hundred ordinary notes listed before one record in `docs/adr` spent it, and the
+    // look said "200 records were read" over none (a gpt-6.1-sol review of ADR-092's execution, finding 16,
+    // a regression against v3.8.10, which read that corpus as one record and look ok).
     const absolute = listedAbsolute(root, rel)
     if (ADR_FILE.test(base) || CANONICAL_NAME.test(base) || SPEC_NAME.test(base)) {
       files.push(absolute)
@@ -2908,25 +2988,25 @@ function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET } 
     if (unscreened !== null) continue
     // A path only the screen could admit: a read that failed is named, except its absence, which is an
     // observation that it carries nothing (ADR-092 Decision 9).
-    let size
     try {
       const stat = statSync(absolute)
       if (!stat.isFile()) { failed.push({ file: absolute, reason: 'not a regular file, so the content screen could not read it' }); continue }
-      size = stat.size
     } catch (error) {
       if (error?.code !== 'ENOENT') failed.push({ file: absolute, reason: error?.code ?? 'unreadable' })
       continue
     }
-    if (streamed + size > screenBudget) { unscreened = absolute; continue }
-    streamed += size
-    screened += 1
+    // No size asked first: the screen's budget is spent by the bytes it reads, so a size is never a
+    // second, weaker budget beside it (finding 12).
     try {
-      if (screenAdmits(absolute)) files.push(absolute)
+      const admitted = screenAdmits(absolute, budget)
+      if (admitted === null) { unscreened = absolute; continue }
+      screened += 1
+      if (admitted) files.push(absolute)
     } catch (error) {
       if (error?.code !== 'ENOENT') failed.push({ file: absolute, reason: error?.code ?? 'unreadable' })
     }
   }
-  return { files, byName, failed, unscreened, streamed, screened }
+  return { files, byName, failed, unscreened, streamed: screenBudget - budget.left, screened }
 }
 
 // Room for a whole listing. Node's default 1 MiB cut `git ls-files -z` on a 27,289-file repository
@@ -2999,11 +3079,6 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
   Object.defineProperty(records, 'discovery', {
     value: { discovered: files.length, screened: discovered.screened, streamed: discovered.streamed }, enumerable: false,
   })
-  if (files.unexamined) {
-    unreadable.push({ file: files.unexamined, status: null, taskFiles: [],
-      reason: `record budget: ${RECORD_BUDGET} records were read; this file and every later one in the listing were not examined` })
-    records.look = 'PARTIAL'
-  }
   // A path only the content screen could admit, whose read failed: named, never dropped (ADR-092
   // Decision 5); one absent from the working tree was observed to carry nothing and is in no list.
   for (const { file, reason } of discovered.failed) {
@@ -3030,20 +3105,33 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
     const directory = path.dirname(file)
     recordsPerDirectory.set(directory, (recordsPerDirectory.get(directory) ?? 0) + 1)
   }
+  // ⚠ The budget STOPS the look; it must not end it silently. A `break` read the first 200 and said
+  // `look ok` over 10,000 (a Windows chaos round of 916b515, C-1): the first file left unexamined is
+  // named, and the look is PARTIAL. It counts RECORDS (and files claimed by name or place whose read
+  // failed), never a file read and not recognised (finding 16).
+  let charged = 0
   for (const file of files) {
+    if (charged >= RECORD_BUDGET) {
+      unreadable.push({ file, status: null, taskFiles: [],
+        reason: `record budget: ${RECORD_BUDGET} records were read; this file and every later one in the listing were not examined` })
+      records.look = 'PARTIAL'
+      break
+    }
     let text
     try {
       // `reason` marks a file this reader NEVER READ, so a consumer can keep it
       // apart from the entries below, which were read and carry a status this
       // reader cannot apply. Without it adr-state said the file "was opened"
       // and had "[no **Status:** line]" — an observation it never made (ADR-005).
-      if (statSync(file).size > 512 * 1024) {
+      // Bounded by the bytes read, not a size asked first (finding 12).
+      text = readRegularText(file, 512 * 1024).replace(/\r(?!\n)/g, '\n')
+    } catch (error) {
+      charged += 1
+      if (error?.code === 'EFBIG') {
         unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'over 512 KiB' })
         records.look = 'PARTIAL'
         continue
       }
-      text = reader.text(file)
-    } catch (error) {
       // Its tasks are still its own, attributed by directory: a readable task under an unreadable
       // record was in no list at all (BACKLOG §350 C5).
       unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: error?.code ?? 'unreadable' })
@@ -3055,6 +3143,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
     // corpus-chaos run of e016066, js-spa-client B5; BACKLOG §319). adr-lint already said it
     // could not read the same file.
     if (text.includes('\u0000')) {
+      charged += 1
       unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })
       records.look = 'PARTIAL'
       continue
@@ -3065,6 +3154,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
     // a frozen archive's row does not make a record of a file adr-lint rejects (a gpt-6.1-sol delta
     // review, 2026-10-07, finding 1), and a file that is not a record makes no look PARTIAL.
     if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }
+    charged += 1
     // A frozen record's effect comes from its archive's catalog; `governing` there
     // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
     // and the record then governs nothing here rather than whatever it last said.

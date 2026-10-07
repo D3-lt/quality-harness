@@ -1532,3 +1532,37 @@ test('a suite that ran no test is not a leaf that ran, even when a narrowed patt
     assert.equal(baselineOf(two, both, ['killer.js']).state, 'short', two.stdout)
   } finally { rmSync(probe, { recursive: true, force: true }) }
 })
+
+// An `only` that is no regular expression made node reject the test-name pattern and run nothing: the
+// baseline "never finished" and the entry was UNPROVEN on every fresh run, hidden while its RED was
+// cached (the CI campaign of 162e1660: a test title holding `1)`). `--stale` names it as a catalogue fault.
+import { invalidOnly } from '../scripts/mutate.mjs'
+test('invalidOnly names an entry whose only pattern does not compile', () => {
+  const entries = [
+    { label: 'fine', only: '^a `1\\)` list$' },
+    { label: 'broken', only: '^a `1)` list$' },
+    { label: 'unnarrowed' },
+  ]
+  assert.deepEqual(invalidOnly(entries).map(entry => entry.label), ['broken'])
+})
+
+test('mutate --stale exits 1 and names an entry whose only pattern is not a regular expression', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-bad-only-'))
+  try {
+    const runner = join(HERE, '..', 'scripts', 'mutate.mjs')
+    const stale = () => spawnSync(process.execPath, [runner, '--root', repo, '--stale'], { cwd: repo, encoding: 'utf8', timeout: 60_000 })
+    mkdirSync(join(repo, 'tests'))
+    writeFileSync(join(repo, 'a.mjs'), 'export const f = () => 1\n')
+    writeFileSync(join(repo, 'tests', 'a.test.mjs'), "test('a `1)` list', () => {})\n")
+    const catalogue = only => `${JSON.stringify({ mutations: [
+      { label: 'listed', file: 'a.mjs', tests: ['tests/a.test.mjs'], from: 'export const f = () => 1', to: 'export const f = () => 2', only },
+    ] }, null, 2)}\n`
+    writeFileSync(join(repo, 'tests', 'mutations.json'), catalogue('^a `1)` list$'))
+    const bad = stale()
+    assert.equal(bad.status, 1, `${bad.stdout}\n${bad.stderr}`)
+    assert.ok(bad.stdout.includes('bad only  listed'), bad.stdout)
+    writeFileSync(join(repo, 'tests', 'mutations.json'), catalogue('^a `1\\)` list$'))
+    const fixed = stale()
+    assert.equal(fixed.status, 0, `${fixed.stdout}\n${fixed.stderr}`)
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})

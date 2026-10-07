@@ -2933,7 +2933,7 @@ function stepWalk(walk, line, frontmatter) {
 // really is (Decision 14), or passes the content screen. Returned in listing order, with the paths found
 // by NAME (the only ones `notRecognised` may name), the screen candidates whose read failed, and the
 // first path the screen budget left unscreened.
-function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET } = {}) {
+function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET, platform = process.platform } = {}) {
   const files = []
   const byName = new Set()
   const failed = []
@@ -2965,7 +2965,11 @@ function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET } 
   let screened = 0
   let unscreened = null
   for (const rel of tracked) {
-    const norm = posixListed(rel)
+    // A backslash in a listed name separates only where the platform is Windows: on POSIX git lists a
+    // root-level file named `docs\adr\001-x.md` as that one name, and rewriting it to `docs/adr/001-x.md`
+    // made it a record directory's file that was then absent, PARTIAL, where record.py reads one root-level
+    // file that is no record (a gpt-6.1-sol review of ADR-092's execution, finding 4, on the reader path).
+    const norm = platform === 'win32' ? posixListed(rel) : String(rel)
     if (!corpusEligible(norm)) continue
     const slash = norm.lastIndexOf('/')
     const base = slash < 0 ? norm : norm.slice(slash + 1)
@@ -2974,7 +2978,7 @@ function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET } 
     // path discovered, two hundred ordinary notes listed before one record in `docs/adr` spent it, and the
     // look said "200 records were read" over none (a gpt-6.1-sol review of ADR-092's execution, finding 16,
     // a regression against v3.8.10, which read that corpus as one record and look ok).
-    const absolute = listedAbsolute(root, rel)
+    const absolute = path.join(root, ...norm.split('/').filter(part => part && part !== '.'))
     if (ADR_FILE.test(base) || CANONICAL_NAME.test(base) || SPEC_NAME.test(base)) {
       files.push(absolute)
       byName.add(absolute)
@@ -3056,7 +3060,7 @@ export function trackedPaths(root) {
  * resolution (ADR-005). An empty array means the tree was listed and held
  * no files. Nothing here writes, and nothing here runs a check.
  */
-export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = SCREEN_BUDGET } = {}) {
+export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = SCREEN_BUDGET, platform = process.platform } = {}) {
   const archiveEffects = new Map()
   const records = []
   const unreadable = []
@@ -3072,7 +3076,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = S
   if (tracked == null) return records
   const reader = corpusReader()
   const listedFiles = new Set(tracked.map(rel => listedAbsolute(root, rel)))
-  const discovered = recordFilesFromListing(root, tracked, { screenBudget })
+  const discovered = recordFilesFromListing(root, tracked, { screenBudget, platform })
   const { files, byName } = discovered
   // What discovery cost: files found, and how many the content screen opened and how many bytes it
   // streamed (ADR-092 T3 measures it; a reader that wants to know why a session start was slow asks it).

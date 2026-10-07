@@ -123,4 +123,10 @@ test('a path component holding a line feed or a backslash reads alike in both la
   const windows = TABLE.spellings.filter(row => row.recognised.win32 !== null)
   assert.deepStrictEqual(Object.fromEntries(windows.map(row => [row.id, js(repo, at[row.id], 'win32').recognised])),
     Object.fromEntries(windows.map(row => [row.id, row.recognised.win32])))
+  // Through the corpus reader too: listed as git lists it, a root-level name holding a backslash is no
+  // record, and nothing is unread, as record.py reads it (the same review, finding 4, on the reader path).
+  const s2 = TABLE.spellings.find(row => row.id === 'S2')
+  const corpus = lifecycle.adrCorpus(repo, { tracked: [s2.path] })
+  assert.deepStrictEqual({ records: corpus.length, look: corpus.look, unreadable: corpus.unreadable.map(entry => entry.reason) },
+    { records: 0, look: 'ok', unreadable: [] })
 })

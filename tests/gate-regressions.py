@@ -2464,13 +2464,19 @@ def main():
             # dated notes in two spellings; neither is a record
             ("2026-9-9-router.md", "router notes\n"),
             ("1899-9-9-notes.md", "older notes\n"),
+            # a dated RECORD whose title names another number: the date is not its number, and the
+            # one definition admits it, so only the dated-name check keeps ADR-2026 out (a review of
+            # ADR-092's execution found that check's mutant unnoticed once the fixtures above were
+            # records the definition admits)
+            ("2026-08-18-decided.md", "# ADR-47: a dated record numbered by its title\n" + body),
         ):
             (amb_dir / name).write_text(text, encoding="utf-8")
         (amb_dir / "003-real" / "tasks" / "T1-x.md").write_text(
             "# Task ADR-003-T1: x\n", encoding="utf-8")
         amb_tracked = {f"docs/adr/{n}" for n in
                        ("003-real.md", "003-T2-plan.md", "003-T3.md", "004-t2.md",
-                        "2000-13-storage.md", "2026-9-9-router.md", "1899-9-9-notes.md")}
+                        "2000-13-storage.md", "2026-9-9-router.md", "1899-9-9-notes.md",
+                        "2026-08-18-decided.md")}
         amb_tracked.add("docs/adr/003-real/tasks/T1-x.md")
         numbers = {p.name: n for p, n in lint.record_files(amb_root, amb_dir, amb_tracked)}
         assert numbers == {"003-real.md": 3, "004-t2.md": 4, "2000-13-storage.md": 2000}, numbers

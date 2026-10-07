@@ -21,6 +21,8 @@ const okFixture = join(repoRoot, 'tests', 'fixtures', 'ok')
 const onWindows = process.platform === 'win32'
 // Patterns live at module scope, never inside a test body (adr-execute lessons, 2026-09-16).
 // Every gate says it in these words, and no older line does (adr-lint's "could not be listed from" one).
+const APPEARS_NOWHERE = /appears nowhere in the repo/
+const NOT_FOUND = /bound test not found/
 const UNLISTED = /could not be listed, so/
 const ONE_OF_ONE = /0\/1 recorded claims no longer hold/
 
@@ -53,15 +55,22 @@ const GATES = {
   'arch-lint': () => {
     const dir = scratch()
     cpSync(okFixture, dir, { recursive: true })
+    // A repository marker, so the walk is this tree and not its parent, and one check whose symbol is
+    // defined only under the directory made to fail.
+    writeFileSync(join(dir, 'package.json'), '{}\n')
     mkdirSync(join(dir, 'sub'))
-    return { dir, args: ['architecture.md'], fail: 'sub' }
+    writeFileSync(join(dir, 'sub', 'check.py'), 'def defined_in_sub_check():\n    return True\n')
+    writeFileSync(join(dir, 'architecture.md'), readFileSync(join(dir, 'architecture.md'), 'utf8')
+      .replace('None — fixture has no import graph.', '| Rule | Check |\n|------|-------|\n| the boundary holds | `defined_in_sub_check` |'))
+    // The verdict that would be about the part it did not see: never given over it.
+    return { dir, args: ['architecture.md'], fail: 'sub', unseen: APPEARS_NOWHERE }
   },
   'spec-verify': () => {
     const dir = scratch({ 'Cargo.toml': '[package]\nname = "x"\nversion = "0.1.0"\n',
       'src/lib.rs': '#[test]\nfn test_gates_run() {}\n\n#[test]\nfn test_gates_reject_malformed() {}\n' })
     const spec = readFileSync(join(okFixture, 'spec-selftest.md'), 'utf8').replaceAll('test_selftest_fixture.py::', '')
     writeFileSync(join(dir, 'spec.md'), spec)
-    return { dir, args: ['--spec', '--repo', dir, 'spec.md'], fail: 'src' }
+    return { dir, args: ['--spec', '--repo', dir, 'spec.md'], fail: 'src', unseen: NOT_FOUND }
   },
   'adr-lint': () => {
     // A `.git` git cannot read: the repository root is found and git cannot list it, so adr-lint
@@ -77,7 +86,7 @@ const said = r => `${r.stdout}\n${r.stderr}`
 
 function namesTheDirectory(t, failing) {
   for (const [gate, make] of Object.entries(GATES)) {
-    const { dir, args, fail } = make()
+    const { dir, args, fail, unseen } = make()
     const clean = run(dir, [join(bin, gate), ...args])
     assert.doesNotMatch(said(clean), UNLISTED, `${gate} clean: ${said(clean)}`)
     const broken = failing(dir, gate, args, fail)
@@ -85,6 +94,7 @@ function namesTheDirectory(t, failing) {
     assert.match(said(broken), UNLISTED, `${gate}: ${said(broken)}`)
     assert.ok(said(broken).includes(fail), `${gate} names ${fail}: ${said(broken)}`)
     assert.ok(broken.status !== clean.status || gate === 'adr-lint', `${gate} gave its clean exit ${clean.status} over a tree it did not see`)
+    if (unseen) assert.doesNotMatch(said(broken), unseen, `${gate} gave a verdict about a directory it did not see`)
   }
 }
 

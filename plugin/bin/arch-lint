@@ -569,16 +569,9 @@ def main():
             break
     if widest is None:
         widest = roots[-1] if roots else None
+    unlisted = []
     if widest is not None and widest.is_dir():
-        unlisted = []
         index = repo_files(widest, unlisted=unlisted)
-        # A symbol lookup over part of the repository would call a check missing that sits in the part
-        # it did not see: could-not-run, naming the directory (ADR-092 Decision 10, ADR-005).
-        if unlisted:
-            for directory in unlisted:
-                print(f"[arch-lint] could not run: {directory} — this directory could not be listed, so "
-                      f"a symbol defined under it would not be found", file=sys.stderr)
-            sys.exit(2)
 
     secs = sections_of(text)
     for s in ALL_SECTIONS:
@@ -623,6 +616,20 @@ def main():
             errors.extend(vacuous_gate_errors(s, check, roots))
             errors.extend(symbol_errors(s, check, roots, index))
 
+    # A directory the repository walk could not list matters to a symbol the walk did not find:
+    # "appears nowhere" would be a verdict about the part it did not see, so that run is could-not-run,
+    # naming the directory; otherwise it is said as advice (ADR-092 Decision 10, ADR-005). A document
+    # outside every repository is indexed from its directory's parent, which can be a shared temporary
+    # directory holding another process's unlistable folders, so the exit changes only where it matters.
+    if unlisted:
+        if any("appears nowhere in the repo" in str(e) for e in errors):
+            for directory in unlisted:
+                print(f"[arch-lint] could not run: {directory} — this directory could not be listed, so "
+                      f"a symbol defined under it would not be found", file=sys.stderr)
+            sys.exit(2)
+        for directory in unlisted:
+            errors.advise(f"{directory} could not be listed, so a symbol defined under it would not have been "
+                          f"found; every symbol a check names was found elsewhere")
     status = "PASS" if not errors else "FAIL"
     # BACKLOG §143: the verdict names the binary that reached it.
     print(f"[{status}] {path} · {gate_identity()}")

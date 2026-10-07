@@ -23,7 +23,7 @@ Within a wave no two tasks edit one source or test file; every task appends to t
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T5 | no code-block line is a Status, and a frontmatter fence hides nothing (findings 2, 7) | done | — | `node --test tests/status-code-blocks.test.mjs` (six named tests pass) |
-| T1 | one Python definition of a record, its eligibility rule, and the parity table (finding 1) | pending | — | `node --test tests/record-recognition.test.mjs` (six named tests pass; the link test may skip on Windows) |
+| T1 | one Python definition of a record, its eligibility rule, and the parity table (finding 1) | done | — | `node --test tests/record-recognition.test.mjs` (six named tests pass; the link test may skip on Windows) |
 | T2 | every Python reader asks the one definition, and reads only regular text files (findings 3, 4, 5, 12) | pending | — | `node --test tests/record-recognition.test.mjs` (ten named tests pass; three may skip on Windows, one as root) |
 | T3 | lifecycle mirrors the definition, discovers by it, and dedups by it (findings 5, 6, 11) | pending | — | `node --test tests/record-discovery.test.mjs` (eight named tests pass; five may skip on Windows) |
 | T4 | every numbered candidate is counted or named, and a failed read is PARTIAL (findings 8, 9, 10) | pending | — | `node --test tests/record-naming.test.mjs` (six named tests pass; two may skip on Windows) |

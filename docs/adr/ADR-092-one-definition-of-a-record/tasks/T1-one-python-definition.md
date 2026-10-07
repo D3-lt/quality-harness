@@ -69,6 +69,14 @@ The first test's range is R2-R41, rows R37-R41 included (ADR-092's third review)
 | 4 — it is used | every adr-lint run; nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-07 · 44450d7d* · mutant killed · exit 1 · `plugin/lib/record.py` · the content arm admits nothing, so a record kept by content is not one · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · covers:the content arm
+- 2026-10-07 · 44450d7d* · mutant killed · exit 1 · `plugin/lib/record.py` · a file named ADR-<n> is a record only by its content · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · covers:the canonical-name arm
+- 2026-10-07 · 44450d7d* · mutant killed · exit 1 · `plugin/lib/record.py` · a link leaving the repository is placed by its spelling, and an absolute one sees the repository's own tasks ancestor · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · covers:the placement fallback
+- 2026-10-07 · 44450d7d* · mutant killed · exit 1 · `plugin/lib/record.py` · a file under templates/ is judged by its name and content like any other · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · covers:the templates exclusion
+- 2026-10-07 · 44450d7d* · mutant killed · exit 1 · `plugin/lib/record.py` · a fixture tree is eligible for a corpus walk · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · covers:the eligibility rule
+- 2026-10-07 · 44450d7d* · mutant killed · exit 1 · `plugin/lib/record.py` · a record heading is read from the raw text with a gap that crosses a line break · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · covers:the one-line heading
+- 2026-10-07 · 44450d7d* · mutant killed · exit 1 · `plugin/lib/record.py` · a fenced example of a record supplies the bold Status and the heading · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · covers:the unfenced discriminators
+- 2026-10-07 · 44450d7d* · mutant killed · exit 1 · `plugin/bin/adr-lint` · adr-lint reads its title number from any heading line, a YAML comment included · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · covers:the one title reading
 
 ## Invariants
 
@@ -80,6 +88,9 @@ The first test's range is R2-R41, rows R37-R41 included (ADR-092's third review)
 
 - `git_root` spawns `git` when no `.git` is found on the way up; the definition takes the root from its caller, so a caller walking a directory computes it once.
 - A mutation-catalogue entry that relies on adr-lint exiting 1 on the bundled template: S7 runs the entries that name tests/gates.test.mjs:93 or :1300.
+- S2, measured 2026-10-07 at 44450d7d: `mrw read --grep '^##[ \t]*\r?$' .` over every file git does not ignore (tests/fixtures/ included) found no line holding `##` alone, so no tracked file changes its `_RECORD_SECTION` answer when the heading's gap stops crossing a line break; the control `mrw read --grep '^##\s+Decision' docs/adr` found 85 files, so the search was able to find a hit. S7 ran the four entries naming the edited tests/gates.test.mjs tests (`severity: a placeholder still blocks`, `severity: postmortem frontmatter is identity`, `severity: an arch placeholder still blocks`, `strictFrom: demotes, and only downward`): all RED.
+- The definition moved fourteen catalogue entries' code (adr-lint's recognition branch and `_record_title` into record.py); each was repointed to the same mechanism at its new site and re-run RED. One, `ADR-074 T3 (owner, after): a note under tasks/ reads as a record`, went GREEN because the record's-own-directory rule (ADR-092 Decision 1's amendment, row R45) also covers `ADR-001-x/tasks/`; row R47 (`docs/adr/tasks/note.md`) was added and the entry now runs this task's first test too, RED.
+- The table carries rows R42-R47 beyond the record's first draft, added the same day before any assertion (ADR-092 Decision 6): R42-R46 from outside probe runs, R47 above. The T1 implementation was written before the red run and set aside for it: the red entry was taken on a tree without it.
 
 ## Stop Condition
 
@@ -90,3 +101,15 @@ Stop and ask if any row's `recognised`, `status` or `identity` answer differs fr
 - The Python callers other than adr-lint (T2), the JS mirror (T3), naming (T4), the archive heuristic (T6), the other walks (T7)
 
 ## Verification Log
+- 2026-10-07 · 44450d7d* · exit 1 · `win=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · ms:596 · test-lock-sha256:410a7b29987834d81fc20a07ec20cd67f2132efb604ba72b2881cd2a45451db2 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcmVjb3JkLXJlY29nbml0aW9uLnRlc3QubWpzCWEgZmVuY2VkIGV4YW1wbGUgaXMgbm90IGEgZGlzY3JpbWluYXRvcgk3ZDAzMjk0YmZkNWExNTY2YzcxNDc5MzhlNDY0NDI0NTc1YWVlZDJlMzM5YjU5Y2ZhNmE3YTFlNWUxZWJhMjExCmJvZHkJdGVzdHMvcmVjb3JkLXJlY29nbml0aW9uLnRlc3QubWpzCWEgdGVtcGxhdGVzIGRpcmVjdG9yeSBhZG1pdHMgbm8gcmVjb3JkIGJ5IGVpdGhlciBhcm0gYW5kIHRoZSBzYW1lIGZpbGUgb3V0c2lkZSBpdCBpcyBqdWRnZWQgYXMgYW55IG90aGVyCWE5NWJlMjQwMDYzZDFhNGU3MWJiYjkwNzQzODgwYTMzM2Q4Mzc1ZjkwNzQwODc3ZjY4ZTczYzRmYTA4YzIzNzkKYm9keQl0ZXN0cy9yZWNvcmQtcmVjb2duaXRpb24udGVzdC5tanMJY29ycHVzIGVsaWdpYmlsaXR5IGlzIG9uZSBydWxlIGluIHJlY29yZC5weQk5OGRiZGFiZGNhODAyOWY5MzhlMDhjNGY4ZTQzODg0NTI3ZmI4NDkyODk0YWM0MWMyMGU0ZGZjZjA5Y2M4YzI3CmJvZHkJdGVzdHMvcmVjb3JkLXJlY29nbml0aW9uLnRlc3QubWpzCWV2ZXJ5IHJvdyBvZiB0aGUgcmVjb2duaXRpb24gdGFibGUgcmVhZHMgaXRzIGFwcHJvdmVkIGFuc3dlciBpbiByZWNvcmQucHkgYW5kIGFkci1saW50CTk5ZmI4MDI4NThiZGUyYWI3OTVlZmM5YTFkMjIxMzI0MzcyZWYzMjU4MWU5YmJmNTFkM2RkYzgxMWY5OWJmMGMKYm9keQl0ZXN0cy9yZWNvcmQtcmVjb2duaXRpb24udGVzdC5tanMJb25lIHRpdGxlIHJlYWRpbmcgZGVjaWRlcyBpZGVudGl0eSBhbmQgYWRyLWxpbnQgZmluZHMgbm8gZmFsc2UgbWlzbWF0Y2gJMWQ4OWUzOThmYzJjOGI3Njg4YTk4YTc0YmZjMzhlNDQ4MGYyNWQ4MDFjOTBlZTIyNTViZDljNWJlNDY5ZTE0Mgpib2R5CXRlc3RzL3JlY29yZC1yZWNvZ25pdGlvbi50ZXN0Lm1qcwl0aGUgbGluayByb3dzIHJlYWQgdGhlaXIgYXBwcm92ZWQgYW5zd2VycyBpbiByZWNvcmQucHkgYW5kIGFkci1saW50CTFmYjEzNmM3MTY0OWE5ZjlhY2ZmZWIzMTBlNzk4NmEzMjFmNmM2YmY3MDc5NzRkZmJkNzdjNzFlMmEyOTY4OTM
+  ```
+  ```
+- 2026-10-07 · 44450d7d* · exit 0 · `win=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · ms:5309
+- 2026-10-07 · 44450d7d* · exit 0 · `win=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · ms:5278
+- 2026-10-07 · 44450d7d* · exit 0 · `win=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · ms:5393
+- 2026-10-07 · 44450d7d* · exit 0 · `win=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · ms:5424
+- 2026-10-07 · 44450d7d* · exit 0 · `win=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · ms:5304
+- 2026-10-07 · 44450d7d* · exit 0 · `win=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · ms:5292
+- 2026-10-07 · 44450d7d* · exit 0 · `win=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · ms:6278
+- 2026-10-07 · 44450d7d* · exit 0 · `win=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) win='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:999a205de2d4411c095beffb7872053af5dcf914df2f0a21defd55f5b6f9227a · ms:5690
+- 2026-10-07 · human-observed · observed by the executor (Claude, 2026-10-07): S2's command, its zero count and its control are recorded in this task's Risks

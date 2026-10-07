@@ -186,7 +186,9 @@ test('corpus scans read shared inputs once and see fresh changes on the next sca
     const path = await import('node:path')
     const { syncBuiltinESMExports } = await import('node:module')
     const counts = { files: {}, directories: {} }
-    for (const [method, bucket] of [['readFileSync', 'files'], ['readdirSync', 'directories']]) {
+    // `openSync` too: a record is read through a bounded descriptor read since a review of ADR-092's
+    // execution (finding 12), and a read the probe cannot see is a read it cannot count.
+    for (const [method, bucket] of [['readFileSync', 'files'], ['openSync', 'files'], ['readdirSync', 'directories']]) {
       const original = fs.default[method]
       fs.default[method] = function(file, ...args) {
         const relative = path.relative(project, String(file))

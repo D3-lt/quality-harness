@@ -1735,8 +1735,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      supersededBy: /^superseded\\s+by\\b/i.test(status)",
-      "to": "      supersededBy: false",
+      "from": "      supersededBy: (/^superseded\\s+by\\b/i.test(status)",
+      "to": "      supersededBy: (false",
       "only": "^(?:adr-state derives what is decided now, instead of asking anyone to maintain it)$"
     },
     {
@@ -14825,8 +14825,8 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "  const adrLint = [...corpus, ...(corpus.unreadable ?? [])].map(record => {",
-      "to": "  const adrLint = [...corpus].map(record => {",
+      "from": "  const adrLint = [...corpus, ...(corpus.unreadable ?? []), ...(corpus.notRecognised",
+      "to": "  const adrLint = [...corpus, ...(corpus.notRecognised",
       "only": "a corpus with records is linted without writing"
     },
     {
@@ -17256,7 +17256,7 @@
       "tests": [
         "tests/status-reading.test.mjs"
       ],
-      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
       "to": "_STATUS_LINE = re.compile(r\"^\\*\\*Status:\\*\\*[ \\t]*([^\\r\\n]*)$\")",
       "only": "^every reader gives one Status the same reading$"
     },
@@ -17476,8 +17476,8 @@
       "tests": [
         "tests/status-reading.test.mjs"
       ],
-      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
-      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss]:?\\*{0,2}[ \\t]*:?[ \\t]*([^\\r\\n]*)$\")",
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss]:?\\*{0,2}[ \\t]*:?[ \\t]*([^\\r\\n]*)$\")",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
     },
     {
@@ -17486,8 +17486,8 @@
       "tests": [
         "tests/status-reading.test.mjs"
       ],
-      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
-      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}Status(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\", re.I)",
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}Status(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\", re.I)",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
     },
     {
@@ -18625,8 +18625,8 @@
       "tests": [
         "tests/status-codex-316.test.mjs"
       ],
-      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
-      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
       "only": "^the Codex round of 3.1.6: every reader reads these records alike"
     },
     {
@@ -18635,8 +18635,8 @@
       "tests": [
         "tests/status-codex-316.test.mjs"
       ],
-      "from": "const STATUS_LABEL = /^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$/",
-      "to": "const STATUS_LABEL = /^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$/",
+      "from": "const STATUS_LABEL = /^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$/",
+      "to": "const STATUS_LABEL = /^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$/",
       "only": "^the Codex round of 3.1.6: every reader reads these records alike"
     },
     {
@@ -21426,8 +21426,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "        : kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null,",
-      "to": "        : null,",
+      "from": "        ?? (kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null),",
+      "to": "        ?? null,",
       "only": "^(?:a frontmatter superseded_by names the replacement in the three measured spellings)$"
     },
     {
@@ -21446,8 +21446,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "        : kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null,",
-      "to": "        : !retired ? frontmatterSupersededBy(text) : null,",
+      "from": "        ?? (kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null),",
+      "to": "        ?? (!retired ? frontmatterSupersededBy(text) : null),",
       "only": "^(?:supersedes is never read and superseded_by never moves a governing record)$"
     },
     {
@@ -22079,6 +22079,286 @@
       "from": "  const attested = covering.filter(report => countsAsRun(report) && report.look !== 'UNPROVEN')",
       "to": "  const attested = covering.filter(countsAsRun)",
       "only": "release-evidence never lists an unproven run as attesting"
+    },
+    {
+      "label": "ADR-087 owner 2026-10-07: a file adr-lint does not recognise is counted as a record",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
+      "to": "    if (false) { notRecognised.push(file); continue }",
+      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
+    },
+    {
+      "label": "ADR-087 owner 2026-10-07: a plain Status outside a record directory admits a record by content",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    || (!directories.includes('tasks') && directories.some(part => RECORD_DIRECTORY.test(part)))",
+      "to": "    || true",
+      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
+    },
+    {
+      "label": "ADR-087 owner 2026-10-07: an ADR-<n> name no longer admits a headingless record",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  if (/^ADR-[0-9]+(?![A-Za-z0-9_])/i.test(base) || /^spec[-_]?\\p{Nd}/iu.test(base)) return true",
+      "to": "  if (/^spec[-_]?\\p{Nd}/iu.test(base)) return true",
+      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
+    },
+    {
+      "label": "ADR-087 owner 2026-10-07: a **Status:** label no longer admits a record outside a record directory",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  return /(?<![^\\n])\\*\\*Status:\\*\\*/.test(text)",
+      "to": "  return false",
+      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
+    },
+    {
+      "label": "ADR-087 owner 2026-10-07: a file no reader counts is not named in notRead",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  const found = [...(corpus.notRecognised ?? [])]",
+      "to": "  const found = []",
+      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
+    },
+    {
+      "label": "ADR-087 review F1: an indented frontmatter line is read as the Status (lifecycle)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (inBlock && /^[ \\t]/.test(line)) continue",
+      "to": "    if (false) continue",
+      "only": "a status inside a frontmatter literal block is not the record status"
+    },
+    {
+      "label": "ADR-087 review F1: an indented frontmatter line is read as the Status (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "        if in_block and line[:1] in (\" \", \"\\t\"):",
+      "to": "        if False:",
+      "only": "a status inside a frontmatter literal block is not the record status"
+    },
+    {
+      "label": "ADR-087 review F2: a bullet in an indented code block is a Status (lifecycle)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "const STATUS_BULLET = /^ {0,3}[*-]",
+      "to": "const STATUS_BULLET = /^[ \\t]*[*-]",
+      "only": "a status bullet in an indented code block is not the record status"
+    },
+    {
+      "label": "ADR-087 review F2: a bullet in an indented code block is a Status (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "_STATUS_BULLET = re.compile(r\"^ {0,3}[*-]",
+      "to": "_STATUS_BULLET = re.compile(r\"^[ \\t]*[*-]",
+      "only": "a status bullet in an indented code block is not the record status"
+    },
+    {
+      "label": "ADR-087 review F4: a frontmatter past the byte budget is not said",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (read <= HEAD_BYTES) return { text, cut: false }",
+      "to": "    if (true) return { text, cut: false }",
+      "only": "a numbered file whose frontmatter runs past 64 lines is named, and past the budget is PARTIAL"
+    },
+    {
+      "label": "ADR-087 review F4: the head is cut at 64 lines again",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    const block = frontmatterBlock(head.text)",
+      "to": "    const block = frontmatterBlock(head.text.split('\\n').slice(0, 64).join('\\n'))",
+      "only": "a numbered file whose frontmatter runs past 64 lines is named, and past the budget is PARTIAL"
+    },
+    {
+      "label": "ADR-087 review F5: a bare superseded by does not fall back to superseded_by",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "        ? supersessionTarget(retired ? status : rawStatus(text), status) : null)",
+      "to": "        ? (supersessionTarget(retired ? status : rawStatus(text), status) ?? false) : null)",
+      "only": "a superseded status that names no record takes its target from superseded_by"
+    },
+    {
+      "label": "ADR-087 review F6: the not-read look opens a FIFO",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)",
+      "to": "  if (false) throw new Error(`${file} is not a regular file`)",
+      "only": "a FIFO in place of a numbered file is not opened by the not-read look"
+    },
+    {
+      "label": "ADR-087 owner 2026-10-07: a file with no Status adr-lint does not recognise is still undecided",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
+      "to": "    if (!recognisedAsRecord(root, file, text) && recordStatusKind(recordStatus(text))) { notRecognised.push(file); continue }",
+      "only": "a status bullet inside a section is not the record status"
+    },
+    {
+      "label": "ADR-087 owner 2026-10-07: a numbered file the reader lists by name with no acted-on Status is still undecided",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
+      "to": "    if (!recognisedAsRecord(root, file, text) && recordStatusKind(recordStatus(text))) { notRecognised.push(file); continue }",
+      "only": "an unnumbered note or a record inside a record directory is not named as not read"
+    },
+    {
+      "label": "ADR-087 owner 2026-10-07: a file with only a directory for a Status is still undecided",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
+      "to": "    if (!recognisedAsRecord(root, file, text) && recordStatusKind(recordStatus(text))) { notRecognised.push(file); continue }",
+      "only": "a directory name is never a status"
+    },
+    {
+      "label": "ADR-087 delta review F1: a frozen catalog row makes a record of a file adr-lint rejects",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
+      "to": "    if (archiveDecisionEffect(file, reader, archiveEffects, listedFiles, root) == null && !recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
+      "only": "a frozen archive catalog does not make a not-recognised file a record"
+    },
+    {
+      "label": "ADR-087 delta review F2: a link is placed by its own path, not its real one",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  try { placed = path.relative(realpathSync.native(root), realpathSync.native(file)) } catch { placed = null }",
+      "to": "  placed = null",
+      "only": "a link to a record is placed where its target is kept, as adr-lint places it"
+    },
+    {
+      "label": "ADR-087 delta review F3: the heading's whitespace loses Python's U+001C-U+001F and U+0085",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "\\\\x1c-\\\\x1f\\\\x85",
+      "to": "",
+      "only": "a heading after whitespace only one runtime calls whitespace is read alike by every reader"
+    },
+    {
+      "label": "ADR-087 delta review F3: a heading starts a line after U+2028",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "(?<![^\\\\n])##",
+      "to": "(?<![^\\\\n\\\\u2028])##",
+      "only": "a heading after whitespace only one runtime calls whitespace is read alike by every reader"
+    },
+    {
+      "label": "ADR-087 delta review F4: a cut head keeps its partial last line",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    return { text: text.slice(0, Math.max(text.lastIndexOf('\\n'), text.lastIndexOf('\\r')) + 1), cut: true }",
+      "to": "    return { text, cut: true }",
+      "only": "a 64 KiB cut that ends on three dashes is not read as the closing delimiter"
+    },
+    {
+      "label": "owner 2026-10-07: a Status line in an indented code block is the Status (lifecycle)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "const STATUS_LABEL = /^ {0,3}\\*{0,2}",
+      "to": "const STATUS_LABEL = /^[ \\t]*\\*{0,2}",
+      "only": "a Status line in an indented code block is not the record status"
+    },
+    {
+      "label": "owner 2026-10-07: a Status line in an indented code block is the Status (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}",
+      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}",
+      "only": "a Status line in an indented code block is not the record status"
+    },
+    {
+      "label": "owner 2026-10-07: adr-state's JSON does not name the files no reader counts",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    notRead: (corpus.notRecognised ?? []).map(file => ({ file: relative({ file }) })),",
+      "to": "    notRead: [],",
+      "only": "adr-state names the files no reader counts"
+    },
+    {
+      "label": "owner 2026-10-07: adr-state's text does not name the files no reader counts",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    for (const file of notRecognised.slice(0, SHOWN)) say(`  ${relative({ file })}\\n`)",
+      "to": "    for (const file of []) say('')",
+      "only": "adr-state names the files no reader counts"
+    },
+    {
+      "label": "delta review F2: a link listed first is read and its target named as the copy",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (linksIn(file) < linksIn(first)) {",
+      "to": "    if (false) {",
+      "only": "a link and its target are read once, as the target, and the link is the alias"
+    },
+    {
+      "label": "owner 2026-10-07: only a path's last component is asked whether it is a link",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (path.dirname(at) === at) return count",
+      "to": "    return count",
+      "only": "a path through a linked parent directory is the alias of the path with no link in it"
+    },
+    {
+      "label": "owner 2026-10-07: the probe does not lint the files no reader counts",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/not-recognised-reason.test.mjs"
+      ],
+      "from": ", ...(corpus.notRecognised ?? []).map(file => ({ file }))].map(record => {",
+      "to": "].map(record => {",
+      "only": "a not-recognised file is told what it lacks, and the probe carries the reason"
     }
   ]
 }

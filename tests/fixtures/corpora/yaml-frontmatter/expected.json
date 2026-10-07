@@ -12,18 +12,16 @@
     ["docs/decisions/006-queue-in-redis.md", "governing", false],
     ["docs/decisions/007-retries-v1.md", "graveyard", false],
     ["docs/decisions/008-retries-v2.md", "governing", false],
-    ["docs/decisions/011-no-sections.md", "governing", false],
     ["docs/decisions/012-a-split-api.md", "governing", false],
     ["docs/decisions/012-b-split-ui.md", "governing", false]
   ],
   "undecided": [
     "docs/decisions/009-madr-template.md",
-    "docs/decisions/010-on-hold.md",
-    "docs/decisions/013-bullet-in-body.md"
+    "docs/decisions/010-on-hold.md"
   ],
   "workNext": {
-    "records": 11,
-    "accepted": 8,
+    "records": 10,
+    "accepted": 7,
     "tasks": 0,
     "ready": [],
     "unbacked": [],
@@ -36,13 +34,19 @@
     "next": "adr-retire",
     "notRead": [
       {
+        "file": "docs/decisions/011-no-sections.md"
+      },
+      {
+        "file": "docs/decisions/013-bullet-in-body.md"
+      },
+      {
         "file": "Final/RFC0001-example.md"
       }
     ]
   },
   "adrState": {
-    "read": 11,
-    "governing": 8
+    "read": 10,
+    "governing": 7
   },
   "adrNext": [],
   "adrLint": [
@@ -54,11 +58,11 @@
     { "file": "docs/decisions/006-queue-in-redis.md", "verdict": "FAIL" },
     { "file": "docs/decisions/007-retries-v1.md", "verdict": "FAIL" },
     { "file": "docs/decisions/008-retries-v2.md", "verdict": "FAIL" },
-    { "file": "docs/decisions/011-no-sections.md", "verdict": "not-recognised", "reasonMatches": "no `## Context` or `## Decision` heading" },
     { "file": "docs/decisions/012-a-split-api.md", "verdict": "FAIL" },
     { "file": "docs/decisions/012-b-split-ui.md", "verdict": "FAIL" },
     { "file": "docs/decisions/009-madr-template.md", "verdict": "FAIL", "adviceMatches": "starts with no status adr-lint recognises" },
     { "file": "docs/decisions/010-on-hold.md", "verdict": "FAIL", "adviceMatches": "starts with no status adr-lint recognises" },
+    { "file": "docs/decisions/011-no-sections.md", "verdict": "not-recognised", "reasonMatches": "no `## Context` or `## Decision` heading" },
     { "file": "docs/decisions/013-bullet-in-body.md", "verdict": "not-recognised", "reasonMatches": "no Status line" }
   ],
   "sweep": [

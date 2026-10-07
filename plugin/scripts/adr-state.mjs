@@ -141,6 +141,9 @@ export function main(argv) {
     // the corpus reader's own, set only for a file it never read, so null still marks
     // one it opened (lifecycle.mjs adrCorpus); `why` says why each one governs nothing.
     unread: unreadable.map(entry => ({ file: relative(entry), status: entry.status ?? null, reason: entry.reason ?? null, why: why(entry) })),
+    // Files the corpus reader dropped because adr-lint does not recognise them as records: counted by
+    // no reader, and named here as work-next names them (the owner, 2026-10-07).
+    notRead: (corpus.notRecognised ?? []).map(file => ({ file: relative({ file }) })),
     areas: [...areas].map(([declared, records]) => ({
       path: declared,
       governedBy: records.map(record => ({ id: label(record), file: relative(record), title: record.title })),
@@ -164,16 +167,30 @@ export function main(argv) {
   // Every human line goes through `say`: a corpus name or title reached a terminal and
   // a session's context raw (a corpus-chaos run of 916b515). The JSON keeps exact values.
   const say = text => process.stdout.write(terminalText(text))
+  // Files the corpus reader dropped because adr-lint does not recognise them as records (the owner,
+  // 2026-10-07): no reader counts them, so they are named wherever this says what it read, or the count
+  // reads as coverage.
+  const notRecognised = corpus.notRecognised ?? []
+  const sayNotRead = () => {
+    if (!notRecognised.length) return
+    say(`\n${notRecognised.length} file(s) are not records adr-lint recognises (no Status, no \`## Context\` or `
+      + '`## Decision` heading, or a Status other than `**Status:**` outside an adr or decisions directory), '
+      + 'so no reader counts them:\n')
+    for (const file of notRecognised.slice(0, SHOWN)) say(`  ${relative({ file })}\n`)
+    if (notRecognised.length > SHOWN) say(`  (+${notRecognised.length - SHOWN} more; --json for all)\n`)
+  }
   // With no record read, a file that was never opened makes this PARTIAL; one that
   // was opened and carries no status this reader acts on is listed below, as it is
   // beside records that were read. The JSON says the same (look from the corpus).
   if (!corpus.length && corpus.look === 'PARTIAL') {
     say('could-not-look: a listed record could not be read (PARTIAL). '
       + 'This is not "no decision records found".\n')
+    sayNotRead()
     return 0
   }
   if (!corpus.length && !unreadable.length) {
     say('No decision records found under this repository.\n')
+    sayNotRead()
     return 0
   }
 
@@ -225,6 +242,7 @@ export function main(argv) {
     }
   }
   }
+  sayNotRead()
   if (!areas.size && touched.size) {
   // BACKLOG §85c. This is a STATE, not a finding — it exits 0 and nothing is
   // wrong — but it read like one, and the remedy it named ("add Governs: to the

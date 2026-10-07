@@ -7672,7 +7672,7 @@
         "tests/gates.test.mjs"
       ],
       "only": "declared in its own docstring",
-      "from": "Exit: 0 the contract holds · 1 it does not · 2 could not run: plugin/lib/record.py\nis not beside this gate's bin/ (a gate copied on its own; ADR-045), or a named path that exists but could not be read.",
+      "from": "Exit: 0 the contract holds · 1 it does not · 2 could not run: plugin/lib/record.py\nis not beside this gate's bin/ (a gate copied on its own; ADR-045), a named path that exists but\ncould not be read, a corpus file that is not a regular file or not text, or a directory a walk\ncould not list (ADR-092 Decision 10).",
       "to": "The contract either holds or it does not."
     },
     {
@@ -11576,8 +11576,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "an NNN-slug archive keeps",
-      "from": "if not named and not looks_like_record(text):",
-      "to": "if not named:"
+      "from": "        if not recognised_as_record(path, text, repository)[0]:\n            continue",
+      "to": "        if not path.name.startswith(\"ADR-\"):\n            continue"
     },
     {
       "label": "ADR-063: an admitted file with no identity is named, not dropped",
@@ -11766,8 +11766,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a record is its own record",
-      "from": "    if not in_tasks and looks_like_record(text):",
-      "to": "    if False:"
+      "from": "    if not in_tasks and \"\\x00\" not in text and recognised_as_record(",
+      "to": "    if False and recognised_as_record("
     },
     {
       "label": "ADR-063: a dated filename is a name in a supersession",
@@ -11816,8 +11816,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "a record-shaped file under tasks",
-      "from": "    if not in_tasks and looks_like_record(text):",
-      "to": "    if looks_like_record(text):"
+      "from": "    if not in_tasks and \"\\x00\" not in text and recognised_as_record(",
+      "to": "    if \"\\x00\" not in text and recognised_as_record("
     },
     {
       "label": "ADR-063: a companion belongs to the longest stem",
@@ -12532,13 +12532,13 @@
     },
     {
       "label": "2.111.0-rc2 (Codex): a NUL-bearing owner record is unreadable",
-      "file": "plugin/bin/adr-next",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
       "only": "depends on itself",
-      "from": "        if \"\\x00\" in text:\n            # NUL bytes: an ASCII Status line",
-      "to": "        if False:\n            # NUL bytes: an ASCII Status line"
+      "from": "    if \"\\x00\" in text:\n        raise NotText(",
+      "to": "    if False:\n        raise NotText("
     },
     {
       "label": "2.111.0-rc2 (Codex): the unmarked-archive ready line names the owner",
@@ -16435,8 +16435,8 @@
       "tests": [
         "tests/chaos-e016066.test.mjs"
       ],
-      "from": "    if target.exists() and not target.is_file():",
-      "to": "    if False:",
+      "from": "    if problem:\n        print(f\"[adr-lint] could not run: {one_line(path)} — {problem}\", file=sys.stderr)",
+      "to": "    if False:\n        print(f\"[adr-lint] could not run: {one_line(path)} — {problem}\", file=sys.stderr)",
       "only": "adr-lint refuses a file that is not a regular file"
     },
     {
@@ -17347,7 +17347,7 @@
       "tests": [
         "tests/record-by-name.test.mjs"
       ],
-      "from": "    kept = _kept_where_records_are(list(placed.parent.parts))",
+      "from": "    kept = _kept_where_records_are(list(placed.parent.parts), placed.name)",
       "to": "    kept = True",
       "only": "^a Status section makes a record only in a directory records are kept in$"
     },
@@ -17418,8 +17418,8 @@
       "tests": [
         "tests/status-section.test.mjs"
       ],
-      "from": "    return bool(record_status(text)[0] is not None and _RECORD_SECTION.search(text))",
-      "to": "    return bool(record_status(text)[1] == \"inline\" and _RECORD_SECTION.search(text))",
+      "from": "    status_value = record_status(text)[0]\n    kept = _kept_where_records_are(",
+      "to": "    status_value = record_status(text)[0] if record_status(text)[1] == \"inline\" else None\n    kept = _kept_where_records_are(",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
     },
     {
@@ -22558,9 +22558,119 @@
       "tests": [
         "tests/record-recognition.test.mjs"
       ],
-      "from": "                record_id(below) is not None and not below.isdigit() for below in directories[index + 1:]):",
-      "to": "                False for below in directories[index + 1:]):",
+      "from": "    return found is not None and found != own",
+      "to": "    return False",
       "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T2: adr-retire-check's recognition",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        if not recognised_as_record(path, text, repository)[0]:\n            continue",
+      "to": "        if False:\n            continue",
+      "only": "^adr-retire-check counts the identified records and advises on every other recognised one$"
+    },
+    {
+      "label": "ADR-092 T2: the identity partition",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "            if unidentified is not None:\n                unidentified.append(path)",
+      "to": "            if unidentified is not None and not path.name.startswith(\"ADR-\"):\n                unidentified.append(path)",
+      "only": "^adr-retire-check counts the identified records and advises on every other recognised one$"
+    },
+    {
+      "label": "ADR-092 T2: adr-next's owner recognition",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        if not recognised_as_record(candidate, text, git_root(candidate.parent))[0]:",
+      "to": "        if False:",
+      "only": "^adr-next does not take an unrecognised file for a decided owner$"
+    },
+    {
+      "label": "ADR-092 T2: the regular-file guard",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if problem:\n        raise NotARegularFile(None, problem, str(path))",
+      "to": "    if False:\n        raise NotARegularFile(None, problem, str(path))",
+      "only": "^adr-next does not take an unrecognised file for a decided owner$"
+    },
+    {
+      "label": "ADR-092 T2: the not-text guard",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if \"\\x00\" in text:\n        raise NotText(",
+      "to": "    if None:\n        raise NotText(",
+      "only": "^no Python reader reads a record holding a NUL byte as text$"
+    },
+    {
+      "label": "ADR-092 T2: the unlisted-directory report",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "            if unlisted is not None:\n                unlisted.append(directory)",
+      "to": "            if False:\n                unlisted.append(directory)",
+      "only": "^every adr-retire-check walk names a directory it could not list$"
+    },
+    {
+      "label": "ADR-092 T2: the duplicate-path message",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    return f\" ({', '.join(_shown(path) for path in paths)} are one file on disk)\" if same else \"\"",
+      "to": "    return \"\"",
+      "only": "^the link rows read their approved answers in adr-retire-check$"
+    },
+    {
+      "label": "ADR-092 T2: the any-case obligation walk",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        if not path.name.lower().endswith(\".md\"):",
+      "to": "        if not path.name.endswith(\".md\"):",
+      "only": "^adr-retire-check counts a .MD record and its obligations$"
+    },
+    {
+      "label": "ADR-092 T2: the attachment read",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    text = _read(path)\n    relative = path.relative_to(root)",
+      "to": "    text = _read_record(path)\n    relative = path.relative_to(root)",
+      "only": "^a binary attachment is still attributed and sealed$"
+    },
+    {
+      "label": "ADR-092 T2: a record in its own folder is kept where records are",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    return found is not None and found != own",
+      "to": "    return found is not None",
+      "only": "^adr-retire-check counts the identified records and advises on every other recognised one$"
+    },
+    {
+      "label": "ADR-092 T2: adr-retire-check walks only eligible paths",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        if not corpus_eligible(path.relative_to(root).as_posix()):\n            continue",
+      "to": "        if not path.name.lower().endswith(\".md\"):\n            continue",
+      "only": "^adr-retire-check counts the identified records and advises on every other recognised one$"
     }
   ]
 }

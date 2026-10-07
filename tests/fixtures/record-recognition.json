@@ -3,7 +3,7 @@
     "ADR-092 Decision 6: the approved answers. Each row is laid out in a fresh repository and read by every reader its columns name; a task asserts only the columns it makes true, by exact equality over every row with a cell in that column. No task changes an answer: a reader that disagrees stops the task and is a question for the owner.",
     "A file is {path, text} or {path, gen: {before, repeat, bytes, then}} (text = before + `repeat` repeated whole, the fewest times that make at least `bytes` bytes, + then), or {path, link} (a symbolic link whose target is `link`, relative to the link's directory; a path starting `outside/` is written beside the repository, in its parent directory; a row's `repositoryUnder` names where the repository sits below the scratch directory (default `repo`)), or {path, notRegular: true}, {path, absent: true} (tracked, then removed from disk), {path, unlisted: true} (on disk and never added to git) or {path, nul: true} (its text with a NUL byte appended).",
     "Columns: recognised, status, identity (T1: recognised_as_record, record_status, record_id with title_line); eligible (T1: corpus_eligible); adrCorpus (T3): record | undecided | notRecognised | unreadable | null (in no list); adrRetireCheck (T2): {counted: id} | unidentified | null, read with the row path's first component as root; workNext (T4): counted | undecided | notRead | partialBecause | unsupported | null.",
-    "undecided is the rule row `undecided`: the owner chose it on 2026-10-07. Rows R42-R47 were added on 2026-10-07, before any task asserted the table, from outside probe runs at 13136e6f (a corpus with dated non-records in docs/adr, a gap review inside a record's own directory, a corpus of numbered .rst records in decisions/ directories) and from a catalogue entry the record-own-directory rule left unkilled (R47)."
+    "undecided is the rule row `undecided`: the owner chose it on 2026-10-07. Rows R42-R48 were added on 2026-10-07: R42-R46 from outside probe runs at 13136e6f (a corpus with dated non-records in docs/adr, a gap review inside a record's own directory, a corpus of numbered .rst records in decisions/ directories), R47 from a catalogue entry the record-own-directory rule left unkilled, and R48 because that rule, as first written, dropped a record kept in its own folder (found executing T2)."
   ],
   "undecided": {
     "adrCorpus": "an unreadable entry with its status as read and no reason; out of adrCorpus's array",
@@ -59,7 +59,7 @@
      "recognised": false, "status": "Accepted", "identity": "ADR-023", "eligible": true, "adrCorpus": "notRecognised", "adrRetireCheck": null, "workNext": "notRead"},
     {"id": "R24", "files": [{"path": "docs/adr/024-ls.md", "text": "Status: Accepted ## Decision\n"}],
      "recognised": false, "status": "Accepted ## Decision", "identity": "ADR-024", "eligible": true, "adrCorpus": "notRecognised", "adrRetireCheck": null, "workNext": "notRead"},
-    {"id": "R25", "files": [{"path": "notes/ſpec-01-x.md", "text": "Status: Accepted\n"}],
+    {"id": "R25", "files": [{"path": "notes/ſpec-02-x.md", "text": "Status: Accepted\n"}],
      "recognised": true, "status": "Accepted", "identity": null, "eligible": true, "adrCorpus": "record", "adrRetireCheck": "unidentified", "workNext": "counted"},
     {"id": "R26", "files": [{"path": "notes/spec-٠١-x.md", "text": "Status: Accepted\n"}],
      "recognised": true, "status": "Accepted", "identity": null, "eligible": true, "adrCorpus": "record", "adrRetireCheck": "unidentified", "workNext": "counted"},
@@ -104,7 +104,9 @@
     {"id": "R46", "files": [{"path": "docs/decisions/0001-x.rst", "text": "Status\n======\n\nAccepted\n"}],
      "recognised": false, "status": null, "identity": "ADR-001", "eligible": false, "adrCorpus": null, "adrRetireCheck": null, "workNext": "unsupported"},
     {"id": "R47", "files": [{"path": "docs/adr/tasks/note.md", "text": "Status: Accepted\n\n## Decision\n\nx\n"}],
-     "recognised": false, "status": "Accepted", "identity": null, "eligible": false, "adrCorpus": null, "adrRetireCheck": null, "workNext": null}
+     "recognised": false, "status": "Accepted", "identity": null, "eligible": false, "adrCorpus": null, "adrRetireCheck": null, "workNext": null},
+    {"id": "R48", "files": [{"path": "docs/adr/0048-x/0048-x.md", "text": "Status: Accepted\n\n## Decision\n\nx\n"}],
+     "recognised": true, "status": "Accepted", "identity": "ADR-048", "eligible": true, "adrCorpus": "record", "adrRetireCheck": {"counted": "ADR-048"}, "workNext": "counted"}
   ],
   "layouts": [
     {"id": "L1", "files": [{"path": "notes/001-note.md", "text": "Status: Accepted\n"}, {"path": "docs/adr/ADR-001-link.md", "link": "../../notes/001-note.md"}],

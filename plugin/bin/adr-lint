@@ -121,7 +121,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
-from record import git_root, os_reason  # noqa: E402
+from record import git_root, os_reason, regular_file_problem  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
 from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
@@ -1041,10 +1041,12 @@ def refuse_irregular(path):
     ⚠ NEVER A WAIT. A FIFO named like a record, or among a record's tasks, blocked the first
     read of it until the process was killed (php-react-app's corpus-chaos E5, BACKLOG §319). A
     missing path is left to the caller's own arm, as FileNotFoundError is in read_named.
+    The rule is record.py's `read_regular` rule (ADR-092 Decision 10), shared and not copied; the
+    NUL refusal is not, so `check_adr` still FAILs a NUL-bearing record as text no gate can read.
     """
-    target = Path(path)
-    if target.exists() and not target.is_file():
-        print(f"[adr-lint] could not run: {one_line(path)} — not a regular file", file=sys.stderr)
+    problem = regular_file_problem(path)
+    if problem:
+        print(f"[adr-lint] could not run: {one_line(path)} — {problem}", file=sys.stderr)
         sys.exit(2)
 
 

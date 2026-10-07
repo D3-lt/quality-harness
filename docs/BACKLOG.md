@@ -18449,3 +18449,25 @@ changed: a sha written into a file before this entry — Verification and Mutati
 here, and is left as written (§10). The same commit re-seals ADR-042 (its archived unit changed) and
 re-locks ADR-068 T2 (a locked test's string literals changed); the next release needs a fresh outside
 run (§18), because every existing attestation names a pre-rewrite commit.
+
+## 358. OPEN 2026-10-07 — the Status word's end is each runtime's Unicode, where the record name's digits are now one frozen table
+
+ADR-092's review fix (finding 3) froze the decimal digits a name arm reads into one table both languages
+share. The Status word is not frozen: record.py's `status_word` reads `[^\W_]` and lifecycle.mjs's
+`recordStatusKind` reads `[\p{L}\p{N}]`, each from its own runtime's Unicode. A letter assigned in a
+Unicode version one runtime has and the other lacks, written straight after the word (`Accepted` plus
+U+11DE0, by the review's report), ends the word in one and continues it in the other, so the record
+governs in one language only. Not reproducible here: measured 2026-10-07, Python 3.14 (unidata 16.0.0)
+and this machine's Node (`process.versions.unicode` 16.0) both give 770 identical letter-or-number ranges.
+
+The fix would be the digit table's shape, a frozen 770-range letter-or-number table in both languages
+(or one data file both read), held by the parity test. Not built: no runtime pair here disagrees, and
+the table is a generated blob in two files. Build it when a supported runtime pair's ranges differ.
+
+## 359. OPEN 2026-10-07 — Python record readers read a whole file with no byte bound
+
+The second half of ADR-092's review finding 13, confirmed by its last review round: `read_regular`
+(`plugin/lib/record.py`) reads a regular file whole, so an 8 MiB record with one unbroken line is one
+8 MiB allocation (v3.8.10 read it twice; the fixes read it once). Not fail-open: every answer is still
+the answer for the whole file. Not built: no Python reader declares a byte budget, and a cap would
+change adr-lint's verdict on a large real record. The JS screen is bounded since the same fixes.

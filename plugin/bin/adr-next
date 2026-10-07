@@ -211,6 +211,10 @@ NEUTRALISED = re.compile(
     # (Codex review of 73f930f). "no, it failed" keeps its comma and stops.
     r"|(?<![a-z])no\s+(?:[a-z-]+\s+)?"
     r"(?:block|fail|stopp|refus|reject|abort)ing(?![a-z])"
+    # "no tests failed", "no failed tests": an absent failure, but only of a CLOSED list of nouns
+    # (BACKLOG §361, left open in §354). An open word would read "No it failed" as an absence;
+    # "no deploys failed" and "no tests stopped" stay stops.
+    r"|(?<![a-z])no\s+(?:(?:tests?|checks?|jobs?|cases?)\s+failed|failed\s+(?:tests?|checks?|jobs?|cases?))(?![a-z])"
     # NO count rule: "2374 passed / 1 failed" cannot be told from "Safari 17 passed; 18 failed the
     # manual check" by text, and two reviews found a count rule wider than its case (Codex on 73f930f,
     # ee82e08). A pasted summary that is the LAST sign-off stays a stop, the conservative reading; one
@@ -219,6 +223,44 @@ NEUTRALISED = re.compile(
     # optional, backtracking read the digits inside `failed-on-ios18` as its count
     # and erased a real stop (Codex review of 2f45348).
     r"|(?<![\w-])\w+(?:-\w+)+(?:\s*[=:]\s*|\s+)\d+(?![\w-])", re.I)
+
+# ⚠ A RUN REPORT QUOTES ITS RED RUN AS EVIDENCE. "observed: red run 111: TestAlpha failed; green run
+# 222: ok" affirms a red-then-green sequence, and its «failed» was read as the verdict (BACKLOG §361).
+# Text cannot tell that from "observed; step 2 failed on Safari", so the exemption is the literal
+# pair, and narrow: the note affirms BEFORE the last red run, a green run follows that red run's
+# clause, and the green clause has its own pass word. Then the red clause (to its first break)
+# is blanked, and so is a parenthesised aside AFTER the green clause's pass word ("ok … unable to
+# skip (TestGamma fails on a missing tool)"). Everything else still speaks: an earlier red run, a
+# clause between them, a negative word in the green clause outside an aside, anything after it.
+# Known width, pinned by a test: "green run 222: ok (the deploy failed)" reads as a run report.
+RED_RUN = re.compile(r"(?<![a-z])red\s+run(?![a-z])", re.I)
+GREEN_RUN = re.compile(r"(?<![a-z])green\s+run(?![a-z])", re.I)
+CLAUSE_BREAK = re.compile(r"[;—–]|\.(?=\s|$)|(?<![a-z])(?:but|then|however)(?![a-z])", re.I)
+ASIDE = re.compile(r"\([^()]*\)")
+
+
+def run_report_removed(text):
+    """text with an affirmed red run's clause, and the asides of the green run after it, blanked."""
+    reds = list(RED_RUN.finditer(text))
+    if not reds or not AFFIRMATIVE.search(text[:reds[-1].start()]):
+        return text
+    red = reds[-1]
+    brk = CLAUSE_BREAK.search(text, red.end())
+    green = brk and GREEN_RUN.search(text, brk.start())
+    if not green:
+        return text
+    end = CLAUSE_BREAK.search(text, green.end())
+    end = end.start() if end else len(text)
+    passed = AFFIRMATIVE.search(text, green.end(), end)
+    if not passed:
+        return text
+    return (text[:red.start()] + " " + text[brk.start():passed.end()]
+            + ASIDE.sub(" ", text[passed.end():end]) + text[end:])
+
+
+def not_the_verdict(text):
+    """text with what it reports rather than decides blanked: a run report, a negated negative, a counter."""
+    return NEUTRALISED.sub(" ", run_report_removed(text))
 
 
 # A record NUMBER from a filename, and NOT the year of an ISO date. Every
@@ -322,7 +364,7 @@ def human_outcome(note):
     if "❌" in outside:
         return "stop"
     # "not blocked" and a counter named `refused-unverifiable 0` are not verdicts.
-    outside = NEUTRALISED.sub(" ", outside)
+    outside = not_the_verdict(outside)
     if NEGATIVE.search(outside):
         return "stop"
     if NEGATIVE.search(NEUTRALISED.sub(" ", note)):
@@ -635,7 +677,7 @@ def stop_words(note):
             return m.group(0)
     if outside.count("❌"):
         return "❌"
-    for text in (NEUTRALISED.sub(" ", outside), NEUTRALISED.sub(" ", note)):
+    for text in (not_the_verdict(outside), NEUTRALISED.sub(" ", note)):
         if (m := NEGATIVE.search(text)):
             return m.group(0)
     return None

@@ -253,6 +253,8 @@ you then read the result. Both spellings have put a red tree on `main`.
      not verdicts.
    - `NOT done: <follow-ups>` is a list of what is left, not a stop, but only after the note has
      affirmed what was observed.
+   - A run report that affirms first and quotes a red run before a green one (`observed: red run 111:
+     X failed; green run 222: ok`) is evidence, not a stop. So is `no tests failed`.
    - A note with neither an affirmative nor a negative word still counts as done.
 
    If the task `Covers:`

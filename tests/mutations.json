@@ -13187,8 +13187,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    outside = NEUTRALISED.sub(\" \", outside)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
-      "to": "    outside = NEUTRALISED.sub(\" \", outside)\n",
+      "from": "    outside = not_the_verdict(outside)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
+      "to": "    outside = not_the_verdict(outside)\n",
       "only": "inside quoted program output"
     },
     {
@@ -23586,6 +23586,126 @@
       "from": "      say(COULD_NOT_LOOK.test(line) ? ",
       "to": "      say(true ? ",
       "only": "^an ordinary advice line that came or went is printed unmarked$"
+    },
+    {
+      "label": "§361: a run report exempts a red run nothing affirmed before",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    if not reds or not AFFIRMATIVE.search(text[:reds[-1].start()]):",
+      "to": "    if not reds:",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: any run, not only a green one, clears the red run",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "GREEN_RUN = re.compile(r\"(?<![a-z])green\\s+run(?![a-z])\", re.I)",
+      "to": "GREEN_RUN = re.compile(r\"(?<![a-z])\\w+\\s+run(?![a-z])\", re.I)",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: a green run with no pass word of its own clears the red run",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    if not passed:\n        return text\n    return (text[:red.start()]",
+      "to": "    if not passed:\n        passed = green\n    return (text[:red.start()]",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: an aside before the green run's pass word is blanked too",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    return (text[:red.start()] + \" \" + text[brk.start():passed.end()]\n            + ASIDE.sub(\" \", text[passed.end():end]) + text[end:])",
+      "to": "    return (text[:red.start()] + \" \" + ASIDE.sub(\" \", text[brk.start():end]) + text[end:])",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: the green clause runs to the end of the note",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    end = end.start() if end else len(text)",
+      "to": "    end = len(text)",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: an aside in the green clause is not blanked",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "            + ASIDE.sub(\" \", text[passed.end():end]) + text[end:])",
+      "to": "            + text[passed.end():end] + text[end:])",
+      "only": "^an affirmed red-then-green run report is evidence, not a stop$"
+    },
+    {
+      "label": "§361: the red run's clause is not blanked",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    return (text[:red.start()] + \" \" + text[brk.start():passed.end()]",
+      "to": "    return (text[:passed.end()]",
+      "only": "^an affirmed red-then-green run report is evidence, not a stop$"
+    },
+    {
+      "label": "§361: not_the_verdict skips the run report",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    return NEUTRALISED.sub(\" \", run_report_removed(text))",
+      "to": "    return NEUTRALISED.sub(\" \", text)",
+      "only": "^an affirmed red-then-green run report is evidence, not a stop$|^the run report in the row shape it was found in"
+    },
+    {
+      "label": "§361: human_outcome reads the note without removing the run report",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    outside = not_the_verdict(outside)\n    if NEGATIVE.search(outside):",
+      "to": "    outside = NEUTRALISED.sub(\" \", outside)\n    if NEGATIVE.search(outside):",
+      "only": "^an affirmed red-then-green run report is evidence, not a stop$"
+    },
+    {
+      "label": "§361: a stop's reason names the red run's word it quoted",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    for text in (not_the_verdict(outside), NEUTRALISED.sub(\" \", note)):",
+      "to": "    for text in (NEUTRALISED.sub(\" \", outside), NEUTRALISED.sub(\" \", note)):",
+      "only": "^a stop after a run report names its own word, not the red run it quoted$"
+    },
+    {
+      "label": "§361: the absence form takes any word before failed",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"|(?<![a-z])no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
+      "to": "    r\"|(?<![a-z])no\\s+(?:[a-z]+\\s+failed|",
+      "only": "names an absent failure; anything wider still stops$"
+    },
+    {
+      "label": "§361: no absence form at all",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"|(?<![a-z])no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
+      "to": "    r\"|(?<![a-z])zzno\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
+      "only": "names an absent failure; anything wider still stops$"
     }
   ]
 }

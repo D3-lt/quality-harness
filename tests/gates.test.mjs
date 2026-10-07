@@ -90,7 +90,13 @@ test('all bundled gates accept the conforming corpus', () => {
 })
 
 test('placeholder and invalid artifacts are rejected', () => {
-  expectExit(run('adr-lint', [join(root, 'templates', 'adr-template.md')]), 1, 'ADR template')
+  // A template is never a record, whatever its name (ADR-092 Decision 1): not-recognised, exit 2.
+  expectExit(run('adr-lint', [join(root, 'templates', 'adr-template.md')]), 2, 'ADR template')
+  // Its twin outside a templates directory is linted for its placeholders, and fails.
+  const looseTemplate = mkdtempSync(join(os.tmpdir(), 'quality-harness-adr-template-'))
+  writeFileSync(join(looseTemplate, 'adr-template.md'), readFileSync(join(root, 'templates', 'adr-template.md')))
+  expectExit(run('adr-lint', [join(looseTemplate, 'adr-template.md')], looseTemplate), 1, 'ADR template outside templates/')
+  rmSync(looseTemplate, { recursive: true, force: true })
   expectExit(run('spec-verify', ['--spec', join(root, 'templates', 'spec-template.md')]), 1, 'spec template')
   expectExit(run('arch-lint', [join(root, 'templates', 'architecture-template.md')]), 1, 'architecture template')
   expectExit(run('postmortem-verify', [join(root, 'templates', 'adr-template.md')]), 1, 'non-postmortem')
@@ -1296,8 +1302,13 @@ test('editing a template does not fail the facts gate', () => {
   )
 
   // The gates themselves stay strict when asked directly — a placeholder ADR is
-  // still not a valid ADR, which is the distinction this fix preserves.
-  expectExit(run('adr-lint', [join(root, 'templates', 'adr-template.md')]), 1, 'direct adr-lint')
+  // still not a valid ADR, which is the distinction this fix preserves. Under
+  // `templates/` it is no record at all (ADR-092 Decision 1), so adr-lint says
+  // not-recognised; the same text outside it still fails.
+  expectExit(run('adr-lint', [join(root, 'templates', 'adr-template.md')]), 2, 'direct adr-lint')
+  const outside = join(loose, 'adr-template.md')
+  writeFileSync(outside, readFileSync(join(root, 'templates', 'adr-template.md')))
+  expectExit(run('adr-lint', [outside], loose), 1, 'direct adr-lint outside templates/')
 })
 
 test('a record beside its tasks owns them, whatever the corpus is named', () => {

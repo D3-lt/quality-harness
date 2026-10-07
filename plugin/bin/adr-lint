@@ -128,7 +128,7 @@ from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
 # check read a record's Status with the task parser (the Codex round of 3.1.6, finding 1).
-from record import record_status, status_kind, status_section, status_word as record_status_word, unsigned_human_proof_steps, _NUMBERED_REF, _RECORD_DIRECTORY, _RECORD_SECTION  # noqa: E402
+from record import record_status, status_kind, status_section, status_word as record_status_word, unsigned_human_proof_steps, recognised_as_record, record_discriminators  # noqa: E402
 
 
 def one_line(value):
@@ -4171,7 +4171,7 @@ def invalidates_pointer(text):
 # so the retire gate and this one read one spelling: RECORD_FILE_RE,
 # TASK_SHAPED_RE (`003-T2.md`, a task file) and DATE_SHAPED_RE (`2026-07-12-x.md`
 # in every separator and width — a dated note, or an ADR-2026).
-from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, title_line, _fence_opened, _fence_closes  # noqa: E402
+from record import RECORD_FILE_RE, TASK_SHAPED_RE, DATE_SHAPED_RE, title_line  # noqa: E402
 # Checked in this order: `# ADR-003-T2` is both, and it is a task.
 TITLE_TASK_RE = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I)
 TITLE_RECORD_RE = re.compile(r"^﻿?#\s*ADR[-_ ]?\d", re.I)
@@ -4194,42 +4194,10 @@ def corpus_prefix(root, corpus_dir):
     return "" if prefix == "." else prefix + "/"
 
 
-# A YAML frontmatter block above a record's title. Stripped before the title is
-# looked for, so a `# comment` inside it is never mistaken for the title.
-_FRONTMATTER = re.compile(r"\A﻿?---[ \t]*\r?\n.*?^(?:---|\.\.\.)[ \t]*$", re.M | re.S)
-
-
-def _record_title(text):
-    """The first `# ` heading outside frontmatter and fenced code, or None.
-
-    One reading for both questions the enumeration asks — is this a record, and
-    which number does its title give — so they cannot disagree. Reading line one
-    only lost a title below a blank line (BACKLOG §194 row 2); reading the first
-    heading anywhere then took a fenced `# ADR-…` example for the title, and the
-    number was still read from the unstripped text, so a YAML comment in the
-    frontmatter decided it (Codex review, 2026-09-24). Fences are read with the
-    corpus's own rule (`record._fence_opened`/`_fence_closes`): a closer carries
-    nothing after its marker, and a backtick opener's info string holds no backtick.
-    """
-    fence = None
-    for line in _FRONTMATTER.sub("", text, count=1).split("\n"):
-        if fence:
-            if _fence_closes(line, fence):
-                fence = None
-            continue
-        opened = _fence_opened(line)
-        if opened:
-            fence = opened
-            continue
-        if title_line(line) is not None:
-            return line
-    return None
-
-
 def _title_says_record(path):
     """True record, False not a record, None could not read the file.
 
-    The title is `_record_title`'s: the first `# ` heading after any frontmatter
+    The title is `title_line`'s: the first `# ` heading after any frontmatter
     and outside fenced code. A file with no heading at all stays "not a record":
     dated notes carry none and a corpus holds them, and demoting every such corpus
     to could-not-look would trade one false answer for a blind gate. The caller
@@ -4239,7 +4207,7 @@ def _title_says_record(path):
         text = Path(path).read_text(encoding="utf-8", errors="replace")
     except OSError:
         return None
-    title = _record_title(text)
+    title = title_line(text)
     if title is None or TITLE_TASK_RE.match(title):
         return False
     return bool(TITLE_RECORD_RE.match(title))
@@ -4294,7 +4262,7 @@ def record_files(root, corpus_dir, tracked):
                 title_text = (corpus_dir / name).read_text(encoding="utf-8", errors="replace")
             except OSError:
                 return None
-            numbered = re.match(r"^﻿?#\s*ADR[-_ ]?(\d{1,4})\b", _record_title(title_text) or "", re.I)
+            numbered = re.match(r"^﻿?#\s*ADR[-_ ]?(\d{1,4})\b", title_line(title_text) or "", re.I)
             title_n = int(numbered.group(1)) if numbered else None
             file_n = int(found.group(1))
             if title_n is not None and title_n != file_n:
@@ -6337,9 +6305,16 @@ def strict_from_number(start, errors):
     return int(match.group(1))
 
 
+# The number a record's title gives: `# ADR-14: …`, `# ADR 14`, `# ADR_014`.
+_TITLE_NUMBER_RE = re.compile(r"﻿?#\s+ADR[-_ ]?(\d{1,4})\b", re.I)
+
+
 def adr_numbers(path, text):
-    """Filename number and title number; either is None when that spelling is absent."""
-    title = re.search(r"^#\s+ADR[-_ ]?(\d{1,4})\b", text, re.M | re.I)
+    """Filename number and title number; either is None when that spelling is absent.
+
+    The title is `title_line`'s, the one reading record.py's `record_id` takes its number from, so a
+    YAML comment or a fenced `# ADR-…` example never names a number here (ADR-092 Decision 13)."""
+    title = _TITLE_NUMBER_RE.match(title_line(text) or "")
     title_n = int(title.group(1)) if title else None
     if DATE_SHAPED_RE.match(path.name):
         return (None, title_n)
@@ -6478,61 +6453,54 @@ def main():
     # class as the defect §138 fixed: a verdict about a thing the tool was never
     # looking at.
     #
-    # The discriminator is what makes a record (ADR-074 T3): the canonical `ADR-<n>` name, or
-    # content that reads as one — a Status by ADR-074 Decision 1 and a `## Context` or
-    # `## Decision` heading, lifecycle's content test. A file NAMED `ADR-<n>` keeps its findings
-    # whatever it contains — a record missing its Status line is a real finding, and this must
-    # not become the way to silence one. The name arm used to be `(?:adr|spec)[-_]?\d`, and it
-    # linted two corpora's REPORTS about records (`adr018-sweep.md`,
-    # `adr004_review_notes_part1_20260101.md`) as records (BACKLOG §320.1). A `## Status`
-    # section alone does not admit a file: a backlog carries one (BACKLOG §141). The exact
-    # `**Status:**` line this plugin's template writes — §141's discriminator — admits a record in
-    # any directory, still with a `## Context` or `## Decision` heading beside it: the ADR template
-    # is linted for its placeholders, and a record named on the command line outside a record
-    # directory is still read. Every other Status form ADR-074
-    # reads (`Status:`, `**Status**:`, a `## Status` section) admits one only where records are
-    # kept: under a directory named `adr` or `decisions` (lifecycle's CORPUS_DIR_NAMES) or an
-    # archive of one (`adr-archive`, `archive-adr`), never under `tasks/`. Reports, postmortems
-    # and feature notes written `**Status**: ✅ COMPLETE` beside a `## Context` are not records
-    # (the owner, 2026-09-29, after a comparison over this machine's checkouts).
+    # ONE DEFINITION (ADR-092): record.py's `recognised_as_record` decides, and this gate keeps no
+    # copy of the rule. A file named `ADR-<n>` or `spec-<n>` keeps its findings whatever it contains,
+    # since a record missing its Status line is a real finding, and this must not become the way to
+    # silence one. Otherwise a Status by ADR-074 Decision 1 and a one-line `## Context` or
+    # `## Decision` heading, read outside every fence, with the exact `**Status:**` line in any
+    # directory or any Status form where records are kept (under `adr` or `decisions`, or an archive
+    # of one, never under `tasks/` or inside a record's own directory). A template is never linted
+    # as a record, whatever its name: no file with a `templates` directory on its path as listed or
+    # where its real path lands is one (the owner, 2026-10-07), and a README is a catalog, never a
+    # record by its content. Reports, postmortems and feature notes written `**Status**: ✅ COMPLETE`
+    # beside a `## Context` are not records (the owner, 2026-09-29). Placement is one rule however the
+    # path is spelled: an absolute spelling of a link leaving the repository no longer sees the
+    # repository's own ancestors (ADR-092 finding 1).
     text = read_named(adr)
     root = git_root(adr.parent)
-    try:
-        placed = adr.resolve().relative_to(root.resolve()) if root is not None else adr
-    except (OSError, ValueError):
-        placed = adr
-    directories = [part.lower() for part in placed.parent.parts]
-    canonical = _NUMBERED_REF.match(adr.name)
-    spec = re.match(r"spec[-_]?\d", adr.name, re.I)
-    kept_as_records = "tasks" not in directories and any(_RECORD_DIRECTORY.match(part) for part in directories)
-    status_value, _ = record_status(text)
-    content = (status_value is not None and _RECORD_SECTION.search(text)
-               and (re.search(r"^\*\*Status:\*\*", text, re.M) or kept_as_records))
-    def _not_recognised_because(text, status_value, kept_as_records):
+    recognised, status_value, kept_as_records, arm = recognised_as_record(adr, text, root)
+
+    def _not_recognised_because(text, status_value, kept_as_records, arm):
         """What THIS file lacks, so 32 not-recognised records do not all say one sentence
         (an outside run over a public corpus, 2026-10-06)."""
+        if arm == "templates":
+            return ["it sits under a `templates` directory, as listed or where its real path lands, "
+                    "and a template is never a record"]
+        if arm == "readme":
+            return ["it is named README.md, a catalog, which is never a record by its content"]
+        bold, heading = record_discriminators(text)
         lacks = []
         if status_value is None:
             lacks.append("no Status line")
-        elif not re.search(r"^\*\*Status:\*\*", text, re.M) and not kept_as_records:
+        elif not bold and not kept_as_records:
             lacks.append("a Status other than `**Status:**`, outside an `adr` or `decisions` directory")
         elif not status_kind(status_value):
             # A YAML `status: on hold` IS read as a Status; what no reader does is act on `on hold`.
             # `active` is acted on since ADR-087, so it is in the list this sentence names.
             lacks.append(f"its Status `{status_value[:40]}` is not a status any reader acts on "
                          f"(Accepted, Active, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated)")
-        if not _RECORD_SECTION.search(text):
+        if not heading:
             lacks.append("no `## Context` or `## Decision` heading")
         return lacks or ["nothing a record needs is missing, yet it was not read as one"]
 
-    if not (canonical or spec or content):
+    if not recognised:
         print(f"not-recognised: {one_line(adr)} is not named ADR-<n> and does not read as a record "
               f"(a Status, and a `## Context` or `## Decision` heading; any Status but `**Status:**` only "
               f"under an `adr` or `decisions` directory), so nothing here was checked. "
               f"This is not a finding about that file — `adr-lint` reads one record at a time, and a "
               f"backlog, a README, a report or a pre-registration kept beside the records is not one. "
               f"`adr-debt <corpus-dir>` reads a whole directory. "
-              f"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records))}.")
+              f"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records, arm))}.")
         sys.exit(2)
     errors = Findings()
     # Listed ONCE for the whole record. Three checks resolve pointers against the

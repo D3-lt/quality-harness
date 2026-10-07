@@ -6930,18 +6930,18 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records))}.\")\n        sys.exit(2)",
-      "to": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records))}.\")\n        pass",
+      "from": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records, arm))}.\")\n        sys.exit(2)",
+      "to": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records, arm))}.\")\n        pass",
       "only": "^(?:missing file, directory, and not-recognised stay their current exits|a document that never claimed to be a record is not judged as a malformed one \\(BACKLOG §141\\))$"
     },
     {
       "label": "lint: a file NAMED ADR- keeps its findings even with no Status line",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    canonical = _NUMBERED_REF.match(adr.name)",
-      "to": "    canonical = None",
+      "from": "    if _NUMBERED_REF.match(path.name):\n        return True, status_value, kept, \"canonical\"",
+      "to": "    if False:\n        return True, status_value, kept, \"canonical\"",
       "only": "^(?:a form finding is reported to the reader without failing the record|a document that never claimed to be a record is not judged as a malformed one \\(BACKLOG §141\\))$"
     },
     {
@@ -9869,22 +9869,22 @@
     },
     {
       "label": "lint: a record title below frontmatter is read (the frontmatter is stripped)",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    for line in _FRONTMATTER.sub(\"\", text, count=1).split(\"\\n\"):",
-      "to": "    for line in text.split(\"\\n\"):",
+      "from": "        if head is not None and index <= head:\n            continue\n        if _HEADING_LINE.match(line):",
+      "to": "        if _HEADING_LINE.match(line):",
       "only": "focused false-green regressions remain closed"
     },
     {
       "label": "lint: a record title below a blank line is read (not only line one)",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if title_line(line) is not None:\n            return line\n",
-      "to": "        return line if title_line(line) is not None else None\n",
+      "from": "        if _HEADING_LINE.match(line):\n            return line\n    return None",
+      "to": "        return line if _HEADING_LINE.match(line) else None\n    return None",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -10029,12 +10029,12 @@
     },
     {
       "label": "lint: a fenced code block is not read for the title",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        opened = _fence_opened(line)\n        if opened:\n            fence = opened\n            continue\n",
-      "to": "",
+      "from": "    for index, line in unfenced_numbered(lines, document=True):\n        if head is not None and index <= head:",
+      "to": "    for index, line in enumerate(lines):\n        if head is not None and index <= head:",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -10043,7 +10043,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            numbered = re.match(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", _record_title(title_text) or \"\", re.I)",
+      "from": "            numbered = re.match(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", title_line(title_text) or \"\", re.I)",
       "to": "            numbered = re.search(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", title_text, re.I | re.M)",
       "only": "focused false-green regressions remain closed"
     },
@@ -10079,12 +10079,12 @@
     },
     {
       "label": "lint: a fence closes only on a bare marker",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if _fence_closes(line, fence):",
-      "to": "            if _fence_opened(line):",
+      "from": "        elif _fence_closes(line, fence):",
+      "to": "        elif _fence_opened(line):",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -17313,53 +17313,54 @@
     },
     {
       "label": "ADR-074 T3: the old adr<digit> name arm is back",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/record-by-name.test.mjs"
       ],
-      "from": "    spec = re.match(r\"spec[-_]?\\d\", adr.name, re.I)",
-      "to": "    spec = re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I)",
+      "from": "_SPEC_NAME = re.compile(r\"spec[-_]?\\d\", re.I)",
+      "to": "_SPEC_NAME = re.compile(r\"(?:adr|spec)[-_]?\\d\", re.I)",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
     },
     {
       "label": "ADR-074 T3: the content arm is dropped",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/record-by-name.test.mjs"
       ],
-      "from": "    content = (status_value is not None and _RECORD_SECTION.search(text)",
-      "to": "    content = (False",
+      "from": "    recognised = heading and (bold or kept)",
+      "to": "    recognised = False",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
     },
     {
       "label": "ADR-074 T3: a Status alone admits a file",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/record-by-name.test.mjs"
       ],
-      "from": "    content = (status_value is not None and _RECORD_SECTION.search(text)",
-      "to": "    content = (status_value is not None",
+      "from": "    recognised = heading and (bold or kept)",
+      "to": "    recognised = True",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
     },
     {
       "label": "ADR-074 T3 (owner, after): content admits a record in any directory",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
         "tests/record-by-name.test.mjs"
       ],
-      "from": "    kept_as_records = \"tasks\" not in directories and any(_RECORD_DIRECTORY.match(part) for part in directories)",
-      "to": "    kept_as_records = True",
+      "from": "    kept = _kept_where_records_are(list(placed.parent.parts))",
+      "to": "    kept = True",
       "only": "^a Status section makes a record only in a directory records are kept in$"
     },
     {
       "label": "ADR-074 T3 (owner, after): a note under tasks/ reads as a record",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/lib/record.py",
       "tests": [
-        "tests/record-by-name.test.mjs"
+        "tests/record-by-name.test.mjs",
+        "tests/record-recognition.test.mjs"
       ],
-      "from": "    kept_as_records = \"tasks\" not in directories and any(_RECORD_DIRECTORY.match(part) for part in directories)",
-      "to": "    kept_as_records = any(_RECORD_DIRECTORY.match(part) for part in directories)",
-      "only": "^a Status section makes a record only in a directory records are kept in$"
+      "from": "    if \"tasks\" in (part.lower() for part in directories):\n        return False",
+      "to": "    if False:\n        return False",
+      "only": "^(?:a Status section makes a record only in a directory records are kept in|every row of the recognition table reads its approved answer in record.py and adr-lint)$"
     },
     {
       "label": "ADR-074 T4: adr-lint's unsigned human-proof advice is silent",
@@ -18666,8 +18667,8 @@
       "tests": [
         "tests/status-codex-316.test.mjs"
       ],
-      "from": "_RECORD_SECTION = re.compile(r\"^##\\s+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])\", re.M)",
-      "to": "_RECORD_SECTION = re.compile(r\"^##\\s+(?:Context|Decision)\\b\", re.M | re.I)",
+      "from": "_RECORD_SECTION = re.compile(r\"^##[^\\S\\r\\n]+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])\", re.M)",
+      "to": "_RECORD_SECTION = re.compile(r\"^##[^\\S\\r\\n]+(?:Context|Decision)\\b\", re.M | re.I)",
       "only": "^the Codex round of 3.1.6: a directory is a record directory by ASCII letters only"
     },
     {
@@ -21327,7 +21328,7 @@
       "tests": [
         "tests/not-recognised-reason.test.mjs"
       ],
-      "from": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records))}.\")",
+      "from": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records, arm))}.\")",
       "to": "              f\"\")",
       "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
     },
@@ -22460,6 +22461,106 @@
       "from": "  return value === null ? null : edgeTrim(value.replace(/[*_`]/g, ''))",
       "to": "  return value === null ? '' : edgeTrim(value.replace(/[*_`]/g, ''))",
       "only": "^an empty Status section reads an empty string and no Status reads null$"
+    },
+    {
+      "label": "ADR-092 T1: the canonical-name arm",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if _NUMBERED_REF.match(path.name):\n        return True, status_value, kept, \"canonical\"",
+      "to": "    if None:\n        return True, status_value, kept, \"canonical\"",
+      "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the content arm",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    recognised = heading and (bold or kept)",
+      "to": "    recognised = heading and bold",
+      "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the placement fallback",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    listed = _listed_relative(path, root)\n    return listed if listed is not None else path",
+      "to": "    return path",
+      "only": "^the link rows read their approved answers in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the templates exclusion",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts)):",
+      "to": "    if False:",
+      "only": "^a templates directory admits no record by either arm and the same file outside it is judged as any other$"
+    },
+    {
+      "label": "ADR-092 T1: the templates exclusion asks the listed path too",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts)):",
+      "to": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in placed.parent.parts):",
+      "only": "^the link rows read their approved answers in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the eligibility rule",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "                   or UNINTERESTING_DIRECTORY.fullmatch(part) for part in parts[:-1])",
+      "to": "                   for part in parts[:-1])",
+      "only": "^(?:corpus eligibility is one rule in record.py)$"
+    },
+    {
+      "label": "ADR-092 T1: the one-line heading",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        heading = heading or bool(_RECORD_SECTION.match(line))",
+      "to": "        heading = heading or bool(re.search(r\"^##\\s+(?:Context|Decision)\", text, re.M))",
+      "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the unfenced discriminators",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    for _index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)], document=True):\n        bold = bold or bool(_BOLD_STATUS.match(line))",
+      "to": "    for _index, line in enumerate([line for line, _start, _end in split_lines(text)]):\n        bold = bold or bool(_BOLD_STATUS.match(line))",
+      "only": "^a fenced example is not a discriminator$"
+    },
+    {
+      "label": "ADR-092 T1: the one title reading",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    title = _TITLE_NUMBER_RE.match(title_line(text) or \"\")",
+      "to": "    title = re.search(r\"^#\\s+ADR[-_ ]?(\\d{1,4})\\b\", text, re.M | re.I)",
+      "only": "^one title reading decides identity and adr-lint finds no false mismatch$"
+    },
+    {
+      "label": "ADR-092 T1: a note inside a record's own directory is not kept where records are",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "                record_id(below) is not None and not below.isdigit() for below in directories[index + 1:]):",
+      "to": "                False for below in directories[index + 1:]):",
+      "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
     }
   ]
 }

@@ -97,6 +97,11 @@ __all__ = [
     "references_in",
     "first_reference",
     "looks_like_record",
+    "recognised_as_record",
+    "record_placement",
+    "record_discriminators",
+    "corpus_eligible",
+    "UNINTERESTING_DIRECTORY",
 ]
 
 
@@ -550,7 +555,9 @@ _REF_SEPARATOR = re.compile(r"[/\\]")
 # character may not follow): `re.I` let `## Decıſıon` make a record here and nowhere else, and
 # Unicode `\b` refused `## Decisioné` where lifecycle's `readsAsRecord` admits it (the Codex round of
 # 3.1.6, the class of finding 5). `re.A` is not used, because it would narrow `\s` as well.
-_RECORD_SECTION = re.compile(r"^##\s+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])", re.M)
+# A heading is ONE line (ADR-092 Decision 1): the gap after `##` is whitespace that is not a line
+# break, so `##` alone on a line followed by `Decision` is no heading, as `_sections` reads it.
+_RECORD_SECTION = re.compile(r"^##[^\S\r\n]+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])", re.M)
 
 # ADR-074: one reading of a record's Status, shared by every Python reader and pinned
 # to lifecycle.mjs's by tests/status-reading.test.mjs. The label is any form lifecycle
@@ -663,8 +670,15 @@ def first_number_id(text, skip_dates=False):
 
 
 def title_line(text):
-    """The first `# ` heading line of a record's text, or None."""
-    for line, _start, _end in split_lines(text):
+    """The first `# ` heading line of a record's text, or None: outside a leading frontmatter block
+    and outside every fence (ADR-092 Decision 13), so a YAML comment or a fenced `# ADR-…` example
+    never decides a record's identity. adr-lint's title reading is this one; lifecycle.mjs's
+    `titleLine` mirrors it."""
+    lines = [line for line, _start, _end in split_lines(text)]
+    head = _frontmatter_close(lines)
+    for index, line in unfenced_numbered(lines, document=True):
+        if head is not None and index <= head:
+            continue
         if _HEADING_LINE.match(line):
             return line
     return None
@@ -754,6 +768,146 @@ def looks_like_record(text):
     `## Decision` section (lifecycle's `looksLikeRecord`). A section-only record was linted by
     adr-lint and silently absent from adr-retire-check's listing until then."""
     return bool(record_status(text)[0] is not None and _RECORD_SECTION.search(text))
+
+# ADR-092: ONE DEFINITION OF A RECORD. adr-lint asks it for its verdict and its not-recognised
+# message, and every other Python corpus reader for what it counts; lifecycle.mjs's
+# `recognisedAsRecord` is its only mirror, held to it by tests/fixtures/record-recognition.json.
+#
+# No file under a directory named `templates` is a record, by either arm (the owner, 2026-10-07).
+_TEMPLATES_DIRECTORY = re.compile(r"templates", re.I | re.A)
+# The spec name arm. `re.I` folds `ſpec` to `spec` and `\d` takes any decimal digit; lifecycle
+# reproduces both by hand (ADR-092 Decision 5).
+_SPEC_NAME = re.compile(r"spec[-_]?\d", re.I)
+# The content arm's exact label, the line this plugin's template writes (BACKLOG §141).
+_BOLD_STATUS = re.compile(r"\*\*Status:\*\*")
+# plugin/scripts/uninteresting.mjs's UNINTERESTING_DIRECTORY, in Python: fixture and generated trees
+# no record of the repository lives under. ASCII folding only, as JS's `/i` without `u` folds, and
+# JS's `.` stops at the four line terminators it knows.
+UNINTERESTING_DIRECTORY = re.compile(
+    r"(?:node_modules|vendor|target|dist|build|coverage|__pycache__|__snapshots__|fixtures?|testdata"
+    r"|golden(?:[-_][^\n\r  ]*)?)", re.I | re.A)
+
+
+def _relative_to(path, base):
+    try:
+        return Path(path).relative_to(base)
+    except ValueError:
+        return None
+
+
+def _listed_relative(path, root):
+    """`path` as listed, relative to `root`: through the real path of the directory it is listed
+    in, then as spelled against the root as spelled, then against the root's real path; None when
+    the listing is not under the root at all."""
+    absolute = Path(os.path.abspath(path))
+    try:
+        real_root = Path(os.path.realpath(root))
+        through_directory = Path(os.path.realpath(absolute.parent)) / absolute.name
+    except OSError:
+        real_root = through_directory = None
+    for candidate, base in ((through_directory, real_root), (absolute, Path(os.path.abspath(root))),
+                            (absolute, real_root)):
+        if candidate is not None and base is not None:
+            found = _relative_to(candidate, base)
+            if found is not None:
+                return found
+    return None
+
+
+def record_placement(path, root):
+    """Where a file sits, for the question "is it kept where records are" (ADR-092 Decision 2).
+
+    Its real path relative to the real root; when the real path leaves the root (a link to a file
+    outside the repository), the path as listed relative to the root; with no root, the path's own
+    components. One rule however the path is spelled: adr-lint read a relative and an absolute
+    spelling of one link differently, and the absolute one saw a `tasks` ancestor of the
+    repository itself (ADR-092 finding 1)."""
+    path = Path(path)
+    if root is None:
+        return path
+    try:
+        placed = _relative_to(Path(os.path.realpath(path)), Path(os.path.realpath(root)))
+    except OSError:
+        placed = None
+    if placed is not None:
+        return placed
+    listed = _listed_relative(path, root)
+    return listed if listed is not None else path
+
+
+def _kept_where_records_are(directories):
+    """Whether a file whose directories are `directories` is kept where records are: under a
+    directory `_RECORD_DIRECTORY` names, never under `tasks/`, and not inside a record's own
+    directory below it (`docs/adr/ADR-132/GAPS.md` is a note beside record 132, and a `## Status`
+    section in it made it a record to adr-lint; an outside probe run, 2026-10-07). A record's
+    own directory is one ADR-063 gives an identity; a bare number (`2024/`) is a year, not one."""
+    if "tasks" in (part.lower() for part in directories):
+        return False
+    for index, part in enumerate(directories):
+        if _RECORD_DIRECTORY.match(part) and not any(
+                record_id(below) is not None and not below.isdigit() for below in directories[index + 1:]):
+            return True
+    return False
+
+
+def record_discriminators(text):
+    """`(bold, heading)`: whether the text has a line-start `**Status:**` and a `## Context` or
+    `## Decision` heading, each read only outside every fence of the whole document (ADR-092
+    Decision 12), so a fenced example of a record's shape supplies neither."""
+    bold = heading = False
+    for _index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)], document=True):
+        bold = bold or bool(_BOLD_STATUS.match(line))
+        heading = heading or bool(_RECORD_SECTION.match(line))
+        if bold and heading:
+            break
+    return bold, heading
+
+
+def recognised_as_record(path, text, root):
+    """ADR-092 Decision 1: `(recognised, status_value, kept, arm)` for a file and its text.
+
+    Not a record, by either arm, when a `templates` directory is on its path as listed or on its
+    placed path (`arm` is "templates"). Otherwise a record when its name starts `ADR-<n>`
+    ("canonical") or `spec-<n>` ("spec"), whatever its directory. Otherwise, never for a file named
+    `README.md` (a catalog; `arm` is "readme"), it is a record by content when it carries a Status
+    (ADR-074 Decision 1) and a one-line `## Context` or `## Decision` heading, and either a
+    line-start `**Status:**` or is `kept` where records are ("content"). `status_value` is
+    `record_status`'s; `kept` is whether its placed path is in a record directory. `root` is the
+    repository root, which a caller walking a directory computes once."""
+    path = Path(path)
+    placed = record_placement(path, root)
+    listed = (_listed_relative(path, root) if root is not None else None) or path
+    status_value = record_status(text)[0]
+    kept = _kept_where_records_are(list(placed.parent.parts))
+    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts)):
+        return False, status_value, kept, "templates"
+    if _NUMBERED_REF.match(path.name):
+        return True, status_value, kept, "canonical"
+    if _SPEC_NAME.match(path.name):
+        return True, status_value, kept, "spec"
+    if path.name.lower() == "readme.md":
+        return False, status_value, kept, "readme"
+    if status_value is None:
+        return False, status_value, kept, None
+    bold, heading = record_discriminators(text)
+    recognised = heading and (bold or kept)
+    return recognised, status_value, kept, "content" if recognised else None
+
+
+def corpus_eligible(relative):
+    """ADR-092 Decision 3: whether a corpus walk considers a path relative to the walked root.
+
+    Its basename ends `.md` in any case, on every platform; it is not `README.md` in any case; and
+    no directory between the root and the file is `tasks`, `templates` or a fixture tree
+    (`UNINTERESTING_DIRECTORY`). Either separator splits it (CLAUDE.md §7)."""
+    parts = [part for part in re.split(r"[\\/]", str(relative)) if part]
+    if not parts:
+        return False
+    name = parts[-1].lower()
+    if not name.endswith(".md") or name == "readme.md":
+        return False
+    return not any(part.lower() == "tasks" or _TEMPLATES_DIRECTORY.fullmatch(part)
+                   or UNINTERESTING_DIRECTORY.fullmatch(part) for part in parts[:-1])
 
 
 # Memoised: adr-lint asks for one record's Status several times per run (main, check_adr, the done

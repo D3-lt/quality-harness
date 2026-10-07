@@ -1,0 +1,26 @@
+{
+  "date": "2026-10-06",
+  "at": "d39a15fc274f4947015bb918e59634d7d079bfc5",
+  "plugin": "3.8.10",
+  "kind": "probe",
+  "probeSha256": "74fb7e3846ab0934eeb6021496eb770e876ffadc217bf60b05a5c9c9e549ab46",
+  "readers": "19d2047ae224d57622ac0fd5f52c14cfa185141ce436582faa452c68a0423c01",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 25,
+    "tasks": 0,
+    "taskDirectories": 0
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "verdictChanges": {
+    "compared": 62,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "go-sdk-flat-adr",
+  "found": ""
+}

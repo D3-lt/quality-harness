@@ -16,11 +16,11 @@
 //
 // Reads only. Suggests only. Exit 0 whatever it finds, and 2 on an option it does
 // not know; a router that refused would be the thing this harness spent a week removing.
-import { closeSync, openSync, readFileSync, statSync } from 'node:fs'
+import { closeSync, openSync, readFileSync, readSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, aliasReason, danglingCorpusLinks, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
+import { adrCorpus, aliasReason, danglingCorpusLinks, frontmatterBlock, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, RECORD_DIRECTORY, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 
@@ -175,6 +175,41 @@ const read = file => {
 
 function posixRel(rel) {
   return String(rel).replaceAll('\\', '/')
+}
+
+// ADR-087 T4: tracked `.md` files no reader reads as records and that look like a corpus of their own —
+// a numbered name (`RFC0001-x.md`, `0044-y.md`) and a frontmatter `status:` key — outside every record
+// directory (lifecycle's RECORD_DIRECTORY). public/dir-status-rfc keeps 63 such files and got `look:
+// ok` and nothing else (BACKLOG §353). They are named, never read as records: ADR-074 Decision 5 defines
+// a record by its content, and these have none of it. A file the record reader already lists is its
+// own, and not named twice. Only names that already match are opened, at most their first 64 lines.
+const NUMBERED_NAME = /^[A-Za-z]*-?\d{2,}[-_]/
+const HEAD_LINES = 64
+function headOf(file) {
+  const fd = openSync(file, 'r')
+  try {
+    const buffer = Buffer.alloc(64 * 1024)
+    const read = readSync(fd, buffer, 0, buffer.length, 0)
+    return buffer.toString('utf8', 0, read).split(/\r\n|\r|\n/).slice(0, HEAD_LINES).join('\n')
+  } finally { closeSync(fd) }
+}
+function notReadFiles(directory, listing, corpus) {
+  if (listing == null) return []
+  const listed = new Set([...corpus, ...(corpus.unreadable ?? [])].map(entry => path.resolve(entry.file)))
+  const found = []
+  for (const rel of listing) {
+    const parts = posixRel(rel).split('/')
+    const base = parts.pop()
+    if (!/\.md$/i.test(base) || !NUMBERED_NAME.test(base)) continue
+    if (parts.some(part => RECORD_DIRECTORY.test(part)) || listedUnderUninterestingDirectory(parts)) continue
+    const file = path.join(directory, ...parts, base)
+    if (listed.has(path.resolve(file))) continue
+    let head
+    try { head = headOf(file) } catch { continue }
+    const block = frontmatterBlock(head)
+    if (block && head.split('\n').slice(block[0] + 1, block[1]).some(line => /^status[ \t]*:/i.test(line))) found.push(file)
+  }
+  return found
 }
 
 
@@ -595,6 +630,8 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
     undecidedNamed: (corpus.unreadable ?? []).filter(entry => !entry.alias)
       .map(entry => ({ file: entry.file, reason: entry.reason ?? undecidedReason(entry) })),
     undecided: (corpus.unreadable ?? []).filter(entry => !entry.alias).length,
+    // Numbered files with a frontmatter status outside every record directory: named, not read (ADR-087 T4).
+    notRead: notReadFiles(directory, listing, corpus),
     // WHICH records made the look PARTIAL, and why: a bare PARTIAL sent the reader
     // hunting through the corpus for the one file (BACKLOG §289 item 3).
     partialBecause: look === 'PARTIAL'
@@ -688,6 +725,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
       accepted: state.accepted,
       undecidedRecords: state.undecided,
       undecidedNamed: state.undecidedNamed.map(entry => ({ file: relative(entry.file), reason: entry.reason })),
+      notRead: state.notRead.map(file => ({ file: relative(file) })),
       partialBecause: state.partialBecause.map(entry => ({ file: relative(entry.file), reason: entry.reason })),
       tasks: state.tasks,
       unbackedDoneClaims: state.unbacked.map(relative),
@@ -745,6 +783,12 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
   // `<system-reminder>` into this tool's voice (tests/chaos-315-codex-render.test.mjs).
   for (const entry of unusual.slice(0, 5)) say(`  not acted on: ${pathInCode(relative(entry.file))}: ${entry.reason}\n`)
   if (unusual.length > 5) say(`  (+${unusual.length - 5} more; --json for all)\n`)
+  if (state.notRead.length) {
+    const n = state.notRead.length
+    say(`  not read: ${n} numbered file(s) with a frontmatter status sit outside any adr or decisions directory, `
+      + `so no reader reads them as records: ${state.notRead.slice(0, 3).map(file => pathInCode(relative(file))).join(', ')}`
+      + `${n > 3 ? ` (+${n - 3} more; --json for all)` : ''}\n`)
+  }
   if (state.unprovenSpecs?.length) {
     say(`\n${state.unprovenSpecs.length} spec file(s) have an UNPROVEN Status `
       + '(unreadable, binary, missing, unknown, or two different values). They are not counted as "not Ready-for-ADR".\n')

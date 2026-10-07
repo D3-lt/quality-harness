@@ -168,14 +168,20 @@ def unfenced_lines(lines):
     2026-09-23 from a Rust corpus). Same fence grammar as `_sections`, so what
     one walk skips the other skips too.
     """
+    return [line for _index, line in unfenced_numbered(lines)]
+
+
+def unfenced_numbered(lines):
+    """`(index, line)` for each line of `lines` outside a code fence: `unfenced_lines` with
+    each line's position kept, for a reader that must know where a line sits (ADR-087)."""
     out, fence = [], None
-    for line in lines:
+    for index, line in enumerate(lines):
         if fence is None:
             opened = _fence_opened(line)
             if opened:
                 fence = opened
                 continue
-            out.append(line)
+            out.append((index, line))
         elif _fence_closes(line, fence):
             fence = None
     return out
@@ -536,6 +542,11 @@ _RECORD_SECTION = re.compile(r"^##\s+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc
 # it, so the record is undecided — not a line to skip so a later label or a `## Status` section can
 # govern instead (the Codex round of 3.1.6, finding 2). `Status: ` with a trailing space already read so.
 _STATUS_LINE = re.compile(r"^[ \t]*\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$")
+# ADR-087 T2: MADR 2's list-item Status, `* Status: accepted` or `- Status: accepted`, is the same
+# label after a bullet, read only above the record's first unfenced `## ` heading; below it a bullet is
+# body text. An inline label anywhere still wins, and a bullet wins over a `## Status` section.
+# lifecycle.mjs's STATUS_BULLET is the same pattern.
+_STATUS_BULLET = re.compile(r"^[ \t]*[*-][ \t]+\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$")
 # The only whitespace at a value's edges, in both languages: exactly what `str.strip()` and JS
 # `trim()` BOTH remove, so a no-break space after the label reads as it did at ebfaee0 (the React SPA corpus
 # at 084d925: leaving it out made a governing record undecided, invisibly), while the two they
@@ -551,11 +562,47 @@ _EDGE_SPACE = "".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680
 _RECORD_DIRECTORY = re.compile(r"^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$", re.I | re.A)
 _STATUS_MARKUP = re.compile(r"[*_`]")
 _STATUS_RUN = re.compile(r"[^\W_]+")
+# ADR-087 adds `active`: four public corpora write it for a record in force (public/swift-adrs,
+# public/active-status-adr, public/frontmatter-adr, public/small-active-adr; measured 2026-10-06),
+# and the owner accepted it as a status in every form, not only frontmatter.
 _STATUS_KINDS = {
-    "accepted": "governing",
+    "accepted": "governing", "active": "governing",
     "proposed": "pending", "draft": "pending",
     "superseded": "graveyard", "withdrawn": "graveyard", "rejected": "graveyard", "deprecated": "graveyard",
 }
+# ADR-087 T1: a leading YAML frontmatter block — the text's first line is `---` (after a byte-order
+# mark, with trailing blanks), and the block ends at the next `---` or `...` line. An unclosed block is
+# not one. lifecycle.mjs's `frontmatterBlock` is the same rule.
+_FRONTMATTER_OPEN = re.compile("﻿?---[ \t]*")
+_FRONTMATTER_CLOSE = re.compile(r"(?:---|\.\.\.)[ \t]*")
+# Inside the block only, a value wholly inside one pair of `"` or `'` is read without them, and a
+# ` #` comment after the value is dropped: YAML's quoting, which MADR 4's template writes
+# (`status: "accepted"`). Outside the block a quote is part of the value (ADR-087 F-2).
+_FRONTMATTER_QUOTED = re.compile(r"""(?:"([^"]*)"|'([^']*)')(?:[ \t]+#[^\r\n]*)?""")
+_FRONTMATTER_COMMENT = re.compile(r"[ \t]+#[^\r\n]*$")
+
+
+def frontmatter_block(text):
+    """ADR-087 T1: `(first, last)`, the 0-based line indices of a leading frontmatter block's
+    opening and closing `---` lines, or None when the text has no closed block at its top."""
+    lines = [line for line, _start, _end in split_lines(text)]
+    if not lines or not _FRONTMATTER_OPEN.fullmatch(lines[0]):
+        return None
+    for index in range(1, len(lines)):
+        if _FRONTMATTER_CLOSE.fullmatch(lines[index]):
+            return 0, index
+    return None
+
+
+def _frontmatter_value(value):
+    """A frontmatter value as YAML writes it, without its one enclosing quote pair or a trailing
+    ` #` comment (ADR-087 F-2). A value starting with `{` or `<` is left for the lookup to find no
+    word in, so a template placeholder stays undecided."""
+    value = value.strip(_EDGE_SPACE)
+    quoted = _FRONTMATTER_QUOTED.fullmatch(value)
+    if quoted:
+        return quoted.group(1) if quoted.group(1) is not None else quoted.group(2)
+    return _FRONTMATTER_COMMENT.sub("", value)
 
 
 def number_id(number):
@@ -680,13 +727,26 @@ def record_status(text):
 
     The value is what follows the first Status label or, when there is none, the first
     non-empty line of the `## Status` section (ADR-074 T2), with every `*`, `_` and
-    backtick removed; `source` says where it was read (`inline` or `section`). A caller
-    reading WHICH record a supersession names reads the raw line itself: removing `_` is
-    right for classifying and wrong for a name (lifecycle.mjs `rawStatus`)."""
-    for line in unfenced_lines([line for line, _start, _end in split_lines(text)]):
+    backtick removed; `source` says where it was read (`inline` or `section`). A label
+    inside a leading frontmatter block is read as YAML writes it, quotes and a trailing
+    comment removed first (ADR-087 T1). A caller reading WHICH record a supersession
+    names reads the raw line itself: removing `_` is right for classifying and wrong for
+    a name (lifecycle.mjs `rawStatus`)."""
+    block = frontmatter_block(text)
+    bullet, above = None, True
+    for index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)]):
         found = _STATUS_LINE.match(line)
         if found:
-            return _STATUS_MARKUP.sub("", found.group(1)).strip(_EDGE_SPACE), "inline"
+            value = found.group(1)
+            if block is not None and block[0] < index < block[1]:
+                value = _frontmatter_value(value)
+            return _STATUS_MARKUP.sub("", value).strip(_EDGE_SPACE), "inline"
+        if above and _HEADING.match(line):
+            above = False
+        elif above and bullet is None:
+            bullet = _STATUS_BULLET.match(line)
+    if bullet:
+        return _STATUS_MARKUP.sub("", bullet.group(1)).strip(_EDGE_SPACE), "inline"
     section = status_section(text)
     return (section, "section") if section is not None else (None, None)
 

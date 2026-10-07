@@ -31,7 +31,7 @@ const unread = report => Object.fromEntries(report.unread.map(entry => [entry.fi
 // The words lifecycle's kind and adr-state's pending test act on, as lifecycle reads a status.
 // Since ADR-074 every reader reads a status that way (tests/status-reading.test.mjs), so a
 // fullwidth colon, which starts the value with punctuation, is undecided in all of them.
-const UNKNOWN_WORD = /its status does not start with a word this reader knows \(Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated\)/
+const UNKNOWN_WORD = /its status does not start with a word this reader knows \(Accepted, Active, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated\)/
 const NO_STATUS = /no \*\*Status:\*\* value this reader can read/
 
 test('adr-state --json says why it did not read each record it opened, and keeps `reason` for one it never read', () => {

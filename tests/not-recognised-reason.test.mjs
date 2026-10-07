@@ -21,7 +21,7 @@ function corpus() {
   assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
   mkdirSync(join(repo, 'docs', 'decisions'), { recursive: true })
   writeFileSync(join(repo, 'docs', 'decisions', '026-invert-the-prompt.md'),
-    '---\nstatus: active\nsupersedes: []\n---\n\n# Invert the prompt\n\nWe invert it, because the model reads the tail.\n')
+    '---\nstatus: on hold\nsupersedes: []\n---\n\n# Invert the prompt\n\nWe invert it, because the model reads the tail.\n')
   spawnSync('git', ['add', '-A'], { cwd: repo, timeout: 30_000, windowsHide: true })
   return repo
 }
@@ -32,7 +32,7 @@ test('a not-recognised file is told what it lacks, and the probe carries the rea
     { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
   assert.equal(lint.status, 2, lint.stdout)
   assert.match(lint.stdout, /This file: .*no `## Context` or `## Decision` heading/, lint.stdout)
-  assert.match(lint.stdout, /its Status `active` is not a status any reader acts on/, lint.stdout)
+  assert.match(lint.stdout, /its Status `on hold` is not a status any reader acts on/, lint.stdout)
   const probe = spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'corpus-probe.mjs'), '--json'],
     { cwd: repo, encoding: 'utf8', timeout: 120_000, windowsHide: true })
   const row = (JSON.parse(probe.stdout).adrLint ?? []).find(r => /026-invert/.test(r.file))

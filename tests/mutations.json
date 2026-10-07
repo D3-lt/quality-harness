@@ -17329,7 +17329,7 @@
       "tests": [
         "tests/record-by-name.test.mjs"
       ],
-      "from": "    recognised = heading and (bold or kept)",
+      "from": "    recognised = heading and (kept or (bold and status_kind(status_value) is not None))",
       "to": "    recognised = False",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
     },
@@ -17339,7 +17339,7 @@
       "tests": [
         "tests/record-by-name.test.mjs"
       ],
-      "from": "    recognised = heading and (bold or kept)",
+      "from": "    recognised = heading and (kept or (bold and status_kind(status_value) is not None))",
       "to": "    recognised = True",
       "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
     },
@@ -22080,7 +22080,7 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "  const recognised = heading && (bold || kept)",
+      "from": "  const recognised = heading && (kept || (bold && recordStatusKind(status) !== null))",
       "to": "  const recognised = heading",
       "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
     },
@@ -22462,8 +22462,8 @@
       "tests": [
         "tests/record-recognition.test.mjs"
       ],
-      "from": "    recognised = heading and (bold or kept)",
-      "to": "    recognised = heading and bold",
+      "from": "    recognised = heading and (kept or (bold and status_kind(status_value) is not None))",
+      "to": "    recognised = heading and (bold and status_kind(status_value) is not None)",
       "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
     },
     {
@@ -23426,6 +23426,26 @@
       "from": "            catalog = read_regular(Path(root) / parent / directory / \"README.md\")",
       "to": "            catalog = (Path(root) / parent / directory / \"README.md\").read_text(encoding=\"utf-8\", errors=\"replace\")",
       "only": "^an archive catalog that is a FIFO contributes nothing and is never opened$"
+    },
+    {
+      "label": "ADR-092 outside probe: a content record outside a record directory needs no recognised Status (Python)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    recognised = heading and (kept or (bold and status_kind(status_value) is not None))",
+      "to": "    recognised = heading and (kept or bold)",
+      "only": "^every row of the recognition table reads its approved answer in record\\.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 outside probe: a content record outside a record directory needs no recognised Status (JS)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "  const recognised = heading && (kept || (bold && recordStatusKind(status) !== null))",
+      "to": "  const recognised = heading && (kept || bold)",
+      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
     }
   ]
 }

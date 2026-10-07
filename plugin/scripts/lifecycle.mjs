@@ -2808,7 +2808,10 @@ export function recognisedAsRecord(root, file, text, { platform = process.platfo
   if (base.toLowerCase() === 'readme.md') return answer(false, 'readme')
   if (status === null) return answer(false, null)
   const { bold, heading } = recordDiscriminators(text)
-  const recognised = heading && (bold || kept)
+  // record.py's rule: outside a record directory the Status must be one adr-lint recognises, so a product
+  // requirements document or a report with a `**Status:**` line and a `## Context` heading is no record
+  // (an outside probe of a PHP monolith, 2026-10-07); kept where records are, an unknown Status is undecided.
+  const recognised = heading && (kept || (bold && recordStatusKind(status) !== null))
   return answer(recognised, recognised ? 'content' : null)
 }
 

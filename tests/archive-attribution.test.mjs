@@ -34,7 +34,7 @@ const CALL = [
   "loader = importlib.machinery.SourceFileLoader('adr_retire_check', sys.argv[1])",
   "module = importlib.util.module_from_spec(importlib.util.spec_from_loader('adr_retire_check', loader))",
   'loader.exec_module(module)',
-  'print(json.dumps(eval(sys.stdin.read(), {"module": module, "Path": Path})))',
+  'print(json.dumps(eval(sys.stdin.buffer.read().decode("utf-8"), {"module": module, "Path": Path})))',
 ].join('\n')
 function call(expression, cwd) {
   const r = runPython(['-c', CALL, retireCheck], { cwd, input: expression, encoding: 'utf8', timeout: 120_000 })

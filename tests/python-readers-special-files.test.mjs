@@ -48,7 +48,7 @@ const CALL = [
   "loader = importlib.machinery.SourceFileLoader('gate_under_test', sys.argv[1])",
   "module = importlib.util.module_from_spec(importlib.util.spec_from_loader('gate_under_test', loader))",
   'loader.exec_module(module)',
-  'expression = sys.stdin.read()',
+  'expression = sys.stdin.buffer.read().decode("utf-8")',
   'out, err = io.StringIO(), io.StringIO()',
   'result = {}',
   'try:',

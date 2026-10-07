@@ -22160,8 +22160,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (problem.size > CANDIDATE_BYTES) {",
-      "to": "    if (false) {",
+      "from": "    try { text = readRegularText(file, CANDIDATE_BYTES) } catch (error) {",
+      "to": "    try { text = readRegularText(file) } catch (error) {",
       "only": "a numbered file whose frontmatter runs past 64 lines is named, and past the budget is PARTIAL"
     },
     {
@@ -22962,8 +22962,8 @@
       "tests": [
         "tests/record-naming.test.mjs"
       ],
-      "from": "    if (problem.size > CANDIDATE_BYTES) {",
-      "to": "    if (null) {",
+      "from": "      failed.push({ file, reason: error?.code === 'EFBIG' ? `it runs past",
+      "to": "      failed.push({ file, reason: false ? `it runs past",
       "only": "^a candidate past the read budget is PARTIAL and named$"
     },
     {

@@ -72,7 +72,8 @@ test('a run report whose own verdict is a failure still stops', () => {
     'not approved: red run 111: TestAlphaRefusesFirst failed; green run 222: ok',
     'observed: red run 111: TestAlphaRefusesFirst failed; the rollout stopped; green run 222: ok', // a clause between them
     'observed: red run 111: TestAlphaRefusesFirst failed; second run 222: ok',                 // a run nobody called green
-    'observed: red run 111: TestAlphaRefusesFirst failed; green run 222: ok; then the deploy check (it failed on prod)', // an aside after the green clause
+    'observed: red run 111: TestAlphaRefusesFirst failed; green run 222: ok; then the deploy check (it fails on prod)', // a present-tense aside after the green clause
+    'observed: red run 111: TestAlphaRefusesFirst failed; green run 222: ok (the deploy failed)', // an aside reporting what happened
     'observed: red run 110: TestBetaHoldsLock failed; red run 111: TestAlphaRefusesFirst failed; green run 222: ok',
   ]) assert.deepEqual(doneIds(watched(note)), [], note)
 })
@@ -83,16 +84,16 @@ test('a stop after a run report names its own word, not the red run it quoted', 
   assert.match(t1?.stopped_by ?? '', /^a human sign-off says stop on «stopped»/, JSON.stringify(t1))
 })
 
-test('a known width: an aside inside the green run, after its pass word, is read as the run report', () => {
+test('a known fail-open: a present-tense aside inside the green run, after its pass word, is read as the run report', () => {
   // Text cannot tell "(TestGammaNeedsTool fails on a missing tool)", which says how a test refuses to
-  // skip, from "(the deploy failed)". Pinned so that narrowing it is a decision, not an accident.
-  assert.deepEqual(doneIds(watched('observed: red run 111: TestAlphaRefusesFirst failed; green run 222: ok (the deploy failed)')), ['T1'])
+  // skip, from "(the deploy fails)". Pinned so that narrowing it is a decision, not an accident (§361).
+  assert.deepEqual(doneIds(watched('observed: red run 111: TestAlphaRefusesFirst failed; green run 222: ok (the deploy fails)')), ['T1'])
 })
 
 test('"no tests failed" names an absent failure; anything wider still stops', () => {
   for (const note of ['approved; no tests failed', 'approved; no failed tests', 'observed; no checks failed'])
     assert.deepEqual(doneIds(watched(note)), ['T1'], note)
-  for (const note of ['No it failed', 'approved; no tests ran; the build failed', 'approved; no tests failed but the deploy failed',
+  for (const note of ['No it failed', 'observed. No, tests failed', 'approved; no tests ran; the build failed', 'approved; no tests failed but the deploy failed',
     'approved; two tests failed', 'approved; no deploys failed', 'approved; no tests stopped'])
     assert.deepEqual(doneIds(watched(note)), [], note)
 })

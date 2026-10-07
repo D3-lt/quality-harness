@@ -18485,7 +18485,7 @@ Every commit sha changed again: shas written before this entry, attestations at 
 fb27573 included, refer to an earlier history and are left as written (§10). A finding from outside is
 reproduced from now on with invented names, never with the corpus's own (CLAUDE.md §6).
 
-## 361. CLOSED 2026-10-08 — A sign-off that quotes its red run before the green one read as a stop
+## 361. PARTLY CLOSED 2026-10-08 — A sign-off that quotes its red run before the green one read as a stop; one known fail-open left open
 
 From an outside session (reproduced here with invented names). A human-observed sign-off affirmed what
 it saw, "observed: … red run 111 (tests alone on main): TestAlphaRefusesFirst failed …; green run 222 on
@@ -18504,12 +18504,21 @@ outrank a stop (§354). Not fail-open: the safe direction, but a done task held 
   `stop_words`, so a stop's reason names its own word, never the red run's.
 - **The absence form.** `NEUTRALISED` reads "no tests failed" and "no failed tests" as an absence for a
   closed list of nouns only (tests, checks, jobs, cases). "No it failed" and "no deploys failed" stop.
-- **Known width, pinned by a test:** "green run 222: ok (the deploy failed)" reads as a run report. Text
-  cannot tell that aside from the one in the report. A first cut also required the green run to be the
-  very next clause. Its mutant stayed GREEN: the red clause is blanked only to its first break, so a
-  clause between them already speaks. The guard is removed.
+- **The aside is blanked only when it is present tense.** An aside's negative words must all be
+  `fail`/`fails`: a present-tense aside says how something behaves, and a past-tense one reports what
+  happened. "green run 222: ok (the deploy failed)" still stops. The first cut blanked any aside, which
+  made that note done, and that was a fail-open.
+- **⚠ KNOWN FAIL-OPEN, OPEN, pinned by a test:** "green run 222: ok (the deploy fails)" reads as done.
+  Text cannot tell that aside from the report's "(TestGammaNeedsTool fails on …)". There are two ways
+  to close it, and the owner decides which: no aside is ever blanked, so the reported row stays a false
+  stop; or the residual is accepted and named in the release notes.
+- **A guard removed.** A first cut also required the green run to be the very next clause. Its mutant
+  stayed GREEN, because the red clause is blanked only to its first break, so a clause between them is
+  read anyway. The guard is removed.
 - **Enumeration:** `mrw read --grep 'AFFIRMATIVE|NEGATIVE_WORD|human_outcome|humanOutcome|NEUTRALISED'
   plugin/` returns two files: `plugin/bin/adr-next`, the only classifier, and `plugin/lib/record.py:1048`,
   a docstring naming it. No JavaScript copy exists to drift.
-- Test `tests/human-stop-red-green.test.mjs`: seven false-stop rows are now done, and 21 twins still stop.
-  Twelve new mutants are RED. The repointed entry, and the 39 existing entries that the sign-off labels select, re-ran RED.
+- Test `tests/human-stop-red-green.test.mjs`: seven false-stop rows are now done, and 23 twins still stop.
+  Fourteen new mutants are RED. One of them went GREEN first, because its twin row's aside was past tense;
+  the row is now present tense. The repointed entry is RED, and so are the 39 existing entries the sign-off
+  labels select.

@@ -4203,6 +4203,25 @@ test('work-next: README shapes adr-lint reads are claims, and a task adr-next ne
     'a task adr-next did not list is judged by its own evidence, not by its absence — in both directions')
 })
 
+// adr-next lists the `.MD` tasks of the test above, so its "unlisted" tasks are judged by adr-next and
+// that test no longer reaches the fallback (two catalogue mutants stayed GREEN in the full campaign).
+// adr-next is asked only about a governing record's tasks, so a Proposed record's tasks are ones it never
+// reads, and their done claims are judged by their own evidence — in both directions.
+test('work-next: a task adr-next was never asked about is judged by its own evidence', async () => {
+  const { observe } = await import('../plugin/scripts/work-next.mjs')
+  const root = await mkdtemp(path.join(testTmp, 'quality-router-unasked-'))
+  const tasks = path.join(root, 'docs', 'adr', 'tasks')
+  await mkdir(tasks, { recursive: true })
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-thing.md'), '# ADR-001: A thing\n\n**Status:** Proposed\n')
+  await writeFile(path.join(tasks, 'T1.md'), '# Task ADR-001-T1\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n')
+  await writeFile(path.join(tasks, 'T2.md'), '# Task ADR-001-T2\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n')
+  gitInit(root)
+  const seen = observe(root)
+  assert.deepEqual(seen.unbacked.map(file => path.basename(file)), ['T1.md'],
+    'T1 claims done with no exit-0 entry; T2 carries one, and adr-next was never asked about either')
+})
+
 // ADR-068 T2. After a compaction the Bash tool picks up the exports only from the next
 // user prompt (measured 2026-09-26), so git's refusal is not yet in force; the session
 // is told once, while that holds. CLAUDE_ENV_FILE is emptied so no real file is touched.

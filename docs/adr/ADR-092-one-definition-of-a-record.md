@@ -1,6 +1,6 @@
 # ADR-092: One definition of a record, in Python, with lifecycle as its only mirror
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-07
 **Owner:** Zy
 **Spec:** None — no spec stage; the inputs are a review's twelve findings, and the approved answers table under Decision 6 is the form a spec's facts would take

@@ -419,3 +419,33 @@ test('a skip whose ledger cannot be written is said, and still skips', () => {
     assert.equal(runs(fixture).length, 1, 'the check did not run again')
   } finally { done(fixture) }
 })
+
+// ADR-088 Follow-ups: qh-check ends every record with a newline, so a last line without one was
+// not written whole even when it parses. Both readers of a pass here read it as the importer does.
+test('an unterminated last line proves nothing, in either ledger', () => {
+  for (const cut of [true, false]) {
+    const fixture = repository()
+    try {
+      assert.equal(check(fixture).status, 0)
+      const file = join(state(fixture), 'checks.jsonl')
+      const text = readFileSync(file, 'utf8')
+      assert.ok(text.endsWith('}\n'), text)
+      // A passing record cut right after its closing brace: it parses, and it was not written whole.
+      if (cut) writeFileSync(file, text.slice(0, -1))
+      assert.equal(check(fixture).status, 0)
+      assert.equal(runs(fixture).length, cut ? 2 : 1, cut ? 'a pass cut after its brace was skipped on' : 'the twin: a whole pass is skipped on')
+    } finally { done(fixture) }
+    const fast = repository({ check: FULL, fastCheck: FAST })
+    try {
+      changed(fast)
+      fastPassed(fast)
+      const file = join(state(fast), 'fast-checks.jsonl')
+      const text = readFileSync(file, 'utf8')
+      assert.ok(text.endsWith('}\n'), text)
+      if (cut) writeFileSync(file, text.slice(0, -1))
+      const run = hook(fast, 'git commit -m x', `ledger-fast-cut-${cut}`)
+      if (cut) assert.equal(decision(run), 'deny', `a fast pass cut after its brace exempted the commit: ${run.stdout}`)
+      else assert.notEqual(decision(run), 'deny', `the twin: a whole fast pass is told, not refused: ${run.stdout}`)
+    } finally { done(fast) }
+  }
+})

@@ -2742,7 +2742,9 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=
 
 def record_relock(task, text, cmd, cwd, today, replace_hashes):
     """Append a current lock snapshot. Does not run the Acceptance fence (ADR-052)."""
-    if not vlog_has_test_lock(text):
+    # ADR-088: a row whose sha does not fit this repository is not one adr-verify wrote, so its lock
+    # is no lock to relock, as `lock_findings` and `first_red_lock_suffix` read it.
+    if not vlog_has_test_lock(text, object_format(cwd)):
         fail("--relock needs a trailing lock already on the Verification Log; "
              "an empty log has none. Record first-red with ordinary adr-verify.")
     tests = tests_table_rows(text)
@@ -2758,7 +2760,7 @@ def record_relock(task, text, cmd, cwd, today, replace_hashes):
              "but not as UTF-8 text, or not openable by this process, so a lock taken now would hash "
              "nothing for its tests and leave them unlocked. Make it readable, then relock.")
     if not replace_hashes:
-        hasher = lock_hasher(vlog)
+        hasher = lock_hasher(vlog, root=cwd)
         if hasher is None:
             fail("the recorded lock could not be read — UNPROVEN; default --relock compares "
                  "before it replaces, so pass --replace-hashes to replace it unread")

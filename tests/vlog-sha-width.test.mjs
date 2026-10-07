@@ -191,3 +191,86 @@ test('a lock snapshot whose sha does not fit does not stand in for the recovery 
     }
   }
 })
+
+// ADR-088 Follow-ups: the writer's own lock readers (`record_relock`'s lock check, `lock_hasher`,
+// `moved_lock_bodies`) took every width, so under `adr-verify --relock` a row whose sha git cannot
+// print in a SHA-1 repository stood in for the lock the readers of a `done` never read.
+function lockedTask() {
+  const dir = corpus('sha1', hex(7))
+  const file = path.join(dir, T1)
+  writeFileSync(file, readFileSync(file, 'utf8').replace(/\n- 2026-08-\d\d · [^\n]*/g, '')
+    .replace('| `TestAdd` | `internal/cart/cart_test.go` |', '| `adds` | `add.test.mjs` |'))
+  const locked = path.join(dir, 'add.test.mjs')
+  writeFileSync(locked, "import test from 'node:test'\ntest('adds', () => {\n  if (1 + 1 !== 2) throw new Error('no')\n})\n")
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'base', '--no-gpg-sign')
+  const verify = (...args) => spawnSync(python, [adrVerify, file, ...args], { cwd: dir, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  const grepped = path.join(dir, 'internal', 'cart', 'cart_test.go')
+  renameSync(grepped, `${grepped}.aside`)
+  assert.notEqual(verify().status, 0, 'the red run')
+  renameSync(`${grepped}.aside`, grepped)
+  assert.equal(verify().status, 0)
+  return { dir, file, locked, verify }
+}
+
+test('relock finds no lock in a row whose sha does not fit', () => {
+  const digest = '623181b72832111cc47bf1d638a511e35e20e2c913c90ee60fd97acfb278635e'
+  for (const width of [41, 7]) {
+    const dir = corpus('sha1', hex(7))
+    const file = path.join(dir, T1)
+    const red = `- 2026-10-06 · ${hex(7)} · exit 1 · \`grep -q 'func TestAdd' internal/cart/cart_test.go\` · acceptance-sha256:${digest} · ms:5`
+    const snapshot = `- 2026-10-06 · ${hex(width)} · exit 0 · \`adr-verify --relock\` · acceptance-sha256:${digest} · ms:0 · test-lock-sha256:${'0'.repeat(64)} · test-lock-b64:AAAA · test-lock-kind:relock`
+    writeFileSync(file, readFileSync(file, 'utf8').replace(/\n- 2026-08-\d\d · [^\n]*/, `\n${red}\n${snapshot}`))
+    const run = spawnSync(python, [adrVerify, file, '--relock', '--replace-hashes'], { cwd: dir, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+    if (width === 41) {
+      assert.notEqual(run.status, 0, `a lock git could not have written was relocked: ${run.stdout}`)
+      assert.match(run.stdout + run.stderr, /needs a trailing lock already/)
+    } else {
+      // The twin: a snapshot git could have written is a lock to relock.
+      assert.equal(run.status, 0, run.stdout + run.stderr)
+    }
+  }
+})
+
+test("relock reads the hasher from the rows whose sha fits", () => {
+  for (const width of [41, 7]) {
+    const { file, verify } = lockedTask()
+    const text = readFileSync(file, 'utf8')
+    const digest = text.match(/acceptance-sha256:([0-9a-f]{64})/)[1]
+    // A replacement lock that cannot be read, on a row whose sha is `width` characters.
+    const unread = `- 2026-10-06 · ${hex(width)} · exit 0 · \`adr-verify --relock\` · acceptance-sha256:${digest} · ms:0 · test-lock-sha256:${'0'.repeat(64)} · test-lock-b64:AAAA · test-lock-kind:relock`
+    const rows = text.split('\n')
+    rows.splice(rows.findLastIndex(line => / · exit 0 · /.test(line)) + 1, 0, unread)
+    writeFileSync(file, rows.join('\n'))
+    const run = verify('--relock')
+    if (width === 41) {
+      assert.equal(run.status, 0, `a row git could not have written decided the hasher: ${run.stdout}${run.stderr}`)
+    } else {
+      // The twin: a row git could have written is the recorded lock, and it cannot be read.
+      assert.notEqual(run.status, 0, run.stdout + run.stderr)
+      assert.match(run.stdout + run.stderr, /the recorded lock could not be read/)
+    }
+  }
+})
+
+test('relock compares bodies with the lock whose sha fits', () => {
+  for (const width of [41, 7]) {
+    const { file, locked, verify } = lockedTask()
+    writeFileSync(locked, readFileSync(locked, 'utf8').replace('1 + 1', '2 + 0'))
+    const refused = verify('--relock')
+    assert.notEqual(refused.status, 0, 'the control: a moved body is not relocked by default')
+    assert.match(refused.stdout + refused.stderr, /hashed body moved/)
+    assert.equal(verify('--relock', '--replace-hashes').status, 0)
+    const text = readFileSync(file, 'utf8')
+    const snapshot = text.split('\n').find(line => line.includes('`adr-verify --relock --replace-hashes`'))
+    writeFileSync(file, text.replace(snapshot, snapshot.replace(snapshot.split(' · ')[1], hex(width))))
+    const run = verify('--relock')
+    if (width === 41) {
+      assert.notEqual(run.status, 0, `a snapshot git could not have written hid a moved body: ${run.stdout}`)
+      assert.match(run.stdout + run.stderr, /hashed body moved/)
+    } else {
+      // The twin: a snapshot git could have written is the lock the body is compared with.
+      assert.equal(run.status, 0, run.stdout + run.stderr)
+    }
+  }
+})

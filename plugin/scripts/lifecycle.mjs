@@ -746,7 +746,11 @@ export function latestFastPass(cwd, tree, root = cwd) {
   let latest = null
   let latestSeq = 0
   let count = 0
-  for (const line of text.split('\n')) {
+  // ⚠ qh-check ends every record with a newline, so a last line without one was not written
+  // whole even when it parses, and proves nothing: read as the importer reads `checks.jsonl`.
+  const lines = text.split('\n')
+  if (lines.pop().trim()) return null
+  for (const line of lines) {
     if (!line.trim()) continue
     let record
     try { record = JSON.parse(line) } catch { return null }
@@ -5868,17 +5872,30 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
   const indexStanding = checkStanding(log, now.index)
   const treeUnchecked = treeStanding !== 'passed' && (baseline?.ok !== true || now.tree !== baseline.tree)
   const indexUnchecked = indexStanding !== 'passed' && (baseline?.ok !== true || now.index !== baseline.index)
-  if (!treeUnchecked && !indexUnchecked) return null
+  const revision = checkRevision(log, now.tree)
+  // A record that could not be read whole is a state of its own: advice already given on this tree
+  // must not swallow the could-not-look advice that follows it (a review of 8fe4fa8).
+  const key = `${now.tree}:${now.index}:${revision}${logIncomplete(log) ? ':unknown' : ''}`
+  if (!treeUnchecked && !indexUnchecked) {
+    // ⚠ A TREE AND INDEX EQUAL TO THE BASELINE NEED NO CHECK (ADR-061), BUT A RECORD NOT READ
+    // WHOLE IS STILL SAID. This returned null whatever the ledger held, so a torn `checks.jsonl`
+    // went unsaid at every baseline-equal publish, from PreToolUse and from git's own hook alike
+    // (ADR-088 Follow-ups). Advice, never a refusal: nothing here needs a check, and the record
+    // that tore is what later verdicts on this repository will have to read.
+    if (!logIncomplete(log)) return null
+    return {
+      deny: false, unknown: true, key, detail: { tree: now.tree, revision },
+      text: `quality-harness: ${tornRecord(log, 'the session log')} could not be read whole, so what \`qh-check\` recorded here cannot be shown. The command `
+        + (invoked !== null ? `about to run names commit or push (\`${invoked}\`)` : 'about to run only mentions commit or push')
+        + ' on a working tree and index unchanged since the session started, which need no check, so nothing is refused. While that record stays torn, a publish of changed work here is advice, never refused (ADR-061).',
+    }
+  }
   // ⚠ THE TREE'S STANDING DECIDES THE REFUSAL, and only the tree's. An index whose
   // check could not look is a finding about the index; folding it in here let it
   // rescue a working tree that FAILED (Codex review round 2, 2026-09-22).
   const unordered = treeStanding === 'unresolved'
   const couldNotLook = treeStanding === 'could-not-look'
   const indexUnknown = indexStanding === 'unresolved' || indexStanding === 'could-not-look'
-  const revision = checkRevision(log, now.tree)
-  // A record that could not be read whole is a state of its own: advice already given on this tree
-  // must not swallow the could-not-look advice that follows it (a review of 8fe4fa8).
-  const key = `${now.tree}:${now.index}:${revision}${logIncomplete(log) ? ':unknown' : ''}`
   // ⚠ ONLY THE TREE CAN REFUSE. A check runs on the working tree, and the index is
   // compared against those trees, so a staged change beside an untracked file
   // equals no checked tree and was denied after every pass (found live by a peer,

@@ -87,7 +87,11 @@ export function passedAlready({ root, git, command, env = process.env, observeTr
   let latest = null
   let seq = 0
   let latestSeq = 0
-  for (const line of text.split('\n')) {
+  // ⚠ qh-check ends every record with a newline, so a last line without one was not written
+  // whole even when it parses, and proves nothing: read as the importer reads it (ADR-088).
+  const lines = text.split('\n')
+  if (lines.pop().trim()) return null
+  for (const line of lines) {
     if (!line.trim()) continue
     let record
     try { record = JSON.parse(line) } catch { return null }

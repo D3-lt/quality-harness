@@ -3633,8 +3633,9 @@ def moved_lock_bodies(vlog, *, current, root=None):
     """Recorded hashed bodies that vanished or whose digest moved.
 
     Its one caller, `adr-verify --relock`, refuses first when a Tests-row file is there and could
-    not be read, so no body here is "moved" for want of a read (BACKLOG §350 item 1)."""
-    _date, recorded = _recorded_lock(vlog)
+    not be read, so no body here is "moved" for want of a read (BACKLOG §350 item 1). The lock is
+    read from rows whose sha fits `root`'s object format, as `lock_findings` reads it (ADR-088)."""
+    _date, recorded = _recorded_lock(vlog, object_format(root))
     if not recorded or not recorded.get("map"):
         return []
     moved = []
@@ -3650,15 +3651,16 @@ def moved_lock_bodies(vlog, *, current, root=None):
     return moved
 
 
-def lock_hasher(vlog):
+def lock_hasher(vlog, root=None):
     """The hasher that took the log's recorded lock; 1 when it names none (ADR-078).
 
     None when a lock is recorded and cannot be read: `--relock` then refuses rather
     than read it as hasher 1 and replace it unchecked (Codex review of 01443dd). It
     compares the recorded bodies under this hasher, so a lock taken before hasher 2
-    is checked the way it was taken before a hasher-2 lock replaces it (F-8).
+    is checked the way it was taken before a hasher-2 lock replaces it (F-8). The
+    lock is read from rows whose sha fits `root`'s object format (ADR-088).
     """
-    _date, recorded = _recorded_lock(vlog)
+    _date, recorded = _recorded_lock(vlog, object_format(root))
     if recorded is not None and recorded.get("map") is None:
         return None
     return ((recorded or {}).get("map") or {}).get("hasher", 1)

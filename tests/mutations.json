@@ -16207,8 +16207,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "return stale.length || orphaned.length ? 1 : 0",
-      "to": "return stale.length ? 1 : 0",
+      "from": "return stale.length || orphaned.length || unparsed.length ? 1 : 0",
+      "to": "return stale.length || unparsed.length ? 1 : 0",
       "only": "mutate --stale names a narrowed entry"
     },
     {
@@ -17522,7 +17522,7 @@
       ],
       "from": "        unsigned = [] if inf[\"human\"] else unsigned_human_proof_steps(inf.get(\"text\") or \"\")",
       "to": "        unsigned = unsigned_human_proof_steps(inf.get(\"text\") or \"\")",
-      "only": "^a sub-item is not a step, a `1)` list is, and a human-observed task is told once$"
+      "only": "^a sub-item is not a step, a `1\\)` list is, and a human-observed task is told once$"
     },
     {
       "label": "code-review of ADR-074: an indented sub-item is a step",
@@ -17532,7 +17532,7 @@
       ],
       "from": "_STEP_ID = re.compile(r\"^(?:(?P<ordinal>\\d+)[.)]|[-*])[ \\t]+(?:\\[S(?P<number>[1-9]\\d*)\\])?\")",
       "to": "_STEP_ID = re.compile(r\"^\\s*(?:(?P<ordinal>\\d+)[.)]|[-*])[ \\t]+(?:\\[S(?P<number>[1-9]\\d*)\\])?\")",
-      "only": "^a sub-item is not a step, a `1)` list is, and a human-observed task is told once$"
+      "only": "^a sub-item is not a step, a `1\\)` list is, and a human-observed task is told once$"
     },
     {
       "label": "code-review of ADR-074: an empty section is called a line",
@@ -23446,6 +23446,26 @@
       "from": "  const recognised = heading && (kept || (bold && recordStatusKind(status) !== null))",
       "to": "  const recognised = heading && (kept || bold)",
       "only": "^every row of the recognition table reads its approved answer in lifecycle$"
+    },
+    {
+      "label": "162e1660 campaign: an only pattern that does not compile is called valid",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    try { new RegExp(mutation.only); return false } catch { return true }",
+      "to": "    try { new RegExp(mutation.only); return false } catch { return false }",
+      "only": "^(?:invalidOnly names an entry whose only pattern does not compile|mutate --stale exits 1 and names an entry whose only pattern is not a regular expression)$"
+    },
+    {
+      "label": "162e1660 campaign: --stale exits 0 over an only pattern that does not compile",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "return stale.length || orphaned.length || unparsed.length ? 1 : 0",
+      "to": "return stale.length || orphaned.length ? 1 : 0",
+      "only": "^mutate --stale exits 1 and names an entry whose only pattern is not a regular expression$"
     }
   ]
 }

@@ -939,6 +939,18 @@ export function staleEntries(mutations, read) {
   return stale
 }
 
+/**
+ * Catalogue entries whose `only` is not a regular expression. Node rejects such a test-name pattern
+ * and runs no test, so the baseline "never finished" and the entry read UNPROVEN on every fresh run,
+ * hidden while a cached RED stood in for it (a test title holding `1)`, CI campaign of 162e1660).
+ */
+export function invalidOnly(mutations) {
+  return mutations.filter(mutation => {
+    if (typeof mutation.only !== 'string') return false
+    try { new RegExp(mutation.only); return false } catch { return true }
+  })
+}
+
 // ADR-072 Decision 2, as T4 reads it after the Codex review of T1 and T2: a test is
 // defined in a file when its name is one of the file's string literal TOKENS. A name left
 // in a comment, inside a fixture string or in a regular expression defines nothing, and a
@@ -1355,13 +1367,18 @@ export function main(argv) {
     for (const entry of orphaned) {
       console.log(`killer gone  ${entry.label} :: no file it names defines ${entry.missing.map(name => JSON.stringify(name)).join(', ')}`)
     }
+    const unparsed = invalidOnly(catalogue.mutations)
+    for (const entry of unparsed) console.log(`bad only  ${entry.label} :: ${JSON.stringify(entry.only)} is not a regular expression`)
     console.log(stale.length
       ? `${stale.length} catalogue entr${stale.length === 1 ? 'y does' : 'ies do'} not match the source exactly once`
       : 'every entry matches its source exactly once')
     if (orphaned.length) {
       console.log(`${orphaned.length} narrowed entr${orphaned.length === 1 ? 'y names' : 'ies name'} a test that no file it names defines`)
     }
-    return stale.length || orphaned.length ? 1 : 0
+    if (unparsed.length) {
+      console.log(`${unparsed.length} entr${unparsed.length === 1 ? 'y\'s' : 'ies\''} only pattern is not a regular expression`)
+    }
+    return stale.length || orphaned.length || unparsed.length ? 1 : 0
   }
   // ADR-069: each stale entry, repointed by its own edit or refused with the condition
   // that failed. Writes nothing; exits 1 while anything is stale, as `--stale` does.

@@ -6523,8 +6523,8 @@ def main():
 
     if not recognised:
         print(f"not-recognised: {one_line(adr)} is not named ADR-<n> and does not read as a record "
-              f"(a Status, and a `## Context` or `## Decision` heading; any Status but `**Status:**` only "
-              f"under an `adr` or `decisions` directory), so nothing here was checked. "
+              f"(a Status, and a `## Context` or `## Decision` heading; outside an `adr` or `decisions` "
+              f"directory, a `**Status:**` line whose status adr-lint recognises), so nothing here was checked. "
               f"This is not a finding about that file — `adr-lint` reads one record at a time, and a "
               f"backlog, a README, a report or a pre-registration kept beside the records is not one. "
               f"`adr-debt <corpus-dir>` reads a whole directory. "

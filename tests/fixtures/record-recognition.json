@@ -5,6 +5,7 @@
     "Columns: recognised, status, identity (T1: recognised_as_record, record_status, record_id with title_line); eligible (T1: corpus_eligible); adrCorpus (T3): record | undecided | notRecognised | unreadable | null (in no list); adrRetireCheck (T2): {counted: id} | unidentified | null, read with the row path's first component as root; workNext (T4): counted | undecided | notRead | partialBecause | unsupported | null.",
     "undecided is the rule row `undecided`: the owner chose it on 2026-10-07. Rows R42-R49 were added on 2026-10-07: R42-R46 from outside probe runs at 13136e6f (a corpus with dated non-records in docs/adr, a gap review inside a record's own directory, a corpus of numbered .rst records in decisions/ directories), R47 from a catalogue entry the record-own-directory rule left unkilled, R48 because that rule, as first written, dropped a record kept in its own folder (found executing T2), and R49 because no row held a record lifecycle finds only by where it is kept (a dated name, a plain Status), so discovery by place went unasserted (found executing T3)."
     , "Rows R50-R51, layout L11 and the spellings were added on 2026-10-07 from a gpt-6.1-sol review of ADR-092's execution: R50 a spec name whose digit (U+11DE0) is outside the frozen decimal table both languages read, R51 a Status the definition must return with its markup removed in both, L11 a `templates` directory reached through a directory link (column `definition`: recognised and arm, both languages), and `spellings` paths whose answer depends on the platform (`recognised.posix`, `recognised.win32`, null where the platform cannot make the path), read only on POSIX."
+    , "Rows R52-R55 were added on 2026-10-07 from an outside probe of a48fa5fb on a PHP monolith: a product requirements document and a business report, each with a `**Status:**` line and a `## Context` or `## Decision` heading outside any record directory, read as undecided records once the corpus reader found content records anywhere (Decision 5). The owner chose to narrow the definition: outside a record directory the content arm also needs a Status adr-lint recognises (R52, R53), while inside one an unknown Status stays undecided (R54) and a pending Status still counts (R55)."
   ],
   "undecided": {
     "adrCorpus": "an unreadable entry with its status as read and no reason; out of adrCorpus's array",
@@ -113,7 +114,15 @@
     {"id": "R50", "files": [{"path": "notes/spec-𑷠-x.md", "text": "Status: Accepted\n"}],
      "recognised": false, "status": "Accepted", "identity": null, "eligible": true, "adrCorpus": null, "adrRetireCheck": null, "workNext": null},
     {"id": "R51", "files": [{"path": "docs/adr/ADR-051-x.md", "text": "**Status:** **Accepted**\n## Decision\n"}],
-     "recognised": true, "status": "Accepted", "identity": "ADR-051", "eligible": true, "adrCorpus": "record", "adrRetireCheck": {"counted": "ADR-051"}, "workNext": "counted"}
+     "recognised": true, "status": "Accepted", "identity": "ADR-051", "eligible": true, "adrCorpus": "record", "adrRetireCheck": {"counted": "ADR-051"}, "workNext": "counted"},
+    {"id": "R52", "files": [{"path": "product/notes/features/widget_rollout_20260115.md", "text": "# Widget Rollout - Product Requirements Document\n\n**Status:** Implemented\n\n## Context\n\nx\n"}],
+     "recognised": false, "status": "Implemented", "identity": null, "eligible": true, "adrCorpus": null, "adrRetireCheck": null, "workNext": null},
+    {"id": "R53", "files": [{"path": "docs/legacy/usage_review_20241211.md", "text": "# Summary Decision Memo: Usage Review\n\n**Status:** ⚠️ ACTION REQUIRED\n\n## Decision\n\nx\n"}],
+     "recognised": false, "status": "⚠️ ACTION REQUIRED", "identity": null, "eligible": true, "adrCorpus": null, "adrRetireCheck": null, "workNext": null},
+    {"id": "R54", "files": [{"path": "docs/adr/widget_rollout_20260115.md", "text": "# Widget Rollout - Product Requirements Document\n\n**Status:** Implemented\n\n## Context\n\nx\n"}],
+     "recognised": true, "status": "Implemented", "identity": null, "eligible": true, "adrCorpus": "undecided", "adrRetireCheck": "unidentified", "workNext": "undecided"},
+    {"id": "R55", "files": [{"path": "notes/proposal.md", "text": "**Status:** Proposed\n\n## Decision\n\nx\n"}],
+     "recognised": true, "status": "Proposed", "identity": null, "eligible": true, "adrCorpus": "undecided", "adrRetireCheck": "unidentified", "workNext": "undecided"}
   ],
   "layouts": [
     {"id": "L1", "files": [{"path": "notes/001-note.md", "text": "Status: Accepted\n"}, {"path": "docs/adr/ADR-001-link.md", "link": "../../notes/001-note.md"}],

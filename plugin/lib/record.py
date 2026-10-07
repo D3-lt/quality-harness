@@ -943,7 +943,12 @@ def recognised_as_record(path, text, root):
     if status_value is None:
         return False, status_value, kept, None
     bold, heading = record_discriminators(text)
-    recognised = heading and (bold or kept)
+    # Outside a record directory a `**Status:**` and a `## Context` heading are also a product requirements
+    # document's or a report's, so there the Status must be one adr-lint recognises (`status_kind`); kept
+    # where records are, an unknown Status is still a record, undecided. An outside probe of a PHP monolith
+    # (2026-10-07) read a PRD (`Implemented`) and a report (`⚠️ ACTION REQUIRED`) as records once the corpus
+    # reader found content records anywhere (Decision 5); the owner chose to narrow the definition.
+    recognised = heading and (kept or (bold and status_kind(status_value) is not None))
     return recognised, status_value, kept, "content" if recognised else None
 
 

@@ -300,7 +300,13 @@ def adr_id_for_file(path, root, known=frozenset()):
     return found if found and not found.startswith("ADR-") else None
 
 
-def meaningful_obligations(root, known=frozenset()):
+def meaningful_obligations(root, known=frozenset(), records=None):
+    """Unchecked obligations per record id. A file `adr_files` counted as a record (`records`, its map
+    of id to paths) owns its own obligations, by its identity: the attribution rule reads the first two
+    lines, and a frontmatter whose second line is a YAML comment `# ADR-999: …` gave ADR-040's
+    obligations to ADR-999, which nothing checked (a gpt-6.1-sol review of ADR-092's execution,
+    finding 5). Every other file is attributed as `adr_id_for_file` attributes it."""
+    own = {path: adr_id for adr_id, paths in (records or {}).items() for path in paths}
     counts = Counter()
     # `.md` in any case, on every platform: `walk(root, "*.md")` matched case-sensitively off
     # Windows, so a `.MD` record's obligations were never counted there (ADR-092 Decision 10).
@@ -309,7 +315,7 @@ def meaningful_obligations(root, known=frozenset()):
             continue
         if path.resolve() == (root / "README.md").resolve():
             continue
-        adr_id = adr_id_for_file(path, root, known)
+        adr_id = own.get(path) or adr_id_for_file(path, root, known)
         if not adr_id:
             continue
         sections = sections_of(_read(path))
@@ -427,14 +433,23 @@ def unit_order(paths):
     return sorted(paths, key=lambda path: path.parts)
 
 
+@lru_cache(maxsize=None)
+def _flat_units(archive_root, known):
+    """Every file of a flat archive, attributed ONCE per archive and set of known ids: id -> paths.
+    Each flat record's seal walked the archive and read every file again, so N records cost N² reads
+    (a gpt-6.1-sol review of ADR-092's execution, finding 15). The attribution is the same call, so
+    no seal moves."""
+    units = {}
+    for path in _sealed_walk(archive_root):
+        if path.is_file() and path.name != "README.md":
+            units.setdefault(adr_id_for_file(path, archive_root, known), set()).add(path)
+    return units
+
+
 def decision_unit_files(archive_root, adr_id, source, known=frozenset()):
     if source.parent != archive_root:
         return unit_order(path for path in _sealed_walk(source.parent) if path.is_file())
-    files = {source}
-    for path in _sealed_walk(archive_root):
-        if path.is_file() and path.name != "README.md" and adr_id_for_file(path, archive_root, known) == adr_id:
-            files.add(path)
-    return unit_order(files)
+    return unit_order({source} | _flat_units(archive_root, known).get(adr_id, set()))
 
 
 def canonical_bytes(raw):
@@ -513,7 +528,7 @@ def adoption_report(active_root, archive_root):
             if paths[0].resolve() not in linked:
                 errors.append(f"accepted archived {adr_id} has no exact active-catalog link")
 
-    obligations = meaningful_obligations(archive_root, frozenset(active_records) | frozenset(archive_records))
+    obligations = meaningful_obligations(archive_root, frozenset(active_records) | frozenset(archive_records), archive_records)
     backlog = active_root / "BACKLOG.md"
     backlog_text = _read(backlog) if _present(backlog) else ""
     backlog_lines = sections_of(backlog_text).get("Follow-ups", [])
@@ -714,7 +729,14 @@ def main():
     for adr_id in sorted(set(rows) - set(archive_records)):
         errors.append(f"archive catalog lists {adr_id}, but no archived ADR file exists")
 
-    obligations = meaningful_obligations(archive_root, known)
+    obligations = meaningful_obligations(archive_root, known, archive_records)
+    # An obligation attributed to an id the catalog does not list is checked too: it was counted and
+    # never compared with anything, so a stray file's obligations, or a record's misattributed ones,
+    # passed in silence (finding 5).
+    for adr_id, count in sorted(obligations.items()):
+        if adr_id not in rows:
+            errors.append(f"{adr_id}: {count} archived obligation(s) belong to no record the archive catalog "
+                          f"lists, so no receipt was checked")
     governing = set()
     replacements = {}
     for adr_id, row in sorted(rows.items()):

@@ -24,6 +24,8 @@ const rowById = Object.fromEntries(ROWS.map(row => [row.id, row]))
 // Patterns live at module scope, never inside a test body (adr-execute lessons, 2026-09-16).
 const NOT_RECOGNISED = /^not-recognised: /m
 const MISMATCH = /filename names ADR-\d+ and the title names ADR-\d+/
+// The line adr-lint prints when it linted a file: a verdict, never a crash, a timeout or a could-not-run.
+const LINTED = /^\[(?:PASS|FAIL|UNPROVEN)\] /m
 
 const temps = []
 test.after(() => { for (const dir of temps) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) })
@@ -88,10 +90,16 @@ function python(op, items) {
   return JSON.parse(r.stdout)
 }
 
-// adr-lint's verdict on one path: `recognised`, or `not-recognised` (exit 2 and its sentence).
-function lint(cwd, path) {
-  const r = runPython([adrLint, path], { cwd, encoding: 'utf8', timeout: 120_000 })
-  return { verdict: r.status === 2 && NOT_RECOGNISED.test(r.stdout) ? 'not-recognised' : 'recognised', exit: r.status, out: `${r.stdout}\n${r.stderr}` }
+// adr-lint's verdict on one path: `recognised` only when it exited 0 or 1 AND printed its verdict line,
+// `not-recognised` for exit 2 and its sentence, and otherwise what went wrong, so a crash, a timeout or a
+// could-not-run is never a row's `recognised` (a gpt-6.1-sol review of ADR-092's execution, finding 18).
+// `gate` and `timeout` are seams the helper's own test sets.
+function lint(cwd, path, { gate = adrLint, timeout = 120_000 } = {}) {
+  const r = runPython([gate, path], { cwd, encoding: 'utf8', timeout })
+  const verdict = r.error || r.signal ? 'did-not-finish'
+    : r.status === 2 ? (NOT_RECOGNISED.test(r.stdout) ? 'not-recognised' : 'could-not-run')
+    : (r.status === 0 || r.status === 1) && LINTED.test(r.stdout) ? 'recognised' : 'no-verdict'
+  return { verdict, exit: r.status, out: `${r.stdout}\n${r.stderr}` }
 }
 
 // Every plain row (no link, no repository of its own) in one repository: row id → absolute path.
@@ -433,4 +441,19 @@ test('a binary attachment is still attributed and sealed', () => {
   const after = [seal('ADR-001', 'ADR-001-x.md'), seal('ADR-002', 'ADR-002-x/ADR-002-x.md')]
   assert.notEqual(after[0], before[0])
   assert.notEqual(after[1], before[1])
+})
+
+test('the lint helper calls nothing recognised that did not lint the file', () => {
+  // A gpt-6.1-sol review of ADR-092's execution (finding 18): every result but the not-recognised
+  // sentence was `recognised`, so a row whose adr-lint run crashed, timed out or could not run passed.
+  const { repo, at } = plainRows(['R3'])
+  assert.equal(lint(repo, at.R3).verdict, 'recognised')
+  const stubs = layOut([
+    { path: 'crash.py', text: 'raise RuntimeError("boom")\n' },
+    { path: 'could-not-run.py', text: 'import sys\nprint("[adr-lint] could not run: x", file=sys.stderr)\nsys.exit(2)\n' },
+    { path: 'silent.py', text: 'pass\n' },
+  ], 'stubs').repo
+  const said = Object.fromEntries(['crash', 'could-not-run', 'silent'].map(name => [name, lint(repo, at.R3, { gate: join(stubs, `${name}.py`) }).verdict]))
+  said.timeout = lint(repo, at.R3, { timeout: 1 }).verdict
+  for (const [how, verdict] of Object.entries(said)) assert.notEqual(verdict, 'recognised', how)
 })

@@ -62,6 +62,8 @@ import { READER_DIRECTORIES } from './reader-paths.mjs'
 const here = path.dirname(fileURLToPath(import.meta.url))
 const bin = path.join(here, '..', 'bin')
 const DEFAULT_TIMEOUT_MS = 120_000
+// work-next's reason for a numbered file whose format no reader parses (ADR-092 Decision 9).
+const UNPARSED_FORMAT = /is one no reader parses/
 const DEFAULT_SWEEP_BUDGET_MS = 1_800_000
 // What one reader may print before the probe stops reading it (ADR-089 T4). spawnSync's default is
 // 1 MiB, and adr-lint over a 4,002-task corpus printed past it (BACKLOG §295 item 22).
@@ -363,6 +365,13 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
 
   const workNext = reader('work-next', () => timed('work-next', null, () => node('work-next.mjs', ['--json'])), note, null, outputLimit)
   const adrState = reader('adr-state', () => timed('adr-state', null, () => node('adr-state.mjs', ['--json'])), note, null, outputLimit)
+  // A numbered file work-next names for its format, which no reader parses (ADR-092 Decision 9's
+  // amendment, the owner, 2026-10-07): listed beside the records adr-lint read, unread with work-next's
+  // reason, so an attestation counts it among the records it did not compare rather than as nothing.
+  for (const entry of workNext?.partialBecause ?? []) {
+    if (!UNPARSED_FORMAT.test(entry.reason ?? '')) continue
+    adrLint.push({ file: rel(path.resolve(resolved, String(entry.file))), exit: null, verdict: 'unread', reason: scrub(entry.reason), undecided: true })
+  }
 
   // adr-next per task directory of a governing, unfrozen record — the same set
   // SessionStart and work-next ask about. A frozen archive's tasks are history;

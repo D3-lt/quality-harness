@@ -5442,8 +5442,9 @@ def test_a_fenced_example_is_not_a_title_and_the_number_comes_from_the_title(lin
         body = "\nStatus: Accepted\n\n## Decision\n\nx\n"
         files = {
             "001-plain.md": "# ADR-001: a plain record\n" + body,
-            # A task file whose body opens with a fenced example of a record title.
-            "009-T1-fenced.md": "```\n# ADR-009: an example\n```\n# Task ADR-009-T1: the real title\n",
+            # A task file whose body opens with a fenced example of a record title. It carries a Status and a
+            # Decision too, so the definition admits it and only the title reading keeps it out.
+            "009-T1-fenced.md": "```\n# ADR-009: an example\n```\n# Task ADR-009-T1: the real title\n" + body,
             # A real record whose frontmatter carries a YAML comment naming another number.
             "010-T1-yaml.md": "---\n# ADR-999: a yaml comment\n---\n# ADR-010: the real title\n" + body,
         }
@@ -5467,9 +5468,12 @@ def test_a_fence_is_read_with_the_corpus_rule(lint):
         body = "\nStatus: Accepted\n\n## Decision\n\nx\n"
         files = {
             "001-plain.md": "# ADR-001: a plain record\n" + body,
-            # "```python" inside a ```markdown fence is content, not a closer.
-            "009-T1-example.md": "```markdown\n```python\n# ADR-009 example\n```\n# Task ADR-009-T1 real\n",
-            "012-T1-tilde.md": "~~~md\n~~~py\n# ADR-012 example\n~~~\n# Task ADR-012-T1 real\n",
+            # "```python" inside a ```markdown fence is content, not a closer. Both task files lead with the
+            # Status and Decision, so the definition admits them whatever a fence hides after, and only the fence
+            # reading keeps the example from being the title. A walk that closed on "```python" would read the
+            # example as the title and then open a fence at the real closer, hiding the task title.
+            "009-T1-example.md": body.lstrip("\n") + "\n```markdown\n```python\n# ADR-009 example\n```\n# Task ADR-009-T1 real\n",
+            "012-T1-tilde.md": body.lstrip("\n") + "\n~~~md\n~~~py\n# ADR-012 example\n~~~\n# Task ADR-012-T1 real\n",
             # A backtick "opener" whose info string holds a backtick is not a fence at all.
             "011-T1-inline.md": "```inline ` code```\n# ADR-011: the real title\n" + body,
         }

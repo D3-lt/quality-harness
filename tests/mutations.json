@@ -23365,6 +23365,16 @@
       "from": "(NOT_RECOGNISED.test(r.stdout) ? 'not-recognised' : 'could-not-run')",
       "to": "(NOT_RECOGNISED.test(r.stdout) ? 'not-recognised' : 'recognised')",
       "only": "^the lint helper calls nothing recognised that did not lint the file$"
+    },
+    {
+      "label": "ADR-092 review: the corpus reader rewrites a backslash on POSIX",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "    const norm = platform === 'win32' ? posixListed(rel) : String(rel)",
+      "to": "    const norm = posixListed(rel)",
+      "only": "^a path component holding a line feed or a backslash reads alike in both languages$"
     }
   ]
 }

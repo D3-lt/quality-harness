@@ -1803,11 +1803,12 @@
       "label": "corpus: an ISO-dated file is not a decision record",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/lifecycle.test.mjs",
+        "tests/record-discovery.test.mjs"
       ],
       "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i",
       "to": "const ADR_FILE = /^(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i",
-      "only": "^(?:a date-named record is read, and a docs/adr that yields nothing says so|reported: the layouts and scale a real corpus actually has)$"
+      "only": "^(?:a date-named record is read, and a docs/adr that yields nothing says so|reported: the layouts and scale a real corpus actually has|every row of the recognition table reads its approved answer in lifecycle)$"
     },
     {
       "label": "corpus: a status may carry a date after the word",
@@ -2435,7 +2436,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      unreadable.push({ file, status: status || null, taskFiles: recordTasks,\n        ...(archived?.unproven ? { unproven: archived.unproven, governs: wouldGovern(),\n          title: (text.match(/^#\\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })",
+      "from": "      unreadable.push({ file, status: status || null, taskFiles: recordTasks,\n        // Its identity, so one id claimed by an undecided record and a counted one is named (an outside\n        // probe run, 2026-10-07: `# ADR 006` with a Status no reader acts on beside ADR-006).\n        id: recordId(path.basename(file), titleLine(text)),\n        ...(archived?.unproven ? { unproven: archived.unproven, governs: wouldGovern(),\n          title: (text.match(/^#\\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })",
       "to": "      void recordTasks",
       "only": "^(?:a Proposed record has no ready tasks, and the router says why it stopped counting|a record the corpus reader cannot read is reported, not silently dropped|adr-state reports the three kinds of record it did not read, separately|a signed-off human-observed task is finished, not ready forever)$"
     },
@@ -4192,11 +4193,12 @@
       "label": "corpus: a record is found by content when its filename does not announce it",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/lifecycle.test.mjs",
+        "tests/record-discovery.test.mjs"
       ],
-      "from": "    if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader) !== false) files.push(absolute)",
-      "to": "    if (ADR_FILE.test(base)) files.push(absolute)",
-      "only": "^(?:a date-named record is read, and a docs/adr that yields nothing says so)$"
+      "from": "    if ((dirNorm && dirNorm.split('/').some(part => RECORD_DIRECTORY.test(part)))\n      || (dirNorm && placedUnderRecordDirectory(dirNorm)) || placedFileUnderRecordDirectory(absolute)) {",
+      "to": "    if (false) {",
+      "only": "^(?:a date-named record is read, and a docs/adr that yields nothing says so|every row of the recognition table reads its approved answer in lifecycle)$"
     },
     {
       "label": "checks: a build is not a project's check",
@@ -11596,8 +11598,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "^a record under a frozen archive with no record-directory name is listed by its content$",
-      "from": "    else if (frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)",
-      "to": "    else if (false && frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)"
+      "from": "      if (screenAdmits(absolute)) files.push(absolute)",
+      "to": "      if (false) files.push(absolute)"
     },
     {
       "label": "ADR-063: the catalog is found at the archive root",
@@ -11726,8 +11728,8 @@
         "tests/record-identity.test.mjs"
       ],
       "only": "^a catalog this reader cannot read, under a non-record name, leaves the record listed$",
-      "from": "    if (underFrozenArchive(root, parts, frozen, listed) === false) return false",
-      "to": "    if (underFrozenArchive(root, parts, frozen, listed) !== true) return false"
+      "from": "      if (screenAdmits(absolute)) files.push(absolute)",
+      "to": "      if (screenAdmits(absolute) && frozenArchiveOf(root, tracked)(norm) !== 'unknown') files.push(absolute)"
     },
     {
       "label": "ADR-063: a supersession must name a record to be an effect",
@@ -17398,8 +17400,8 @@
       "tests": [
         "tests/status-section.test.mjs"
       ],
-      "from": "  return (inlineStatus(text) !== null || statusSection(text) !== null)",
-      "to": "  return (inlineStatus(text) !== null)",
+      "from": "  const status = inlineStatus(text) ?? statusSection(text)\n  const placedDirectories = directoriesOf(placed)",
+      "to": "  const status = inlineStatus(text)\n  const placedDirectories = directoriesOf(placed)",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
     },
     {
@@ -17408,8 +17410,8 @@
       "tests": [
         "tests/status-section.test.mjs"
       ],
-      "from": "  if (!directory.split(/[\\\\/]/).some(part => RECORD_DIRECTORY.test(part))) return false",
-      "to": "  if (!/(^|[\\\\/])(?:adr)([\\\\/]|$)/i.test(directory)) return false",
+      "from": "  return directories.some((part, index) => RECORD_DIRECTORY.test(part) && !directories.slice(index + 1).some(anotherRecords))",
+      "to": "  return directories.some((part, index) => /^adr$/i.test(part) && !directories.slice(index + 1).some(anotherRecords))",
       "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
     },
     {
@@ -17508,8 +17510,8 @@
       "tests": [
         "tests/status-reading.test.mjs"
       ],
-      "from": "    if (fenced) continue",
-      "to": "    if (false) continue",
+      "from": "  for (const [index, [line, fenced]] of fencedLines(text).entries()) {\n    if (fenced) continue",
+      "to": "  for (const [index, [line, fenced]] of fencedLines(text).entries()) {\n    if (false) continue",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
     },
     {
@@ -22078,8 +22080,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
-      "to": "    if (false) { notRecognised.push(file); continue }",
+      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
+      "to": "    if (false) { if (byName.has(file)) notRecognised.push(file); continue }",
       "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
     },
     {
@@ -22088,8 +22090,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    || (!directories.includes('tasks') && directories.some(part => RECORD_DIRECTORY.test(part)))",
-      "to": "    || true",
+      "from": "  const recognised = heading && (bold || kept)",
+      "to": "  const recognised = heading",
       "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
     },
     {
@@ -22098,8 +22100,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "  if (/^ADR-[0-9]+(?![A-Za-z0-9_])/i.test(base) || /^spec[-_]?\\p{Nd}/iu.test(base)) return true",
-      "to": "  if (/^spec[-_]?\\p{Nd}/iu.test(base)) return true",
+      "from": "  if (CANONICAL_NAME.test(base)) return answer(true, 'canonical')",
+      "to": "  if (false) return answer(true, 'canonical')",
       "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
     },
     {
@@ -22108,8 +22110,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "  return /(?<![^\\n])\\*\\*Status:\\*\\*/.test(text)",
-      "to": "  return false",
+      "from": "    bold ||= BOLD_STATUS.test(line)\n    heading ||= RECORD_SECTION.test(line)\n    if (bold && heading) break",
+      "to": "    heading ||= RECORD_SECTION.test(line)\n    if (bold && heading) break",
       "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
     },
     {
@@ -22208,8 +22210,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
-      "to": "    if (!recognisedAsRecord(root, file, text) && recordStatusKind(recordStatus(text))) { notRecognised.push(file); continue }",
+      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
+      "to": "    if (!recognisedAsRecord(root, file, text).recognised && recordStatusKind(recordStatus(text))) { if (byName.has(file)) notRecognised.push(file); continue }",
       "only": "a status bullet inside a section is not the record status"
     },
     {
@@ -22218,8 +22220,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
-      "to": "    if (!recognisedAsRecord(root, file, text) && recordStatusKind(recordStatus(text))) { notRecognised.push(file); continue }",
+      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
+      "to": "    if (!recognisedAsRecord(root, file, text).recognised && recordStatusKind(recordStatus(text))) { if (byName.has(file)) notRecognised.push(file); continue }",
       "only": "an unnumbered note or a record inside a record directory is not named as not read"
     },
     {
@@ -22228,8 +22230,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
-      "to": "    if (!recognisedAsRecord(root, file, text) && recordStatusKind(recordStatus(text))) { notRecognised.push(file); continue }",
+      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
+      "to": "    if (!recognisedAsRecord(root, file, text).recognised && recordStatusKind(recordStatus(text))) { if (byName.has(file)) notRecognised.push(file); continue }",
       "only": "a directory name is never a status"
     },
     {
@@ -22238,19 +22240,20 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
-      "to": "    if (archiveDecisionEffect(file, reader, archiveEffects, listedFiles, root) == null && !recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }",
+      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
+      "to": "    if (archiveDecisionEffect(file, reader, archiveEffects, listedFiles, root) == null && !recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
       "only": "a frozen archive catalog does not make a not-recognised file a record"
     },
     {
       "label": "ADR-087 delta review F2: a link is placed by its own path, not its real one",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/corpus-shapes.test.mjs"
+        "tests/corpus-shapes.test.mjs",
+        "tests/record-discovery.test.mjs"
       ],
-      "from": "  try { placed = path.relative(realpathSync.native(root), realpathSync.native(file)) } catch { placed = null }",
-      "to": "  placed = null",
-      "only": "a link to a record is placed where its target is kept, as adr-lint places it"
+      "from": "    const placed = inside(realpathSync.native(root), realpathSync.native(file))\n    if (placed !== null) return placed",
+      "to": "    const placed = null\n    if (placed !== null) return placed",
+      "only": "^(?:a link to a record is placed where its target is kept, as adr-lint places it|discovery follows placement through a listed link)$"
     },
     {
       "label": "ADR-087 delta review F3: the heading's whitespace loses Python's U+001C-U+001F and U+0085",
@@ -22268,8 +22271,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "(?<![^\\\\n])##",
-      "to": "(?<![^\\\\n\\\\u2028])##",
+      "from": "RegExp(`^##${PY_LINE_SPACE}",
+      "to": "RegExp(`(?:^|\\u2028)##${PY_LINE_SPACE}",
       "only": "a heading after whitespace only one runtime calls whitespace is read alike by every reader"
     },
     {
@@ -22328,8 +22331,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (linksIn(file) < linksIn(first)) {",
-      "to": "    if (false) {",
+      "from": "    return linksIn(file, linkLimit) < linksIn(first, linkLimit)",
+      "to": "    return false",
       "only": "a link and its target are read once, as the target, and the link is the alias"
     },
     {
@@ -22338,8 +22341,8 @@
       "tests": [
         "tests/corpus-shapes.test.mjs"
       ],
-      "from": "    if (path.dirname(at) === at) return count",
-      "to": "    return count",
+      "from": "    try { if (lstatSync(at).isSymbolicLink()) target = readlinkSync(at) } catch { /* unreadable: not known to be a link */ }",
+      "to": "    try { if (pending.length === 0 && lstatSync(at).isSymbolicLink()) target = readlinkSync(at) } catch { /* unreadable: not known to be a link */ }",
       "only": "a path through a linked parent directory is the alias of the path with no link in it"
     },
     {
@@ -22418,8 +22421,8 @@
       "tests": [
         "tests/status-code-blocks.test.mjs"
       ],
-      "from": "  const head = frontmatterClose(lines)",
-      "to": "  const head = null",
+      "from": "  const lines = text.split(/\\r\\n|\\r|\\n/)\n  const head = frontmatterClose(lines)",
+      "to": "  const lines = text.split(/\\r\\n|\\r|\\n/)\n  const head = null",
       "only": "^a fence opened inside the frontmatter hides nothing below it$"
     },
     {
@@ -22671,6 +22674,146 @@
       "from": "        if not corpus_eligible(path.relative_to(root).as_posix()):\n            continue",
       "to": "        if not path.name.lower().endswith(\".md\"):\n            continue",
       "only": "^adr-retire-check counts the identified records and advises on every other recognised one$"
+    },
+    {
+      "label": "ADR-092 T3: the name arms at any width",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "    if (ADR_FILE.test(base) || CANONICAL_NAME.test(base) || SPEC_NAME.test(base)) {",
+      "to": "    if (ADR_FILE.test(base)) {",
+      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
+    },
+    {
+      "label": "ADR-092 T3: the content screen",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "      if (screenAdmits(absolute)) files.push(absolute)",
+      "to": "      if (null) files.push(absolute)",
+      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
+    },
+    {
+      "label": "ADR-092 T3: the screen budget",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "    if (streamed + size > screenBudget) { unscreened = absolute; continue }",
+      "to": "    if (false) { unscreened = absolute; continue }",
+      "only": "^the content screen stops at its budget and names the first path it did not screen$"
+    },
+    {
+      "label": "ADR-092 T3: the content-arm narrowings (templates)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "  if ([...directoriesOf(listed), ...placedDirectories].some(part => TEMPLATES_DIRECTORY.test(part))) return answer(false, 'templates')",
+      "to": "  if (false) return answer(false, 'templates')",
+      "only": "^the link rows read their approved answers in lifecycle$"
+    },
+    {
+      "label": "ADR-092 T3: the recognised-spelling preference",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "  const once = onceByRealPath(files, nameArmSpelling)",
+      "to": "  const once = onceByRealPath(files)",
+      "only": "^a recognised spelling wins the dedup over fewer links$"
+    },
+    {
+      "label": "ADR-092 T3: the per-hop link count",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "    pending.unshift(...rest.split(/[\\\\/]/).filter(Boolean))",
+      "to": "    resolved = at",
+      "only": "^links are counted by resolving each hop with one precedence at the limit$"
+    },
+    {
+      "label": "ADR-092 T3: placement-led discovery",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "      || (dirNorm && placedUnderRecordDirectory(dirNorm)) || placedFileUnderRecordDirectory(absolute)) {",
+      "to": "      ) {",
+      "only": "^discovery follows placement through a listed link$"
+    },
+    {
+      "label": "ADR-092 T3: the unfenced screen",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "  walk.fence = next\n  if (fenced) return",
+      "to": "  walk.fence = next",
+      "only": "^the content screen reads outside fences and past a frontmatter fence$"
+    },
+    {
+      "label": "ADR-092 T3: the screen delimits frontmatter first",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "        walks.block.head = FRONTMATTER_OPEN.test(line) ? true : null",
+      "to": "        walks.block.head = null",
+      "only": "^the content screen reads outside fences and past a frontmatter fence$"
+    },
+    {
+      "label": "ADR-092 T3: the one title reading in JS",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "    if (fenced || (head !== null && index <= head)) continue\n    if (HEADING_LINE_RE.test(line)) return line",
+      "to": "    if (head !== null && index <= head) continue\n    if (HEADING_LINE_RE.test(line)) return line",
+      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
+    },
+    {
+      "label": "ADR-092 T3: the undecided identity",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "        id: recordId(path.basename(file), titleLine(text)),",
+      "to": "        id: null,",
+      "only": "^a duplicate id among undecided records is named$"
+    },
+    {
+      "label": "ADR-092 T3: adr-state counts an undecided record's id among duplicates",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "  for (const record of [...corpus, ...undecidedRecords]) {",
+      "to": "  for (const record of corpus) {",
+      "only": "^a duplicate id among undecided records is named$"
+    },
+    {
+      "label": "ADR-092 T3: a failed screen read is named",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "      if (!stat.isFile()) { failed.push({ file: absolute, reason: 'not a regular file, so the content screen could not read it' }); continue }",
+      "to": "      if (!stat.isFile()) continue",
+      "only": "^a failed read is never dropped by discovery$"
+    },
+    {
+      "label": "ADR-092 T3: notRecognised names only what a name claimed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
+      "to": "    if (!recognisedAsRecord(root, file, text).recognised) { notRecognised.push(file); continue }",
+      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
     }
   ]
 }

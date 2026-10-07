@@ -47,8 +47,11 @@ export function main(argv) {
   .map(record => [record.id, record]))
   // One id, several records: nothing said so, and each could be read as the other
   // (a Windows chaos round of 916b515, C1 and C6 — the same id in one root, or three).
+  // An undecided record claims its id too: `# ADR 006` with a Status no reader acts on, beside an
+  // Accepted ADR-006, was named nowhere (an outside probe run, 2026-10-07).
   const byIdAll = new Map()
-  for (const record of corpus) {
+  const undecidedRecords = (corpus.unreadable ?? []).filter(entry => !entry.reason && !entry.alias)
+  for (const record of [...corpus, ...undecidedRecords]) {
     if (record.id === null || record.id === undefined) continue
     if (!byIdAll.has(record.id)) byIdAll.set(record.id, [])
     byIdAll.get(record.id).push(record)

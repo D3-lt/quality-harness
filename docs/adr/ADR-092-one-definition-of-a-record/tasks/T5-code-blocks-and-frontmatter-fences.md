@@ -58,6 +58,12 @@ out=$(node --test --test-reporter=tap tests/status-code-blocks.test.mjs 2>&1) \
 | 4 — it is used | every status read; nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-07 · 13136e6f* · mutant killed · exit 1 · `plugin/lib/record.py` · a Status section reads its fence marker lines and fenced lines again · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · covers:the section fence rule
+- 2026-10-07 · 13136e6f* · mutant killed · exit 1 · `plugin/lib/record.py` · an indented code-block line is read as the Status section value · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · covers:the section code-block rule
+- 2026-10-07 · 13136e6f* · mutant killed · exit 1 · `plugin/lib/record.py` · a fence marker inside a YAML value hides the frontmatter status below it · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · covers:the frontmatter-first fence walk
+- 2026-10-07 · 13136e6f* · mutant killed · exit 1 · `plugin/lib/record.py` · a log section opening with a rule is read as frontmatter and its fenced row exposed · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · covers:the document-only frontmatter
+- 2026-10-07 · 13136e6f* · mutant killed · exit 1 · `plugin/lib/record.py` · a tab counts fixed columns instead of advancing to the next four-column stop · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · covers:the column indentation rule
+- 2026-10-07 · 13136e6f* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a text with no Status reads an empty Status in lifecycle · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · covers:the empty-versus-absent Status
 
 ## Invariants
 
@@ -68,6 +74,8 @@ out=$(node --test --test-reporter=tap tests/status-code-blocks.test.mjs 2>&1) \
 ## Risks
 
 - The fence-walk change reaches every section reader; S2 enumerates them and S4 runs their catalogue entries.
+- S2, measured 2026-10-07 at 13136e6f. The fence walk's lines (ADR-092 Context's second pattern, counted with its awk step): 103 in 9 files, record.py 44, adr-lint 20, adr-verify 12, adr-next 7, adr-retire-check 6, lifecycle.mjs 5, spec-verify 3, arch-lint 3, adr-debt 3. Whole-document callers: record.py `_scan` (so `_sections`, `sections_of`, `section_span`, `repeated_headings` and `unterminated_fence`), `record_status` through `unfenced_numbered(..., document=True)`, and lifecycle's `fencedLines` (read by `inlineStatus` and `statusSection`). Section-lines callers, `document=False`: `unfenced_lines` (adr-lint's Verification and Mutation Log readers, adr-lint:1867 and :1886) and `status_section`'s own walk over its section's lines. Tracked `.md` files whose frontmatter block holds a fence marker: 0. Test locks on the test files that read a section: tests/status-reading.test.mjs 3, tests/status-section.test.mjs 1, tests/corpus-shapes.test.mjs 68, tests/not-recognised-reason.test.mjs 1, tests/record-identity.test.mjs 38, tests/gates.test.mjs 0; each of those files passes unchanged after S3.
+- S4 found a GREEN: the campaign entry "ADR-074 T2: lifecycle reads a ## Status inside a code fence" stopped being killed once a section's fenced lines stopped being its value, because tests/status-section.test.mjs's fenced example now reads `''` under the mutant, which that row also calls ungoverning. The locked test stays byte-identical; `a Status heading inside a code fence opens no section` was added beside this task's six, and the entry now runs both files and is RED.
 
 ## Stop Condition
 
@@ -79,3 +87,13 @@ Stop and ask if a locked test's answer changes, or if any answer of ADR-092's ro
 - The parity table (T1), which is written after this task so its rows hold the answers this task produces
 
 ## Verification Log
+- 2026-10-07 · 13136e6f* · exit 1 · `out=$(node --test --test-reporter=tap tests/status-code-blocks.test.mjs 2>&1) \ …` · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · ms:569 · test-lock-sha256:ee12f27f0b642f32e05e843cf007b0fb01a5eb195ac9ebad2695cddddc3c1206 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvc3RhdHVzLWNvZGUtYmxvY2tzLnRlc3QubWpzCWEgZmVuY2Ugb3BlbmVkIGluc2lkZSB0aGUgZnJvbnRtYXR0ZXIgaGlkZXMgbm90aGluZyBiZWxvdyBpdAk5MmJkNWU0ODFhNjA4YmIxZWM3ZTE5MTkwNmY2YWZmM2E5NDU1MmQ4OWRkYTY3MmMxMDA1YmEwOGM4ZjM4NDgyCmJvZHkJdGVzdHMvc3RhdHVzLWNvZGUtYmxvY2tzLnRlc3QubWpzCWEgZmVuY2VkIGxpbmUgaW4gYSBTdGF0dXMgc2VjdGlvbiBpcyBubyBTdGF0dXMsIGluZGVudGVkIGZlbmNlIG9yIG5vdAllNWUyNDY5Y2Y5YWZlODZhNjEzMjUxYTBlOTJhMmQwZTkxNDU4NTlkY2Y3NGI3ODZkMTc0YjA3YjE4MTc1MmVkCmJvZHkJdGVzdHMvc3RhdHVzLWNvZGUtYmxvY2tzLnRlc3QubWpzCWEgc2VjdGlvbiB0aGF0IG9wZW5zIHdpdGggYSBydWxlIGlzIG5vdCByZWFkIGFzIGZyb250bWF0dGVyCWM3ZTQ1YmNiMzgyMzE2NDhiMjkwYWVkMzM2N2YxZGVhMGU3NWU2NWMwMTFmMTE0YTRjNzMzNWY1MTI3OWNmOTYKYm9keQl0ZXN0cy9zdGF0dXMtY29kZS1ibG9ja3MudGVzdC5tanMJYW4gZW1wdHkgU3RhdHVzIHNlY3Rpb24gcmVhZHMgYW4gZW1wdHkgc3RyaW5nIGFuZCBubyBTdGF0dXMgcmVhZHMgbnVsbAk5NzM0OWI4OThhYWIyMDE1MjY2ZGE5Mzk3ZWNkMWNkMjZlMDM0NDc5YzBmNzU0NDZmZTZlMTFkYzRmMmE1ZDM0CmJvZHkJdGVzdHMvc3RhdHVzLWNvZGUtYmxvY2tzLnRlc3QubWpzCWluZGVudGF0aW9uIGlzIG1lYXN1cmVkIGluIGNvbHVtbnMgYXQgZm91ci1jb2x1bW4gdGFiIHN0b3BzCTQzOGE5ODkzZDExYTA3YTE4NmEzNTY5YjIyNmM3NTJhYTc2MmYyZmUyZWM2M2M3Njc0MDMzNDdmNDgyZTE2MDcKYm9keQl0ZXN0cy9zdGF0dXMtY29kZS1ibG9ja3MudGVzdC5tanMJbm8gaW5kZW50ZWQgY29kZS1ibG9jayBsaW5lIGlzIGEgU3RhdHVzLCBzZWN0aW9uIGZvcm0gaW5jbHVkZWQJZDE5YzQ2ODlmYjMwZDMyOWJmOGUwNzBhYmFlMWYyMjRiZDUwOTY5ZjRmMGRmOTg3OWY0ZjUwYmQ3MDBlZWJmYg
+  ```
+  ```
+- 2026-10-07 · 13136e6f* · exit 0 · `out=$(node --test --test-reporter=tap tests/status-code-blocks.test.mjs 2>&1) \ …` · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · ms:686
+- 2026-10-07 · 13136e6f* · exit 0 · `out=$(node --test --test-reporter=tap tests/status-code-blocks.test.mjs 2>&1) \ …` · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · ms:652
+- 2026-10-07 · 13136e6f* · exit 0 · `out=$(node --test --test-reporter=tap tests/status-code-blocks.test.mjs 2>&1) \ …` · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · ms:686
+- 2026-10-07 · 13136e6f* · exit 0 · `out=$(node --test --test-reporter=tap tests/status-code-blocks.test.mjs 2>&1) \ …` · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · ms:673
+- 2026-10-07 · 13136e6f* · exit 0 · `out=$(node --test --test-reporter=tap tests/status-code-blocks.test.mjs 2>&1) \ …` · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · ms:663
+- 2026-10-07 · 13136e6f* · exit 0 · `out=$(node --test --test-reporter=tap tests/status-code-blocks.test.mjs 2>&1) \ …` · acceptance-sha256:7452e090b51fbc4f4c932ea6847faeca9e7667b45902ad8221e746553285e3de · ms:662
+- 2026-10-07 · human-observed · observed by the executor (Claude, 2026-10-07): S2's caller list, the zero count of frontmatter fence markers and the test locks found are recorded in this task's Risks

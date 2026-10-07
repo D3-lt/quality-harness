@@ -16626,7 +16626,7 @@
       "tests": [
         "tests/status-reading.test.mjs"
       ],
-      "from": "    for index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)]):",
+      "from": "    for index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)], document=True):",
       "to": "    for index, line in enumerate([line for line, _start, _end in split_lines(text)]):",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
     },
@@ -17284,11 +17284,12 @@
       "label": "ADR-074 T2: lifecycle reads a ## Status inside a code fence",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/status-section.test.mjs"
+        "tests/status-section.test.mjs",
+        "tests/status-code-blocks.test.mjs"
       ],
       "from": "    const heading = fenced ? null : line.match(STATUS_HEADING)",
       "to": "    const heading = line.match(STATUS_HEADING)",
-      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+      "only": "^(?:a Status section is read, and an inline Status wins with advice when they disagree|a Status heading inside a code fence opens no section)$"
     },
     {
       "label": "ADR-074 T2: lifecycle reads a ### Status as the section",
@@ -17306,8 +17307,8 @@
       "tests": [
         "tests/status-section.test.mjs"
       ],
-      "from": "  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*_`]/g, ''))",
-      "to": "  return edgeTrim(inlineStatus(text)?.replace(/[*_`]/g, '') ?? statusSection(text) ?? '')",
+      "from": "  return value === null ? null : edgeTrim(value.replace(/[*_`]/g, ''))",
+      "to": "  return value === null ? null : edgeTrim(inlineStatus(text) === null ? value : value.replace(/[*_`]/g, ''))",
       "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
     },
     {
@@ -22349,6 +22350,116 @@
       "from": ", ...(corpus.notRecognised ?? []).map(file => ({ file }))].map(record => {",
       "to": "].map(record => {",
       "only": "a not-recognised file is told what it lacks, and the probe carries the reason"
+    },
+    {
+      "label": "ADR-092 T5: the section code-block rule (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "                  if line.strip(_EDGE_SPACE) and indent_columns(line) < 4), \"\")",
+      "to": "                  if line.strip(_EDGE_SPACE)), \"\")",
+      "only": "^no indented code-block line is a Status, section form included$"
+    },
+    {
+      "label": "ADR-092 T5: the section code-block rule (lifecycle)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "    } else if (body && !fenced && indentColumns(line) < 4) {",
+      "to": "    } else if (body && !fenced) {",
+      "only": "^no indented code-block line is a Status, section form included$"
+    },
+    {
+      "label": "ADR-092 T5: the section fence rule (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "    first = next((line.strip(_EDGE_SPACE) for _index, line in unfenced_numbered(lines)",
+      "to": "    first = next((line.strip(_EDGE_SPACE) for _index, line in enumerate(lines)",
+      "only": "^a fenced line in a Status section is no Status, indented fence or not$"
+    },
+    {
+      "label": "ADR-092 T5: the section fence rule (lifecycle)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "    } else if (body && !fenced && indentColumns(line) < 4) {",
+      "to": "    } else if (body && indentColumns(line) < 4) {",
+      "only": "^a fenced line in a Status section is no Status, indented fence or not$"
+    },
+    {
+      "label": "ADR-092 T5: the frontmatter-first fence walk (record.py unfenced_numbered)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "    head = _frontmatter_close(lines) if document else None",
+      "to": "    head = None",
+      "only": "^a fence opened inside the frontmatter hides nothing below it$"
+    },
+    {
+      "label": "ADR-092 T5: the frontmatter-first fence walk (record.py _scan)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "            opened = None if head is not None and lineno <= head + 1 else _fence_opened(line)",
+      "to": "            opened = _fence_opened(line)",
+      "only": "^a fence opened inside the frontmatter hides nothing below it$"
+    },
+    {
+      "label": "ADR-092 T5: the frontmatter-first fence walk (lifecycle)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "  const head = frontmatterClose(lines)",
+      "to": "  const head = null",
+      "only": "^a fence opened inside the frontmatter hides nothing below it$"
+    },
+    {
+      "label": "ADR-092 T5: the document-only frontmatter",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "    return [line for _index, line in unfenced_numbered(lines)]",
+      "to": "    return [line for _index, line in unfenced_numbered(lines, document=True)]",
+      "only": "^a section that opens with a rule is not read as frontmatter$"
+    },
+    {
+      "label": "ADR-092 T5: the column indentation rule (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "            column += 4 - column % 4",
+      "to": "            column += 2",
+      "only": "^indentation is measured in columns at four-column tab stops$"
+    },
+    {
+      "label": "ADR-092 T5: the column indentation rule (lifecycle)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "    else if (char === '\\t') column += 4 - (column % 4)",
+      "to": "    else if (char === '\\t') column += 2",
+      "only": "^indentation is measured in columns at four-column tab stops$"
+    },
+    {
+      "label": "ADR-092 T5: the empty-versus-absent Status",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "  return value === null ? null : edgeTrim(value.replace(/[*_`]/g, ''))",
+      "to": "  return value === null ? '' : edgeTrim(value.replace(/[*_`]/g, ''))",
+      "only": "^an empty Status section reads an empty string and no Status reads null$"
     }
   ]
 }

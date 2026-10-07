@@ -438,7 +438,14 @@ def adoption_report(active_root, archive_root):
                 f"{adr_id}: {count} archived obligation(s), {receipts} active BACKLOG receipt(s)")
 
     label = "PASS" if not errors else "MIGRATION-REQUIRED"
-    print(f"[{label}] {active_root} + {archive_root} · {len(active_records)} active · "
+    # Each root as the working directory names it, or its last component: never an absolute path,
+    # which carried a scratch corpus's location into a report meant to be pasted (ADR-089 T5).
+    cwd = Path.cwd().resolve()
+
+    def shown(root):
+        return root.relative_to(cwd).as_posix() if root.is_relative_to(cwd) else root.name
+
+    print(f"[{label}] {shown(active_root)} + {shown(archive_root)} · {len(active_records)} active · "
           f"{len(archive_records)} archived · {len(provisional_governing)} accepted archived · "
           f"{sum(obligations.values())} obligation(s) · {gate_identity()}")
     for error in errors[:100]:

@@ -97,13 +97,14 @@ test('a PARTIAL diff names what made it partial and what dropped out', () => {
   const side = (because, undecided, readers) => ({ look: 'PARTIAL', workNext: { partialBecause: because.map(file => ({ file, reason: 'r' })) },
     undecided: undecided.map(file => ({ file })), couldNotRun: readers.map(reader => ({ reader, why: 'w' })) })
   assert.deepEqual(diffReports(side(['a.md'], ['u.md'], ['adr-next']), side(['b.md'], [], ['adr-next', 'adr-lint'])), [
-    'look: PARTIAL → PARTIAL: not compared',
-    'partialBecause: + b.md (r), - a.md (r)',
+    'look: PARTIAL → PARTIAL: counts not compared; adr-lint verdicts compared over the records both runs read',
+    'partialBecause: + b.md (r)',
+    'partialBecause: - a.md (r)',
     'undecided: - u.md',
     'couldNotRun: + adr-lint',
   ])
-  // The control: two identical PARTIAL reports say only that they were not compared.
-  assert.deepEqual(diffReports(side(['a.md'], [], []), side(['a.md'], [], [])), ['look: PARTIAL → PARTIAL: not compared'])
+  // The control: two identical PARTIAL reports say only how they were compared.
+  assert.deepEqual(diffReports(side(['a.md'], [], []), side(['a.md'], [], [])), ['look: PARTIAL → PARTIAL: counts not compared; adr-lint verdicts compared over the records both runs read'])
 })
 
 test('SessionStart names a task directory git lists and the disk does not hold', () => {
@@ -250,7 +251,8 @@ test('--diff names a record whose Status changed, and a record that came or went
   const side = records => ({ look: 'ok', corpora: ['docs/adr'], records })
   const lines = diffReports(side([{ file: 'a.md', status: 'Proposed' }, { file: 'b.md', status: 'Accepted' }]),
     side([{ file: 'a.md', status: 'Accepted' }, { file: 'c.md', status: 'Accepted' }]))
-  assert.ok(lines.includes('records: + c.md, - b.md'), lines.join('\n'))
+  assert.ok(lines.includes('records: + c.md'), lines.join('\n'))
+  assert.ok(lines.includes('records: - b.md'), lines.join('\n'))
   assert.ok(lines.includes('records a.md status: Proposed → Accepted'), lines.join('\n'))
   // The control: identical records say nothing.
   assert.deepEqual(diffReports(side([{ file: 'a.md', status: 'Accepted' }]), side([{ file: 'a.md', status: 'Accepted' }])), ['nothing changed'])

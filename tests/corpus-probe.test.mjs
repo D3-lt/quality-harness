@@ -585,7 +585,8 @@ test('--diff names undecided records that came, went or changed reason, and an e
     undecided: [{ file: 'a.md', status: null, reason: 'it holds a NUL byte' }, { file: 'c.md', status: null, reason: 'unreadable' }] }
   const lines = diffReports(before, after)
   assert.ok(lines.includes('environment: python 3.14.7 → 3.14.8'), lines.join('\n'))
-  assert.ok(lines.includes('undecided: + c.md, - b.md'), lines.join('\n'))
+  assert.ok(lines.includes('undecided: + c.md'), lines.join('\n'))
+  assert.ok(lines.includes('undecided: - b.md'), lines.join('\n'))
   assert.ok(lines.includes('undecided a.md: reason changed — it holds a NUL byte'), lines.join('\n'))
   // The control: two identical reports still say nothing changed.
   assert.deepEqual(diffReports(before, before), ['nothing changed'])

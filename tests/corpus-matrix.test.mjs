@@ -86,7 +86,7 @@ test('the UTF-16 fixture task is not text to git', () => {
 })
 
 for (const [name, dir] of corpora) {
-  test(`corpus ${name}: every reader answers as reviewed, through a symlink`, () => {
+  const answersAsReviewed = () => {
     const expected = expectations(dir)
     const report = probe(name, dir)
     // Nothing a reader could not do is allowed to pass as silence.
@@ -190,5 +190,9 @@ for (const [name, dir] of corpora) {
     }
     assert.ok(!/ADR-00\?/.test(everything), `${name}: no reader prints ADR-00? as a record id`)
     assert.ok(!everything.includes(scratch), `${name}: the report names no absolute path (§6)`)
-  })
+  }
+  // A test name is a plain literal (CLAUDE.md), so a task's Tests table can name the one that runs:
+  // go-module's carries ADR-089 T1's `uncoveredReadySpecs`. Every other corpus keeps the discovered name.
+  if (name === 'go-module') test('corpus go-module: every reader answers as reviewed, through a symlink', () => { answersAsReviewed() })
+  else test(`corpus ${name}: every reader answers as reviewed, through a symlink`, answersAsReviewed)
 }

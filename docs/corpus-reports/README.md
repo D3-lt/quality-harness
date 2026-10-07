@@ -25,6 +25,8 @@ release question needs:
   "couldNotRun": 0,
   "disagreements": 0,
   "readinessUnproven": 0,
+  "look": "ok | PARTIAL | UNPROVEN",
+  "notCompared": 0,
   "verdictChanges": { "compared": 0, "passToFail": 0, "failToPass": 0 },
   "runner": "<who ran it, without naming a person or a machine>",
   "found": "<one line: what was reported, or 'nothing new'>"
@@ -45,10 +47,16 @@ probe ran on an installed plugin (no git checkout) or on reader files that diffe
 release-evidence compares commits, so neither can place the run. `found` is left for you to fill.
 
 `verdictChanges` (ADR-082) counts the adr-lint verdicts that moved since `--since`, the same runner's
-earlier report of the same corpus: `compared` records in both, `passToFail` that left PASS,
-`failToPass` that reached PASS. It is `null` without `--since`, or when the two reports cannot be
-compared. From plugin 3.8.0, release-evidence counts an attestation only when `verdictChanges` is an
-object with `passToFail` 0; one taken against a report from the last tag serves.
+earlier report of the same corpus: `compared` records, `passToFail` that left PASS, `failToPass` that
+reached PASS. It is `null` without `--since`, or when the two reports cannot be compared. A PARTIAL
+pair is compared over the records both runs read (ADR-089): a record is compared when both reports
+list it and at least one run gave it a verdict, and every other record listed in either report is
+counted in `notCompared`, which is `null` exactly when `verdictChanges` is. `look` is the run's look,
+the worse of the report's and work-next's, or `null` when the report carried none. From plugin 3.8.0,
+release-evidence counts an attestation only when `verdictChanges` is an object with `passToFail` 0;
+one taken against a report from the last tag serves. A `look: PARTIAL` attestation counts only beside
+one whose `look` is `ok` (ADR-089 Alternative (d)), and the release reason names its look and its
+`notCompared`.
 
 How to file one (ADR-070): save the peer's message, whatever surrounds the JSON, and run
 `node scripts/attest-import.mjs <message-file>` (or `-` for stdin). It files the one attestation in

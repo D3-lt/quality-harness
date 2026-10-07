@@ -21,11 +21,11 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | every diff line is marked, and the skipped fields are compared | pending | none — no spec | `node --test tests/probe-diff-marks.test.mjs` (four named tests) and the diff regression files |
-| T2 | a PARTIAL run counts what it read, and the attestation says its look | pending | none — no spec | `node --test tests/probe-attest-partial.test.mjs` (three named tests) and `tests/corpus-probe.test.mjs` |
-| T3 | attest-import files the new keys, and release-evidence names them | pending | none — no spec | `node --test tests/attest-look.test.mjs` (three named tests) and the two locked files |
-| T4 | an overflowed reader is not "did not start" | pending | none — no spec | `node --test tests/probe-enobufs.test.mjs` (two named tests) |
-| T5 | --adopt prints no absolute path and is not said to adopt | pending | none — no spec | `node --test tests/adopt-wording.test.mjs` (two named tests) |
+| T1 | every diff line is marked, and the skipped fields are compared | done | none — no spec | `node --test tests/probe-diff-marks.test.mjs` (four named tests) and the diff regression files |
+| T2 | a PARTIAL run counts what it read, and the attestation says its look | done | none — no spec | `node --test tests/probe-attest-partial.test.mjs` (three named tests) and `tests/corpus-probe.test.mjs` |
+| T3 | attest-import files the new keys, and release-evidence names them | done | none — no spec | `node --test tests/attest-look.test.mjs` (four named tests) and the two locked files |
+| T4 | an overflowed reader is not "did not start" | done | none — no spec | `node --test tests/probe-enobufs.test.mjs` (two named tests) |
+| T5 | --adopt prints no absolute path and is not said to adopt | done | none — no spec | `node --test tests/adopt-wording.test.mjs` (two named tests) |
 
 ## Contract Coupling
 

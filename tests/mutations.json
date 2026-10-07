@@ -2845,8 +2845,8 @@
       "tests": [
         "tests/attest-import.test.mjs"
       ],
-      "from": "  'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'verdictChanges', 'runner', 'found']",
-      "to": "  'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'runner', 'found']",
+      "from": "'look', 'notCompared', 'verdictChanges', 'runner', 'found']",
+      "to": "'look', 'notCompared', 'runner', 'found']",
       "only": "^attest-import files verdictChanges and refuses a malformed one$"
     },
     {
@@ -14835,8 +14835,8 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, env: { ...process.env, QUALITY_HARNESS_STATE_DIR: lintState } }))",
-      "to": "      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs }))",
+      "from": "      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, maxBuffer: outputLimit, env: { ...process.env, QUALITY_HARNESS_STATE_DIR: lintState } }))",
+      "to": "      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, maxBuffer: outputLimit }))",
       "only": "a corpus with records is linted without writing"
     },
     {
@@ -21679,6 +21679,226 @@
       "from": "${revision}${logIncomplete(log) ? ':unknown' : ''}`",
       "to": "${revision}`",
       "only": "^(?:a ledger torn after the advice was given is said once)$"
+    },
+    {
+      "label": "ADR-089 T1: a PARTIAL pair compares no verdict (comparable requires ok)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": "  return LOOKED.has(before.look) && LOOKED.has(after.look) && corpora(before) === corpora(after)",
+      "to": "  return before.look === 'ok' && after.look === 'ok' && corpora(before) === corpora(after)",
+      "only": "a partial pair compares the verdicts both runs read"
+    },
+    {
+      "label": "ADR-089 T1: two elements joined on one --diff line again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": "  const named = (field, b, a) => { for (const line of elementLines(field, b, a)) say(line) }",
+      "to": "  const named = (field, b, a) => { const all = elementLines(field, b, a); if (all.length) say(all.join(', ')) }",
+      "only": "every element that came or went is its own marked line"
+    },
+    {
+      "label": "ADR-089 T1: a removed element prints with no mark after its field",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": ".map(x => `${field}: - ${x}`)",
+      "to": ".map(x => `${field}: ${x}`)",
+      "only": "every element that came or went is its own marked line"
+    },
+    {
+      "label": "ADR-089 T1: --diff skips workNext.specs again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": "['records', 'accepted', 'tasks', 'specs']",
+      "to": "['records', 'accepted', 'tasks']",
+      "only": "diff compares the fields it used to skip"
+    },
+    {
+      "label": "ADR-089 T1: the probe report drops uncoveredReadySpecs (§18 matrix)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      uncoveredReadySpecs: workNextPaths('uncoveredReadySpecs'),\n",
+      "to": "",
+      "only": "corpus go-module: every reader answers as reviewed"
+    },
+    {
+      "label": "ADR-089 T2: an attestation carries no look",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-partial.test.mjs"
+      ],
+      "from": "    look: runLook(report),\n",
+      "to": "",
+      "only": "an attestation carries the look of its run"
+    },
+    {
+      "label": "ADR-089 T2: verdictChanges is null under a PARTIAL look again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-partial.test.mjs"
+      ],
+      "from": "  if (!before || !comparable(before, after) || !Array.isArray(before.adrLint)",
+      "to": "  if (!before || before.look !== 'ok' || after.look !== 'ok' || !comparable(before, after) || !Array.isArray(before.adrLint)",
+      "only": "a partial attestation counts the verdicts both runs read and names the rest"
+    },
+    {
+      "label": "ADR-089 T2: notCompared reads 0 whatever was not compared",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-partial.test.mjs"
+      ],
+      "from": "    notCompared: changes ? verdictMoves(since, report).notCompared : null,",
+      "to": "    notCompared: changes ? 0 : null,",
+      "only": "a partial attestation counts the verdicts both runs read and names the rest"
+    },
+    {
+      "label": "ADR-089 T2: git that could not run is called a missing checkout",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-partial.test.mjs"
+      ],
+      "from": "(readers.gitReason ? `${readers.gitReason}, so the readers' commit is unknown` : 'the plugin is not a git checkout')",
+      "to": "'the plugin is not a git checkout'",
+      "only": "git that could not run is not called a missing checkout"
+    },
+    {
+      "label": "ADR-089 T4: an overflowed reader reads did not start again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-enobufs.test.mjs"
+      ],
+      "from": "  if (error.code === 'ENOBUFS') return",
+      "to": "  if (false) return",
+      "only": "an overflowed reader is said to have run and overflowed"
+    },
+    {
+      "label": "ADR-089 T4: the gate helper drops the output limit",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-enobufs.test.mjs"
+      ],
+      "from": "timeout, maxBuffer: outputLimit })",
+      "to": "timeout })",
+      "only": "every reader spawn in the probe carries the output limit"
+    },
+    {
+      "label": "ADR-089 T4: reader() reads a cut-off stdout instead of noting the overflow",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-enobufs.test.mjs"
+      ],
+      "from": "  if (result.error) {",
+      "to": "  if (result.error && result.error.code !== 'ENOBUFS') {",
+      "only": "every reader spawn in the probe carries the output limit"
+    },
+    {
+      "label": "ADR-089 T4: a killed reader is worded did not start again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  return error.code === 'ETIMEDOUT'",
+      "to": "  return false",
+      "only": "failedToRun: a child killed at the deadline is said to have been killed, with the budget"
+    },
+    {
+      "label": "ADR-089 T5: --adopt prints the resolved absolute root again",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/adopt-wording.test.mjs"
+      ],
+      "from": "        return root.relative_to(cwd).as_posix() if root.is_relative_to(cwd) else root.name",
+      "to": "        return str(root)",
+      "only": "adopt prints no absolute path"
+    },
+    {
+      "label": "ADR-089 T5: work-next says --adopt adopts it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/adopt-wording.test.mjs"
+      ],
+      "from": "reports what adopting it needs; it changes nothing.\\n')",
+      "to": "adopts it.\\n')",
+      "only": "the adopt remedy says it reports and changes nothing"
+    },
+    {
+      "label": "ADR-089 T5: SessionStart says --adopt adopts it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/adopt-wording.test.mjs"
+      ],
+      "from": "reports what adopting it needs; it changes nothing (skills",
+      "to": "adopts it (skills",
+      "only": "the adopt remedy says it reports and changes nothing"
+    },
+    {
+      "label": "ADR-089 T3: a PARTIAL attestation attests a release alone (Alternative (d) dropped)",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/attest-look.test.mjs"
+      ],
+      "from": "  if (attested.length && !attested.some(sawAll)) {",
+      "to": "  if (false) {",
+      "only": "release-evidence attests a partial run only beside an ok one"
+    },
+    {
+      "label": "ADR-089 T3: look is outside the attestation schema",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-look.test.mjs"
+      ],
+      "from": "'readinessUnproven', 'look', 'notCompared', 'verdictChanges'",
+      "to": "'readinessUnproven', 'notCompared', 'verdictChanges'",
+      "only": "attest-import files look and notCompared and refuses malformed ones"
+    },
+    {
+      "label": "ADR-089 T3: attest-import accepts any notCompared",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-look.test.mjs"
+      ],
+      "from": "    if (!(n === null || (Number.isInteger(n) && n >= 0))) refused.push(",
+      "to": "    if (false) refused.push(",
+      "only": "attest-import files look and notCompared and refuses malformed ones"
+    },
+    {
+      "label": "ADR-089 T3: the attested reason drops what a run did not see",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/attest-look.test.mjs"
+      ],
+      "from": "${unseen(r)}",
+      "to": "",
+      "only": "release-evidence names an unread part of an attested corpus"
+    },
+    {
+      "label": "ADR-089 review: a control character in a diff value prints raw and forges a line",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": "  return text.replace(/[\\u0000-\\u001f\\u007f]/g",
+      "to": "  return text.replace(/(?!)/g",
+      "only": "a value carrying a line break is one escaped line"
+    },
+    {
+      "label": "ADR-089 review: an UNPROVEN attestation is listed as attesting beside an ok one",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/attest-look.test.mjs"
+      ],
+      "from": "  const attested = covering.filter(report => countsAsRun(report) && report.look !== 'UNPROVEN')",
+      "to": "  const attested = covering.filter(countsAsRun)",
+      "only": "release-evidence never lists an unproven run as attesting"
     }
   ]
 }

@@ -60,6 +60,10 @@ out=$(node --test --test-reporter=tap tests/probe-enobufs.test.mjs 2>&1) \
 | 4 — it is used | a corpus past 1 MiB of reader output, such as the 4,002-task one of §295; nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · ENOBUFS reads did not start again · acceptance-sha256:340158a0fba3ad62535fc600e737bda662db7a7c1ce6921e2dcf70b4d39585d8 · covers:the ENOBUFS wording
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · the gate helper drops maxBuffer, so adr-next keeps the 1 MiB default · acceptance-sha256:340158a0fba3ad62535fc600e737bda662db7a7c1ce6921e2dcf70b4d39585d8 · covers:the output limit on every reader spawn
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · reader() reads the cut-off stdout instead of noting the overflow · acceptance-sha256:340158a0fba3ad62535fc600e737bda662db7a7c1ce6921e2dcf70b4d39585d8 · covers:an overflow reaches couldNotRun
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/corpus-probe.mjs` · a killed reader is worded did not start again · acceptance-sha256:340158a0fba3ad62535fc600e737bda662db7a7c1ce6921e2dcf70b4d39585d8 · covers:the existing failedToRun arms
 
 ## Invariants
 
@@ -79,3 +83,10 @@ Stop and ask if a locked test pins `did not start` for an ENOBUFS error.
 - `plugin/scripts/lifecycle.mjs:6000`'s "the process did not start" — ADR-089 Out of Scope.
 
 ## Verification Log
+- 2026-10-07 · 49bd0c3* · exit 1 · `out=$(node --test --test-reporter=tap tests/probe-enobufs.test.mjs 2>&1) \ …` · acceptance-sha256:340158a0fba3ad62535fc600e737bda662db7a7c1ce6921e2dcf70b4d39585d8 · ms:1256 · test-lock-sha256:000ce4613aa4e7802365d63c8f658197ad0a67b36b6d0af708478ead02f4cffd · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvcHJvYmUtZW5vYnVmcy50ZXN0Lm1qcwlhbiBvdmVyZmxvd2VkIHJlYWRlciBpcyBzYWlkIHRvIGhhdmUgcnVuIGFuZCBvdmVyZmxvd2VkCWYzZmJiMGJjYzNkN2FkNGQxYTJlYjAzNWNlZjUwMzlmZmU4N2NlZmRjYjJkMTVhOTQ5MjcxZDQ4NDY5ZjczYWEKYm9keQl0ZXN0cy9wcm9iZS1lbm9idWZzLnRlc3QubWpzCWV2ZXJ5IHJlYWRlciBzcGF3biBpbiB0aGUgcHJvYmUgY2FycmllcyB0aGUgb3V0cHV0IGxpbWl0CTY3OTU5N2Y4ODU0MWJjNDM0MDVjOWQ4NGRkNjFkYWIxMjliZDRhYmM5NTFlYmM5ZWI5YzNjMWJkOTBhMmFkNmQ
+  ```
+  ```
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/probe-enobufs.test.mjs 2>&1) \ …` · acceptance-sha256:340158a0fba3ad62535fc600e737bda662db7a7c1ce6921e2dcf70b4d39585d8 · ms:9796
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/probe-enobufs.test.mjs 2>&1) \ …` · acceptance-sha256:340158a0fba3ad62535fc600e737bda662db7a7c1ce6921e2dcf70b4d39585d8 · ms:10316
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/probe-enobufs.test.mjs 2>&1) \ …` · acceptance-sha256:340158a0fba3ad62535fc600e737bda662db7a7c1ce6921e2dcf70b4d39585d8 · ms:10716
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/probe-enobufs.test.mjs 2>&1) \ …` · acceptance-sha256:340158a0fba3ad62535fc600e737bda662db7a7c1ce6921e2dcf70b4d39585d8 · ms:10279

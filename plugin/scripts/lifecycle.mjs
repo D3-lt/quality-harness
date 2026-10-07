@@ -3616,7 +3616,7 @@ export function sessionOrientation(cwd) {
   if (corpusLook === true) {
     for (const archive of unmarkedArchives(root, listing)) {
       lines.push(`${pathInCode(archive)} looks like an archive but has no Lifecycle marker, so it is read as live — `
-        + '`adr-retire-check --adopt <active> <archive>` adopts it (skills/adr-retire §Existing Archives).')
+        + '`adr-retire-check --adopt <active> <archive>` reports what adopting it needs; it changes nothing (skills/adr-retire §Existing Archives).')
     }
   }
 

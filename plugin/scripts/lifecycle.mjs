@@ -4,7 +4,8 @@ import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
-import { appendFileSync, copyFileSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, closeSync, copyFileSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readlinkSync, readSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { StringDecoder } from 'node:string_decoder'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -1370,27 +1371,56 @@ export function unmarkedArchives(root, listing) {
 // copy, and the reader that opens it says what it finds.
 // ⚠ THE TARGET, NOT THE LINK, when a link is listed first: `Final/001-link.md` sorts before
 // `docs/decisions/001-rule.md`, and the target — the file adr-lint lints — was named as the copy (a
-// gpt-6.1-sol delta review, 2026-10-07). The path with fewer links anywhere in it wins, a linked parent
-// directory counted as much as a linked file (the owner, 2026-10-07: nothing left open). Counted, not
-// compared with its real path, since a checkout under `/tmp` or `/var` on macOS is linked in every path
-// alike. Between two paths with as many links, the first listed stays, so a junction loop reads as before.
-const linksIn = file => {
+// gpt-6.1-sol delta review, 2026-10-07). The path with fewer links wins (the owner, 2026-10-07: nothing
+// left open), and the corpus reader first prefers a spelling a name arm recognises (ADR-092 Decision 7).
+// Between two paths of one class with as many links, the first listed stays, so a junction loop reads as
+// before.
+//
+// ADR-092 Decision 7: links are counted BY RESOLVING EACH HOP, not by asking each ancestor of the
+// spelling whether it is a link: `a` → `c` → the file was one link that way, so dedup could keep the
+// more-linked path (finding 11). Every link component of the path and every link met while resolving a
+// target counts, a link met twice counting twice (`a/a/file.md` with `a` → `.` counts 2), and the count
+// stops at `limit`, where the path is unbounded (`Infinity`) and loses to every counted path of its class.
+export function linksIn(file, limit = 32) {
   let count = 0
-  for (let at = path.resolve(file); ; at = path.dirname(at)) {
-    try { if (lstatSync(at).isSymbolicLink()) count += 1 } catch { /* unreadable: not known to be a link */ }
-    if (path.dirname(at) === at) return count
+  const absolute = path.resolve(file)
+  const { root } = path.parse(absolute)
+  let resolved = root
+  const pending = absolute.slice(root.length).split(/[\\/]/).filter(Boolean)
+  while (pending.length > 0) {
+    const part = pending.shift()
+    if (part === '.') continue
+    if (part === '..') { resolved = path.dirname(resolved); continue }
+    const at = path.join(resolved, part)
+    let target = null
+    try { if (lstatSync(at).isSymbolicLink()) target = readlinkSync(at) } catch { /* unreadable: not known to be a link */ }
+    if (target === null) { resolved = at; continue }
+    count += 1
+    if (count >= limit) return Infinity
+    if (path.isAbsolute(target)) resolved = path.parse(target).root
+    const rest = path.isAbsolute(target) ? target.slice(path.parse(target).root.length) : target
+    pending.unshift(...rest.split(/[\\/]/).filter(Boolean))
   }
+  return count
 }
-export function onceByRealPath(paths) {
+export function onceByRealPath(paths, prefer = null, { linkLimit = 32 } = {}) {
   const firstPathTo = new Map()
   const kept = []
   const aliases = []
+  // The name preference first, and only it, when it separates two spellings; links only within a class.
+  const better = (file, first) => {
+    if (prefer) {
+      const [mine, theirs] = [Boolean(prefer(file)), Boolean(prefer(first))]
+      if (mine !== theirs) return mine
+    }
+    return linksIn(file, linkLimit) < linksIn(first, linkLimit)
+  }
   for (const file of paths) {
     let real
     try { real = realpathSync.native(file) } catch { kept.push(file); continue }
     const first = firstPathTo.get(real)
     if (first === undefined) { firstPathTo.set(real, file); kept.push(file); continue }
-    if (linksIn(file) < linksIn(first)) {
+    if (better(file, first)) {
       firstPathTo.set(real, file)
       kept[kept.indexOf(first)] = file
       for (const alias of aliases) if (alias.sameAs === first) alias.sameAs = file
@@ -1452,7 +1482,7 @@ function newestTaskChange(root, files) {
   }
   return newest
 }
-function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP) {
+export function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP) {
   if (listing == null) return { read: [], unread: 0 }
   const found = []
   const seen = new Map()
@@ -1948,6 +1978,9 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
 // `1-intro.md` is not a record (a Windows chaos round of 916b515, C-2).
 const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\d{1,4}|\d{3,4})[-._]/i
 const RECORD_BUDGET = 200
+// ADR-092 Decision 5: the content screen streams at most this much in one `adrCorpus` call, then stops
+// and names the first path it did not screen, so a huge tree is PARTIAL rather than a long SessionStart.
+const SCREEN_BUDGET = 64 * 1024 * 1024
 
 // --- Record identity (ADR-063) ------------------------------------------------
 // The same rule as plugin/lib/record.py's `record_id` and `references_in`, kept
@@ -1971,9 +2004,18 @@ const REF_CHUNK_RE = /[A-Za-z0-9._/\\-]+/g
 
 const numberId = number => `ADR-${String(Number(number)).padStart(3, '0')}`
 
-/** The first `# ` heading line of a record's text, or null. */
+/**
+ * The first `# ` heading line of a record's text, or null: outside a leading frontmatter block and
+ * outside every fence, as record.py's `title_line` reads it (ADR-092 Decision 13), so a YAML comment or
+ * a fenced `# ADR-…` example never decides a record's identity.
+ */
 export function titleLine(text) {
-  for (const line of text.split(/\r\n|\r|\n/)) if (HEADING_LINE_RE.test(line)) return line
+  const lines = String(text).split(/\r\n|\r|\n/)
+  const head = frontmatterClose(lines)
+  for (const [index, [line, fenced]] of fencedLines(String(text)).entries()) {
+    if (fenced || (head !== null && index <= head)) continue
+    if (HEADING_LINE_RE.test(line)) return line
+  }
   return null
 }
 
@@ -2073,19 +2115,25 @@ function fencedLines(text) {
   const head = frontmatterClose(lines)
   return lines.map((line, index) => {
     if (head !== null && index <= head) return [line, false]
-    // `[^\r\n]`, not `.`: the rest of an opener is the rest of its line, U+2028 and U+2029 included,
-    // as `.` reads it in record.py's `_FENCE` (the Codex round of 3.1.6, finding 3).
-    const marker = line.match(/^[ \t]*(`{3,}|~{3,})([^\r\n]*)$/)
-    if (fence === null) {
-      if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) {
-        fence = marker[1]
-        return [line, true]
-      }
-      return [line, false]
-    }
-    if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && /^[ \t]*$/.test(marker[2])) fence = null
-    return [line, true]
+    const [fenced, next] = fenceStep(line, fence)
+    fence = next
+    return [line, fenced]
   })
+}
+
+// One line of the fence walk: whether `line` is fenced, given the fence open before it (null for none),
+// and the fence open after it. Shared by `fencedLines` and the streamed content screen, so the two
+// cannot read a fence differently.
+function fenceStep(line, fence) {
+  // `[^\r\n]`, not `.`: the rest of an opener is the rest of its line, U+2028 and U+2029 included,
+  // as `.` reads it in record.py's `_FENCE` (the Codex round of 3.1.6, finding 3).
+  const marker = line.match(/^[ \t]*(`{3,}|~{3,})([^\r\n]*)$/)
+  if (fence === null) {
+    if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) return [true, marker[1]]
+    return [false, null]
+  }
+  if (marker && marker[1][0] === fence[0] && marker[1].length >= fence.length && /^[ \t]*$/.test(marker[2])) return [true, null]
+  return [true, fence]
 }
 
 // The columns a line's leading spaces and tabs fill, a tab advancing to the next multiple of four,
@@ -2586,76 +2634,207 @@ function taskFilesFor(file, text, reader = corpusReader()) {
  * fragility a second condition removes.
  */
 export const RECORD_DIRECTORY = /^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$/i
-function looksLikeRecord(file, directory, reader) {
-  // Where a record is kept, as adr-lint decides it for a record admitted by content: a directory
-  // named `adr`/`decisions` or an archive of one (record.py's `_RECORD_DIRECTORY`), so a record
-  // adr-lint lints is one these readers list (559827d chaos; the /code-review of ADR-074).
-  if (!directory.split(/[\\/]/).some(part => RECORD_DIRECTORY.test(part))) return false
-  if (/(^|[\\/])tasks([\\/]|$)/i.test(directory)) return false
-  let text
-  try { text = reader.text(file) } catch { return 'unreadable' }
-  return readsAsRecord(text)
-}
+// ADR-092: THE ONE DEFINITION'S ONLY MIRROR. record.py's `recognised_as_record` is the definition and
+// adr-lint's verdict; this reads the same rule, held to it row by row by
+// tests/fixtures/record-recognition.json. No file under a `templates` directory is a record (as listed or
+// where its real path lands); a name starting `ADR-<n>` or `spec-<n>` is one whatever it holds; a README is
+// never one by content; otherwise a Status and a one-line `## Context` or `## Decision` heading, both read
+// outside every fence, with a line-start `**Status:**` or kept where records are.
+// ⚠ SPELLED, NOT `\s`: Python's `\s` holds U+0085 and U+001C-U+001F and JS's does not, and JS's holds
+// U+FEFF and Python's does not (a gpt-6.1-sol delta review, 2026-10-07, finding 3). A heading's gap is
+// that whitespace less the line breaks, as record.py's `_RECORD_SECTION` reads it (ADR-092 Decision 1).
+const PY_LINE_SPACE = '[\\t\\v\\f \\x1c-\\x1f\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]'
+const RECORD_SECTION = new RegExp(`^##${PY_LINE_SPACE}+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])`)
+const BOLD_STATUS = /^\*\*Status:\*\*/
+const TEMPLATES_DIRECTORY = /^templates$/i
+// The name arms at any width (record.py's `_NUMBERED_REF` and `_SPEC_NAME`). Python's `re.I` folds
+// `ſ` (U+017F) into `s` and its `\d` takes any decimal digit, so both are spelled out here.
+const CANONICAL_NAME = /^ADR-[0-9]+(?![A-Za-z0-9_])/i
+const SPEC_NAME = /^[sSſ][pP][eE][cC][-_]?\p{Nd}/u
+export const nameArmSpelling = file => CANONICAL_NAME.test(path.basename(file)) || SPEC_NAME.test(path.basename(file))
 
-// The content half of `looksLikeRecord`, shared with the frozen-archive arm below.
-function readsAsRecord(text) {
-  // A `## Status` section is a Status too (ADR-074 T2): a section-only record was linted by
-  // adr-lint and absent from every corpus reader until the corpus-chaos runs of 559827d.
-  return (inlineStatus(text) !== null || statusSection(text) !== null)
-    && RECORD_SECTION.test(text)
+// `target` relative to `base`, or null when it is not under it (Python's `relative_to` raising).
+function inside(base, target) {
+  const relative = path.relative(base, target)
+  return relative === '..' || relative.startsWith(`..${path.sep}`) || path.isAbsolute(relative) ? null : relative
 }
-
-// The owner, 2026-10-07: a file adr-lint does not recognise as a record is not a record to any
-// reader. adr-lint's rule, in its main beside `_not_recognised_because`: a name starting `ADR-<n>` or
-// `spec-<n>`, or by content a Status and a `## Context` or `## Decision` heading, the Status written
-// `**Status:**` unless the file is kept where records are (a RECORD_DIRECTORY, never under `tasks/`).
-// record.py's `_RECORD_SECTION` and `_NUMBERED_REF`, spelled the same; tests/corpus-shapes.test.mjs
-// runs adr-lint and every reader over one corpus and holds them to one answer.
-// ⚠ SPELLED, NOT `\s` AND `^`/m: Python's `\s` holds U+0085 and U+001C-U+001F and JS's does not,
-// JS's holds U+FEFF and Python's does not, and JS's `^` under /m starts a line after U+2028 and
-// U+2029 where Python's starts one after `\n` only (a gpt-6.1-sol delta review, 2026-10-07, finding 3).
-const PY_SPACE = '[\\t\\n\\v\\f\\r \\x1c-\\x1f\\x85\\xa0\\u1680\\u2000-\\u200a\\u2028\\u2029\\u202f\\u205f\\u3000]'
-const RECORD_SECTION = new RegExp(`(?<![^\\n])##${PY_SPACE}+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])`)
-function recognisedAsRecord(root, file, text) {
+// record.py's `_listed_relative`: the path as listed, relative to the root — through the real path of the
+// directory it is listed in, then as spelled against the root as spelled, then against the root's real path.
+function listedRelative(root, file) {
+  const absolute = path.resolve(file)
+  let realRoot = null
+  let throughDirectory = null
+  try {
+    realRoot = realpathSync.native(root)
+    throughDirectory = path.join(realpathSync.native(path.dirname(absolute)), path.basename(absolute))
+  } catch { /* could not take a real path: the spellings below still answer */ }
+  for (const [candidate, base] of [[throughDirectory, realRoot], [absolute, path.resolve(root)], [absolute, realRoot]]) {
+    if (candidate !== null && base !== null) {
+      const found = inside(base, candidate)
+      if (found !== null) return found
+    }
+  }
+  return null
+}
+// record.py's `record_placement` (ADR-092 Decision 2): the real path relative to the real root, else
+// the path as listed relative to the root.
+function recordPlacement(root, file) {
+  try {
+    const placed = inside(realpathSync.native(root), realpathSync.native(file))
+    if (placed !== null) return placed
+  } catch { /* a cycle or a vanished file: the listing answers */ }
+  return listedRelative(root, file) ?? file
+}
+const directoriesOf = relative => relative.split(/[\\/]/).slice(0, -1)
+// record.py's `_kept_where_records_are`: under a record directory, never under `tasks/`, and not inside
+// another record's own directory below it; a bare decimal number is a year, and the file's own folder
+// is not another record's.
+function keptWhereRecordsAre(directories, name) {
+  if (directories.some(part => part.toLowerCase() === 'tasks')) return false
+  const own = recordId(name)
+  const anotherRecords = directory => {
+    const found = /^\p{Nd}+$/u.test(directory) ? null : recordId(directory)
+    return found !== null && found !== own
+  }
+  return directories.some((part, index) => RECORD_DIRECTORY.test(part) && !directories.slice(index + 1).some(anotherRecords))
+}
+// record.py's `record_discriminators`: a line-start `**Status:**` and a record heading, each read only
+// outside every fence of the whole document (ADR-092 Decision 12).
+function recordDiscriminators(text) {
+  let bold = false
+  let heading = false
+  for (const [line, fenced] of fencedLines(text)) {
+    if (fenced) continue
+    bold ||= BOLD_STATUS.test(line)
+    heading ||= RECORD_SECTION.test(line)
+    if (bold && heading) break
+  }
+  return { bold, heading }
+}
+export function recognisedAsRecord(root, file, text) {
+  const placed = recordPlacement(root, file)
+  const listed = listedRelative(root, file) ?? file
+  const status = inlineStatus(text) ?? statusSection(text)
+  const placedDirectories = directoriesOf(placed)
+  const kept = keptWhereRecordsAre(placedDirectories, path.basename(placed))
+  const answer = (recognised, arm) => ({ recognised, status, kept, arm })
+  if ([...directoriesOf(listed), ...placedDirectories].some(part => TEMPLATES_DIRECTORY.test(part))) return answer(false, 'templates')
   const base = path.basename(file)
-  if (/^ADR-[0-9]+(?![A-Za-z0-9_])/i.test(base) || /^spec[-_]?\p{Nd}/iu.test(base)) return true
-  if ((inlineStatus(text) === null && statusSection(text) === null) || !RECORD_SECTION.test(text)) return false
-  // Placed where adr-lint places it: the real path, relative to the real root, and the path as listed
-  // only when the real one leaves the root (adr-lint's ValueError arm). A link outside a record
-  // directory to a record inside one is kept there (the same review, finding 2).
-  let placed = null
-  try { placed = path.relative(realpathSync.native(root), realpathSync.native(file)) } catch { placed = null }
-  if (placed === null || placed === '..' || placed.startsWith(`..${path.sep}`) || path.isAbsolute(placed)) {
-    placed = path.relative(path.resolve(root), path.resolve(file))
-  }
-  const directories = path.dirname(placed).split(/[\\/]/).map(part => part.toLowerCase())
-  return /(?<![^\n])\*\*Status:\*\*/.test(text)
-    || (!directories.includes('tasks') && directories.some(part => RECORD_DIRECTORY.test(part)))
+  if (CANONICAL_NAME.test(base)) return answer(true, 'canonical')
+  if (SPEC_NAME.test(base)) return answer(true, 'spec')
+  if (base.toLowerCase() === 'readme.md') return answer(false, 'readme')
+  if (status === null) return answer(false, null)
+  const { bold, heading } = recordDiscriminators(text)
+  const recognised = heading && (bold || kept)
+  return answer(recognised, recognised ? 'content' : null)
 }
 
-function recordFilesFromListing(root, tracked, reader) {
+// record.py's `corpus_eligible` (ADR-092 Decision 3): `.md` in any case, never a README, and no `tasks`,
+// `templates` or fixture directory between the root and the file.
+export function corpusEligible(relative) {
+  const parts = posixListed(relative).split('/').filter(Boolean)
+  if (parts.length === 0) return false
+  const name = parts.at(-1).toLowerCase()
+  if (!name.endsWith('.md') || name === 'readme.md') return false
+  const directories = parts.slice(0, -1)
+  return !directories.some(part => part.toLowerCase() === 'tasks' || TEMPLATES_DIRECTORY.test(part))
+    && !listedUnderUninterestingDirectory(directories)
+}
+
+// ADR-092 Decision 5's content screen: whether a file holds both a line-start `**Status:**` and a record
+// heading outside every fence, streamed whole at any size, with the fence state kept as it streams. A
+// file without both lines cannot be a record by the content arm outside a record directory, so the screen
+// is exact. A leading frontmatter is delimited first, as `fencedLines` delimits it: the walk runs both as
+// if the block closes and as if there is none, and the end of the file says which one was true.
+export function screenAdmits(file) {
+  const fd = openSync(file, 'r')
+  try {
+    const buffer = Buffer.alloc(64 * 1024)
+    const decoder = new StringDecoder('utf8')
+    // `head`: inside the assumed frontmatter; null once it closed, or when the file has none.
+    const walks = { block: { fence: null, bold: false, heading: false, head: undefined }, plain: { fence: null, bold: false, heading: false } }
+    let carry = ''
+    let first = true
+    const take = line => {
+      if (first) {
+        first = false
+        walks.block.head = FRONTMATTER_OPEN.test(line) ? true : null
+        stepWalk(walks.block, line, walks.block.head === true)
+      } else if (walks.block.head === true) {
+        if (FRONTMATTER_CLOSE.test(line)) walks.block.head = false
+        stepWalk(walks.block, line, true)
+      } else {
+        stepWalk(walks.block, line, false)
+      }
+      stepWalk(walks.plain, line, false)
+    }
+    // Which walk the file is: the frontmatter one once its block closed, the plain one when there is
+    // none, and undecided while a block is still open.
+    const decided = () => (walks.block.head === false ? walks.block : walks.block.head === null ? walks.plain : null)
+    for (;;) {
+      const read = readSync(fd, buffer, 0, buffer.length, null)
+      const chunk = read > 0 ? decoder.write(buffer.subarray(0, read)) : decoder.end()
+      const lines = (carry + chunk).split(/\r\n|\r|\n/)
+      carry = read > 0 ? lines.pop() : ''
+      for (const line of lines) take(line)
+      const walk = decided()
+      if (walk && walk.bold && walk.heading) return true
+      if (read <= 0) break
+    }
+    const walk = decided() ?? walks.plain
+    return walk.bold && walk.heading
+  } finally { closeSync(fd) }
+}
+function stepWalk(walk, line, frontmatter) {
+  if (frontmatter) { walk.bold ||= BOLD_STATUS.test(line); walk.heading ||= RECORD_SECTION.test(line); return }
+  const [fenced, next] = fenceStep(line, walk.fence)
+  walk.fence = next
+  if (fenced) return
+  walk.bold ||= BOLD_STATUS.test(line)
+  walk.heading ||= RECORD_SECTION.test(line)
+}
+
+// The discovery set (ADR-092 Decision 5): every eligible listed path that is named like a record
+// (`ADR_FILE`, or a name arm at any width), sits under a record directory as listed or where its directory
+// really is (Decision 14), or passes the content screen. Returned in listing order, with the paths found
+// by NAME (the only ones `notRecognised` may name), the screen candidates whose read failed, and the
+// first path the screen budget left unscreened.
+function recordFilesFromListing(root, tracked, { screenBudget = SCREEN_BUDGET } = {}) {
   const files = []
-  // A record under a frozen archive is found by its content too (ADR-063): the
-  // `adr` directory rule never admits `docs/adr-archive/<stem>/<stem>.md`, so a
-  // dated archive produced no archived records at all.
-  const listed = new Set(tracked.map(rel => posixListed(rel)))
-  const frozen = new Map()
-  const frozenRecord = (parts, absolute) => {
-    // ⚠ `unknown` IS NOT `false`: an unreadable or oddly spelled catalog must
-    // leave the record listed, so its catalog lookup reports PARTIAL, rather than
-    // drop it and report a corpus with nothing archived (Codex, 2026-09-22).
-    if (underFrozenArchive(root, parts, frozen, listed) === false) return false
-    try { return readsAsRecord(reader.text(absolute)) } catch { return true }
+  const byName = new Set()
+  const failed = []
+  const placedDirectory = new Map()
+  let realRoot = null
+  try { realRoot = realpathSync.native(root) } catch { /* the listed spelling alone decides place */ }
+  // Whether a listed directory is a record directory where it really is. Its real path is taken once.
+  const placedUnderRecordDirectory = directory => {
+    if (!placedDirectory.has(directory)) {
+      let answer = false
+      try {
+        const placed = realRoot === null ? null : inside(realRoot, realpathSync.native(listedAbsolute(root, directory)))
+        answer = placed !== null && placed.split(/[\\/]/).some(part => RECORD_DIRECTORY.test(part))
+      } catch { /* a directory whose real path cannot be taken is read as listed */ }
+      placedDirectory.set(directory, answer)
+    }
+    return placedDirectory.get(directory)
   }
+  // A listed link to a file: its directory as listed may be anywhere, so its own real path is asked.
+  const placedFileUnderRecordDirectory = absolute => {
+    try {
+      if (!lstatSync(absolute).isSymbolicLink() || realRoot === null) return false
+      const placed = inside(realRoot, realpathSync.native(absolute))
+      return placed !== null && directoriesOf(placed).some(part => RECORD_DIRECTORY.test(part))
+    } catch { return false }
+  }
+  let streamed = 0
+  let screened = 0
+  let unscreened = null
   for (const rel of tracked) {
     const norm = posixListed(rel)
-    if (!/\.md$/i.test(norm)) continue
-    if (/(?:^|\/)tasks\//i.test(norm)) continue
+    if (!corpusEligible(norm)) continue
     const slash = norm.lastIndexOf('/')
     const base = slash < 0 ? norm : norm.slice(slash + 1)
     const dirNorm = slash < 0 ? '' : norm.slice(0, slash)
-    // A fixture is not a record of this repository, whatever its name says.
-    if (listedUnderUninterestingDirectory(dirNorm ? dirNorm.split('/') : [])) continue
     // ⚠ The budget STOPS the look; it must not end it silently. A `break` here read
     // the first 200 and said `look ok` over 10,000 (a Windows chaos round of 916b515,
     // C-1). The first file left unexamined is named, and adrCorpus says PARTIAL.
@@ -2664,10 +2843,38 @@ function recordFilesFromListing(root, tracked, reader) {
       break
     }
     const absolute = listedAbsolute(root, rel)
-    if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader) !== false) files.push(absolute)
-    else if (frozenRecord([...(dirNorm ? dirNorm.split('/') : []), base], absolute)) files.push(absolute)
+    if (ADR_FILE.test(base) || CANONICAL_NAME.test(base) || SPEC_NAME.test(base)) {
+      files.push(absolute)
+      byName.add(absolute)
+      continue
+    }
+    if ((dirNorm && dirNorm.split('/').some(part => RECORD_DIRECTORY.test(part)))
+      || (dirNorm && placedUnderRecordDirectory(dirNorm)) || placedFileUnderRecordDirectory(absolute)) {
+      files.push(absolute)
+      continue
+    }
+    if (unscreened !== null) continue
+    // A path only the screen could admit: a read that failed is named, except its absence, which is an
+    // observation that it carries nothing (ADR-092 Decision 9).
+    let size
+    try {
+      const stat = statSync(absolute)
+      if (!stat.isFile()) { failed.push({ file: absolute, reason: 'not a regular file, so the content screen could not read it' }); continue }
+      size = stat.size
+    } catch (error) {
+      if (error?.code !== 'ENOENT') failed.push({ file: absolute, reason: error?.code ?? 'unreadable' })
+      continue
+    }
+    if (streamed + size > screenBudget) { unscreened = absolute; continue }
+    streamed += size
+    screened += 1
+    try {
+      if (screenAdmits(absolute)) files.push(absolute)
+    } catch (error) {
+      if (error?.code !== 'ENOENT') failed.push({ file: absolute, reason: error?.code ?? 'unreadable' })
+    }
   }
-  return files
+  return { files, byName, failed, unscreened, streamed, screened }
 }
 
 // Room for a whole listing. Node's default 1 MiB cut `git ls-files -z` on a 27,289-file repository
@@ -2717,13 +2924,14 @@ export function trackedPaths(root) {
  * resolution (ADR-005). An empty array means the tree was listed and held
  * no files. Nothing here writes, and nothing here runs a check.
  */
-export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
+export function adrCorpus(root, { tracked = trackedPaths(root), screenBudget = SCREEN_BUDGET } = {}) {
   const archiveEffects = new Map()
   const records = []
   const unreadable = []
   Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })
-  // Files listed by name that adr-lint does not recognise as records: counted by nobody, named by
-  // work-next's notRead (the owner, 2026-10-07).
+  // Files listed by NAME that adr-lint does not recognise as records: counted by nobody, named by
+  // work-next's notRead (the owner, 2026-10-07). One found by place or by the screen and not recognised
+  // was never claimed, and no reader names it (ADR-092 Decision 5).
   const notRecognised = []
   Object.defineProperty(records, 'notRecognised', { value: notRecognised, enumerable: false })
   Object.defineProperty(records, 'look', {
@@ -2733,17 +2941,35 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked), enumerable: false })
   const reader = corpusReader()
   const listedFiles = new Set(tracked.map(rel => listedAbsolute(root, rel)))
-  const files = recordFilesFromListing(root, tracked, reader)
+  const discovered = recordFilesFromListing(root, tracked, { screenBudget })
+  const { files, byName } = discovered
+  // What discovery cost: files found, and how many the content screen opened and how many bytes it
+  // streamed (ADR-092 T3 measures it; a reader that wants to know why a session start was slow asks it).
+  Object.defineProperty(records, 'discovery', {
+    value: { discovered: files.length, screened: discovered.screened, streamed: discovered.streamed }, enumerable: false,
+  })
   if (files.unexamined) {
     unreadable.push({ file: files.unexamined, status: null, taskFiles: [],
       reason: `record budget: ${RECORD_BUDGET} records were read; this file and every later one in the listing were not examined` })
     records.look = 'PARTIAL'
   }
+  // A path only the content screen could admit, whose read failed: named, never dropped (ADR-092
+  // Decision 5); one absent from the working tree was observed to carry nothing and is in no list.
+  for (const { file, reason } of discovered.failed) {
+    unreadable.push({ file, status: null, taskFiles: [], reason })
+    records.look = 'PARTIAL'
+  }
+  if (discovered.unscreened) {
+    unreadable.push({ file: discovered.unscreened, status: null, taskFiles: [],
+      reason: `content screen budget: ${screenBudget} bytes were streamed; this file and every later one only the screen could admit were not examined` })
+    records.look = 'PARTIAL'
+  }
   // ⚠ One file, however many paths reach it: `onceByRealPath` says why. A link copy is named,
-  // unread, and marked `alias` so no counter takes it for a record with an unread status.
-  const once = onceByRealPath(files)
+  // unread, and marked `alias` so no counter takes it for a record with an unread status. A spelling a
+  // name arm recognises is kept first, since only its name made the file a record (ADR-092 Decision 7).
+  const once = onceByRealPath(files, nameArmSpelling)
   for (const { file, sameAs } of once.aliases) {
-    unreadable.push({ file, status: null, taskFiles: [], alias: true, reason: aliasReason(root, sameAs) })
+    unreadable.push({ file, status: null, taskFiles: [], alias: true, sameAs, reason: aliasReason(root, sameAs) })
     records.look = 'PARTIAL'
   }
   files.length = 0
@@ -2787,7 +3013,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     // names it as not read. Its text was read, so this is an observation. Before the catalog is asked:
     // a frozen archive's row does not make a record of a file adr-lint rejects (a gpt-6.1-sol delta
     // review, 2026-10-07, finding 1), and a file that is not a record makes no look PARTIAL.
-    if (!recognisedAsRecord(root, file, text)) { notRecognised.push(file); continue }
+    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }
     // A frozen record's effect comes from its archive's catalog; `governing` there
     // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
     // and the record then governs nothing here rather than whatever it last said.
@@ -2822,6 +3048,9 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       const wouldGovern = () => [...new Set([...declaredGoverns(text).paths,
         ...recordTasks.flatMap(task => { try { return affectedFiles(reader.text(task)) } catch { return [] } })])]
       unreadable.push({ file, status: status || null, taskFiles: recordTasks,
+        // Its identity, so one id claimed by an undecided record and a counted one is named (an outside
+        // probe run, 2026-10-07: `# ADR 006` with a Status no reader acts on beside ADR-006).
+        id: recordId(path.basename(file), titleLine(text)),
         ...(archived?.unproven ? { unproven: archived.unproven, governs: wouldGovern(),
           title: (text.match(/^#\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })
       continue

@@ -639,6 +639,11 @@ test('a record-shaped file under tasks belongs to its record, not to its own nam
   const root = scratch('owner-task')
   writeTree(root, { '2026-07-15-old/tasks/2026-07-15-old.T1.md': record('Task one', 'done') })
   assert.equal(ownerOf(root, '2026-07-15-old/tasks/2026-07-15-old.T1.md', ['2026-07-15-old']), '2026-07-15-old')
+  // A `done` Status is no record's, so the definition rejects that task and its companion name decides.
+  // One written from the record template carries a record's Status, which the definition admits
+  // (ADR-092); it is still under `tasks/`, so it never takes its own name.
+  writeTree(root, { '2026-07-15-old/tasks/2026-07-15-old.T2.md': record('Task two', 'Proposed') })
+  assert.equal(ownerOf(root, '2026-07-15-old/tasks/2026-07-15-old.T2.md', ['2026-07-15-old']), '2026-07-15-old')
 })
 
 test('a companion belongs to the longest stem it extends, whatever the set order', () => {

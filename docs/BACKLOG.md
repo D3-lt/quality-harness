@@ -18434,3 +18434,9 @@ The owner brought five Windows 11 desktops back for testing. Each ran the probe 
 - A lone CR cuts a SessionStart title with no marker.
 - The UTF-16 hook-payload sentence could say "UTF-16?".
 **A doc error, for the owner:** `git -c core.longpaths=true clone` does not persist the setting; `git clone -c core.longpaths=true` does. It is wrong in CLAUDE.md §7 and .claude/rules/07, and it was wrong in my request too.
+
+## 356. OPEN 2026-10-07 — corpus-probe `--diff` reports a transient could-not-look as a changed advice line
+
+Found by an outside run of the 3.8.10 RC (d39a15f) on laravel-react-monorepo: `--diff` against v3.8.9 showed one added advice, `adrLint docs/adr-archive/ADR-030-…md advice: cross-record dependency cycles were NOT checked: this corpus could not be listed from git`. Read from source, nothing between v3.8.9 and d39a15f can add that line: `record_files`, `check_cross_record_cycles` and `tracked_or_unignored_paths` are unchanged, and the one edit on the path (adr-lint's pending branch no longer re-takes `tracked` as None) can only remove it. The peer re-ran adr-lint twice on the same record at d39a15f: PASS, no advice; both `git ls-files` calls under 0.1 s at load 5–6. The original probe ran while the peer's machine logged load 10–32, so a 30 s `ls-files` timeout is plausible but unmeasured.
+
+The lead: a could-not-look advice is an observation about the run, not about the corpus, and `--diff` lists it beside real advice changes. A diff could mark advice lines of the could-not-look kind separately (or say "transient: could not look") so a reader does not chase a regression. Not built; no target measured.

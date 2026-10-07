@@ -22901,8 +22901,8 @@
       "tests": [
         "tests/walk-unlisted.test.mjs"
       ],
-      "from": "        if unlisted:\n            for directory in unlisted:\n                print(f\"[arch-lint] could not run",
-      "to": "        if False:\n            for directory in unlisted:\n                print(f\"[arch-lint] could not run",
+      "from": "        if any(\"appears nowhere in the repo\" in str(e) for e in errors):",
+      "to": "        if False:",
       "only": "^every walk caller names a directory whose listing failed$"
     },
     {

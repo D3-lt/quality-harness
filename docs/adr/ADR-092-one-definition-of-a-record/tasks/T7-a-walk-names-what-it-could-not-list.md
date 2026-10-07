@@ -75,6 +75,11 @@ The injected-failure test runs on every platform and is red before the work ther
 - 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/adr-debt` · a .MD record's debt is missed off Windows · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:adr-debt's any-case suffix
 - 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a .MD task's claims are never swept off Windows · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:adr-verify's any-case suffix
 - 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/adr-debt` · adr-debt opens a FIFO named like a record and blocks · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:adr-debt's regular-file read
+- 2026-10-07 · 4abc90f5* · mutant survived · exit 0 · `plugin/bin/arch-lint` · arch-lint calls a symbol missing that sits in a directory it could not list · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:arch-lint's unlisted report
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-07 · 4abc90f5* · mutant killed · exit 1 · `plugin/bin/arch-lint` · arch-lint calls a symbol missing that sits in a directory it could not list · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:arch-lint's unlisted report
 
 ## Invariants
 
@@ -83,6 +88,7 @@ The injected-failure test runs on every platform and is red before the work ther
 
 ## Risks
 - S2, recorded 2026-10-07: each gate says an unlisted directory in the could-not-look vocabulary it already had, and every message says "could not be listed, so". adr-debt: could-not-run, exit 2, its documented exit for a path it could not read, because a debt report over part of a corpus reads as a report of all of it. adr-lint: an `unproven:` line and an UNPROVEN verdict when nothing else fails (exit 3), its ADR-005 vocabulary; the walk serves only the Tests-table resolver when git could not list the tree, so the line sits beside the findings that resolver feeds. adr-verify `--sweep`: an `unlisted` line marked UNPROVEN, an `unlisted` key in its JSON (a new key; no existing field changes), and exit 1, as its "no claim could be re-checked" case exits, since the rate no longer covers the tree. arch-lint: could-not-run, exit 2, the only could-not-look exit it has (it has no UNPROVEN verdict, and the facts-gate dispatcher already relays exit 2 as UNPROVEN). spec-verify: "could not check", its ADR-079 vocabulary, because a reading that stopped before the test is not a missing test. The adr-debt and arch-lint docstrings' Exit lines say so.
+- Corrected 2026-10-07 after the full gate: arch-lint first went could-not-run on any unlisted directory, and tests/gate-rules.test.mjs's arch-lint test then exited 2 under load, because a document outside every repository is indexed from its directory's parent, a shared temporary directory, where another test's `chmod 000` folder sat. arch-lint now goes could-not-run only when a symbol was not found (its "appears nowhere in the repo" would be a verdict about the part it did not see), and otherwise names each unlisted directory as advice. The walk test's fixture gives arch-lint a repository marker and a symbol defined only in the failing directory, and its shared helper now also asserts that no gate gives the verdict about the unseen part (`appears nowhere`, `bound test not found`); the first arch-lint mutant on the new code survived against the old helper, which is why. The locked test bodies are unchanged.
 - The test implementation was written before the red run and set aside for it: the red entry was taken on a tree without it.
 
 - A gate whose output a caller parses gains a line; S2 checks each gate's machine-readable mode and keeps the line out of any field a parser reads, or stops.
@@ -108,3 +114,5 @@ Stop and ask if a gate has no could-not-look vocabulary for a walk, or if adding
 - 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1625
 - 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1594
 - 2026-10-07 · human-observed · observed by the executor (Claude, 2026-10-07): S2's five vocabulary choices are recorded in this task's Risks
+- 2026-10-07 · 4abc90f5* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:2257
+- 2026-10-07 · 4abc90f5* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:2107

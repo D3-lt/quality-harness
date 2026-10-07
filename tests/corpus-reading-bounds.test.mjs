@@ -107,27 +107,26 @@ function aliasListing(n) {
   }
   return { paths: [...paths.filter(p => p.startsWith('/x/')), ...paths.filter(p => p.startsWith('/z/'))], real, links }
 }
-const median = values => [...values].sort((a, b) => a - b)[Math.floor(values.length / 2)]
+// One pass over `n` duplicated files, its milliseconds.
 function timeOnce(n) {
   const { paths, real, links } = aliasListing(n)
   const options = { realpath: file => real.get(file), links: file => links.get(file) }
-  const samples = []
-  for (let run = 0; run < 5; run++) {
-    const start = process.hrtime.bigint()
-    const once = lifecycle.onceByRealPath(paths, null, options)
-    samples.push(Number(process.hrtime.bigint() - start))
-    assert.equal(once.kept.length, n)
-    assert.equal(once.aliases.length, n)
-  }
-  return median(samples)
+  const start = process.hrtime.bigint()
+  const once = lifecycle.onceByRealPath(paths, null, options)
+  const ms = Number(process.hrtime.bigint() - start) / 1e6
+  assert.equal(once.kept.length, n)
+  assert.equal(once.aliases.length, n)
+  return ms
 }
 
 test('alias replacement grows with the paths listed, not with their square', () => {
-  // Every replacement searched the kept list and rescanned every alias (finding 14). Four times the
-  // paths cost about four times the time; the square would be sixteen.
-  const small = timeOnce(4000)
-  const large = timeOnce(16000)
-  assert.ok(large / small < 8, `4x the paths cost ${(large / small).toFixed(1)}x the time`)
+  // Every replacement searched the kept list and rescanned every alias (finding 14): 100,000 files
+  // listed twice is ten billion steps that way, many seconds, and a few hundred thousand map lookups
+  // one pass at a time, well under a second even on a loaded machine. A bound twenty times the linear
+  // cost separates the two without timing a ratio of small numbers, which a busy machine skews (the
+  // ratio this test first asserted read 16.6x for linear code at load 23 on 10 cores, 2026-10-07).
+  const ms = timeOnce(100_000)
+  assert.ok(ms < 3000, `100,000 files listed twice took ${Math.round(ms)} ms`)
   // And the replacement is still right: the one-link spelling is kept, the two-link one is its alias.
   const { paths, real, links } = aliasListing(2)
   const once = lifecycle.onceByRealPath(paths, null, { realpath: file => real.get(file), links: file => links.get(file) })

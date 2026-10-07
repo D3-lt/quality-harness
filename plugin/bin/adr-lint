@@ -6757,7 +6757,7 @@ def main():
                 withheld.setdefault(owner, []).append(a)
         errors.advice[:] = kept
     for directory in UNLISTED_DIRECTORIES:
-        errors.unproven.append(f"{directory} could not be listed, so a file a Tests row names by its basename "
+        errors.unproven.append(f"{Path(directory).as_posix()} could not be listed, so a file a Tests row names by its basename "
                                f"was not looked for there")
     status = "FAIL" if errors else "UNPROVEN" if errors.unproven else "PASS"
     if errors.demotion:

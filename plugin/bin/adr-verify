@@ -2573,7 +2573,7 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSE
         for task, why in unrunnable:
             print(f"unrunnable {task} — {why}")
         for directory in unlisted:
-            print(f"unlisted   {directory} — this directory could not be listed, so the claims under it "
+            print(f"unlisted   {Path(directory).as_posix()} — this directory could not be listed, so the claims under it "
                   f"were not re-checked (UNPROVEN)")
         for task, why in unread:
             print(f"unread     {task} — {why}, so its claims were not re-checked (UNPROVEN)")

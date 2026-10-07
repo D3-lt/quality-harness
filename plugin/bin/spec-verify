@@ -444,7 +444,7 @@ def test_exists(test, root, stack, collect):
                 if ok is None:
                     unchecked = why
             if unlisted:
-                return None, (f"{unlisted[0]} could not be listed, so a #[test] under it was not "
+                return None, (f"{Path(unlisted[0]).as_posix()} could not be listed, so a #[test] under it was not "
                               f"looked for")
             if unchecked is not None:
                 return None, unchecked

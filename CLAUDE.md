@@ -141,7 +141,8 @@ CI blocks on Windows, macOS and Linux; you develop on one of them and cannot run
   bound; shorten a name (a task keeps its `T<n>-` prefix and README link) rather than raise it. An
   archived record cannot be renamed (its frozen digest covers file names), so the archive's paths
   already over the bound are a closed list in that test, and a Windows clone of this repository needs
-  `git -c core.longpaths=true clone` until they leave.
+  `git clone -c core.longpaths=true` until they leave. That form stores the setting in the clone;
+  `git -c core.longpaths=true clone` applies only to the clone itself, and a later checkout fails.
 
 Why: `.claude/rules/07-platforms-and-paths.md`
 

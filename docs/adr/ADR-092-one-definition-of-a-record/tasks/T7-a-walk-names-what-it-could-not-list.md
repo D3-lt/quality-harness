@@ -67,6 +67,14 @@ The injected-failure test runs on every platform and is red before the work ther
 | 4 — it is used | every run of the five gates; nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/adr-debt` · adr-debt reports over a tree it could not list · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:adr-debt's unlisted report
+- 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/adr-lint` · adr-lint finds no file in a directory it could not list and says nothing · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:adr-lint's unlisted report
+- 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the sweep reports a clean rate over a tree it could not list · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:adr-verify's unlisted report
+- 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/arch-lint` · arch-lint resolves symbols over part of the repository and passes · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:arch-lint's unlisted report
+- 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/spec-verify` · spec-verify calls a test missing that sits in a directory it could not list · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:spec-verify's unlisted report
+- 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/adr-debt` · a .MD record's debt is missed off Windows · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:adr-debt's any-case suffix
+- 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a .MD task's claims are never swept off Windows · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:adr-verify's any-case suffix
+- 2026-10-07 · e5aa45a8* · mutant killed · exit 1 · `plugin/bin/adr-debt` · adr-debt opens a FIFO named like a record and blocks · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · covers:adr-debt's regular-file read
 
 ## Invariants
 
@@ -74,6 +82,8 @@ The injected-failure test runs on every platform and is red before the work ther
 - No gate turns an unlisted directory into a verdict about its contents (ADR-005).
 
 ## Risks
+- S2, recorded 2026-10-07: each gate says an unlisted directory in the could-not-look vocabulary it already had, and every message says "could not be listed, so". adr-debt: could-not-run, exit 2, its documented exit for a path it could not read, because a debt report over part of a corpus reads as a report of all of it. adr-lint: an `unproven:` line and an UNPROVEN verdict when nothing else fails (exit 3), its ADR-005 vocabulary; the walk serves only the Tests-table resolver when git could not list the tree, so the line sits beside the findings that resolver feeds. adr-verify `--sweep`: an `unlisted` line marked UNPROVEN, an `unlisted` key in its JSON (a new key; no existing field changes), and exit 1, as its "no claim could be re-checked" case exits, since the rate no longer covers the tree. arch-lint: could-not-run, exit 2, the only could-not-look exit it has (it has no UNPROVEN verdict, and the facts-gate dispatcher already relays exit 2 as UNPROVEN). spec-verify: "could not check", its ADR-079 vocabulary, because a reading that stopped before the test is not a missing test. The adr-debt and arch-lint docstrings' Exit lines say so.
+- The test implementation was written before the red run and set aside for it: the red entry was taken on a tree without it.
 
 - A gate whose output a caller parses gains a line; S2 checks each gate's machine-readable mode and keeps the line out of any field a parser reads, or stops.
 
@@ -86,3 +96,15 @@ Stop and ask if a gate has no could-not-look vocabulary for a walk, or if adding
 - `ast.walk`, which walks a syntax tree, not a directory (permanent: boundary: not a member of the class)
 
 ## Verification Log
+- 2026-10-07 · e5aa45a8* · exit 1 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:20429 · test-lock-sha256:c5df094bf08b735dc76a800daffaa1a1d25d4fac56514adecbcc64800ad8e42d · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvd2Fsay11bmxpc3RlZC50ZXN0Lm1qcwlhZHItZGVidCBhbmQgYWRyLXZlcmlmeSByZWFkIGEgLk1EIGZpbGUJMWRjMTNkY2UyYzU4ZDFmOGNjMjVhMjM4YzQzZDcxN2NjNzdlMGNiYjgwZjk4MTNjMjE1MjhjNmY1OWFlOTA4Mwpib2R5CXRlc3RzL3dhbGstdW5saXN0ZWQudGVzdC5tanMJYWRyLWRlYnQgbmV2ZXIgb3BlbnMgYSBGSUZPCWYwODhjZjEyMDRhNWJlNDliNDE2NDIwMjgxYmE1ZjhkNDJhZTM0MDdjZTM3OWJlODA2MTNkZTZmYzJiM2FjNjAKYm9keQl0ZXN0cy93YWxrLXVubGlzdGVkLnRlc3QubWpzCWFkci1kZWJ0IG5ldmVyIHJlYWRzIGEgcGF0aCB0aGF0IGlzIG5vdCBhIHJlZ3VsYXIgZmlsZQlkYjk1OWQ3OTYyZWJlMTc1YjZiNDEwN2M2NzE5YTY3ZjE0YmNmZDkzYzg0MWNlMjc4MzEzMmE4OTQxNjhlMDUxCmJvZHkJdGVzdHMvd2Fsay11bmxpc3RlZC50ZXN0Lm1qcwlldmVyeSB3YWxrIGNhbGxlciBuYW1lcyBhIGNobW9kIDAwMCBkaXJlY3RvcnkJZmUxMDgwYjAxZWY3NDdiYWQ5YTAyMDc0OTJkMTgyYjY1ZTc5ZjA0ZjFlN2M4YjJiNmEzNTEyMzA0YmJkYTBmYQpib2R5CXRlc3RzL3dhbGstdW5saXN0ZWQudGVzdC5tanMJZXZlcnkgd2FsayBjYWxsZXIgbmFtZXMgYSBkaXJlY3Rvcnkgd2hvc2UgbGlzdGluZyBmYWlsZWQJYjA4MmE2YjJjY2FmNjUzMjhmYjUyMmExMTYwODE0Y2EzMGU1MzkwM2I4ZjFmY2QwYjk4ZWE4ZmVlMTBiNTBlMA
+  ```
+  ```
+- 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1624
+- 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1648
+- 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1665
+- 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1611
+- 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1597
+- 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1609
+- 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1625
+- 2026-10-07 · e5aa45a8* · exit 0 · `noperm=''; case "$(uname -s)" in MINGW*|MSYS*|CYGWIN*) noperm='( # SKIP [^#]*)?';; esac …` · acceptance-sha256:fdc1266bae3219639e9b7998b342ca152d53594ae5ff2f13f160e82980106082 · ms:1594
+- 2026-10-07 · human-observed · observed by the executor (Claude, 2026-10-07): S2's five vocabulary choices are recorded in this task's Risks

@@ -424,7 +424,10 @@ def test_exists(test, root, stack, collect):
             return ok, "" if ok is True else f"{why} in {path}"
         if stack == "cargo":
             unchecked = None
-            for candidate in walk(root, "*.rs"):
+            # A directory the walk could not list may hold the test: could not check, never "not
+            # found" (ADR-092 Decision 10, ADR-079).
+            unlisted = []
+            for candidate in walk(root, "*.rs", unlisted=unlisted):
                 if any(part in (".git", "target", "vendor", "node_modules")
                        for part in candidate.parts):
                     continue
@@ -433,6 +436,9 @@ def test_exists(test, root, stack, collect):
                     return True, ""
                 if ok is None:
                     unchecked = why
+            if unlisted:
+                return None, (f"{unlisted[0]} could not be listed, so a #[test] under it was not "
+                              f"looked for")
             if unchecked is not None:
                 return None, unchecked
             return False, f"no #[test] Rust function found for '{name}'"

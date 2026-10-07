@@ -1,0 +1,82 @@
+{
+  "look": "ok",
+  "corpora": [
+    "docs/decisions"
+  ],
+  "records": [
+    ["docs/decisions/001-use-postgres.md", "governing", false],
+    ["docs/decisions/002-cache-in-memory.md", "graveyard", false],
+    ["docs/decisions/003-log-format.md", "governing", false],
+    ["docs/decisions/004-cache-in-redis.md", "governing", false],
+    ["docs/decisions/005-queue-in-process.md", "graveyard", false],
+    ["docs/decisions/006-queue-in-redis.md", "governing", false],
+    ["docs/decisions/007-retries-v1.md", "graveyard", false],
+    ["docs/decisions/008-retries-v2.md", "governing", false],
+    ["docs/decisions/011-no-sections.md", "governing", false],
+    ["docs/decisions/012-a-split-api.md", "governing", false],
+    ["docs/decisions/012-b-split-ui.md", "governing", false]
+  ],
+  "undecided": [
+    "docs/decisions/009-madr-template.md",
+    "docs/decisions/010-on-hold.md",
+    "docs/decisions/013-bullet-in-body.md"
+  ],
+  "workNext": {
+    "records": 11,
+    "accepted": 8,
+    "tasks": 0,
+    "ready": [],
+    "unbacked": [],
+    "retirable": [
+      "docs/decisions/002-cache-in-memory.md",
+      "docs/decisions/005-queue-in-process.md",
+      "docs/decisions/007-retries-v1.md"
+    ],
+    "readinessUnproven": [],
+    "next": "adr-retire",
+    "notRead": [
+      {
+        "file": "Final/RFC0001-example.md"
+      }
+    ]
+  },
+  "adrState": {
+    "read": 11,
+    "governing": 8
+  },
+  "adrNext": [],
+  "adrLint": [
+    { "file": "docs/decisions/001-use-postgres.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/002-cache-in-memory.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/003-log-format.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/004-cache-in-redis.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/005-queue-in-process.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/006-queue-in-redis.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/007-retries-v1.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/008-retries-v2.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/011-no-sections.md", "verdict": "not-recognised", "reasonMatches": "no `## Context` or `## Decision` heading" },
+    { "file": "docs/decisions/012-a-split-api.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/012-b-split-ui.md", "verdict": "FAIL" },
+    { "file": "docs/decisions/009-madr-template.md", "verdict": "FAIL", "adviceMatches": "starts with no status adr-lint recognises" },
+    { "file": "docs/decisions/010-on-hold.md", "verdict": "FAIL", "adviceMatches": "starts with no status adr-lint recognises" },
+    { "file": "docs/decisions/013-bullet-in-body.md", "verdict": "not-recognised", "reasonMatches": "no Status line" }
+  ],
+  "sweep": [
+    {
+      "root": "docs/decisions",
+      "claims": 0,
+      "held": 0,
+      "false": 0,
+      "superseded": 0,
+      "unrunnable": 0
+    }
+  ],
+  "disagreements": [],
+  "sessionStart": {
+    "mustMatch": [],
+    "mustNotMatch": [
+      "."
+    ]
+  },
+  "couldNotRun": []
+}

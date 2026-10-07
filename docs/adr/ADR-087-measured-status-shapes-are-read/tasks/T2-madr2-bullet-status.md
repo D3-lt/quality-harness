@@ -53,6 +53,10 @@ out=$(node --test --test-reporter=tap tests/corpus-shapes.test.mjs 2>&1) \
 | 4 — it is used | public/star-status-adr's 29 bullet records after release; nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the bullet label: without the arm lifecycle reads a MADR 2 bullet Status as no status line · acceptance-sha256:b380a23c43c8467c99d8cb14854862f42ef64c778e0f52a95c117fc89b4f5a05
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/lib/record.py` · the first-section bound: without it record.py reads a Status bullet under ## Context as the record status, so adr-lint lints a file with no Status · acceptance-sha256:b380a23c43c8467c99d8cb14854862f42ef64c778e0f52a95c117fc89b4f5a05
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · without the arm lifecycle reads a MADR 2 bullet Status as no status line · acceptance-sha256:b380a23c43c8467c99d8cb14854862f42ef64c778e0f52a95c117fc89b4f5a05 · covers:the bullet label
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/lib/record.py` · without the bound record.py reads a Status bullet under ## Context as the record status · acceptance-sha256:b380a23c43c8467c99d8cb14854862f42ef64c778e0f52a95c117fc89b4f5a05 · covers:the first-section bound
 
 ## Invariants
 
@@ -72,3 +76,10 @@ Stop and ask if this repository's own `corpus-probe --json` gives a different `r
 - Frontmatter — T1. MADR 2's linked `superseded by [ADR-0005](0005-example.md)` reads through the existing `supersessionTarget`, unchanged.
 
 ## Verification Log
+- 2026-10-07 · 49bd0c3* · exit 1 · `out=$(node --test --test-reporter=tap tests/corpus-shapes.test.mjs 2>&1) \ …` · acceptance-sha256:b380a23c43c8467c99d8cb14854862f42ef64c778e0f52a95c117fc89b4f5a05 · ms:4478 · test-lock-sha256:f786ab3bb8a940f83d61570d5215959c63c4f51eae7b605173b46de94e01be20 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvY29ycHVzLXNoYXBlcy50ZXN0Lm1qcwlhIE1BRFIgMiBidWxsZXQgc3RhdHVzIGlzIHJlYWQgYWJvdmUgdGhlIGZpcnN0IHNlY3Rpb24JZDRlZGIyODFkMDU0NTlkMzA3ZDIxNTIyNmM1YTdmZTY5MDY5MTI2Yjc2MzJjNGExYmEyY2IwMmI0Y2QxYmIyZQpib2R5CXRlc3RzL2NvcnB1cy1zaGFwZXMudGVzdC5tanMJYSBkaXJlY3RvcnkgbmFtZSBpcyBuZXZlciBhIHN0YXR1cwk5MmY4ZTkzNjg2YTZmYzEyMzlkNDM3MTEyODk5MmY3OGFiNGQzMDJkNTNiYzkzNmM4ZjQ5YWI5OTc4YjliZGM2CmJvZHkJdGVzdHMvY29ycHVzLXNoYXBlcy50ZXN0Lm1qcwlhIGZyb250bWF0dGVyIHN0YXR1cyBpcyByZWFkIGFzIGl0cyBjb3Jwb3JhIHdyaXRlIGl0CTRlNmJjYzVkY2VjNTQxNmM0MDJlYzBlZDU3Nzc3ZGZhNDAxZGM3MTM2MTZiYjNiZGI5MzMyYWFjZmM2ZTY2NjIKYm9keQl0ZXN0cy9jb3JwdXMtc2hhcGVzLnRlc3QubWpzCWEgcGxhY2Vob2xkZXIgb3IgYW4gdW5tYXBwZWQgc3RhdHVzIHN0YXlzIHVuZGVjaWRlZCBhbmQgaXMgbmFtZWQJZGYyZDYxZGI5NjE4OWU4OGNmYmY2NTI0NGY1MTBkZjA3MmQ5ZTJlMThhYTUzNjdjOTA2M2U3OWZkZTNiMmQ5Nwpib2R5CXRlc3RzL2NvcnB1cy1zaGFwZXMudGVzdC5tanMJYSBzdGF0dXMgYnVsbGV0IGluc2lkZSBhIHNlY3Rpb24gaXMgbm90IHRoZSByZWNvcmQgc3RhdHVzCTE3NmQxYjMzZDgyMjY5NzdhYjY3MGMzNjhjN2QzODdlNWI0NDE4YjMxMWY0NTE4MDMxOGJjZThmYWFjMGNkMzE
+  ```
+  ```
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/corpus-shapes.test.mjs 2>&1) \ …` · acceptance-sha256:b380a23c43c8467c99d8cb14854862f42ef64c778e0f52a95c117fc89b4f5a05 · ms:3753
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/corpus-shapes.test.mjs 2>&1) \ …` · acceptance-sha256:b380a23c43c8467c99d8cb14854862f42ef64c778e0f52a95c117fc89b4f5a05 · ms:2478
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/corpus-shapes.test.mjs 2>&1) \ …` · acceptance-sha256:b380a23c43c8467c99d8cb14854862f42ef64c778e0f52a95c117fc89b4f5a05 · ms:4733
+- 2026-10-07 · 49bd0c3* · exit 0 · `out=$(node --test --test-reporter=tap tests/corpus-shapes.test.mjs 2>&1) \ …` · acceptance-sha256:b380a23c43c8467c99d8cb14854862f42ef64c778e0f52a95c117fc89b4f5a05 · ms:4898

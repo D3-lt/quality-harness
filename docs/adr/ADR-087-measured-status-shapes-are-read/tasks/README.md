@@ -21,11 +21,11 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | frontmatter values and `active` are read alike by every reader | pending | F-1, F-2, F-3, F-7, F-8, UC1-S1, UC1-S2 | `node --test tests/corpus-shapes.test.mjs tests/status-reading.test.mjs tests/not-recognised-reason.test.mjs` (five named tests pass) |
-| T2 | a MADR 2 bullet Status is read above the first section | pending | F-4 | `node --test tests/corpus-shapes.test.mjs` (two named tests pass) |
-| T3 | a frontmatter `superseded_by` names the replacement | pending | F-5, F-6 | `node --test tests/corpus-shapes.test.mjs` (two named tests pass) |
-| T4 | numbered files outside a record directory are named as not read | pending | F-9, UC2-S1, UC2-S2 | `node --test tests/corpus-shapes.test.mjs` (two named tests pass) |
-| T5 | a yaml-frontmatter fixture corpus in the matrix | pending | F-1, F-2, F-3, F-4, F-5, F-6, F-7, F-9 | `node --test tests/corpus-matrix.test.mjs` (the corpus's named test passes) |
+| T1 | frontmatter values and `active` are read alike by every reader | done | F-1, F-2, F-3, F-7, F-8, UC1-S1, UC1-S2 | `node --test tests/corpus-shapes.test.mjs tests/status-reading.test.mjs tests/not-recognised-reason.test.mjs` (five named tests pass) |
+| T2 | a MADR 2 bullet Status is read above the first section | done | F-4 | `node --test tests/corpus-shapes.test.mjs` (two named tests pass) |
+| T3 | a frontmatter `superseded_by` names the replacement | done | F-5, F-6 | `node --test tests/corpus-shapes.test.mjs` (two named tests pass) |
+| T4 | numbered files outside a record directory are named as not read | done | F-9, UC2-S1, UC2-S2 | `node --test tests/corpus-shapes.test.mjs` (two named tests pass) |
+| T5 | a yaml-frontmatter fixture corpus in the matrix | done | F-1, F-2, F-3, F-4, F-5, F-6, F-7, F-9 | `node --test tests/corpus-matrix.test.mjs` (the corpus's named test passes) |
 
 ## Contract Coupling
 

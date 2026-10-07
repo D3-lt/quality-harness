@@ -77,6 +77,11 @@ test('the matrix discovers the three ADR-064 corpora', () => {
   for (const name of ['rust-crate', 'php-multi-root', 'js-vitest-spa']) assert.ok(names.includes(name), `${name} is discovered: ${names}`)
 })
 
+// ADR-087 T5's corpus, said the same way: its per-corpus test is named by the template too.
+test('the matrix discovers the yaml-frontmatter corpus', () => {
+  assert.ok(corpora.some(([name]) => name === 'yaml-frontmatter'), `yaml-frontmatter is discovered: ${corpora.map(([name]) => name)}`)
+})
+
 // The UTF-16LE task in `undecided-records` is bytes, and a checkout that converted it
 // as text would hand the readers something else (CLAUDE.md §7: asserted, never read).
 test('the UTF-16 fixture task is not text to git', () => {
@@ -162,11 +167,12 @@ for (const [name, dir] of corpora) {
     }
     // A FAIL says why, so a runner can report the cause and not only the verdict
     // (BACKLOG §279 item 9). So does an UNPROVEN: a move to it said no reason (a stand-in review of
-    // f8d1eaf).
-    for (const entry of report.adrLint.filter(e => e.verdict === 'FAIL' || e.verdict === 'UNPROVEN')) {
+    // f8d1eaf). So does a not-recognised file since 3.8.10: what IT lacks (BACKLOG §354 item 1); no
+    // corpus here held one until yaml-frontmatter's headingless `active` record (ADR-087 T5).
+    for (const entry of report.adrLint.filter(e => e.verdict === 'FAIL' || e.verdict === 'UNPROVEN' || e.verdict === 'not-recognised')) {
       assert.ok(typeof entry.reason === 'string' && entry.reason.length > 0, `${name}: ${entry.file} ${entry.verdict}s with no reason`)
     }
-    assert.ok(report.adrLint.filter(e => e.verdict !== 'FAIL' && e.verdict !== 'UNPROVEN').every(e => !('reason' in e)), `${name}: only a FAIL or an UNPROVEN carries a reason`)
+    assert.ok(report.adrLint.filter(e => e.verdict !== 'FAIL' && e.verdict !== 'UNPROVEN' && e.verdict !== 'not-recognised').every(e => !('reason' in e)), `${name}: only a FAIL, an UNPROVEN or a not-recognised file carries a reason`)
     // Advice rides only under a verdict the gate reached: it prints advice below its [PASS] or
     // [FAIL] line and nowhere else, so a list on a record it never checked — madr's
     // not-recognised records here — would be an observation nobody made (ADR-005; the review of

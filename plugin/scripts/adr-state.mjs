@@ -127,7 +127,7 @@ export function main(argv) {
     || (entry.unproven ? `whether it governs could not be established, so it is not counted as governing (UNPROVEN): ${entry.unproven}`
       : !entry.status ? 'it has no **Status:** value this reader can read, so it governs nothing'
         : isPending(entry) ? 'it is Proposed or Draft, so it governs nothing yet, which is correct'
-          : 'its status does not start with a word this reader knows (Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated), so it governs nothing')
+          : 'its status does not start with a word this reader knows (Accepted, Active, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated), so it governs nothing')
   if (json) {
     const look = corpus.look ?? ((corpus.unreadable ?? []).length ? 'PARTIAL' : 'ok')
   process.stdout.write(`${JSON.stringify({

@@ -463,6 +463,9 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
       // Ready specs no record covers: work-next prints them and this summary dropped them (ADR-089).
       uncoveredReadySpecs: workNextPaths('uncoveredReadySpecs'),
       partialBecause: (workNext.partialBecause ?? []).map(entry => ({ file: normal(entry.file), reason: entry.reason == null ? null : scrub(entry.reason) })),
+      // Numbered files with a frontmatter status outside every record directory, which no reader
+      // read as records: named so an outside run over an RFC-style corpus says more than `look: ok` (ADR-087 T4).
+      notRead: (workNext.notRead ?? []).map(entry => ({ file: normal(entry.file) })),
       next: workNext.next,
     },
     frozenTaskDirs,
@@ -661,6 +664,9 @@ export function diffReports(before, after, scrub = text => String(text)) {
   const nextId = report => (report.workNext?.next === undefined ? undefined : (report.workNext.next?.id ?? null))
   if (!absent.has('workNext') && !lacks('workNext.next.id', nextId(before), nextId(after)) && nextId(before) !== nextId(after)) {
     say(`workNext.next.id: ${nextId(before)} → ${nextId(after)}`)
+  }
+  if (!absent.has('workNext')) {
+    setChange('workNext.notRead', ...[before, after].map(report => report.workNext?.notRead?.map(entry => entry.file)))
   }
   // adr-state's lists, by an element that reads as a line: a record governing nothing by file, a
   // dangling supersession by id and Status. Both are lists of objects, never compared as scalars.

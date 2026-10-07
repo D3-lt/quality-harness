@@ -2061,14 +2061,47 @@ function fencedLines(text) {
   })
 }
 
-// The value after the first Status label outside a code fence, as written, or null.
-function inlineStatus(text) {
-  for (const [line, fenced] of fencedLines(text)) {
-    if (fenced) continue
-    const found = line.match(STATUS_LABEL)
-    if (found) return found[1]
+// ADR-087 T1: a leading YAML frontmatter block, as record.py's `frontmatter_block` finds it — the
+// text's first line is `---` (after a byte-order mark, with trailing blanks), and the block ends at
+// the next `---` or `...` line; an unclosed block is not one. `[first, last]`, the 0-based indices of
+// those two lines, or null.
+const FRONTMATTER_OPEN = /^﻿?---[ \t]*$/
+const FRONTMATTER_CLOSE = /^(?:---|\.\.\.)[ \t]*$/
+export function frontmatterBlock(text) {
+  const lines = String(text).split(/\r\n|\r|\n/)
+  if (!FRONTMATTER_OPEN.test(lines[0])) return null
+  for (let index = 1; index < lines.length; index += 1) {
+    if (FRONTMATTER_CLOSE.test(lines[index])) return [0, index]
   }
   return null
+}
+
+// A frontmatter value as YAML writes it (ADR-087 F-2), as record.py's `_frontmatter_value`: one
+// enclosing pair of `"` or `'` and a trailing ` #` comment removed. Only inside the block: outside
+// it a quote is part of the value. A `{` or `<` placeholder keeps its bracket, so it names no word.
+function frontmatterValue(value) {
+  const trimmed = edgeTrim(value)
+  const quoted = trimmed.match(/^(?:"([^"]*)"|'([^']*)')(?:[ \t]+#[^\r\n]*)?$/)
+  return quoted ? (quoted[1] ?? quoted[2]) : trimmed.replace(/[ \t]+#[^\r\n]*$/, '')
+}
+
+// The value after the first Status label outside a code fence, as written, or null. A label inside
+// a leading frontmatter block is read as YAML writes it (ADR-087 T1), so `rawStatus` and
+// `recordStatus` both see `"accepted"` as `accepted`. With no label anywhere, a MADR 2 bullet
+// (`* Status: accepted`) above the first `## ` heading is the label (ADR-087 T2), as in record.py.
+const STATUS_BULLET = /^[ \t]*[*-][ \t]+\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$/
+function inlineStatus(text) {
+  const block = frontmatterBlock(text)
+  let bullet = null
+  let above = true
+  for (const [index, [line, fenced]] of fencedLines(text).entries()) {
+    if (fenced) continue
+    const found = line.match(STATUS_LABEL)
+    if (found) return block && block[0] < index && index < block[1] ? frontmatterValue(found[1]) : found[1]
+    if (above && STATUS_HEADING.test(line)) above = false
+    else if (above && bullet === null) bullet = line.match(STATUS_BULLET)
+  }
+  return bullet ? bullet[1] : null
 }
 
 // `**Status:** Accepted`, `Status: Accepted`, or a `## Status` section's first line.
@@ -2116,8 +2149,9 @@ function statusSection(text) {
 // `/^accepted\b/i` let `Acceptedé` govern where Python did not; a lookup has no
 // word end and no case folding to differ in. record.py's `status_kind` is the
 // same table, and tests/status-reading.test.mjs holds the two to one answer.
+// ADR-087 adds `active`, as record.py does: four public corpora write it for a record in force.
 const STATUS_KINDS = new Map([
-  ['accepted', 'governing'],
+  ['accepted', 'governing'], ['active', 'governing'],
   ['proposed', 'pending'], ['draft', 'pending'],
   ['superseded', 'graveyard'], ['withdrawn', 'graveyard'], ['rejected', 'graveyard'], ['deprecated', 'graveyard'],
 ])
@@ -2495,7 +2529,7 @@ function taskFilesFor(file, text, reader = corpusReader()) {
  * `.queries.md` companion) self-excluded only by luck, which is exactly the
  * fragility a second condition removes.
  */
-const RECORD_DIRECTORY = /^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$/i
+export const RECORD_DIRECTORY = /^(?:adrs?|decisions?)(?:[-_]archived?s?)?$|^archives?[-_](?:adrs?|decisions?|records?)$/i
 function looksLikeRecord(file, directory, reader) {
   // Where a record is kept, as adr-lint decides it for a record admitted by content: a directory
   // named `adr`/`decisions` or an archive of one (record.py's `_RECORD_DIRECTORY`), so a record
@@ -2782,9 +2816,12 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // corpus spells the reference every way there is — `Superseded by ADR-0004`,
       // `superseded by ADR-4`, `Superseded by 0004`, and since ADR-063 a dated
       // record's stem or path, which was read as record 2026.
+      // ADR-087 T3: a graveyard record whose Status names nothing takes its replacement from
+      // its frontmatter `superseded_by` (public/swift-adrs, public/active-status-adr). Its kind
+      // still comes from its own Status alone, so the key never moves a governing record.
       supersededBy: /^superseded\s+by\b/i.test(status)
         ? supersessionTarget(retired ? status : rawStatus(text), status)
-        : null,
+        : kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null,
       governs: [...governs],
       // What FAILS when this decision is violated, or null. `Governs:` on its
       // own tells an agent a rule exists and nothing about what happens if it
@@ -2816,6 +2853,28 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     })
   }
   return records
+}
+
+// ADR-087 T3: the record a frontmatter `superseded_by:` names, read by `supersessionTarget` as if
+// the Status had said `superseded by <value>`, or null. One line, as every measured corpus writes
+// it: quotes, a trailing ` #` comment and a `.md` suffix removed, and a one-item inline list
+// `[x]` read as `x`. `null`, `~`, `[]`, an empty value and a list of more than one name nothing.
+// `supersedes:` is never read: in active-status-adr most of the records it names still govern (F-6).
+const SUPERSEDED_BY_KEY = /^superseded_by[ \t]*:[ \t]*([^\r\n]*)$/
+function frontmatterSupersededBy(text) {
+  const block = frontmatterBlock(text)
+  if (!block) return null
+  for (const line of String(text).split(/\r\n|\r|\n/).slice(block[0] + 1, block[1])) {
+    const found = line.match(SUPERSEDED_BY_KEY)
+    if (!found) continue
+    let value = frontmatterValue(found[1])
+    const single = value.match(/^\[([^\],]*)\]$/)
+    if (single) value = frontmatterValue(single[1])
+    value = value.replace(/\.md$/i, '')
+    if (!value || value === 'null' || value === '~' || value.startsWith('[')) return null
+    return supersessionTarget(`superseded by ${value}`)
+  }
+  return null
 }
 
 // The record a `superseded by …` status names: the first reference in it, by the

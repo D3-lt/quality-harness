@@ -16636,8 +16636,8 @@
       "tests": [
         "tests/status-reading.test.mjs"
       ],
-      "from": "    for line in unfenced_lines([line for line, _start, _end in split_lines(text)]):",
-      "to": "    for line in [line for line, _start, _end in split_lines(text)]:",
+      "from": "    for index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)]):",
+      "to": "    for index, line in enumerate([line for line, _start, _end in split_lines(text)]):",
       "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
     },
     {
@@ -17226,8 +17226,8 @@
       "tests": [
         "tests/status-reading.test.mjs"
       ],
-      "from": "            return _STATUS_MARKUP.sub(\"\", found.group(1)).strip(_EDGE_SPACE), \"inline\"",
-      "to": "            return found.group(1).strip(_EDGE_SPACE), \"inline\"",
+      "from": "            return _STATUS_MARKUP.sub(\"\", value).strip(_EDGE_SPACE), \"inline\"",
+      "to": "            return value.strip(_EDGE_SPACE), \"inline\"",
       "only": "^every reader gives one Status the same reading$"
     },
     {
@@ -17606,7 +17606,7 @@
       "tests": [
         "tests/chaos-315-x1.test.mjs"
       ],
-      "from": "          : 'its status does not start with a word this reader knows (Accepted, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated), so it governs nothing')",
+      "from": "          : 'its status does not start with a word this reader knows (Accepted, Active, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated), so it governs nothing')",
       "to": "          : null)",
       "only": "adr-state --json says why it did not read each record it opened"
     },
@@ -18625,8 +18625,8 @@
       "tests": [
         "tests/status-codex-316.test.mjs"
       ],
-      "from": "(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
-      "to": "(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
+      "from": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
       "only": "^the Codex round of 3.1.6: every reader reads these records alike"
     },
     {
@@ -18635,8 +18635,8 @@
       "tests": [
         "tests/status-codex-316.test.mjs"
       ],
-      "from": "(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$/",
-      "to": "(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$/",
+      "from": "const STATUS_LABEL = /^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$/",
+      "to": "const STATUS_LABEL = /^[ \\t]*\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$/",
       "only": "^the Codex round of 3.1.6: every reader reads these records alike"
     },
     {
@@ -21326,8 +21326,8 @@
       "tests": [
         "tests/not-recognised-reason.test.mjs"
       ],
-      "from": "        elif not status_kind(status_value):\n            # A YAML `status: active` IS read as a Status; what no reader does is act on `active`.",
-      "to": "        elif False:\n            # A YAML `status: active` IS read as a Status; what no reader does is act on `active`.",
+      "from": "        elif not status_kind(status_value):\n            # A YAML `status: on hold` IS read as a Status; what no reader does is act on `on hold`.",
+      "to": "        elif False:\n            # A YAML `status: on hold` IS read as a Status; what no reader does is act on `on hold`.",
       "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
     },
     {
@@ -21339,6 +21339,186 @@
       "from": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records))}.\")",
       "to": "              f\"\")",
       "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
+    },
+    {
+      "label": "ADR-087 T1: lifecycle reads a quoted frontmatter Status with its quotes",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "? frontmatterValue(found[1]) : found[1]",
+      "to": "? found[1] : found[1]",
+      "only": "^(?:a frontmatter status is read as its corpora write it)$"
+    },
+    {
+      "label": "ADR-087 T1: record.py reads a quoted frontmatter Status with its quotes",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "                value = _frontmatter_value(value)",
+      "to": "                value = value",
+      "only": "^(?:a frontmatter status is read as its corpora write it)$"
+    },
+    {
+      "label": "ADR-087 T1: record.py does not act on active",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    \"accepted\": \"governing\", \"active\": \"governing\",",
+      "to": "    \"accepted\": \"governing\",",
+      "only": "^(?:a frontmatter status is read as its corpora write it)$"
+    },
+    {
+      "label": "ADR-087 T1: lifecycle does not act on active",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  ['accepted', 'governing'], ['active', 'governing'],",
+      "to": "  ['accepted', 'governing'],",
+      "only": "^(?:a frontmatter status is read as its corpora write it)$"
+    },
+    {
+      "label": "ADR-087 T2: lifecycle drops the MADR 2 bullet label",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  return bullet ? bullet[1] : null",
+      "to": "  return null",
+      "only": "^(?:a MADR 2 bullet status is read above the first section)$"
+    },
+    {
+      "label": "ADR-087 T2: record.py drops the MADR 2 bullet label",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if bullet:",
+      "to": "    if False:",
+      "only": "^(?:a MADR 2 bullet status is read above the first section)$"
+    },
+    {
+      "label": "ADR-087 T2: lifecycle reads a Status bullet below the first section",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (above && STATUS_HEADING.test(line)) above = false",
+      "to": "    if (false) above = false",
+      "only": "^(?:a status bullet inside a section is not the record status)$"
+    },
+    {
+      "label": "ADR-087 T2: record.py reads a Status bullet below the first section",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "        if above and _HEADING.match(line):",
+      "to": "        if False:",
+      "only": "^(?:a status bullet inside a section is not the record status)$"
+    },
+    {
+      "label": "ADR-087 T3: a frontmatter superseded_by is not read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "        : kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null,",
+      "to": "        : null,",
+      "only": "^(?:a frontmatter superseded_by names the replacement in the three measured spellings)$"
+    },
+    {
+      "label": "ADR-087 T3: a supersedes key is read as a replacement",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "const SUPERSEDED_BY_KEY = /^superseded_by[ \\t]*:",
+      "to": "const SUPERSEDED_BY_KEY = /^supersede(?:d_by|s)[ \\t]*:",
+      "only": "^(?:a frontmatter superseded_by names the replacement in the three measured spellings)$"
+    },
+    {
+      "label": "ADR-087 T3: superseded_by names a replacement for a governing record",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "        : kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null,",
+      "to": "        : !retired ? frontmatterSupersededBy(text) : null,",
+      "only": "^(?:supersedes is never read and superseded_by never moves a governing record)$"
+    },
+    {
+      "label": "ADR-087 T4: notRead names an unnumbered file",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (!/\\.md$/i.test(base) || !NUMBERED_NAME.test(base)) continue",
+      "to": "    if (!/\\.md$/i.test(base)) continue",
+      "only": "^(?:an unnumbered note or a record inside a record directory is not named as not read)$"
+    },
+    {
+      "label": "ADR-087 T4: notRead names a file inside a record directory",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (parts.some(part => RECORD_DIRECTORY.test(part)) || listedUnderUninterestingDirectory(parts)) continue",
+      "to": "    if (listedUnderUninterestingDirectory(parts)) continue",
+      "only": "^(?:an unnumbered note or a record inside a record directory is not named as not read)$"
+    },
+    {
+      "label": "ADR-087 T4: notRead names a file the record reader already lists",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (listed.has(path.resolve(file))) continue",
+      "to": "    if (false) continue",
+      "only": "^(?:an unnumbered note or a record inside a record directory is not named as not read)$"
+    },
+    {
+      "label": "ADR-087 T4: work-next's text does not name the files not read",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  if (state.notRead.length) {",
+      "to": "  if (false) {",
+      "only": "^(?:a numbered file with a frontmatter status outside a record directory is named as not read)$"
+    },
+    {
+      "label": "ADR-087 T4: corpus-probe drops work-next's notRead",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "      notRead: (workNext.notRead ?? []).map(entry => ({ file: normal(entry.file) })),",
+      "to": "      notRead: [],",
+      "only": "^(?:a numbered file with a frontmatter status outside a record directory is named as not read)$"
+    },
+    {
+      "label": "ADR-087 T4: corpus-probe --diff does not compare notRead",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    setChange('workNext.notRead', ...[before, after].map(report => report.workNext?.notRead?.map(entry => entry.file)))",
+      "to": "    void 0",
+      "only": "^(?:corpus-probe --diff names a file that came into or left notRead)$"
+    },
+    {
+      "label": "ADR-087 T5: the yaml-frontmatter corpus reads active as undecided",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "  ['accepted', 'governing'], ['active', 'governing'],",
+      "to": "  ['accepted', 'governing'],",
+      "only": "^corpus yaml-frontmatter: every reader answers as reviewed, through a symlink$"
     },
     {
       "label": "3.8.10: an older stop takes back later exit-0 evidence",

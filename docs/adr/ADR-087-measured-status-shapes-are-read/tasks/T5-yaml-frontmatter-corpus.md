@@ -58,7 +58,7 @@ node --test --test-reporter=tap tests/corpus-matrix.test.mjs 2>&1 | grep -qE '^ 
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `corpus yaml-frontmatter: every reader answers as reviewed, through a symlink` | `tests/corpus-matrix.test.mjs` | every reader's answer over the authored corpus equals the reviewed `expected.json`: governing `001`, `003`, `004`, `006`, `008`, `012-a`, `012-b`; graveyard `002`, `005`, `007` with targets 4, 6 and 8; undecided `009`, `010`, `013`, each with its reason; `011` as reviewed; `notRead` holding only `Final/RFC0001-example.md` | F-1, F-2, F-3, F-4, F-5, F-6, F-7, F-9 | S1, S2, S3, S4 |
+| `the matrix discovers the yaml-frontmatter corpus` | `tests/corpus-matrix.test.mjs` | the corpus is selected by directory discovery; the fence also requires `corpus yaml-frontmatter: every reader answers as reviewed, through a symlink` to pass, and that test holds every reader's answer over the authored corpus to the reviewed `expected.json`: governing `001`, `003`, `004`, `006`, `008`, `011`, `012-a`, `012-b`; graveyard `002`, `005`, `007` with targets 4, 6 and 8; undecided `009`, `010`, `013`, each with its reason; `011` as reviewed; `notRead` holding only `Final/RFC0001-example.md`. That test is named by a template, which no test lock can extract, so this row names the literal test (as ADR-064 T6 does) | F-1, F-2, F-3, F-4, F-5, F-6, F-7, F-9 | S1, S2, S3, S4 |
 
 ## Reachability
 
@@ -70,6 +70,8 @@ node --test --test-reporter=tap tests/corpus-matrix.test.mjs 2>&1 | grep -qE '^ 
 | 4 — it is used | every CI run of the matrix on three platforms |
 
 ## Mutation Log
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the reviewed expectation: without active in lifecycle's word set the yaml-frontmatter corpus's records and counts move from expected.json · acceptance-sha256:36529139a9e447ece091aeb822be49187d7a8a175b599195aac865c4df0ec49f
+- 2026-10-07 · 49bd0c3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · without active in lifecycle the yaml-frontmatter corpus's records and counts move from expected.json · acceptance-sha256:36529139a9e447ece091aeb822be49187d7a8a175b599195aac865c4df0ec49f · covers:the reviewed expectation
 
 ## Invariants
 
@@ -89,3 +91,9 @@ Stop and ask if any other corpus's `expected.json` has to change, or if `011` sh
 - A dir-status-rfc-shaped corpus as records — ADR-087 Out of Scope.
 
 ## Verification Log
+- 2026-10-07 · 49bd0c3* · exit 1 · `node --test --test-reporter=tap tests/corpus-matrix.test.mjs 2>&1 | grep -qE '^ *ok [0-9]+ - corpus yaml-frontmatter: every reader answers as reviewed, through a symlink$'` · acceptance-sha256:36529139a9e447ece091aeb822be49187d7a8a175b599195aac865c4df0ec49f · ms:16955 · test-lock-sha256:85812fbe66e3bf58c57331c3e23894b8b53ef81ae357e90ae036f81ae02002fb · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvY29ycHVzLW1hdHJpeC50ZXN0Lm1qcwl0aGUgVVRGLTE2IGZpeHR1cmUgdGFzayBpcyBub3QgdGV4dCB0byBnaXQJZjJlOTdiNWQ3NTdkOGM4MmU4ODM3MDhjOWEwZGIxOTRkZDA1ODk3YjgyNjFmMjBjZjljMzgxZDMxZjQ3YTlmZgpib2R5CXRlc3RzL2NvcnB1cy1tYXRyaXgudGVzdC5tanMJdGhlIG1hdHJpeCBkaXNjb3ZlcnMgdGhlIHRocmVlIEFEUi0wNjQgY29ycG9yYQk1ZDFkMjY0NzgzOGFkMTFjYTk0MDkyZTM3MDkxODYzN2JmNTQ4ZjQ5OWQwNmI4ZGM1NzJlODUyNzE1NzFkYzZmCnVucHJvdmVuCXRlc3RzL2NvcnB1cy1tYXRyaXgudGVzdC5tanMJY29ycHVzIHlhbWwtZnJvbnRtYXR0ZXI6IGV2ZXJ5IHJlYWRlciBhbnN3ZXJzIGFzIHJldmlld2VkLCB0aHJvdWdoIGEgc3ltbGluaw
+  ```
+  ```
+- 2026-10-07 · 49bd0c3* · exit 0 · `node --test --test-reporter=tap tests/corpus-matrix.test.mjs 2>&1 | grep -qE '^ *ok [0-9]+ - corpus yaml-frontmatter: every reader answers as reviewed, through a symlink$'` · acceptance-sha256:36529139a9e447ece091aeb822be49187d7a8a175b599195aac865c4df0ec49f · ms:17610
+- 2026-10-07 · 49bd0c3* · exit 0 · `adr-verify --relock` · acceptance-sha256:36529139a9e447ece091aeb822be49187d7a8a175b599195aac865c4df0ec49f · ms:0 · test-lock-sha256:b658539fa28d3bf146fe431646b5a8480072c420f0fa3704f3004fbafb142e0d · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvY29ycHVzLW1hdHJpeC50ZXN0Lm1qcwl0aGUgVVRGLTE2IGZpeHR1cmUgdGFzayBpcyBub3QgdGV4dCB0byBnaXQJZjJlOTdiNWQ3NTdkOGM4MmU4ODM3MDhjOWEwZGIxOTRkZDA1ODk3YjgyNjFmMjBjZjljMzgxZDMxZjQ3YTlmZgpib2R5CXRlc3RzL2NvcnB1cy1tYXRyaXgudGVzdC5tanMJdGhlIG1hdHJpeCBkaXNjb3ZlcnMgdGhlIHRocmVlIEFEUi0wNjQgY29ycG9yYQk1ZDFkMjY0NzgzOGFkMTFjYTk0MDkyZTM3MDkxODYzN2JmNTQ4ZjQ5OWQwNmI4ZGM1NzJlODUyNzE1NzFkYzZmCmJvZHkJdGVzdHMvY29ycHVzLW1hdHJpeC50ZXN0Lm1qcwl0aGUgbWF0cml4IGRpc2NvdmVycyB0aGUgeWFtbC1mcm9udG1hdHRlciBjb3JwdXMJNDNiNzE4OWI5ZjMzYzU0YjkwNjc1YjE4OGY5YWVkNzMyZGU1NGNhYjc1NjkyYTlmYzJlYTMyNTU3MjMxM2E0Yg · test-lock-kind:relock
+- 2026-10-07 · 49bd0c3* · exit 0 · `node --test --test-reporter=tap tests/corpus-matrix.test.mjs 2>&1 | grep -qE '^ *ok [0-9]+ - corpus yaml-frontmatter: every reader answers as reviewed, through a symlink$'` · acceptance-sha256:36529139a9e447ece091aeb822be49187d7a8a175b599195aac865c4df0ec49f · ms:20818

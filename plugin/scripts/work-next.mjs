@@ -209,7 +209,7 @@ function candidateProblem(file) {
   }
   if (!stat.isFile()) return { reason: 'it is not a regular file, so it was never opened' }
   try { accessSync(file, constants.R_OK) } catch (error) { return { reason: `it could not be read (${error?.code ?? 'unreadable'})` } }
-  return { size: stat.size }
+  return {}
 }
 // `files` are named as not read; `failed` are `{ file, reason }` for the candidates that could not be read
 // or whose format no reader parses: could-not-look, never silence.
@@ -241,13 +241,10 @@ function notReadFiles(directory, listing, corpus) {
       continue
     }
     if (problem.reason) { if (!problem.absent) failed.push({ file, reason: problem.reason }); continue }
-    if (problem.size > CANDIDATE_BYTES) {
-      failed.push({ file, reason: `it runs past ${CANDIDATE_BYTES / 1024} KiB, so whether it carries a status was not read` })
-      continue
-    }
     let text
-    // Bounded by the bytes read: a candidate that grew after `candidateProblem` asked its size is past the
-    // budget all the same (finding 12).
+    // Bounded by the bytes read, never by a size asked first: a candidate that grew
+    // after it was asked is past the budget all the same, and a size check beside the bounded read was a
+    // second, weaker budget (a gpt-6.1-sol review of ADR-092's execution, finding 12).
     try { text = readRegularText(file, CANDIDATE_BYTES) } catch (error) {
       failed.push({ file, reason: error?.code === 'EFBIG' ? `it runs past ${CANDIDATE_BYTES / 1024} KiB, so whether it carries a status was not read`
         : `it could not be read (${error?.code ?? 'unreadable'})` })

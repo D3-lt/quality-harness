@@ -3605,8 +3605,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "    if checked == 0 or unlisted:",
-      "to": "    if unlisted:",
+      "from": "    if checked == 0 or unlisted or unread:",
+      "to": "    if unlisted or unread:",
       "only": "^(?:a corpus with no claim reports no rate rather than a clean one|a human-observed entry is not a claim|an empty corpus reports no claim rather than a clean sweep|a corpus whose evidence predates the tool reports no claim, not a clean bill|an entry after the Verification Log section belongs to no claim)$"
     },
     {
@@ -8303,8 +8303,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        found = RECORD_FILE_RE.match(name)\n",
-      "to": "        found = re.match(r\"^ADR-0*(\\d{1,4})\", name, re.I)\n",
+      "from": "    found = RECORD_FILE_RE.match(name)\n    if not found:\n        identity = record_id(name, title)\n        return int(identity[len(\"ADR-\"):]) if identity and identity.startswith(\"ADR-\") else False",
+      "to": "    found = re.match(r\"^ADR-0*(\\d{1,4})\", name, re.I)\n    if not found:\n        return False",
       "only": "^(?:a corpus that does not prefix its records with ADR- is still seen, and still spoken to|a tracked path git has to quote is still a record, not an empty corpus|focused false-green regressions remain closed)$"
     },
     {
@@ -8313,8 +8313,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if TASK_SHAPED_RE.match(stem) or DATE_SHAPED_RE.match(name):\n",
-      "to": "        if TASK_SHAPED_RE.match(stem):\n",
+      "from": "    if TASK_SHAPED_RE.match(name[:-len(\".md\")]) or DATE_SHAPED_RE.match(name):",
+      "to": "    if TASK_SHAPED_RE.match(name[:-len(\".md\")]):",
       "only": "^(?:a corpus that does not prefix its records with ADR- is still seen, and still spoken to|focused false-green regressions remain closed)$"
     },
     {
@@ -8353,8 +8353,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    if title is None or TITLE_TASK_RE.match(title):",
-      "to": "    if title is None:",
+      "from": "        if title is None or TITLE_TASK_RE.match(title) or not TITLE_RECORD_RE.match(title):",
+      "to": "        if title is None or not TITLE_RECORD_RE.match(title):",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {
@@ -10045,8 +10045,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            numbered = re.match(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", title_line(title_text) or \"\", re.I)",
-      "to": "            numbered = re.search(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", title_text, re.I | re.M)",
+      "from": "        numbered = re.match(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", title, re.I)",
+      "to": "        numbered = re.search(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", text, re.I | re.M)",
       "only": "focused false-green regressions remain closed"
     },
     {
@@ -20209,8 +20209,8 @@
       "tests": [
         "tests/walk-links.test.mjs"
       ],
-      "from": "                if entry.is_dir() and not is_link(entry):",
-      "to": "                if entry.is_dir():",
+      "from": "            if stat.S_ISDIR(mode) and not is_link(entry):",
+      "to": "            if stat.S_ISDIR(mode):",
       "only": "^record\\.walk yields what rglob yields, and never enters a directory it is told is a link$"
     },
     {
@@ -22872,8 +22872,8 @@
       "tests": [
         "tests/walk-unlisted.test.mjs"
       ],
-      "from": "    if checked == 0 or unlisted:",
-      "to": "    if checked == 0:",
+      "from": "    if checked == 0 or unlisted or unread:",
+      "to": "    if checked == 0 or unread:",
       "only": "^every walk caller names a directory whose listing failed$"
     },
     {
@@ -22912,8 +22912,8 @@
       "tests": [
         "tests/walk-unlisted.test.mjs"
       ],
-      "from": "    tasks = sorted(q for q in walk(root, unlisted=unlisted) if q.name.lower().endswith(\".md\") and q.is_file())",
-      "to": "    tasks = sorted(q for q in walk(root, unlisted=unlisted) if q.name.endswith(\".md\") and q.is_file())",
+      "from": "    walked = [q for q in walk(root, unlisted=unlisted) if q.name.lower().endswith(\".md\")]",
+      "to": "    walked = [q for q in walk(root, unlisted=unlisted) if q.name.endswith(\".md\")]",
       "only": "^adr-debt and adr-verify read a .MD file$"
     },
     {
@@ -23195,6 +23195,126 @@
       "from": "        file => readRegularText(file))",
       "to": "        file => readFileSync(file, 'utf8'))",
       "only": "^an archive README that is a FIFO is unknown, and is never opened$"
+    },
+    {
+      "label": "ADR-092 review: a walk skips an entry it could not inspect",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "                if unlisted is not None:\n                    unlisted.append(entry)\n                continue",
+      "to": "                continue",
+      "only": "^a walk names a child (?:directory it could not inspect|of a directory it may list but not search)$"
+    },
+    {
+      "label": "ADR-092 review: adr-verify's sweep drops a special task",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    unread = [(q, why) for q in walked for why in (special_file_problem(q),) if why]",
+      "to": "    unread = []",
+      "only": "^adr-verify --sweep names a task that is not a regular file$"
+    },
+    {
+      "label": "ADR-092 review: a seal leaves out a special attachment",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        if problem:\n            _could_not_run(path, f\"{problem}, so the decision unit",
+      "to": "        if False:\n            _could_not_run(path, f\"{problem}, so the decision unit",
+      "only": "^an archive seal names a special attachment, in a unit directory and in a flat archive$"
+    },
+    {
+      "label": "ADR-092 review: a special catalog file reads as missing",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    problem = special_file_problem(path)\n    if problem:\n        _could_not_run(path, problem)\n    return Path(path).is_file()",
+      "to": "    return Path(path).is_file()",
+      "only": "^an archive or active README that exists and is not a regular file is could-not-run, not missing$"
+    },
+    {
+      "label": "ADR-092 review: spec-verify calls a special test file missing",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "            if not f.is_file() and not regular_file_problem(f):",
+      "to": "            if not f.is_file():",
+      "only": "^a Cargo binding to a test file that is not a regular file is could-not-check, not missing$"
+    },
+    {
+      "label": "ADR-092 review: spec-verify opens a special test file",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    problem = regular_file_problem(path)\n    if problem:\n        return None, f\"could not check '{name}': {path.name} is {problem}",
+      "to": "    problem = None\n    if problem:\n        return None, f\"could not check '{name}': {path.name} is {problem}",
+      "only": "^a Cargo binding to a test file that is not a regular file is could-not-check, not missing$"
+    },
+    {
+      "label": "ADR-092 review: arch-lint opens a special document",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        text = read_regular(path)",
+      "to": "        text = path.read_text(errors=\"replace\", encoding=\"utf-8\")",
+      "only": "^arch-lint and adr-lint never open a FIFO they were pointed at or walked into$"
+    },
+    {
+      "label": "ADR-092 review: adr-next lists task files case-sensitively",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        listed = sorted(entry for entry in tasks_dir.iterdir() if entry.name.lower().endswith(\".md\"))",
+      "to": "        listed = sorted(entry for entry in tasks_dir.iterdir() if entry.name.endswith(\".md\"))",
+      "only": "^adr-next reads a task named .MD$"
+    },
+    {
+      "label": "ADR-092 review: owning_record answers two values at the filesystem root",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    if record_dir == record_dir.parent:      # filesystem root: no record can own it\n        return False, None, None",
+      "to": "    if record_dir == record_dir.parent:      # filesystem root: no record can own it\n        return False, None",
+      "only": "^adr-next answers three values for a tasks directory at the filesystem root$"
+    },
+    {
+      "label": "ADR-092 review: adr-lint enumerates without the definition",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    if not recognised_as_record(Path(path), text, None if root is None else Path(root))[0]:\n        return False",
+      "to": "    if False:\n        return False",
+      "only": "^adr-lint enumerates a corpus by the one definition$"
+    },
+    {
+      "label": "ADR-092 review: adr-lint numbers no record by its identity",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        return int(identity[len(\"ADR-\"):]) if identity and identity.startswith(\"ADR-\") else False",
+      "to": "        return False",
+      "only": "^adr-lint enumerates a corpus by the one definition$"
+    },
+    {
+      "label": "ADR-092 review: adr-lint drops a corpus file it could not read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    except OSError:\n        return None\n    if not recognised_as_record",
+      "to": "    except OSError:\n        return False\n    if not recognised_as_record",
+      "only": "^arch-lint and adr-lint never open a FIFO they were pointed at or walked into$"
     }
   ]
 }

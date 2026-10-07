@@ -72,7 +72,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, NO_WINDOW, walk  # noqa: E402
-from record import os_reason  # noqa: E402
+from record import os_reason, read_regular  # noqa: E402
 
 RULE_SECTIONS = ["Dependency Contracts", "Concept Ownership (DRY)", "Composition Root",
                  "Test Doubles", "Trust & Data Boundaries"]
@@ -538,7 +538,9 @@ def main():
         print(f"file not found: {path}")
         sys.exit(1)
     try:
-        text = path.read_text(errors="replace", encoding="utf-8")
+        # A regular file only, never opened otherwise: a FIFO named as the document blocked this read
+        # until the process was killed (a gpt-6.1-sol review of ADR-092's execution, finding 11).
+        text = read_regular(path)
     except OSError as exc:
         print(f"[arch-lint] could not run: {path} — {os_reason(exc)}", file=sys.stderr)
         sys.exit(2)

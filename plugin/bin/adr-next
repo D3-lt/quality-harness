@@ -697,7 +697,17 @@ def load(tasks_dir):
     owner = RECORD_NUMBER.match(Path(os.path.abspath(tasks_dir)).parent.name)
     owner = int(owner.group(1)) if owner else None
 
-    for path in sorted(tasks_dir.glob("*.md")):
+    # `.md` in any case, as every corpus walk reads it (ADR-092 Decision 3): a case-sensitive
+    # `glob("*.md")` dropped `T1-x.MD` off Windows and reported "no task files" (a gpt-6.1-sol review of
+    # ADR-092's execution, finding 10). A listing that fails is could-not-run, never an empty directory.
+    try:
+        listed = sorted(entry for entry in tasks_dir.iterdir() if entry.name.lower().endswith(".md"))
+    except FileNotFoundError:
+        listed = []      # no such directory holds no task files, as the glob answered
+    except OSError as exc:
+        print(f"[adr-next] could not run: {tasks_dir} — {os_reason(exc)}", file=sys.stderr)
+        sys.exit(1)
+    for path in listed:
         if path.name.lower() == "readme.md":
             continue
         if not path.is_file():
@@ -1128,9 +1138,9 @@ def owning_record(tasks_dir, record_dir=None):
         record_dir = (record_dir.absolute() if record_dir is not None
                       else Path(os.path.abspath(tasks_dir)).parent)
     except OSError:
-        return False, None
+        return False, None, None
     if record_dir == record_dir.parent:      # filesystem root: no record can own it
-        return False, None
+        return False, None, None
     # Bounded: the sibling scan exists to find `ADR-002-long-slug.md` beside
     # `ADR-002/`, not to read an arbitrary directory of markdown. A corpus
     # directory holds tens of records; anything past a couple of hundred is not

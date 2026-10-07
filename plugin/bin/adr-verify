@@ -195,7 +195,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, visible, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON, conflict_markers  # noqa: E402,E501
 from record import os_reason  # noqa: E402
-from record import record_id, title_line, NO_WINDOW, walk  # noqa: E402
+from record import record_id, special_file_problem, title_line, NO_WINDOW, walk  # noqa: E402
 from record import vlog_row_is_lock_snapshot, snapshot_lock, lock_hasher, LOCK_HASHERS  # noqa: E402
 from record import SHA_FIELD, git_root, object_format, sha_fits, row_sha  # noqa: E402
 
@@ -2444,7 +2444,12 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSE
     # `.md` in any case (a `.MD` task's claims were never swept off Windows), and a directory the walk
     # could not list is said, never swept past as if it held no claim (ADR-092 Decision 10).
     unlisted = []
-    tasks = sorted(q for q in walk(root, unlisted=unlisted) if q.name.lower().endswith(".md") and q.is_file())
+    walked = [q for q in walk(root, unlisted=unlisted) if q.name.lower().endswith(".md")]
+    # A `.md` that exists and is not a regular file (a FIFO, a device), or that could not be asked
+    # about, may hold claims: it is named and never opened, never filtered out by `is_file()` before
+    # anything counted it (a gpt-6.1-sol review of ADR-092's execution, finding 7).
+    unread = [(q, why) for q in walked for why in (special_file_problem(q),) if why]
+    tasks = sorted(q for q in walked if q.is_file() and not special_file_problem(q))
     # Injectable, and the reason is the tri-platform rule this project wrote down
     # the same day it broke it: emptying PATH removes bash on POSIX and removes
     # nothing on Windows, where resolve_bash() finds Git Bash by absolute path.
@@ -2555,6 +2560,7 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSE
             "superseded": len(superseded), "unrunnable": len(unrunnable),
             "false_claims": [str(t) for t, _ in false],
             "unlisted": [str(d) for d in unlisted],
+            "unread": [str(q) for q, _why in unread],
         }, indent=2))
     else:
         if config_note:
@@ -2569,6 +2575,8 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSE
         for directory in unlisted:
             print(f"unlisted   {directory} — this directory could not be listed, so the claims under it "
                   f"were not re-checked (UNPROVEN)")
+        for task, why in unread:
+            print(f"unread     {task} — {why}, so its claims were not re-checked (UNPROVEN)")
         if checked == 0:
             # 0/0 is not a clean bill of health. A corpus this tool could not
             # find a single re-checkable claim in has told us nothing, and saying
@@ -2583,7 +2591,7 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSE
             print(f"\n{len(false)}/{checked} recorded claims no longer hold "
                   f"({len(superseded)} superseded, {len(unrunnable)} unrunnable, "
                   f"neither counted).{demotion}")
-    if checked == 0 or unlisted:
+    if checked == 0 or unlisted or unread:
         # A sweep that could not list part of its tree has not re-checked the claims there, so its
         # rate is not the corpus's: never the clean answer (ADR-005).
         return 1

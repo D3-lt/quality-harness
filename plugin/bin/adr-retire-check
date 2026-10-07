@@ -61,7 +61,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
 from record import sections_of  # noqa: E402
 from record import os_reason  # noqa: E402
 from record import first_number_id, first_reference, record_id, references_in, title_line, walk  # noqa: E402
-from record import corpus_eligible, git_root, read_record_text, read_regular, recognised_as_record  # noqa: E402
+from record import corpus_eligible, git_root, read_record_text, read_regular, recognised_as_record, special_file_problem  # noqa: E402
 from record import record_status, status_kind  # noqa: E402
 
 
@@ -101,6 +101,29 @@ def _read_record(path):
         return read_record_text(path)
     except OSError as exc:
         _could_not_run(path, os_reason(exc))
+
+
+def _present(path):
+    """Whether `path` is a regular file to read. False when it is absent or a directory, as `is_file()`
+    answers; could-not-run, naming it, when it exists and is not one: a FIFO archive README read
+    "[FAIL] archive README not found" over a file that was there, and a FIFO link target was a broken
+    link (a gpt-6.1-sol review of ADR-092's execution, finding 9). Never opened."""
+    problem = special_file_problem(path)
+    if problem:
+        _could_not_run(path, problem)
+    return Path(path).is_file()
+
+
+def _sealed_walk(root):
+    """`_walked(root)` for a seal: a file in it that exists and is not a regular file is could-not-run,
+    named, never left out of the digest in silence; `is_file()` dropped a FIFO attachment and the seal
+    matched without it (finding 8)."""
+    paths = _walked(root)
+    for path in paths:
+        problem = special_file_problem(path)
+        if problem:
+            _could_not_run(path, f"{problem}, so the decision unit it may belong to cannot be sealed whole")
+    return paths
 
 
 def _walked(root):
@@ -314,7 +337,7 @@ def receipt_count(lines, adr_id):
 
 def links_in(readme):
     out = []
-    text = readme.read_text(errors="replace", encoding="utf-8")
+    text = _read(readme)
     for match in re.finditer(r"\[[^]]+\]\(([^)]+)\)", text):
         target = match.group(1).split("#", 1)[0].strip()
         if target and not re.match(r"^[a-z]+://", target, re.I):
@@ -345,7 +368,7 @@ class Findings(list):
 
 def catalog_rows(readme, errors):
     rows = {}
-    for line in sections_of(readme.read_text(errors="replace", encoding="utf-8")).get("Retired Records", []):
+    for line in sections_of(_read(readme)).get("Retired Records", []):
         if not line.strip().startswith("|"):
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
@@ -406,9 +429,9 @@ def unit_order(paths):
 
 def decision_unit_files(archive_root, adr_id, source, known=frozenset()):
     if source.parent != archive_root:
-        return unit_order(path for path in _walked(source.parent) if path.is_file())
+        return unit_order(path for path in _sealed_walk(source.parent) if path.is_file())
     files = {source}
-    for path in _walked(archive_root):
+    for path in _sealed_walk(archive_root):
         if path.is_file() and path.name != "README.md" and adr_id_for_file(path, archive_root, known) == adr_id:
             files.add(path)
     return unit_order(files)
@@ -467,11 +490,11 @@ def adoption_report(active_root, archive_root):
 
     active_readme = active_root / "README.md"
     linked, broken = set(), []
-    if not active_readme.is_file():
+    if not _present(active_readme):
         errors.append("active corpus needs README.md as the governing decision catalog")
     else:
         for raw, target in links_in(active_readme):
-            if not target.is_file():
+            if not _present(target):
                 broken.append(raw)
                 continue
             linked.add(target.resolve())
@@ -492,7 +515,7 @@ def adoption_report(active_root, archive_root):
 
     obligations = meaningful_obligations(archive_root, frozenset(active_records) | frozenset(archive_records))
     backlog = active_root / "BACKLOG.md"
-    backlog_text = backlog.read_text(errors="replace", encoding="utf-8") if backlog.is_file() else ""
+    backlog_text = _read(backlog) if _present(backlog) else ""
     backlog_lines = sections_of(backlog_text).get("Follow-ups", [])
     for adr_id, count in sorted(obligations.items()):
         receipts = receipt_count(backlog_lines, adr_id)
@@ -629,12 +652,12 @@ def main():
         print(f"[FAIL] adr-retire-check expected the archive's README FILE, and was given a directory: "
               f"{sys.argv[1]} — pass {Path(sys.argv[1]) / 'README.md'} · {gate_identity()}")
         raise SystemExit(1)
-    if not archive_readme.is_file():
+    if not _present(archive_readme):
         # BACKLOG §143: the verdict names the binary that reached it.
         print(f"[FAIL] archive README not found: {archive_readme} · {gate_identity()}")
         raise SystemExit(1)
     try:
-        archive_text = archive_readme.read_text(errors="replace", encoding="utf-8")
+        archive_text = read_regular(archive_readme)
     except OSError as exc:
         print(f"[adr-retire-check] could not run: {sys.argv[1]} — {os_reason(exc)}", file=sys.stderr)
         raise SystemExit(2)
@@ -663,12 +686,12 @@ def main():
         raise SystemExit(1)
 
     active_readme = active_root / "README.md" if active_root else None
-    if active_readme is None or not active_readme.is_file():
+    if active_readme is None or not _present(active_readme):
         errors.append("active corpus needs README.md as its governing decision catalog")
     resolved_active_links = set()
-    if active_readme and active_readme.is_file():
+    if active_readme and _present(active_readme):
         for raw, target in links_in(active_readme):
-            if not target.is_file():
+            if not _present(target):
                 errors.append(f"active catalog has a broken link: {raw}")
             else:
                 resolved_active_links.add(target.resolve())
@@ -740,10 +763,10 @@ def main():
         pointer = path_pointer(receipt)
         destination = (archive_root / pointer).resolve() if pointer else None
         backlog = (active_root / "BACKLOG.md").resolve() if active_root else None
-        if destination is None or backlog is None or destination != backlog or not backlog.is_file():
+        if destination is None or backlog is None or destination != backlog or not _present(backlog):
             errors.append(f"{adr_id}: {count} obligation(s) need an active backlog receipt or disposition")
             continue
-        destination_text = destination.read_text(errors="replace", encoding="utf-8")
+        destination_text = _read(destination)
         receipts = receipt_count(sections_of(destination_text).get("Follow-ups", []), adr_id)
         if receipts < count:
             errors.append(

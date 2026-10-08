@@ -982,8 +982,25 @@ def record_status(text):
     comment removed first (ADR-087 T1). A caller reading WHICH record a supersession
     names reads the raw line itself: removing `_` is right for classifying and wrong for
     a name (lifecycle.mjs `rawStatus`)."""
+    bullet = None
+    for kind, value in _status_lines(text):
+        if kind == "label":
+            return value, "inline"
+        if bullet is None:
+            bullet = value
+    if bullet is not None:
+        return bullet, "inline"
+    section = status_section(text)
+    return (section, "section") if section is not None else (None, None)
+
+
+def _status_lines(text):
+    """`("label", value)` for each Status label line in document order, and `("bullet", value)` for the
+    first `- Status:` bullet above the first heading, each with its markup removed. One walk serves both
+    `record_status`, which takes the first label, and `status_labels`, which takes them all, so the two
+    cannot disagree about which lines are labels. A generator: `record_status` stops at the first."""
     block = frontmatter_block(text)
-    bullet, above = None, True
+    above, bullet_seen = True, False
     for index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)], document=True):
         in_block = block is not None and block[0] < index < block[1]
         # Inside the frontmatter only a top-level key is the record's own: an indented line belongs to
@@ -995,15 +1012,21 @@ def record_status(text):
             value = found.group(1)
             if in_block:
                 value = _frontmatter_value(value)
-            return _STATUS_MARKUP.sub("", value).strip(_EDGE_SPACE), "inline"
+            yield "label", _STATUS_MARKUP.sub("", value).strip(_EDGE_SPACE)
+            continue
         if above and _HEADING.match(line):
             above = False
-        elif above and bullet is None:
+        elif above and not bullet_seen:
             bullet = _STATUS_BULLET.match(line)
-    if bullet:
-        return _STATUS_MARKUP.sub("", bullet.group(1)).strip(_EDGE_SPACE), "inline"
-    section = status_section(text)
-    return (section, "section") if section is not None else (None, None)
+            if bullet:
+                bullet_seen = True
+                yield "bullet", _STATUS_MARKUP.sub("", bullet.group(1)).strip(_EDGE_SPACE)
+
+
+def status_labels(text):
+    """Every Status label line's value, in order. BACKLOG §355: a record with two (Superseded, then
+    Accepted) was read as the first by every reader, and nothing said a second one was there."""
+    return [value for kind, value in _status_lines(text) if kind == "label"]
 
 
 @lru_cache(maxsize=16)

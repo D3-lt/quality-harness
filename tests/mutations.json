@@ -30,6 +30,35 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355: adr-lint names two Status lines that disagree",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/two-status-lines.test.mjs"
+      ],
+      "only": "two Status lines that disagree",
+      "from": "    if len({status_kind(value) for value in labels}) > 1:",
+      "to": "    if False:"
+    },
+    {
+      "label": "§355: two Status lines that agree are not named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/two-status-lines.test.mjs"
+      ],
+      "only": "two Status lines that disagree",
+      "from": "    if len({status_kind(value) for value in labels}) > 1:",
+      "to": "    if len(labels) > 1:"
+    },
+    {
+      "label": "§355: status_labels lists every label, not only the first",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/two-status-lines.test.mjs"
+      ],
+      "from": "            yield \"label\", _STATUS_MARKUP.sub(\"\", value).strip(_EDGE_SPACE)\n            continue",
+      "to": "            yield \"label\", _STATUS_MARKUP.sub(\"\", value).strip(_EDGE_SPACE)\n            return"
+    },
+    {
       "label": "§355: adr-lint names another record carrying the same number",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -17353,8 +17382,8 @@
       "tests": [
         "tests/status-reading.test.mjs"
       ],
-      "from": "            return _STATUS_MARKUP.sub(\"\", value).strip(_EDGE_SPACE), \"inline\"",
-      "to": "            return value.strip(_EDGE_SPACE), \"inline\"",
+      "from": "            yield \"label\", _STATUS_MARKUP.sub(\"\", value).strip(_EDGE_SPACE)",
+      "to": "            yield \"label\", value.strip(_EDGE_SPACE)",
       "only": "^every reader gives one Status the same reading$"
     },
     {

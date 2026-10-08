@@ -1506,3 +1506,33 @@ test('job views stop at their budget, and the release half is read before gh', (
   assert.equal(saved.tag, 'v2.64.0')
   assert.equal(saved.shippedSinceTag, 0, 'GIT_CLEAN names no changed plugin file')
 })
+
+// The push run of e2e210ed: the prompt's `said` stamp and the refresher it started both
+// rewrote the snapshot in place, and the file came out as one write's head over the other's
+// tail. Each writer must REPLACE the file, which a write in place never does: the path names
+// a new file afterwards, and no temporary is left beside it.
+test('both snapshot writers replace the file rather than rewrite it in place', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-replace-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  const env = { ...process.env, PATH: '' }
+  const spare = () => readdirSync(gitDir).filter(name => name.endsWith('.tmp'))
+
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: snapshotKey(gitDir), state: greenState }))
+  const before = statSync(cache).ino
+  const warm = spawnSync(process.execPath, [branchScript, '--brief', '--cached', '120'],
+    { cwd: project, env, encoding: 'utf8', timeout: 10_000 })
+  assert.equal(warm.status, 0, warm.stderr)
+  assert.match(JSON.parse(readFileSync(cache, 'utf8')).said, /main @ abc1234/, 'the brief stamped what it said')
+  assert.notEqual(statSync(cache).ino, before, 'the stamp replaced the snapshot')
+  assert.deepEqual(spare(), [])
+
+  const stamped = statSync(cache).ino
+  const refresh = spawnSync(process.execPath, [branchScript, '--refresh'],
+    { cwd: project, env, encoding: 'utf8', timeout: 20_000 })
+  assert.equal(refresh.status, 0, refresh.stderr)
+  const after = JSON.parse(readFileSync(cache, 'utf8'))
+  assert.equal(after.state.looked, false, 'the refresher wrote what it saw')
+  assert.match(after.said, /main @ abc1234/, 'and kept what was said')
+  assert.notEqual(statSync(cache).ino, stamped, 'the refresh replaced the snapshot')
+  assert.deepEqual(spare(), [])
+})

@@ -30,6 +30,26 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "branch-state: the brief's said stamp replaces the snapshot rather than rewriting it in place",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "both snapshot writers replace the file",
+      "from": "    replaceFile(store, JSON.stringify({ ...current, said }))",
+      "to": "    writeFileSync(store, JSON.stringify({ ...current, said }))"
+    },
+    {
+      "label": "branch-state: the refresher replaces the snapshot rather than rewriting it in place",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "both snapshot writers replace the file",
+      "from": "      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))",
+      "to": "      writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))"
+    },
+    {
       "label": "branch-state: a reclaimer puts back a lock it did not judge stale",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [

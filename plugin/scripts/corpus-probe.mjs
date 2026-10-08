@@ -465,6 +465,9 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     undecided,
     workNext: workNext && {
       look: workNext.look, records: workNext.records, accepted: workNext.accepted, tasks: workNext.tasks,
+      // Task files git lists that work-next counted apart (BACKLOG §351 item 21.3): a probe that
+      // dropped them said less than the reader (an outside 3.8.14 run).
+      tasksNotOnDisk: workNext.tasksNotOnDisk ?? null, tasksUninspected: workNext.tasksUninspected ?? null,
       ready: workNextReadyList, unbacked: workNextPaths('unbackedDoneClaims'),
       underUndecided: workNextPaths('tasksUnderAnUndecidedRecord'), retirable: workNextPaths('retirableInActiveCorpus'),
       readinessUnproven: workNextUnproven,
@@ -646,7 +649,7 @@ export function diffReports(before, after, scrub = text => String(text)) {
   if (!lacks('probe.readers', ...readers) && readers[0].sha256 !== readers[1].sha256) {
     say(`readers: ${String(readers[0].sha256).slice(0, 12)}… → ${String(readers[1].sha256).slice(0, 12)}…`)
   }
-  for (const [group, keys] of [['workNext', ['records', 'accepted', 'tasks', 'specs']], ['adrState', ['read', 'governing', 'contested']]]) {
+  for (const [group, keys] of [['workNext', ['records', 'accepted', 'tasks', 'tasksNotOnDisk', 'tasksUninspected', 'specs']], ['adrState', ['read', 'governing', 'contested']]]) {
     if (absent.has(group)) continue
     for (const key of keys) {
       const [b, a] = [before[group]?.[key], after[group]?.[key]]

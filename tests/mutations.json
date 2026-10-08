@@ -30,6 +30,24 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "probe: the summary carries work-next's tasks not on disk",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-tasks-not-on-disk.test.mjs"
+      ],
+      "from": "      tasksNotOnDisk: workNext.tasksNotOnDisk ?? null, tasksUninspected: workNext.tasksUninspected ?? null,",
+      "to": "      tasksUninspected: workNext.tasksUninspected ?? null,"
+    },
+    {
+      "label": "probe: --diff compares the tasks not on disk",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-tasks-not-on-disk.test.mjs"
+      ],
+      "from": "['records', 'accepted', 'tasks', 'tasksNotOnDisk', 'tasksUninspected', 'specs']",
+      "to": "['records', 'accepted', 'tasks', 'tasksUninspected', 'specs']"
+    },
+    {
       "label": "§355 front matter: work-next does not call a corpus of unread records no corpus",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [
@@ -22376,8 +22394,8 @@
       "tests": [
         "tests/probe-diff-marks.test.mjs"
       ],
-      "from": "['records', 'accepted', 'tasks', 'specs']",
-      "to": "['records', 'accepted', 'tasks']",
+      "from": "['records', 'accepted', 'tasks', 'tasksNotOnDisk', 'tasksUninspected', 'specs']",
+      "to": "['records', 'accepted', 'tasks', 'tasksNotOnDisk', 'tasksUninspected']",
       "only": "diff compares the fields it used to skip"
     },
     {

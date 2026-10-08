@@ -18440,6 +18440,7 @@ The owner brought five Windows 11 desktops back for testing. Each ran the probe 
 - adr-lint prints a content claim about a task before saying the file holds NUL bytes, so the probe's reason hides the encoding cause.
   - **Fixed 2026-10-08, in the probe.** Reproduced with invented names, adr-lint itself stops at the NUL finding for a task and for a record. What hid the cause was ordering across files: the record's own content findings print before a task's "holds NUL bytes", and the probe took the first finding as the row's reason. A FAIL row now prefers that finding and otherwise keeps the first. Test `tests/probe-nul-reason.test.mjs`, with its control; mutant RED; all 54 probe-labelled catalogue mutants re-ran RED.
 - SessionStart says nothing about unreadable records, and calls their directories "fully evidenced".
+  - **Fixed 2026-10-08.** Reproduced with invented names: adr-next said `owner_unreadable: true` ("it holds a NUL byte, so it is not text"), and SessionStart counted the directory "fully evidenced". Such a directory is now UNPROVEN, with adr-next's reason: whether its tasks are work at all is a question about a record nobody read. Test `tests/session-start-unreadable-owner.test.mjs`, with its control; mutant RED; all 21 SessionStart catalogue mutants re-ran RED.
 - On a junction loop, work-next's headline says "a listed record could not be read" though every record was read.
 - php-dated-adr's 168 front-matter records are counted nowhere (ADR-087 territory).
 - A lone CR cuts a SessionStart title with no marker.

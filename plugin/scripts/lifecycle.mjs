@@ -1942,6 +1942,15 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
       // round of 916b515, G2).
       continue
     }
+    // A directory whose record adr-next could not read (NUL bytes, unreadable, not a regular file) was
+    // counted "fully evidenced" when its tasks carried evidence, and nothing named the record: whether
+    // those tasks are work at all is a question about a record nobody read (BACKLOG §355).
+    if (report.owner_unreadable) {
+      lines.push(`  ${relative}: UNPROVEN — adr-next could not read the record that owns these tasks`
+        + `${report.owner_unreadable_because ? ` (${quotedCorpusText(report.owner_unreadable_because)})` : ''}, `
+        + 'so whether they are work is not known.')
+      continue
+    }
     if (report.ready?.length) {
       const next = report.ready[0]
       // Matched on the listed path: the shown one has a tag's `<` as `‹`, and would not match.

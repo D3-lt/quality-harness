@@ -39,13 +39,16 @@ const record = tail => `# ADR-004: X\n\n**Status:** Accepted\n\n## Context\n\nWh
 
 test('a task directory whose record could not be read is UNPROVEN, not fully evidenced', () => {
   const said = sessionStart(record('\u0000\u0000'))
-  assert.match(said, /docs\/adr\/ADR-004-x\/tasks: UNPROVEN — adr-next could not read the record that owns these tasks/, said)
+  assert.match(said, /docs\/adr\/ADR-004-x\/tasks: UNPROVEN — adr-next could not read a Status from the record that owns these tasks/, said)
   assert.match(said, /NUL byte/, said)
   assert.doesNotMatch(said, /fully evidenced/, said)
   // The control: the same directory under a readable record is counted, not named.
   const whole = sessionStart(record(''))
   assert.match(whole, /\(1 task directory read is fully evidenced, not shown\)/, whole)
-  assert.doesNotMatch(whole, /could not read the record/, whole)
+  assert.doesNotMatch(whole, /could not read a Status/, whole)
+  // A record read whole but with no Status line is the same question, and is said with its reason.
+  const bare = sessionStart('# ADR-004: X\n\n## Context\n\nWhy.\n\n## Decision\n\nWhat.\n')
+  assert.match(bare, /could not read a Status from the record that owns these tasks \(«it has no Status line»\)/, bare)
 })
 
 // adr-state's PARTIAL headline said only "a listed record could not be read", while its look is also

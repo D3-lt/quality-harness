@@ -186,7 +186,7 @@ export function main(argv) {
   // was opened and carries no status this reader acts on is listed below, as it is
   // beside records that were read. The JSON says the same (look from the corpus).
   if (!corpus.length && corpus.look === 'PARTIAL') {
-    say('could-not-look: a listed record could not be read (PARTIAL). '
+    say('could-not-look: a listed record could not be read, or its standing could not be established (PARTIAL). '
       + 'This is not "no decision records found".\n')
     sayNotRead()
     return 0

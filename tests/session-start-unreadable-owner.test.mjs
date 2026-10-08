@@ -47,3 +47,18 @@ test('a task directory whose record could not be read is UNPROVEN, not fully evi
   assert.match(whole, /\(1 task directory read is fully evidenced, not shown\)/, whole)
   assert.doesNotMatch(whole, /could not read the record/, whole)
 })
+
+// adr-state's PARTIAL headline said only "a listed record could not be read", while its look is also
+// PARTIAL when an archive catalog cannot establish a record's standing; it now says both, as adr-context does.
+test('adr-state\'s PARTIAL headline names both of its causes', () => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-state-partial-'))
+  temps.push(repo)
+  mkdirSync(join(repo, 'docs', 'adr'), { recursive: true })
+  writeFileSync(join(repo, 'docs', 'adr', 'ADR-004-x.md'), record('\u0000\u0000'))
+  for (const args of [['init', '-q'], ['add', '-A']]) {
+    assert.equal(spawnSync('git', args, { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
+  }
+  const run = spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'adr-state.mjs')],
+    { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  assert.match(run.stdout, /^could-not-look: a listed record could not be read, or its standing could not be established \(PARTIAL\)/m, run.stdout)
+})

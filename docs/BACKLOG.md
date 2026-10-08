@@ -18319,7 +18319,9 @@ Every item of §295 was checked against the working-tree readers at a0d963d. The
   - 6: adr-next prints a ZWSP raw.
     - **Fixed earlier, confirmed 2026-10-08.** `adr-next` `_UNSAFE` holds U+200B–U+200F, U+2060–U+2069 and the BOM (`adr-next:316`); a task whose title and fence hold a ZWSP printed no raw U+200B byte (checked with `od -c`).
   - 23.4: impossible and 1970 dates PASS.
+    - **Fixed earlier, confirmed 2026-10-08.** Closed under §355 ("Impossible dates"): `record.row_date_problem` refuses 2026-02-30, 2026-02-31 and 2099-01-01 in adr-lint and adr-next. 1970-01-01 is a real date and stays accepted, a named limit.
   - 21.3: a sparse checkout counts "0 task file(s)".
+    - **Fixed 2026-10-08.** Reproduced with a sparse checkout (`git sparse-checkout set --no-cone` over the record only): work-next said "0 task file(s)" while git listed two. The directory was already UNPROVEN; the count now says "0 task file(s) on disk, and 2 more that git lists and the disk does not hold", and the JSON carries `tasksNotOnDisk`. Test `tests/work-next-absent-count.test.mjs` with a control; two mutants RED. SessionStart's line ("UNPROVEN — listed by git, not on disk") was already true and is unchanged.
 - **Not checked here (Windows):** 16, 19.3's wording, 23.3, 23.6. 20.Q4's line key is UNKNOWN.
 
 **Codex review before 3.8.8 (gpt-6-astra, xhigh, 4283d6a...3ff59fb, REQUEST CHANGES, 2026-10-06): six findings. All six were confirmed against source and fixed, each with a test that failed first. They are in `tests/adr-next-codex-3-8-8.test.mjs` and one evidence-chain test.**

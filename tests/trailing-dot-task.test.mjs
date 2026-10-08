@@ -110,7 +110,7 @@ test('a dependency on a record whose name ends in a dot is not resolved, and not
   writeFileSync(join(adr, 'ADR-001-a.md.'), text('001'))
   writeFileSync(join(adr, 'ADR-001-a', 'tasks', 'T1-a.md'), task('T1'))
   writeFileSync(join(adr, 'ADR-003-c.md'), text('003'))
-  writeFileSync(join(adr, 'ADR-003-c', 'tasks', 'T1-a.md'), task('T1').replace('**Depends-on:** none', '**Depends-on:** ADR-001-T1'))
+  writeFileSync(join(adr, 'ADR-003-c', 'tasks', 'T1-a.md'), task('T1').replace('**Depends-on:** none', '**Depends-on:** ADR-001-T1, ADR-009-T1'))
   writeFileSync(join(adr, 'ADR-003-c', 'tasks', 'README.md'), '| Task | Status |\n|---|---|\n| [T1](T1-a.md) | pending |\n')
   if (!readdirSync(adr).includes('ADR-001-a.md.')) { t.skip('this filesystem does not keep a trailing dot'); return }
   const lint = () => {
@@ -122,7 +122,10 @@ test('a dependency on a record whose name ends in a dot is not resolved, and not
   assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
   const out = lint()
   assert.match(out, /advice: T1-a\.md: Depends-on 'ADR-001-T1' was NOT resolved — the corpus could not be listed from git, or a record in it could not be read/, out)
-  assert.doesNotMatch(out, /names no record in this corpus/, out)
+  assert.doesNotMatch(out, /'ADR-001-T1' names no record in this corpus/, out)
+  // The twin: a dependency on a record that is genuinely missing is still a FAIL in the same corpus.
+  // A corpus-wide could-not-look made it advice, so one stray name demoted a real refusal elsewhere.
+  assert.match(out, /^ {2}T1-a\.md: Depends-on 'ADR-009-T1' names no record in this corpus/m, out)
   // The control: named plainly, the record resolves and nothing is said about it.
   renameSync(join(adr, 'ADR-001-a.md.'), join(adr, 'ADR-001-a.md'))
   assert.doesNotMatch(lint(), /ADR-001-T1/)

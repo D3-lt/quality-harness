@@ -1942,11 +1942,11 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
       // round of 916b515, G2).
       continue
     }
-    // A directory whose record adr-next could not read (NUL bytes, unreadable, not a regular file) was
-    // counted "fully evidenced" when its tasks carried evidence, and nothing named the record: whether
-    // those tasks are work at all is a question about a record nobody read (BACKLOG §355).
+    // A directory whose record adr-next could not read a Status from (NUL bytes, unreadable, no Status line)
+    // was counted "fully evidenced" when its tasks carried evidence, and nothing named the record: whether
+    // those tasks are work at all is a question about a record whose standing nobody read (BACKLOG §355).
     if (report.owner_unreadable) {
-      lines.push(`  ${relative}: UNPROVEN — adr-next could not read the record that owns these tasks`
+      lines.push(`  ${relative}: UNPROVEN — adr-next could not read a Status from the record that owns these tasks`
         + `${report.owner_unreadable_because ? ` (${quotedCorpusText(report.owner_unreadable_because)})` : ''}, `
         + 'so whether they are work is not known.')
       continue

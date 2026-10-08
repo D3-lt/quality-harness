@@ -1023,10 +1023,12 @@ def _status_lines(text):
                 yield "bullet", _STATUS_MARKUP.sub("", bullet.group(1)).strip(_EDGE_SPACE)
 
 
+@lru_cache(maxsize=16)
 def status_labels(text):
     """Every Status label line's value, in order. BACKLOG §355: a record with two (Superseded, then
-    Accepted) was read as the first by every reader, and nothing said a second one was there."""
-    return [value for kind, value in _status_lines(text) if kind == "label"]
+    Accepted) was read as the first by every reader, and nothing said a second one was there. Memoised,
+    and a tuple, as `record_status` is: a 400,000-line record's walks once ran the coverage job's 30s out."""
+    return tuple(value for kind, value in _status_lines(text) if kind == "label")
 
 
 @lru_cache(maxsize=16)

@@ -127,4 +127,6 @@ of ADR-058 and ADR-059 made `adr-retire-check` FAIL with "SHA-256 does not match
 unit": the frozen digest covers file names, and no tool re-freezes. The renames were reverted. The
 owner chose a closed list: those five paths are named in the test, none may be added, and one that
 leaves the tree must leave the list. Until they do, a Windows clone needs `core.longpaths`, and every
-outside-run request says so.
+outside-run request says so. The form is `git clone -c core.longpaths=true`, which stores the setting in
+the clone; `git -c core.longpaths=true clone`, the form that first worked above, applies to the clone
+command only, and a later checkout in that clone fails again (CLAUDE.md §7).

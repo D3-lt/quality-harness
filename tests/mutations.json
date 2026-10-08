@@ -69,14 +69,24 @@
       "to": "    if (false) {"
     },
     {
-      "label": "§355: adr-lint's enumeration is could-not-look on a record name with a dot after .md",
+      "label": "§355: adr-lint names an unreadable record name's number as could-not-look",
       "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/trailing-dot-task.test.mjs"
       ],
       "only": "a dependency on a record whose name ends in a dot",
-      "from": "        if bare != name and \"/\" not in name and bare.lower().endswith(\".md\") and record_id(bare) is not None:",
-      "to": "        if False:"
+      "from": "        if bare == name or \"/\" in name or not bare.lower().endswith(\".md\"):\n            continue\n        rid = record_id(bare)",
+      "to": "        if True:\n            continue\n        rid = record_id(bare)"
+    },
+    {
+      "label": "§355: an unrelated missing dependency is still a FAIL beside an unreadable record name",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dependency on a record whose name ends in a dot",
+      "from": "                return True\n    return None if number in unreadable_record_numbers(root, corpus_dir, tracked) else False",
+      "to": "                return True\n    return None if unreadable_record_numbers(root, corpus_dir, tracked) else False"
     },
     {
       "label": "§355: work-next names a record file with a dot or whitespace after .md",
@@ -11105,8 +11115,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    return number in archived_record_numbers(root, corpus_dir, tracked)",
-      "to": "    return False",
+      "from": "    if number in archived_record_numbers(root, corpus_dir, tracked):\n        return True",
+      "to": "    if False:\n        return True",
       "only": "^(?:focused false-green regressions remain closed)$"
     },
     {

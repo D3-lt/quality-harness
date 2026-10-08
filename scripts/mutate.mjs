@@ -1295,6 +1295,87 @@ function catalogueShapeError(catalogue) {
   return null
 }
 
+// ADR-091: where the per-source catalogue files live, one `<source>.json` per mutated source.
+const CATALOGUE_DIR = 'tests/mutations'
+
+// The per-source catalogue files git lists under `root` (CLAUDE.md §8: tracked, or untracked and not
+// ignored, less what the checkout deleted), sorted by `/`-path in code-unit order. `existsSync` only
+// says whether a listing that failed could have missed anything: with no tests/mutations/ it could not.
+function listCatalogueFiles(root) {
+  const ask = args => spawnSync('git', ['ls-files', '-z', ...args, '--', CATALOGUE_DIR], { cwd: root, encoding: 'utf8', timeout: 60_000, maxBuffer: 64 * 1024 * 1024, windowsHide: true })
+  const listed = ask(['--cached', '--others', '--exclude-standard'])
+  const deleted = listed.error || listed.status !== 0 ? listed : ask(['--deleted'])
+  if (deleted.error || deleted.status !== 0) {
+    if (!existsSync(path.join(root, CATALOGUE_DIR))) return { paths: [] }
+    const why = (deleted.error?.message ?? deleted.stderr ?? '').trim() || `git exited ${deleted.status}`
+    return { error: `could not list ${path.join(root, CATALOGUE_DIR)}: ${why}` }
+  }
+  const gone = new Set(deleted.stdout.split('\0'))
+  return { paths: [...new Set(listed.stdout.split('\0'))].filter(file => file.endsWith('.json') && !gone.has(file)).sort() }
+}
+
+/**
+ * loadCatalogue reads `root`'s catalogue (ADR-091): the single tests/mutations.json when it exists,
+ * then every tests/mutations/<source>.json in path order. It returns `{ mutations, files }`, where each
+ * file is `{ path, catalogue }` and `mutations` are those catalogues' own entry objects, in order, so a
+ * write mode edits an entry in place and writes back only its file; or `{ error }`, naming the file
+ * that could not be read, is not a catalogue, is empty, holds another source's entry, or repeats a
+ * label another entry already has, exactly or differing only by case.
+ */
+export function loadCatalogue(root) {
+  const legacy = campaignPaths(root).catalogue
+  const files = []
+  let missing = null
+  try { files.push({ path: legacy, source: null, text: readFileSync(legacy, 'utf8') }) } catch (error) {
+    if (error?.code !== 'ENOENT') return { error: `could not read ${legacy}: ${error?.message ?? error}` }
+    missing = error
+  }
+  const listed = listCatalogueFiles(root)
+  if (listed.error) return { error: listed.error }
+  if (missing && !listed.paths.length) return { error: `could not read ${legacy}: ${missing.message}` }
+  for (const relative of listed.paths) {
+    const file = path.join(root, relative)
+    try { files.push({ path: file, source: relative.slice(CATALOGUE_DIR.length + 1, -'.json'.length), text: readFileSync(file, 'utf8') }) } catch (error) {
+      return { error: `could not read ${file}: ${error?.message ?? error}` }
+    }
+  }
+  const mutations = []
+  const seen = new Map()
+  for (const file of files) {
+    try { file.catalogue = JSON.parse(file.text) } catch (error) {
+      return { error: `could not read ${file.path}: ${error?.message ?? error}` }
+    }
+    const malformed = catalogueShapeError(file.catalogue)
+    if (malformed) return { error: `${file.path} is not a mutation catalogue: ${malformed}` }
+    if (file.source !== null && !file.catalogue.mutations.length) {
+      return { error: `${file.path} holds no entries: a source with nothing catalogued has no file under ${CATALOGUE_DIR}/` }
+    }
+    for (const entry of file.catalogue.mutations) {
+      if (file.source !== null && entry.file !== file.source) {
+        return { error: `${file.path} holds ${JSON.stringify(entry.label)}, which mutates ${entry.file}: a file under ${CATALOGUE_DIR}/ holds only ${file.source}'s entries` }
+      }
+      // An entry is found again by its label (--narrow, --selected, the cache), so a label is used once.
+      const prior = seen.get(entry.label.toLowerCase())
+      if (prior) {
+        return { error: prior.label === entry.label
+          ? `the label ${JSON.stringify(entry.label)} appears in ${prior.path} and again in ${file.path}; an entry is found by its label, so each is used once`
+          : `the labels ${JSON.stringify(prior.label)} (${prior.path}) and ${JSON.stringify(entry.label)} (${file.path}) differ only by case; an entry is found by its label, so each is used once` }
+      }
+      seen.set(entry.label.toLowerCase(), { label: entry.label, path: file.path })
+      mutations.push(entry)
+    }
+  }
+  return { mutations, files: files.map(file => ({ path: file.path, catalogue: file.catalogue })) }
+}
+
+// writeBack rewrites, each through writeCatalogue, only the catalogue files that hold one of the
+// `changed` entries (ADR-091), and returns their paths. A run killed between two leaves each whole.
+function writeBack(loaded, changed) {
+  const touched = loaded.files.filter(file => file.catalogue.mutations.some(entry => changed.has(entry)))
+  for (const file of touched) writeCatalogue(file.path, file.catalogue)
+  return touched.map(file => file.path)
+}
+
 export function main(argv) {
   // An unknown option used to be ignored in silence, and the run it produced
   // looked exactly like the run that was asked for. Measured 2026-08-27:
@@ -1330,19 +1411,13 @@ export function main(argv) {
   const paths = campaignPaths(root)
   lockPath = paths.lock
   journalPath = paths.journal
-  let catalogue
-  try {
-    catalogue = JSON.parse(readFileSync(paths.catalogue, 'utf8'))
-  } catch (error) {
-    process.stderr.write(`mutate: could not read ${paths.catalogue}: ${error?.message ?? error}\n`)
-    return 2
-  }
+  let loaded = loadCatalogue(root)
   // Refused before any branch reads it, at exit 2: could-not-read, never a stale finding's 1.
-  const malformed = catalogueShapeError(catalogue)
-  if (malformed) {
-    process.stderr.write(`mutate: ${paths.catalogue} is not a mutation catalogue: ${malformed}\n`)
+  if (loaded.error) {
+    process.stderr.write(`mutate: ${loaded.error}\n`)
     return 2
   }
+  let catalogue = { mutations: loaded.mutations }
   const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
   // ADR-072 T4: --narrow refuses an option it does not take before any branch does work,
   // or `--repoint --write` would rewrite the catalogue first and the refusal come after it.
@@ -1457,8 +1532,8 @@ export function main(argv) {
       entry.from = answer.from
       entry.to = answer.to
     }
-    writeCatalogue(paths.catalogue, catalogue)
-    console.log(`${stale} stale: ${proposed} rewritten in ${path.relative(root, paths.catalogue)}, ${stale - proposed} refused. Measuring the rewritten ${proposed === 1 ? 'entry' : 'entries'}:`)
+    const written = writeBack(loaded, new Set(proposals.map(({ entry }) => entry)))
+    console.log(`${stale} stale: ${proposed} rewritten in ${written.map(file => path.relative(root, file)).join(', ')}, ${stale - proposed} refused. Measuring the rewritten ${proposed === 1 ? 'entry' : 'entries'}:`)
     repointed = { labels: new Set(proposals.map(({ entry }) => entry.label)), stillStale: stale - proposed }
   }
   // ADR-072: each entry whose killers the cache recorded, narrowed to exactly those tests,
@@ -1473,18 +1548,14 @@ export function main(argv) {
       if (!claimTheRun()) return 2
       recover()
       // Read again under the lock: a writer that held it before this run may have changed it.
-      catalogue = JSON.parse(readFileSync(paths.catalogue, 'utf8'))
+      loaded = loadCatalogue(root)
+      if (loaded.error) {
+        process.stderr.write(`mutate: ${loaded.error}\n`)
+        return 2
+      }
+      catalogue = { mutations: loaded.mutations }
     }
-    // ADR-072 T4: an entry is found again by its label, so a label that appears twice could
-    // take one entry's pattern back from another. Refused before anything is measured.
-    const seen = new Set()
-    const repeated = new Set()
-    for (const { label } of catalogue.mutations) (seen.has(label) ? repeated : seen).add(label)
-    if (repeated.size) {
-      process.stderr.write(`mutate: --narrow finds each entry by its label, and ${[...repeated].join(', ')} `
-        + `${repeated.size === 1 ? 'appears' : 'appear'} more than once. Nothing was written.\n`)
-      return 2
-    }
+    // ADR-072 T4: an entry is found again by its label; loadCatalogue has refused a repeated one.
     const records = loadCache(argv.includes('--cache') ? argv[argv.indexOf('--cache') + 1] : paths.cache)
     const texts = new Map()
     const readSource = file => {
@@ -1826,7 +1897,9 @@ export function main(argv) {
       delete catalogue.mutations.find(m => m.label === result.label).only
       console.log(`UNDONE   ${result.label} — ${result.verdict} under its pattern, so it keeps running its whole files`)
     }
-    if (undone.length < narrowed.labels.size) writeCatalogue(paths.catalogue, catalogue)
+    const kept = new Set(narrowed.labels)
+    for (const result of undone) kept.delete(result.label)
+    writeBack(loaded, new Set(catalogue.mutations.filter(m => kept.has(m.label))))
     return undone.length ? 1 : 0
   }
   // ADR-069 T2: the write is trusted only when every rewritten entry is RED and nothing

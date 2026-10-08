@@ -982,10 +982,16 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
     for (const entry of STAGES) say(`  ${entry.entry.padEnd(36)} ${entry.when}\n`)
     return 0
   }
+  // Record-shaped files named above as not read are not "no corpus": a front-matter corpus with no
+  // Status was named whole and then called no corpus (BACKLOG §355; the owner, 2026-10-08: the
+  // headline only, ADR-092's look rule and the stage unchanged).
+  const unreadCorpus = stage.id === 'core' && state.notRead.length > 0
   if (stage.id === 'core') {
-    say('\nNo QH corpus is in use.\n')
+    say(unreadCorpus
+      ? `\nNo record this reader recognises is in use: the ${state.notRead.length} record-shaped file(s) named above were not read, so this is not "no corpus".\n`
+      : '\nNo QH corpus is in use.\n')
   }
-  say(`\nNext: ${stage.entry}\n  because ${stage.when}.\n  ${stage.why}\n`)
+  say(`\nNext: ${stage.entry}\n  because ${unreadCorpus ? 'no record this reader recognises is in use' : stage.when}.\n  ${stage.why}\n`)
   const evidence = stage.id === 'adr-verify' ? state.unbacked
     : stage.id === 'adr-execute' ? state.ready
       : stage.id === 'adr-retire' ? state.retirable.map(record => record.file)

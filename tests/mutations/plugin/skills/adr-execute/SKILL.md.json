@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "skills: no skill halts on a gate verdict",
+      "file": "plugin/skills/adr-execute/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "Check these before starting.",
+      "to": "Verify before starting; stop and ask if any fail:",
+      "only": "^(?:no skill tells the agent to stop on a gate verdict)$"
+    },
+    {
+      "label": "skills: adr-execute claims the stage that records evidence",
+      "file": "plugin/skills/adr-execute/SKILL.md",
+      "tests": [
+        "tests/skill-metadata.test.mjs"
+      ],
+      "from": "or asks to mark a task done, tick off a task, update a task's status, or record that work passed",
+      "to": "",
+      "only": "^(?:a skill claims the triggers its eval proved it needs)$"
+    },
+    {
+      "label": "skills: adr-execute audits the class, not the instance",
+      "file": "plugin/skills/adr-execute/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "## Audit the class, not the instance",
+      "to": "## Notes",
+      "only": "^(?:the record skills audit the class, not the instance)$"
+    }
+  ]
+}

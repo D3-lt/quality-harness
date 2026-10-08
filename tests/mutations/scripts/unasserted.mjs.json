@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-076 T3: the gate is neutered in the worktree",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    return measure(built.tree, target, suites, false)",
+      "to": "    return measure(root, target, suites, false)",
+      "only": "^an unasserted run leaves the checkout byte-identical$"
+    },
+    {
+      "label": "ADR-076 T3: could not isolate is exit 2",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "      + 'Re-run with --in-place to neuter the checkout itself.\\n')\n    return 2",
+      "to": "      + 'Re-run with --in-place to neuter the checkout itself.\\n')\n    return 0",
+      "only": "^an unasserted run that cannot isolate neuters nothing and names --in-place$"
+    },
+    {
+      "label": "ADR-076 T3: every exit removes the tree",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    remove(built.id)",
+      "to": "    void built.id",
+      "only": "^(?:a failing baseline removes the worktree|an unreachable suite removes the worktree)$"
+    },
+    {
+      "label": "ADR-076 T3: suites do not inherit NODE_TEST_CONTEXT",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "const suiteEnv = { ...inherited, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' }",
+      "to": "const suiteEnv = { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' }",
+      "only": "^an unasserted run started inside a test runner still reads its suite's failures$"
+    },
+    {
+      "label": "Codex ADR-076 #3: unasserted records its process group before its suites run",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    if (group) addOwned(built.id, { group })",
+      "to": "    if (false) addOwned(built.id, { group })",
+      "only": "^an unasserted run records its process group before its suites run$"
+    },
+    {
+      "label": "Codex ADR-076 #4: a target resolving outside the worktree is not neutered",
+      "file": "scripts/unasserted.mjs",
+      "tests": [
+        "tests/unasserted-isolation.test.mjs"
+      ],
+      "from": "    if (resolved !== home && !resolved.startsWith(home + path.sep)) {",
+      "to": "    if (false) {",
+      "only": "^a target that resolves outside the worktree is not neutered there$"
+    }
+  ]
+}

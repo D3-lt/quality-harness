@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "skills: the guidance still names the gate to run",
+      "file": "plugin/skills/arch-write/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "4. Run `arch-lint <architecture.md>` and paste the run.",
+      "to": "4. Check the document yourself.",
+      "only": "^(?:no skill tells the agent to stop on a gate verdict)$"
+    }
+  ]
+}

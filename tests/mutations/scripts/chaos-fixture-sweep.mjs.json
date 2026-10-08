@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "chaos sweep: an outside finding with no fixture is named",
+      "file": "scripts/chaos-fixture-sweep.mjs",
+      "tests": [
+        "tests/chaos-fixture-sweep.test.mjs"
+      ],
+      "from": "    && !FIXTURE.test(section.body) && !WAIVER.test(section.body))",
+      "to": "    && false)",
+      "only": "names an outside finding"
+    }
+  ]
+}

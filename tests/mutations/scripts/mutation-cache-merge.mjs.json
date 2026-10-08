@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "cache-merge: a deletion actually removes the key, rather than only being counted",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      if (value === undefined) { deleted.add(key); delete entries[key] }",
+      "to": "      if (value === undefined) { deleted.add(key) }",
+      "only": "^(?:a GREEN deletion by one shard survives the other eleven carrying its stale RED|when two shards measure one key, the deletion wins whichever order they arrive in|the CLI writes only when the merge held, and the workflow call is the one under test)$"
+    },
+    {
+      "label": "cache-merge: an incomplete run is refused, not merged from whatever arrived",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "  if (failures.length || reports.length !== expected) {",
+      "to": "  if (failures.length) {",
+      "only": "^(?:a shard that never reported refuses the merge instead of freezing its keys|the CLI writes only when the merge held, and the workflow call is the one under test)$"
+    },
+    {
+      "label": "cache-merge: a report with no `measured` claim is unreadable, not a shard that measured nothing",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "  if (!Array.isArray(parsed.measured)) return { path, error: 'no measured claim' }",
+      "to": "",
+      "only": "^(?:a report that cannot say what it measured is no report, not an empty one)$"
+    },
+    {
+      "label": "cache-merge: a deletion stays final when a later shard reports the same key RED",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      if (deleted.has(key)) continue",
+      "to": "",
+      "only": "^(?:when two shards measure one key, the deletion wins whichever order they arrive in)$"
+    },
+    {
+      "label": "cache-merge: an option's operand is consumed, never collected as a thirteenth report",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      i += 1               // the OPERAND, never a path",
+      "to": "",
+      "only": "^(?:the CLI writes only when the merge held, and the workflow call is the one under test|the CLI refuses a call it cannot understand rather than guessing an output path)$"
+    },
+    {
+      "label": "cache-merge: twelve reports are not twelve shards unless the identities are 1..n exactly once",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      if (seen.get(identity) !== 1) missing.push(`${identity} x${seen.get(identity) ?? 0}`)",
+      "to": "",
+      "only": "^(?:twelve reports are not twelve shards when one identity appears twice)$"
+    }
+  ]
+}

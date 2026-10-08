@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "skills: the way out of an unsubstituted plugin root is a command",
+      "file": "plugin/skills/work/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "Run `qh-root` and use what it prints in place of it.",
+      "to": "Go and look for it.",
+      "only": "^(?:a skill that names the plugin root says how to resolve it without one)$"
+    },
+    {
+      "label": "routing: the documented host-review command names the repository",
+      "file": "plugin/skills/work/SKILL.md",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": "host-review.mjs --host codex --repo <repository root>",
+      "to": "host-review.mjs --host codex",
+      "only": "^(?:every documented host-review command names the repository and the scope)$"
+    },
+    {
+      "label": "routing: work names the Skill tool for loading quality-policy",
+      "file": "plugin/skills/work/SKILL.md",
+      "tests": [
+        "tests/routing.test.mjs"
+      ],
+      "from": "by invoking it with the Skill tool, not by reading its file, ",
+      "to": "",
+      "only": "^(?:work tells the coordinator to invoke quality-policy with the Skill tool)$"
+    }
+  ]
+}

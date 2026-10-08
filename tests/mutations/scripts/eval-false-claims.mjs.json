@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "eval: a withdrawn classifier is named, so a 0/N is not read as measured",
+      "file": "scripts/eval-false-claims.mjs",
+      "tests": [
+        "tests/eval-false-claims.test.mjs"
+      ],
+      "from": "  const banner = armWithdrawn",
+      "to": "  const banner = false",
+      "only": "^(?:a withdrawn classifier is named in the report, and a live one is not)$"
+    }
+  ]
+}

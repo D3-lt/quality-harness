@@ -1,0 +1,968 @@
+{
+  "mutations": [
+    {
+      "label": "§355 front matter: work-next does not call a corpus of unread records no corpus",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-not-read-headline.test.mjs"
+      ],
+      "from": "  const unreadCorpus = stage.id === 'core' && state.notRead.length > 0",
+      "to": "  const unreadCorpus = false"
+    },
+    {
+      "label": "§355 front matter: the unread-corpus headline needs a named file",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-not-read-headline.test.mjs"
+      ],
+      "from": "  const unreadCorpus = stage.id === 'core' && state.notRead.length > 0",
+      "to": "  const unreadCorpus = stage.id === 'core'"
+    },
+    {
+      "label": "§351.21.3: work-next counts task files git lists and the disk does not hold",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-absent-count.test.mjs"
+      ],
+      "from": "    tasksNotOnDisk: notOnDisk.size,",
+      "to": "    tasksNotOnDisk: absentTasks.size,"
+    },
+    {
+      "label": "§351.21.3: work-next's summary says the tasks not on disk",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-absent-count.test.mjs"
+      ],
+      "from": "    + `${state.tasks} task file(s)${listedApart(state)}, ${state.specs} spec(s).`",
+      "to": "    + `${state.tasks} task file(s), ${state.specs} spec(s).`"
+    },
+    {
+      "label": "§351.21.3 review: only ENOENT or ENOTDIR is counted as not on disk",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-absent-count.test.mjs"
+      ],
+      "from": "(['ENOENT', 'ENOTDIR'].includes(error?.code) ? notOnDisk : uninspected).add(file)",
+      "to": "notOnDisk.add(file)"
+    },
+    {
+      "label": "§355: work-next's PARTIAL headline names part of the corpus, not a record",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a PARTIAL headline says part of the corpus",
+      "from": "    say('could-not-look: part of the corpus could not be read (PARTIAL). '",
+      "to": "    say('could-not-look: a listed record could not be read (PARTIAL). '"
+    },
+    {
+      "label": "§355: work-next names a record file with a dot or whitespace after .md",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a record file whose name ends in a dot",
+      "from": "    if (trimmed !== base && /\\.md$/i.test(trimmed) && corpusEligible([...parts, trimmed].join('/'))",
+      "to": "    if (false && corpusEligible([...parts, trimmed].join('/'))"
+    },
+    {
+      "label": "§355: a record name's trailing dot is said as a dot",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a record file whose name ends in a dot",
+      "from": "      const tail = base.slice(trimmed.length).trim() ? 'a dot' : 'whitespace'",
+      "to": "      const tail = 'whitespace'"
+    },
+    {
+      "label": "work-next: no 'no task files' route while a task directory is unread (2.110.0-rc round 2 N1)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (state.accepted && !state.tasks && !state.readinessUnproven?.length) return STAGES.find(s => s.id === 'adr-write-no-tasks')",
+      "to": "  if (state.accepted && !state.tasks) return STAGES.find(s => s.id === 'adr-write-no-tasks')",
+      "only": "^(?:a task git lists but the disk does not hold is unproven, not counted)$"
+    },
+    {
+      "label": "work-next: a code span or comment does not cross a blank line (2.110.0-rc round 2 N2/N3)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const inParagraph = '(?:(?!\\\\n[ \\\\t]*\\\\n)[\\\\s\\\\S])*?'",
+      "to": "  const inParagraph = '[\\\\s\\\\S]*?'",
+      "only": "^(?:a spec Status is read only where it is a Status, and only as a known value)$"
+    },
+    {
+      "label": "work-next: a spec Status that only starts like a known value is not one (Codex review of f905d8a)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)(?![\\w\"'<>=-])/i",
+      "to": "const SPEC_STATUS = /^(?:Grilling|Draft|Ready-for-ADR|Superseded)/i",
+      "only": "^(?:a spec Status is read only where it is a Status, and only as a known value)$"
+    },
+    {
+      "label": "work-next: a fence closes only on the same character at least as long (Codex review of f905d8a)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "        if (close && close[1].length <= fence.list + 3 && close[2][0] === fence.marker[0]\n          && close[2].length >= fence.marker.length) fence = null",
+      "to": "        if (close) fence = null",
+      "only": "^(?:a spec Status is read only where it is a Status, and only as a known value)$"
+    },
+    {
+      "label": "work-next: a spec holding binary bytes has no readable Status (2.110.0-rc chaos L1)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (!text || text.includes('\\0')) return null",
+      "to": "  if (!text) return null",
+      "only": "^(?:a spec Status is read only where it is a Status, and only as a known value)$"
+    },
+    {
+      "label": "work-next: a spec Status must be one of the template's values (2.110.0-rc chaos)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  return SPEC_STATUS.test(values[0]) ? values[0] : null",
+      "to": "  return values[0]",
+      "only": "^(?:a spec Status is read only where it is a Status, and only as a known value)$"
+    },
+    {
+      "label": "work-next: a Status inside a code fence is not the spec's Status (2.110.0-rc chaos)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    if (open && !(open[3][0] === '`' && open[4].includes('`'))) {",
+      "to": "    if (false) {",
+      "only": "^(?:a spec Status is read only where it is a Status, and only as a known value)$"
+    },
+    {
+      "label": "work-next: a task git lists but the disk does not hold is unproven (2.110.0-rc chaos L4)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    try { statSync(file) } catch (error) { (['ENOENT', 'ENOTDIR'].includes(error?.code) ? notOnDisk : uninspected).add(file) }",
+      "to": "    try { statSync(file) } catch (error) {}",
+      "only": "^(?:a task git lists but the disk does not hold is unproven, not counted)$"
+    },
+    {
+      "label": "work-next: a record it cannot classify is not no-corpus (§293)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (!state.records && !state.specs && !state.tasks && !state.undecided && !state.nestedSpecs?.length) return STAGES.find(s => s.id === 'core')",
+      "to": "  if (!state.records && !state.specs && !state.tasks && !state.nestedSpecs?.length) return STAGES.find(s => s.id === 'core')",
+      "only": "^(?:a record this reader cannot classify is not \"no corpus\")$"
+    },
+    {
+      "label": "work-next: a PARTIAL look says which record made it partial (§289.3)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    partialBecause: look === 'PARTIAL'",
+      "to": "    partialBecause: false",
+      "only": "^(?:a task under an archive whose README spelling is ambiguous is unproven, not work)$"
+    },
+    {
+      "label": "work-next: a PARTIAL look still names the directories it withheld (§288)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    for (const dir of state.readinessUnproven.slice(0, 5)) say(`  readiness UNPROVEN: ${shown(dir)}\\n`)",
+      "to": "",
+      "only": "^(?:a task under an archive whose README spelling is ambiguous is unproven, not work)$"
+    },
+    {
+      "label": "work-next: a task under an undecided archive is unproven, not work (§288)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    if (archived === 'unknown') { archiveUnknown.add(path.resolve(directory, path.dirname(rel))); continue }",
+      "to": "    if (false) { continue }",
+      "only": "^(?:a task under an archive whose README spelling is ambiguous is unproven, not work)$"
+    },
+    {
+      "label": "router: a corpus with no Verification Log is not behind on evidence",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (state.usesVerificationLog && state.unbacked.length) {",
+      "to": "  if (state.unbacked.length) {",
+      "only": "^(?:the lifecycle router reads corpus state, and says so when it cannot)$"
+    },
+    {
+      "label": "router: a done claim with no exit-0 entry routes to adr-verify",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} · .*· exit 0\\b/m.test(text)\n  })",
+      "to": "    return false\n  })",
+      "only": "^(?:work-next: README shapes adr-lint reads are claims, and a task adr-next never read is not judged by its absence|work-next: a task adr-next was never asked about is judged by its own evidence)$"
+    },
+    {
+      "label": "router: importing the CLI half does not run it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "if (isMainModule(import.meta.url)) {\n  process.exitCode = main()\n}",
+      "to": "{\n  process.exitCode = main()\n}",
+      "only": "^(?:importing the router does not end the process that imported it)$"
+    },
+    {
+      "label": "router: the CLI half returns a code instead of taking the process",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "only": "importing the router does not end the process that imported it",
+      "from": "    for (const entry of STAGES) say(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    return 0",
+      "to": "    for (const entry of STAGES) say(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    process.exit(0)"
+    },
+    {
+      "label": "next: a task is ready only when the record that owns it is Accepted",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    if (record.kind !== 'governing' || record.frozen) continue",
+      "to": "    if (record.frozen) continue",
+      "only": "^(?:readinessFrom: only governing, unfrozen records are asked about — a Proposed record has no ready work)$"
+    },
+    {
+      "label": "next: work under an undecided record is named, not silently dropped",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const notYetDecided = tasks.filter(file => unfinished(file) && !executable(file)\n    && owner.has(path.resolve(file)))",
+      "to": "  const notYetDecided = []",
+      "only": "^(?:a Proposed record has no ready tasks, and the router says why it stopped counting|a signed-off human-observed task is finished, not ready forever)$"
+    },
+    {
+      "label": "next: an archived task is history, never the next thing to do",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (archived === true) continue",
+      "to": "    if (false) continue",
+      "only": "^(?:a date-named record is read, and a docs/adr that yields nothing says so)$"
+    },
+    {
+      "label": "next: a signed-off human-observed task is finished",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (/^[ \\t]*Acceptance is human-observed:/im.test(text)) {",
+      "to": "    if (false) {",
+      "only": "^(?:a signed-off human-observed task is finished, not ready forever)$"
+    },
+    {
+      "label": "route: the arch-write stage says work-next never selects it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/routing.test.mjs"
+      ],
+      "from": "      + 'any other, so it never selects this stage itself',",
+      "to": "      + 'any other',",
+      "only": "a stage work-next never selects says so"
+    },
+    {
+      "label": "work-next: readiness is adr-next's answer, never a second rule here",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      ready.push(file)",
+      "to": "      if (false) ready.push(file)"
+    },
+    {
+      "label": "work-next: a task file is a .md directly under tasks/, as SessionStart already reads it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "if (!/(?:^|\\/)tasks\\/[^/]+$/.test(norm)) continue",
+      "to": "if (!/(?:^|\\/)tasks\\//.test(norm)) continue"
+    },
+    {
+      "label": "work-next: a record already in the frozen archive is not offered for retirement",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "record.kind === 'graveyard' && !record.frozen)",
+      "to": "record.kind === 'graveyard')",
+      "only": "^(?:work-next does not offer a record in the frozen archive for retirement)$"
+    },
+    {
+      "label": "work-next: adr-next's exit 3 is an answer (nothing ready), never an unread directory",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    const answered = !run.error && (run.status === 0 || run.status === 3)",
+      "to": "    const answered = !run.error && run.status === 0",
+      "only": "^(?:readinessFrom: exit 3 is adr-next saying nothing is ready, not a directory it could not read|a task adr-next could not read leaves its directory UNPROVEN in both readers)$"
+    },
+    {
+      "label": "work-next: a task adr-next read from disk but git does not list is not offered",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "      if (allowed && !allowed.has(file)) continue",
+      "to": "      if (false) continue",
+      "only": "^(?:readinessFrom: a task adr-next read from disk but this reader does not list is not offered)$"
+    },
+    {
+      "label": "work-next: a relative repository argument is resolved before adr-next is spawned",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const root = path.resolve(directory)",
+      "to": "  const root = directory",
+      "only": "^(?:readinessFrom: a relative repository argument still hands adr-next an absolute directory under an absolute cwd)$"
+    },
+    {
+      "label": "work-next: unread task directories are rendered in text mode, not only serialised",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (state.readinessUnproven.length) {",
+      "to": "  if (false) {",
+      "only": "^(?:work-next text mode says UNPROVEN for a directory adr-next could not read, never an all-clear)$"
+    },
+    {
+      "label": "next: a directory two records share offers only the task whose own record is Accepted",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const ready = readiness.ready.filter(file => executable(file) && !withheldByLock.has(path.resolve(file)))",
+      "to": "  const ready = readiness.ready.filter(file => !withheldByLock.has(path.resolve(file)))",
+      "only": "^(?:a directory two records share offers only the Accepted record's task)$"
+    },
+    {
+      "label": "§295.23.2: an indented code block is masked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "    if (!blank && /^(?: {4}|\\t)/.test(line) && (afterBlank || indented)) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "§295.23.2: an indented line continuing a paragraph is text",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "    if (!blank && /^(?: {4}|\\t)/.test(line) && (afterBlank || indented)) {",
+      "to": "    if (!blank && /^(?: {4}|\\t)/.test(line)) {"
+    },
+    {
+      "label": "§295.23.2: an indented block runs while its lines stay indented",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "    if (!blank && /^(?: {4}|\\t)/.test(line) && (afterBlank || indented)) {",
+      "to": "    if (!blank && /^(?: {4}|\\t)/.test(line) && afterBlank) {"
+    },
+    {
+      "label": "§295.23.2: a fence opened after a list marker is masked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "((?:[-*+]|\\d{1,9}[.)])[ \\t]+)?",
+      "to": "()"
+    },
+    {
+      "label": "§295.23.2: a closer indented past its opener does not close the fence",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "close[1].length <= fence.list + 3 && ",
+      "to": ""
+    },
+    {
+      "label": "§295.23.2: a <pre> or <code> element is masked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "    .replace(/<(pre|code)\\b[^>]*>[\\s\\S]*?(?:<\\/\\1\\s*>|(?![\\s\\S]))/gi, masked)\n",
+      "to": ""
+    },
+    {
+      "label": "§295.23.2: an HTML tag, attributes included, is masked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "\n    .replace(/<\\/?[A-Za-z][^<>]*>/g, masked)",
+      "to": ""
+    },
+    {
+      "label": "§295.23.2: an attribute-value tail is not a Status",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "(?![\\w\"'<>=-])/i",
+      "to": "(?![\\w-])/i"
+    },
+    {
+      "label": "2.111.0-rc CF1: the done-claim reader reads horizontal whitespace only",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "run of blank lines",
+      "from": "/^[^\\S\\r\\n]*[-*]?[^\\S\\r\\n]*\\*{0,2}(?:Status|State)",
+      "to": "/^\\s*[-*]?\\s*\\*{0,2}(?:Status|State)"
+    },
+    {
+      "label": "2.111.0-rc: spec masking splits CRLF lines",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "  const lines = text.split(/\\r?\\n/).map(line => {",
+      "to": "  const lines = text.split('\\n').map(line => {"
+    },
+    {
+      "label": "§295.23.2 (Codex): a list item's fence ends with the list item",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "only": "a spec Status is read only where it is a Status",
+      "from": "      if (fence.list > 0 && !blank && lead < fence.list) fence = null",
+      "to": "      if (false) fence = null"
+    },
+    {
+      "label": "work-next: done is adr-next's verdict where adr-next answered",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (readiness.listed.has(path.resolve(file))) return !readiness.done.has(path.resolve(file))\n",
+      "to": "",
+      "only": "done claim adr-next does not honour"
+    },
+    {
+      "label": "work-next: a README row marked done is a done claim",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "|| /\\bmarked\\s+done\\b/i.test(text) || claimedInReadme(file)",
+      "to": "|| /\\bmarked\\s+done\\b/i.test(text)",
+      "only": "done claim adr-next does not honour"
+    },
+    {
+      "label": "work-next: a README row is read by adr-lint's leftmost-id rule",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        const index = cells.findIndex(cell => /^\\[?T\\d+\\b/i.test(cell))",
+      "to": "        const index = /^T\\d+$/i.test(cells[0] ?? '') ? 0 : -1",
+      "only": "README shapes adr-lint reads"
+    },
+    {
+      "label": "work-next: a task adr-next never listed is judged by its own evidence",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (readiness.listed.has(path.resolve(file))) return",
+      "to": "    if (true) return",
+      "only": "README shapes adr-lint reads|a task adr-next was never asked about"
+    },
+    {
+      "label": "archive: work-next freezes a task only under the Lifecycle marker",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (archived === true) continue",
+      "to": "    if (archived === 'never') continue",
+      "only": "work-next reads an unmarked archive"
+    },
+    {
+      "label": "archive: work-next --json carries unmarkedArchives",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      unmarkedArchives: state.unmarkedArchives,",
+      "to": "      unmarkedArchives: [],",
+      "only": "an archive-named directory"
+    },
+    {
+      "label": "work-next: adr-next's withholding reason is kept per task",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "        if (task.unproven) notes.set(path.resolve(root, task.path), task.unproven)",
+      "to": "        if (false) notes.set(path.resolve(root, task.path), task.unproven)",
+      "only": "relock remedy"
+    },
+    {
+      "label": "work-next: the text names the relock remedy",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (remedy(stage)) {",
+      "to": "  if (false) {",
+      "only": "relock remedy"
+    },
+    {
+      "label": "work-next: a READY task claimed done is marked",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  const readyButClaimedDone = ready.filter(file => claimedDone.has(path.resolve(file)))",
+      "to": "  const readyButClaimedDone = []",
+      "only": "both READY"
+    },
+    {
+      "label": "work-next: the text names READY-and-claimed-done tasks",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "  if (claimedWithout.length) {",
+      "to": "  if (false) {",
+      "only": "both READY"
+    },
+    {
+      "label": "chaos 626934a: work-next reads an unreadable task as an unproven directory",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    if (unreadTasks.length) unproven.push(dir)",
+      "to": "    if (false) unproven.push(dir)",
+      "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
+    },
+    {
+      "label": "chaos 916b515: a done claim is read after any horizontal space",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    const claimed = /^[^\\S\\r\\n]*[-*]?[^\\S\\r\\n]*\\*{0,2}(?:Status|State):?\\*{0,2}:?[^\\S\\r\\n]*done\\b/im.test(text)",
+      "to": "    const claimed = /^[ \\t]*[-*]?[ \\t]*\\*{0,2}(?:Status|State):?\\*{0,2}:?[ \\t]*done\\b/im.test(text)",
+      "only": "horizontal space"
+    },
+    {
+      "label": "chaos 916b515: work-next speaks through terminalText",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "  const say = text => process.stdout.write(terminalText(text))",
+      "to": "  const say = text => process.stdout.write(text)",
+      "only": "work-next shows a hostile"
+    },
+    {
+      "label": "§350 review: an unread task its record owns is called ownerless",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-ownerless.test.mjs"
+      ],
+      "from": "    for (const file of [...(record.taskFiles ?? []), ...(record.unreadTasks ?? [])]) owner.set(path.resolve(file), record)",
+      "to": "    for (const file of record.taskFiles ?? []) owner.set(path.resolve(file), record)",
+      "only": "^(?:a task its record owns and nobody could read is not called ownerless)$"
+    },
+    {
+      "label": "BACKLOG §319 A: a nested spec does not stop the core route",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  if (!state.records && !state.specs && !state.tasks && !state.undecided && !state.nestedSpecs?.length) return STAGES.find(s => s.id === 'core')",
+      "to": "  if (!state.records && !state.specs && !state.tasks && !state.undecided) return STAGES.find(s => s.id === 'core')",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "BACKLOG §319 A: nested specs are never listed",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  const nestedSpecPaths = nestedSpecFiles(directory, listing) ?? []",
+      "to": "  const nestedSpecPaths = []",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "BACKLOG §319 A: a flat spec is listed as nested too",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))",
+      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && ownSpec(rel))",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "BACKLOG §319 A: the all-clear ignores unread nested specs",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "      say(state.readinessUnproven.length || state.nestedSpecs.length",
+      "to": "      say(state.readinessUnproven.length",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "BACKLOG §319 E: a path in work-next's text is printed raw",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  const shown = file => visiblePath(relative(file))",
+      "to": "  const shown = file => relative(file)",
+      "only": "a newline in a spec file name"
+    },
+    {
+      "label": "BACKLOG §319 A: a nested spec with a line break is invisible",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/[\\s\\S]+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))",
+      "to": "  return listing.filter(rel => /(?:^|\\/)docs\\/specs\\/.+\\.md$/i.test(posixRel(rel)) && !FLAT_SPEC.test(posixRel(rel)) && ownSpec(rel))",
+      "only": "a spec in a subdirectory of docs/specs"
+    },
+    {
+      "label": "§319: work-next's relock remedy prints a task path's newline raw",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "would refuse again: ${visiblePath(remedy(stage))}.",
+      "to": "would refuse again: ${remedy(stage)}.",
+      "only": "the relock remedy shows a newline in a task path escaped"
+    },
+    {
+      "label": "§321 codex render: work-next prints an archive's name raw",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "say(`\\n${pathInCode(archive)} looks like an archive",
+      "to": "say(`\\n\\`${visiblePath(archive)}\\` looks like an archive",
+      "only": "work-next names an unmarked archive holding a tag"
+    },
+    {
+      "label": "§350 item 3: work-next counts a task once per path",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "  return { files: once.kept, aliases: once.aliases, archiveUnknown: [...archiveUnknown] }",
+      "to": "  return { files: found, aliases: once.aliases, archiveUnknown: [...archiveUnknown] }",
+      "only": "^work-next counts a task reached again through a link once, and a link copy of a record is not undecided$"
+    },
+    {
+      "label": "§350 item 3: work-next counts a link copy as undecided",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "    undecided: (corpus.unreadable ?? []).filter(entry => !entry.alias).length,",
+      "to": "    undecided: (corpus.unreadable ?? []).length,",
+      "only": "^work-next counts a task reached again through a link once, and a link copy of a record is not undecided$"
+    },
+    {
+      "label": "§350 item 4: work-next names no ownerless task",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-ownerless.test.mjs"
+      ],
+      "from": "  const ownerless = [...new Set(tasks.filter(file => !owner.has(path.resolve(file)))",
+      "to": "  const ownerless = [...new Set(tasks.filter(file => false)",
+      "only": "^work-next names tasks no record owns, and does not call the corpus clear$"
+    },
+    {
+      "label": "§350 item 6: a task withheld by an unreadable lock is told to adr-verify",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "  const lockUnreadable = tasks.filter(file => /could not be read — the file is there/.test(",
+      "to": "  const lockUnreadable = tasks.filter(file => /never matches anything/.test(",
+      "only": "^work-next names a task withheld by an unreadable test lock, and never tells it to adr-verify$"
+    },
+    {
+      "label": "§350 C2: a task this reader cannot open is an unbacked claim",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "      || unopenable.has(path.resolve(file))) return false",
+      "to": "      || false) return false",
+      "only": "^a task file nobody could read is not an unbacked done claim, and its directory is UNPROVEN$"
+    },
+    {
+      "label": "§350 C2: a task adr-next could not read is an unbacked claim",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-ownerless.test.mjs"
+      ],
+      "from": "    if (!claimed || withheldByLock.has(path.resolve(file)) || readiness.unreadable.has(path.resolve(file))",
+      "to": "    if (!claimed || withheldByLock.has(path.resolve(file))",
+      "only": "^a task adr-next could not read is not an unbacked done claim$"
+    },
+    {
+      "label": "§350 C8: a fixture spec is the corpus's own",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "const ownSpec = rel => !listedUnderUninterestingDirectory(posixRel(rel).split('/').slice(0, -1))",
+      "to": "const ownSpec = rel => true",
+      "only": "^(?:work-next does not count fixture or golden specs as the corpus's own)$"
+    },
+    {
+      "label": "§350 C5: a record no reader can read is counted and not named",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "  const unusual = state.undecidedNamed.filter(entry => entry.reason !== 'a plan, not yet decided')",
+      "to": "  const unusual = []",
+      "only": "^(?:work-next names a record whose Status no reader can read, and keeps a plan a count)$"
+    },
+    {
+      "label": "§350 review: work-next's count says every undecided record carries a status",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "further record(s) are not acted on: not yet Accepted, or with a Status this reader cannot read.",
+      "to": "further record(s) carry a status this reader does not act on.",
+      "only": "^(?:work-next names a record whose Status no reader can read, and keeps a plan a count)$"
+    },
+    {
+      "label": "§290: any human sign-off is taken as finished",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-ownerless.test.mjs"
+      ],
+      "from": "      return reading ? !reading.done.has(resolved) : true",
+      "to": "      return false",
+      "only": "^(?:a task under an undecided record whose sign-off is a stop is still named, not counted finished)$"
+    },
+    {
+      "label": "§290: the undecided records' tasks are not read by adr-next",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      const reading = [readiness, undecidedReading].find(answer => answer.listed.has(resolved))",
+      "to": "      const reading = [readiness].find(answer => answer.listed.has(resolved))",
+      "only": "^(?:a signed-off human-observed task is finished, not ready forever)$"
+    },
+    {
+      "label": "§349.2: a task held only by a moved lock is called without evidence",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "  const heldByLock = state.readyButClaimedDone.filter(file => moved.has(path.resolve(file)))",
+      "to": "  const heldByLock = []",
+      "only": "^(?:work-next says a ready task held back by a moved lock carries its evidence, and names the relock)$"
+    },
+    {
+      "label": "§351: work-next opens a non-regular task entry to test it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/irregular-task-entry.test.mjs"
+      ],
+      "from": "    try { if (!statSync(file).isFile()) return true; closeSync(openSync(file, 'r')); return false } catch { return true }",
+      "to": "    try { closeSync(openSync(file, 'r')); return false } catch { return true }",
+      "only": "^(?:a tracked link to a FIFO named like a task is stopped unopened, and the other tasks are read)$"
+    },
+    {
+      "label": "ADR-087 T4: notRead names an unnumbered file",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (!(kept ? NUMBERED_IN_RECORD_DIRECTORY : NUMBERED_NAME).test(base)) continue",
+      "to": "    if (false) continue",
+      "only": "^(?:an unnumbered note or a record inside a record directory is not named as not read)$"
+    },
+    {
+      "label": "ADR-087 T4: notRead names a file the record reader already lists",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if (listed.has(path.resolve(file))) continue",
+      "to": "    if (false) continue",
+      "only": "^(?:an unnumbered note or a record inside a record directory is not named as not read)$"
+    },
+    {
+      "label": "ADR-087 T4: work-next's text does not name the files not read",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  if (state.notRead.length) {",
+      "to": "  if (false) {",
+      "only": "^(?:a numbered file with a frontmatter status outside a record directory is named as not read)$"
+    },
+    {
+      "label": "ADR-089 T5: work-next says --adopt adopts it",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/adopt-wording.test.mjs"
+      ],
+      "from": "reports what adopting it needs; it changes nothing.\\n')",
+      "to": "adopts it.\\n')",
+      "only": "the adopt remedy says it reports and changes nothing"
+    },
+    {
+      "label": "ADR-087 owner 2026-10-07: a file no reader counts is not named in notRead",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "  const found = [...(corpus.notRecognised ?? [])]",
+      "to": "  const found = []",
+      "only": "^(?:a file adr-lint does not recognise is counted by no reader and named as not read|an unnumbered note or a record inside a record directory is not named as not read)$"
+    },
+    {
+      "label": "ADR-087 review F4: a frontmatter past the byte budget is not said",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    try { text = readRegularText(file, CANDIDATE_BYTES) } catch (error) {",
+      "to": "    try { text = readRegularText(file) } catch (error) {",
+      "only": "a numbered file whose frontmatter runs past 64 lines is named, and past the budget is PARTIAL"
+    },
+    {
+      "label": "ADR-087 review F4: the head is cut at 64 lines again",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs",
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "    if (recordStatus(text) !== null) found.push(file)",
+      "to": "    if (recordStatus(text.split('\\n').slice(0, 64).join('\\n')) !== null) found.push(file)",
+      "only": "^(?:a numbered file whose frontmatter runs past 64 lines is named, and past the budget is PARTIAL|every row of the recognition table reads its approved answer in work-next)$"
+    },
+    {
+      "label": "ADR-092 T4: the candidate rule",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "    if (kept || LETTER_PREFIX.test(base)) {",
+      "to": "    if (kept) {",
+      "only": "^every row of the recognition table reads its approved answer in work-next$"
+    },
+    {
+      "label": "ADR-092 T4: a numbered file in a record directory is a candidate by its path",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "    const kept = parts.some(part => RECORD_DIRECTORY.test(part))",
+      "to": "    const kept = false",
+      "only": "^every row of the recognition table reads its approved answer in work-next$"
+    },
+    {
+      "label": "ADR-092 T4: the failed-read reason",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "      if (problem.reason) failed.push({ file, reason: problem.reason })",
+      "to": "      if (problem.reason) void 0",
+      "only": "^a numbered candidate that cannot be read makes the look PARTIAL and is named$"
+    },
+    {
+      "label": "ADR-092 T4: the budget reason",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "      failed.push({ file, reason: error?.code === 'EFBIG' ? `it runs past",
+      "to": "      failed.push({ file, reason: false ? `it runs past",
+      "only": "^a candidate past the read budget is PARTIAL and named$"
+    },
+    {
+      "label": "ADR-092 T4: the any-width number in a record directory",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "const NUMBERED_IN_RECORD_DIRECTORY = /^[A-Za-z]*-?\\d+[-_]/",
+      "to": "const NUMBERED_IN_RECORD_DIRECTORY = /^[A-Za-z]*-?\\d{2,}[-_]/",
+      "only": "^a numbered file in a record directory is named at any width$"
+    },
+    {
+      "label": "ADR-092 T4: the unsupported format",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "      if (kept && NUMBERED_IN_RECORD_DIRECTORY.test(base) && corpusEligible(",
+      "to": "      if (false && NUMBERED_IN_RECORD_DIRECTORY.test(base) && corpusEligible(",
+      "only": "^a numbered file in a format no reader parses is named, and an attachment of a counted record is not$"
+    },
+    {
+      "label": "ADR-092 T4: the attachment exception",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": " && !countedIds.has(recordId(base))) {",
+      "to": ") {",
+      "only": "^a numbered file in a format no reader parses is named, and an attachment of a counted record is not$"
+    }
+  ]
+}

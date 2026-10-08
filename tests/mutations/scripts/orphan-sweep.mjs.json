@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "orphan: tests and records do not make a function reachable",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": [
+        "tests/orphan-sweep.test.mjs"
+      ],
+      "from": "export const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')",
+      "to": "export const SHIPPED = () => true // every tracked file counts as reachability",
+      "only": "^(?:the shipped tree defines nothing it does not reach|\\.\\.\\.and it finds the two orphans this repository actually shipped|a binding is a definition, and plugin/lib is shipped)$"
+    },
+    {
+      "label": "orphan: a definition is reached at two occurrences, not one",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": [
+        "tests/orphan-sweep.test.mjs"
+      ],
+      "from": "      if ((uses.get(name) ?? 0) <= 1) found.push({ path, name })",
+      "to": "      if ((uses.get(name) ?? 0) <= 0) found.push({ path, name })",
+      "only": "^(?:\\.\\.\\.and it finds the two orphans this repository actually shipped|a binding is a definition, and plugin/lib is shipped|tests and records do not make a function reachable)$"
+    }
+  ]
+}

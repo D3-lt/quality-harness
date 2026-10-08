@@ -1,0 +1,1204 @@
+{
+  "mutations": [
+    {
+      "label": "mutate: refuses a second runner",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if (pids.some(alive) || (pids.length > 1 && groupAlive(pids[1]))) {",
+      "to": "    if (false) {",
+      "only": "^(?:the mutation runner refuses to run over an editor, or beside another runner)$"
+    },
+    {
+      "label": "mutate: refuses to rewrite a file you are editing",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "if (dirty.length && !argv.includes('--force')) {",
+      "to": "if (false) {",
+      "only": "^(?:the mutation runner refuses to run over an editor, or beside another runner)$"
+    },
+    {
+      "label": "mutate: a run that refuses still repairs first",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "  if (selected.length === 0) {\n    process.stderr.write(`no mutation matches ${filter}\\n`)\n    return 1\n  }",
+      "to": "  if (selected.length === 0) return 1",
+      "only": "^(?:the mutation runner refuses to run over an editor, or beside another runner)$"
+    },
+    {
+      "label": "mutate: an unknown option is named, not ignored",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))",
+      "to": "const unknown = []",
+      "only": "^(?:the mutation runner names an option it does not know, instead of running everything)$"
+    },
+    {
+      "label": "mutate: a verdict against a failing baseline is not counted as noticed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (baseline.state !== 'pass') return { verdict: 'UNPROVEN', observed, baseline }",
+      "to": "  if (false) return { verdict: 'UNPROVEN', observed, baseline }",
+      "only": "^(?:a verdict taken against a failing baseline is UNPROVEN, not RED|a baseline that never ran is not reported as an already-failing suite|a run in which no test executed is an unrun baseline, never a passing one|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: an unproven entry leaves the ratio's denominator alone",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const judged = results.filter(r => r.verdict !== 'UNPROVEN')",
+      "to": "  const judged = results",
+      "only": "^(?:UNPROVEN entries are in neither half of the noticed ratio|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: a baseline is taken once per set, not once per mutation",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    const key = setKeyOf(mutation)",
+      "to": "    const key = Math.random().toString()",
+      "only": "^(?:a baseline is taken once per distinct test-set, not once per mutation|a baseline taken under one pattern licenses nothing about another|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: a baseline that never ran is not called a failing suite",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }",
+      "to": "  if (false) return { state: 'unrun', why: run.signal || 'no exit status' }",
+      "only": "^(?:a baseline that never ran is not reported as an already-failing suite|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: every shard slice covers the catalogue exactly once",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    bins[lightest].push(entry)",
+      "to": "    if (entry.ms !== undefined) bins[lightest].push(entry)",
+      "only": "^(?:every shard slice covers the catalogue exactly once)$"
+    },
+    {
+      "label": "mutate: a kill reports which test fired, and a file-level failure is not one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    .filter(name => !(/^\\S+$/.test(name) && /\\.(mjs|js|py|cjs)$/.test(name)))",
+      "to": "    .filter(() => true)",
+      "only": "^(?:a kill names which tests failed, so the wrong killer is visible|a test name that mentions a directory is a name, not a file path|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: a reused verdict is refused when its subject or its tests changed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (bytes === null || bytes === undefined) return null\n    hash.update(name); hash.update('\\0'); hash.update(bytes); hash.update('\\0')",
+      "to": "    if (bytes === null || bytes === undefined) return null\n    hash.update(name); hash.update('\\0')",
+      "only": "^(?:a changed subject, test or edit is a different mutant|mutate --stale over the real catalogue exits 0 and says every entry matches|mutate --repoint --write rewrites only what it proposed, measures it, and names what stayed refused)$"
+    },
+    {
+      "label": "mutate: only a RED verdict is ever reused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  return hit && hit.verdict === 'RED' ? hit : null",
+      "to": "  return hit ?? null",
+      "only": "^(?:only RED is reusable|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: an unreadable input has no key, so the entry is measured",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (bytes === null || bytes === undefined) return null",
+      "to": "    if (bytes === null || bytes === undefined) continue",
+      "only": "^(?:an unreadable input has no key, so it is measured|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: an unknown cost is one unit, so untimed shards do not collapse into one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    loads[lightest] += entry.ms ?? 1",
+      "to": "    loads[lightest] += entry.ms ?? 0",
+      "only": "^(?:with no timings at all it still partitions, and says nothing about balance|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: a run in which no test executed is an unrun baseline, never a passing one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (ran === 0) return run.status === 0 ? { state: 'unrun', why: 'no test ran — the name pattern selected nothing' } : { state: 'fail' }",
+      "to": "  if (ran === 0 && false) return run.status === 0 ? { state: 'unrun', why: 'no test ran — the name pattern selected nothing' } : { state: 'fail' }",
+      "only": "^(?:a run in which no test executed is an unrun baseline, never a passing one|end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes|a checkout path with a space is still an unrun baseline when nothing matched|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: the file wrapper is not counted as a test that ran (Codex, no-match trap)",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    .filter(m => named.has(m[1]) || !/\\.(mjs|js|py|cjs)$/.test(m[1])).length",
+      "to": "    .length",
+      "only": "^(?:a run in which no test executed is an unrun baseline, never a passing one|end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes|a checkout path with a space is still an unrun baseline when nothing matched|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: an inherited test reporter is stripped from the child's NODE_OPTIONS (Codex)",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const kept = tokens.filter((token, i, all) => !/^--test-reporter(?:-destination)?(?:=|$)/.test(token)",
+      "to": "  const kept = tokens.filter((token, i, all) => true",
+      "only": "^(?:end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: NODE_TEST_CONTEXT is dropped from the child, or an inner node --test prints nothing",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const { NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, [CAMPAIGN_CHILD]",
+      "to": "  const { FORCE_COLOR: _colour, [CAMPAIGN_CHILD]",
+      "only": "^(?:end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes|a checkout path with a space is still an unrun baseline when nothing matched|an inherited FORCE_COLOR is dropped, so a real run still counts its tests|mutate --stale over the real catalogue exits 0 and says every entry matches|mutate --repoint --write rewrites only what it proposed, measures it, and names what stayed refused|mutate --repoint --reanchor proposes what repointEntry refused, and --repoint alone is unchanged|a campaign leaves nothing in the temp directory, whatever its tests forget|the campaign cache records the tests that killed each RED entry|mutate --narrow proposes, writes only with --write, and undoes a narrowing that is not RED|the campaign cache records every test that killed an entry|mutate --narrow --write measures only what it narrowed, fresh, and refuses before any work|mutate --narrow --write leaves nothing narrowed when it is stopped mid-measurement|mutate --narrow --write leaves nothing narrowed when it is killed while a mutant runs)$"
+    },
+    {
+      "label": "mutate: an inherited FORCE_COLOR is dropped, or a real run counts no tests",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "NODE_TEST_CONTEXT: _inherited, FORCE_COLOR: _colour, [CAMPAIGN_CHILD]",
+      "to": "NODE_TEST_CONTEXT: _inherited, [CAMPAIGN_CHILD]",
+      "only": "inherited FORCE_COLOR is dropped"
+    },
+    {
+      "label": "mutate: output with no spec lines is unrun, not a pass on exit status (Codex)",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (ran === null) return { state: 'unrun', why: 'the test output carried no spec reporter lines' }",
+      "to": "  if (ran === null && false) return { state: 'unrun', why: 'the test output carried no spec reporter lines' }",
+      "only": "^(?:a run in which no test executed is an unrun baseline, never a passing one|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: `only` actually reaches node as a --test-name-pattern",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const only = typeof entry.only === 'string' && entry.only ? ['--test-name-pattern', entry.only] : []",
+      "to": "  const only = []",
+      "only": "^(?:`only` becomes a --test-name-pattern for the mutant and its baseline alike, and nothing without it|end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes|a checkout path with a space is still an unrun baseline when nothing matched|an inherited FORCE_COLOR is dropped, so a real run still counts its tests|mutate --stale over the real catalogue exits 0 and says every entry matches|mutate --narrow proposes, writes only with --write, and undoes a narrowing that is not RED|mutate --narrow --write measures only what it narrowed, fresh, and refuses before any work)$"
+    },
+    {
+      "label": "mutate: a baseline under one pattern is not memoised for another",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  return `${[...entry.tests].sort().join('\\0')}\\0${only}`",
+      "to": "  return `${[...entry.tests].sort().join('\\0')}`",
+      "only": "^(?:a baseline taken under one pattern licenses nothing about another|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "mutate: a verdict cached under one pattern is not reused under another",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  for (const part of [mutation.file, mutation.from, mutation.to, mutation.only ?? '']) {",
+      "to": "  for (const part of [mutation.file, mutation.from, mutation.to]) {",
+      "only": "^(?:a baseline taken under one pattern licenses nothing about another|mutate --stale over the real catalogue exits 0 and says every entry matches)$"
+    },
+    {
+      "label": "campaign: the runner records the keys it measured, so a merge can tell a deletion from a shard that never looked",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      measured.push(key)",
+      "to": "",
+      "only": "^(?:the runner records what it MEASURED, and records nothing when it reused)$"
+    },
+    {
+      "label": "mutate: --changed picks only entries whose mutated line was added",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": ".some(line => [...lines].some(addedLine => addedLine.includes(line)))",
+      "to": ".some(() => true)",
+      "only": "touchedBy keeps an entry"
+    },
+    {
+      "label": "mutate: --stale reports an entry that matches more than once",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (count === 1) continue",
+      "to": "    if (count >= 1) continue",
+      "only": "staleEntries names each entry"
+    },
+    {
+      "label": "mutate: --changed ignores a short common line",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": ".filter(line => line.length >= 12)",
+      "to": ".filter(line => line.length >= 0)",
+      "only": "touchedBy keeps an entry"
+    },
+    {
+      "label": "mutate: --changed asks for the diff in one fixed shape",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  return ['-C', root, 'diff', '--no-color', '--no-ext-diff', '--src-prefix=a/', '--dst-prefix=b/', '-U0', ref, '--']",
+      "to": "  return ['-C', root, 'diff', '-U0', ref, '--']",
+      "only": "one shape"
+    },
+    {
+      "label": "mutate: --changed selects a short mutant by where it was added",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (at >= 0) {",
+      "to": "    if (false) {",
+      "only": "short mutant"
+    },
+    {
+      "label": "ADR-069 T1: the edited text is accepted on the nearest line however often it occurs",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (onLine !== 1)",
+      "to": "if (onLine < 0)",
+      "only": "repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest"
+    },
+    {
+      "label": "ADR-069 T1: condition 4 counts whole lines, so a more-indented copy of the nearest line is not seen",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "const inFile = text.split(line).length - 1",
+      "to": "const inFile = text.split('\\n').filter(candidate => candidate === line).length",
+      "only": "repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest"
+    },
+    {
+      "label": "ADR-069 T1: condition 5 is dropped: a sibling the change never added is proposed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (!added.has(line.trim()))",
+      "to": "if (false)",
+      "only": "repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest"
+    },
+    {
+      "label": "ADR-069 T1: a multi-line entry is not refused at condition 1",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (entry.from.includes('\\n')) return",
+      "to": "if (false) return",
+      "only": "repointEntry reproduces the mechanical repoints of the 3.1.0 batch and refuses the rest"
+    },
+    {
+      "label": "ADR-069 T1: campaignPaths puts the journal under this repository whatever the root",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": ": path.join(dir, '.mutate-inflight.json')",
+      "to": ": path.join(repoRoot, '.mutate-inflight.json')",
+      "only": "campaignPaths keeps every campaign file inside the root it is given"
+    },
+    {
+      "label": "ADR-069 T1: --repoint is no longer an accepted option",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--repoint', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected', '--wait'])",
+      "to": "  const KNOWN = new Set(['--write', '--case', '--list', '--force', '--shard', '--no-cache', '--cache', '--stale', '--changed', '--reanchor', '--since', '--root', '--narrow', '--in-place', '--selected', '--wait'])",
+      "only": "mutate --repoint reads a scratch repository"
+    },
+    {
+      "label": "ADR-069 T1: --repoint exits 0 while an entry is stale",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    return stale ? 1 : 0",
+      "to": "    return 0",
+      "only": "mutate --repoint reads a scratch repository"
+    },
+    {
+      "label": "ADR-069 T2: the write also rewrites the entries it refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "      if (answer.verdict === 'repointed' || answer.verdict === 'reanchored') {",
+      "to": "      if (answer.verdict !== 'current' || answer.verdict === 'reanchored') {",
+      "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "ADR-069 T2: the write goes ahead over uncommitted sources without --force",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (uncommitted.length && !argv.includes('--force')) {",
+      "to": "    if (false) {",
+      "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "ADR-069 T2: the rewritten entries are not measured",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    ? catalogue.mutations.filter(m => repointed.labels.has(m.label))",
+      "to": "    ? []",
+      "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "ADR-069 T2: a GREEN rewritten entry exits 0",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    return results.every(result => result.verdict === 'RED') && !repointed.stillStale ? 0 : 1",
+      "to": "    return !repointed.stillStale ? 0 : 1",
+      "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "ADR-069 T2: an entry still stale after the write exits 0",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "result.verdict === 'RED') && !repointed.stillStale ? 0 : 1",
+      "to": "result.verdict === 'RED') ? 0 : 1",
+      "only": "mutate --repoint --write rewrites only what it proposed"
+    },
+    {
+      "label": "§310: a campaign child's scratch temp directory is removed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  } finally { rmSync(scratch, { recursive: true, force: true }) }",
+      "to": "  } finally { void scratch }",
+      "only": "leaves nothing in the temp directory"
+    },
+    {
+      "label": "§310: a campaign child writes its temp files to its scratch directory",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    TMPDIR: scratch,",
+      "to": "",
+      "only": "leaves nothing in the temp directory"
+    },
+    {
+      "label": "ADR-071 T1: the anchors end on a word boundary",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  while (p > 0 && word(from[p - 1]) && word(from[p])) p -= 1",
+      "to": "  p = p + 0",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: a thin anchor is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (significant < 8) {",
+      "to": "  if (false) {",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: only a line the change added is a candidate",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const fits = line => added.has(line.trim())",
+      "to": "  const fits = line => line.length > 0",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: P comes before S on the candidate",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    && (P ? line.indexOf(P) + P.length : 0) <= (S ? line.lastIndexOf(S) : line.length)",
+      "to": "    && true",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: P and S occur once on the candidate",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    && (!P || once(line, P)) && (!S || once(line, S))",
+      "to": "    && (!P || line.includes(P)) && (!S || line.includes(S))",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: the nearest line breaks a tie",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    line = candidates.includes(nearest) ? nearest : null",
+      "to": "    line = null",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: a line that occurs twice is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (!once(text, line)) return",
+      "to": "  if (false) return",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: only a refusal at conditions 2 and 3 is re-anchored",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (verdict.verdict !== 'refused' || !/^[23]:/.test(verdict.why)) return verdict",
+      "to": "  if (verdict.verdict !== 'refused') return verdict",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T1: a diff that could not be read is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (added === null) return { verdict: 'refused', why: 'the diff:",
+      "to": "  if (false) return { verdict: 'refused', why: 'the diff:",
+      "only": "reanchorEntry"
+    },
+    {
+      "label": "ADR-071 T2: --reanchor is an accepted option",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "'--repoint', '--reanchor', '--since'",
+      "to": "'--repoint', '--since'",
+      "only": "repoint --reanchor"
+    },
+    {
+      "label": "ADR-071 T2: --reanchor without --repoint is a usage error",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (argv.includes('--reanchor') && !argv.includes('--repoint')) {",
+      "to": "  if (false) {",
+      "only": "repoint --reanchor"
+    },
+    {
+      "label": "ADR-071 T2: --repoint alone does not re-anchor",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    const reanchoring = argv.includes('--reanchor')",
+      "to": "    const reanchoring = true",
+      "only": "repoint --reanchor"
+    },
+    {
+      "label": "ADR-071 T2: a re-anchored proposal is printed and written",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "      if (answer.verdict === 'repointed' || answer.verdict === 'reanchored') {",
+      "to": "      if (answer.verdict === 'repointed') {",
+      "only": "repoint --reanchor"
+    },
+    {
+      "label": "ADR-072 T1: a RED record carries its killers",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "ms: result.elapsedMs, killers: result.killers ?? [] }",
+      "to": "ms: result.elapsedMs }",
+      "only": "the campaign cache records"
+    },
+    {
+      "label": "ADR-072 T1: a record without killers is measured again",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (hit && Array.isArray(hit.killers)) reuse.set(m.label, hit)",
+      "to": "if (hit) reuse.set(m.label, hit)",
+      "only": "the campaign cache records"
+    },
+    {
+      "label": "ADR-072 T2: the pattern is no longer anchored at either end",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "only: `^(?:${killers.map(escapeName).join('|')})$`",
+      "to": "only: `(?:${killers.map(escapeName).join('|')})`",
+      "only": "narrowEntry proposes exactly"
+    },
+    {
+      "label": "ADR-072 T2: a killer's metacharacters are left unescaped",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  return name.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')",
+      "to": "  return name",
+      "only": "narrowEntry proposes exactly"
+    },
+    {
+      "label": "ADR-072 T2: a killer no named file defines as a literal is narrowed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (missing !== undefined) {",
+      "to": "if (false) {",
+      "only": "narrowEntry proposes exactly"
+    },
+    {
+      "label": "ADR-072 T2: an entry that is not RED under its pattern keeps the pattern",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "      delete catalogue.mutations.find(m => m.label === result.label).only",
+      "to": "      catalogue.mutations.find(m => m.label === result.label).only",
+      "only": "mutate --narrow proposes"
+    },
+    {
+      "label": "ADR-072 T2: --stale exits 0 over a narrowed entry whose killer is gone",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "return stale.length || orphaned.length || unparsed.length ? 1 : 0",
+      "to": "return stale.length || unparsed.length ? 1 : 0",
+      "only": "mutate --stale names a narrowed entry"
+    },
+    {
+      "label": "ADR-072 T2: --narrow is no longer an accepted option",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "'--root', '--narrow', '--in-place', '--selected', '--wait'])",
+      "to": "'--root', '--in-place', '--selected', '--wait'])",
+      "only": "mutate --narrow proposes"
+    },
+    {
+      "label": "ADR-072 T4: a line comment is read as code, so a name left in it counts as defined",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (c === '/' && source[i + 1] === '/') {",
+      "to": "if (false) {",
+      "only": "narrowEntry reads a killer only"
+    },
+    {
+      "label": "ADR-072 T4: only the first killer is recorded",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "killers: result.killers ?? [] }",
+      "to": "killers: (result.killers ?? []).slice(0, 1) }",
+      "only": "the campaign cache records every test"
+    },
+    {
+      "label": "ADR-072 T4: the catalogue is written with every narrowing before any is measured",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    for (const { entry, only } of proposals) entry.only = only",
+      "to": "    for (const { entry, only } of proposals) entry.only = only\n    writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\\n`)",
+      "only": "leaves nothing narrowed when it is stopped"
+    },
+    {
+      "label": "ADR-072 T4: a RED verdict cached at a narrowed key is reused instead of measured",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (!argv.includes('--no-cache') && !narrowed) {",
+      "to": "if (!argv.includes('--no-cache')) {",
+      "only": "measures only what it narrowed, fresh"
+    },
+    {
+      "label": "ADR-072 T4: a narrowing measures the whole catalogue, not only what it narrowed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (narrowed) selected = catalogue.mutations.filter(m => narrowed.labels.has(m.label))",
+      "to": "if (narrowed) selected = catalogue.mutations",
+      "only": "measures only what it narrowed, fresh"
+    },
+    {
+      "label": "ADR-072 T4: --stale checks only a narrowed pattern's first name",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "const missing = names.filter(name => !texts.some(text => definesTest(text, name)))",
+      "to": "const missing = names.slice(0, 1).filter(name => !texts.some(text => definesTest(text, name)))",
+      "only": "mutate --stale names every narrowed killer"
+    },
+    {
+      "label": "ADR-072 T4: --narrow runs beside --repoint and --stale instead of refusing them first",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "const alongside = ['--force', '--repoint', '--stale', '--list', '--shard', '--changed']",
+      "to": "const alongside = ['--force', '--list', '--shard', '--changed']",
+      "only": "measures only what it narrowed, fresh"
+    },
+    {
+      "label": "ADR-072 T4: a catalogue with a repeated label is narrowed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "      if (prior) {",
+      "to": "      if (false) {",
+      "only": "measures only what it narrowed, fresh"
+    },
+    {
+      "label": "ADR-072 T5: a control statement's closing paren reads as a value",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (c === ')') { last = parens.pop() ? ';' : ')'; i += 1; continue }",
+      "to": "    if (c === ')') { parens.pop(); last = ')'; i += 1; continue }",
+      "only": "literalsOf keeps its place"
+    },
+    {
+      "label": "ADR-072 T5: a postfix operator is read as a binary one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if ((c === '+' || c === '-') && source[i + 1] === c && (last === 'value' || last === ')' || last === ']')) { i += 2; continue }",
+      "to": "    if (false) { i += 2; continue }",
+      "only": "literalsOf keeps its place"
+    },
+    {
+      "label": "ADR-072 T5: the catalogue is written after the baselines, before the mutants run",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only) ?? []))",
+      "to": "    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t)), namesOf(set.only) ?? []))\n    if (narrowed) writeFileSync(paths.catalogue, `${JSON.stringify(catalogue, null, 2)}\\n`)",
+      "only": "killed while a mutant runs"
+    },
+    {
+      "label": "ADR-073 T1: no narrowed baseline is ever short",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "if (run.status === 0 && named > 0 && ran < named) return",
+      "to": "if (false) return",
+      "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
+    },
+    {
+      "label": "ADR-073 T1: a narrowed baseline that runs every name reads short",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "named > 0 && ran < named)",
+      "to": "named > 0 && ran <= named)",
+      "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
+    },
+    {
+      "label": "ADR-073 T1: a hand-written pattern is held to a count",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "namesOf(set.only) ?? []))",
+      "to": "namesOf(set.only) ?? Array(99).fill('')))",
+      "only": "^(?:a narrowed entry whose baseline runs fewer tests than it names is STALE, and one that runs them all is measured)$"
+    },
+    {
+      "label": "ADR-073: a named leaf ending in a source extension is discounted as a wrapper",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": ".filter(m => named.has(m[1]) || !/",
+      "to": ".filter(m => !/",
+      "only": "^(?:a narrowed killer whose name ends in a source extension is counted, and a wrapper still is not)$"
+    },
+    {
+      "label": "ADR-073: any names rescue the file wrapper of a run that matched nothing",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": ".filter(m => named.has(m[1]) || !/",
+      "to": ".filter(m => named.size > 0 || !/",
+      "only": "^(?:a narrowed killer whose name ends in a source extension is counted, and a wrapper still is not)$"
+    },
+    {
+      "label": "§321 codex P1: a suite's completion line counts as a leaf that ran",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  return Math.max(0, Math.min(leaves, Number(passed?.[1] ?? 0) + Number(failed?.[1] ?? 0) - lines.filter(wrapper).length))",
+      "to": "  return leaves",
+      "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
+    },
+    {
+      "label": "§321 codex P1: output with no summary still gives a count",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (!passed && !failed) return null",
+      "to": "  if (false) return null",
+      "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
+    },
+    {
+      "label": "§321 codex P1: the first summary-shaped line is read, not the reporter's last",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "'gm'))].at(-1)",
+      "to": "'gm'))][0]",
+      "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
+    },
+    {
+      "label": "§321 codex P1: a known wrapper lifts the cap",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": " - lines.filter(wrapper).length))",
+      "to": "))",
+      "only": "^(?:a suite that ran no test is not a leaf that ran, even when a narrowed pattern names it)$"
+    },
+    {
+      "label": "§321 mutate-catalogue: a catalogue that is not { mutations: [...] } is read as one when it holds anything",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "  if (!Array.isArray(catalogue?.mutations)) return 'it must be a JSON object whose \"mutations\" is an array'",
+      "to": "  if (!catalogue?.mutations) return 'it must be a JSON object whose \"mutations\" is an array'",
+      "only": "mutate refuses a catalogue that is not"
+    },
+    {
+      "label": "§321 mutate-catalogue: a malformed catalogue exits 1, a stale finding's status",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "  if (loaded.error) {\n    process.stderr.write(`mutate: ${loaded.error}\\n`)\n    return 2",
+      "to": "  if (loaded.error) {\n    process.stderr.write(`mutate: ${loaded.error}\\n`)\n    return 1",
+      "only": "mutate refuses a catalogue that is not"
+    },
+    {
+      "label": "§321 mutate-catalogue: the refusal does not name the catalogue file",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "if (malformed) return { error: `${file.path} is not a mutation catalogue",
+      "to": "if (malformed) return { error: `the catalogue is not a mutation catalogue",
+      "only": "mutate refuses a catalogue that is not"
+    },
+    {
+      "label": "§321 mutate-catalogue: --stale leads a gone killer's line with the word undefined",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "console.log(`killer gone  ${entry.label}",
+      "to": "console.log(`undefined  ${entry.label}",
+      "only": "mutate --stale leads a gone killer"
+    },
+    {
+      "label": "§321 mutate-catalogue: an entry that is not an object is read as one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "    if (entry === null || typeof entry !== 'object' || Array.isArray(entry)) return `entry ${index} must be an object`",
+      "to": "    if (entry === null) return `entry ${index} must be an object`",
+      "only": "mutate refuses a catalogue entry that is not a mutation"
+    },
+    {
+      "label": "§321 mutate-catalogue: an entry whose tests are not strings is read as a mutation",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "value => Array.isArray(value) && value.every(test => typeof test === 'string')",
+      "to": "value => Array.isArray(value)",
+      "only": "mutate refuses a catalogue entry that is not a mutation"
+    },
+    {
+      "label": "§321 mutate-catalogue: an entry whose only is not a string is read as a mutation",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "['only', 'a string when present', value => value === undefined || typeof value === 'string']",
+      "to": "['only', 'a string when present', value => true]",
+      "only": "mutate refuses a catalogue entry that is not a mutation"
+    },
+    {
+      "label": "§321 mutate-catalogue: the refusal does not name the bad entry by its label",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "entry ${index}${typeof entry.label === 'string' ?",
+      "to": "entry ${index}${false ?",
+      "only": "mutate refuses a catalogue entry that is not a mutation"
+    },
+    {
+      "label": "ADR-075 T1: a campaign says the load line",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "  console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))\n  if (stopped)",
+      "to": "  void loadAtEnd\n  if (stopped)",
+      "only": "^a check run below the core count"
+    },
+    {
+      "label": "ADR-075 T2: an in-place campaign says its load line",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    const loadAtEnd = campaignLoad()\n    console.log(loadLine(loadAtStart.load, loadAtEnd.load, loadAtStart.cores))",
+      "to": "    const loadAtEnd = campaignLoad()\n    void loadAtEnd",
+      "only": "^a campaign says its load line once, in place and isolated$"
+    },
+    {
+      "label": "ADR-075 T2: a campaign isolates by default",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  if (isolating) return isolate({ selected, argv, paths, loadAtStart, held })",
+      "to": "  if (false) return isolate({ selected, argv, paths, loadAtStart, held })",
+      "only": "^a campaign leaves the working tree byte-identical"
+    },
+    {
+      "label": "ADR-075 T2: the child runs the parent's selection",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  if (argv.includes('--selected')) {\n    let labels",
+      "to": "  if (false) {\n    let labels",
+      "only": "^an isolated campaign runs exactly the entries"
+    },
+    {
+      "label": "ADR-075 T2: could not isolate is exit 2",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "--in-place runs in this checkout`)\n    return 2",
+      "to": "--in-place runs in this checkout`)\n    return 0",
+      "only": "^a campaign that cannot isolate"
+    },
+    {
+      "label": "ADR-075 T2: the lock is live while the child lives",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    if (pids.some(alive) || (pids.length > 1 && groupAlive(pids[1]))) {",
+      "to": "    if (alive(pids[0])) {",
+      "only": "^a second campaign waits"
+    },
+    {
+      "label": "ADR-075 T2: SIGTERM ends the group and removes the worktree",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  process.on('SIGTERM', () => stop('SIGTERM'))",
+      "to": "  void stop",
+      "only": "^a campaign stopped with SIGTERM"
+    },
+    {
+      "label": "ADR-075 T2: the verdict cache comes back",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  if (caching && !stopped && !ended.error) writeBackCache(treeCache, paths.cache, { say })",
+      "to": "  void treeCache",
+      "only": "^an isolated campaign reuses and returns"
+    },
+    {
+      "label": "ADR-075 T3: exposed processes are named",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    if (match && !self.has(Number(match[1])) && names.test(match[2])) found.push(",
+      "to": "    if (false) found.push(",
+      "only": "^an in-place campaign names the processes running this checkout"
+    },
+    {
+      "label": "ADR-075 T3: the campaign never names itself",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  const self = new Set([process.pid, process.ppid])",
+      "to": "  const self = new Set([])",
+      "only": "^an in-place campaign names the processes running this checkout"
+    },
+    {
+      "label": "ADR-075 T3: an unreadable process list is said",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    if (exposure.error) process.stderr.write(",
+      "to": "    if (false) process.stderr.write(",
+      "only": "^an in-place campaign names the processes running this checkout"
+    },
+    {
+      "label": "Codex ADR-075 #1: the SIGKILL grace runs from the signal",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    escalation = setTimeout(() => signalGroup(child.pid, 'SIGKILL'), 2_000)",
+      "to": "    escalation = null",
+      "only": "^a campaign stopped with SIGTERM ends within its grace"
+    },
+    {
+      "label": "Codex ADR-075 #2: a child's tests do not inherit its marker",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "FORCE_COLOR: _colour, [CAMPAIGN_CHILD]: _child, [CAMPAIGN_OWNER]: _owner, QUALITY_HARNESS_WAIT: _wait, ...rest",
+      "to": "FORCE_COLOR: _colour, QUALITY_HARNESS_WAIT: _wait, ...rest",
+      "only": "^a campaign child does not hand its marker"
+    },
+    {
+      "label": "Codex ADR-075 #4: the child waits to be recorded",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "process.env[CAMPAIGN_OWNER] && !ownedBy(process.env[CAMPAIGN_OWNER])",
+      "to": "process.env[CAMPAIGN_OWNER] && false",
+      "only": "^an isolated child whose parent ended"
+    },
+    {
+      "label": "Codex ADR-075 #4: an unrecorded child sees its parent has ended",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    if (owner && !alive(owner.parent)) return false",
+      "to": "    if (false) return false",
+      "only": "^an isolated child whose parent ended"
+    },
+    {
+      "label": "Codex ADR-075 #6: a cache that cannot be read in is said, not thrown",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "    try { copyFileSync(paths.cache, treeCache) } catch (error) {",
+      "to": "    try { copyFileSync(paths.cache, treeCache) } catch (error) { throw error",
+      "only": "^a verdict cache that cannot be read into the worktree"
+    },
+    {
+      "label": "ADR-077 T2: a campaign holds a lease with its child",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  if (held) leaseStep('mark', () => mark(held, { child: child.pid, ...(process.platform !== 'win32' ? { group: child.pid } : {}) }))",
+      "to": "  if (false) leaseStep('mark', () => mark(held, { child: child.pid }))",
+      "only": "^a campaign holds a lease that records its isolated child, and releases it at its end$"
+    },
+    {
+      "label": "ADR-077 T2: a campaign waits when asked",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const waiting = argv.includes('--wait') || process.env.QUALITY_HARNESS_WAIT === '1'",
+      "to": "  const waiting = false",
+      "only": "^a campaign asked to wait starts its suite only after the running lease is released$"
+    },
+    {
+      "label": "ADR-077 T2: a campaign's tests have a private lease directory",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    QUALITY_HARNESS_LEASE_DIR: path.join(scratch, 'leases'),\n",
+      "to": "",
+      "only": "^a campaign's tests and the selftest use a private lease directory$"
+    },
+    {
+      "label": "Codex 3.3.0 #3: a campaign waits before any signal handler",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const held = process.env[CAMPAIGN_CHILD] === '1' ? null : campaignLease(argv)",
+      "to": "  process.on('SIGTERM', () => process.exit(143))\n  const held = process.env[CAMPAIGN_CHILD] === '1' ? null : campaignLease(argv)",
+      "only": "^a campaign signalled while waiting its turn runs nothing$"
+    },
+    {
+      "label": "Codex 3.3.0 #7: a campaign names its neighbours at its end",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    for (const line of besideLines(observeLeases(path.dirname(held.file), held))) process.stderr.write(`mutate: at its end, ${line}\\n`)",
+      "to": "    void held",
+      "only": "^a campaign names at its end a run that began beside it after it started$"
+    },
+    {
+      "label": "§318: the catalogue is written in place",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-write.test.mjs"
+      ],
+      "from": "  const temp = `${file}.${process.pid}.tmp`",
+      "to": "  const temp = file",
+      "only": "^(?:the catalogue is written through a temporary file and a rename, and a failed write leaves it whole)$"
+    },
+    {
+      "label": "162e1660 campaign: an only pattern that does not compile is called valid",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    try { new RegExp(mutation.only); return false } catch { return true }",
+      "to": "    try { new RegExp(mutation.only); return false } catch { return false }",
+      "only": "^(?:invalidOnly names an entry whose only pattern does not compile|mutate --stale exits 1 and names an entry whose only pattern is not a regular expression)$"
+    },
+    {
+      "label": "162e1660 campaign: --stale exits 0 over an only pattern that does not compile",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "return stale.length || orphaned.length || unparsed.length ? 1 : 0",
+      "to": "return stale.length || orphaned.length ? 1 : 0",
+      "only": "^mutate --stale exits 1 and names an entry whose only pattern is not a regular expression$"
+    },
+    {
+      "label": "ADR-091 T1: a label repeated across files is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-dir.test.mjs"
+      ],
+      "from": "      if (prior) {",
+      "to": "      if (prior && prior.path === file.path) {",
+      "only": "^a label repeated across two catalogue files is refused before anything runs$"
+    },
+    {
+      "label": "ADR-091 T1: an entry under another source's file is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-dir.test.mjs"
+      ],
+      "from": "      if (file.source !== null && entry.file !== file.source) {",
+      "to": "      if (false) {",
+      "only": "^an entry filed under another source is refused$"
+    },
+    {
+      "label": "ADR-091 T1: the directory is read in path order",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-dir.test.mjs"
+      ],
+      "from": "!gone.has(file)).sort() }",
+      "to": "!gone.has(file)).sort().reverse() }",
+      "only": "^the catalogue directory is read in path order beside the single file$"
+    },
+    {
+      "label": "ADR-091 T1: a write rewrites only the file holding the entry",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-dir.test.mjs"
+      ],
+      "from": "  const touched = loaded.files.filter(file => file.catalogue.mutations.some(entry => changed.has(entry)))",
+      "to": "  const touched = loaded.files",
+      "only": "^repoint write rewrites only the file that holds the entry$"
+    }
+  ]
+}

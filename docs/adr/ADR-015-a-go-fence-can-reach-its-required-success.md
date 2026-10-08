@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-009-a-decision-names-what-enforces-it.md, docs/adr/ADR-011-a-pointer-resolves-or-it-is-reported.md, docs/BACKLOG.md §78
-**Governs:** `plugin/bin/adr-lint`, `tests/gates.test.mjs`, `tests/mutations.json`
+**Governs:** `plugin/bin/adr-lint`, `tests/gates.test.mjs`, `tests/mutations/**`
 **Enforced-by:** `lint: a Go fence selects the test whose PASS line it requires`, `lint: no test files is a healthy Go status, not an exclusion`
 **Invalidates:** none — checked. ADR-003 requires behavioral mutations and this adds two; ADR-005 forbids claims about commands the gate did not observe and this check accepts only one explicit root-level command/output shape; ADR-009 makes the two mutation labels above the durable enforcement pointers; ADR-011's git-backed candidate set and explicit could-not-look state are reused unchanged. No accepted decision is narrowed or removed.
 **Served-path change:** `adr-lint` advises when a recognized literal Go Acceptance fence requires a `PASS:` marker but no tracked direct definition lies under its selected package scopes, or when a load-bearing grep rejects Go's healthy `[no test files]` status, before an author spends evidence runs repairing the fence.

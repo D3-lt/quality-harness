@@ -216,4 +216,4 @@ nothing: no key changed.
 ## Follow-ups
 
 - [ ] Owner: does "nothing ties an entry to its owner" mean the mutated source (answered by this split) or a person or task (not answered)?
-- [ ] Owner: approve relocking ADR-075 T2's lock on `every shard slice covers the catalogue exactly once` under ADR-052, or name another route.
+- [x] Owner: approve relocking ADR-075 T2's lock on `every shard slice covers the catalogue exactly once` under ADR-052, or name another route. — Approved by the owner on 2026-10-07; T3 relocked it with `adr-verify --relock --replace-hashes` on ADR-075 T2's task file.

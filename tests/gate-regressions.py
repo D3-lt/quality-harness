@@ -2102,7 +2102,7 @@ def main():
 
     # The CLEAN answer, in the same test, so a check that reports clean is shown
     # able to report dirty. `plugin/bin/**` is this corpus's own case.
-    _, advice = pointers("**Governs:** `plugin/bin/**`, `tests/mutations.json`\n")
+    _, advice = pointers("**Governs:** `plugin/bin/**`, `tests/mutations/**`\n")
     assert not advice, f"both of these resolve against the real tree: {advice}"
 
     # A directory prefix resolves without a glob.

@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "git-directory: metadata without refs cannot lend a green cache",
+      "file": "plugin/scripts/git-directory.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs",
+        "tests/statusline.test.mjs"
+      ],
+      "from": "      && statSync(path.join(common, 'refs')).isDirectory()",
+      "to": "      && true"
+    }
+  ]
+}

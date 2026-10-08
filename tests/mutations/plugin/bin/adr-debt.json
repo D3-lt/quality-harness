@@ -1,0 +1,154 @@
+{
+  "mutations": [
+    {
+      "label": "gates: a deferred pointer must resolve",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        return \"path\", any((r / t).exists() for t in ptoks for r in roots)",
+      "to": "        return \"path\", True",
+      "only": "^(?:adr-debt resolves the pointers it can, and reports the ones it cannot)$"
+    },
+    {
+      "label": "adr-debt: a disposition still has to close the bullet",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return text[end:].strip(\" \\t.,;:\") == \"\"",
+      "to": "    return True",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-debt: a disposition's parentheses are balanced, not just the last run",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if depth == 0:\n                    return text[opening.start() + 1:i], opening.start(), i + 1",
+      "to": "                return text[opening.start() + 1:i], opening.start(), i + 1",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-debt: a deferral pointer resolves on its leading record id",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    lead = re.match(r\"^(ADR-?\\s?\\d+)(?![\\w-])\", p, re.I)",
+      "to": "    lead = None",
+      "only": "^(?:adr-debt resolves the pointers it can, and reports the ones it cannot)$"
+    },
+    {
+      "label": "adr-debt: a disposition in the wrong place is not an empty one",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                elif span and re.match(r\"deferred\\b\", span[0] or \"\"):",
+      "to": "                elif False:",
+      "only": "^(?:adr-debt resolves the pointers it can, and reports the ones it cannot)$"
+    },
+    {
+      "label": "ADR-014: waiting is counted and shown separately from debt",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                waiting.append((scan_dir, rel, bo.group(1).strip(),\n                                seen[-1] if seen else None))",
+      "to": "                pass",
+      "only": "^(?:a task waiting on an external event is not counted as debt|an old wait asks whether the event has already happened|a wait is dated by its newest evidence row, not by prose|a wait is dated by its evidence logs, not by a row-shaped line in prose)$"
+    },
+    {
+      "label": "ADR-014: an old wait asks rather than scolds",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if age is not None and age >= STALE_AFTER_DAYS:",
+      "to": "        if False:",
+      "only": "^(?:an old wait asks whether the event has already happened|a wait is dated by its newest evidence row, not by prose|a wait is dated by its evidence logs, not by a row-shaped line in prose)$"
+    },
+    {
+      "label": "peer: an explicit statement of absence is not an open follow-up",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                    if re.fullmatch(r\"\\(?\\s*none\\b[^)]*\\)?\\.?\", item, re.I):",
+      "to": "                    if False:",
+      "only": "^(?:an explicit statement of absence is not counted as debt)$"
+    },
+    {
+      "label": "peer: a wait is dated by its evidence logs not by prose",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                logged = \"\\n\".join(secs.get(\"Verification Log\", [])\n                                   + secs.get(\"Mutation Log\", []))",
+      "to": "                logged = text",
+      "only": "^(?:a wait is dated by its evidence logs, not by a row-shaped line in prose)$"
+    },
+    {
+      "label": "foreign: an explicit none is not debt in a consumer corpus",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/foreign-corpus.test.mjs"
+      ],
+      "from": "                    if re.fullmatch(r\"\\(?\\s*none\\b[^)]*\\)?\\.?\", item, re.I):",
+      "to": "                    if False:",
+      "only": "^(?:adr-debt counts a consumer corpus honestly)$"
+    },
+    {
+      "label": "debt: an unresolvable pointer is not called broken",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if kind == \"adr\":",
+      "to": "        if False:",
+      "only": "^(?:a target another repository owns is declared, not called broken|adr-debt resolves the pointers it can, and reports the ones it cannot)$"
+    },
+    {
+      "label": "debt: an external declaration without an owner is not a declaration",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if not where.strip() or not pointer.strip():\n        return None",
+      "to": "    if not pointer.strip():\n        return None",
+      "only": "^(?:a target another repository owns is declared, not called broken)$"
+    },
+    {
+      "label": "ADR-092 T7: adr-debt's unlisted report",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "    if unlisted:\n        for directory in unlisted:\n            print(f\"[adr-debt] could not run",
+      "to": "    if False:\n        for directory in unlisted:\n            print(f\"[adr-debt] could not run",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 T7: adr-debt's any-case suffix",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "    paths = sorted(p for p in walk(scan_dir, unlisted=unlisted) if not markdown or p.name.lower().endswith(\".md\"))",
+      "to": "    paths = sorted(p for p in walk(scan_dir, unlisted=unlisted) if not markdown or p.name.endswith(\".md\"))",
+      "only": "^adr-debt and adr-verify read a .MD file$"
+    },
+    {
+      "label": "ADR-092 T7: adr-debt's regular-file read",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "                text = read_regular(md)",
+      "to": "                text = md.read_text(errors=\"replace\", encoding=\"utf-8\")",
+      "only": "^adr-debt never opens a FIFO$"
+    }
+  ]
+}

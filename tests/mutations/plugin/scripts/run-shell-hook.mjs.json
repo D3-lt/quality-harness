@@ -1,0 +1,194 @@
+{
+  "mutations": [
+    {
+      "label": "hooks: the runner fails closed on a timeout",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    const timer = setTimeout(() => {\n      timedOut = true\n      stop()",
+      "to": "    const timer = setTimeout(() => {\n      stop()",
+      "only": "^(?:the timeout mechanism itself kills the child and says it timed out|the runner process itself exits after a failed cleanup, with the child still alive|a cleanup that fails does not leave the hook pending until the host kills it \\(BACKLOG §127\\))$"
+    },
+    {
+      "label": "advisory: the harness never blocks over its own breakage",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "      + 'The gates did not report; nothing is blocked.\\n')\n    return 0",
+      "to": "      + 'The gates did not report; nothing is blocked.\\n')\n    return 2",
+      "only": "^(?:the shell-hook runner reports every way a gate can not report, and blocks on none)$"
+    },
+    {
+      "label": "windows: the shell hook refuses the WindowsApps bash alias",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "/[\\\\/](?:system32|windowsapps)[\\\\/]?$/i",
+      "to": "/[\\\\/]system32[\\\\/]?$/i",
+      "only": "^(?:shell-hook runner honors Claude Code Git Bash configuration on Windows)$"
+    },
+    {
+      "label": "hooks: the Windows cleanup a timeout runs is itself bounded (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "      windowsHide: true,\n      timeout: TASKKILL_TIMEOUT_MS,\n    })",
+      "to": "      windowsHide: true,\n    })",
+      "only": "^(?:the Windows cleanup a timeout runs carries a bound, and reports whether the kill was issued \\(BACKLOG §127\\))$"
+    },
+    {
+      "label": "hooks: a cleanup that fails does not leave the hook pending until the host kills it (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "      grace = setTimeout(() => {\n        for (const stream of [child.stdout, child.stderr, child.stdin]) stream?.destroy()\n        child.unref?.()\n        settle(null, false)\n      }, cleanupGraceMs)",
+      "to": "      grace = null",
+      "only": "^(?:the runner process itself exits after a failed cleanup, with the child still alive|a cleanup that fails does not leave the hook pending until the host kills it \\(BACKLOG §127\\))$"
+    },
+    {
+      "label": "hooks: a taskkill that failed is not reported as a kill that was issued (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    return !run.error && run.status === 0",
+      "to": "    return true",
+      "only": "^(?:the Windows cleanup a timeout runs carries a bound, and reports whether the kill was issued \\(BACKLOG §127\\))$"
+    },
+    {
+      "label": "hooks: the POSIX fallback reports what ChildProcess.kill answered (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    try { return child.kill('SIGKILL') === true } catch { return false }",
+      "to": "    try { child.kill('SIGKILL'); return true } catch { return false }",
+      "only": "^(?:the POSIX fallback reports what ChildProcess\\.kill answered, not merely that it did not throw)$"
+    },
+    {
+      "label": "hooks: after a failed cleanup the runner lets go of the child so the process can exit (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        for (const stream of [child.stdout, child.stderr, child.stdin]) stream?.destroy()\n        child.unref?.()\n        settle(null, false)",
+      "to": "        settle(null, false)",
+      "only": "^(?:the runner process itself exits after a failed cleanup, with the child still alive)$"
+    },
+    {
+      "label": "hook-work: a batch checks every artifact",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "artifact batches",
+      "from": "  for (const [index, filePath] of batch.paths.entries()) {",
+      "to": "  for (const [index, filePath] of batch.paths.slice(0, 1).entries()) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: batch files retain their individual timeout",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "artifact batches",
+      "from": "timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT",
+      "to": "timeoutMs: remaining, maxOutputBytes: ARTIFACT_OUTPUT_LIMIT",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: a noisy artifact has its own output limit",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "an output limit terminates",
+      "from": "      if (bytes > available) {",
+      "to": "      if (false) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: exceeding the output limit stops the noisy child",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "an output limit terminates",
+      "from": "      if (outputLimitExceeded) stop()",
+      "to": "      if (outputLimitExceeded) void 0",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: timeout guidance stays with the timed-out artifact",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "artifact batches",
+      "from": "    if (windowMs !== undefined) {",
+      "to": "    if (false) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: unconfirmed cleanup prevents the next artifact",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "unconfirmed cleanup stops",
+      "from": "    if (status !== 0) {",
+      "to": "    if (false) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: direct hooks disclose unconfirmed cleanup",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "unconfirmed cleanup stops",
+      "from": "  if (run.cleanupConfirmed === false) {",
+      "to": "  if (false) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: the deadline identifies all remaining artifacts",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "artifact batch input",
+      "from": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + batch.paths.slice(index).join('\\n')",
+      "to": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + filePath",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook: session_id from the payload reaches the facts-gate dispatcher",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/staged-product.test.mjs"
+      ],
+      "only": "session_id from the payload reaches the facts-gate dispatcher",
+      "from": "    env: sessionId\n      ? { ...process.env, QUALITY_HARNESS_SESSION_ID: sessionId }\n      : process.env,",
+      "to": "    env: process.env,"
+    },
+    {
+      "label": "archive: the bulk lookup takes the first base with a CATALOG, as the dispatcher does",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/archive-history-parity.test.mjs"
+      ],
+      "from": "      for (const blobs of perBase) {",
+      "to": "      for (const blobs of perBase.slice(0, 1)) {",
+      "only": "^(?:the bulk lookup and the per-file lookup name the same archive catalog)$"
+    },
+    {
+      "label": "archive: a base that could not be read leaves the bulk answer unknown",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/archive-history-parity.test.mjs"
+      ],
+      "from": "      if (tree === null || (tree.length && tree.at(-1) !== 0)) { valid = false; break }",
+      "to": "      if (tree === null || (tree.length && tree.at(-1) !== 0)) continue",
+      "only": "^(?:a base that could not be read leaves the bulk answer UNKNOWN, not \"no catalog\")$"
+    }
+  ]
+}

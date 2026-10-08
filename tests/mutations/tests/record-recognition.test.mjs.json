@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-092 review: the lint helper calls any exit recognised",
+      "file": "tests/record-recognition.test.mjs",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    : (r.status === 0 || r.status === 1) && LINTED.test(r.stdout) ? 'recognised' : 'no-verdict'",
+      "to": "    : 'recognised'",
+      "only": "^the lint helper calls nothing recognised that did not lint the file$"
+    },
+    {
+      "label": "ADR-092 review: the lint helper calls a could-not-run recognised",
+      "file": "tests/record-recognition.test.mjs",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "(NOT_RECOGNISED.test(r.stdout) ? 'not-recognised' : 'could-not-run')",
+      "to": "(NOT_RECOGNISED.test(r.stdout) ? 'not-recognised' : 'recognised')",
+      "only": "^the lint helper calls nothing recognised that did not lint the file$"
+    }
+  ]
+}

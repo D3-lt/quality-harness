@@ -1,0 +1,324 @@
+{
+  "mutations": [
+    {
+      "label": "§355: adr-state's PARTIAL headline names both of its causes",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/session-start-unreadable-owner.test.mjs"
+      ],
+      "only": "PARTIAL headline names both",
+      "from": "    say('could-not-look: a listed record could not be read, or its standing could not be established (PARTIAL). '",
+      "to": "    say('could-not-look: a listed record could not be read (PARTIAL). '"
+    },
+    {
+      "label": "state: two accepted records over one path is contested",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const contested = [...areas].filter(([, records]) => records.length > 1)",
+      "to": "const contested = []",
+      "only": "^(?:adr-state derives what is decided now, instead of asking anyone to maintain it)$"
+    },
+    {
+      "label": "state: a decision pointing at no code is named",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const orphans = governing.filter(record => record.governs.length === 0 && !record.unreadTasks?.length)",
+      "to": "const orphans = []",
+      "only": "^(?:adr-state derives what is decided now, instead of asking anyone to maintain it)$"
+    },
+    {
+      "label": "state: a supersession with no replacement is named",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const dangling = superseded.filter(record => !unreadSuperseder(record))",
+      "to": "  const dangling = []",
+      "only": "^(?:adr-state derives what is decided now, instead of asking anyone to maintain it)$"
+    },
+    {
+      "label": "state: history is not a contradiction",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  for (const declared of record.declares) {",
+      "to": "  for (const declared of record.governs) {",
+      "only": "^(?:reported: the layouts and scale a real corpus actually has)$"
+    },
+    {
+      "label": "state: importing the reporter prints nothing",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "if (isMainModule(import.meta.url)) {\n  process.exitCode = main(process.argv.slice(2))\n}",
+      "to": "{\n  process.exitCode = main(process.argv.slice(2))\n}",
+      "only": "^(?:importing a script runs its CLI on nobody|every catalogue entry still matches the source it mutates, exactly once)$"
+    },
+    {
+      "label": "state: the rot report reaches the reader, not just the corpus record",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    .filter(entry => entry.startsWith('governs:'))",
+      "to": "    .filter(() => false)",
+      "only": "^(?:a Governs declaration that matches nothing tracked is reported, and could-not-look is not)$"
+    },
+    {
+      "label": "adr-state --json names PARTIAL when a listed record cannot be read",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/staged-product.test.mjs"
+      ],
+      "from": "    const look = corpus.look ?? ((corpus.unreadable ?? []).length ? 'PARTIAL' : 'ok')",
+      "to": "    const look = 'ok'",
+      "only": "a listed ADR that cannot be read is PARTIAL"
+    },
+    {
+      "label": "adr-state: never-read files are reported as could-not-open, not as nameless",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const unopened = unreadable.filter(entry => entry.reason)",
+      "to": "  const unopened = []",
+      "only": "adr-state names a file it could not open"
+    },
+    {
+      "label": "adr-state: a record with neither number nor stem is named by its file, never ADR-00?",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/adr-state-label.test.mjs"
+      ],
+      "from": ": path.basename(record.file, '.md'))",
+      "to": ": 'ADR-00?')",
+      "only": "^(?:a record with neither a number nor a dated stem is named by its file, not ADR-00\\?)$"
+    },
+    {
+      "label": "ADR-063: adr-state keys supersession by id",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-state resolves a supersession by stem",
+      "from": "  .map(record => [record.id, record]))",
+      "to": "  .map(record => [String(record.number), record]))"
+    },
+    {
+      "label": "chaos 626934a: adr-state's JSON names what it could not read",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/adr-state-label.test.mjs"
+      ],
+      "from": "    unread: unreadable.map(entry =>",
+      "to": "    unread: [].map(entry =>",
+      "only": "a record whose status cannot be read is named in the JSON and in the text alike"
+    },
+    {
+      "label": "chaos 626934a: adr-state's text lists a record it could not read rather than \"none found\"",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/adr-state-label.test.mjs"
+      ],
+      "from": "  if (!corpus.length && !unreadable.length) {",
+      "to": "  if (!corpus.length) {",
+      "only": "a record whose status cannot be read is named in the JSON and in the text alike"
+    },
+    {
+      "label": "chaos 916b515: adr-state speaks through terminalText",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "  const say = text => process.stdout.write(terminalText(text))",
+      "to": "  const say = text => process.stdout.write(text)",
+      "only": "adr-state shows a hostile"
+    },
+    {
+      "label": "chaos 916b515: adr-state quotes a record title",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "    say(`  ${declared.padEnd(32)} ${label(holder)}  ${quotedCorpusText(holder.title)}\\n`)",
+      "to": "    say(`  ${declared.padEnd(32)} ${label(holder)}  ${holder.title}\\n`)",
+      "only": "adr-state shows a hostile"
+    },
+    {
+      "label": "chaos 916b515 C-5: a scope nobody read is not governing nothing",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "  const orphans = governing.filter(record => record.governs.length === 0 && !record.unreadTasks?.length)",
+      "to": "  const orphans = governing.filter(record => record.governs.length === 0)",
+      "only": "scope unknown, not empty"
+    },
+    {
+      "label": "chaos 916b515 C1: adr-state names an id carried by two records",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/record-budget.test.mjs"
+      ],
+      "from": "  const duplicateIds = [...byIdAll].filter(([, records]) => records.length > 1)",
+      "to": "  const duplicateIds = []",
+      "only": "two records with one id"
+    },
+    {
+      "label": "BACKLOG §319 I: adr-state's JSON drops the Governs paths that match nothing",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "    governsUnmatched: rotted.map(entry => entry.slice('governs:'.length)),",
+      "to": "    governsUnmatched: [],",
+      "only": "adr-state --json lists the Governs paths"
+    },
+    {
+      "label": "§321 x1: adr-state's JSON says why it did not read a record whose status it does not know",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "          : 'its status does not start with a word this reader knows (Accepted, Active, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated), so it governs nothing')",
+      "to": "          : null)",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: a record the corpus reader never read says its own reason as its why",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "  const why = entry => entry.reason",
+      "to": "  const why = entry => ''",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: a Proposed record is pending in adr-state's JSON, not a status it does not know",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "        : isPending(entry) ? 'it is Proposed or Draft",
+      "to": "        : false ? 'it is Proposed or Draft",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: an UNPROVEN standing is not called a status adr-state does not know",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "    || (entry.unproven ? `whether it governs",
+      "to": "    || (false ? `whether it governs",
+      "only": "a record whose standing is UNPROVEN says what the reader could not tell"
+    },
+    {
+      "label": "§321 x1: adr-state's JSON keeps reason null for a record the corpus reader opened",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "status: entry.status ?? null, reason: entry.reason ?? null, why: why(entry) })),",
+      "to": "status: entry.status ?? null, reason: why(entry), why: why(entry) })),",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: a missing or empty Status line is not called a status adr-state does not know",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "      : !entry.status ? 'it has no **Status:** value",
+      "to": "      : false ? 'it has no **Status:** value",
+      "only": "adr-state --json says why it did not read each record it opened"
+    },
+    {
+      "label": "§321 x1: an UNPROVEN why says what the corpus reader could not tell, in its words",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "(UNPROVEN): ${entry.unproven}`",
+      "to": "(UNPROVEN)`",
+      "only": "a record whose standing is UNPROVEN says what the reader could not tell"
+    },
+    {
+      "label": "§321 x1: an UNPROVEN why does not call the record frozen",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/chaos-315-x1.test.mjs"
+      ],
+      "from": "(UNPROVEN): ${entry.unproven}`",
+      "to": "(UNPROVEN): ${entry.unproven}; it is frozen`",
+      "only": "a record whose standing is UNPROVEN says what the reader could not tell"
+    },
+    {
+      "label": "§350 C8: a superseder that could not be read is 'not in this corpus'",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "  const supersededByUnread = superseded.filter(record => unreadSuperseder(record))",
+      "to": "  const supersededByUnread = []",
+      "only": "^(?:adr-state says a superseding record could not be read, not that it is absent)$"
+    },
+    {
+      "label": "§350 C5: an unread task is named only under a record that governs nothing",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "  const unknownScope = governing.filter(record => record.unreadTasks?.length)",
+      "to": "  const unknownScope = governing.filter(record => record.governs.length === 0 && record.unreadTasks?.length)",
+      "only": "^(?:adr-state names an unread task under a record that governs other paths)$"
+    },
+    {
+      "label": "§350 review: an unreadable superseder in another corpus hides a dangling one",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "    if (path.dirname(entry.file) !== path.dirname(record.file)) return false\n",
+      "to": "",
+      "only": "^(?:adr-state says a superseding record could not be read, not that it is absent)$"
+    },
+    {
+      "label": "owner 2026-10-07: adr-state's JSON does not name the files no reader counts",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    notRead: (corpus.notRecognised ?? []).map(file => ({ file: relative({ file }) })),",
+      "to": "    notRead: [],",
+      "only": "adr-state names the files no reader counts"
+    },
+    {
+      "label": "owner 2026-10-07: adr-state's text does not name the files no reader counts",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    for (const file of notRecognised.slice(0, SHOWN)) say(`  ${relative({ file })}\\n`)",
+      "to": "    for (const file of []) say('')",
+      "only": "adr-state names the files no reader counts"
+    },
+    {
+      "label": "ADR-092 T3: adr-state counts an undecided record's id among duplicates",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/record-discovery.test.mjs"
+      ],
+      "from": "  for (const record of [...corpus, ...undecidedRecords]) {",
+      "to": "  for (const record of corpus) {",
+      "only": "^a duplicate id among undecided records is named$"
+    }
+  ]
+}

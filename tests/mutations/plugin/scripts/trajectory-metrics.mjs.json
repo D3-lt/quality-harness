@@ -1,0 +1,164 @@
+{
+  "mutations": [
+    {
+      "label": "trajectory: an entry whose exit code did not parse is not counted as one that passed",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "    unjudged: log.length - exits.length,",
+      "to": "    unjudged: 0,",
+      "only": "^(?:an entry with no readable exit code is named, not counted as one that passed)$"
+    },
+    {
+      "label": "trajectory: a killed mutant counts as proof the fence can fail",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "    if (task.red > 0 || task.killed > 0) totals.shownAbleToFail += 1",
+      "to": "    if (task.red > 0) totals.shownAbleToFail += 1",
+      "only": "^(?:a task proves its trajectory with a red entry OR a killed mutant, and neither is silent|a mutation verdict is never parsed and then discarded, whichever verdict it is)$"
+    },
+    {
+      "label": "trajectory: a survived or inconclusive mutant is not parsed and then discarded",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "    if (!task.entries && !task.killed && !task.survived && !task.inconclusive) {",
+      "to": "    if (!task.entries && !task.killed) {",
+      "only": "^(?:a mutation verdict is never parsed and then discarded, whichever verdict it is)$"
+    },
+    {
+      "label": "trajectory: a section running to end of file is still read",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "  return (end < 0 ? rest : rest.slice(0, end)).join('\\n')",
+      "to": "  return (end < 0 ? [] : rest.slice(0, end)).join('\\n')",
+      "only": "^(?:a task proves its trajectory with a red entry OR a killed mutant, and neither is silent|a mutation verdict is never parsed and then discarded, whichever verdict it is)$"
+    },
+    {
+      "label": "trajectory: a task that could not be read is in neither half",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "    if (task.unreadable) { totals.unreadable += 1; continue }",
+      "to": "    if (task.unreadable) { totals.unevidenced += 1; continue }",
+      "only": "^(?:a task that could not be read is in neither half|a task holding unresolved merge-conflict markers is in neither half)$"
+    },
+    {
+      "label": "§295.7: trajectory-metrics reads a conflicted task as neither half",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "only": "merge-conflict markers is in neither half",
+      "from": "    return close !== undefined && !(open.fenced && close.fenced)",
+      "to": "    return false"
+    },
+    {
+      "label": "§295.7: trajectory-metrics needs both sides of a conflict",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "only": "merge-conflict markers is in neither half",
+      "from": "    const close = markers.slice(index + 1).find(other => other.kind === '>')",
+      "to": "    const close = open"
+    },
+    {
+      "label": "§295.7: trajectory-metrics skips markers inside a fence",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "only": "merge-conflict markers is in neither half",
+      "from": "    if (marker && !(marker[1][0] === '`' && marker[2].includes('`'))) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "§295.7 (Codex): trajectory-metrics counts a hunk a fence opened inside",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "only": "merge-conflict markers is in neither half",
+      "from": "    return close !== undefined && !(open.fenced && close.fenced)",
+      "to": "    return close !== undefined && !open.fenced && !close.fenced"
+    },
+    {
+      "label": "chaos 916b515 G2: corpus-report counts a NUL-byte or empty task unreadable",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "  if (text.includes('\\0') || !text.trim()) return { file, unreadable: true }",
+      "to": "  if (false) return { file, unreadable: true }",
+      "only": "NUL bytes, or nothing"
+    },
+    {
+      "label": "BACKLOG §319 C: a linked tasks directory is walked",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "        if (target?.isDirectory()) unreadableDirs.push(full)",
+      "to": "        if (target?.isDirectory()) walk(full)",
+      "only": "corpus-report counts a linked task file"
+    },
+    {
+      "label": "BACKLOG §319 C: a linked task file is skipped",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "        else if (task) found.push(full)",
+      "to": "        else if (false) found.push(full)",
+      "only": "corpus-report counts a linked task file"
+    },
+    {
+      "label": "BACKLOG §319 C: a task that is not a regular file is read",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  if (!statSync(file).isFile()) throw Object.assign(new Error(`${file} is not a regular file`), { code: 'ENOTREG' })",
+      "to": "  if (false) throw Object.assign(new Error(`${file} is not a regular file`), { code: 'ENOTREG' })",
+      "only": "corpus-report counts a FIFO task"
+    },
+    {
+      "label": "BACKLOG §319 C: a FIFO named like a task is skipped",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "      // and left to the reader, which refuses it unopened, rather than skipped in silence.\n      else if (task) found.push(full)",
+      "to": "      // and left to the reader, which refuses it unopened, rather than skipped in silence.\n      else if (false) found.push(full)",
+      "only": "corpus-report counts a FIFO task"
+    },
+    {
+      "label": "§321 probe: a red-first row shows the fence able to fail",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "    if (task.red > 0 || task.killed > 0) totals.shownAbleToFail += 1",
+      "to": "    if (task.killed > 0) totals.shownAbleToFail += 1",
+      "only": "^(?:the count a pasted report publishes is named for what it counts: shown able to fail, a red-first row included)$"
+    },
+    {
+      "label": "§321 probe: trajectory-metrics' text reads the renamed count",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "`trajectory-metrics: ${totals.shownAbleToFail} / ${totals.evidenced} evidenced task(s) show their `",
+      "to": "`trajectory-metrics: ${totals.showsFailing} / ${totals.evidenced} evidenced task(s) show their `",
+      "only": "^(?:the count a pasted report publishes is named for what it counts: shown able to fail, a red-first row included)$"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-046 names the ADR-012 §2 amendment rather than Invalidates none (ADR-046 T6)",
+      "file": "docs/adr/ADR-046-a-caller-relays-could-not-run.md",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "**Invalidates:** Amends ADR-012 §2 for the could-not-run case.",
+      "to": "**Invalidates:** none",
+      "only": "^ADR-046 names the ADR-012 §2 amendment for a completed could-not-run exit$"
+    }
+  ]
+}

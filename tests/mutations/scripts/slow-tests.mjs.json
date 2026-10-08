@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "slow-tests: a duration belongs to the assertion above it, so an innocent test is never named as the slow one",
+      "file": "scripts/slow-tests.mjs",
+      "tests": [
+        "tests/slow-tests.test.mjs"
+      ],
+      "from": "      pending = { name: assertion[3], depth: assertion[1].length / 4, ok: assertion[2] === 'ok' }",
+      "to": "      pending = { name: assertion[3], depth: 0, ok: assertion[2] === 'ok' }",
+      "only": "^(?:a suite line is not counted, because it carries the sum of its children)$"
+    },
+    {
+      "label": "slow-tests: only leaf tests form the yardstick, because a suite line is the sum of its children",
+      "file": "scripts/slow-tests.mjs",
+      "tests": [
+        "tests/slow-tests.test.mjs"
+      ],
+      "from": "  const leaves = tests.filter(t => t.depth === 0)",
+      "to": "  const leaves = tests",
+      "only": "^(?:a suite line is not counted, because it carries the sum of its children)$"
+    },
+    {
+      "label": "slow-tests: a median of zero is UNRUN, not a run in which everything is infinitely slow",
+      "file": "scripts/slow-tests.mjs",
+      "tests": [
+        "tests/slow-tests.test.mjs"
+      ],
+      "from": "  if (mid === null || mid <= 0) return { median: mid, unusable: true, found: [] }",
+      "to": "  if (mid === null) return { median: mid, unusable: true, found: [] }",
+      "only": "^(?:could-not-look is said in those words, and never as a clean run)$"
+    }
+  ]
+}

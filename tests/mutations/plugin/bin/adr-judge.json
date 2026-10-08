@@ -1,0 +1,171 @@
+{
+  "mutations": [
+    {
+      "label": "judge: Context must cite something observable",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs",
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if context.strip() and not OBSERVABLE.search(context):",
+      "to": "    if False:",
+      "only": "^(?:E1 fires when the Context is preference rather than observation)$"
+    },
+    {
+      "label": "judge: an alternative names why it lost",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs",
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if len(reason.split()) < 3:",
+      "to": "        if False:",
+      "only": "^(?:E2 fires on an alternative that is only a name|an alternative whose reason wraps is read whole, not judged on its first line)$"
+    },
+    {
+      "label": "judge: a comparative claim carries evidence in its own section",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs",
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if claim and not OBSERVABLE.search(body):",
+      "to": "        if False:",
+      "only": "^(?:E3 fires on a comparative claim with nothing behind it)$"
+    },
+    {
+      "label": "judge: the Decision commits",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs",
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if decision.strip() and HEDGE.search(decision) and not COMMITMENT.search(decision):",
+      "to": "    if False:",
+      "only": "^(?:C1 fires on a Decision that never commits)$"
+    },
+    {
+      "label": "judge: an authoring marker is not a template placeholder",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs",
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "UNRESOLVED = re.compile(r\"(?<![-\\w])(?:TODO|TBD|FIXME|XXX|\\?\\?\\?)(?![-\\w])\")",
+      "to": "UNRESOLVED = re.compile(r\"\\b(?:TODO|TBD|FIXME|XXX|\\?\\?\\?)\\b\")",
+      "only": "^(?:every adr-judge rule has a case that makes it fire, and a record that passes them all|C2 fires on an authoring marker, and only on a real one)$"
+    },
+    {
+      "label": "judge: Consequences state a cost",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs",
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if consequences.strip() and not COST.search(consequences):",
+      "to": "    if False:",
+      "only": "^(?:C3 fires when every consequence is upside)$"
+    },
+    {
+      "label": "judge: prose judgement never blocks",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs",
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    return 0\n\n\nif __name__ ==",
+      "to": "    return 1 if findings else 0\n\n\nif __name__ ==",
+      "only": "^(?:E1 fires when the Context is preference rather than observation|E2 fires on an alternative that is only a name|E3 fires on a comparative claim with nothing behind it|C1 fires on a Decision that never commits|C2 fires on an authoring marker, and only on a real one|C3 fires when every consequence is upside|an alternative whose reason wraps is read whole, not judged on its first line)$"
+    },
+    {
+      "label": "judge: a Context may cite a ticket, version, standard or commit",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "    r\"\\b[A-Z][A-Z0-9]+-\\d+\\b|\"                            # a tracker id: JIRA-4821",
+      "to": "",
+      "only": "^(?:E1 accepts every ordinary way a Context cites something checkable)$"
+    },
+    {
+      "label": "judge: prose alternatives are judged too",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "    if not entries and alternatives.strip():",
+      "to": "    if False:",
+      "only": "^(?:E2 fires on an alternative that is only a name)$"
+    },
+    {
+      "label": "judge: a bare name has no clause after a separator",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "        reason = split[1] if len(split) > 1 else \"\"",
+      "to": "        reason = entry",
+      "only": "^(?:E2 fires on an alternative that is only a name)$"
+    },
+    {
+      "label": "judge: a marker inside a fence is not this record's",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "    marker = UNRESOLVED.search(prose(text))",
+      "to": "    marker = UNRESOLVED.search(text)",
+      "only": "^(?:C2 fires on an authoring marker, and only on a real one)$"
+    },
+    {
+      "label": "judge: a cost may be worded any way a record words it",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "    r\"regress\\w*|fail|fails|failing|failure|break|breaks|degrade\\w*|harder|\"",
+      "to": "",
+      "only": "^(?:C3 accepts Consequences that state a cost, however it is worded)$"
+    },
+    {
+      "label": "judge: a wrapped alternative is read whole",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "            current += \" \" + line.strip()",
+      "to": "            pass",
+      "only": "^(?:an alternative whose reason wraps is read whole, not judged on its first line)$"
+    },
+    {
+      "label": "judge: a blank line ends a bullet",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "        elif not line.strip() or not CONTINUATION.match(line):",
+      "to": "        elif False:",
+      "only": "^(?:an alternative whose reason wraps is read whole, not judged on its first line)$"
+    },
+    {
+      "label": "adr-judge: a rule whose section is absent is named, not counted as a pass",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "        if not prose(section(text, heading)).strip():",
+      "to": "        if False:",
+      "only": "^(?:a rule with nothing to judge is named, not counted as a pass)$"
+    },
+    {
+      "label": "adr-judge: a record with a vacuous rule does not report all pass",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "        headline = (f\" — evidence and clarity rules pass; {len(empty)} rule(s) had nothing to judge\")",
+      "to": "        headline = \" — evidence and clarity rules all pass\"",
+      "only": "^(?:a rule with nothing to judge is named, not counted as a pass)$"
+    }
+  ]
+}

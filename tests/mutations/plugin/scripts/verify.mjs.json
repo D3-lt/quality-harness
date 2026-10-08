@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "hooks: the wrapper propagates a child's exit code",
+      "file": "plugin/scripts/verify.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "  process.exitCode = code ?? 1",
+      "to": "  process.exitCode = 0",
+      "only": "^(?:the verification wrapper reports what the command it ran actually did)$"
+    },
+    {
+      "label": "verify: importing the wrapper spawns nothing",
+      "file": "plugin/scripts/verify.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "if (isMainModule(import.meta.url)) {\n  const code = main(process.argv.slice(2))\n  if (code !== null) process.exitCode = code\n}",
+      "to": "{\n  const code = main(process.argv.slice(2))\n  if (code !== null) process.exitCode = code\n}",
+      "only": "^(?:importing a script runs its CLI on nobody|every catalogue entry still matches the source it mutates, exactly once)$"
+    }
+  ]
+}

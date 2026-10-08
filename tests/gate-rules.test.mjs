@@ -18,6 +18,7 @@ import { parse } from '../plugin/scripts/verify.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runPython } from '../scripts/python-interpreter.mjs'
 import { campaignFixture } from './campaign-fixture.mjs'
+import { loadCatalogue } from '../scripts/mutate.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -1269,7 +1270,7 @@ test('every shard slice covers the catalogue exactly once', () => {
   // so a slice that drops or repeats a mutation would silently shrink the one
   // gate nothing else covers.
   const runner = join(repoRoot, 'scripts', 'mutate.mjs')
-  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8')).mutations
+  const catalogue = loadCatalogue(repoRoot).mutations
   const seen = []
   for (let i = 1; i <= 4; i += 1) {
     const out = spawnSync(process.execPath, [runner, '--shard', `${i}/4`, '--list'],

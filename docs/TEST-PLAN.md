@@ -331,7 +331,7 @@ regression.
 
 # How to know the plan itself worked — **RUNNABLE**
 
-`node scripts/mutate.mjs` applies each mutation in `tests/mutations.json`, runs the suite that
+`node scripts/mutate.mjs` applies each mutation in `tests/mutations/` (one `<source>.json` per mutated source), runs the suite that
 should catch it, and restores the source. `--list` names them; `--case <substring>` runs one.
 
 **33/33 noticed.** Four verdicts, and three of them are failures:

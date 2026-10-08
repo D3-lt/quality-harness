@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "agents: a definition requests a capability class, not a pinned id",
+      "file": "plugin/agents/qh-synthesis.md",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "model: opus",
+      "to": "model: claude-opus-5",
+      "only": "^(?:every catalogue entry still matches the source it mutates, exactly once|every shipped agent definition names a capability class)$"
+    }
+  ]
+}

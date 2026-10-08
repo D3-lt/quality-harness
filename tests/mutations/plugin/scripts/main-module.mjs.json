@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "main-module: the entry guard compares resolved paths, so a symlinked invocation still runs",
+      "file": "plugin/scripts/main-module.mjs",
+      "tests": [
+        "tests/main-module.test.mjs"
+      ],
+      "from": "return pathToFileURL(realpath(fileURLToPath(moduleUrl))).href === pathToFileURL(realpath(entry)).href",
+      "to": "return moduleUrl === pathToFileURL(entry).href",
+      "only": "^(?:isMainModule resolves symlinks on both sides, and says no without an entry|a script run through a symlinked path is the main module and speaks)$"
+    }
+  ]
+}

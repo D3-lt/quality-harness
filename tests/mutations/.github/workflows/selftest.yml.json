@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "ci: the shard count agrees in the places it appears",
+      "file": ".github/workflows/selftest.yml",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "    name: mutations ${{ matrix.shard }}/48",
+      "to": "    name: mutations ${{ matrix.shard }}/8",
+      "only": "^(?:continuous integration runs the checks this repository owns|every catalogue entry still matches the source it mutates, exactly once)$"
+    },
+    {
+      "label": "ci: the merge expects as many shard reports as the matrix names",
+      "file": ".github/workflows/selftest.yml",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "          node scripts/mutation-cache-merge.mjs --out .mutation-cache.json --expect 48 \\",
+      "to": "          node scripts/mutation-cache-merge.mjs --out .mutation-cache.json --expect 8 \\",
+      "only": "^(?:continuous integration runs the checks this repository owns|every catalogue entry still matches the source it mutates, exactly once)$"
+    },
+    {
+      "label": "ci: a forced run reuses nothing, because a release measures everything",
+      "file": ".github/workflows/selftest.yml",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}",
+      "to": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'push' }}",
+      "only": "^(?:continuous integration runs the checks this repository owns|every catalogue entry still matches the source it mutates, exactly once)$"
+    }
+  ]
+}

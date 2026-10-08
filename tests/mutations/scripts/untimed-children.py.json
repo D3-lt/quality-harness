@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "win: a call that shares the gate's stdio with CREATE_NO_WINDOW is named",
+      "file": "scripts/untimed-children.py",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "        if inherits and hides:",
+      "to": "        if False:",
+      "only": "no window"
+    },
+    {
+      "label": "win: creationflags is read by its value",
+      "file": "scripts/untimed-children.py",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "    return any((isinstance(n, ast.Constant) and n.value == 0x08000000)",
+      "to": "    return any((isinstance(n, ast.Constant))",
+      "only": "no window"
+    },
+    {
+      "label": "win: an injected Python runner is the call it defaults to",
+      "file": "scripts/untimed-children.py",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "                aliases.setdefault(fn.name, {})[arg.arg] = default.attr",
+      "to": "                pass",
+      "only": "no window"
+    }
+  ]
+}

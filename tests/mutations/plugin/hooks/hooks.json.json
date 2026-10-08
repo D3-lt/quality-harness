@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "2.111.0-rc P1: the hook is called for the PowerShell tool",
+      "file": "plugin/hooks/hooks.json",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "only": "PowerShell tool",
+      "from": "\"matcher\": \"Bash|PowerShell|Edit|Write|MultiEdit|NotebookEdit\"",
+      "to": "\"matcher\": \"Bash|Edit|Write|MultiEdit|NotebookEdit\""
+    },
+    {
+      "label": "ADR-084 T1: no hook is registered for Skill",
+      "file": "plugin/hooks/hooks.json",
+      "tests": [
+        "tests/skill-usage.test.mjs"
+      ],
+      "from": "\"matcher\": \"Skill\",",
+      "to": "\"matcher\": \"SkillNot\",",
+      "only": "^(?:the Skill hook is registered and records only this plugin's skills)$"
+    }
+  ]
+}

@@ -1,0 +1,124 @@
+{
+  "mutations": [
+    {
+      "label": "§339: worktree.mjs alive says every process ended",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "out(JSON.stringify({ alive: alive(Number(target)) }))",
+      "to": "out(JSON.stringify({ alive: false }))",
+      "only": "^a live mutant run keeps its journal: another adr-verify refuses to recover it$"
+    },
+    {
+      "label": "review of §339: alive reads a pid it cannot parse as dead",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  if (verb === 'alive' && /^[0-9]+$/.test(target ?? '')) {",
+      "to": "  if (verb === 'alive' && target) {",
+      "only": "^alive refuses a pid it cannot read$"
+    },
+    {
+      "label": "ADR-075 T2: the worktree holds the uncommitted content",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  let commit = stash.stdout.trim()",
+      "to": "  let commit = ''",
+      "only": "^a tracked file deleted in the checkout is absent from the worktree"
+    },
+    {
+      "label": "ADR-075 T2: untracked files reach the worktree",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "      if (skipped.has(file)) continue",
+      "to": "      continue",
+      "only": "^an uncommitted test edit and an untracked test"
+    },
+    {
+      "label": "Codex ADR-075 #5: the worktree holds the checkout's bytes",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/mutate-isolation.test.mjs"
+      ],
+      "from": "  try { overlaid = overlayTracked(root, tree, write) } catch (error) {",
+      "to": "  try { overlaid = 0 } catch (error) {",
+      "only": "^an isolated campaign runs over the bytes in the checkout"
+    },
+    {
+      "label": "ADR-076 T1: a leftover worktree is swept once its owners end",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "      if (liveOwner(owner)) continue",
+      "to": "      if (true) continue",
+      "only": "^a leftover worktree is swept once no owner lives$"
+    },
+    {
+      "label": "ADR-076 T1: a recorded group keeps its tree",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  || (owner.groups ?? []).some(groupAlive) || (owner.pids ?? []).some(alive)",
+      "to": "  || false",
+      "only": "^a recorded process group keeps its worktree from the sweep$"
+    },
+    {
+      "label": "ADR-076 T1: the CLI says it could not build",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "    return built.ok ? 0 : 2",
+      "to": "    return 0",
+      "only": "^the CLI builds and removes a worktree and says why it could not$"
+    },
+    {
+      "label": "ADR-076 T1: a setup failure removes the tree",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  const fail = error => { remove(id); return { ok: false, error } }",
+      "to": "  const fail = error => ({ ok: false, error })",
+      "only": "^a setup failure after worktree add removes the worktree$"
+    },
+    {
+      "label": "ADR-076 T1: excluded files are never copied",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "  const skipped = new Set(exclude.map(file => path.relative(root, file).split(path.sep).join('/')))",
+      "to": "  const skipped = new Set()",
+      "only": "^the campaign's own files are never copied into its worktree$"
+    },
+    {
+      "label": "Codex ADR-076 #7: a build that cannot prepare its directory says so",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/worktree.test.mjs"
+      ],
+      "from": "    return { ok: false, error: `could not prepare ${home}: ${error.message}` }",
+      "to": "    throw error",
+      "only": "^a git directory that cannot be written is a build error, not a throw$"
+    },
+    {
+      "label": "§332: a campaign's owner record renames without the retry",
+      "file": "plugin/scripts/worktree.mjs",
+      "tests": [
+        "tests/replace-file.test.mjs"
+      ],
+      "from": "  replaceFile(temp, ownerFile(id), rename ? { rename } : undefined)",
+      "to": "  rename ? rename(temp, ownerFile(id)) : replaceFile(temp, ownerFile(id))",
+      "only": "^a campaign's owner record and a lease are both written through the retry$"
+    }
+  ]
+}

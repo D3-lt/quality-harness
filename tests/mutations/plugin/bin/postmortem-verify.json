@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "label": "gates: postmortem dates are YYYY-MM-DD",
+      "file": "plugin/bin/postmortem-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if not re.search(r\"^date:\\s*\\d{4}-\\d{2}-\\d{2}\\s*$\", front, re.M):",
+      "to": "    if False:",
+      "only": "^(?:every postmortem-verify rule has a case that makes it fire)$"
+    },
+    {
+      "label": "severity: postmortem frontmatter is identity",
+      "file": "plugin/bin/postmortem-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        out.append(\"no YAML frontmatter block\")",
+      "to": "        out.advise(\"no YAML frontmatter block\")",
+      "only": "^(?:placeholder and invalid artifacts are rejected|postmortem-verify on a path it cannot read exits could-not-run, and the dispatcher relays it as UNPROVEN)$"
+    },
+    {
+      "label": "severity: postmortem advice is reported",
+      "file": "plugin/bin/postmortem-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        for a in errs.advice:\n            print(f\"  advice: {a}\")",
+      "to": "        pass",
+      "only": "^(?:every postmortem-verify rule has a case that makes it fire)$"
+    },
+    {
+      "label": "exit contract: a gate that stops declaring a code it produces is caught",
+      "file": "plugin/bin/postmortem-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "declared in its own docstring",
+      "from": "Exit: 0 all valid · 1 violations (a malformed doc silently poisons the fine-tuning corpus)",
+      "to": "Exit: 0 all valid."
+    }
+  ]
+}

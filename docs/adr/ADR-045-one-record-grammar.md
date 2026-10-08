@@ -6,7 +6,7 @@
 **Spec:** `docs/specs/2026-09-11-one-record-grammar.md`
 **Cross-references:** ADR-005, ADR-010, ADR-011, ADR-017, ADR-020, `plugin/lib/fence.py`, `scripts/coverage.sh`, `.gitattributes`
 
-**Governs:** `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/bin/adr-verify`, `plugin/bin/adr-next`, `plugin/bin/spec-verify`, `plugin/bin/arch-lint`, `plugin/bin/adr-debt`, `plugin/bin/adr-retire-check`, `tests/adr-next.test.mjs`, `tests/gates.test.mjs`, `tests/gate-regressions.py`, `tests/mutations.json`
+**Governs:** `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/bin/adr-verify`, `plugin/bin/adr-next`, `plugin/bin/spec-verify`, `plugin/bin/arch-lint`, `plugin/bin/adr-debt`, `plugin/bin/adr-retire-check`, `tests/adr-next.test.mjs`, `tests/gates.test.mjs`, `tests/gate-regressions.py`, `tests/mutations/**`
 
 Class: every definition of the record grammar in the gates, and every git listing named `tracked_paths`. Enumerated 2026-09-11 on `ea12656`:
 

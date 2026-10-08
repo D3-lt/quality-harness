@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "context: the enforcing check reaches the edit boundary",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      const enforced = record.enforcedBy?.length",
+      "to": "      const enforced = false && record.enforcedBy?.length",
+      "only": "^(?:adr-context answers which decisions govern a path, and which were killed there)$"
+    },
+    {
+      "label": "context: the JSON renderer carries the enforcing check too",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    ...(record.enforcedBy?.length ? { enforcedBy: record.enforcedBy } : {}),",
+      "to": "    ...({}),",
+      "only": "^(?:adr-context answers which decisions govern a path, and which were killed there)$"
+    },
+    {
+      "label": "adr-context: a path outside the corpus is not answered with 'none governs'",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const outside = targets.filter(target => !within(root, target))\n  if (outside.length) {",
+      "to": "  const outside = []\n  if (outside.length) {",
+      "only": "^(?:a path outside this corpus is said to be outside, never \"none governs\" \\(BACKLOG §138\\))$"
+    },
+    {
+      "label": "adr-context: a sibling directory sharing a prefix is not inside the corpus",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return here.startsWith(base.endsWith(path.sep) ? base : base + path.sep)",
+      "to": "  return here.startsWith(base)",
+      "only": "^(?:a path outside this corpus is said to be outside, never \"none governs\" \\(BACKLOG §138\\))$"
+    },
+    {
+      "label": "adr-context: PARTIAL qualifies the answer and does not replace it",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    for (const record of governing) {",
+      "to": "    for (const record of partial ? [] : governing) {",
+      "only": "^(?:an UNPROVEN record is named where its paths are edited, and PARTIAL hides nothing else)$"
+    },
+    {
+      "label": "adr-context: an UNPROVEN record is named, in prose and in JSON",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      for (const record of unproven) {",
+      "to": "      for (const record of []) {",
+      "only": "^(?:an UNPROVEN record is named where its paths are edited, and PARTIAL hides nothing else)$"
+    }
+  ]
+}

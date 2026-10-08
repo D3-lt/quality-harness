@@ -1,0 +1,84 @@
+{
+  "mutations": [
+    {
+      "label": "routing stress: the name boundary keeps review out of review-ring",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "'`|(?<![\\\\w-])quality-harness:' + escaped(name) + '(?![\\\\w-])')",
+      "to": "'`|(?<![\\\\w-])quality-harness:' + escaped(name))",
+      "only": "^(?:the route matcher agrees with a character-walk oracle on random router and workflow texts|the oracle and the matcher both refuse the near misses the Decision rules out|removing every route to one shipped element reports exactly that element)$"
+    },
+    {
+      "label": "routing stress: frontmatter is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "return text.replace(/^---\\r?\\n[\\s\\S]*?\\r?\\n---(?:\\r?\\n|$)/, '')",
+      "to": "return text",
+      "only": "^(?:the route matcher agrees with a character-walk oracle on random router and workflow texts|the oracle and the matcher both refuse the near misses the Decision rules out)$"
+    },
+    {
+      "label": "routing stress: a CRLF frontmatter is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "/^---\\r?\\n[\\s\\S]*?\\r?\\n---(?:\\r?\\n|$)/",
+      "to": "/^---\\n[\\s\\S]*?\\n---(?:\\n|$)/",
+      "only": "^(?:the route matcher agrees with a character-walk oracle on random router and workflow texts|the oracle and the matcher both refuse the near misses the Decision rules out)$"
+    },
+    {
+      "label": "routing stress: a member does not route itself",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "[...routers].some(([file, text]) => file !== path && routerPattern(name)",
+      "to": "[...routers].some(([file, text]) => routerPattern(name)",
+      "only": "^(?:the route matcher agrees with a character-walk oracle on random router and workflow texts|the oracle and the matcher both refuse the near misses the Decision rules out)$"
+    },
+    {
+      "label": "routing stress: a quoted agentType is a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "'(?![\\\\w-])|(?<![\\\\w-])agentType:\\\\s*[\\'\"]quality-harness:' + escaped(name) + '[\\'\"]')",
+      "to": "'(?![\\\\w-])')",
+      "only": "^(?:the route matcher agrees with a character-walk oracle on random router and workflow texts|the oracle and the matcher both refuse the near misses the Decision rules out|removing every route to one shipped element reports exactly that element)$"
+    },
+    {
+      "label": "routing stress: a bare quality-harness name in a workflow is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "new RegExp('/quality-harness:'",
+      "to": "new RegExp('/?quality-harness:'",
+      "only": "^(?:the route matcher agrees with a character-walk oracle on random router and workflow texts|the oracle and the matcher both refuse the near misses the Decision rules out)$"
+    },
+    {
+      "label": "routing stress: a prefixed qualified name is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "'`|(?<![\\\\w-])quality-harness:'",
+      "to": "'`|quality-harness:'",
+      "only": "^(?:the route matcher agrees with a character-walk oracle on random router and workflow texts|the oracle and the matcher both refuse the near misses the Decision rules out)$"
+    },
+    {
+      "label": "routing stress: a prefixed agentType key is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "'(?![\\\\w-])|(?<![\\\\w-])agentType:",
+      "to": "'(?![\\\\w-])|agentType:",
+      "only": "^(?:the route matcher agrees with a character-walk oracle on random router and workflow texts|the oracle and the matcher both refuse the near misses the Decision rules out)$"
+    }
+  ]
+}

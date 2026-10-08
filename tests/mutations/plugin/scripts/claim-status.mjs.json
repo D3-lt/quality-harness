@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "status: the withdrawn label cannot be flipped without a classifier to match it",
+      "file": "plugin/scripts/claim-status.mjs",
+      "tests": [
+        "tests/claims-rate.test.mjs"
+      ],
+      "from": "export const ASSERTION_ARM_WITHDRAWN = true",
+      "to": "export const ASSERTION_ARM_WITHDRAWN = false",
+      "only": "^(?:the withdrawn label matches the classifier that actually exists)$"
+    }
+  ]
+}

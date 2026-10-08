@@ -1,0 +1,84 @@
+{
+  "mutations": [
+    {
+      "label": "sync: versions are ordered as semver, not as strings",
+      "file": "plugin/scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  parsed.sort((a, b) => b.parts[0] - a.parts[0] || b.parts[1] - a.parts[1] || b.parts[2] - a.parts[2])",
+      "to": "  parsed.sort((a, b) => (a.name < b.name ? 1 : -1))",
+      "only": "^(?:the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "sync: it syncs from the newest install, not the running one",
+      "file": "plugin/scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return { root: path.join(cache, newest), version: newest, running }",
+      "to": "  return { root: runningRoot, version: newest, running }",
+      "only": "^(?:the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "sync: reporting is the default and writes nothing",
+      "file": "plugin/scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const apply = process.argv.includes('--apply')",
+      "to": "  const apply = true",
+      "only": "^(?:the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "sync: an identical file is not work",
+      "file": "plugin/scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    .filter(entry => entry.state !== 'same' && entry.state !== 'forwarding')",
+      "to": "    .filter(entry => true)",
+      "only": "^(?:the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "sync: a skill the user does not have is not created",
+      "file": "plugin/scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (scope.whenAbsent === 'skip' && !existsSync(to)) continue",
+      "to": "      if (false) continue",
+      "only": "^(?:every directory the plugin ships is a directory the scanners look in|what the drift notice reports is what the repair tool can act on|the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "sync: a forwarder is not reported as drifted",
+      "file": "plugin/scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      : forwards(pair.to) ? 'forwarding'",
+      "to": "      : false ? 'forwarding'",
+      "only": "^(?:the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "sync: a forwarder is recognised by the mark it carries",
+      "file": "plugin/scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  try { return readFileSync(file, 'utf8').includes(FORWARDER_MARK) } catch { return false }",
+      "to": "  try { return readFileSync(file, 'utf8').length > 0 } catch { return false }",
+      "only": "^(?:every directory the plugin ships is a directory the scanners look in|what the drift notice reports is what the repair tool can act on|--link says what it does NOT handle, instead of \"nothing to do\"|the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "sync: --link names the drift it cannot fix",
+      "file": "plugin/scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (alsoDrifted.length) {",
+      "to": "    if (false) {",
+      "only": "^(?:--link says what it does NOT handle, instead of \"nothing to do\")$"
+    }
+  ]
+}

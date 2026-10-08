@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-084 T2: invocations are not counted",
+      "file": "plugin/scripts/ledger-report.mjs",
+      "tests": [
+        "tests/ledger-report.test.mjs"
+      ],
+      "from": "      counted.calls += 1",
+      "to": "      counted.calls += 0",
+      "only": "^(?:ledger-report counts skills and sums skips from the ledgers)$"
+    },
+    {
+      "label": "ADR-084 T2: the saving is not summed",
+      "file": "plugin/scripts/ledger-report.mjs",
+      "tests": [
+        "tests/ledger-report.test.mjs"
+      ],
+      "from": "(Number.isFinite(row.savedMs) ? row.savedMs : 0)",
+      "to": "0",
+      "only": "^(?:ledger-report counts skills and sums skips from the ledgers)$"
+    },
+    {
+      "label": "ADR-084 T2: a torn session log reads as complete",
+      "file": "plugin/scripts/ledger-report.mjs",
+      "tests": [
+        "tests/ledger-report.test.mjs"
+      ],
+      "from": "    if (!events.complete) unproven.push(`sessions/${name}`)",
+      "to": "    if (false) unproven.push(`sessions/${name}`)",
+      "only": "^(?:ledger-report says UNPROVEN for a ledger it could not read whole)$"
+    },
+    {
+      "label": "ADR-088 follow-up: ledger-report reads an unterminated last line as not read whole",
+      "file": "plugin/scripts/ledger-report.mjs",
+      "tests": [
+        "tests/ledger-report.test.mjs"
+      ],
+      "from": "  if (lines.pop().trim()) complete = false",
+      "to": "  ;",
+      "only": "^(?:ledger-report reads an unterminated last line as not read whole)$"
+    }
+  ]
+}

@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "fixture: the corpus is copied, not linked to",
+      "file": "plugin/scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "    cpSync(from, to, { recursive: true, dereference: true })\n    taken.push(part)",
+      "to": "    taken.push(part)",
+      "only": "^(?:the corpus is copied, never referenced|a generate run snapshots the corpus and writes a runnable case)$"
+    },
+    {
+      "label": "fixture: only the corpus parts are copied, not the source tree",
+      "file": "plugin/scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "  for (const part of CORPUS_PARTS) {",
+      "to": "  for (const part of [...CORPUS_PARTS, 'src']) {",
+      "only": "^(?:the corpus is copied, never referenced|a generate run snapshots the corpus and writes a runnable case)$"
+    },
+    {
+      "label": "fixture: an unresolved placeholder is left visible",
+      "file": "plugin/scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "    (Object.hasOwn(values, key) ? String(values[key]) : whole))",
+      "to": "    (Object.hasOwn(values, key) ? String(values[key]) : ''))",
+      "only": "^(?:a placeholder with no value is left alone rather than blanked)$"
+    },
+    {
+      "label": "fixture: an unknown option is named, not ignored",
+      "file": "plugin/scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "  const unknown = argv.filter(a => a.startsWith('--') && !KNOWN.has(a))",
+      "to": "  const unknown = []",
+      "only": "^(?:an unknown option is named, and --list asks nothing about a corpus)$"
+    },
+    {
+      "label": "fixture: the printed command grants what the cases declare",
+      "file": "plugin/scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "      if (GATED.has(name) || name.startsWith('mcp__')) wanted.add(name)",
+      "to": "      if (name === 'Bash') wanted.add(name)",
+      "only": "^(?:the printed command grants every gated tool the cases declare|a generate run snapshots the corpus and writes a runnable case)$"
+    },
+    {
+      "label": "fixture: a Windows path is made YAML-safe",
+      "file": "plugin/scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "  return String(value).split('\\\\').join('/')",
+      "to": "  return String(value)",
+      "only": "^(?:a Windows path is made safe for a double-quoted YAML scalar)$"
+    }
+  ]
+}

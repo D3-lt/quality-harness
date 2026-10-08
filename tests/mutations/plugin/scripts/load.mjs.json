@@ -1,0 +1,94 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-075 T1: contended reads either sample",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "return start > cores || end > cores",
+      "to": "return start > cores",
+      "only": "^a check whose load crosses the core count"
+    },
+    {
+      "label": "ADR-075 T1: a load at the core count is not contended",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "return start > cores || end > cores",
+      "to": "return start >= cores || end >= cores",
+      "only": "^a check whose load crosses the core count"
+    },
+    {
+      "label": "ADR-075 T1: no load average is could-not-read, never quiet",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "averages.some(value => value > 0)",
+      "to": "true",
+      "only": "^a check with no load average"
+    },
+    {
+      "label": "ADR-075 T1: a quiet result still says both samples",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "  return said\n}",
+      "to": "  return ''\n}",
+      "only": "^a check run below the core count"
+    },
+    {
+      "label": "Codex 3.2.0 #1: a load is kept as read, not rounded onto the count",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "return { load: known ? first : null,",
+      "to": "return { load: known ? Math.round(first * 100) / 100 : null,",
+      "only": "^a load just above the core count is contended"
+    },
+    {
+      "label": "Codex 3.2.0 #1: the line shows a load just above the count as read",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "    return String(value > cores && rounded <= cores ? value : rounded)",
+      "to": "    return String(rounded)",
+      "only": "^a load just above the core count is contended"
+    },
+    {
+      "label": "Codex 3.2.0 #2: a sampler that throws is an unread load",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "  try { averages = loadavg() } catch {}",
+      "to": "  averages = loadavg()",
+      "only": "^a load sampler that throws"
+    },
+    {
+      "label": "Codex 3.2.0 #3: a negative load is not read",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "Number.isFinite(first) && first >= 0 && averages",
+      "to": "Number.isFinite(first) && averages",
+      "only": "^an invalid load or core count"
+    },
+    {
+      "label": "Codex 3.2.0 #3: contention reads only finite samples",
+      "file": "plugin/scripts/load.mjs",
+      "tests": [
+        "tests/qh-check.test.mjs"
+      ],
+      "from": "const read = value => typeof value === 'number' && Number.isFinite(value) && value >= 0",
+      "to": "const read = value => value != null",
+      "only": "^an invalid load or core count"
+    }
+  ]
+}

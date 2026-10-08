@@ -1,0 +1,184 @@
+{
+  "mutations": [
+    {
+      "label": "arch-lint: a Go package pattern is not a missing path",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "Go package pattern",
+      "from": "or tok.startswith(\"$\") or dots:",
+      "to": "or tok.startswith(\"$\"):"
+    },
+    {
+      "label": "arch-lint: tracked_paths reads git's listing as bytes, so a CR in a name survives (Codex review of f905d8a)",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return {(root / os.fsdecode(name)).resolve() for name in r.stdout.split(b\"\\0\") if name}",
+      "to": "    return {(root / os.fsdecode(name).replace(\"\\r\", \"\\n\")).resolve() for name in r.stdout.split(b\"\\0\") if name}",
+      "only": "^(?:arch-lint's tracked_paths keeps a name git would quote, and a CR inside one)$"
+    },
+    {
+      "label": "gates: a markdown-escaped pipe is a vacuous gate",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if r\"\\|\" in cell:",
+      "to": "    if False:",
+      "only": "^(?:arch-lint rejects a gate that cannot fail and a symbol that is not there)$"
+    },
+    {
+      "label": "severity: an arch placeholder still blocks",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "errors.append(f\"{s}: check cell is an unfilled template placeholder",
+      "to": "errors.advise(f\"{s}: check cell is an unfilled template placeholder",
+      "only": "^(?:placeholder and invalid artifacts are rejected)$"
+    },
+    {
+      "label": "arch: a document with no Status line is reported",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "if not re.search(r\"^\\*\\*Status:\\*\\*\", text, re.M):",
+      "to": "if False:",
+      "only": "^(?:arch-lint reports a document with no Status line)$"
+    },
+    {
+      "label": "arch: a missing section is named",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "        if s not in secs:\n            errors.advise(f\"missing section ## {s}\")",
+      "to": "        if False:\n            errors.advise(f\"missing section ## {s}\")",
+      "only": "^(?:arch-lint reports a missing section by name)$"
+    },
+    {
+      "label": "arch: an empty Module Map is reported",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "if \"Module Map\" in secs and not mm:",
+      "to": "if False:",
+      "only": "^(?:arch-lint reports a Module Map with no data rows)$"
+    },
+    {
+      "label": "arch: a rule section needs rows or a None escape",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "        if not rows:\n            errors.append(f\"{s}: no data rows",
+      "to": "        if False:\n            errors.append(f\"{s}: no data rows",
+      "only": "^(?:arch-lint reports a rule section with neither rows nor a None escape)$"
+    },
+    {
+      "label": "arch: a check cell must name a runnable check",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "            if \"`\" not in check:",
+      "to": "            if False:",
+      "only": "^(?:arch-lint reports a check cell naming no command)$"
+    },
+    {
+      "label": "arch: a check citing a symbol the repo lacks is reported",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "            if not hits:\n                errs.append(f\"{label}: names `{sym}`, which appears nowhere in the repo — \"",
+      "to": "            if False:\n                errs.append(f\"{label}: names `{sym}`, which appears nowhere in the repo — \"",
+      "only": "^(?:arch-lint reports a check cell citing a symbol the repo does not contain|a symbol that exists only on this machine does not satisfy a check)$"
+    },
+    {
+      "label": "arch: a symbol must be in the index, not just on disk",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "        if tracked is not None and q.resolve() not in tracked:\n            continue",
+      "to": "        if False:\n            continue",
+      "only": "^(?:a symbol that exists only on this machine does not satisfy a check)$"
+    },
+    {
+      "label": "arch: a comment marker inside a string literal is not a comment (issue #7)",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            elif char == state:\n                state = \"code\"",
+      "to": "            elif char == state or pair == \"/*\":\n                state = \"code\"",
+      "only": "^(?:neither gate loses code to a quote character inside a comment, and the two agree \\(BACKLOG §139\\))$"
+    },
+    {
+      "label": "arch: a test may reach its failure call through a same-file helper",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "                helper = symbol_body(text, callee)\n                if helper and FAIL_CALLS.search(helper):",
+      "to": "                helper = None\n                if helper and FAIL_CALLS.search(helper):",
+      "only": "^(?:a test that delegates its assertions to a same-file helper is not called unable to fail)$"
+    },
+    {
+      "label": "arch-lint: comments and literals are scanned in one pass, not stripped by regex order",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return scan_code_only(text, hash_comments=True)",
+      "to": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r\"(?m)(^|[^:])//.*$\", r\"\\1 \", text)\n    return text",
+      "only": "^(?:neither gate loses code to a quote character inside a comment, and the two agree \\(BACKLOG §139\\))$"
+    },
+    {
+      "label": "arch-lint: tracked_paths lists the index and nothing that exists only on this disk (ADR-045)",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\", \"-z\"],",
+      "to": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\", \"--others\", \"--exclude-standard\", \"-z\"],",
+      "only": "^adr\\-lint's tracked_or_unignored_paths includes an untracked file; arch\\-lint's tracked_paths excludes it$"
+    },
+    {
+      "label": "arch-lint: a ... pattern is exempt only where its base exists",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "Go package pattern",
+      "from": "            dots = tok.endswith(\"...\") and any((r / (tok[:-3].rstrip(\"/\") or \".\")).exists() for r in roots)",
+      "to": "            dots = tok.endswith(\"...\")"
+    },
+    {
+      "label": "ADR-092 T7: arch-lint's unlisted report",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "        if any(\"appears nowhere in the repo\" in str(e) for e in errors):",
+      "to": "        if False:",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 review: arch-lint opens a special document",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        text = read_regular(path)",
+      "to": "        text = path.read_text(errors=\"replace\", encoding=\"utf-8\")",
+      "only": "^arch-lint and adr-lint never open a FIFO they were pointed at or walked into$"
+    }
+  ]
+}

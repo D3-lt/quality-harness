@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "label": "qh-root: versions are ordered numerically, not lexically",
+      "file": "plugin/bin/qh-root",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    return max(candidates)[1]",
+      "to": "    return sorted(candidates, key=lambda c: str(c[1]))[-1][1]",
+      "only": "^(?:qh-root answers with a plugin directory, or with nothing at all)$"
+    },
+    {
+      "label": "qh-root: a version directory with no gates is not a candidate",
+      "file": "plugin/bin/qh-root",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if found and (entry / \"bin\").is_dir():",
+      "to": "        if found:",
+      "only": "^(?:qh-root answers with a plugin directory, or with nothing at all)$"
+    },
+    {
+      "label": "qh-root: a failed lookup prints no path at all",
+      "file": "plugin/bin/qh-root",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if root is None:",
+      "to": "    if False:",
+      "only": "^(?:qh-root answers with a plugin directory, or with nothing at all)$"
+    },
+    {
+      "label": "qh-root: a named plugin root outranks the search",
+      "file": "plugin/bin/qh-root",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if environment and (Path(environment) / \"bin\").is_dir():\n        return Path(environment)",
+      "to": "    if environment:\n        return Path(environment)",
+      "only": "^(?:qh-root answers with a plugin directory, or with nothing at all)$"
+    }
+  ]
+}

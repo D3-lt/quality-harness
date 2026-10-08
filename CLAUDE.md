@@ -22,8 +22,9 @@ Section numbers, exit codes, dates, versions and shas are identifiers, not quant
   that produces it and never ships.
 - In the tests, `repoRoot` is the repository and `root` is the plugin. They are different
   directories; a check that confuses them measures the wrong tree and stays green.
-- When files move, also move: `.gitignore` patterns, `.gitattributes` rules, `tests/mutations.json`
-  `file:` paths, and every `Governs:` header in `docs/adr/`. Each fails silently.
+- When files move, also move: `.gitignore` patterns, `.gitattributes` rules, the `file:` paths in
+  `tests/mutations/` (a source that moves takes its `<source>.json` with it), and every `Governs:`
+  header in `docs/adr/`. Each fails silently.
 
 Why: `.claude/rules/01-repository-vs-plugin.md`
 

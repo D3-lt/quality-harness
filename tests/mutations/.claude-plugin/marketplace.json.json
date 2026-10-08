@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "package: the boundary between the plugin and the repository holds",
+      "file": ".claude-plugin/marketplace.json",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "\"source\": \"./plugin\"",
+      "to": "\"source\": \".\"",
+      "only": "^(?:what ships is the plugin and nothing else|every catalogue entry still matches the source it mutates, exactly once)$"
+    }
+  ]
+}

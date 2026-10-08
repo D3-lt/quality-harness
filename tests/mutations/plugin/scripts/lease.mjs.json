@@ -1,0 +1,84 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-077 T1: a run holds a lease while it runs",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "      publish(file, lease, rename)\n      return { file, lease, made }",
+      "to": "      return { file, lease, made }",
+      "only": "^a run holds a lease while it runs and releases it at its end$"
+    },
+    {
+      "label": "ADR-077 T1: a dead lease is removed",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    if (state === 'dead') {",
+      "to": "    if (state === 'never') {",
+      "only": "^a dead lease is removed, and an unreadable one is named as unknown and kept$"
+    },
+    {
+      "label": "ADR-077 T1: a waiter is admitted in ticket order",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "      || before(ticket(other.start, other.pid, other.file), mine))",
+      "to": "      || false)",
+      "only": "^a waiter never starts ahead of an earlier waiter's ticket$"
+    },
+    {
+      "label": "ADR-077 T2: a killed parent's lease stays while its child works",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const answers = [lease.pid, lease.child].filter(pid => pid !== undefined).map(alive)\n  if (lease.group !== undefined) answers.push(groupAlive(lease.group, platform))",
+      "to": "  const answers = [lease.pid].filter(pid => pid !== undefined).map(alive)",
+      "only": "^a killed campaign parent's lease stays live while its child works$"
+    },
+    {
+      "label": "Codex 3.3.0 #1: a symlinked lease directory is not used",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const found = lstatSync(dir)",
+      "to": "  const found = statSync(dir)",
+      "only": "^a lease directory that is a symlink is not used, and nothing is written through it$"
+    },
+    {
+      "label": "Codex 3.3.0 #2: deciding and marking running are one admission",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  const lock = holdAdmission(dir)\n  if (!lock) return false",
+      "to": "  const lock = holdAdmission(dir) ?? path.join(dir, '.admission')",
+      "only": "^two waiters cannot both be admitted when one publishes while the other decides$"
+    },
+    {
+      "label": "Codex 3.3.0 #8: a bound that overflows is the default",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "  return Number.isFinite(ms) && ms > 0 ? ms : WAIT_MAX_SECONDS * 1_000",
+      "to": "  return ms > 0 ? ms : WAIT_MAX_SECONDS * 1_000",
+      "only": "^a wait bound too large to be a number of milliseconds is the default$"
+    },
+    {
+      "label": "§332: a lease renames without the retry",
+      "file": "plugin/scripts/lease.mjs",
+      "tests": [
+        "tests/replace-file.test.mjs"
+      ],
+      "from": "  replaceFile(temp, file, rename ? { rename } : undefined)",
+      "to": "  rename ? rename(temp, file) : replaceFile(temp, file)",
+      "only": "^a campaign's owner record and a lease are both written through the retry$"
+    }
+  ]
+}

@@ -149,3 +149,28 @@ test('a PARTIAL headline says part of the corpus could not be read, not that a r
   assert.match(r.stdout, /^could-not-look: part of the corpus could not be read \(PARTIAL\)/m, r.stdout)
   assert.doesNotMatch(r.stdout, /a listed record could not be read/, r.stdout)
 })
+
+// A gpt-6.1-sol review of the batch, two fail-opens in the first narrowing, each reproduced through the
+// CLI: (1) a dated name with a trailing dot gave its year as a record number, and a missing ADR-2026-T1
+// became advice; (2) a citation of an unreadable-named record returned could-not-look to callers that
+// read only "not a record", and the warning went silent.
+test('a dated stray name lends no number, and a citation of an unreadable-named record still warns', t => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-trailing-dot-review-'))
+  temps.push(repo)
+  const adr = join(repo, 'docs', 'adr')
+  mkdirSync(join(adr, 'ADR-003-c', 'tasks'), { recursive: true })
+  writeFileSync(join(adr, '2026-10-08-notes.md.'), '# Notes\n')
+  writeFileSync(join(adr, 'ADR-001-a.md.'), '# ADR-001: A\n\n**Status:** Accepted\n\n## Context\n\nWhy.\n\n## Decision\n\nWhat.\n')
+  writeFileSync(join(adr, 'ADR-003-c.md'), '# ADR-003: C\n\n**Status:** Accepted\n\n**Cross-references:** ADR-001\n\n## Context\n\nWhy.\n\n## Decision\n\nWhat.\n')
+  writeFileSync(join(adr, 'ADR-003-c', 'tasks', 'T1-a.md'), task('T1').replace('**Depends-on:** none', '**Depends-on:** ADR-2026-T1'))
+  writeFileSync(join(adr, 'ADR-003-c', 'tasks', 'README.md'), '| Task | Status |\n|---|---|\n| [T1](T1-a.md) | pending |\n')
+  if (!readdirSync(adr).includes('ADR-001-a.md.')) { t.skip('this filesystem does not keep a trailing dot'); return }
+  for (const args of [['init', '-q'], ['add', '-A']]) {
+    assert.equal(spawnSync('git', args, { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
+  }
+  const r = spawnSync('python3', [join(repoRoot, 'plugin', 'bin', 'adr-lint'), join('docs', 'adr', 'ADR-003-c.md')],
+    { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  const out = `${r.stdout}${r.stderr}`
+  assert.match(out, /^ {2}T1-a\.md: Depends-on 'ADR-2026-T1' names no record in this corpus/m, out)
+  assert.match(out, /Cross-references: cites `ADR-001`, which is not a record in this corpus/, out)
+})

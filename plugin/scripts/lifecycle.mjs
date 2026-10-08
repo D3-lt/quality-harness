@@ -1942,15 +1942,6 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
       // round of 916b515, G2).
       continue
     }
-    // A directory whose record adr-next could not read a Status from (NUL bytes, unreadable, no Status line)
-    // was counted "fully evidenced" when its tasks carried evidence, and nothing named the record: whether
-    // those tasks are work at all is a question about a record whose standing nobody read (BACKLOG §355).
-    if (report.owner_unreadable) {
-      lines.push(`  ${relative}: UNPROVEN — adr-next could not read a Status from the record that owns these tasks`
-        + `${report.owner_unreadable_because ? ` (${quotedCorpusText(report.owner_unreadable_because)})` : ''}, `
-        + 'so whether they are work is not known.')
-      continue
-    }
     if (report.ready?.length) {
       const next = report.ready[0]
       // Matched on the listed path: the shown one has a tag's `<` as `‹`, and would not match.
@@ -1971,6 +1962,14 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
       lines.push(`  ${relative}: nothing ready; ${report.blocked.length} task(s) blocked.`)
     } else if (report.stopped?.length) {
       lines.push(`  ${relative}: nothing ready; ${report.stopped.length} task(s) stopped.`)
+    } else if (report.done?.length && report.owner_unreadable) {
+      // A directory whose record adr-next could not read a Status from (NUL bytes, unreadable, no Status
+      // line) was counted "fully evidenced" when its tasks carried evidence, and nothing named the record:
+      // whether those tasks are work at all is a question about a record whose standing nobody read
+      // (BACKLOG §355). A ready line already says so through ownerCaveat; only the count was silent.
+      lines.push(`  ${relative}: UNPROVEN — adr-next could not read a Status from the record that owns these tasks`
+        + `${report.owner_unreadable_because ? ` (${quotedCorpusText(report.owner_unreadable_because)})` : ''}, `
+        + 'so whether they are work is not known.')
     } else if (report.done?.length) {
       evidenced += 1
     }

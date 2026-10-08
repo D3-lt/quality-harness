@@ -62,3 +62,15 @@ test('adr-state\'s PARTIAL headline names both of its causes', () => {
     { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
   assert.match(run.stdout, /^could-not-look: a listed record could not be read, or its standing could not be established \(PARTIAL\)/m, run.stdout)
 })
+
+// BACKLOG §355: a hook payload saved as UTF-16 was said to be "not JSON" and nothing more. It holds a
+// NUL after every ASCII character, so the line now names the likely cause. The control: plain garbage
+// is said as before, with no guess.
+test('a hook payload that is not JSON names UTF-16 when it holds NUL bytes', () => {
+  const hook = input => spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs'), 'SessionStart'],
+    { input, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  const utf16 = hook(Buffer.from('{"hook_event_name":"SessionStart"}', 'utf16le'))
+  assert.match(utf16.stderr, /was not JSON; nothing was read and nothing is said\. It holds NUL bytes: saved as UTF-16\?/, utf16.stderr)
+  const garbage = hook('not json')
+  assert.match(garbage.stderr, /was not JSON; nothing was read and nothing is said\.\n$/, garbage.stderr)
+})

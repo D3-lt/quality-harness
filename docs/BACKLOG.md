@@ -18445,7 +18445,9 @@ The owner brought five Windows 11 desktops back for testing. Each ran the probe 
   - **Fixed 2026-10-08.** The loop itself is Windows-only: git tracks a POSIX directory link as a link and walks nothing through it. The untrue sentence is not Windows-only. work-next printed it for every PARTIAL cause: a task alias, a dangling link, a format no reader parses, a name no reader reads. It now says "part of the corpus could not be read", which is true of each. adr-state said the same sentence, but its look is also PARTIAL when an archive catalog cannot establish a record's standing; it now uses adr-context's wording, which names both causes. Two tests (in `tests/trailing-dot-task.test.mjs` and `tests/session-start-unreadable-owner.test.mjs`) and two mutants RED.
 - php-dated-adr's 168 front-matter records are counted nowhere (ADR-087 territory).
 - A lone CR cuts a SessionStart title with no marker.
+  - **Closed 2026-10-08 as by design.** A lone CR is a line ending in CommonMark, and both title readers split on it (`record.title_line`, lifecycle's `titleLine`: `/\r\n|\r|\n/`). So `# Task …: first half\rsecond half` has the heading "first half", and SessionStart quotes the heading whole. Nothing was cut, so there is nothing to mark.
 - The UTF-16 hook-payload sentence could say "UTF-16?".
+  - **Fixed 2026-10-08.** A hook payload that is not JSON and holds NUL bytes now adds "It holds NUL bytes: saved as UTF-16?" to the existing sentence, and plain garbage is said as before. Test in `tests/session-start-unreadable-owner.test.mjs`; one mutant RED, one repointed and RED.
 **A doc error, for the owner:** `git -c core.longpaths=true clone` does not persist the setting; `git clone -c core.longpaths=true` does. It is wrong in CLAUDE.md §7 and .claude/rules/07, and it was wrong in my request too.
 
 ## 356. CLOSED 2026-10-08 — corpus-probe `--diff` reports a transient could-not-look as a changed advice line

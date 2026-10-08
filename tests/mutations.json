@@ -30,6 +30,15 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355: SessionStart names a task directory whose record could not be read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/session-start-unreadable-owner.test.mjs"
+      ],
+      "from": "    if (report.owner_unreadable) {",
+      "to": "    if (false) {"
+    },
+    {
       "label": "§355: adr-lint's enumeration is could-not-look on a record name with a dot after .md",
       "file": "plugin/bin/adr-lint",
       "tests": [

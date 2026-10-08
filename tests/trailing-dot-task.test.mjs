@@ -127,3 +127,22 @@ test('a dependency on a record whose name ends in a dot is not resolved, and not
   renameSync(join(adr, 'ADR-001-a.md.'), join(adr, 'ADR-001-a.md'))
   assert.doesNotMatch(lint(), /ADR-001-T1/)
 })
+
+// BACKLOG §355: work-next's PARTIAL headline said "a listed record could not be read" whatever made the
+// look PARTIAL. Here every record is read; a name no reader reads made it PARTIAL, and the headline says
+// what is true of every cause.
+test('a PARTIAL headline says part of the corpus could not be read, not that a record was unread', t => {
+  const repo = mkdtempSync(join(tmpdir(), 'qh-partial-headline-'))
+  temps.push(repo)
+  const adr = join(repo, 'docs', 'adr')
+  mkdirSync(adr, { recursive: true })
+  writeFileSync(join(adr, 'ADR-001-a.md.'), '# ADR-001: A\n\n**Status:** Accepted\n\n## Context\n\nWhy.\n\n## Decision\n\nWhat.\n')
+  if (!readdirSync(adr).includes('ADR-001-a.md.')) { t.skip('this filesystem does not keep a trailing dot'); return }
+  for (const args of [['init', '-q'], ['add', '-A']]) {
+    assert.equal(spawnSync('git', args, { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
+  }
+  const r = spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'work-next.mjs')],
+    { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  assert.match(r.stdout, /^could-not-look: part of the corpus could not be read \(PARTIAL\)/m, r.stdout)
+  assert.doesNotMatch(r.stdout, /a listed record could not be read/, r.stdout)
+})

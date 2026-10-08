@@ -817,7 +817,10 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
     return 0
   }
   if (state.look === 'PARTIAL') {
-    say('could-not-look: a listed record could not be read (PARTIAL). '
+    // Part of the corpus, not "a listed record": a PARTIAL also comes from a task link to a file
+    // already read, a dangling link, a format no reader parses, or a name no reader can read, and
+    // the sentence said a record went unread when every record had been (BACKLOG §355).
+    say('could-not-look: part of the corpus could not be read (PARTIAL). '
       + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
     for (const entry of state.partialBecause.slice(0, 5)) say(`  ${shown(entry.file)}: ${entry.reason}\n`)
     if (state.partialBecause.length > 5) say(`  (+${state.partialBecause.length - 5} more; --json for all)\n`)

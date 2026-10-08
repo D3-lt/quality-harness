@@ -30,6 +30,26 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355: adr-state's PARTIAL headline names both of its causes",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/session-start-unreadable-owner.test.mjs"
+      ],
+      "only": "PARTIAL headline names both",
+      "from": "    say('could-not-look: a listed record could not be read, or its standing could not be established (PARTIAL). '",
+      "to": "    say('could-not-look: a listed record could not be read (PARTIAL). '"
+    },
+    {
+      "label": "§355: work-next's PARTIAL headline names part of the corpus, not a record",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a PARTIAL headline says part of the corpus",
+      "from": "    say('could-not-look: part of the corpus could not be read (PARTIAL). '",
+      "to": "    say('could-not-look: a listed record could not be read (PARTIAL). '"
+    },
+    {
       "label": "§355: SessionStart names a task directory whose record could not be read",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [

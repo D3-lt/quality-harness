@@ -5924,6 +5924,9 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
       }
     }
   }
+  // A fast pass this command cannot use (it is not proven to be one commit, or it pushes) is still a
+  // pass: the sentence below said "no `qh-check` has passed" over it, which was untrue (2026-10-08).
+  const fastSeen = treeUnchecked ? latestFastPass(cwd, now.tree, found.root ?? cwd) : null
   return {
     deny, key, detail: { tree: now.tree, revision },
     // A record that could not be read whole is could-not-look, which git's hook says at the event
@@ -5950,7 +5953,9 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
               ? 'quality-harness: the staged index is not known to be checked — the working tree is unchanged since the session started, but the index has moved and whether a `qh-check` passed on the staged content cannot be established — and the command '
             : !treeUnchecked
               ? 'quality-harness: the staged index is unchecked — the working tree is unchanged since the session started, but the index has moved and no `qh-check` has passed on the staged content — and the command '
-              : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
+              : fastSeen
+                ? `quality-harness: this repository is not fully checked — a fast check (\`${fastSeen.command}\`) passed on its current tree, but only a command proven to be one \`git commit\` may go through on a fast pass, this one is not proven to be one commit, and a push needs the full check (ADR-081) — and the command `
+                : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
       + (invoked !== null
         ? `about to run names commit or push (\`${invoked}\`). Run \`qh-check\` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes.`
         : 'about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.')

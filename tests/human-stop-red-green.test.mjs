@@ -103,3 +103,25 @@ test('"no tests failed" names an absent failure; anything wider still stops', ()
     'approved; two tests failed', 'approved; no deploys failed', 'approved; no tests stopped'])
     assert.deepEqual(doneIds(watched(note)), [], note)
 })
+
+// The verification review of this fix (gpt-6.1-sol, 2026-10-08) found two fail-opens, both regressions
+// against v3.8.11: the red run's clause was blanked whole, so a stop sharing it was erased; and "no tests
+// failed" matched inside a sentence that denies it. The red clause loses only its fail words now, and the
+// absence counts only as a whole clause of its own.
+test('a stop sharing the red run clause, or a denied absence, still stops', () => {
+  for (const note of [
+    'observed: red run 111: TestAlpha failed, deployment remains blocked on legal approval; green run 222: ok',
+    'observed: red run 111: TestAlpha failed and the release was rejected; green run 222: ok',
+    'observed: the claim that no tests failed is false; TestAlpha exited 1.',
+    'approved: no tests failed is wrong, TestAlpha failed',
+    // Rows where the clause rule alone decides: nothing else in them stops.
+    'approved: untrue that no tests failed',
+    'approved: no tests failed twice',
+  ]) assert.deepEqual(doneIds(watched(note)), [], note)
+  // The twins that must still be evidence.
+  for (const note of [
+    'observed: red run 111: TestAlpha failed (exit 2); green run 222: ok',
+    'approved: no tests failed.',
+    'approved, no failed tests',
+  ]) assert.deepEqual(doneIds(watched(note)), ['T1'], note)
+})

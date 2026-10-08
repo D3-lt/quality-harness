@@ -18425,6 +18425,7 @@ The owner brought five Windows 11 desktops back for testing. Each ran the probe 
 - A Status with invalid UTF-8 gets PASS plus advice, while a fullwidth colon gets UNPROVEN (two runs).
 - A trailing-DOT task or record name ("T99.md.") is named nowhere: the Windows twin of §321's trailing space.
 - Two Status lines (Superseded, then Accepted) read silently as the first.
+  - **Fixed 2026-10-08.** The reading is unchanged: every reader still takes the first label, which keeps the two runtimes agreeing. adr-lint now advises when two label lines give different kinds, lists them, and says which one counts. `record.py`'s Status walk is one generator, `_status_lines`, shared by `record_status` (first label) and the new `status_labels` (every label), so the two cannot disagree about which lines are labels. Test `tests/two-status-lines.test.mjs`; three mutants RED; the moved ADR-074 T1 entry repointed and RED; all 98 Status-labelled catalogue mutants re-ran RED. No record here has two disagreeing lines.
 - `records[].status` loses underscores through `recordStatus`.
   - **Closed 2026-10-08 by the owner's decision: left as ADR-074 Decisions 1-2 define it.** Both runtimes strip every `_` and agree. Keeping intraword underscores, as CommonMark does, would also reclassify: `Accepted_with_conditions` would govern where it is undecided now. Reading it as undecided is the conservative direction, and no outside corpus has shown the shape.
 - The scrubber over-redacts: `https://<host>[/<path>]` and "`a`/`b`".

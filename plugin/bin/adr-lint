@@ -128,7 +128,7 @@ from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
 # `status_word` is imported under another name: this file defines its own, the task-cell reader,
 # further down, and that definition shadowed the record reader at every call, so the execution
 # check read a record's Status with the task parser (the Codex round of 3.1.6, finding 1).
-from record import record_status, status_kind, status_section, status_word as record_status_word, unsigned_human_proof_steps, recognised_as_record, record_discriminators  # noqa: E402
+from record import record_status, status_kind, status_labels, status_section, status_word as record_status_word, unsigned_human_proof_steps, recognised_as_record, record_discriminators  # noqa: E402
 
 
 def one_line(value):
@@ -1099,6 +1099,13 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
         errors.advise(f"{adr_path.name}: its **Status:** line says `{status_value}` and its ## Status section "
                       f"says `{section_value}`; every reader reads the line, so the section is ignored. "
                       f"Make them agree, or remove one")
+    # BACKLOG §355: two label lines that give different kinds (Superseded, then Accepted) were read
+    # as the first by every reader in silence. The author is told which one counts.
+    labels = status_labels(text)
+    if len({status_kind(value) for value in labels}) > 1:
+        errors.advise(f"{adr_path.name}: it has {len(labels)} **Status:** lines that disagree "
+                      f"({', '.join(f'`{clipped(value, 40)}`' for value in labels)}); every reader reads the first, "
+                      f"`{clipped(labels[0], 40)}`. Keep one")
     if status_value is None:
         # A line that starts like a label but whose colon is not `:` (a fullwidth `：`) is no
         # label since the colon became required; the message names the character, so the author

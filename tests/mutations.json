@@ -65,8 +65,8 @@
       "tests": [
         "tests/session-start-unreadable-owner.test.mjs"
       ],
-      "from": "    if (report.owner_unreadable) {",
-      "to": "    if (false) {"
+      "from": "    } else if (report.done?.length && report.owner_unreadable) {",
+      "to": "    } else if (false) {"
     },
     {
       "label": "§355: adr-lint names an unreadable record name's number as could-not-look",

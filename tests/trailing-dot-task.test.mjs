@@ -22,15 +22,18 @@ const task = id => `# Task ${id}: do ${id}\n\n**Depends-on:** none\n**Consumes:*
   + `- 2026-08-26 · no-git · exit 0 · \`printf ${id}\` · acceptance-sha256:${digestOf(`printf ${id}`)}\n`
 
 
-// Git for Windows refuses to stage a path ending in a dot or a space (core.protectNTFS) even where Node
-// wrote one: the 3.8.13 Windows job exited 128 at `git add` in every test here. The shape cannot be
-// built there, so the test is skipped naming git's refusal; any other failure still fails, with git's
-// own words (CLAUDE.md §7).
+// Git for Windows cannot stage a path ending in a dot or a space even where Node wrote one: its Win32
+// open() drops the dot, and the 3.8.13 Windows job said `error: open("…/T1-a.md."): No such file or
+// directory` then `error: unable to index file '…/T1-a.md.'`, exit 128, in every test here. The shape
+// cannot be built there, so the test is skipped quoting that line; any other failure still fails, with
+// git's own words (CLAUDE.md §7).
+const UNINDEXABLE = /^error: unable to index file '[^'\n]*[. ]'$/m
 function staged(repo, t) {
   assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
   const r = spawnSync('git', ['add', '-A'], { cwd: repo, encoding: 'utf8', timeout: 30_000, windowsHide: true })
-  if (r.status !== 0 && /invalid path/i.test(r.stderr)) {
-    t.skip(`git refuses the path on this platform: ${r.stderr.trim().split('\n')[0]}`)
+  const refused = r.status !== 0 && UNINDEXABLE.exec(r.stderr)
+  if (refused) {
+    t.skip(`git cannot stage the name on this platform: ${refused[0]}`)
     return false
   }
   assert.equal(r.status, 0, r.stderr)

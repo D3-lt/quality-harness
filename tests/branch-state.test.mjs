@@ -1536,3 +1536,33 @@ test('both snapshot writers replace the file rather than rewrite it in place', t
   assert.notEqual(statSync(cache).ino, stamped, 'the refresh replaced the snapshot')
   assert.deepEqual(spare(), [])
 })
+
+// Codex review of c341ae93. A rename Windows refuses (another program holds the snapshot
+// without delete sharing) must not lose the write: the file is written in place instead.
+// And a temporary left by a writer killed before its rename is removed once it is older
+// than a minute, while a younger one — a writer still in flight — and any other name stay.
+test('a refused rename still writes the snapshot, and an abandoned temporary is removed', async t => {
+  const { replaceFile } = await import('../plugin/scripts/branch-state.mjs')
+  const writes = []
+  const refusing = {
+    readdirSync: () => [], statSync: () => ({ mtimeMs: 0 }), unlinkSync: () => {},
+    writeFileSync: (file, text) => writes.push([file, text]),
+    renameSync: () => { throw Object.assign(new Error('EPERM'), { code: 'EPERM' }) },
+  }
+  replaceFile(path.join('g', 'qh-branch-state.json'), '{"at":1}', refusing)
+  assert.deepEqual(writes.at(-1), [path.join('g', 'qh-branch-state.json'), '{"at":1}'], 'written in place')
+
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'qh-orphan-'))
+  t.after(() => rmSync(directory, { recursive: true, force: true }))
+  const file = path.join(directory, 'qh-branch-state.json')
+  const old = Date.now() / 1000 - 120
+  for (const name of ['qh-branch-state.json.999991.tmp', 'qh-branch-state.json.999992.tmp', 'other.json.999993.tmp']) {
+    writeFileSync(path.join(directory, name), '{}')
+  }
+  utimesSync(path.join(directory, 'qh-branch-state.json.999991.tmp'), old, old)
+  utimesSync(path.join(directory, 'other.json.999993.tmp'), old, old)
+  replaceFile(file, '{"at":2}')
+  assert.equal(readFileSync(file, 'utf8'), '{"at":2}')
+  assert.deepEqual(readdirSync(directory).sort(),
+    ['other.json.999993.tmp', 'qh-branch-state.json', 'qh-branch-state.json.999992.tmp'])
+})

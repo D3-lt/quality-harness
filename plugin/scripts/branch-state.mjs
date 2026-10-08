@@ -19,8 +19,8 @@
 // `run` is the seam (CLAUDE.md §7): every process this takes comes through it,
 // so the whole reader is exercised on any host without a network or a remote.
 import { execFileSync, spawn } from 'node:child_process'
-import { readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
-import { join, resolve } from 'node:path'
+import { readdirSync, readFileSync, renameSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { basename, dirname, join, resolve } from 'node:path'
 import process from 'node:process'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
@@ -664,15 +664,32 @@ const withheldStamp = snapshot => `withheld: past the cap @${snapshot?.at}`
 // refresher it just started writes what it saw, and two truncating writes to one path
 // interleave: the push run of e2e210ed read a short refresh over the tail of a long stamp,
 // a file neither process wrote, unparseable for the test's whole 60 s guard.
-function replaceFile(file, text) {
+//
+// Two fallbacks, both from the Codex review of c341ae93. Windows refuses a rename over a
+// file another program holds open without delete sharing, where the in-place write still
+// succeeds; a write that may tear once is better than a refresh lost in silence, so the
+// file is then written in place as before. And a writer killed between its write and its
+// rename leaves its temporary behind under a pid nobody reuses, so each write removes the
+// snapshot's temporaries older than a minute — no live writer holds one that long.
+const ORPHAN_MS = 60_000
+export function replaceFile(file, text, fs = { readdirSync, renameSync, statSync, unlinkSync, writeFileSync }, now = Date.now()) {
   const temporary = `${file}.${process.pid}.tmp`
   try {
-    writeFileSync(temporary, text)
-    renameSync(temporary, file)
-  } catch (error) {
-    try { unlinkSync(temporary) } catch { /* never written */ }
-    throw error
+    fs.writeFileSync(temporary, text)
+    fs.renameSync(temporary, file)
+  } catch {
+    try { fs.unlinkSync(temporary) } catch { /* never written */ }
+    fs.writeFileSync(file, text)
   }
+  const directory = dirname(file)
+  const orphan = new RegExp(`^${basename(file).replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\.\\d+\\.tmp$`)
+  try {
+    for (const name of fs.readdirSync(directory)) {
+      if (!orphan.test(name)) continue
+      const spare = join(directory, name)
+      try { if (now - fs.statSync(spare).mtimeMs > ORPHAN_MS) fs.unlinkSync(spare) } catch { /* another writer took it */ }
+    }
+  } catch { /* a directory that cannot be listed keeps what it holds */ }
 }
 
 function stampBriefSaid(store, said) {

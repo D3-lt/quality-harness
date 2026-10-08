@@ -50,6 +50,36 @@
       "to": "      writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))"
     },
     {
+      "label": "branch-state: a refused rename still writes the snapshot in place",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a refused rename still writes the snapshot",
+      "from": "    fs.writeFileSync(file, text)\n",
+      "to": "\n"
+    },
+    {
+      "label": "branch-state: an abandoned snapshot temporary is removed",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a refused rename still writes the snapshot",
+      "from": "if (now - fs.statSync(spare).mtimeMs > ORPHAN_MS) fs.unlinkSync(spare)",
+      "to": "if (false) fs.unlinkSync(spare)"
+    },
+    {
+      "label": "branch-state: a temporary still in flight is not removed",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a refused rename still writes the snapshot",
+      "from": "if (now - fs.statSync(spare).mtimeMs > ORPHAN_MS) fs.unlinkSync(spare)",
+      "to": "if (true) fs.unlinkSync(spare)"
+    },
+    {
       "label": "branch-state: a reclaimer puts back a lock it did not judge stale",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [

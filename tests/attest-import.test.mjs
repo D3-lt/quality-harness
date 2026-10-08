@@ -141,3 +141,14 @@ test('attest-import files verdictChanges and refuses a malformed one', () => {
     assert.equal(filed.status, 0, `${runner}: ${filed.stdout}\n${filed.stderr}`)
   }
 })
+
+// BACKLOG §362: an attestation counts the records a reader holds back beside the ones it acts on, and
+// the importer files that count rather than refusing it as a key outside the schema.
+test('an attestation that counts undecided records is filed with the count', () => {
+  const { repo, at, attestation } = repository('undecided')
+  const counted = { ...attestation, corpus: { records: 0, undecided: 1, tasks: 0, taskDirectories: 0 } }
+  const filed = importing(repo, message(counted))
+  assert.equal(filed.status, 0, `${filed.stdout}\n${filed.stderr}`)
+  const name = `2026-09-27-macos-php-react-9.9.9-${at.slice(0, 7)}.json`
+  assert.deepEqual(JSON.parse(readFileSync(join(repo, 'docs', 'corpus-reports', name), 'utf8')).corpus, counted.corpus)
+})

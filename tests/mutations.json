@@ -30,6 +30,34 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§362: the attestation counts undecided records beside acted-on ones",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-undecided.test.mjs"
+      ],
+      "from": "  if (report.workNext?.records != null) return { records: report.workNext.records, ...undecided, tasks:",
+      "to": "  if (report.workNext?.records != null) return { records: report.workNext.records, tasks:"
+    },
+    {
+      "label": "§362: an older report without an undecided list gets no count",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-undecided.test.mjs"
+      ],
+      "from": "  const undecided = Array.isArray(report.undecided) ? { undecided: report.undecided.length } : {}",
+      "to": "  const undecided = { undecided: report.undecided?.length ?? 0 }"
+    },
+    {
+      "label": "§362: attest-import files corpus.undecided",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "only": "counts undecided records is filed",
+      "from": "const CORPUS_KEYS = ['records', 'undecided', 'tasks', 'taskDirectories', 'countsFrom']",
+      "to": "const CORPUS_KEYS = ['records', 'tasks', 'taskDirectories', 'countsFrom']"
+    },
+    {
       "label": "clipped: a cut quote says it was cut",
       "file": "plugin/lib/record.py",
       "tests": [
@@ -784,8 +812,8 @@
       "tests": [
         "tests/corpus-probe.test.mjs"
       ],
-      "from": "  if (!answered.length) return { records: null, tasks: null, taskDirectories }",
-      "to": "  return { records: null, tasks: null, taskDirectories }",
+      "from": "  if (!answered.length) return { records: null, ...undecided, tasks: null, taskDirectories }",
+      "to": "  return { records: null, ...undecided, tasks: null, taskDirectories }",
       "only": "^(?:an attestation falls back to corpus-report counts when work-next did not answer)$"
     },
     {

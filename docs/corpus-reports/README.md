@@ -21,7 +21,7 @@ release question needs:
   "platform": "<OS and version>",
   "node": "<version>",
   "python": "<version>",
-  "corpus": { "records": 0, "tasks": 0, "taskDirectories": 0 },
+  "corpus": { "records": 0, "undecided": 0, "tasks": 0, "taskDirectories": 0 },
   "couldNotRun": 0,
   "disagreements": 0,
   "readinessUnproven": 0,
@@ -57,6 +57,11 @@ release-evidence counts an attestation only when `verdictChanges` is an object w
 one taken against a report from the last tag serves. A `look: PARTIAL` attestation counts only beside
 one whose `look` is `ok` (ADR-089 Alternative (d)), and the release reason names its look and its
 `notCompared`.
+
+`corpus.records` counts the records a reader acts on; `corpus.undecided` (from plugin 3.8.13) counts
+the records it found and holds back — a plan, or a Status no reader acts on — so a corpus whose only
+record is Proposed reads `records: 0, undecided: 1` rather than an empty corpus (BACKLOG §362). An
+attestation from an older probe has no `undecided`, which says nothing either way.
 
 How to file one (ADR-070): save the peer's message, whatever surrounds the JSON, and run
 `node scripts/attest-import.mjs <message-file>` (or `-` for stdin). It files the one attestation in

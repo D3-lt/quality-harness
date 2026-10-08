@@ -660,11 +660,26 @@ export function ciRed(state) {
 // named none silenced the next snapshot's expiry too (Codex review of f79d84d).
 const withheldStamp = snapshot => `withheld: past the cap @${snapshot?.at}`
 
+// The snapshot is replaced, never rewritten in place. A due brief stamps `said` while the
+// refresher it just started writes what it saw, and two truncating writes to one path
+// interleave: the push run of e2e210ed read a short refresh over the tail of a long stamp,
+// a file neither process wrote, unparseable for the test's whole 60 s guard.
+function replaceFile(file, text) {
+  const temporary = `${file}.${process.pid}.tmp`
+  try {
+    writeFileSync(temporary, text)
+    renameSync(temporary, file)
+  } catch (error) {
+    try { unlinkSync(temporary) } catch { /* never written */ }
+    throw error
+  }
+}
+
 function stampBriefSaid(store, said) {
   if (!store) return
   try {
     const current = JSON.parse(readFileSync(store, 'utf8'))
-    writeFileSync(store, JSON.stringify({ ...current, said }))
+    replaceFile(store, JSON.stringify({ ...current, said }))
   } catch { /* a cache that cannot be written is not a failure */ }
 }
 
@@ -769,7 +784,7 @@ function main(argv = process.argv.slice(2)) {
       const current = read(store)
       // Keep `said` across a TTL refresh. Dropping it made every 120s reprint
       // an unchanged green brief (CLAUDE.md §17).
-      writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))
+      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))
     } catch { /* a cache that cannot be written is not a failure */ }
   }
   if (argv.includes('--refresh')) {

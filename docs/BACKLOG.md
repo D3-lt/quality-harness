@@ -18524,3 +18524,11 @@ outrank a stop (§354). This was not a fail-open. It was the safe direction, but
   were repointed. One twin row was replaced after its mutant went GREEN: it had a past-tense aside, and the
   new row has a pass word after the green clause. The repointed existing entry is RED, and so are the 39
   existing entries the sign-off labels select.
+
+## 362. OPEN 2026-10-08 — An attestation says `records: 0` for a corpus whose only record is Proposed, while carrying a lint verdict for it
+
+Found by an outside run at 139713e3 (null-corpus, look ok). Its attestation said `corpus.records: 0` and `verdictChanges.compared: 1`. Reproduced here with invented names: one file, `docs/notes/specs/2026-09-01-widget-design.md`, holding `# ADR-041: …`, `**Status:** Proposed` and a `## Context` heading, outside any record directory.
+- **The readers agree.** Both runtimes recognise the file as a record, through the content arm. work-next says "0 record(s), 0 accepted … 1 further record(s) are not acted on" and names it as a plan; adr-state names it as Proposed; the probe lints it (FAIL) and puts it in `undecided`.
+- **The attestation does not say so.** `corpusCounts` copies work-next's `records`, which counts the records a reader acts on, and an attestation has no field for undecided ones. So "records: 0" sits beside a compared verdict. The probe's `disagreements` compares readiness only, so it reports 0, which is correct for what it measures.
+- At an older revision (two days earlier) the same corpus gave no lint verdict: ADR-092's content arm now recognises a record-shaped file outside a record directory. That is by design (Decision 1, as amended on 2026-10-07).
+- **Smallest fix:** add `corpus.undecided` (the probe's `undecided.length`) to `corpusCounts`, `attest-import`'s `CORPUS_KEYS` and the schema in `docs/corpus-reports/README.md`. **Not done:** it changes the attestation schema, and tests locked by ADR-089 T2 and ADR-082 T2 compare the whole `corpus` object, so they would need relocking with the owner's approval.

@@ -39,7 +39,9 @@ const watched = note => '# Task ADR-003-T1: watch\n\n**Depends-on:** none\n\n## 
 
 const REPORT = 'observed: S3 on the linux shards — red run 111 (tests alone on main): TestAlphaRefusesFirst failed '
   + '(exit status 2) and TestBetaHoldsLock failed (lock held twice); green run 222 on head abc1234: linux-shard ok '
-  + 'for pkg/alpha, normal and race, with all three linux tests unable to skip (TestGammaNeedsTool fails on a missing tool).'
+  + 'for pkg/alpha, normal and race.'
+// The row as it was reported, with an aside after the green run. Asides are read (see below).
+const REPORTED = REPORT.replace(/\.$/, ', with all three linux tests unable to skip (TestGammaNeedsTool fails on a missing tool).')
 
 test('an affirmed red-then-green run report is evidence, not a stop', () => {
   for (const note of [REPORT,
@@ -56,6 +58,8 @@ test('the run report in the row shape it was found in: same-day fence rows befor
   assert.deepEqual(doneIds(task), ['T1'])
   // The control: the same rows with the sign-off's own verdict negative still stop.
   assert.deepEqual(doneIds(task.replace('observed: S3', 'not approved: S3')), [])
+  // The reported row itself, aside included, stays a false stop in the same shape.
+  assert.deepEqual(doneIds(task.replace(REPORT, REPORTED)), [])
 })
 
 test('a run report whose own verdict is a failure still stops', () => {
@@ -73,6 +77,7 @@ test('a run report whose own verdict is a failure still stops', () => {
     'observed: red run 111: TestAlphaRefusesFirst failed; the rollout stopped; green run 222: ok', // a clause between them
     'observed: red run 111: TestAlphaRefusesFirst failed; second run 222: ok',                 // a run nobody called green
     'observed: red run 111: TestAlphaRefusesFirst failed; green run 222: ok; then the deploy check (it fails on prod)', // a present-tense aside after the green clause
+    'observed: red run 111: TestAlphaRefusesFirst failed; green run 222 on head abc1234; the deploy is ok', // a pass word after the green clause
     'observed: red run 111: TestAlphaRefusesFirst failed; green run 222: ok (the deploy failed)', // an aside reporting what happened
     'observed: red run 110: TestBetaHoldsLock failed; red run 111: TestAlphaRefusesFirst failed; green run 222: ok',
   ]) assert.deepEqual(doneIds(watched(note)), [], note)
@@ -84,10 +89,11 @@ test('a stop after a run report names its own word, not the red run it quoted', 
   assert.match(t1?.stopped_by ?? '', /^a human sign-off says stop on «stopped»/, JSON.stringify(t1))
 })
 
-test('a known fail-open: a present-tense aside inside the green run, after its pass word, is read as the run report', () => {
-  // Text cannot tell "(TestGammaNeedsTool fails on a missing tool)", which says how a test refuses to
-  // skip, from "(the deploy fails)". Pinned so that narrowing it is a decision, not an accident (§361).
-  assert.deepEqual(doneIds(watched('observed: red run 111: TestAlphaRefusesFirst failed; green run 222: ok (the deploy fails)')), ['T1'])
+test('an aside after the green run is read, so the reported row stays a false stop', () => {
+  // "(TestGammaNeedsTool fails on a missing tool)" says how a test refuses to skip, and text cannot tell
+  // it apart from "(the deploy fails)", a failure. The owner chose the false stop (2026-10-08, §361).
+  for (const note of [REPORTED, 'observed: red run 111: TestAlphaRefusesFirst failed; green run 222: ok (the deploy fails)'])
+    assert.deepEqual(doneIds(watched(note)), [], note)
 })
 
 test('"no tests failed" names an absent failure; anything wider still stops', () => {

@@ -1864,8 +1864,8 @@ def check_task(path, all_stems, errors, root, tracked):
         resolved = resolve_qualified_dep(d, root, path.parent.parent.parent, tracked)
         if resolved is None:
             errors.advise(f"{path.name}: Depends-on '{d}' was NOT resolved — the corpus could "
-                          f"not be listed from git. This is 'I could not look', not 'that "
-                          f"record does not exist'")
+                          f"not be listed from git, or a record in it could not be read. This is 'I could not "
+                          f"look', not 'that record does not exist'")
         elif not resolved:
             errors.append(f"{path.name}: Depends-on '{d}' names no record in this corpus, or a "
                           f"record with no such task — a cross-record dependency must resolve, "
@@ -2236,7 +2236,8 @@ def check_cross_record_cycles(root, corpus_dir, tracked, errors):
     records = record_files(root, corpus_dir, tracked)
     if records is None:
         errors.advise("cross-record dependency cycles were NOT checked: this corpus could not "
-                      "be listed from git. This is 'I could not look', not 'there is no cycle'")
+                      "be listed from git, or a record in it could not be read. This is 'I could not look', "
+                      "not 'there is no cycle'")
         return
     edges, nodes = [], set()
     # A task file another record owns that cannot be read leaves a cycle through it UNPROVEN,
@@ -4312,6 +4313,12 @@ def record_files(root, corpus_dir, tracked):
         if prefix and not entry.startswith(prefix):
             continue
         name = entry[len(prefix):]
+        # A record-named file with whitespace or dots after `.md` (BACKLOG §355, the record twin of
+        # §321) is one this cannot read as a record, so the enumeration is could-not-look; dropped,
+        # a dependency on it was reported as naming a record that does not exist.
+        bare = re.sub(r"[\s.]+$", "", name)
+        if bare != name and "/" not in name and bare.lower().endswith(".md") and record_id(bare) is not None:
+            return None
         if not name or "/" in name or not name.lower().endswith(".md") or name.lower() == "readme.md":
             continue
         number = _corpus_record_number(str(corpus_dir / name), None if root is None else str(root))

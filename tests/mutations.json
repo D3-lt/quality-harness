@@ -30,6 +30,46 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§351.11: a fullwidth-digit name is folded by NFKC",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/lookalike-names.test.mjs"
+      ],
+      "only": "a record or task named with look-alike characters",
+      "from": "        folded = unicodedata.normalize(\"NFKC\", name).translate(_LOOKALIKE)",
+      "to": "        folded = name.translate(_LOOKALIKE)"
+    },
+    {
+      "label": "§351.11: a Cyrillic capital A reads as A",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/lookalike-names.test.mjs"
+      ],
+      "only": "a record or task named with look-alike characters",
+      "from": "_LOOKALIKE = str.maketrans({chr(0x0410): \"A\", ",
+      "to": "_LOOKALIKE = str.maketrans({"
+    },
+    {
+      "label": "§351.11: task file names are checked for look-alikes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/lookalike-names.test.mjs"
+      ],
+      "only": "a record or task named with look-alike characters",
+      "from": "        check_lookalike_names([p.name for p in task_files], errors)\n",
+      "to": ""
+    },
+    {
+      "label": "§351.11: a record's own name is checked for look-alikes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/lookalike-names.test.mjs"
+      ],
+      "only": "a record or task named with look-alike characters",
+      "from": "    check_lookalike_names([adr.name], errors)\n",
+      "to": ""
+    },
+    {
       "label": "§355 probe: a clip that falls after a space drops it before the mark",
       "file": "plugin/lib/record.py",
       "tests": [

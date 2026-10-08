@@ -18313,8 +18313,11 @@ Every item of §295 was checked against the working-tree readers at a0d963d. The
     - **Fixed earlier, confirmed 2026-10-08.** ADR-089 T5 made `--adopt` name each root relative to the working directory, or by its last component; a scratch corpus given both relative and absolute arguments printed no home path. work-next now says `--adopt` "reports what adopting it needs; it changes nothing". A dangling link in the corpus stops the run with exit 2 naming it, which is ADR-092 Decision 10, not a defect.
 - **Hardening:**
   - 11/20.Q6: homoglyph and fullwidth ids (`АDR-005`, `T６`) count with no remark.
+    - **Fixed 2026-10-08.** Reproduced in a scratch corpus: a Cyrillic-A record name and a fullwidth-digit one were counted by their titles with no remark, and a fullwidth `T6` task was READY in adr-next while adr-lint blocked "README lists 'T6' but no task file matches it". adr-lint now advises on a record or task file whose name reads as an id only after NFKC and a small A/T look-alike map, naming the code points and the ASCII name. The block stays; the remark is new. No tracked name in this repository holds a non-ASCII character. Test `tests/lookalike-names.test.mjs` with an ASCII control; four mutants RED. Not changed: work-next and the probe still read the file sets they read (A4's half), since adr-lint now names the file both disagree about.
   - 20.Q1: only `<>«»` are mapped.
+    - **By design, 2026-10-08.** The map exists for characters a parser reads as a frame: `<`, `>`, and the quote marks themselves. `＜ ＞ ﹥ 〈 〉` are already look-alikes, the same kind of character `‹›` that `<>` are mapped to, so mapping them changes nothing a reader parses. Entities and Markdown inside the quotes are printed as text, never rendered.
   - 6: adr-next prints a ZWSP raw.
+    - **Fixed earlier, confirmed 2026-10-08.** `adr-next` `_UNSAFE` holds U+200B–U+200F, U+2060–U+2069 and the BOM (`adr-next:316`); a task whose title and fence hold a ZWSP printed no raw U+200B byte (checked with `od -c`).
   - 23.4: impossible and 1970 dates PASS.
   - 21.3: a sparse checkout counts "0 task file(s)".
 - **Not checked here (Windows):** 16, 19.3's wording, 23.3, 23.6. 20.Q4's line key is UNKNOWN.

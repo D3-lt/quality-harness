@@ -697,6 +697,9 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
       ...notRead.failed]
       : [],
     tasks: tasks.length,
+    // Listed by git, not on disk (a sparse checkout): counted apart, so "0 task file(s)" is never
+    // said over a corpus git says holds some (BACKLOG §351 item 21.3).
+    tasksNotOnDisk: absentTasks.size,
     unbacked,
     relock,
     ready,
@@ -784,6 +787,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
       notRead: state.notRead.map(file => ({ file: relative(file) })),
       partialBecause: state.partialBecause.map(entry => ({ file: relative(entry.file), reason: entry.reason })),
       tasks: state.tasks,
+      tasksNotOnDisk: state.tasksNotOnDisk,
       unbackedDoneClaims: state.unbacked.map(relative),
       tasksWithoutEvidence: state.ready.map(relative),
       tasksUnderAnUndecidedRecord: state.notYetDecided.map(relative),
@@ -832,7 +836,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
   }
 
   say(`${state.records} record(s), ${state.accepted} accepted, `
-    + `${state.tasks} task file(s), ${state.specs} spec(s).`
+    + `${state.tasks} task file(s)${state.tasksNotOnDisk ? ` on disk, and ${state.tasksNotOnDisk} more that git lists and the disk does not hold` : ''}, ${state.specs} spec(s).`
     + (state.undecided
       ? ` ${state.undecided} further record(s) are not acted on: not yet Accepted, or with a Status this reader cannot read.\n`
       : '\n'))

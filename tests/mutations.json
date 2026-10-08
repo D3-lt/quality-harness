@@ -30,6 +30,24 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§351.21.3: work-next counts task files git lists and the disk does not hold",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-absent-count.test.mjs"
+      ],
+      "from": "    tasksNotOnDisk: absentTasks.size,",
+      "to": "    tasksNotOnDisk: 0,"
+    },
+    {
+      "label": "§351.21.3: work-next's summary says the tasks not on disk",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-absent-count.test.mjs"
+      ],
+      "from": "    + `${state.tasks} task file(s)${state.tasksNotOnDisk ? ` on disk, and ${state.tasksNotOnDisk} more that git lists and the disk does not hold` : ''}, ${state.specs} spec(s).`",
+      "to": "    + `${state.tasks} task file(s), ${state.specs} spec(s).`"
+    },
+    {
       "label": "§351.11: a fullwidth-digit name is folded by NFKC",
       "file": "plugin/bin/adr-lint",
       "tests": [

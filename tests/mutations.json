@@ -30,6 +30,26 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355 review 1: a dated stray name lends no record number",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dated stray name lends no number",
+      "from": "        if numbered and not DATE_SHAPED_RE.match(bare):",
+      "to": "        if numbered:"
+    },
+    {
+      "label": "§355 review 2: a citation of an unreadable-named record still warns",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dated stray name lends no number",
+      "from": "    # at all on None, so None silenced an unresolved citation (the same review, finding 2).\n    return False",
+      "to": "    # at all on None, so None silenced an unresolved citation (the same review, finding 2).\n    return None"
+    },
+    {
       "label": "§355: a hook payload holding NUL bytes names UTF-16 as the likely cause",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -75,8 +95,8 @@
         "tests/trailing-dot-task.test.mjs"
       ],
       "only": "a dependency on a record whose name ends in a dot",
-      "from": "        if bare == name or \"/\" in name or not bare.lower().endswith(\".md\"):\n            continue\n        rid = record_id(bare)",
-      "to": "        if True:\n            continue\n        rid = record_id(bare)"
+      "from": "        if bare == name or \"/\" in name or not bare.lower().endswith(\".md\"):\n            continue\n        # Only a name a pointer can name",
+      "to": "        if True:\n            continue\n        # Only a name a pointer can name"
     },
     {
       "label": "§355: an unrelated missing dependency is still a FAIL beside an unreadable record name",

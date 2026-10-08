@@ -21,18 +21,31 @@ const task = id => `# Task ${id}: do ${id}\n\n**Depends-on:** none\n**Consumes:*
   + `## Acceptance\n\n\`\`\`bash\nprintf ${id}\n\`\`\`\n\n## Verification Log\n`
   + `- 2026-08-26 · no-git · exit 0 · \`printf ${id}\` · acceptance-sha256:${digestOf(`printf ${id}`)}\n`
 
+
+// Git for Windows refuses to stage a path ending in a dot or a space (core.protectNTFS) even where Node
+// wrote one: the 3.8.13 Windows job exited 128 at `git add` in every test here. The shape cannot be
+// built there, so the test is skipped naming git's refusal; any other failure still fails, with git's
+// own words (CLAUDE.md §7).
+function staged(repo, t) {
+  assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
+  const r = spawnSync('git', ['add', '-A'], { cwd: repo, encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  if (r.status !== 0 && /invalid path/i.test(r.stderr)) {
+    t.skip(`git refuses the path on this platform: ${r.stderr.trim().split('\n')[0]}`)
+    return false
+  }
+  assert.equal(r.status, 0, r.stderr)
+  return true
+}
+
 // Git runs only in a directory this file made (CLAUDE.md §9); staging is enough for `git ls-files`.
-function record(files) {
+function record(files, t) {
   const repo = mkdtempSync(join(tmpdir(), 'qh-trailing-dot-'))
   temps.push(repo)
   const tasks = join(repo, 'docs', 'adr', 'ADR-007-x', 'tasks')
   mkdirSync(tasks, { recursive: true })
   writeFileSync(join(repo, 'docs', 'adr', 'ADR-007-x.md'), '# ADR-007: X\n\n**Status:** Accepted\n')
   for (const [name, text] of Object.entries(files)) writeFileSync(join(tasks, name), text)
-  for (const args of [['init', '-q'], ['add', '-A']]) {
-    assert.equal(spawnSync('git', args, { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
-  }
-  return tasks
+  return staged(repo, t) ? tasks : null
 }
 const json = tasks => {
   const r = spawnSync('python3', [adrNext, '--all', '--json', tasks], { cwd: tasks, encoding: 'utf8', timeout: 60_000, windowsHide: true })
@@ -41,7 +54,8 @@ const json = tasks => {
 }
 
 test('a task file whose name ends in a dot after .md is named and stopped, never lost', t => {
-  const tasks = record({ 'T1-a.md.': task('T1'), 'T2-b.md': task('T2') })
+  const tasks = record({ 'T1-a.md.': task('T1'), 'T2-b.md': task('T2') }, t)
+  if (!tasks) return
   if (!readdirSync(tasks).includes('T1-a.md.')) { t.skip('this filesystem does not keep a trailing dot'); return }
   const t1 = (json(tasks).stopped ?? []).find(x => x.id === 'T1')
   assert.equal(t1?.unreadable, true, JSON.stringify(t1))
@@ -52,7 +66,8 @@ test('a task file whose name ends in a dot after .md is named and stopped, never
 })
 
 test('a tracked "T1-a.md." the disk does not hold is named as absent, not lost', t => {
-  const tasks = record({ 'T1-a.md.': task('T1'), 'T2-b.md': task('T2') })
+  const tasks = record({ 'T1-a.md.': task('T1'), 'T2-b.md': task('T2') }, t)
+  if (!tasks) return
   if (!readdirSync(tasks).includes('T1-a.md.')) { t.skip('this filesystem does not keep a trailing dot'); return }
   rmSync(join(tasks, 'T1-a.md.'))
   const t1 = (json(tasks).stopped ?? []).find(x => x.id === 'T1')
@@ -74,9 +89,7 @@ test('a record file whose name ends in a dot or whitespace after .md is named, a
   if (!readdirSync(adr).includes('ADR-001-a.md.') || !readdirSync(adr).includes('ADR-002-b.md ')) {
     t.skip('this filesystem does not keep a trailing dot or space'); return
   }
-  for (const args of [['init', '-q'], ['add', '-A']]) {
-    assert.equal(spawnSync('git', args, { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
-  }
+  if (!staged(repo, t)) return
   const workNext = () => {
     const r = spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'work-next.mjs'), '--json'],
       { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
@@ -119,7 +132,7 @@ test('a dependency on a record whose name ends in a dot is not resolved, and not
       { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
     return `${r.stdout}${r.stderr}`
   }
-  assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
+  if (!staged(repo, t)) return
   const out = lint()
   assert.match(out, /advice: T1-a\.md: Depends-on 'ADR-001-T1' was NOT resolved — the corpus could not be listed from git, or a record in it could not be read/, out)
   assert.doesNotMatch(out, /'ADR-001-T1' names no record in this corpus/, out)
@@ -141,9 +154,7 @@ test('a PARTIAL headline says part of the corpus could not be read, not that a r
   mkdirSync(adr, { recursive: true })
   writeFileSync(join(adr, 'ADR-001-a.md.'), '# ADR-001: A\n\n**Status:** Accepted\n\n## Context\n\nWhy.\n\n## Decision\n\nWhat.\n')
   if (!readdirSync(adr).includes('ADR-001-a.md.')) { t.skip('this filesystem does not keep a trailing dot'); return }
-  for (const args of [['init', '-q'], ['add', '-A']]) {
-    assert.equal(spawnSync('git', args, { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
-  }
+  if (!staged(repo, t)) return
   const r = spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'work-next.mjs')],
     { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
   assert.match(r.stdout, /^could-not-look: part of the corpus could not be read \(PARTIAL\)/m, r.stdout)
@@ -167,9 +178,7 @@ test('a dated stray name lends no number, and a citation of an unreadable-named 
   writeFileSync(join(adr, 'ADR-003-c', 'tasks', 'T1-a.md'), task('T1').replace('**Depends-on:** none', '**Depends-on:** ADR-2026-T1, ADR-004-T1'))
   writeFileSync(join(adr, 'ADR-003-c', 'tasks', 'README.md'), '| Task | Status |\n|---|---|\n| [T1](T1-a.md) | pending |\n')
   if (!readdirSync(adr).includes('ADR-001-a.md.')) { t.skip('this filesystem does not keep a trailing dot'); return }
-  for (const args of [['init', '-q'], ['add', '-A']]) {
-    assert.equal(spawnSync('git', args, { cwd: repo, timeout: 30_000, windowsHide: true }).status, 0)
-  }
+  if (!staged(repo, t)) return
   const r = spawnSync('python3', [join(repoRoot, 'plugin', 'bin', 'adr-lint'), join('docs', 'adr', 'ADR-003-c.md')],
     { cwd: repo, encoding: 'utf8', timeout: 60_000, windowsHide: true })
   const out = `${r.stdout}${r.stderr}`

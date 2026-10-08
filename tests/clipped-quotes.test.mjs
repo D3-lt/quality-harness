@@ -13,11 +13,13 @@ const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
 test('a quote cut to its width says it was cut, and one that fits is printed whole', () => {
   const probe = 'import json, sys; sys.path.insert(0, sys.argv[1]); from record import clipped; '
-    + 'print(json.dumps([clipped("abcdef", 6), clipped("abcdefg", 6), clipped("", 6)]))'
+    + 'print(json.dumps([clipped("abcdef", 6), clipped("abcdefg", 6), clipped("", 6), clipped("abc defg", 4)]))'
   const run = spawnSync('python3', ['-c', probe, join(repoRoot, 'plugin', 'lib')],
     { encoding: 'utf8', timeout: 30_000, windowsHide: true })
   assert.equal(run.status, 0, run.stderr)
-  assert.deepEqual(JSON.parse(run.stdout), ['abcdef', 'abcdef…', ''])
+  // A cut that falls just after a space drops it, so the mark sits against the word it cut after
+  // ("abc…", never "abc …"): 11 of 57 clipped quotes in an outside run read that way (3.8.13 probe).
+  assert.deepEqual(JSON.parse(run.stdout), ['abcdef', 'abcdef…', '', 'abc…'])
 })
 
 // An f-string that interpolates a slice such as `{line[:70]}` prints a cut with no mark. The pattern is

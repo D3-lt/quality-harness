@@ -30,6 +30,16 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355 probe: a clip that falls after a space drops it before the mark",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/clipped-quotes.test.mjs"
+      ],
+      "only": "a quote cut to its width says it was cut",
+      "from": "    return text if len(text) <= width else text[:width].rstrip() + \"…\"",
+      "to": "    return text if len(text) <= width else text[:width] + \"…\""
+    },
+    {
       "label": "§355 review 1: a dated stray name lends no record number",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -257,8 +267,8 @@
         "tests/clipped-quotes.test.mjs"
       ],
       "only": "a quote cut to its width",
-      "from": "    return text if len(text) <= width else text[:width] + \"…\"",
-      "to": "    return text if len(text) <= width else text[:width]"
+      "from": "    return text if len(text) <= width else text[:width].rstrip() + \"…\"",
+      "to": "    return text if len(text) <= width else text[:width].rstrip()"
     },
     {
       "label": "clipped: a quote that fits its width is printed whole",
@@ -267,8 +277,8 @@
         "tests/clipped-quotes.test.mjs"
       ],
       "only": "a quote cut to its width",
-      "from": "    return text if len(text) <= width else text[:width] + \"…\"",
-      "to": "    return text if len(text) < width else text[:width] + \"…\""
+      "from": "    return text if len(text) <= width else text[:width].rstrip() + \"…\"",
+      "to": "    return text if len(text) < width else text[:width].rstrip() + \"…\""
     },
     {
       "label": "clipped: adr-lint's Verification Log sentence goes through clipped",

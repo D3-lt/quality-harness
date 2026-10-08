@@ -1095,7 +1095,8 @@ def clipped(text, width):
     A quote a finding cuts must say it was cut, and one it did not cut must not say so: the
     gates sliced with `[:N]` and printed a cut quote as if whole, while two Verification Log
     sentences appended `…` to a row short enough to print whole (§355)."""
-    return text if len(text) <= width else text[:width] + "…"
+    # rstrip: a cut just after a space put the mark one space off the word ("abc …", the 3.8.13 probe).
+    return text if len(text) <= width else text[:width].rstrip() + "…"
 
 def status_word(value):
     """The run of Unicode letters and digits a Status value starts with, lower-cased, or None.

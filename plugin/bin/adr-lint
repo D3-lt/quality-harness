@@ -121,7 +121,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
-from record import git_root, os_reason, regular_file_problem  # noqa: E402
+from record import clipped, git_root, os_reason, regular_file_problem  # noqa: E402
 from record import vlog_row_is_lock_snapshot, unfenced_lines, _mask_lock_noncode, conflict_markers, NO_WINDOW, visible, JS_FAMILY_SUFFIXES, js_reading, js_test_lookup, walk  # noqa: E402,E501
 from record import row_date_problem  # noqa: E402
 from record import SHA_FIELD, object_format, sha_fits, row_sha  # noqa: E402
@@ -1167,7 +1167,7 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
                           f"'(external: <where>: <pointer>)' for a target another repository "
                           f"owns, "
                           f"'(permanent: fact: <claim>; citation: <typed receipt>)', or "
-                          f"'(deferred: <pointer>)': {s[:70]}")
+                          f"'(deferred: <pointer>)': {clipped(s, 70)}")
     spec = header_val(text, "Spec")
     if spec is None:
         errors.advise(f"{adr_path.name}: no **Spec:** header (use 'None — no spec stage')")
@@ -1753,7 +1753,7 @@ def check_task(path, all_stems, errors, root, tracked):
     # BACKLOG §52.
     elif not re.search(r"\b(tests?|red|fail(s|ed|ing|ure)?)\b", steps[0], re.I):
         errors.advise(f"{path.name}: Ordered Steps step 1 must establish the failing test "
-                      f"(TDD red) — currently: {steps[0].strip()[:80]}")
+                      f"(TDD red) — currently: {clipped(steps[0].strip(), 80)}")
     # ADR-024 T3. `**Awaiting-decision:** <the choice>` — the third kind of
     # waiting, and the one ADR-014 deliberately did not model. Its two are about
     # OWNERSHIP: Depends-on means someone here can go and do it, Blocked-on means
@@ -1835,7 +1835,7 @@ def check_task(path, all_stems, errors, root, tracked):
         elif not names_a_check(blocked_on):
             errors.advise(
                 f"{path.name}: Blocked-on — this reader could not find a way to check whether "
-                f"the event has happened: `{blocked_on.strip()[:60]}`. It looks for a backticked "
+                f"the event has happened: `{clipped(blocked_on.strip(), 60)}`. It looks for a backticked "
                 f"command, a trailing parenthetical holding one, or an explicit `checked by: "
                 f"<who>`; it cannot read prose, so this is 'I did not find one', not 'there is "
                 f"none'. If a reader could run something, name it — e.g. `commit <sha> is an "
@@ -1879,11 +1879,11 @@ def check_task(path, all_stems, errors, root, tracked):
                           f"(or '· human-observed · …'): {where_it_stopped(VLOG_RE, b)}")
         elif (problem := row_date_problem(b)):
             errors.append(f"{path.name}: Verification Log entry {problem}, so adr-verify did not write "
-                          f"it: `{b[:60]}…`. Re-run `adr-verify <task.md>` rather than editing the log")
+                          f"it: `{clipped(b, 60)}`. Re-run `adr-verify <task.md>` rather than editing the log")
         elif not sha_fits(sha := row_sha(b), sha_format):
             errors.append(f"{path.name}: Verification Log entry's sha `{sha}` is {len(sha.rstrip('*'))} "
                           f"characters, and git prints at most 40 in this {sha_format} repository, so "
-                          f"adr-verify did not write it: `{b[:60]}…`. Re-run `adr-verify <task.md>` "
+                          f"adr-verify did not write it: `{clipped(b, 60)}`. Re-run `adr-verify <task.md>` "
                           f"rather than editing the log (ADR-088)")
     mlog = [ln.strip() for ln in unfenced_lines(secs.get("Mutation Log", []))
             if ln.strip().startswith("- ")]
@@ -2289,13 +2289,13 @@ def check_contract_table(adr_path, stems, errors):
             continue
         prod_ids = re.findall(r"(?<!\w)T\d+(?!\w)", cells[1])
         if not prod_ids:
-            errors.append(f"{adr_path.name}: Inter-task Contracts row '{cells[0][:40]}' names "
+            errors.append(f"{adr_path.name}: Inter-task Contracts row '{clipped(cells[0], 40)}' names "
                           f"no producing T-id — orphaned contract, no task owns it")
         for role, cell in (("producing", cells[1]), ("consuming", cells[2])):
             for tid in re.findall(r"(?<!\w)T\d+(?!\w)", cell):
                 if not any(id_matches(tid, s) for s in stems):
                     errors.append(f"{adr_path.name}: Inter-task Contracts row "
-                                  f"'{cells[0][:40]}' names {role} task {tid} but no task "
+                                  f"'{clipped(cells[0], 40)}' names {role} task {tid} but no task "
                                   f"file matches it")
 
 
@@ -6515,7 +6515,7 @@ def main():
         elif not status_kind(status_value):
             # A YAML `status: on hold` IS read as a Status; what no reader does is act on `on hold`.
             # `active` is acted on since ADR-087, so it is in the list this sentence names.
-            lacks.append(f"its Status `{status_value[:40]}` is not a status any reader acts on "
+            lacks.append(f"its Status `{clipped(status_value, 40)}` is not a status any reader acts on "
                          f"(Accepted, Active, Proposed, Draft, Rejected, Superseded, Withdrawn or Deprecated)")
         if not heading:
             lacks.append("no `## Context` or `## Decision` heading")

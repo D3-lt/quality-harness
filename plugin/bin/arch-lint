@@ -72,7 +72,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, NO_WINDOW, walk  # noqa: E402
-from record import os_reason, read_regular  # noqa: E402
+from record import clipped, os_reason, read_regular  # noqa: E402
 
 RULE_SECTIONS = ["Dependency Contracts", "Concept Ownership (DRY)", "Composition Root",
                  "Test Doubles", "Trust & Data Boundaries"]
@@ -131,7 +131,7 @@ def vacuous_gate_errors(label, cell, roots):
     errs = []
     if r"\|" in cell:
         errs.append(f"{label}: markdown-escaped \\| inside the command — copied from a table "
-                    f"cell, matches nothing in a shell: {cell[:60]}")
+                    f"cell, matches nothing in a shell: {clipped(cell, 60)}")
     for cmd in re.findall(r"`([^`]+)`", cell):
         for tok in cmd.split():
             tok = tok.strip("'\";,").split("::")[0]
@@ -147,7 +147,7 @@ def vacuous_gate_errors(label, cell, roots):
                 errs.append(f"{label}: path '{tok}' does not exist in the repo — a gate on a "
                             f"missing path cannot fail ('! grep' turns exit 2 into a permanent "
                             f"pass); tag the row '(deferred: <pointer>)' until the check exists: "
-                            f"{cmd[:60]}")
+                            f"{clipped(cmd, 60)}")
     return errs
 
 # A check cell names two kinds of thing: a PATH and, usually, a SYMBOL — the test
@@ -600,20 +600,20 @@ def main():
             cells = [c.strip() for c in re.split(r"(?<!\\)\|", r.strip().strip("|"))]
             check = cells[-1] if cells else ""
             if not check:
-                errors.append(f"{s}: row has empty check cell: {r.strip()[:70]}")
+                errors.append(f"{s}: row has empty check cell: {clipped(r.strip(), 70)}")
                 continue
             if re.search(r"<[^>]+>", check) and "deferred" not in check:
-                errors.append(f"{s}: check cell is an unfilled template placeholder: {check[:60]}")
+                errors.append(f"{s}: check cell is an unfilled template placeholder: {clipped(check, 60)}")
                 continue
             if SYNC_PROSE.search(check):
                 errors.append(f"{s}: check cell is sync-prose, not an executable check: "
-                              f"{check[:60]}")
+                              f"{clipped(check, 60)}")
                 continue
             if re.search(r"\(deferred:\s*[^)\s][^)]*\)", check):
                 continue
             if "`" not in check:
                 errors.append(f"{s}: check cell has no backticked command/test path and no "
-                              f"'(deferred: <pointer>)': {check[:60]}")
+                              f"'(deferred: <pointer>)': {clipped(check, 60)}")
                 continue
             errors.extend(vacuous_gate_errors(s, check, roots))
             errors.extend(symbol_errors(s, check, roots, index))

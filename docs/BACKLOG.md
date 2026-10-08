@@ -18427,6 +18427,7 @@ The owner brought five Windows 11 desktops back for testing. Each ran the probe 
 - `records[].status` loses underscores through `recordStatus`.
 - The scrubber over-redacts: `https://<host>[/<path>]` and "`a`/`b`".
 - adr-lint cuts quotes at [:70] and [:80] with no "…".
+  - **Fixed 2026-10-08.** `record.clipped(text, width)` cuts to the width and adds `…` only when it cut. The class is every f-string in a `plugin/bin` Python gate that interpolates a `[:N]` slice: 17 sites in adr-lint (8), adr-debt (1), adr-retire-check (2) and arch-lint (6), plus adr-judge's alternative head, which imports nothing from record.py and keeps its own one-line form. Two adr-lint Verification Log sentences had the opposite fault: they appended `…` to a row short enough to print whole. A first grep over `.strip()[:N]` missed two `cells[0][:40]` sites; `tests/clipped-quotes.test.mjs` sweeps every gate for the slice form, shows its pattern matching a sliced line first, and found them. Three mutants RED. Not changed: slices that build keys or values rather than quoted text.
 - adr-lint prints a content claim about a task before saying the file holds NUL bytes, so the probe's reason hides the encoding cause.
 - SessionStart says nothing about unreadable records, and calls their directories "fully evidenced".
 - On a junction loop, work-next's headline says "a listed record could not be read" though every record was read.

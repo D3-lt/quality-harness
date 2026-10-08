@@ -30,6 +30,36 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "clipped: a cut quote says it was cut",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/clipped-quotes.test.mjs"
+      ],
+      "only": "a quote cut to its width",
+      "from": "    return text if len(text) <= width else text[:width] + \"…\"",
+      "to": "    return text if len(text) <= width else text[:width]"
+    },
+    {
+      "label": "clipped: a quote that fits its width is printed whole",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/clipped-quotes.test.mjs"
+      ],
+      "only": "a quote cut to its width",
+      "from": "    return text if len(text) <= width else text[:width] + \"…\"",
+      "to": "    return text if len(text) < width else text[:width] + \"…\""
+    },
+    {
+      "label": "clipped: adr-lint's Verification Log sentence goes through clipped",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/clipped-quotes.test.mjs"
+      ],
+      "only": "no gate prints a quote sliced",
+      "from": "                          f\"it: `{clipped(b, 60)}`. Re-run `adr-verify <task.md>` rather than editing the log\")",
+      "to": "                          f\"it: `{b[:60]}…`. Re-run `adr-verify <task.md>` rather than editing the log\")"
+    },
+    {
       "label": "branch-state: the brief's said stamp replaces the snapshot rather than rewriting it in place",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [

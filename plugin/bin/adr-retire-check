@@ -59,7 +59,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of  # noqa: E402
-from record import os_reason  # noqa: E402
+from record import clipped, os_reason  # noqa: E402
 from record import first_number_id, first_reference, record_id, references_in, title_line, walk  # noqa: E402
 from record import corpus_eligible, git_root, read_record_text, read_regular, recognised_as_record, special_file_problem  # noqa: E402
 from record import record_status, status_kind  # noqa: E402
@@ -381,7 +381,7 @@ def catalog_rows(readme, errors):
         if not cells or cells[0] in ("ADR", "-----") or set(cells[0]) == {"-"}:
             continue
         if len(cells) != 7:
-            errors.advise(f"archive catalog row needs 7 cells: {line[:100]}")
+            errors.advise(f"archive catalog row needs 7 cells: {clipped(line, 100)}")
             continue
         link = re.search(r"\[[^]]+\]\(([^)]+)\)", cells[0])
         target = link.group(1).split("#", 1)[0] if link else ""
@@ -391,7 +391,7 @@ def catalog_rows(readme, errors):
         if not adr_id and target:
             adr_id = record_id(re.split(r"[/\\]", target)[-1])
         if not adr_id:
-            errors.append(f"archive catalog row has no ADR id or record stem: {line[:100]}")
+            errors.append(f"archive catalog row has no ADR id or record stem: {clipped(line, 100)}")
             continue
         if adr_id in rows:
             errors.append(f"archive catalog lists {adr_id} more than once")

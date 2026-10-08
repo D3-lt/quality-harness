@@ -58,6 +58,7 @@ import re
 import shlex
 import subprocess
 import sys
+import unicodedata
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
 from urllib.parse import urlsplit
@@ -2218,6 +2219,26 @@ def check_duplicate_number(adr_path, root, tracked, errors):
         errors.advise(f"{adr_path.name}: another record in this corpus carries number {mine}: "
                       f"{', '.join(others)} — a dependency or citation naming it cannot say which record it means; "
                       f"renumber one of them")
+
+
+# Letters that render as A or T and that NFKC leaves alone: Cyrillic and Greek capitals and small a.
+_LOOKALIKE = str.maketrans({chr(0x0410): "A", chr(0x0430): "a", chr(0x0391): "A", chr(0x0422): "T", chr(0x03A4): "T"})
+_ASCII_ID_NAME = re.compile(r"^(?:(?:adr[-_]?)?[0-9]{1,4}|T[0-9]+)[-._]", re.I | re.A)
+
+
+def check_lookalike_names(names, errors):
+    """BACKLOG §351 item 11: a record or task file whose name reads as an id only through look-alike
+    characters — fullwidth digits, a Cyrillic or Greek capital A or T — is named, with the ASCII name it
+    reads as. Every reader that compares a name to an id as ASCII sees no match there, while a title
+    can still give the id, so the file is counted under an id its name does not carry. Advice: the
+    file is what it is, and a rename is the owner's to make."""
+    for name in names:
+        folded = unicodedata.normalize("NFKC", name).translate(_LOOKALIKE)
+        if folded == name or _ASCII_ID_NAME.match(name) or not _ASCII_ID_NAME.match(folded):
+            continue
+        odd = ", ".join(f"U+{ord(c):04X}" for c in dict.fromkeys(c for c in name if not c.isascii()))
+        errors.advise(f"{name}: its name reads as {folded} but holds look-alike characters ({odd}) — "
+                      f"a reader comparing it to an id as ASCII sees no match; rename it to {folded}")
 
 
 def check_cross_record_cycles(root, corpus_dir, tracked, errors):
@@ -6712,6 +6733,7 @@ def main():
         for p in task_files:
             refuse_irregular(p)
         stems = [p.stem for p in task_files]
+        check_lookalike_names([p.name for p in task_files], errors)
         if not task_files:
             # A shared tasks/ holding one subdirectory per record (BACKLOG §313) is not entered;
             # say which ones hold task files rather than call the directory empty.
@@ -6786,6 +6808,7 @@ def main():
                    root, adr.parent, tracked)
     check_cross_record_cycles(root, adr.parent, tracked, errors)
     check_duplicate_number(adr, root, tracked, errors)
+    check_lookalike_names([adr.name], errors)
 
     if spec_file is not None:
         # inline-task ADRs carry **Covers:** lines in the ADR body itself

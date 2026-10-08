@@ -18421,10 +18421,12 @@ The owner brought five Windows 11 desktops back for testing. Each ran the probe 
 - The probe's could-not-run note for adr-lint exit 2 is trimmed, since a Windows line keeps its CR.
 **Leads, not fixed:**
 - A duplicate record number is counted twice and named by no reader (two runs).
+  - **Fixed 2026-10-08.** adr-state already named the pair (`duplicateIds`, since §309). adr-lint now advises on either record: "another record in this corpus carries number N: <file> — … renumber one of them". It is advice, so the verdict does not change. work-next still counts both, which is correct: they are two records, and it leaves record questions to adr-state. Test `tests/duplicate-record-number.test.mjs`; three mutants RED. This repository's corpus has no duplicate (`adr-state --json`, `duplicateIds: []`).
 - A Status with invalid UTF-8 gets PASS plus advice, while a fullwidth colon gets UNPROVEN (two runs).
 - A trailing-DOT task or record name ("T99.md.") is named nowhere: the Windows twin of §321's trailing space.
 - Two Status lines (Superseded, then Accepted) read silently as the first.
 - `records[].status` loses underscores through `recordStatus`.
+  - **Closed 2026-10-08 by the owner's decision: left as ADR-074 Decisions 1-2 define it.** Both runtimes strip every `_` and agree. Keeping intraword underscores, as CommonMark does, would also reclassify: `Accepted_with_conditions` would govern where it is undecided now. Reading it as undecided is the conservative direction, and no outside corpus has shown the shape.
 - The scrubber over-redacts: `https://<host>[/<path>]` and "`a`/`b`".
 - adr-lint cuts quotes at [:70] and [:80] with no "…".
   - **Fixed 2026-10-08.** `record.clipped(text, width)` cuts to the width and adds `…` only when it cut. The class is every f-string in a `plugin/bin` Python gate that interpolates a `[:N]` slice: 17 sites in adr-lint (8), adr-debt (1), adr-retire-check (2) and arch-lint (6), plus adr-judge's alternative head, which imports nothing from record.py and keeps its own one-line form. Two adr-lint Verification Log sentences had the opposite fault: they appended `…` to a row short enough to print whole. A first grep over `.strip()[:N]` missed two `cells[0][:40]` sites; `tests/clipped-quotes.test.mjs` sweeps every gate for the slice form, shows its pattern matching a sliced line first, and found them. Three mutants RED. Not changed: slices that build keys or values rather than quoted text.

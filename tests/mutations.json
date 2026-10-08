@@ -30,6 +30,33 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355: adr-lint names another record carrying the same number",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/duplicate-record-number.test.mjs"
+      ],
+      "from": "    others = sorted(path.name for path, number in records if number == mine and path.name != adr_path.name)",
+      "to": "    others = []"
+    },
+    {
+      "label": "§355: adr-lint's duplicate-number advice is not said about distinct numbers",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/duplicate-record-number.test.mjs"
+      ],
+      "from": "    others = sorted(path.name for path, number in records if number == mine and path.name != adr_path.name)",
+      "to": "    others = sorted(path.name for path, number in records if path.name != adr_path.name)"
+    },
+    {
+      "label": "§355: adr-lint lints a duplicate-number record with the check wired in",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/duplicate-record-number.test.mjs"
+      ],
+      "from": "    check_duplicate_number(adr, root, tracked, errors)\n",
+      "to": "\n"
+    },
+    {
       "label": "§362: the attestation counts undecided records beside acted-on ones",
       "file": "plugin/scripts/corpus-probe.mjs",
       "tests": [

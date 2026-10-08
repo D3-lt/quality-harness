@@ -17900,8 +17900,8 @@
       "tests": [
         "tests/chaos-315-probe.test.mjs"
       ],
-      "from": "      if (old && old.verdict === entry.verdict) setChange(",
-      "to": "      if (false) setChange(",
+      "from": "      if (old && old.verdict === entry.verdict) adviceChange(",
+      "to": "      if (false) adviceChange(",
       "only": "^(?:corpus-probe --diff names advice that came or went on a verdict that held)$"
     },
     {
@@ -17910,8 +17910,8 @@
       "tests": [
         "tests/chaos-315-probe.test.mjs"
       ],
-      "from": "if (old && old.verdict === entry.verdict) setChange(",
-      "to": "if (old) setChange(",
+      "from": "if (old && old.verdict === entry.verdict) adviceChange(",
+      "to": "if (old) adviceChange(",
       "only": "^(?:corpus-probe --diff names advice that came or went on a verdict that held)$"
     },
     {
@@ -23566,6 +23566,26 @@
       "from": "return stale.length || orphaned.length || unparsed.length ? 1 : 0",
       "to": "return stale.length || orphaned.length ? 1 : 0",
       "only": "^mutate --stale exits 1 and names an entry whose only pattern is not a regular expression$"
+    },
+    {
+      "label": "§356: a could-not-look advice line is printed unmarked",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-transient.test.mjs"
+      ],
+      "from": "      say(COULD_NOT_LOOK.test(line) ? ",
+      "to": "      say(false ? ",
+      "only": "^a could-not-look advice line that came or went is marked as about the run$"
+    },
+    {
+      "label": "§356: every advice line is marked could-not-look",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-transient.test.mjs"
+      ],
+      "from": "      say(COULD_NOT_LOOK.test(line) ? ",
+      "to": "      say(true ? ",
+      "only": "^an ordinary advice line that came or went is printed unmarked$"
     }
   ]
 }

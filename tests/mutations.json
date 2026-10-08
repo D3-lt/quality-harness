@@ -30,6 +30,16 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355: a hook payload holding NUL bytes names UTF-16 as the likely cause",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/session-start-unreadable-owner.test.mjs"
+      ],
+      "only": "names UTF-16",
+      "from": "    const utf16 = raw.includes('\\u0000') ? ' It holds NUL bytes: saved as UTF-16?' : ''",
+      "to": "    const utf16 = ''"
+    },
+    {
       "label": "§355: adr-state's PARTIAL headline names both of its causes",
       "file": "plugin/scripts/adr-state.mjs",
       "tests": [
@@ -12218,7 +12228,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    process.stderr.write('[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.\\n')",
+      "from": "    process.stderr.write(`[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.${utf16}\\n`)",
       "to": "    process.stderr.write('')",
       "only": "^(?:a hook payload with a BOM is read, and one that is not JSON is said, not swallowed)$"
     },

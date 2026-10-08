@@ -7164,15 +7164,20 @@ async function main() {
   }
   const startedAt = Date.now()
   let input
+  let raw = ''
   try {
     // The parse failure used to `return` in silence at exit 0 — indistinguishable
     // from a hook with nothing to say. A peer on Windows fed this a payload with an
     // illegal escape and spent a round trip on "stdin is broken" (2026-09-23); one
     // stderr line names the real cause. A leading BOM is stripped too, since
     // PowerShell's `>` writes one. A hook that read nothing has observed nothing.
-    input = JSON.parse((await readStdin()).replace(/^\uFEFF/, ''))
+    raw = await readStdin()
+    input = JSON.parse(raw.replace(/^﻿/, ''))
   } catch {
-    process.stderr.write('[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.\n')
+    // UTF-16 read as UTF-8 is JSON with a NUL after every ASCII character, so a payload holding NUL
+    // bytes says the likely cause (BACKLOG §355, a Windows corpus-chaos run of v3.8.9).
+    const utf16 = raw.includes('\u0000') ? ' It holds NUL bytes: saved as UTF-16?' : ''
+    process.stderr.write(`[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.${utf16}\n`)
     return
   }
   // Valid JSON that is not the object the host sends: `null` and a `cwd` that is not a

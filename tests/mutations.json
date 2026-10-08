@@ -30,6 +30,24 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355 front matter: work-next does not call a corpus of unread records no corpus",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-not-read-headline.test.mjs"
+      ],
+      "from": "  const unreadCorpus = stage.id === 'core' && state.notRead.length > 0",
+      "to": "  const unreadCorpus = false"
+    },
+    {
+      "label": "§355 front matter: the unread-corpus headline needs a named file",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-not-read-headline.test.mjs"
+      ],
+      "from": "  const unreadCorpus = stage.id === 'core' && state.notRead.length > 0",
+      "to": "  const unreadCorpus = stage.id === 'core'"
+    },
+    {
       "label": "§351.21.3: work-next counts task files git lists and the disk does not hold",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [

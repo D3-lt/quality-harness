@@ -2193,6 +2193,26 @@ def check_dag(infos, readme_text, errors):
                           f"— {a} must land in a strictly earlier {mode}")
 
 
+def check_duplicate_number(adr_path, root, tracked, errors):
+    """BACKLOG §355: another record in this corpus carries this record's number.
+
+    Each is read on its own, so a dependency or a citation naming that number cannot say which
+    record it means. adr-state names the pair over the whole corpus; this says it to the person
+    linting either one. Advice: two records sharing a number is a corpus to tidy, not a record
+    to block. A corpus that could not be listed is already said by the cycle check."""
+    records = record_files(root, adr_path.parent, tracked)
+    if records is None:
+        return
+    mine = next((number for path, number in records if path.name == adr_path.name), None)
+    if mine is None:
+        return
+    others = sorted(path.name for path, number in records if number == mine and path.name != adr_path.name)
+    if others:
+        errors.advise(f"{adr_path.name}: another record in this corpus carries number {mine}: "
+                      f"{', '.join(others)} — a dependency or citation naming it cannot say which record it means; "
+                      f"renumber one of them")
+
+
 def check_cross_record_cycles(root, corpus_dir, tracked, errors):
     """A dependency cycle that exists only in the UNION of records.
 
@@ -6725,6 +6745,7 @@ def main():
     check_pointers(text, adr, errors,
                    root, adr.parent, tracked)
     check_cross_record_cycles(root, adr.parent, tracked, errors)
+    check_duplicate_number(adr, root, tracked, errors)
 
     if spec_file is not None:
         # inline-task ADRs carry **Covers:** lines in the ADR body itself

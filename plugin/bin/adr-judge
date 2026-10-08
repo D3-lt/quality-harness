@@ -227,7 +227,8 @@ def judge(text):
         # covering nothing — the failure arch-write warns about.
         entries = [alternatives.strip()]
     for entry in entries:
-        head = re.split(r"[—–:;.,]", entry)[0].strip()[:60]
+        head = re.split(r"[—–:;.,]", entry)[0].strip()
+        head = head if len(head) <= 60 else head[:60] + "…"
         if REJECTION.search(entry):
             continue
         split = ALTERNATIVE_CLAUSE.split(entry, 1)

@@ -1064,6 +1064,14 @@ def unsigned_human_proof_steps(text):
             steps.append(current)
     return steps
 
+def clipped(text, width):
+    """`text` cut to `width` characters with `…` when it was longer, else whole.
+
+    A quote a finding cuts must say it was cut, and one it did not cut must not say so: the
+    gates sliced with `[:N]` and printed a cut quote as if whole, while two Verification Log
+    sentences appended `…` to a row short enough to print whole (§355)."""
+    return text if len(text) <= width else text[:width] + "…"
+
 def status_word(value):
     """The run of Unicode letters and digits a Status value starts with, lower-cased, or None.
     The value is `record_status`'s, whose markup is already removed: removing it once is what

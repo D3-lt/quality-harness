@@ -74,7 +74,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, NO_WINDOW, walk, read_regular  # noqa: E402
-from record import os_reason  # noqa: E402
+from record import clipped, os_reason  # noqa: E402
 
 
 def disposition_span(text):
@@ -510,7 +510,7 @@ def main():
                     pointer = deferred_pointer(ln)
                     if pointer is not None:
                         kind, ok = resolve(pointer, md, scan_dir)
-                        item = (scan_dir, rel, pointer.strip(), ln.strip()[:70])
+                        item = (scan_dir, rel, pointer.strip(), clipped(ln.strip(), 70))
                         deferred.append(item)
                         if not ok:
                             broken.append(item + (kind,))

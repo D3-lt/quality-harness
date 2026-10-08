@@ -564,6 +564,9 @@ function oneLine(text) {
   return text.replace(/[\u0000-\u001f\u007f]/g, c => ESCAPES[c] ?? `\\x${c.charCodeAt(0).toString(16).padStart(2, '0')}`)
 }
 
+// The words a gate uses when it says what it could not look at (adr-lint's "were NOT checked", "could not
+// be listed", "could not be read"), read in an advice line --diff prints (BACKLOG §356).
+const COULD_NOT_LOOK = /\bNOT checked\b|\bcould not (?:be )?(?:listed|read|checked|run|look)\b/
 export function diffReports(before, after, scrub = text => String(text)) {
   const lines = []
   const say = text => lines.push(oneLine(scrub(text)))
@@ -576,6 +579,16 @@ export function diffReports(before, after, scrub = text => String(text)) {
   const setChange = (field, b, a) => {
     if (lacks(field, b, a)) return
     named(field, b ?? [], a ?? [])
+  }
+  // An advice line that says what the run could not see (git could not list the corpus, a check was NOT
+  // run) is an observation about that run, and one that came or went is marked so: an outside run read
+  // such a line as a regression no change between its two releases could make (BACKLOG §356). It is
+  // still printed; only ordinary advice is unmarked.
+  const adviceChange = (field, b, a) => {
+    if (lacks(field, b, a)) return
+    for (const line of elementLines(field, b ?? [], a ?? [])) {
+      say(COULD_NOT_LOOK.test(line) ? `${line} — could-not-look: about this run, not the corpus; re-run before reading it as a change` : line)
+    }
   }
   // The adr-lint verdicts, by file: which records came or went, a verdict that moved, a reason that
   // changed under one that held, and its advice. Under a PARTIAL look too (ADR-089).
@@ -594,7 +607,7 @@ export function diffReports(before, after, scrub = text => String(text)) {
       else if ((old.reason ?? null) !== (entry.reason ?? null)) say(`adrLint ${file}: ${entry.verdict}, reason changed — ${entry.reason ?? '(none)'}`)
       // Advice that came or went under a verdict that held is a change too: a PASS that gained
       // advice compared as "nothing changed". A verdict that moved is its own line already.
-      if (old && old.verdict === entry.verdict) setChange(`adrLint ${file} advice`, old.advice, entry.advice)
+      if (old && old.verdict === entry.verdict) adviceChange(`adrLint ${file} advice`, old.advice, entry.advice)
       if (old && old.verdict === entry.verdict && (old.unproven || entry.unproven)) setChange(`adrLint ${file} unproven`, old.unproven ?? [], entry.unproven ?? [])
     }
     for (const [file, old] of was) if (!now.has(file)) say(`adrLint: - ${file} (was ${old.verdict})`)

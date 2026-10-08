@@ -18435,11 +18435,13 @@ The owner brought five Windows 11 desktops back for testing. Each ran the probe 
 - The UTF-16 hook-payload sentence could say "UTF-16?".
 **A doc error, for the owner:** `git -c core.longpaths=true clone` does not persist the setting; `git clone -c core.longpaths=true` does. It is wrong in CLAUDE.md §7 and .claude/rules/07, and it was wrong in my request too.
 
-## 356. OPEN 2026-10-07 — corpus-probe `--diff` reports a transient could-not-look as a changed advice line
+## 356. CLOSED 2026-10-08 — corpus-probe `--diff` reports a transient could-not-look as a changed advice line
 
 Found by an outside run of the 3.8.10 RC (d39a15f) on laravel-react-monorepo: `--diff` against v3.8.9 showed one added advice, `adrLint docs/adr-archive/ADR-030-…md advice: cross-record dependency cycles were NOT checked: this corpus could not be listed from git`. Read from source, nothing between v3.8.9 and d39a15f can add that line: `record_files`, `check_cross_record_cycles` and `tracked_or_unignored_paths` are unchanged, and the one edit on the path (adr-lint's pending branch no longer re-takes `tracked` as None) can only remove it. The peer re-ran adr-lint twice on the same record at d39a15f: PASS, no advice; both `git ls-files` calls under 0.1 s at load 5–6. The original probe ran while the peer's machine logged load 10–32, so a 30 s `ls-files` timeout is plausible but unmeasured.
 
 The lead: a could-not-look advice is an observation about the run, not about the corpus, and `--diff` lists it beside real advice changes. A diff could mark advice lines of the could-not-look kind separately (or say "transient: could not look") so a reader does not chase a regression. Not built; no target measured.
+
+**Closed 2026-10-08.** `--diff` now marks an adr-lint advice line that came or went and says what the run could not look at (`NOT checked`, `could not be listed`, `could not be read`, `could not run`), with "— could-not-look: about this run, not the corpus; re-run before reading it as a change". The line is still printed; ordinary advice is unmarked (`tests/probe-diff-transient.test.mjs`, both directions). Members of the class: the one place --diff prints advice (`mrw read --grep 'setChange\(|adviceChange\(' plugin/scripts/corpus-probe.mjs`: the advice call, now `adviceChange`; the `unproven` call already says what could not be decided).
 
 ## 357. CLOSED 2026-10-07 — History rewritten to remove other projects' names; older evidence points at the old history
 

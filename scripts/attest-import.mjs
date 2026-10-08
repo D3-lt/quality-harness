@@ -21,7 +21,7 @@ import { isMainModule } from '../plugin/scripts/main-module.mjs'
 /** The attestation schema of docs/corpus-reports/README.md, in the order a file is written. */
 export const KEYS = ['date', 'at', 'atReason', 'plugin', 'kind', 'probeSha256', 'readers', 'platform', 'node', 'python',
   'corpus', 'couldNotRun', 'disagreements', 'readinessUnproven', 'look', 'notCompared', 'verdictChanges', 'runner', 'found']
-const CORPUS_KEYS = ['records', 'tasks', 'taskDirectories', 'countsFrom']
+const CORPUS_KEYS = ['records', 'undecided', 'tasks', 'taskDirectories', 'countsFrom']
 // The looks a probe report carries (ADR-089), and null for a report that carried none.
 const LOOKS = ['ok', 'PARTIAL', 'UNPROVEN', null]
 

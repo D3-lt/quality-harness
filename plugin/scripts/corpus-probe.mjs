@@ -751,12 +751,17 @@ export function readersOfRun(start, end) {
  */
 function corpusCounts(report) {
   const taskDirectories = Array.isArray(report.adrNext) ? report.adrNext.length + (report.frozenTaskDirs?.length ?? 0) : null
-  if (report.workNext?.records != null) return { records: report.workNext.records, tasks: report.workNext.tasks ?? null, taskDirectories }
+  // BACKLOG §362: `records` counts what a reader acts on, so a corpus whose one record is Proposed
+  // attested `records: 0` beside a lint verdict for it. The records held back are counted beside it.
+  // A report from before the probe listed them carries no such list, and no count is made up for it.
+  const undecided = Array.isArray(report.undecided) ? { undecided: report.undecided.length } : {}
+  if (report.workNext?.records != null) return { records: report.workNext.records, ...undecided, tasks: report.workNext.tasks ?? null, taskDirectories }
   // corpus-report's `records` is a COUNT (recordCount), not a list (Codex review of 991f400).
   const answered = (report.corpusReport ?? []).filter(entry => entry.totals && Number.isFinite(entry.records))
-  if (!answered.length) return { records: null, tasks: null, taskDirectories }
+  if (!answered.length) return { records: null, ...undecided, tasks: null, taskDirectories }
   return {
     records: answered.reduce((sum, entry) => sum + entry.records, 0),
+    ...undecided,
     tasks: answered.reduce((sum, entry) => sum + (entry.totals.tasks ?? 0), 0),
     taskDirectories,
     countsFrom: 'corpusReport',

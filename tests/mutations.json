@@ -23726,6 +23726,16 @@
       "from": "    r\"(^|[;,:.\u2014\u2013(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
       "to": "    r\"(^|[;,:.\u2014\u2013(]|\\s)\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
       "only": "^a stop sharing the red run clause, or a denied absence, still stops$"
+    },
+    {
+      "label": "2026-10-08: a refusal after a fast pass says no qh-check has passed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-fast-wording.test.mjs"
+      ],
+      "from": "  const fastSeen = treeUnchecked ? latestFastPass(cwd, now.tree, found.root ?? cwd) : null",
+      "to": "  const fastSeen = null",
+      "only": "^a refusal after a fast pass says the fast check passed and why it does not count here$"
     }
   ]
 }

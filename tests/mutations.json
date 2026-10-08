@@ -35,8 +35,8 @@
       "tests": [
         "tests/work-next-absent-count.test.mjs"
       ],
-      "from": "    tasksNotOnDisk: absentTasks.size,",
-      "to": "    tasksNotOnDisk: 0,"
+      "from": "    tasksNotOnDisk: notOnDisk.size,",
+      "to": "    tasksNotOnDisk: absentTasks.size,"
     },
     {
       "label": "§351.21.3: work-next's summary says the tasks not on disk",
@@ -44,8 +44,17 @@
       "tests": [
         "tests/work-next-absent-count.test.mjs"
       ],
-      "from": "    + `${state.tasks} task file(s)${state.tasksNotOnDisk ? ` on disk, and ${state.tasksNotOnDisk} more that git lists and the disk does not hold` : ''}, ${state.specs} spec(s).`",
+      "from": "    + `${state.tasks} task file(s)${listedApart(state)}, ${state.specs} spec(s).`",
       "to": "    + `${state.tasks} task file(s), ${state.specs} spec(s).`"
+    },
+    {
+      "label": "§351.21.3 review: only ENOENT or ENOTDIR is counted as not on disk",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/work-next-absent-count.test.mjs"
+      ],
+      "from": "(['ENOENT', 'ENOTDIR'].includes(error?.code) ? notOnDisk : uninspected).add(file)",
+      "to": "notOnDisk.add(file)"
     },
     {
       "label": "§351.11: a fullwidth-digit name is folded by NFKC",
@@ -984,8 +993,8 @@
       "tests": [
         "tests/work-next-readiness.test.mjs"
       ],
-      "from": "    try { statSync(file); return false } catch { return true }",
-      "to": "    return false",
+      "from": "    try { statSync(file) } catch (error) { (['ENOENT', 'ENOTDIR'].includes(error?.code) ? notOnDisk : uninspected).add(file) }",
+      "to": "    try { statSync(file) } catch (error) {}",
       "only": "^(?:a task git lists but the disk does not hold is unproven, not counted)$"
     },
     {

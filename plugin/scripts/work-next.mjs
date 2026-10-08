@@ -464,9 +464,14 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
   // presence IS the observation here, so the disk is the right thing to ask (ADR-008
   // is about gating on a file that git does not know, not this). Its directory is
   // named as unproven instead of counted.
-  const absentTasks = new Set((listedTasks?.files ?? []).filter(file => {
-    try { statSync(file); return false } catch { return true }
-  }))
+  // Only ENOENT and ENOTDIR say the file is not there; any other failure (EACCES on a parent, say) says
+  // only that it could not be inspected, and is counted apart (a gpt-6.1-sol review of 3.8.14).
+  const notOnDisk = new Set()
+  const uninspected = new Set()
+  for (const file of listedTasks?.files ?? []) {
+    try { statSync(file) } catch (error) { (['ENOENT', 'ENOTDIR'].includes(error?.code) ? notOnDisk : uninspected).add(file) }
+  }
+  const absentTasks = new Set([...notOnDisk, ...uninspected])
   const tasks = (listedTasks?.files ?? []).filter(file => !absentTasks.has(file))
   const specPaths = specFiles(directory, listing) ?? []
   const nestedSpecPaths = nestedSpecFiles(directory, listing) ?? []
@@ -699,7 +704,8 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
     tasks: tasks.length,
     // Listed by git, not on disk (a sparse checkout): counted apart, so "0 task file(s)" is never
     // said over a corpus git says holds some (BACKLOG §351 item 21.3).
-    tasksNotOnDisk: absentTasks.size,
+    tasksNotOnDisk: notOnDisk.size,
+    tasksUninspected: uninspected.size,
     unbacked,
     relock,
     ready,
@@ -747,6 +753,16 @@ export function productLayer(look, nextId) {
   return nextId === 'core' ? 'core' : 'corpus'
 }
 
+// The task files git lists that the summary's count leaves out, each said as what was observed:
+// not on disk, or not inspectable (BACKLOG §351 item 21.3; a gpt-6.1-sol review of 3.8.14).
+function listedApart(state) {
+  const parts = [
+    state.tasksNotOnDisk ? `${state.tasksNotOnDisk} that git lists and the disk does not hold` : '',
+    state.tasksUninspected ? `${state.tasksUninspected} that git lists and could not be inspected` : '',
+  ].filter(Boolean)
+  return parts.length ? ` on disk, and ${parts.join(' and ')}` : ''
+}
+
 /**
  * The CLI half, returning an exit code instead of taking the process with it.
  *
@@ -787,6 +803,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
       notRead: state.notRead.map(file => ({ file: relative(file) })),
       partialBecause: state.partialBecause.map(entry => ({ file: relative(entry.file), reason: entry.reason })),
       tasks: state.tasks,
+      tasksUninspected: state.tasksUninspected,
       tasksNotOnDisk: state.tasksNotOnDisk,
       unbackedDoneClaims: state.unbacked.map(relative),
       tasksWithoutEvidence: state.ready.map(relative),
@@ -836,7 +853,7 @@ export function main(argv = process.argv.slice(2), { spawn = spawnGate, listing 
   }
 
   say(`${state.records} record(s), ${state.accepted} accepted, `
-    + `${state.tasks} task file(s)${state.tasksNotOnDisk ? ` on disk, and ${state.tasksNotOnDisk} more that git lists and the disk does not hold` : ''}, ${state.specs} spec(s).`
+    + `${state.tasks} task file(s)${listedApart(state)}, ${state.specs} spec(s).`
     + (state.undecided
       ? ` ${state.undecided} further record(s) are not acted on: not yet Accepted, or with a Status this reader cannot read.\n`
       : '\n'))

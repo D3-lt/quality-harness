@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "readers: the fingerprint and the release question read every reader directory",
+      "file": "plugin/scripts/reader-paths.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "export const READER_DIRECTORIES = ['scripts', 'bin', 'lib', 'hooks']",
+      "to": "export const READER_DIRECTORIES = ['scripts', 'bin', 'hooks']",
+      "only": "covers lib and hooks"
+    }
+  ]
+}

@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-009-a-decision-names-what-enforces-it.md, docs/adr/ADR-011-a-pointer-resolves-or-it-is-reported.md, docs/adr/ADR-013-a-mutation-a-human-performed.md, docs/adr/ADR-014-a-task-that-is-honestly-unfinished.md, docs/adr/ADR-015-a-go-fence-can-reach-its-required-success.md
-**Governs:** `plugin/bin/adr-lint`, `plugin/bin/adr-debt`, `plugin/bin/qh-mcp`, `plugin/templates/adr-template.md`, `plugin/skills/adr-write/SKILL.md`, `plugin/skills/adr-write/references/lessons.md`, `tests/gate-regressions.py`, `tests/mutations.json`
+**Governs:** `plugin/bin/adr-lint`, `plugin/bin/adr-debt`, `plugin/bin/qh-mcp`, `plugin/templates/adr-template.md`, `plugin/skills/adr-write/SKILL.md`, `plugin/skills/adr-write/references/lessons.md`, `tests/gate-regressions.py`, `tests/mutations/**`
 **Enforced-by:** `lint: a permanent disposition names whether it is boundary or fact`, `lint: a permanent fact file citation resolves to a repository line`
 **Invalidates:** none — checked. ADR-003's behavioral-mutation rule gains two applications; ADR-005's observed-state vocabulary governs unresolved files and unavailable git; ADR-009 resolves the two exact mutation labels above; ADR-011's repository candidate set is reused rather than copied. ADR-013's human mutation lane, ADR-014's task statuses, and ADR-015's Go-fence advice are unchanged.
 **Served-path change:** `adr-lint` advises an ADR author when a permanent Out of Scope disposition does not say whether it records a chosen boundary or a factual claim with one typed, checkable citation.

@@ -1,0 +1,74 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-075 T4: a mismatch is reported",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "    if (a !== b) mismatches.push({ label, inPlace: a, isolated: b })",
+      "to": "    void label",
+      "only": "^compareRuns finds a mismatch"
+    },
+    {
+      "label": "ADR-075 T4: the overhead bound is enforced",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "    return mismatches.length || built > OVERHEAD_MS ? 1 : 0",
+      "to": "    return mismatches.length ? 1 : 0",
+      "only": "^a worktree slower than its budget fails the parity run$"
+    },
+    {
+      "label": "Codex ADR-075 #3: parity refuses a run that did not finish",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "  if (run.error || run.signal || (run.status !== 0 && run.status !== 1)) {",
+      "to": "  if (false) {",
+      "only": "^a campaign that did not finish, or left a selected entry out"
+    },
+    {
+      "label": "Codex ADR-075 #3: parity wants every selected entry graded",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "  return missing.length ? ",
+      "to": "  return false ? ",
+      "only": "^a campaign that did not finish, or left a selected entry out"
+    },
+    {
+      "label": "Codex ADR-075 #3: parity reads a RED that names no killer",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "(?: +<-.*)? *$/gm",
+      "to": " +<-.*$/gm",
+      "only": "^a campaign that did not finish, or left a selected entry out"
+    },
+    {
+      "label": "Codex ADR-075 #3: parity compares against the listed selection",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/campaign-parity.test.mjs"
+      ],
+      "from": "    const expected = listedLabels(list.stdout)",
+      "to": "    const expected = []",
+      "only": "^the parity script finds no mismatch"
+    },
+    {
+      "label": "ADR-091 T2: campaign-parity filters each per-source file by test",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/catalogue-readers.test.mjs"
+      ],
+      "from": "        file.catalogue.mutations = file.catalogue.mutations.filter(entry => entry.tests.includes(tests))",
+      "to": "        file.catalogue.mutations = file.catalogue.mutations.filter(entry => file.path === campaignPaths(clone).catalogue ? entry.tests.includes(tests) : true)",
+      "only": "^campaign-parity keeps only the entries whose tests include --tests, across per-source files$"
+    }
+  ]
+}

@@ -1,0 +1,125 @@
+{
+  "mutations": [
+    {
+      "label": "workflow-parse: a syntax error is reported, so the checker can come back dirty",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "    return `${name}: ${err.message}`",
+      "to": "    return null",
+      "only": "^(?:a real syntax error is still refused, so the check can come back dirty|an export the format does not permit is refused rather than quietly stripped|a static import is refused, because a workflow script is self-contained|the CLI exits 1 naming the bad file, 0 on a good one, 2 with no argument|--js accepts an ES module, accepts a Workflow script, and refuses neither-of-those|the required `export const meta` header is required, and only it is stripped|a spawn that did not finish is COULD NOT CHECK, never a verdict about the file|an unusable temporary directory is COULD NOT CHECK, and does not escape as a stack|the CLI separates a finding from a could-not-look, and says it ran|an unchecked file dominates a batch, so a partial run cannot read as a complete one|a file NAMED like a could-not-look is still counted as a finding)$"
+    },
+    {
+      "label": "workflow-parse: the required `export const meta` header is required, not assumed",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "  if (!META_HEADER.test(source)) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "workflow-parse: --js refuses a file neither dialect parses, which node's own --check does not",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "    if (checked.status === 0) return null",
+      "to": "    return null",
+      "only": "^(?:--js accepts an ES module, accepts a Workflow script, and refuses neither-of-those|`node --check` on the \\.js file disagrees with this checker, on whichever node is running|a spawn that did not finish is COULD NOT CHECK, never a verdict about the file|an unusable temporary directory is COULD NOT CHECK, and does not escape as a stack|the CLI separates a finding from a could-not-look, and says it ran|an unchecked file dominates a batch, so a partial run cannot read as a complete one|a file NAMED like a could-not-look is still counted as a finding|a \\.mjs is judged by the module goal alone — the Workflow fallback is for \\.js)$"
+    },
+    {
+      "label": "workflow-parse: the advice names the file edited, never the copy the check made",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs",
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "    const said = [realpathSync(copy), copy].reduce((text, path) => text.split(path).join(name),",
+      "to": "    const said = [].reduce((text, path) => text.split(path).join(name),",
+      "only": "^(?:a Workflow script is not reported as broken, and a broken one still is|--js accepts an ES module, accepts a Workflow script, and refuses neither-of-those)$"
+    },
+    {
+      "label": "workflow-parse: exactly one header export is stripped, and only where the format puts it",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "const META_HEADER = /^\\s*(?:(?:\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)\\s*)*export (?=const meta\\s*=)/",
+      "to": "const META_HEADER = /^(?:(?:\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)\\s*)*export (?=const meta\\b)/"
+    },
+    {
+      "label": "workflow-parse: a spawn that did not finish is could-not-look, never a verdict",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "    if (checked.error) return `${name}: COULD NOT CHECK — ${checked.error.message}`",
+      "to": "    if (false) return `${name}: COULD NOT CHECK`",
+      "only": "^(?:a spawn that did not finish is COULD NOT CHECK, never a verdict about the file)$"
+    },
+    {
+      "label": "workflow-parse: the CLI says it ran, so a dead interpreter is not read as a finding",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs",
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "  console.log('QH-PARSE-COMPLETE')",
+      "to": "  if (false) console.log('QH-PARSE-COMPLETE')",
+      "only": "^(?:the hook reports a syntax error without failing the edit|a Workflow script is not reported as broken, and a broken one still is|a checker that could not run is UNRUN, never a finding about the file|the hook picks the parse goal from the extension, and diagnostics cannot forge the marker|the CLI separates a finding from a could-not-look, and says it ran|the CLI runs when its own path is reached through a symlink)$"
+    },
+    {
+      "label": "workflow-parse: the CLI runs when its own path comes through a symlink, or it silently does nothing",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs",
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(argv[1])",
+      "to": "    return import.meta.url === pathToFileURL(argv[1]).href",
+      "only": "^(?:the CLI runs when its own path is reached through a symlink)$"
+    },
+    {
+      "label": "workflow-parse: a temp directory it cannot make is could-not-look, on every platform",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "    return `${name}: COULD NOT CHECK — no usable temporary directory (${err.message})`",
+      "to": "    return `${name}: parses as neither a module nor a Workflow script`",
+      "only": "^(?:an unusable temporary directory is COULD NOT CHECK, and does not escape as a stack)$"
+    },
+    {
+      "label": "workflow-parse: an unchecked file dominates a batch, so a partial run is not reported complete",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "  process.exitCode = outcomes.some(outcome => outcome.unchecked) ? 4",
+      "to": "  process.exitCode = false ? 4",
+      "only": "^(?:the CLI separates a finding from a could-not-look, and says it ran|an unchecked file dominates a batch, so a partial run cannot read as a complete one)$"
+    },
+    {
+      "label": "workflow-parse: the unchecked flag is read past the file name, so a filename cannot spoof it",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "  const rest = message.startsWith(`${file}: `) ? message.slice(file.length + 2) : message",
+      "to": "  const rest = message",
+      "only": "^(?:the verdict token is matched whole, so a finding cannot begin its way into could-not-look)$"
+    },
+    {
+      "label": "workflow-parse: the verdict token is matched whole, delimiter included",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "  return rest.startsWith('COULD NOT CHECK — ') ? 'COULD NOT CHECK'",
+      "to": "  return rest.startsWith('COULD NOT CHECK') ? 'COULD NOT CHECK'",
+      "only": "^(?:the verdict token is matched whole, so a finding cannot begin its way into could-not-look)$"
+    }
+  ]
+}

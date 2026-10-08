@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "selftest: the verdict is printed as the last line",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "printf '%s\\n' \"$verdict\"",
+      "to": ": \"$verdict\"",
+      "only": "selftest prints its verdict"
+    },
+    {
+      "label": "ADR-077 T2: the suite has a private lease directory",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "export QUALITY_HARNESS_LEASE_DIR=\"$QH_LEASES\"",
+      "to": "export QH_UNUSED=\"$QH_LEASES\"",
+      "only": "^a campaign's tests and the selftest use a private lease directory$"
+    }
+  ]
+}

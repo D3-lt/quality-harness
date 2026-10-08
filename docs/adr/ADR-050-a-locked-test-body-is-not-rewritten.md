@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-12-a-locked-test-body-is-not-rewritten.md`
 **Cross-references:** ADR-005, ADR-016, ADR-020, ADR-022, ADR-045, `CLAUDE.md`, `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/bin/adr-verify`, `plugin/bin/adr-next`
-**Governs:** `plugin/lib/record.py`, `plugin/bin/adr-verify`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`, `tests/test-lock.test.mjs`, `tests/gate-regressions.py`, `tests/mutations.json`
+**Governs:** `plugin/lib/record.py`, `plugin/bin/adr-verify`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`, `tests/test-lock.test.mjs`, `tests/gate-regressions.py`, `tests/mutations/**`
 
 Class: every gate that writes or reads a Verification Log row to decide `done` / `is_done`. Enumerated 2026-09-12 with `rg -n "VLOG_DIGEST_RE|ENTRY_RE|is_done|acceptance_digest|record_run" plugin/bin/adr-lint plugin/bin/adr-verify plugin/bin/adr-next plugin/lib/record.py` and `git ls-files -- plugin/lib/record.py plugin/bin/adr-lint plugin/bin/adr-verify plugin/bin/adr-next tests/gate-regressions.py tests/mutations.json`:
 

@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-005, ADR-050, `plugin/lib/record.py`, `plugin/bin/adr-verify`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`
-**Governs:** `plugin/lib/record.py`, `plugin/bin/adr-verify`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`, `tests/test-lock.test.mjs`, `tests/mutations.json`, `tests/gate-regressions.py`
+**Governs:** `plugin/lib/record.py`, `plugin/bin/adr-verify`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`, `tests/test-lock.test.mjs`, `tests/mutations/**`, `tests/gate-regressions.py`
 
 Class: every gate that writes or reads a Verification Log lock suffix (`test-lock-sha256` / `test-lock-b64` / a later `test-lock-kind`) to decide `done`. Enumerated 2026-09-14 with `rg -n "first_red_lock_suffix|lock_suffix_for_run|_recorded_lock|lock_findings|test-lock-sha256|test-lock-b64" plugin/lib/record.py plugin/bin/adr-verify plugin/bin/adr-lint plugin/bin/adr-next` and `git ls-files -- plugin/lib/record.py plugin/bin/adr-verify plugin/bin/adr-lint plugin/bin/adr-next tests/test-lock.test.mjs tests/mutations.json tests/gate-regressions.py`. Named members:
 

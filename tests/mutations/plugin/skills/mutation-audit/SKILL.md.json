@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "skills: mutation-audit names the control that refuses nobody",
+      "file": "plugin/skills/mutation-audit/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "- **A control that refuses nobody** — an authorization check, a healthcheck, an engine",
+      "to": "- **A control** — an authorization check, a healthcheck, an engine",
+      "only": "^(?:mutation-audit tells the reader to break the control, not the code it guards)$"
+    },
+    {
+      "label": "skills: mutation-audit says to break the control, not the guarded code",
+      "file": "plugin/skills/mutation-audit/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "## The control is the thing to break, not the code it guards",
+      "to": "## Controls",
+      "only": "^(?:mutation-audit tells the reader to break the control, not the code it guards)$"
+    },
+    {
+      "label": "skills: mutation-audit says which gates earn their place",
+      "file": "plugin/skills/mutation-audit/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "## Choosing what to gate at all",
+      "to": "## Gates",
+      "only": "^(?:mutation-audit says which gates earn their place, and names the counterexample)$"
+    }
+  ]
+}

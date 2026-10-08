@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "reviewer-guard: the CLI refuses with exit 2, not a pass",
+      "file": "plugin/scripts/reviewer-guard.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs"
+      ],
+      "from": "  stderr.write(`quality-harness reviewer guard: ${reason}\\n`)\n  return 2",
+      "to": "  stderr.write(`quality-harness reviewer guard: ${reason}\\n`)\n  return 0",
+      "only": "^(?:the guard refuses a command that names commit or push, wrapped or not|the guard refuses an editing tool, and says why)$"
+    }
+  ]
+}

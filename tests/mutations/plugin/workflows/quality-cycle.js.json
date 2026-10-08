@@ -1,0 +1,55 @@
+{
+  "mutations": [
+    {
+      "label": "routing stress: quality-cycle synthesis runs as qh-synthesis",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "model: 'opus', agentType: 'quality-harness:qh-synthesis'",
+      "to": "model: 'opus'",
+      "only": "^(?:removing every route to one shipped element reports exactly that element|every role quality-cycle and review-ring spawn carries the agentType the Decision names, on every path)$"
+    },
+    {
+      "label": "quality-cycle: a host result whose status contradicts its findings is unavailable",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "  && (review.status === 'blocking' ? review.findings.some(finding => finding.severity === 'blocking')",
+      "to": "  && (true ? true",
+      "only": "^(?:quality-cycle is unavailable when a requested host result is not the review schema)$"
+    },
+    {
+      "label": "quality-cycle: a host result that is not the review schema is unavailable",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "const malformed = externalReviews.filter(review => !wellFormed(review)).length",
+      "to": "const malformed = 0",
+      "only": "^(?:a requested host with no result says what to run, and the listing names externalReviews)$"
+    },
+    {
+      "label": "routing stress: a requested host with no result is unavailable",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/routing-stress.test.mjs",
+        "tests/workflows.test.mjs"
+      ],
+      "from": "const missingHosts = requested.filter(host => !externalReviews.some(review => wellFormed(review) && review.host === host))",
+      "to": "const missingHosts = []",
+      "only": "^(?:every role quality-cycle and review-ring spawn carries the agentType the Decision names, on every path|a requested host with no result says what to run, and the listing names externalReviews|quality-cycle runs its reviewers and synthesis as the shipped agents)$"
+    },
+    {
+      "label": "quality-cycle: an unavailable cycle says which host result is missing and what to run",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "  return { status: 'reviewer-unavailable', reason: reasons.join('; '), evidence, reviews: externalReviews }",
+      "to": "  return { status: 'reviewer-unavailable', evidence, reviews: externalReviews }",
+      "only": "^(?:a requested host with no result says what to run, and the listing names externalReviews)$"
+    }
+  ]
+}

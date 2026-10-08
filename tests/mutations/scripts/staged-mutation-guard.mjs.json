@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-091 T2: the staged guard reads the staged per-source file",
+      "file": "scripts/staged-mutation-guard.mjs",
+      "tests": [
+        "tests/catalogue-readers.test.mjs"
+      ],
+      "from": "    const staged = run(['show', `:tests/mutations/${file}.json`])",
+      "to": "    const staged = { status: 1, stdout: '' }",
+      "only": "^the staged guard passes an added source whose per-source file is staged$"
+    }
+  ]
+}

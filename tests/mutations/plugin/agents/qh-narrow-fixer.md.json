@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "agents: a definition's name is the name subagent_type resolves",
+      "file": "plugin/agents/qh-narrow-fixer.md",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "name: qh-narrow-fixer",
+      "to": "name: narrow-fixer",
+      "only": "^(?:every catalogue entry still matches the source it mutates, exactly once|an agent definition's name matches its file)$"
+    }
+  ]
+}

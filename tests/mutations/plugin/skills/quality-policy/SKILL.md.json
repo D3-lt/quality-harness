@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "routing: each branch of a Codex route has its own destination",
+      "file": "plugin/skills/quality-policy/SKILL.md",
+      "tests": [
+        "tests/routing.test.mjs"
+      ],
+      "from": "when Codex is installed (`command -v codex`), `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex --repo <repository root> --scope <uncommitted, commit SHA, or base REF> --requirements <text> --evidence <caller-observed JSON>`; when it is not, `/quality-harness:quality-cycle`.",
+      "to": "when Codex is installed (`command -v codex`), `/quality-harness:quality-cycle`; when it is not, `node ${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs --host codex --repo <repository root> --scope <uncommitted, commit SHA, or base REF> --requirements <text> --evidence <caller-observed JSON>`.",
+      "only": "^(?:each branch of a Codex route sends the change to its own destination)$"
+    },
+    {
+      "label": "routing: the Moderate tier names a whole agent",
+      "file": "plugin/skills/quality-policy/SKILL.md",
+      "tests": [
+        "tests/routing.test.mjs"
+      ],
+      "from": "`subagent_type: quality-harness:qh-correctness-reviewer`",
+      "to": "`subagent_type: quality-harness:qh-correctness-reviewer-typo`",
+      "only": "^(?:the Moderate tier spawns the correctness reviewer by name|the Moderate tier names a whole shipped agent, not a prefix of one)$"
+    }
+  ]
+}

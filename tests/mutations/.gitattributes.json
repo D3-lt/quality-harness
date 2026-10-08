@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "package: the LF attribute follows the gates when they move",
+      "file": ".gitattributes",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "plugin/bin/* text eol=lf",
+      "to": "bin/* text eol=lf",
+      "only": "^(?:what ships is the plugin and nothing else|manifest and hook configuration expose the bundled components|every catalogue entry still matches the source it mutates, exactly once|a mutation that matches across lines targets a file git checks out with LF)$"
+    },
+    {
+      "label": "windows: shipped .js and .py are pinned to LF",
+      "file": ".gitattributes",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "*.js text eol=lf\n*.py text eol=lf\n",
+      "to": "",
+      "only": "^(?:every catalogue entry still matches the source it mutates, exactly once|a mutation that matches across lines targets a file git checks out with LF|code that ships is checked out LF whatever its extension)$"
+    }
+  ]
+}

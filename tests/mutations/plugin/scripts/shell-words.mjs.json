@@ -1,0 +1,204 @@
+{
+  "mutations": [
+    {
+      "label": "shell-words: an arithmetic command is not a heredoc (ADR-067, found by the gate)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "the lexer's argv is the argv the shell hands git",
+      "from": "    if (c === '(' && src[i + 1] === '(' && word === null && command.argv.length === 0 && command.assignments.length === 0) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "shell-words: a double-quoted backslash escapes (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "the lexer's argv is the argv the shell hands git",
+      "from": "        if (src[k] === '\\\\' && k + 1 < src.length && '$`\"\\\\\\n'.includes(src[k + 1])) {",
+      "to": "        if (false) {"
+    },
+    {
+      "label": "shell-words: a heredoc body is data, not commands (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "the lexer's argv is the argv the shell hands git",
+      "from": "      if (c === '\\n' && pending.length) { i++; readHeredocs(); i-- }",
+      "to": "      if (false) { readHeredocs() }"
+    },
+    {
+      "label": "shell-words: brace expansion keeps every alternative (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "the lexer's argv is the argv the shell hands git",
+      "from": "    for (let n = 0; n + 1 < cuts.length; n++) {",
+      "to": "    for (let n = 0; n + 1 < Math.min(cuts.length, 2); n++) {"
+    },
+    {
+      "label": "shell-words: an incomplete lex says so (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "an incomplete lex says so and keeps what it read",
+      "from": "  return { commands, complete }",
+      "to": "  return { commands, complete: true }"
+    },
+    {
+      "label": "shell-words: a quoted operator marks the word as code (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "quoted text, heredoc bodies and comments are data",
+      "from": "  const spanned = span => { if (CODE.test(span)) word.code = true }",
+      "to": "  const spanned = span => {}"
+    },
+    {
+      "label": "shell-words: a pipe says which command it feeds (ADR-067 T1)",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "only": "quoted text, heredoc bodies and comments are data",
+      "from": "      if (pipeNext) commands.at(-1).pipeTo = commands.length",
+      "to": "      if (false) commands.at(-1).pipeTo = commands.length"
+    },
+    {
+      "label": "ADR-067 T2: the shell's own brace expansion reaches git's options",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    for (let n = 0; n + 1 < cuts.length; n++) {",
+      "to": "    for (let n = 0; n + 1 < Math.min(cuts.length, 2); n++) {",
+      "only": "a brace-built publish is refused"
+    },
+    {
+      "label": "ADR-067 T3: a quoted span holding an operator is code to judge",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const spanned = span => { if (CODE.test(span)) word.code = true }",
+      "to": "  const spanned = span => {}",
+      "only": "the armed grammar reads words, quoted code and heredocs as the shell does"
+    },
+    {
+      "label": "ADR-067 (Codex round): a substitution inside ${…} runs",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      command.substitutions.push(...substitutionsIn(src.slice(k + 2, end)))",
+      "to": "      command.substitutions.push()",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a substitution inside $((…)) runs",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      if (src[k + 2] === '(') command.substitutions.push(...substitutionsIn(src.slice(k + 3, end - 1)))",
+      "to": "      if (src[k + 2] === '(') command.substitutions.push()",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a substitution inside ((…)) runs",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      command.substitutions.push(...substitutionsIn(src.slice(i + 2, end - 1)))",
+      "to": "      command.substitutions.push()",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a command of redirections alone keeps its substitutions",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      && command.substitutions.length === 0",
+      "to": "      && true",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): a process substitution is code, never plain",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      word.code = true\n      for (const ch of src.slice(i, end + 1)) push(ch, false)",
+      "to": "      for (const ch of src.slice(i, end + 1)) push(ch, false)",
+      "only": "an armed session still refuses every form that can disable the hook"
+    },
+    {
+      "label": "ADR-067 (Codex round): a continued redirection target is one word",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "        if (src[i + 1] === '\\n') { i++; continue }\n        quotedAny = true",
+      "to": "        quotedAny = true",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-067 (Codex round): ANSI-C quoting is decoded",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/shell-words.test.mjs"
+      ],
+      "from": "      if (x in simple) { push(simple[x], true); e++; continue }",
+      "to": "      if (false) { push(simple[x], true); e++; continue }",
+      "only": "the lexer's argv is the argv the shell hands git"
+    },
+    {
+      "label": "ADR-067 (Codex round): an ANSI-C spelling of git is git",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      const end = ansiC(i + 2)",
+      "to": "      const end = (startWord(), word.dynamic = true, ansiC(i + 2))",
+      "only": "every publish form is recognised"
+    },
+    {
+      "label": "ADR-090 T2: an unquoted heredoc body's substitution is a command",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
+      "from": "      if (!doc.quoted) doc.owner.substitutions.push(...substitutionsIn(body, false))",
+      "to": "      if (false) doc.owner.substitutions.push(...substitutionsIn(body, false))"
+    },
+    {
+      "label": "ADR-090 T2: a substitution after a parameter in double quotes is recorded",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
+      "from": "      while (/\\w/.test(src[e] ?? '')) e++",
+      "to": "      while (/[\\w$]/.test(src[e] ?? '')) e++"
+    },
+    {
+      "label": "ADR-090 T2: a function keyword body is read as commands",
+      "file": "plugin/scripts/shell-words.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "^(?:a publish run from a heredoc body, a quoted substitution or a function body is refused)$",
+      "from": "    if (leading && !w.quoted && raw === 'function' && command.assignments.length === 0) { naming = true; return }",
+      "to": "    if (false) { naming = true; return }"
+    }
+  ]
+}

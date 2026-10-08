@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "skills: spec-write audits the class, not the instance",
+      "file": "plugin/skills/spec-write/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "## Audit the class, not the instance",
+      "to": "## Notes",
+      "only": "^(?:the record skills audit the class, not the instance)$"
+    }
+  ]
+}

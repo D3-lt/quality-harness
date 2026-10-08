@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "§321 mutate-catalogue: abominations.md offers the alarm bound again",
+      "file": "plugin/skills/corpus-chaos/abominations.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "use the bound step 3 of [SKILL.md](SKILL.md)'s Chaos section gives",
+      "to": "use `perl -e 'alarm shift; exec @ARGV' 120 <command>`",
+      "only": "every perl bound the corpus-chaos skill offers"
+    }
+  ]
+}

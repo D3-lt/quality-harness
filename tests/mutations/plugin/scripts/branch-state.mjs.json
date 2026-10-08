@@ -1,0 +1,633 @@
+{
+  "mutations": [
+    {
+      "label": "branch-state: the brief's said stamp replaces the snapshot rather than rewriting it in place",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "both snapshot writers replace the file",
+      "from": "    replaceFile(store, JSON.stringify({ ...current, said }))",
+      "to": "    writeFileSync(store, JSON.stringify({ ...current, said }))"
+    },
+    {
+      "label": "branch-state: the refresher replaces the snapshot rather than rewriting it in place",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "both snapshot writers replace the file",
+      "from": "      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))",
+      "to": "      writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))"
+    },
+    {
+      "label": "branch-state: a refused rename still writes the snapshot in place",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a refused rename still writes the snapshot",
+      "from": "    fs.writeFileSync(file, text)\n",
+      "to": "\n"
+    },
+    {
+      "label": "branch-state: an abandoned snapshot temporary is removed",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a refused rename still writes the snapshot",
+      "from": "if (now - fs.statSync(spare).mtimeMs > ORPHAN_MS) fs.unlinkSync(spare)",
+      "to": "if (false) fs.unlinkSync(spare)"
+    },
+    {
+      "label": "branch-state: a temporary still in flight is not removed",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a refused rename still writes the snapshot",
+      "from": "if (now - fs.statSync(spare).mtimeMs > ORPHAN_MS) fs.unlinkSync(spare)",
+      "to": "if (true) fs.unlinkSync(spare)"
+    },
+    {
+      "label": "branch-state: a reclaimer puts back a lock it did not judge stale",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "both see a stale lock",
+      "from": "    if (moved !== judged) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "branch-state: a quoted git config value is read as git reads it",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "quoted git config value",
+      "from": "remote = configValue(setting[2])",
+      "to": "remote = setting[2].trim()"
+    },
+    {
+      "label": "branch-state: a due brief is served from the snapshot, not collected on the prompt",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a due brief is served",
+      "from": "  if (brief && hint && usableCache(previous, now)) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "branch-state: the full report is collected in the foreground",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "collected in the foreground",
+      "from": "  if (brief && hint && usableCache(previous, now)) {",
+      "to": "  if (hint && usableCache(previous, now)) {"
+    },
+    {
+      "label": "branch-state: one refresher at a time",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "one refresher at a time",
+      "from": "    if (age !== null && age <= staleAfterMs) return true",
+      "to": "    if (false) return true"
+    },
+    {
+      "label": "branch-state: the refresher does not hold the host's pipes",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "host is not kept waiting",
+      "from": "    cwd: process.cwd(), detached: true, stdio: 'ignore', windowsHide: true,",
+      "to": "    cwd: process.cwd(), detached: true, stdio: 'inherit', windowsHide: true,"
+    },
+    {
+      "label": "branch-state: a refresher that cannot run git still writes what it saw",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a due brief is served",
+      "from": "    const home = findGitDir(process.cwd())",
+      "to": "    const home = gitDir(run)"
+    },
+    {
+      "label": "branch-state: main's early hit is keyed to the current HEAD",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "branch, HEAD or upstream moved",
+      "from": "  if (freshSnapshot(previous, now, servedFor, hint ? snapshotKey(hint) : null)) {",
+      "to": "  if (freshSnapshot(previous, now, servedFor, previous?.key)) {"
+    },
+    {
+      "label": "branch-state: cached serves only a snapshot keyed to now",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "branch, HEAD or upstream moved",
+      "from": "  if (freshSnapshot(previous, at, maxAgeSeconds, key)) {",
+      "to": "  if (freshSnapshot(previous, at, maxAgeSeconds, previous?.key)) {"
+    },
+    {
+      "label": "branch-state: a checkpoint is never served as current",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "branch, HEAD or upstream moved",
+      "from": "    && previous.partial !== true && key != null && previous.key === key",
+      "to": "    && key != null && previous.key === key"
+    },
+    {
+      "label": "branch-state: the prompt path keys what it writes",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a collection on the prompt path is written under the key it read",
+      "from": "    key: home ? snapshotKey(home) : null,",
+      "to": "    key: null,"
+    },
+    {
+      "label": "branch-state: a loose ref outranks its packed copy",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "read from files for a branch",
+      "from": "    for (const dir of [gitDir, common]) {\n      const loose = read(join(dir, ...name.split('/')))?.trim()\n      if (loose && SHA.test(loose)) return loose\n    }\n    for (const line of (read(join(common, 'packed-refs')) ?? '').split(/\\r?\\n/)) {\n      const [sha, packed] = line.trim().split(' ')\n      if (packed === name && SHA.test(sha ?? '')) return sha\n    }",
+      "to": "    for (const line of (read(join(common, 'packed-refs')) ?? '').split(/\\r?\\n/)) {\n      const [sha, packed] = line.trim().split(' ')\n      if (packed === name && SHA.test(sha ?? '')) return sha\n    }\n    for (const dir of [gitDir, common]) {\n      const loose = read(join(dir, ...name.split('/')))?.trim()\n      if (loose && SHA.test(loose)) return loose\n    }"
+    },
+    {
+      "label": "branch-state: a future-dated cache is not a usable one",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (!Number.isFinite(previous.at) || previous.at > now) return false",
+      "to": "  if (!Number.isFinite(previous.at)) return false",
+      "only": "^(?:a cache is only reused when what it holds survives inspection)$"
+    },
+    {
+      "label": "branch-state: a red CI keeps its alarm in the brief form",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "      + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`\n    alarm = true",
+      "to": "      + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`\n    alarm = false",
+      "only": "^(?:a green run and a red run do not read alike|brief is one line, and still shouts when CI is red|the cached branch CLI reads a fresh answer without starting Git|a same-second tie reads the run that survived, whatever order gh lists it in|a green dispatch does not hide a red push at the same commit|every workflow at the newest commit answers, and a green one does not hide a red one|a run at an older commit does not colour the newest one, and HEAD answers when it ran|a re-run is as new as its latest start, and the id orders what the clock cannot|a listing that may have cut off a workflow is COULD NOT LOOK, never green)$"
+    },
+    {
+      "label": "branch-state: the release line names its anchor as local, and does not conclude",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}, the newest tag `\n      + 'reachable from HEAD in this clone — a forge release MAY NOT be tagged here, so check '\n      + '`gh release view` before treating this as unreleased (§13).'",
+      "to": "    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}`\n      + ' — §13: a green shipped change is released, not parked.'",
+      "only": "^(?:the release line NAMES its anchor as local and points at the check)$"
+    },
+    {
+      "label": "branch-state: a release question that could not be put is not an answer of nothing",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const unknown = state.releaseBlocked\n    ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `\n      + 'That is not \"nothing to release\".'\n    : null",
+      "to": "  const unknown = null",
+      "only": "^(?:a spent budget says COULD NOT LOOK, it does not say nothing to release|a `git describe` that FAILED is not a repository with no tags)$"
+    },
+    {
+      "label": "branch-state: a failed git describe is not a repository with no tags",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "    : !anchor && !(tag.ok || NO_TAGS.test(tag.note ?? ''))",
+      "to": "    : !anchor && tag.budget",
+      "only": "^(?:a spent budget says COULD NOT LOOK, it does not say nothing to release|a `git describe` that FAILED is not a repository with no tags)$"
+    },
+    {
+      "label": "branch-state: the shell seam pins the language git answers in",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }",
+      "to": "      { cwd, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }"
+    },
+    {
+      "label": "branch-state: gh is not asked where no remote names a GitHub host",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const onGitHub = remotes.ok && /github/i.test(remotes.out)",
+      "to": "  const onGitHub = true",
+      "only": "^(?:`gh` is not asked where no remote names a GitHub host)$"
+    },
+    {
+      "label": "branch-state: the git half is cached before the network half is attempted",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const state = gather(partial => write({ at, key, partial: true, state: partial }))",
+      "to": "  const state = gather(() => {})",
+      "only": "^(?:the git half is cached BEFORE the network half is attempted|collect checkpoints the git half BEFORE it spawns gh, and the next prompt reads it)$"
+    },
+    {
+      "label": "branch-state: a command the budget refused is marked, not folded into a plain failure",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "      return { ok: false, out: '', budget: true, note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }",
+      "to": "      return { ok: false, out: '', note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }",
+      "only": "^(?:the collection budget is spent once, and says so when it runs out)$"
+    },
+    {
+      "label": "branch-state: a remotes lookup that could not be made is not a repository without a GitHub remote",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const unreadable = !remotes.ok",
+      "to": "  const unreadable = false",
+      "only": "^(?:`gh` is not asked where no remote names a GitHub host)$"
+    },
+    {
+      "label": "branch-state: collect checkpoints the git half from inside collect, not only through cached",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  checkpoint({\n    ...git,\n    ci: { looked: false, note: 'this answer was stored before the CI half was gathered' },\n    ...release,\n  })",
+      "to": "  void checkpoint",
+      "only": "^(?:collect checkpoints the git half BEFORE it spawns gh, and the next prompt reads it)$"
+    },
+    {
+      "label": "branch-state: a config shape the key does not model makes it null",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a config the key cannot read",
+      "from": "      if (/^\\s*\\[\\s*include(?:if)?\\b/im.test(config) || /(?:^|[^\\\\])(?:\\\\\\\\)*\\\\\\r?$/m.test(config)) return null",
+      "to": "      if (false) return null"
+    },
+    {
+      "label": "branch-state: a branch header the key cannot parse makes it null",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a config the key cannot read",
+      "from": "          if (!header) return null",
+      "to": "          if (!header) continue"
+    },
+    {
+      "label": "branch-state: a git section name is read in any case",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a config the key cannot read",
+      "from": "          const header = line.match(/^\\[\\s*branch\\s+\"([^\"\\\\]*)\"\\s*\\]\\s*(?:[;#].*)?$/i)",
+      "to": "          const header = line.match(/^\\[\\s*branch\\s+\"([^\"\\\\]*)\"\\s*\\]\\s*(?:[;#].*)?$/)"
+    },
+    {
+      "label": "branch-state: a re-run is ordered by its latest start (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a re-run is as new as its latest start",
+      "from": "  const later = (a, b) => (started(b) - started(a)) || (b.databaseId - a.databaseId)",
+      "to": "  const later = (a, b) => (started(a) - started(b)) || (b.databaseId - a.databaseId)"
+    },
+    {
+      "label": "branch-state: the run id orders what the clock cannot (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a re-run is as new as its latest start",
+      "from": "  const later = (a, b) => (started(b) - started(a)) || (b.databaseId - a.databaseId)",
+      "to": "  const later = (a, b) => (started(b) - started(a)) || (a.databaseId - b.databaseId)"
+    },
+    {
+      "label": "branch-state: only one commit's runs answer (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a run at an older commit does not colour the newest one",
+      "from": "  for (const r of listed.filter(r => r.headSha === sha).sort(later)) {",
+      "to": "  for (const r of listed.slice().sort(later)) {"
+    },
+    {
+      "label": "branch-state: HEAD answers when it ran (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a run at an older commit does not colour the newest one",
+      "from": "const anchor = at(head) ? 'head' :",
+      "to": "const anchor = false ? 'head' :"
+    },
+    {
+      "label": "branch-state: every workflow at the commit answers (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "every workflow at the newest commit answers",
+      "from": "    const key = `${workflowOf(r)}\\u0000${r.event ?? ''}`",
+      "to": "    const key = `${r.event ?? ''}`"
+    },
+    {
+      "label": "branch-state: each event answers for itself (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a green dispatch does not hide a red push",
+      "from": "    const key = `${workflowOf(r)}\\u0000${r.event ?? ''}`",
+      "to": "    const key = `${workflowOf(r)}`"
+    },
+    {
+      "label": "branch-state: a workflow is its id, not its name (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "every workflow at the newest commit answers",
+      "from": "  const workflowOf = r => String(r.workflowDatabaseId ?? r.workflowName ?? '')",
+      "to": "  const workflowOf = r => String(r.workflowName ?? '')"
+    },
+    {
+      "label": "branch-state: a cancelled run answers nothing once its workflow was judged (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a same-second tie reads the run that survived",
+      "from": "    runs: chosen.filter(r => !(r.conclusion === 'cancelled' && judged.has(workflowOf(r)))),",
+      "to": "    runs: chosen,"
+    },
+    {
+      "label": "branch-state: a window that may be cut off is not green (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a listing that may have cut off a workflow",
+      "from": "      if (!answer.complete && !failing.length) {",
+      "to": "      if (false) {"
+    },
+    {
+      "label": "branch-state: a red run is red however many were not read (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "a listing that may have cut off a workflow",
+      "from": "      if (!answer.complete && !failing.length) {",
+      "to": "      if (!answer.complete) {"
+    },
+    {
+      "label": "branch-state: a red workflow outranks one still running (BACKLOG §304)",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "only": "every workflow at the newest commit answers",
+      "from": "      const verdict = failing[0] ?? running ?? answering[0]",
+      "to": "      const verdict = running ?? failing[0] ?? answering[0]"
+    },
+    {
+      "label": "win: branch-state hides git and gh",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }",
+      "to": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }",
+      "only": "passes windowsHide"
+    },
+    {
+      "label": "branch-state: a read tip with no run does not fall back to an old commit's run",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": ": anchor === 'tip' ? at(upstream) : null",
+      "to": ": anchor === 'tip' ? at(upstream) : listed.reduce((a, b) => (b.databaseId > a.databaseId ? b : a)).headSha",
+      "only": "never an old commit's verdict"
+    },
+    {
+      "label": "branch-state: the pushed tip's run answers when HEAD has none",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": ": at(upstream) ? 'tip' :",
+      "to": ": false ? 'tip' :",
+      "only": "never an old commit's verdict"
+    },
+    {
+      "label": "branch-state: the tip is read and passed to the run choice",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const tipSha = tip.ok ? tip.out : null",
+      "to": "const tipSha = null",
+      "only": "never an old commit's verdict"
+    },
+    {
+      "label": "branch-state: an ambiguous prefix names no commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "return hits.length === 1 ? hits[0] : undefined",
+      "to": "return hits[0]",
+      "only": "by whole identity"
+    },
+    {
+      "label": "branch-state: a malformed sha names no commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const HEX = /^[0-9a-f]{7,40}$/i",
+      "to": "const HEX = /^[0-9a-f]{1,40}$/i",
+      "only": "by whole identity"
+    },
+    {
+      "label": "branch-state: the configured upstream is the tip, read before gh",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const configured = run(['git', 'rev-parse', '@{upstream}'])",
+      "to": "const configured = { ok: false }",
+      "only": "by whole identity"
+    },
+    {
+      "label": "branch-state: a tip's answer is labelled as the pushed tip",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const tipNote = state.ci.looked && state.ci.anchor === 'tip' ?",
+      "to": "const tipNote = false ?",
+      "only": "never an old commit's verdict"
+    },
+    {
+      "label": "branch-state: a brief snapshot past the age cap is not shown",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "    if (pastShowCap(now - previous.at)) {",
+      "to": "    if (false) {",
+      "only": "^a brief snapshot past the age cap is not shown, and a refresh starts$"
+    },
+    {
+      "label": "Codex 01443dd: a brief's cache hit is not capped",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const servedFor = brief ? Math.min(maxAgeSeconds, SHOW_AT_MOST_SECONDS) : maxAgeSeconds",
+      "to": "  const servedFor = maxAgeSeconds",
+      "only": "^a brief never shows a snapshot past the cap, whatever --cached allows$"
+    },
+    {
+      "label": "Codex 01443dd: the cap reads a rounded age",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  return ageMs > SHOW_AT_MOST_SECONDS * 1000",
+      "to": "  return Math.round(ageMs / 1000) > SHOW_AT_MOST_SECONDS",
+      "only": "^a brief never shows a snapshot past the cap, whatever --cached allows$"
+    },
+    {
+      "label": "branch-state: an unchanged could-not-look repeats",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (!state.ci || typeof state.ci !== 'object' || !state.ci.looked) return false",
+      "to": "  if (!state.ci || typeof state.ci !== 'object' || !state.ci.looked) return true",
+      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
+    },
+    {
+      "label": "branch-state: a withheld snapshot is said on every prompt",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "      if (previous.said === withheldStamp(previous)) {",
+      "to": "      if (false) {",
+      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
+    },
+    {
+      "label": "branch-state: a red CI is said once",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (brief && !ciRed(state) && previous && previous.said === text) return false",
+      "to": "  if (brief && previous && previous.said === text) return false",
+      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
+    },
+    {
+      "label": "branch-state: a withheld stamp names no snapshot",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const withheldStamp = snapshot => `withheld: past the cap @${snapshot?.at}`",
+      "to": "const withheldStamp = snapshot => 'withheld: past the cap'",
+      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
+    },
+    {
+      "label": "§344: a stale listing is never asked again by commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "if (!answer && rows.length) {",
+      "to": "if (false) {",
+      "only": "^a stale listing is asked once more by commit, and only a stale one is$"
+    },
+    {
+      "label": "§344: a listing that answered is asked again anyway",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "if (!answer && rows.length) {",
+      "to": "if (rows.length) {",
+      "only": "^a stale listing is asked once more by commit, and only a stale one is$"
+    },
+    {
+      "label": "§344 review: the retry reads another branch's runs at the same commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "retried = retried.filter(r => r && r.headBranch === branch.out)",
+      "to": "retried = retried.filter(r => r)",
+      "only": "^a stale listing is asked once more by commit, and only a stale one is$"
+    },
+    {
+      "label": "§348: job views ignore their budget",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "if (index > 0 && clock() - viewing >= JOB_VIEW_BUDGET_MS) {",
+      "to": "if (false) {",
+      "only": "^job views stop at their budget, and the release half is read before gh$"
+    },
+    {
+      "label": "§348: a red workflow past the budget is dropped, not named",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const unread = () => ci.failed.push(",
+      "to": "const unread = () => void (",
+      "only": "^job views stop at their budget, and the release half is read before gh$"
+    },
+    {
+      "label": "§348: the checkpoint carries no release half",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const release = releaseHalf(run)",
+      "to": "  const release = { tag: null, shippedSinceTag: null, releaseBlocked: null }",
+      "only": "^job views stop at their budget, and the release half is read before gh$"
+    }
+  ]
+}

@@ -1,0 +1,92 @@
+{
+  "mutations": [
+    {
+      "label": "statusline: a stale CI cache is said to be stale, not read as current",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "  if (age > CI_STALE_MS) return { state: 'stale', ageMinutes: Math.round(age / 60_000) }",
+      "to": "  if (false) return { state: 'stale', ageMinutes: Math.round(age / 60_000) }"
+    },
+    {
+      "label": "statusline: a red CI is not rendered green",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "  if (ci.conclusion === 'success') return { state: 'green', sha: ci.sha }",
+      "to": "  return { state: 'green', sha: ci.sha }"
+    },
+    {
+      "label": "statusline: the segment says when it was last observed",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "  const age = typeof value?.ageMs === 'number' ? `last observed ${renderAge(value.ageMs)} ago` : null",
+      "to": "  const age = null",
+      "only": "^(?:the segment follows the log: a count, a passed check, nothing edited, unknown, and could-not-look|the CLI reads the statusLine JSON from stdin, prints the segment, and never fails)$"
+    },
+    {
+      "label": "evidence-flip: the status line says nothing positive from a torn log",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  const kind = observation?.ok !== true || logIncomplete(log) ? 'could-not-look'",
+      "to": "  const kind = observation?.ok !== true ? 'could-not-look'",
+      "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
+    },
+    {
+      "label": "inferred: the status line marks a tick a guessed check earned",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/inferred-pass.test.mjs"
+      ],
+      "from": "inferred: checked && latest?.origin === 'inferred',",
+      "to": "inferred: false,",
+      "only": "^(?:the status line marks a tick that an inferred check earned)$"
+    },
+    {
+      "label": "statusline: a write the last observation does not cover outranks a pass",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    : uncovered.length ? 'unverified'",
+      "to": "    : false ? 'unverified'",
+      "only": "^(?:the status line: a write the last observation does not cover outranks a pass|a write appended after the observation in the same millisecond is still uncovered)$"
+    },
+    {
+      "label": "statusline: a late baseline says since when nothing was edited",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "late: kind === 'nothing' && began?.late === true",
+      "to": "late: false",
+      "only": "^(?:a baseline adopted partway through a session does not speak for the whole of it)$"
+    },
+    {
+      "label": "statusline: covered is decided by position in the log, not by a timestamp that can tie",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "(entry.observable === false || index > observedIndex))",
+      "to": "(entry.observable === false || entry.at > observed.at))",
+      "only": "^(?:a write appended after the observation in the same millisecond is still uncovered)$"
+    },
+    {
+      "label": "§348 review: the statusline counts unread workflows as jobs",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "const jobs = (ci.failed?.length ?? 0) - unread",
+      "to": "const jobs = (ci.failed?.length ?? 0)",
+      "only": "^a workflow whose jobs were not read is counted apart from jobs$"
+    }
+  ]
+}

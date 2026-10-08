@@ -1,0 +1,124 @@
+{
+  "mutations": [
+    {
+      "label": "propose: the catalogue is not counted as coverage",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "    .filter(file => !isCatalogue(file))\n    .map(file => readIfSmall(file) ?? '')",
+      "to": "    .map(file => readIfSmall(file) ?? '')",
+      "only": "^(?:a contract named only by the catalogue is reported, and one a test names is not)$"
+    },
+    {
+      "label": "propose: a catalogue hit outranks nothing and stays 'catalogued'",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "  if (catalogueText.includes(candidate)) return 'catalogued'",
+      "to": "  if (catalogueText.includes(candidate)) return 'asserted'",
+      "only": "^(?:the catalogue is not counted as coverage|a contract named only by the catalogue is reported, and one a test names is not)$"
+    },
+    {
+      "label": "propose: a clause the runner cannot target uniquely is dropped",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "        if (occurrences(text, clause) !== 1) continue",
+      "to": "        if (occurrences(text, clause) < 1) continue",
+      "only": "^(?:a string the runner could not target uniquely is never proposed)$"
+    },
+    {
+      "label": "propose: a root given without --tests survives argument parsing",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "  const valueIndex = testsIndex === -1 ? -1 : testsIndex + 1",
+      "to": "  const valueIndex = testsIndex + 1",
+      "only": "^(?:a root given without --tests is the root that gets scanned)$"
+    },
+    {
+      "label": "propose: a clause too short to identify one place is not a claim",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "const MIN_CLAUSE = 14",
+      "to": "const MIN_CLAUSE = 1",
+      "only": "^(?:a clause too short or too long to identify one place is not proposed)$"
+    },
+    {
+      "label": "propose: a tool name is matched word-bounded, not as a substring",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "`(?<![\\\\w-])${escapeForPattern(tool)}(?![\\\\w-])`",
+      "to": "`${escapeForPattern(tool)}`",
+      "only": "^(?:a shipped name inside a longer word is a different promise)$"
+    },
+    {
+      "label": "propose: a flag no script declares is another command's contract",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "        if (!declared) continue",
+      "to": "        if (false) continue",
+      "only": "^(?:a flag no script declares belongs to some other command, not this tree)$"
+    },
+    {
+      "label": "propose: catalogue output carries the runner schema only",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "export function catalogueEntries(found) {\n  return found.map(candidate => ({",
+      "to": "export function catalogueEntries(found) {\n  return found.map(candidate => ({\n    ...candidate,",
+      "only": "^(?:catalogue output carries the runner schema and none of this tool notes)$"
+    },
+    {
+      "label": "propose: a leading conjunction is punctuation, not part of the claim",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": ".replace(/^(?:or|and|then)\\s+/i, '')",
+      "to": "",
+      "only": "^(?:a description splits into independently checkable routing claims|a contract named only by the catalogue is reported, and one a test names is not|a string the runner could not target uniquely is never proposed)$"
+    },
+    {
+      "label": "propose: this tool reports and never refuses",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "    process.stdout.write(`${JSON.stringify({ mutations: catalogueEntries(chosen) }, null, 2)}\\n`)\n    return 0",
+      "to": "    process.stdout.write(`${JSON.stringify({ mutations: catalogueEntries(chosen) }, null, 2)}\\n`)\n    return chosen.length ? 1 : 0",
+      "only": "^(?:this tool reports and never refuses)$"
+    },
+    {
+      "label": "propose: a proposed entry carries `only`, so the narrowing is in the schema a reader copies",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "    only: '',",
+      "to": "",
+      "only": "^(?:catalogue output carries the runner schema and none of this tool notes)$"
+    },
+    {
+      "label": "ADR-091 T2: mutate-propose treats a per-source file as catalogue",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/catalogue-readers.test.mjs"
+      ],
+      "from": "    || (relative(file).startsWith(`${testsDirectory}/mutations/`) && file.endsWith('.json'))",
+      "to": "    || false",
+      "only": "^mutate-propose counts a per-source catalogue file as catalogue and not as a test$"
+    }
+  ]
+}

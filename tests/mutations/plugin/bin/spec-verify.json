@@ -1,0 +1,303 @@
+{
+  "mutations": [
+    {
+      "label": "gates: a Cmd override is not command substitution",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "            cmd = row[4].strip(\"`\").strip() if len(row) > 4 and row[4] else None\n            cmd = cmd or None",
+      "to": "            cmd = row[4] if len(row) > 4 and row[4] else None",
+      "only": "^(?:spec-verify --implemented runs the bound tests and separates RED from broken)$"
+    },
+    {
+      "label": "gates: path_stack stays inside the repository",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        try:\n            here.relative_to(Path(root))\n        except ValueError:\n            return None",
+      "to": "        pass"
+    },
+    {
+      "label": "spec-verify: a test that never ran is not reported as failing",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        return \"unrun\", (f\"no runner detected for this repository, and {test} has no command \"",
+      "to": "        return \"fail\", (f\"no runner detected for this repository, and {test} has no command \"",
+      "only": "^(?:spec-verify says it could not run a test, rather than that the test failed|a scenario can override its runner, which is the escape it never had)$"
+    },
+    {
+      "label": "spec-verify: a fact nothing could adjudicate is not a pass",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        elif unrun:\n            worst = max(worst, 4)",
+      "to": "        elif unrun:\n            worst = max(worst, 0)",
+      "only": "^(?:spec-verify says it could not run a test, rather than that the test failed|spec-verify runs a Go binding, and a Go filter that selects nothing is UNRUN, not a pass|spec-verify runs a Swift binding of either test shape, and a Swift filter that selects nothing is UNRUN|a Swift pass is attributed to the bound test, not a same-named one elsewhere|a Swift binding the gate cannot place uniquely is UNRUN|a Swift nested type is UNRUN however its name is spelled)$"
+    },
+    {
+      "label": "spec-verify: a JavaScript-family file is read with the lock's lexer (ADR-079)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if suffix in JS_FAMILY_SUFFIXES:",
+      "to": "    if False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "ADR-079 T1: a test not found in a file the lexer did not finish is called missing",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        if not complete:",
+      "to": "        if False:",
+      "only": "^spec-verify says could-not-check, exit 4, for a JavaScript test it could not read to$"
+    },
+    {
+      "label": "ADR-079 T1: spec-verify counts a JavaScript registration read on raw text, string-held ones included",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        masked, _, complete = js_reading(text, suffix)",
+      "to": "        masked, complete = text, js_reading(text, suffix)[2]",
+      "only": "^spec-verify finds a JavaScript test only where its registration is code, in every family suffix$"
+    },
+    {
+      "label": "ADR-079 T2: a Python or Go file is read with the JavaScript reader",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    if suffix in JS_FAMILY_SUFFIXES:",
+      "to": "    if True:",
+      "only": "^the other languages read as they did$"
+    },
+    {
+      "label": "spec-verify: a collector that cannot run is not an absent test",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return \"unrun\", (f\"the {stack} collector could not be run ({e}). Install it, drop \"",
+      "to": "        return False, (f\"the {stack} collector could not be run ({e}). Install it, drop \"",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "spec-verify: a scenario's runner override is read and honoured",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                     r\" (?:→|->) `([^`]+)`(?: +cmd:`([^`]+)`)?\\s*$\")",
+      "to": "                     r\" (?:→|->) `([^`]+)`()\\s*$\")",
+      "only": "^(?:a scenario can override its runner, which is the escape it never had)$"
+    },
+    {
+      "label": "spec-verify: a gate copied without plugin/lib says so instead of dying in a traceback",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_fence_file):",
+      "to": "if False:",
+      "only": "^(?:the dispatcher relays a gate that could not run as UNPROVEN, never as an unsatisfied artifact|a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs)$"
+    },
+    {
+      "label": "spec-verify: a foreign module already named fence is displaced, not used (Codex)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "if os.path.realpath(getattr(_loaded, \"__file__\", None) or \"\") != os.path.realpath(_fence_file):",
+      "to": "if _loaded is None:",
+      "only": "^(?:every gate binds the shared fence from its exact path, displacing a foreign module of the same name)$"
+    },
+    {
+      "label": "spec-verify: a gate with fence.py but no record.py says so instead of dying in a traceback (ADR-045 T4)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_record_file):",
+      "to": "if False:",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "spec-verify: a missing fence.py exits with the could-not-run code, never the bound-test-missing code (ADR-045 T4)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                     f\"or through a forwarder.\\n\")\n    sys.exit(4)\n# Loaded from its EXACT path",
+      "to": "                     f\"or through a forwarder.\\n\")\n    sys.exit(2)\n# Loaded from its EXACT path",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "spec: a Go or Swift filter that selects nothing is UNRUN, not a pass",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if r.returncode == 0 and evidence is not None and not evidence.search(out):",
+      "to": "    if False:",
+      "only": "spec-verify runs a (Go|Swift) binding"
+    },
+    {
+      "label": "spec: a Swift test definition is read by the lock's Swift reader",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        return leaf in names, f\"no Swift test (XCTest test method or @Test function) for '{name}'\"",
+      "to": "        return False, f\"no Swift test (XCTest test method or @Test function) for '{name}'\"",
+      "only": "spec-verify runs a Swift binding"
+    },
+    {
+      "label": "spec: an XCTest pass must name the bound class, not any suite",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    case = rf\"Test Case '-\\[{re.escape(target)}\\.{re.escape(enclosing)} {re.escape(name)}\\]' passed\"",
+      "to": "    case = rf\"Test Case '-\\[\\S+ {re.escape(name)}\\]' passed\"",
+      "only": "Swift pass is attributed"
+    },
+    {
+      "label": "spec: the Swift filter names the target and the enclosing type",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        \"swift\": [\"swift\", \"test\", \"--filter\", identity[0] if identity else name],",
+      "to": "        \"swift\": [\"swift\", \"test\", \"--filter\", name],",
+      "only": "Swift pass is attributed"
+    },
+    {
+      "label": "spec: two same-named Swift declarations are not narrowed to the first",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if len(matches) != 1:",
+      "to": "    if not matches:",
+      "only": "cannot place uniquely"
+    },
+    {
+      "label": "spec: a nested or qualified Swift type is not guessed",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if len(enclosing) > 1 or any(\".\" in each or \"`\" in each for each in enclosing):",
+      "to": "    if False:",
+      "only": "cannot place uniquely"
+    },
+    {
+      "label": "spec: a Swift type name is read with its whole qualification",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "r\"\\b(?:class|struct|actor|enum|extension)\\s+(`?\\w+`?(?:\\s*\\.\\s*`?\\w+`?)*)[^{;]*\\{\"",
+      "to": "r\"\\b(?:class|struct|actor|enum|extension)\\s+([\\w.]+)[^{;]*\\{\"",
+      "only": "however its name is spelled"
+    },
+    {
+      "label": "spec: an escaped Swift type name is not guessed",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "any(\".\" in each or \"`\" in each for each in enclosing)",
+      "to": "any(\".\" in each for each in enclosing)",
+      "only": "however its name is spelled"
+    },
+    {
+      "label": "spec: implemented mode says so when it ran no test",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if not ran:\n",
+      "to": "        if False:\n",
+      "only": "implemented mode ran no test"
+    },
+    {
+      "label": "spec: a run that ran a test does not claim it ran none",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if not ran:\n",
+      "to": "        if True:\n",
+      "only": "implemented mode ran no test"
+    },
+    {
+      "label": "spec: the ran-no-test advice never claims a PASS",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "test, so no test outcome was observed — only structure and test existence \"",
+      "to": "test, so this PASS covers structure and test existence \"",
+      "only": "implemented mode ran no test"
+    },
+    {
+      "label": "§350 item 6: spec-verify reads a test file leniently",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/undecodable-test-file.test.mjs"
+      ],
+      "from": "        text = path.read_text(encoding=\"utf-8\")",
+      "to": "        text = path.read_text(encoding=\"utf-8\", errors=\"replace\")",
+      "only": "^spec-verify cannot check a binding into a test file that is not UTF-8, and says why$"
+    },
+    {
+      "label": "§350 item 6: spec-verify's crate search drops could-not-check",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/undecodable-test-file.test.mjs"
+      ],
+      "from": "            if unchecked is not None:",
+      "to": "            if False:",
+      "only": "^spec-verify searching a Rust crate says could-not-check when the only candidate is not UTF-8$"
+    },
+    {
+      "label": "ADR-092 T7: spec-verify's unlisted report",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "            if unlisted:\n                return None",
+      "to": "            if False:\n                return None",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 review: spec-verify calls a special test file missing",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "            if not f.is_file() and not regular_file_problem(f):",
+      "to": "            if not f.is_file():",
+      "only": "^a Cargo binding to a test file that is not a regular file is could-not-check, not missing$"
+    },
+    {
+      "label": "ADR-092 review: spec-verify opens a special test file",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    problem = regular_file_problem(path)\n    if problem:\n        return None, f\"could not check '{name}': {path.name} is {problem}",
+      "to": "    problem = None\n    if problem:\n        return None, f\"could not check '{name}': {path.name} is {problem}",
+      "only": "^a Cargo binding to a test file that is not a regular file is could-not-check, not missing$"
+    }
+  ]
+}

@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-009-a-decision-names-what-enforces-it.md, docs/adr/ADR-011-a-pointer-resolves-or-it-is-reported.md, docs/adr/ADR-014-a-task-that-is-honestly-unfinished.md, docs/adr/ADR-015-a-go-fence-can-reach-its-required-success.md
-**Governs:** `plugin/bin/adr-lint`, `plugin/templates/task-template.md`, `plugin/skills/adr-write/SKILL.md`, `tests/gates.test.mjs`, `tests/gate-regressions.py`, `tests/mutations.json`
+**Governs:** `plugin/bin/adr-lint`, `plugin/templates/task-template.md`, `plugin/skills/adr-write/SKILL.md`, `tests/gates.test.mjs`, `tests/gate-regressions.py`, `tests/mutations/**`
 **Enforced-by:** `lint: every proof-map step is accounted for`, `lint: an unmarked task says its proof map was not checked`
 **Invalidates:** none — checked. ADR-003 still requires behavioral, compiling mutations; this record does not claim a structural link proves behavior. ADR-005 still forbids conclusions the gate did not observe, so legacy and semantically ambiguous cases are named rather than guessed. ADR-009 and ADR-011 continue to own enforcement-pointer resolution. ADR-014's evidence obligations remain status-independent. ADR-015's Go-fence reachability pass is unchanged; this adds the missing plan-to-proof edge before runner-specific reachability checks apply.
 **Served-path change:** `adr-lint` cross-checks every explicitly versioned task step against a Tests-table reference or a named non-test proof, and reports unversioned legacy tasks as unchecked instead of silently implying complete coverage.

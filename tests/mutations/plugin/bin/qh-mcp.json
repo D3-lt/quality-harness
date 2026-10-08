@@ -1,0 +1,144 @@
+{
+  "mutations": [
+    {
+      "label": "mcp: the read-only annotation is derived from the registrar, not decorative",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "        \"annotations\": {\"readOnlyHint\": True, \"title\": name},",
+      "to": "        \"annotations\": {\"title\": name},",
+      "only": "^(?:every registered tool is annotated read-only, and nothing can register one that is not)$"
+    },
+    {
+      "label": "mcp: a gate is spawned through the interpreter, not as a bare path",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    return [sys.executable, os.path.join(BIN, gate), *[str(arg) for arg in args]]",
+      "to": "    return [os.path.join(BIN, gate), *[str(arg) for arg in args]]",
+      "only": "^(?:a gate is spawned through the interpreter, never as a bare path|a broken invocation is refused, not dressed up as a finding|adr-retire-check is refused when the call names no single mode)$"
+    },
+    {
+      "label": "mcp: each gate's registration is what puts it in tools/list",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    \"qh_arch_lint\",",
+      "to": "    \"qh_arch_lin\",",
+      "only": "^(?:every reading gate is listed, and calling it returns that gate's own output|every argument a handler honours is declared in that tool schema)$"
+    },
+    {
+      "label": "mcp: a completed run is content, never the error channel",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    return _text_result(\"\\n\".join(body), is_error=False)",
+      "to": "    return _text_result(\"\\n\".join(body), is_error=True)",
+      "only": "^(?:a registered tool can be called and returns content|a gate that ran and found something returns content, and one that could not run does not|a reading gate that exits its own could-not-run code reaches the client on the error channel, not as content|a broken invocation is refused, not dressed up as a finding|adr-retire-check is refused when the call names no single mode|adr-judge that could not read its named path reaches the client as could-not-run)$"
+    },
+    {
+      "label": "mcp: a path that is not there is a gate that could not run, not a clean result",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "        if not os.path.exists(path):\n            raise GateDidNotRun(\"could not run: no such path {}\".format(path))",
+      "to": "        if False:\n            raise GateDidNotRun(\"could not run: no such path {}\".format(path))",
+      "only": "^(?:a gate that ran and found something returns content, and one that could not run does not)$"
+    },
+    {
+      "label": "mcp: adr-retire-check is registered, or a client cannot reach it at all",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    _adr_retire_check,\n)",
+      "to": "    _postmortem_verify,\n)",
+      "only": "^(?:every reading gate is listed, and calling it returns that gate's own output|adr-retire-check is refused when the call names no single mode)$"
+    },
+    {
+      "label": "mcp: postmortem-verify is registered, or a client cannot reach it at all",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    \"qh_postmortem_verify\",",
+      "to": "    \"qh_adr_debt_2\",",
+      "only": "^(?:every reading gate is listed, and calling it returns that gate's own output|every argument a handler honours is declared in that tool schema)$"
+    },
+    {
+      "label": "mcp: a retire-check call naming no single mode is refused, not guessed at",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    if active or archive:\n        if readme:",
+      "to": "    if active and archive:\n        if readme:",
+      "only": "^(?:adr-retire-check is refused when the call names no single mode)$"
+    },
+    {
+      "label": "mcp: adr-context with no repository above the path could not run, not an empty answer",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    if root is None:\n        raise GateDidNotRun(\"could not run: no repository root (.git or docs/adr) above {}\".format(paths[0]))",
+      "to": "    if root is None:\n        root = os.getcwd()",
+      "only": "^(?:qh_adr_context answers which decisions govern a path, from the repository the path is in \\(BACKLOG §135\\))$"
+    },
+    {
+      "label": "qh-mcp: a gate copied without plugin/lib says so instead of dying in a traceback",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_fence_file):",
+      "to": "if False:",
+      "only": "^(?:a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs)$"
+    },
+    {
+      "label": "qh-mcp: a foreign module already named fence is displaced, not used (Codex)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "if os.path.realpath(getattr(_loaded, \"__file__\", None) or \"\") != os.path.realpath(_fence_file):",
+      "to": "if _loaded is None:",
+      "only": "^(?:every gate binds the shared fence from its exact path, displacing a foreign module of the same name)$"
+    },
+    {
+      "label": "qh-mcp: a missing fence.py exits with the could-not-run code, never the usage code (ADR-045 T4)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                     f\"or through a forwarder.\\n\")\n    sys.exit(4)",
+      "to": "                     f\"or through a forwarder.\\n\")\n    sys.exit(2)",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "qh-mcp: a reading gate's could-not-run exit is the error channel, not isError false content (ADR-046 T2)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    if completed.returncode == UNRUN_EXIT.get(gate):",
+      "to": "    if False:",
+      "only": "^a reading gate that exits its own could-not-run code reaches the client on the error channel, not as content$"
+    },
+    {
+      "label": "mcp: adr-judge that could not read its named path is could-not-run, not content",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "              \"adr-retire-check\": 2, \"postmortem-verify\": 2, \"adr-judge\": 2}",
+      "to": "              \"adr-retire-check\": 2, \"postmortem-verify\": 2}",
+      "only": "adr-judge that could not read its named path"
+    }
+  ]
+}

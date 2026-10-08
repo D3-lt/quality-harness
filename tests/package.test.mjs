@@ -7,6 +7,7 @@ import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { pythonArgv } from '../scripts/python-interpreter.mjs'
 import { fileURLToPath } from 'node:url'
+import { loadCatalogue } from '../scripts/mutate.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 /** Every file git tracks — the exact set `source: "."` publishes. */
@@ -18,6 +19,13 @@ function tracked() {
 /** The repository. `root` is the PLUGIN, which ADR-008 moved below it. */
 const repoRoot = resolve(testDir, '..')
 const root = join(repoRoot, 'plugin')
+
+/** The real catalogue, every tests/mutations/<source>.json, read the way the campaign reads it (ADR-091). */
+function realCatalogue() {
+  const loaded = loadCatalogue(repoRoot)
+  if (loaded.error) throw new Error(loaded.error)
+  return { mutations: loaded.mutations }
+}
 
 const skills = [
   'adr-execute', 'adr-retire', 'adr-write', 'arch-write', 'codex-advise',
@@ -575,7 +583,7 @@ test('the staged guard reads the catalogue as staged, and falls back only when i
 
   assert.equal(stagedCatalogue(() => ({ status: 0, stdout: staged }), '/nowhere'), staged,
     'the index wins over anything on disk')
-  assert.ok(stagedCatalogue(() => ({ status: 1, stdout: '' }), join(repoRoot, 'tests', 'mutations.json'))
+  assert.ok(stagedCatalogue(() => ({ status: 1, stdout: '' }), join(repoRoot, 'tests', 'mutations', 'plugin', 'bin', 'adr-lint.json'))
     .includes('"mutations"'), 'no index entry falls back to the file beside the script')
   assert.equal(stagedCatalogue(() => ({ status: 0, stdout: '   ' }), '/definitely/not/here'), '',
     'and an empty answer with nothing to fall back to is empty, never a crash')
@@ -659,7 +667,7 @@ test('every catalogue mutant still parses, so a kill is behavioural', async (t) 
   // directory per entry that nothing ever removed. Found 2026-09-06 by
   // scripts/slow-tests.mjs on its first run, which is what BACKLOG §144 built it
   // for. The CHECKS are unchanged; only how many processes take them is.
-  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8'))
+  const catalogue = realCatalogue()
   const dir = mkdtempSync(join(tmpdir(), 'qh-parse-'))
   t.after(() => rmSync(dir, { recursive: true, force: true }))
 
@@ -779,7 +787,7 @@ test('every catalogue entry names tests the campaign can actually spawn', () => 
   // `lint: a path::name pointer names a test file...` is killed by
   // `gate-regressions.py:1738` today. So the catalogue reaches them; it just
   // cannot NAME them directly.
-  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8'))
+  const catalogue = realCatalogue()
   const spawnable = t => /\.(mjs|js|cjs)$/.test(t)
   const unrunnable = entry => (entry.tests ?? []).filter(t => !spawnable(t))
 
@@ -1279,7 +1287,7 @@ test('every catalogue entry still matches the source it mutates, exactly once', 
   // The runner cannot answer this any sooner — it learns the count by applying
   // each mutation in turn. Reading it off the tree costs milliseconds, so the
   // same defect surfaces in the suite instead of at the end of the campaign.
-  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8'))
+  const catalogue = realCatalogue()
   const counts = []
   for (const mutation of catalogue.mutations) {
     const path = join(repoRoot, mutation.file)
@@ -1324,7 +1332,7 @@ test('every catalogue entry still matches the source it mutates, exactly once', 
 // Asked of git rather than read out of `.gitattributes`, so what is checked is
 // the answer git actually gives for the path.
 test('a mutation that matches across lines targets a file git checks out with LF', () => {
-  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8')).mutations
+  const catalogue = realCatalogue().mutations
   const eolOf = file => spawnSync('git', ['-C', repoRoot, 'check-attr', 'eol', '--', file],
     { encoding: 'utf8', timeout: 60_000 }).stdout.trim().split(': ').pop()
 
@@ -1393,7 +1401,7 @@ test('every shipped gate carries at least one mutation', () => {
   // "somebody wrote a mutation for this gate"; whether it is noticed is what
   // `scripts/mutate.mjs` answers by reporting RED or GREEN, and that campaign is
   // the real assertion. Claiming more here would be the swap ADR-003 forbids.
-  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8')).mutations
+  const catalogue = realCatalogue().mutations
   // Read from disk, both sides. A list kept beside the truth is a thing somebody
   // has to remember, which is how the standalone copies drifted for three weeks.
   // A dotless NAME is not a gate; a dotless FILE is. A stray directory in
@@ -1450,7 +1458,7 @@ test('every shipped gate carries at least one mutation', () => {
   assert.deepEqual(['plugin/scripts/ghost.sh'].filter(p => !new Set(['plugin/scripts/real.sh']).has(p)),
     ['plugin/scripts/ghost.sh'], 'the scripts predicate must be able to name an uncovered script')
   assert.deepEqual(bareScripts, [],
-    `these shipped scripts carry no mutation in tests/mutations.json: ${bareScripts.join(', ')}. `
+    `these shipped scripts carry no mutation in tests/mutations/: ${bareScripts.join(', ')}. `
     + 'A shipped script nothing mutates has never been shown to assert anything, and a hook that '
     + 'runs on every edit is the last place that should be true. If one is a trivial forwarder, '
     + 'name it in `trivial` above with the reason.')
@@ -1459,7 +1467,7 @@ test('every shipped gate carries at least one mutation', () => {
   // Name the gate. "expected 10 to be 11" makes the reader redo the enumeration
   // the test just did, which is how a failing check becomes a check people skip.
   assert.deepEqual(bare, [],
-    `these gates ship with no mutation in tests/mutations.json: ${bare.join(', ')}. `
+    `these gates ship with no mutation in tests/mutations/: ${bare.join(', ')}. `
     + 'ADR-003 requires a gate to assert something a deleted line breaks; a gate nothing '
     + 'mutates has never been shown to assert anything at all.')
 

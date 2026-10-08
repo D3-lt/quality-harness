@@ -1,0 +1,74 @@
+{
+  "mutations": [
+    {
+      "label": "event-log: an event that is not appended is an event no rule can read",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    appendFileSync(file, `${lead}${JSON.stringify({ at: new Date().toISOString(), ...entry })}\\n`, 'utf8')",
+      "to": "    void file",
+      "only": "^(?:a turn end observes the tree without reading any command|one hook delivers every action it records|a check event is written by qh-check|a read-only role cannot commit or push and its other changes are reported|a command naming commit or push is warned before it runs|the scripted session advises as its step table lists|an unchecked commit is named even when its tree equals the session start|a tree the publish warning named still records unverified|many unchecked commits are one finding|writes the tree cannot see re-open the finding|a committed artifact is still validated|a compaction note sees the latest edit|the harness does not observe its own ledger|a turn that ended in a commit names the commit, not a change that is not there|a check that finishes in a later turn clears the finding then|a git query that FAILED is not a git query that found nothing|a log that could not be read whole cannot supply a passing verdict|a session that began before the first commit still sees the commits it gained|a file edited while its gate ran is not recorded as answered|a file edited while the BATCH gated it is not recorded as answered either|a torn checks\\.jsonl cannot leave an older pass standing as the verdict|a write through an in-repository link to an outside file is not observable)$"
+    },
+    {
+      "label": "identity: only a regular file of bounded size is read, so a FIFO cannot hang the hook",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/content-id.test.mjs"
+      ],
+      "from": "    if (!opened.isFile() || opened.size > CONTENT_ID_MAX_BYTES) return null",
+      "to": "    if (false) return null",
+      "only": "^(?:a FIFO in the working tree is not read, so the hook cannot hang on it)$"
+    },
+    {
+      "label": "event-log: the nearest existing directory is a directory",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/content-id.test.mjs"
+      ],
+      "from": "  const isDirectory = target => { try { return statSync(target).isDirectory() } catch { return false } }",
+      "to": "  const isDirectory = target => { try { return statSync(target) !== null } catch { return false } }",
+      "only": "^(?:the nearest existing directory is a DIRECTORY, even when a file is in the way)$"
+    },
+    {
+      "label": "event-log: a chunked identity hashes only the bytes read",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/content-id.test.mjs"
+      ],
+      "from": "      hash.update(chunk.subarray(0, read))",
+      "to": "      hash.update(chunk)",
+      "only": "^(?:a chunked read gives the digest a whole read would)$"
+    },
+    {
+      "label": "probe: the hook's state directory is pointed at scratch",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  return override ? path.join(path.resolve(override), createHash('sha256').update(base).digest('hex').slice(0, 16)) : base",
+      "to": "  return base",
+      "only": "leaves nothing in the probed repository"
+    },
+    {
+      "label": "probe: each repository keeps its own place under the state override",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  return override ? path.join(path.resolve(override), createHash('sha256').update(base).digest('hex').slice(0, 16)) : base",
+      "to": "  return override ? path.resolve(override) : base",
+      "only": "override keeps each repository apart"
+    },
+    {
+      "label": "chaos 916b515 LEAD 2: an append after a torn tail starts a fresh line",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "        if (size > 0 && readSync(fd, last, 0, 1, size - 1) === 1 && last[0] !== 0x0a) lead = '\\n'",
+      "to": "        if (false) lead = '\\n'",
+      "only": "torn log tail does not swallow"
+    }
+  ]
+}

@@ -1,0 +1,54 @@
+{
+  "mutations": [
+    {
+      "label": "§321 mutate-catalogue: the skill's perl bound signals the command with ALRM, which Go ignores",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "$SIG{HUP} = sub { kill KILL => -$p }",
+      "to": "$SIG{HUP} = sub { kill ALRM => -$p }",
+      "only": "every perl bound the corpus-chaos skill offers"
+    },
+    {
+      "label": "§321 mutate-catalogue: the skill's perl bound kills only the command, not its process group",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "sub { kill KILL => -$p }",
+      "to": "sub { kill KILL => $p }",
+      "only": "ends the command's whole process group"
+    },
+    {
+      "label": "§321 mutate-catalogue: the skill's perl bound leaves the command running when it is sent TERM",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "$SIG{ALRM} = $SIG{TERM} = $SIG{INT} = $SIG{HUP}",
+      "to": "$SIG{ALRM} = $SIG{INT} = $SIG{HUP}",
+      "only": "a perl bound SKILL.md offers leaves nothing running"
+    },
+    {
+      "label": "§321 mutate-catalogue: the skill's perl bound leaves the command running when it is interrupted",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "$SIG{ALRM} = $SIG{TERM} = $SIG{INT} = $SIG{HUP}",
+      "to": "$SIG{ALRM} = $SIG{TERM} = $SIG{HUP}",
+      "only": "a perl bound SKILL.md offers leaves nothing running"
+    },
+    {
+      "label": "§321 mutate-catalogue: the skill prefers a gtimeout that sends a TERM a command may catch",
+      "file": "plugin/skills/corpus-chaos/SKILL.md",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "`gtimeout -s KILL 120 <command>`",
+      "to": "`gtimeout 120 <command>`",
+      "only": "the gtimeout bound SKILL.md prefers"
+    }
+  ]
+}

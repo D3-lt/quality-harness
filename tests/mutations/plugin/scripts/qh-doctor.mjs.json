@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "doctor: a file the plugin cannot prove it wrote is never called a copy",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  return 'unidentifiable'",
+      "to": "  return 'copy'",
+      "only": "^(?:a home file the plugin cannot prove it wrote is never called a copy|the home scan classifies a real directory and never invents one)$"
+    },
+    {
+      "label": "doctor: the severity split counts advisory findings, not only failing ones",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  return { failing: count('errors.append('), advisory: count('errors.advise(') }",
+      "to": "  return { failing: count('errors.append('), advisory: 0 }",
+      "only": "^(?:the severity split is read out of the gate, not restated here)$"
+    },
+    {
+      "label": "doctor: an unreadable claims ledger reaches the exit code",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  if (!home.looked || !moved.looked || !ledger.looked || !release.looked\n    || (moved.unidentified ?? 0) > 0) {",
+      "to": "  if (!home.looked || !moved.looked || !release.looked\n    || (moved.unidentified ?? 0) > 0) {",
+      "only": "^(?:an unreadable claims ledger is could-not-look, not an empty one)$"
+    },
+    {
+      "label": "doctor: the rate it points at is labelled with the arm's state",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  if (ledger.file && armWithdrawn) {",
+      "to": "  if (false) {",
+      "only": "^(?:the ledger line says whether claim detection is running)$"
+    },
+    {
+      "label": "doctor: a tag on the remote is the only thing that makes an install a release",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  const released = tags.split(/\\r?\\n/).some(line => line.trim().split(/\\s+/)[1] === ref)",
+      "to": "  const released = true",
+      "only": "^(?:the release report says released, main-head, or could-not-look — and never released for an unreachable remote)$"
+    },
+    {
+      "label": "doctor: an unreachable remote is could-not-look, never released",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "    return { looked: false, head, note: `the remote could not be asked for v${version} (${failure.code ?? String(failure.message).split('\\n')[0]})` }",
+      "to": "    return { looked: true, head, version, released: true }",
+      "only": "^(?:the release report says released, main-head, or could-not-look — and never released for an unreachable remote)$"
+    }
+  ]
+}

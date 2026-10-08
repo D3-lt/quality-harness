@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "label": "per-edit gate: a record under a fixture directory is not gated as the repository's own",
+      "file": "plugin/scripts/uninteresting.mjs",
+      "tests": [
+        "tests/fixture-edit-gate.test.mjs"
+      ],
+      "from": "  if (parts[0] === '..') return false\n  return listedUnderUninterestingDirectory(parts.slice(0, -1))",
+      "to": "  return false",
+      "only": "^(?:the relative-path form asks the same question as the parts form|a fixture record is not gated on edit, and the same record under docs/adr still is)$"
+    },
+    {
+      "label": "corpus: a listed path under tests/, fixtures/ or their kin is not a record of this repository",
+      "file": "plugin/scripts/uninteresting.mjs",
+      "tests": [
+        "tests/corpus-excludes-fixtures.test.mjs"
+      ],
+      "from": "return dirParts.some(part => UNINTERESTING_DIRECTORY.test(part))",
+      "to": "return false",
+      "only": "^(?:the predicate names the fixture directories and nothing a record lives in|adrCorpus lists the real record and not its fixture double|work-next offers the real task and never a fixture task|session orientation asks adr-next about the real task set and never a fixture)$"
+    },
+    {
+      "label": "§350 C8: a golden directory is the corpus's own",
+      "file": "plugin/scripts/uninteresting.mjs",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "|testdata|golden(?:[-_].*)?)$/i",
+      "to": "|testdata)$/i",
+      "only": "^(?:work-next does not count fixture or golden specs as the corpus's own)$"
+    },
+    {
+      "label": "§291: a golden fixture tree's spec is gated as the repository's own",
+      "file": "plugin/scripts/uninteresting.mjs",
+      "tests": [
+        "tests/fixture-edit-gate.test.mjs"
+      ],
+      "from": "|testdata|golden(?:[-_].*)?)$/i",
+      "to": "|testdata)$/i",
+      "only": "^(?:a spec under a golden fixture tree is not gated, judged from the payload cwd, and a real spec still is)$"
+    }
+  ]
+}

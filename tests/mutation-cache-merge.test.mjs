@@ -203,7 +203,7 @@ test('the runner records what it MEASURED, and records nothing when it reused', 
   const CHEAPEST = 'the post-edit check acts only on the edit tools'
   const dir = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-cache-')))
   t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5 }))
-  for (const file of ['scripts/mutate.mjs', 'tests/mutations.json',
+  for (const file of ['scripts/mutate.mjs',
     'tests/post-edit-check.test.mjs', 'plugin/scripts/post-edit-check.sh',
     // mutate.mjs imports its entry guard (BACKLOG §264), its load sampler (ADR-075 T1), its
     // worktree module (ADR-076 T1) and its lease (ADR-077 T2) from the plugin.
@@ -213,6 +213,9 @@ test('the runner records what it MEASURED, and records nothing when it reused', 
     mkdirSync(dirname(target), { recursive: true })
     cpSync(join(repoRoot, file), target)
   }
+  // ADR-091: this source's catalogue file, copied as the copy's single tests/mutations.json, since the
+  // copy is not a git repository and so cannot list a tests/mutations/ directory.
+  cpSync(join(repoRoot, 'tests', 'mutations', 'plugin', 'scripts', 'post-edit-check.sh.json'), join(dir, 'tests', 'mutations.json'))
   const runner = join(dir, 'scripts', 'mutate.mjs')
   const cache = join(dir, 'cache.json')
   const call = () => spawnSync(process.execPath,

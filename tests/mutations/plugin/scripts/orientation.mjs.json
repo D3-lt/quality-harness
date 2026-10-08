@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "orientation: an empty orientation is a named absence, never an empty answer",
+      "file": "plugin/scripts/orientation.mjs",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "  stdout.write(`${text || `Nothing to orient in ${directory}: the orientation is empty for this directory.`}\\n`)",
+      "to": "  stdout.write(`${text}\\n`)",
+      "only": "^(?:qh_orientation returns the SessionStart orientation for a directory, and names its absence \\(BACKLOG §136\\))$"
+    }
+  ]
+}

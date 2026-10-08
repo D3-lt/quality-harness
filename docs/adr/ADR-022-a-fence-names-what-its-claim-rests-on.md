@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-013-a-mutation-a-human-performed.md, docs/adr/ADR-016-a-mutant-earns-its-verdict.md, docs/adr/ADR-018-every-ordered-step-names-its-proof.md, docs/adr/ADR-020-a-run-leaves-a-trace-outside-the-file.md
-**Governs:** `plugin/bin/adr-lint`, `plugin/bin/adr-verify`, `plugin/templates/task-template.md`, `tests/gate-regressions.py`, `tests/mutations.json`, `scripts/fence-obligation-sweep.py`
+**Governs:** `plugin/bin/adr-lint`, `plugin/bin/adr-verify`, `plugin/templates/task-template.md`, `tests/gate-regressions.py`, `tests/mutations/**`, `scripts/fence-obligation-sweep.py`
 **Enforced-by:** `lint: a declared mechanism with no bound mutant is reported`, `verify: --covers refuses a mechanism the task did not declare`
 **Invalidates:** none — checked. ADR-016's obligation is extended rather than replaced: at least one killed mutant bound to the current fence digest remains exactly what `done` requires, and this record adds a second, advisory reading beside it. ADR-013's human-observed lane is unchanged and gains the same optional field. ADR-018's proof map answers which STEP is proved by what; this answers which MECHANISM inside one fence is measured, and the two do not overlap. ADR-020's acceptance-entry binding is untouched, and the Mutation Log binding it deferred stays deferred (see Out of Scope). ADR-003's requirement that a mutant be behavioural is unchanged.
 **Served-path change:** `adr-lint` tells an author which of a fence's declared mechanisms no mutant has ever been shown to catch, instead of falling silent once any one mutant is bound.

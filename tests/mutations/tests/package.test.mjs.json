@@ -1,0 +1,94 @@
+{
+  "mutations": [
+    {
+      "label": "package: a gate with no mutation is named, not counted",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "  const uncovered = (names, known) => names.filter(gate => !known.has(`${binPrefix}${gate}`))",
+      "to": "  const uncovered = () => []",
+      "only": "^(?:every catalogue entry still matches the source it mutates, exactly once|every shipped gate carries at least one mutation)$"
+    },
+    {
+      "label": "package: a catalogue entry that matches nothing is named",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "  for (const mutation of catalogue.mutations) {",
+      "to": "  for (const mutation of []) {",
+      "only": "^(?:every catalogue entry still matches the source it mutates, exactly once)$"
+    },
+    {
+      "label": "package: a real home path in a tracked file is named",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "    .map(hit => hit[1]).filter(name => !SYNTHETIC.has(name.toLowerCase()))",
+      "to": "    .map(hit => hit[1]).filter(() => false)",
+      "only": "^(?:nothing tracked in this repository names a personal filesystem path|every catalogue entry still matches the source it mutates, exactly once)$"
+    },
+    {
+      "label": "package: a cross-line mutation is checked against the file's line endings",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "    .filter(entry => entry.from.includes('\\n') || entry.to.includes('\\n'))",
+      "to": "    .filter(() => false)",
+      "only": "^(?:every catalogue entry still matches the source it mutates, exactly once|a mutation that matches across lines targets a file git checks out with LF)$"
+    },
+    {
+      "label": "agents: a new shipped directory is admitted, never leaked past",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "'.claude-plugin/plugin.json', 'README.md', 'agents', 'bin', 'evals', 'hooks',",
+      "to": "'.claude-plugin/plugin.json', 'README.md', 'bin', 'evals', 'hooks',",
+      "only": "^(?:what ships is the plugin and nothing else|every catalogue entry still matches the source it mutates, exactly once)$"
+    },
+    {
+      "label": "ci: a job that skips itself on a dispatch makes every release unreleasable, and something says so",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "only": "no job in the release workflow is conditioned so a dispatched run skips it",
+      "from": "    .filter(job => /^ {4}if: .*workflow_dispatch/m.test(job))",
+      "to": "    .filter(job => /^ {4}if: /m.test(job))"
+    },
+    {
+      "label": "ci: an upload of a dotfile without include-hidden-files uploads nothing and reports success",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "only": "an artifact upload of a dotfile asks for hidden files",
+      "from": "    .filter(b => !/include-hidden-files: true/.test(b))",
+      "to": "    .filter(() => false)"
+    },
+    {
+      "label": "ci: a shard that resolves its own cache generation can compute a different partition",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "only": "every mutation shard computes its slice from one snapshot",
+      "from": "  const resolvesOwnCache = job => /uses: actions\\/cache\\/restore/.test(job)",
+      "to": "  const resolvesOwnCache = () => false"
+    },
+    {
+      "label": "readme: a name counts only as the list names it, in backticks",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "const names = text => name => text.includes(`\\`${name}\\``)",
+      "to": "const names = text => name => text.includes(name)",
+      "only": "^the README names every skill and gate this plugin ships$"
+    }
+  ]
+}

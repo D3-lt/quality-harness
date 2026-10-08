@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-12-unreadable-file-is-could-not-run.md`
 **Cross-references:** ADR-005, ADR-034, ADR-045, ADR-046, `CLAUDE.md`, `plugin/bin/postmortem-verify`, `plugin/scripts/facts-gate-dispatch.sh`
-**Governs:** `plugin/bin/adr-lint`, `plugin/bin/adr-verify`, `plugin/bin/adr-judge`, `plugin/bin/adr-retire-check`, `plugin/bin/spec-verify`, `plugin/bin/arch-lint`, `plugin/bin/adr-debt`, `plugin/bin/adr-next`, `plugin/scripts/facts-gate-dispatch.sh`, `tests/gates.test.mjs`, `tests/mutations.json`
+**Governs:** `plugin/bin/adr-lint`, `plugin/bin/adr-verify`, `plugin/bin/adr-judge`, `plugin/bin/adr-retire-check`, `plugin/bin/spec-verify`, `plugin/bin/arch-lint`, `plugin/bin/adr-debt`, `plugin/bin/adr-next`, `plugin/scripts/facts-gate-dispatch.sh`, `tests/gates.test.mjs`, `tests/mutations/**`
 
 Class: every named-path open a listed gate performs whose `read_text` (or equivalent) raises `OSError`. Not "a missing file", not `_Unreadable`, not the dispatcher's miss-path `[ ! -r ]`. Enumerated 2026-09-12 with `rg -n "read_text\(" plugin/bin/adr-lint plugin/bin/adr-verify plugin/bin/adr-judge plugin/bin/adr-retire-check plugin/bin/spec-verify plugin/bin/arch-lint plugin/bin/adr-debt plugin/bin/adr-next plugin/bin/postmortem-verify` and `git ls-files -- plugin/bin/adr-lint plugin/bin/adr-verify plugin/bin/adr-judge plugin/bin/adr-retire-check plugin/bin/spec-verify plugin/bin/arch-lint plugin/bin/adr-debt plugin/bin/adr-next plugin/bin/postmortem-verify plugin/scripts/facts-gate-dispatch.sh tests/gates.test.mjs tests/mutations.json`. Named members (after exists / is_dir / not-recognised where those arms already run):
 

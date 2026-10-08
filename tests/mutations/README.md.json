@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "readme: the feature list is checked against what ships",
+      "file": "README.md",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "- `mutation-audit`: break a mechanism and measure whether anything notices.\n",
+      "to": "",
+      "only": "^(?:every catalogue entry still matches the source it mutates, exactly once|the README names every skill and gate this plugin ships)$"
+    }
+  ]
+}

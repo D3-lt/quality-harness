@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "claim-sweep: a sentence boundary still separates a claim from commentary",
+      "file": "scripts/backlog-claim-sweep.mjs",
+      "tests": [
+        "tests/backlog-claim-sweep.test.mjs"
+      ],
+      "from": "  const gap = `(?:(?!\\\\.\\\\s)[^\\\\n]){0,${NEAR}}?`",
+      "to": "  const gap = `[^\\\\n]{0,${NEAR}}?`",
+      "only": "^(?:prose ABOUT another section is not a claim on it)$"
+    },
+    {
+      "label": "claim-sweep: a section owned by CLAUDE.md is not a backlog claim",
+      "file": "scripts/backlog-claim-sweep.mjs",
+      "tests": [
+        "tests/backlog-claim-sweep.test.mjs"
+      ],
+      "from": "        if (isForeignSection(line, m)) continue",
+      "to": "        if (false) continue",
+      "only": "^(?:§ is not owned by the backlog)$"
+    },
+    {
+      "label": "claim-sweep: an absent section stays could-not-look and never clears a claim",
+      "file": "scripts/backlog-claim-sweep.mjs",
+      "tests": [
+        "tests/backlog-claim-sweep.test.mjs"
+      ],
+      "from": "  return start === -1 ? null : { start: start + 1, end: lines.length }",
+      "to": "  return { start: start + 1, end: lines.length }",
+      "only": "^(?:a section range ends at the next heading, and an absent section is null|the verdict tells touched, untouched and could-not-look apart)$"
+    }
+  ]
+}

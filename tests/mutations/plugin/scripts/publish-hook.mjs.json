@@ -1,0 +1,124 @@
+{
+  "mutations": [
+    {
+      "label": "publish-hook: an unchecked commit is refused by git in the repository it runs in",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an unchecked commit is refused by git",
+      "from": "  if (!verdict?.deny) return verdict?.fast",
+      "to": "  if (true) return verdict?.fast"
+    },
+    {
+      "label": "publish-hook: the verdict is taken in the repository git runs the hook in",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an unchecked commit is refused by git",
+      "from": "  const verdict = publishVerdict({ cwd, session,",
+      "to": "  const verdict = publishVerdict({ cwd: path.dirname(cwd), session,"
+    },
+    {
+      "label": "publish-hook: a qh-check that ran just before the commit is seen",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "a checked commit, a person",
+      "from": "  importCheckRecords(cwd, session)\n  // `prepare-commit-msg` is one commit by construction",
+      "to": "  // `prepare-commit-msg` is one commit by construction"
+    },
+    {
+      "label": "publish-hook: a merge, cherry-pick or rebase in progress passes the hook",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  if (event === 'prepare-commit-msg' && sequencerInProgress(cwd)) return { code: 0 }",
+      "to": "  if (false) return { code: 0 }",
+      "only": "^(?:a checked commit, a person's commit and a merge pass the hook|a cherry-pick in progress is concluded without the hook refusing it)$"
+    },
+    {
+      "label": "ADR-068 T1: a linked worktree of the session's repository is judged",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an unchecked commit in a linked worktree",
+      "from": "  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
+      "to": "  if (readEvents(cwd, session).length === 0) return { code: 0 }"
+    },
+    {
+      "label": "ADR-068 T1: a scratch repository with no log anywhere still passes",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "a checked linked worktree commits",
+      "from": "  if (owner === null && readEvents(cwd, session).length === 0) return { code: 0 }",
+      "to": "  if (false) return { code: 0 }"
+    },
+    {
+      "label": "chaos 626934a: the repository is the common directory itself",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  const repository = path.resolve(cwd, common.stdout.trim())",
+      "to": "  const repository = path.dirname(path.resolve(cwd, common.stdout.trim()))",
+      "only": "a worktree of a bare repository is judged, and a submodule is its own repository"
+    },
+    {
+      "label": "git's hook in a worktree records that it ran in the session's own log",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  appendEvent(owner ?? cwd, session, { event: 'publish.hook-ran', hook: event })",
+      "to": "  appendEvent(cwd, session, { event: 'publish.hook-ran', hook: event })",
+      "only": "git's hook in a linked worktree records that it ran in the session's own log"
+    },
+    {
+      "label": "§314: git's own hook says an unobserved tree too",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (verdict?.unobserved) return { code: 0, message: verdict.text }",
+      "to": "  if (false) return { code: 0, message: verdict.text }",
+      "only": "could not be observed"
+    },
+    {
+      "label": "§314: git's own hook reads the budget from its environment",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "observation: observe(cwd, observeBudgetMs(env)), invoked,",
+      "to": "observation: observe(cwd), invoked,",
+      "only": "could not be observed"
+    },
+    {
+      "label": "ADR-081 T2: git's commit hook lets a fast-passed commit through in silence",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "if (!verdict?.deny) return verdict?.fast || verdict?.unknown ? { code: 0, message: verdict.text } : { code: 0 }",
+      "to": "if (!verdict?.deny) return { code: 0 }",
+      "only": "^git's own hooks let a commit through with the warning and refuse a push$"
+    },
+    {
+      "label": "ADR-088 review 2: git's hook says a could-not-look verdict",
+      "file": "plugin/scripts/publish-hook.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "verdict?.fast || verdict?.unknown ?",
+      "to": "verdict?.fast ?",
+      "only": "^(?:git's own hook says a torn ledger is unknown, at commit and at push)$"
+    }
+  ]
+}

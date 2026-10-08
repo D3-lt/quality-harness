@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "win: windowsHide is read by its value",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "      return property.value.type === 'Literal' ? (property.value.value === true ? 'hidden' : 'shown') : 'unknown'",
+      "to": "      return 'hidden'",
+      "only": "passes windowsHide"
+    },
+    {
+      "label": "win: an injected Node runner is the spawner it defaults to",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "    if (!name || !(SPAWNERS.has(name) || aliased(node))) return",
+      "to": "    if (!name || !SPAWNERS.has(name)) return",
+      "only": "passes windowsHide"
+    },
+    {
+      "label": "win: a runner alias is scoped to its own function",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "    && aliases.some(alias => alias.name === node.callee.name && alias.start <= node.start && node.end <= alias.end)",
+      "to": "    && aliases.some(alias => alias.name === node.callee.name)",
+      "only": "passes windowsHide"
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "routing stress: a missing model is not coerced into a capability class",
+      "file": "tests/routing-stress.test.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "    assert.equal(typeof options.model, 'string', options.label + ' must declare a model in ' + context)\n    assert.match(options.model, /^[a-z]+$/,",
+      "to": "    assert.match(String(options.model), /^[a-z]+$/,",
+      "only": "^(?:the role check rejects a role that declares no model)$"
+    }
+  ]
+}

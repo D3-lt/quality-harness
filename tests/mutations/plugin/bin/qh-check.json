@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "qh-check: --version answers without running a check",
+      "file": "plugin/bin/qh-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if \"--version\" in argv:",
+      "to": "    if False:",
+      "only": "^(?:every shipped gate answers --version with the version of the tree it was run from)$"
+    },
+    {
+      "label": "win: qh-check shares its console with node, so its output is not lost",
+      "file": "plugin/bin/qh-check",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + waited + 60)",
+      "to": "        return subprocess.call(args, timeout=(seconds if seconds > 0 else 3600.0) + waited + 60, creationflags=0x08000000)",
+      "only": "no window"
+    }
+  ]
+}

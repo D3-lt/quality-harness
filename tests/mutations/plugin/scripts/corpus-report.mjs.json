@@ -1,0 +1,104 @@
+{
+  "mutations": [
+    {
+      "label": "corpus-report: a mutant count is read from the real field, never defaulted to a confident zero",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "    `  entries ${t.entries} · red ${t.redEntries} · killed ${t.killed}`",
+      "to": "    `  entries ${t.entries} · red ${t.redEntries} · killed ${t.killed ?? 0}`",
+      "only": "^(?:the mutant counts are read from the real fields, and a missing one never reads as zero)$"
+    },
+    {
+      "label": "corpus-report: the re-check nobody ran is called UNRUN, in a report meant to be pasted in public",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "    'RECORDED CLAIMS RE-CHECKED LATER — UNRUN.',",
+      "to": "    'RECORDED CLAIMS RE-CHECKED LATER.',",
+      "only": "^(?:the expensive measurement is UNRUN in those words, and names the command that takes it)$"
+    },
+    {
+      "label": "corpus-report: a path escaping the corpus becomes a placeholder, so a shared report names no person",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "  if (rel.split(/[\\\\/]/)[0] === '..') return OUTSIDE",
+      "to": "",
+      "only": "^(?:nothing path-shaped is published unless it is relative to the corpus|a corpus outside the working directory is a placeholder, in the text and in the JSON)$"
+    },
+    {
+      "label": "corpus-report: a different drive or UNC share is a placeholder, not an absolute path printed in public",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "  if (flavour.isAbsolute(rel)) return OUTSIDE",
+      "to": "",
+      "only": "^(?:nothing path-shaped is published unless it is relative to the corpus)$"
+    },
+    {
+      "label": "corpus-report: an unreadable root has no totals, rather than a full set of zeros nobody measured",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "  const totals = rootUnreadable ? null : measure(files, read)",
+      "to": "  const totals = measure(files, read)",
+      "only": "^(?:an unreadable ROOT has no totals at all, rather than a set of confident zeros)$"
+    },
+    {
+      "label": "corpus-report: an entry nobody could judge is reported, so outcome-only never reads as passed",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "    if (t.unjudgedEntries) {",
+      "to": "    if (false) {",
+      "only": "^(?:an entry nobody could judge is never rendered as having passed)$"
+    },
+    {
+      "label": "corpus-report: a record is a FILE, so a directory named like one is not counted",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "      .filter(entry => entry.isFile() && /^ADR-.*\\.md$/i.test(entry.name)).length",
+      "to": "      .filter(entry => /^ADR-.*\\.md$/i.test(entry.name)).length",
+      "only": "^(?:a record is a FILE, so a directory named like one is not counted)$"
+    },
+    {
+      "label": "BACKLOG §319 C: corpus-report's CLI reads through a reader that opens anything",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "export function run(argv, { read = readRegularFile,",
+      "to": "export function run(argv, { read = readFileSync,",
+      "only": "corpus-report counts a FIFO task"
+    },
+    {
+      "label": "§321 probe: corpus-report's text reads the renamed count",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "shown able to fail ${t.shownAbleToFail} (${pct(t.shownAbleToFail, t.evidenced)})",
+      "to": "shown able to fail ${t.showsFailing} (${pct(t.showsFailing, t.evidenced)})",
+      "only": "^(?:the count a pasted report publishes is named for what it counts: shown able to fail, a red-first row included)$"
+    },
+    {
+      "label": "§350 C5: a lower-case record is not counted by corpus-report",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "      .filter(entry => entry.isFile() && /^ADR-.*\\.md$/i.test(entry.name)).length",
+      "to": "      .filter(entry => entry.isFile() && /^ADR-.*\\.md$/.test(entry.name)).length",
+      "only": "^(?:corpus-report counts a record named in lower case)$"
+    }
+  ]
+}

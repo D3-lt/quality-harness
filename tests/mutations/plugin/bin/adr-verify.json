@@ -1,0 +1,1449 @@
+{
+  "mutations": [
+    {
+      "label": "evidence: exit-0-but-scored-nothing is a failure",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    empty = code == 0 and scored_nothing(output)",
+      "to": "    empty = False"
+    },
+    {
+      "label": "evidence: a real result outranks an empty one",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    return not any(re.search(p, output, re.M) for p in SOMETHING_RAN)",
+      "to": "    return True",
+      "only": "^(?:an acceptance that scored something is taken at its word, empty package or not)$"
+    },
+    {
+      "label": "evidence: the digest label the readers parse",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha256:{digest} · ms:{elapsed_ms}\")",
+      "to": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha:{digest} · ms:{elapsed_ms}\")"
+    },
+    {
+      "label": "evidence: the dirty-tree marker",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    return sha + (\"*\" if d.stdout.strip() else \"\")",
+      "to": "    return sha",
+      "only": "^(?:the entry names the commit it was produced at, and says when the tree was dirty)$"
+    },
+    {
+      "label": "evidence: the failure fence",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        block += \"\\n\" + excerpt_fence(failure_tail(stdout_text, stderr_text))",
+      "to": "        pass"
+    },
+    {
+      "label": "evidence: cwd defaults to the repository root",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        cwd = Path(r.stdout.strip()) if r.returncode == 0 else task.parent",
+      "to": "        cwd = task.parent",
+      "only": "^(?:without --cwd the acceptance runs at the repository root, not beside the task)$"
+    },
+    {
+      "label": "evidence: the append keeps line endings",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    write_source(task, text[:start] + new + (\"\\n\" + tail if tail else \"\"), file_newline(task))",
+      "to": "    task.write_text(text[:start] + new + (\"\\n\" + tail if tail else \"\"), encoding=\"utf-8\")",
+      "only": "^(?:writing evidence keeps the line endings the file already had|an entry appended under a heading that ends the file without a line break lands in the section, on its own line)$"
+    },
+    {
+      "label": "evidence: a refused mutant restores byte-for-byte",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                path.write_bytes(_member_original(member))",
+      "to": "                path.write_text(_member_original(member).decode(\"utf-8\"), encoding=\"utf-8\")",
+      "only": "^(?:adr-verify restores declared generated outputs with their source)$"
+    },
+    {
+      "label": "skills: a documented flag must be parsed",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "        elif args[i] == \"--why\":",
+      "to": "        elif args[i] == \"--rationale\":",
+      "only": "^(?:every multi-flag invocation the skills document actually runs)$"
+    },
+    {
+      "label": "verify: a killed mutant run is journalled so the next one restores it",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            journal.write_text(json.dumps(journal_data), encoding=\"utf-8\")\n        except OSError as e:\n            try:",
+      "to": "            (lambda *a, **k: None)(json.dumps(journal_data), encoding=\"utf-8\")\n        except OSError as e:\n            try:",
+      "only": "^(?:an interrupted clean baseline cannot silently lend its changed tree to a later run)$"
+    },
+    {
+      "label": "verify: the mutant warning is flushed, not left in the buffer",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\", flush=True)\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {rel}`.\", flush=True)",
+      "to": "            print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n                  f\"until the fence finishes.\")\n            print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n                  f\"--cwd {cwd}`, or `git checkout -- {rel}`.\")",
+      "only": "^(?:the warning that names the broken file survives the kill that hides it)$"
+    },
+    {
+      "label": "verify: a restore does not overwrite a file that changed since",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                elif current == member[\"_mutated\"]:",
+      "to": "                elif True:",
+      "only": "^(?:a restore never overwrites a file that moved on since the mutant)$"
+    },
+    {
+      "label": "verify: an ordinary run recovers before it measures anything",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    recover_mutant(cwd)\n    if relock:\n        record_relock(task, text, cmd, cwd, today, replace_hashes)\n        sys.exit(0)\n\n    # ADR-028 T1, corrected by T3.",
+      "to": "    if relock:\n        record_relock(task, text, cmd, cwd, today, replace_hashes)\n        sys.exit(0)\n\n    # ADR-028 T1, corrected by T3.",
+      "only": "^(?:adr-verify restores declared generated outputs with their source|an ordinary run recovers a mutant a killed run left, before it measures anything)$"
+    },
+    {
+      "label": "verify: a catchable kill restores in-process, not only via the journal",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            previous = signal.signal(signal.SIGTERM, _restore_and_exit)",
+      "to": "            previous = None",
+      "only": "^(?:adr-verify restores declared generated outputs with their source|a SIGTERM mid-fence is restored in-process, without waiting for the next run)$"
+    },
+    {
+      "label": "§339: recovery ignores a live run's ownership of the journal",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    refusal = owner_refusal(journal, pid, alive, why, explicit)\n    if refusal:",
+      "to": "    refusal = None\n    if refusal:",
+      "only": "^a live mutant run keeps its journal: another adr-verify refuses to recover it$"
+    },
+    {
+      "label": "§339: the journal names no owner",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        \"owner\": {\"pid\": os.getpid()},",
+      "to": "        \"owner\": {},",
+      "only": "^a live mutant run keeps its journal: another adr-verify refuses to recover it$"
+    },
+    {
+      "label": "review of §339: without node an ended owner reads as unknown",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            return pid, False, None\n        except PermissionError:",
+      "to": "            return pid, None, None\n        except PermissionError:",
+      "only": "^a journal owner is probed without node, and an unknown owner is never called live$"
+    },
+    {
+      "label": "review of §339: an explicit --restore cannot pass an unknown owner",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if alive is None and not explicit:",
+      "to": "    if alive is None:",
+      "only": "^a journal owner is probed without node, and an unknown owner is never called live$"
+    },
+    {
+      "label": "verify: a home path is redacted in both separator spellings",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    spellings = {home, home.replace(\"\\\\\", \"/\"), home.replace(\"/\", \"\\\\\")}",
+      "to": "    spellings = {home}",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "verify: redaction stops at the home directory, not at a sibling sharing its name",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return re.sub(f\"(?:{pattern})(?![A-Za-z0-9._-])\", \"~\", block, flags=flags)",
+      "to": "    return re.sub(f\"(?:{pattern})\", \"~\", block, flags=flags)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "sweep: a superseded claim is in neither half of the ratio",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if digest != current:",
+      "to": "            if False:",
+      "only": "^(?:an entry whose digest no longer matches its fence is superseded|a task with an exit-0 entry and no Acceptance fence is superseded|every claim lands in exactly one bucket and the four sum to the total|one task with two different digests is two claims|a population of real corpus shapes is classified without crashing or lying)$"
+    },
+    {
+      "label": "sweep: a fence runs where it was recorded, not where the task file sits",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "                    r = run_bounded([shell, \"-c\", fence], cwd=str(fence_cwd(task)),",
+      "to": "                    r = run_bounded([shell, \"-c\", fence], cwd=str(task.parent),",
+      "only": "^(?:a fence runs from the git root, not from the task directory|a fence using \\$PWD sees the git root)$"
+    },
+    {
+      "label": "sweep: an environmental failure needs more than a matching string",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if diagnosis and not scored_anything(r.stdout + r.stderr):",
+      "to": "            if diagnosis:",
+      "only": "^(?:an assertion failure that merely mentions an environment string is still false|a real node failure mentioning an environment string is still false)$"
+    },
+    {
+      "label": "sweep: a run that exits 0 having scored nothing is not a held claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if r.returncode == 0 and scored_nothing(r.stdout + r.stderr):",
+      "to": "            if False:",
+      "only": "^(?:a fence that exits 0 having scored nothing is false, not held|a runner reporting zero examples is false, whatever its exit code)$"
+    },
+    {
+      "label": "sweep: a corpus with nothing re-checkable does not report success",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    if checked == 0 or unlisted or unread:",
+      "to": "    if unlisted or unread:",
+      "only": "^(?:a corpus with no claim reports no rate rather than a clean one|a human-observed entry is not a claim|an empty corpus reports no claim rather than a clean sweep|a corpus whose evidence predates the tool reports no claim, not a clean bill|an entry after the Verification Log section belongs to no claim)$"
+    },
+    {
+      "label": "sweep: only an exit-0 entry carrying a digest is a claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    r\"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})(?: · [^\\n]*)?\\s*$\", re.M)",
+      "to": "    r\"`[^`]*`.*?acceptance-sha256:(?P<digest>[0-9a-f]+)(?: · [^\\n]*)?\\s*$\", re.M)",
+      "only": "^(?:a malformed digest is not a claim)$"
+    },
+    {
+      "label": "sweep: the timeout bound is validated, not taken on trust",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if timeout <= 0:",
+      "to": "            if False:",
+      "only": "^(?:a nonsensical timeout is refused rather than silently meaning forever)$"
+    },
+    {
+      "label": "sweep: a record below the strictFrom cutoff is advised, not failed",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    return 1 if [t for t, _ in false if t not in demoted] else 0",
+      "to": "    return 1 if false else 0",
+      "only": "^(?:a false success below the strictFrom cutoff is advice, not a failure|a bare number is a valid cutoff|a cutoff above every record demotes every finding and still counts them)$"
+    },
+    {
+      "label": "sweep: a record whose number cannot be parsed is never demoted",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "        # A record named outside the convention has nothing to compare, and\n        # demoting it would be silent and permanent.\n        return False",
+      "to": "        # A record named outside the convention has nothing to compare, and\n        # demoting it would be silent and permanent.\n        return True",
+      "only": "^(?:a record whose number cannot be parsed is never treated as below the cutoff|a record number our parser cannot read is never demoted)$"
+    },
+    {
+      "label": "sweep: an unreadable strictFrom config is said out loud, not silently ignored",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "        if config_note:\n            print(f\"[adr-verify] {config_note}\")",
+      "to": "        if False:\n            print(f\"[adr-verify] {config_note}\")",
+      "only": "^(?:a malformed config advises and does not silently demote|a strictFrom naming no number is refused, not guessed at)$"
+    },
+    {
+      "label": "sweep: a value-taking flag with no operand is a usage error, not a traceback",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "        if i >= len(args):\n            fail(f\"{flag} needs a value\")",
+      "to": "        if False:\n            fail(f\"{flag} needs a value\")",
+      "only": "^(?:--sweep with no directory after it is refused)$"
+    },
+    {
+      "label": "sweep: an empty Acceptance fence proves nothing and is not held",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if fence is not None and runs_nothing(fence):",
+      "to": "            if False:",
+      "only": "^(?:an empty Acceptance fence is not a claim that held|a fence of only comments proves nothing and is not held)$"
+    },
+    {
+      "label": "sweep: a backgrounded child does not hold the sweep open",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "                                    stdout=out, stderr=err, timeout=timeout)",
+      "to": "                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)",
+      "only": "^(?:a fence the machine could not run is not a false success|a fence that invokes the sweep is reported unrunnable and never executed|every claim lands in exactly one bucket and the four sum to the total|a fence that exits 0 having scored nothing is false, not held|a population of real corpus shapes is classified without crashing or lying|a runner reporting zero examples is false, whatever its exit code|a fence that spawns a background process does not hang the sweep|a fence that spells --sweep around the guard still cannot recurse|a fence sweeping the corpus being swept is still refused)$"
+    },
+    {
+      "label": "sweep: a nested sweep refuses itself, whatever the fence is spelled like",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "        if any(here == a or a in here.parents or here in a.parents for a in ancestors):",
+      "to": "        if False:",
+      "only": "^(?:a fence that invokes the sweep is reported unrunnable and never executed)$"
+    },
+    {
+      "label": "sweep: one Acceptance extractor, shared with the recording path",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    return acceptance_fence(section)",
+      "to": "    fence = re.search(r'^```bash\\n(.*?)```', section, re.S)\n    return fence.group(1) if fence else None",
+      "only": "^(?:a claim whose fence still passes is counted as held|a claim whose fence no longer passes is named and fails the sweep|an entry whose digest no longer matches its fence is superseded|a task with an exit-0 entry and no Acceptance fence is superseded|a fence the machine could not run is not a false success|an assertion failure that merely mentions an environment string is still false|a fence that invokes the sweep is reported unrunnable and never executed|a fence that does not finish is unrunnable, not a verdict|two entries proving the same fence are one claim|a multi-line fence is re-checked whole, not by its first line|every claim lands in exactly one bucket and the four sum to the total|a fence runs from the git root, not from the task directory|one task with two different digests is two claims|a fence that exits 0 having scored nothing is false, not held|a CRLF fence still matches the digest recorded for it|a false success below the strictFrom cutoff is advice, not a failure|the verdict line names strictFrom whenever it is in effect|a population of real corpus shapes is classified without crashing or lying|an empty Acceptance fence is not a claim that held|the json report and the printed report agree on every count|a claim written after a fenced ## line in the Verification Log is still a claim|a hundred tasks terminate and count correctly|a fence whose middle command fails under set -e is false|a fence that spawns a background process does not hang the sweep|a fence using \\$PWD sees the git root|an exit code above 128 is a failure like any other|a very long single-line fence is handled|a bare number is a valid cutoff|a cutoff above every record demotes every finding and still counts them|a fence that spells --sweep around the guard still cannot recurse|a fence running a suite that itself sweeps elsewhere is not recursion|a fence sweeping the corpus being swept is still refused|a claim this tool can write is a claim it can read back|a fence of only comments proves nothing and is not held|a real node failure mentioning an environment string is still false)$"
+    },
+    {
+      "label": "sweep: a fence of only comments runs nothing",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    return not any(line.strip() and not line.strip().startswith(\"#\")",
+      "to": "    return not any(line.strip()",
+      "only": "^(?:a fence of only comments proves nothing and is not held)$"
+    },
+    {
+      "label": "sweep: node's TAP failure output counts as tests having run",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    r\"^not ok [0-9]+\",                     # node --test TAP",
+      "to": "    r\"^never matches this [0-9]+\",",
+      "only": "^(?:a real node failure mentioning an environment string is still false)$"
+    },
+    {
+      "label": "sweep: a git probe that cannot run does not end the sweep",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    except (OSError, subprocess.TimeoutExpired):\n        return None\n    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None",
+      "to": "    except ValueError:\n        return None\n    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None",
+      "only": "^(?:a corpus whose git probes cannot run is still reported)$"
+    },
+    {
+      "label": "sweep: a fence that cannot be launched is unrunnable, not a traceback",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "                continue\n            except OSError as exc:",
+      "to": "                continue\n            except ValueError as exc:",
+      "only": "^(?:a corpus whose git probes cannot run is still reported)$"
+    },
+    {
+      "label": "sweep: sweep-only flags are refused in the recording modes",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    if saw_timeout or as_json:",
+      "to": "    if False:",
+      "only": "^(?:sweep-only flags are refused in the recording modes rather than ignored)$"
+    },
+    {
+      "label": "sweep: --sweep refuses to be combined with a recording mode",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if given is not None:\n                fail(f\"{flag} cannot be combined with --sweep\")",
+      "to": "            if False:\n                fail(f\"{flag} cannot be combined with --sweep\")",
+      "only": "^(?:--sweep refuses to be combined with a recording mode)$"
+    },
+    {
+      "label": "sweep: node's summary line counts as tests having run",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    r\"^\\u2139 (pass|fail) [0-9]+\",         # node --test summary",
+      "to": "    r\"^never matches this either [0-9]+\",",
+      "only": "^(?:a real node failure mentioning an environment string is still false)$"
+    },
+    {
+      "label": "sweep: the reentry sentinel names the corpus, not merely the mode",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "                    (chain + os.pathsep if chain else \"\") + str(Path(root).resolve())})",
+      "to": "                    \"/\"})",
+      "only": "^(?:a fence running a suite that itself sweeps elsewhere is not recursion)$"
+    },
+    {
+      "label": "sweep: the shell is injectable, so no-shell is testable off POSIX",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if shell is _UNSET:\n        shell = resolve_bash()",
+      "to": "    shell = resolve_bash()",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "verify: the sha grammar matches the one adr-lint reads with",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "from record import SHA_FIELD, git_root, object_format, sha_fits, row_sha  # noqa: E402",
+      "to": "from record import git_root, object_format, sha_fits, row_sha  # noqa: E402\nSHA_FIELD = r\"(?:[0-9a-f]{7,40}\\*?|no-git)\"",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "verify: an entry the readers cannot parse is refused, not written",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return bool(ENTRY_RE.match(entry.strip()))",
+      "to": "    return True",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "verify: a task's number comes from the record that owns it",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    found = record_id(directory.name, title)",
+      "to": "    found = next((record_id(part) for part in reversed(directory.parts) if record_id(part)), None)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "verify: zero is a record number, not an absent one",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return number < cutoff",
+      "to": "    return (number or cutoff) < cutoff",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "verify: a toolchain directive is not a comment-only mutant",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if DIRECTIVE_COMMENT.search(frm) or DIRECTIVE_COMMENT.search(to):",
+      "to": "    if False:",
+      "only": "^(?:a toolchain directive is not a comment-only mutant)$"
+    },
+    {
+      "label": "verify: a failure block keeps a tail of EACH stream, not of their concatenation",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        folded = collapse_repeats(lines)",
+      "to": "        folded = collapse_repeats(lines) if label == 'stderr' else []",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "verify: a fence that never returned is UNRUN, not a verdict",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                        encoding=\"utf-8\", errors=\"replace\", timeout=fence_timeout())",
+      "to": "                        encoding=\"utf-8\", errors=\"replace\", timeout=None)",
+      "only": "^(?:a fence that never returns is UNRUN, and writes nothing)$"
+    },
+    {
+      "label": "verify: a mutant run that hangs is UNRUN, and the file is put back",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout(), on_start=fence_start,",
+      "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None, on_start=fence_start,",
+      "only": "^(?:adr-verify requires a clean fence before it mutates|a fence that never returns is UNRUN, and writes nothing)$"
+    },
+    {
+      "label": "verify: repeated output lines are folded with a count, distinct ones are not",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if folded and folded[-1][0] == line:",
+      "to": "        if False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "verify: a mutant is judged only after its clean fence passes",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        if not clean_usable:",
+      "to": "        if False:",
+      "only": "^(?:adr-verify requires a clean fence before it mutates|a mutant that removes tests is killed, and a fence broken before it is not|a failing clean fence is recorded before it is refused|the UNPROVEN early return records the steps its run named)$"
+    },
+    {
+      "label": "verify: abnormal mutant termination is never credited as a kill",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif abnormal_termination(code, out):",
+      "to": "        elif False:",
+      "only": "^(?:adr-verify requires a clean fence before it mutates)$"
+    },
+    {
+      "label": "verify: generated mutation outputs are restored with their source",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    members = transaction[\"members\"]",
+      "to": "    members = transaction[\"members\"][:1]",
+      "only": "^(?:adr-verify restores declared generated outputs with their source)$"
+    },
+    {
+      "label": "verify: a fence broken for a machine reason is not credited as a kill",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif environment_failure(out, cmd):",
+      "to": "        elif False:",
+      "only": "^(?:adr-verify requires a clean fence before it mutates)$"
+    },
+    {
+      "label": "verify: the fold counts what happened, not what survived the tail",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        shown = folded[-keep:]",
+      "to": "        shown = collapse_repeats(lines[-keep:])",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "ADR-013: a hand-reported diff must locate exactly one place",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if hits > 1:",
+      "to": "    if False:",
+      "only": "^(?:--human-mutant refuses a diff that does not locate one place in the file)$"
+    },
+    {
+      "label": "ADR-013: a hand-reported diff must be reversible",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if to and to in body:",
+      "to": "    if False:",
+      "only": "^(?:--human-mutant refuses a diff a reader could not tell had been applied)$"
+    },
+    {
+      "label": "windows: adr-verify treats a rooted path as rooted",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return bool(re.match(r\"^[A-Za-z]:\", text)) or text[:1] in (\"/\", \"\\\\\")",
+      "to": "    return Path(text).is_absolute()",
+      "only": "^(?:a rooted path is rooted on every platform, not re-rooted onto the cwd drive)$"
+    },
+    {
+      "label": "verify: an acceptance entry carries the time its run took",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "             f\"acceptance-sha256:{digest} · ms:{elapsed_ms}\")",
+      "to": "             f\"acceptance-sha256:{digest}\")",
+      "only": "^(?:adr-lint accepts the entry adr-verify wrote, as it wrote it|a mutant run records the verification entry its clean fence earned|recording the run does not change the verdict the mutant earned|the verification entry outlives the restore|a failing clean fence is recorded before it is refused|a plain run still writes no mutation row|the recorded duration is the clean fence, not the clean fence plus the mutant)$"
+    },
+    {
+      "label": "verify: --covers refuses a mechanism the task did not declare",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if covers is not None:\n        declared = rests_on(text)",
+      "to": "    if False:\n        declared = rests_on(text)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "verify: a mutant run records the verification entry its clean fence earned",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    record_run(task, task.read_text(encoding=\"utf-8\"), cmd, today, clean,\n               clean_elapsed_ms, entry_sha, steps, cwd=cwd)",
+      "to": "    pass",
+      "only": "^(?:adr-lint accepts the entry adr-verify wrote, as it wrote it|a mutant run records the verification entry its clean fence earned|recording the run does not change the verdict the mutant earned|the verification entry outlives the restore|the recorded duration is the clean fence, not the clean fence plus the mutant|a mutation run's own clean entry carries the steps it was given)$"
+    },
+    {
+      "label": "verify: the recorded duration is the clean fence alone",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        clean_elapsed_ms = round((time.monotonic() - clean_started) * 1000)",
+      "to": "        clean_elapsed_ms = 0",
+      "only": "^(?:the recorded duration is the clean fence, not the clean fence plus the mutant)$"
+    },
+    {
+      "label": "verify: the recorded duration does not span the mutant run too",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "               clean_elapsed_ms, entry_sha, steps, cwd=cwd)",
+      "to": "               round((time.monotonic() - clean_started) * 1000), entry_sha, steps, cwd=cwd)",
+      "only": "^(?:the recorded duration is the clean fence, not the clean fence plus the mutant)$"
+    },
+    {
+      "label": "verify: an empty unittest or cargo run is not counted as evidence",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^Ran 0 tests\",               # python unittest / django test",
+      "to": "    r\"^Ran 0 tests-NEVER-MATCHES\","
+    },
+    {
+      "label": "tutorial: a surviving mutant still exits non-zero for the walkthrough a reader follows",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/tutorial.test.mjs"
+      ],
+      "from": "    sys.exit(tool_code)",
+      "to": "    sys.exit(0)",
+      "only": "^(?:the tutorial walkthrough still produces the two outcomes it prints)$"
+    },
+    {
+      "label": "verdict codes: an inconclusive does not borrow the survivor's code",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "different exit codes",
+      "from": "    tool_code = 0 if verdict == \"killed\" else 4 if verdict == \"inconclusive\" else 1",
+      "to": "    tool_code = 0 if verdict == \"killed\" else 1"
+    },
+    {
+      "label": "tutorial: a fence that passes with the mechanism broken is still called a survivor",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/tutorial.test.mjs"
+      ],
+      "from": "                \"survived\",",
+      "to": "                \"killed\",",
+      "only": "^(?:the tutorial walkthrough still produces the two outcomes it prints)$"
+    },
+    {
+      "label": "steps: an undeclared step id is refused before the fence runs",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        unknown = [a for a in asked if a[1:] not in declared]",
+      "to": "        unknown = []",
+      "only": "^(?:--steps refuses a step id the task never declared|--steps refuses an undeclared id on the --mutant path too|--steps sees a step declared after a fenced ## line in Ordered Steps)$"
+    },
+    {
+      "label": "steps: the field a run asked for is actually written into the entry",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        entry += f\" · steps:{steps}\"",
+      "to": "        pass",
+      "only": "^(?:--steps records the steps a run exercised, and every reader still parses it|a mutation run's own clean entry carries the steps it was given|the UNPROVEN early return records the steps its run named|--steps sees a step declared after a fenced ## line in Ordered Steps)$"
+    },
+    {
+      "label": "steps: a --mutant run's own clean entry carries the field it was given",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                       covers=covers, steps=steps, in_place=in_place, placement=placement)",
+      "to": "                       covers=covers, in_place=in_place, placement=placement)",
+      "only": "^(?:a mutation run's own clean entry carries the steps it was given|the UNPROVEN early return records the steps its run named)$"
+    },
+    {
+      "label": "steps: the undeclared-id preflight is reachable on the --mutant path",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if steps is not None:\n        declared = declared_steps(text)",
+      "to": "    if steps is not None and mutant is None:\n        declared = declared_steps(text)",
+      "only": "^(?:--steps refuses an undeclared id on the --mutant path too)$"
+    },
+    {
+      "label": "steps: naming steps for a run this tool never took is refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if steps is not None and (human is not None or human_mutant is not None):",
+      "to": "    if False:",
+      "only": "^(?:--steps is refused on the paths where this tool runs no fence)$"
+    },
+    {
+      "label": "steps: the UNPROVEN early return records the steps its run named",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, steps, cwd=cwd)",
+      "to": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, cwd=cwd)",
+      "only": "^(?:the UNPROVEN early return records the steps its run named)$"
+    },
+    {
+      "label": "steps: --restore names no run, so the flag is refused there",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        if steps is not None:\n            fail(\"--steps cannot be combined with --restore; recovery runs no fence, \"\n                 \"so there is no run whose steps could be named\")\n",
+      "to": "",
+      "only": "^(?:--steps is refused on the paths where this tool runs no fence)$"
+    },
+    {
+      "label": "steps: --sweep runs other tasks' fences, so the flag is refused there",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                            (\"--covers\", covers), (\"--steps\", steps),",
+      "to": "                            (\"--covers\", covers),",
+      "only": "^(?:--steps is refused on the paths where this tool runs no fence)$"
+    },
+    {
+      "label": "adr-verify: a refusal wears the tool's name, or a scripted caller never sees it",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    print(msg if msg.startswith(\"[adr-verify]\") else f\"[adr-verify] {msg}\")",
+      "to": "    print(msg)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-verify: a mutant that did not build is inconclusive, never a survivor",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            verdict, detail = \"inconclusive\", \"the fence failed on a build/parse error, not an assertion\"",
+      "to": "            verdict, detail = \"survived\", \"the fence failed on a build/parse error, not an assertion\"",
+      "only": "^(?:adr-verify requires a clean fence before it mutates|a survivor and an inconclusive carry different exit codes, and both are nonzero|a coloured build error is inconclusive, not a kill)$"
+    },
+    {
+      "label": "adr-verify: a gate copied without plugin/lib says so instead of dying in a traceback",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_fence_file):",
+      "to": "if False:",
+      "only": "^(?:a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs|a gate reached through a symlink loads the lib beside its real file, not beside the link)$"
+    },
+    {
+      "label": "verify: a coloured build error is inconclusive, not a kill",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif any(re.search(pat, plain(out), re.M) for pat in BUILD_BROKE):",
+      "to": "        elif any(re.search(pat, out, re.M) for pat in BUILD_BROKE):",
+      "only": "coloured build error is inconclusive"
+    },
+    {
+      "label": "adr-verify: a foreign module already named fence is displaced, not used (Codex)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "if os.path.realpath(getattr(_loaded, \"__file__\", None) or \"\") != os.path.realpath(_fence_file):",
+      "to": "if _loaded is None:",
+      "only": "^(?:every gate binds the shared fence from its exact path, displacing a foreign module of the same name)$"
+    },
+    {
+      "label": "verify: every refusal wears the tool name, so a scripted caller can tell one from a survivor",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "every refusal wears the tool name",
+      "from": "    print(msg if msg.startswith(\"[adr-verify]\") else f\"[adr-verify] {msg}\")",
+      "to": "    print(msg)"
+    },
+    {
+      "label": "fenceTimeout: the project config is read at all",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    declared = config_fence_timeout(Path(start) if start else Path.cwd())",
+      "to": "    declared = None",
+      "only": "fenceTimeout is read from the project config"
+    },
+    {
+      "label": "fenceTimeout: a config it cannot use is SAID, never silently defaulted",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    _say_once(f\"{CONFIG_NAME}: fenceTimeout={declared!r} is not a positive number of seconds; \"",
+      "to": "    (lambda *a: None)(f\"{CONFIG_NAME}: fenceTimeout={declared!r} is not a positive number of seconds; \"",
+      "only": "fenceTimeout is read from the project config"
+    },
+    {
+      "label": "fenceTimeout: the environment still beats the project config",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if seconds > 0:\n            return seconds\n    declared = config_fence_timeout(",
+      "to": "        if False:\n            return seconds\n    declared = config_fence_timeout(",
+      "only": "fenceTimeout is read from the project config"
+    },
+    {
+      "label": "verify: a run on an already-verified task is announced before it starts",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if prior:\n        print(f\"[adr-verify] {task.name} already carries {prior} exit-0 \"\n",
+      "to": "    if False:\n        print(f\"[adr-verify] {task.name} already carries {prior} exit-0 \"\n",
+      "only": "^(?:adr-verify says before the run what a failure on an already-verified task will read as)$"
+    },
+    {
+      "label": "adr-verify: the Acceptance section is read fence-aware, not cut at the next ^## line (ADR-045)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    body = sections_of(text).get(\"Acceptance\")\n    return None if body is None else \"\\n\".join(body)",
+      "to": "    m = re.search(r\"^## Acceptance\\s*$(.*?)(?=^## |\\Z)\", text, re.M | re.S)\n    return None if not m else m.group(1)",
+      "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
+    },
+    {
+      "label": "adr-verify: a gate with fence.py but no record.py says so instead of dying in a traceback (ADR-045 T4)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_record_file):",
+      "to": "if False:",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "adr-verify: a missing record.py exits with the could-not-run code, never a finding's code (ADR-045 T4)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                     f\"or through a forwarder.\\n\")\n    sys.exit(4)\n_loaded_record = sys.modules.get(\"record\")",
+      "to": "                     f\"or through a forwarder.\\n\")\n    sys.exit(2)\n_loaded_record = sys.modules.get(\"record\")",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "adr-verify: an ambiguous record is refused before anything runs or is written (ADR-045 T5)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    duplicated = repeated_headings(text)",
+      "to": "    duplicated = []",
+      "only": "^a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice$"
+    },
+    {
+      "label": "adr-verify: the entry writer finds its section fence-aware, not at the next ^## line (ADR-045 T6)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    span = section_span(text, section)",
+      "to": "    _m = re.search(rf\"(^## {re.escape(section)}\\s*\\n)(.*?)(?=^## |\\Z)\", text, re.M | re.S)\n    span = None if not _m else (_m.start(), _m.start() + len(_m.group(1)), _m.end())",
+      "only": "^an entry is appended after a fenced ## line in the Verification Log, not inside the fence$"
+    },
+    {
+      "label": "adr-verify: declared steps are read fence-aware (ADR-045 T6)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    body = sections_of(text).get(\"Ordered Steps\")",
+      "to": "    _m = re.search(r\"^## Ordered Steps$(?P<body>.*?)(?=^## |\\Z)\", text, re.M | re.S)\n    body = None if _m is None else _m.group(\"body\").splitlines()",
+      "only": "^--steps sees a step declared after a fenced ## line in Ordered Steps$"
+    },
+    {
+      "label": "adr-verify: the sweep reads every claim in the log, through a fenced ## line (ADR-045 T6)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    body = sections_of(task.read_text(errors=\"replace\", encoding=\"utf-8\")).get(\"Verification Log\")",
+      "to": "    _m = re.search(r\"^## Verification Log\\s*\\n(.*?)(?=^## |\\Z)\", task.read_text(errors=\"replace\", encoding=\"utf-8\"), re.M | re.S)\n    body = None if not _m else _m.group(1).splitlines()",
+      "only": "^a claim written after a fenced ## line in the Verification Log is still a claim$"
+    },
+    {
+      "label": "adr-verify: a heading that ends the file without a line break gets one before the entry (ADR-045 T7)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if not head.endswith(\"\\n\"):\n        head += \"\\n\"",
+      "to": "    if not head.endswith(\"\\n\"):\n        pass",
+      "only": "^an entry appended under a heading that ends the file without a line break lands in the section, on its own line$"
+    },
+    {
+      "label": "adr-verify: a quoted output line that is itself a fence line is written escaped (ADR-045 T8)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    return \"\\n\".join([\"  ```\"] + [\"  \" + fence_safe(visible(ln)) for ln in lines] + [\"  ```\"])",
+      "to": "    return \"\\n\".join([\"  ```\"] + [\"  \" + visible(ln) for ln in lines] + [\"  ```\"])",
+      "only": "^a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked$"
+    },
+    {
+      "label": "adr-verify: an unclosed fence is refused before anything runs or is written (ADR-045 T8)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    unclosed = unterminated_fence(text)\n    if unclosed:\n        fail(f\"{task.name}: the code fence opened at line",
+      "to": "    unclosed = None\n    if unclosed:\n        fail(f\"{task.name}: the code fence opened at line",
+      "only": "^a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked$"
+    },
+    {
+      "label": "lock: first-red suffix is written (ADR-050 T1)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    entry += lock_suffix_for_run(text, cwd, code)",
+      "to": "    entry += \"\"",
+      "only": "first TDD-red row carries a tool-written hash for each named test"
+    },
+    {
+      "label": "verify: a Swift comment-only mutant is refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "\".h\": \"//\", \".swift\": \"//\",",
+      "to": "\".h\": \"//\",",
+      "only": "Swift comment-only mutant is refused"
+    },
+    {
+      "label": "verify: a refused entry blames the exit field, not the sha, for a signal",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if re.fullmatch(SHA_FIELD, sha or \"\") and exit_field and not exit_field.group(1).isdigit():",
+      "to": "    if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lock: default --relock refuses a moved hashed body",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        moved = moved_lock_bodies(vlog, current=recorded_reading, root=cwd)\n        if moved:\n",
+      "to": "        moved = moved_lock_bodies(vlog, current=recorded_reading, root=cwd)\n        if False:\n",
+      "only": "refuses when a hashed body moved"
+    },
+    {
+      "label": "lock: --relock is parsed before unknown-option",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif args[i] == \"--relock\":\n            relock = True\n",
+      "to": "        elif args[i] == \"--relock-off\":\n            relock = True\n",
+      "only": "fills unproven the hasher can now see"
+    },
+    {
+      "label": "lock: --relock cannot combine with --sweep",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if relock and sweep is not None:\n        fail(\"--relock cannot be combined with --sweep\")\n",
+      "to": "    if False:\n        fail(\"--relock cannot be combined with --sweep\")\n",
+      "only": "cannot combine with --sweep"
+    },
+    {
+      "label": "lock: --relock cannot combine with --restore",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if relock and restore:\n        fail(\"--relock cannot be combined with --restore\")\n",
+      "to": "    if False:\n        fail(\"--relock cannot be combined with --restore\")\n",
+      "only": "cannot combine with --sweep"
+    },
+    {
+      "label": "lock: --relock cannot combine with --human",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if relock and human is not None:\n        fail(\"--relock cannot be combined with --human\")\n",
+      "to": "    if False:\n        fail(\"--relock cannot be combined with --human\")\n",
+      "only": "cannot combine with --sweep"
+    },
+    {
+      "label": "adr-verify --sweep: a row with the ms suffix adr-verify itself writes is a claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "acceptance-sha256:(?P<digest>[0-9a-f]{64})(?: · [^\\n]*)?\\s*$\", re.M)",
+      "to": "acceptance-sha256:(?P<digest>[0-9a-f]{64})\\s*$\", re.M)"
+    },
+    {
+      "label": "ADR-063: adr-verify reads a record number through record_id",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "    found = record_id(directory.name, title)",
+      "to": "    found = f\"ADR-{m.group(1)}\" if (m := re.search(r\"(\\d{3,4})[-._]\", directory.name)) else record_id(directory.name, title)"
+    },
+    {
+      "label": "ADR-063: adr-verify reads the owning record's title",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "        title = title_line(record.read_text(errors=\"replace\", encoding=\"utf-8\"))",
+      "to": "        title = None"
+    },
+    {
+      "label": "ADR-063: adr-verify finds the record file by its full name",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "    record = directory.parent / f\"{directory.name}.md\"",
+      "to": "    record = directory.with_suffix(\".md\")"
+    },
+    {
+      "label": "ADR-063: an unnumbered record is never demoted",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "        # demoting it would be silent and permanent.\n        return False",
+      "to": "        # demoting it would be silent and permanent.\n        return True"
+    },
+    {
+      "label": "ADR-063: the sweep marks a demoted false claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "adr-verify reads no record number",
+      "from": "            mark = \" [strictFrom]\" if task in demoted else \"\"",
+      "to": "            mark = \"\""
+    },
+    {
+      "label": "§295.7: adr-verify writes nothing into a conflicted task",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if conflicted:\n        fail(",
+      "to": "    if False:\n        fail(",
+      "only": "^(?:unresolved merge-conflict markers are refused by adr-verify, blocked in a task and advised in an ADR)$"
+    },
+    {
+      "label": "BACKLOG §320.2: adr-verify quotes a failed run's control bytes raw",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "fence_safe(visible(ln))",
+      "to": "fence_safe(ln)",
+      "only": "control bytes are written into the task as visible escapes"
+    },
+    {
+      "label": "§321 fifo: adr-verify's strictFrom reader opens a FIFO config",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "    if not config.is_file() and not config.is_dir():\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
+      "to": "    if False:\n        # A FIFO here waited on the read below, as it did in adr-lint's copy",
+      "only": "strictFrom reader does not wait on a FIFO config"
+    },
+    {
+      "label": "ADR-076 T2: the mutant is applied in the worktree",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        write_source(run_target, original.replace(frm, to, 1), target_newline)",
+      "to": "        write_source(target, original.replace(frm, to, 1), target_newline)",
+      "only": "^a mutant run leaves the checkout unchanged but for the task file's logs$"
+    },
+    {
+      "label": "ADR-076 T2: outside git the run is in place and says so",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "        reason = f\"{cwd} is not inside a git checkout, so no worktree can be built\"",
+      "to": "        reason = \"no worktree\"",
+      "only": "^outside git the mutant runs in place and says why$"
+    },
+    {
+      "label": "ADR-076 T2: a fence naming the checkout runs in place",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "    elif (named := fence_names_checkout(cmd, list(dict.fromkeys([str(root[1]), root[0]])))) is not None:",
+      "to": "    elif (named := None) is not None:",
+      "only": "^a fence naming the checkout runs in place and names the path$"
+    },
+    {
+      "label": "ADR-076 T2: a shared prefix is not the checkout",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                after = end == len(text) or text[end] in PATH_AFTER or text[end].isspace()",
+      "to": "                after = True",
+      "only": "^a sibling path sharing the checkout's prefix does not force the run in place$"
+    },
+    {
+      "label": "ADR-076 T2: the fences run in the worktree",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "            clean = run_bounded([bash_or_exit(), \"-c\", cmd], cwd=run_cwd, capture_output=True,",
+      "to": "            clean = run_bounded([bash_or_exit(), \"-c\", cmd], cwd=cwd, capture_output=True,",
+      "only": "^a fence's generated output stays in the worktree$"
+    },
+    {
+      "label": "ADR-076 T2: the clean build is reset before the mutant fence",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "    members.extend(secondary_members(run_cwd, run_target, also_restore))",
+      "to": "    members.extend(secondary_members(cwd, target, also_restore))",
+      "only": "^a generated output left by the clean fence is reset before the mutant fence$"
+    },
+    {
+      "label": "ADR-076 T2: evidence is read from the checkout",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "    sha = entry_sha if isolated else git_sha(cwd)",
+      "to": "    sha = git_sha(run_cwd) if isolated else git_sha(cwd)",
+      "only": "^a fence's leftover in the worktree does not mark the checkout's rows dirty$"
+    },
+    {
+      "label": "ADR-076 T2: --in-place is today",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "            in_place = True",
+      "to": "            in_place = False",
+      "only": "^--in-place applies the mutant in the checkout and restores it$"
+    },
+    {
+      "label": "ADR-076 T2: a signal during the worktree build is held until the tree is known",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "            before = hold_signals(pending)",
+      "to": "            before = {}",
+      "only": "^a SIGTERM during the worktree build still removes the worktree$"
+    },
+    {
+      "label": "Codex ADR-076 #5: a path begins at a boundary too",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                before = at == 0 or text[at - 1] in PATH_BEFORE or text[at - 1].isspace()",
+      "to": "                before = True",
+      "only": "^the checkout's path is found at a shell boundary, and not inside another path$"
+    },
+    {
+      "label": "Codex ADR-076 #5: a path ends at a shell metacharacter",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "PATH_AFTER = \"/\\\"'`;&|()<>\"",
+      "to": "PATH_AFTER = \"/\\\"'\"",
+      "only": "^the checkout's path is found at a shell boundary, and not inside another path$"
+    },
+    {
+      "label": "Codex ADR-076 #6: the worktree builder is out of the terminal's group",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                           start_new_session=os.name != \"nt\")",
+      "to": "                           start_new_session=False)",
+      "only": "^(?:a Ctrl-C to the whole group during the worktree build still removes the worktree|the worktree builder runs outside the process group of the gate that started it)$"
+    },
+    {
+      "label": "ADR-078 T3: a relock compares a hasher-1 lock under hasher 2",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        recorded_reading = snap if hasher == snap[\"hasher\"] else snapshot_lock(cwd, tests, hasher=hasher)",
+      "to": "        recorded_reading = snap",
+      "only": "^relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1$"
+    },
+    {
+      "label": "ADR-078 T3: the appended relock is taken by hasher 1",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    snap = snapshot_lock(cwd, tests)",
+      "to": "    snap = snapshot_lock(cwd, tests, hasher=1)",
+      "only": "^relock moves a hasher-1 lock to hasher 2 when nothing moved under hasher 1$"
+    },
+    {
+      "label": "Codex 01443dd: a relock of an unreadable lock is not said as one",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if hasher is None:",
+      "to": "        if False:",
+      "only": "^a versioned lock that cannot be read, or reads two ways, is never read as hasher 1$"
+    },
+    {
+      "label": "§350 item 1: a relock over an unreadable Tests file is not refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "    unread = sorted({rel for _name, rel in tests} & snap.get(\"unreadable\", set()))",
+      "to": "    unread = []",
+      "only": "^a relock over a locked test file it cannot read is refused, in either mode, and says why$"
+    },
+    {
+      "label": "§350 item 2: a journal that is not UTF-8 raises",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    except (OSError, json.JSONDecodeError, UnicodeDecodeError) as exc:",
+      "to": "    except (OSError, json.JSONDecodeError) as exc:",
+      "only": "^a mutant journal that is not UTF-8 is a retained corrupt journal, not a traceback$"
+    },
+    {
+      "label": "§350 item 6: the syntax check reads JSON as lenient text",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/undecodable-test-file.test.mjs"
+      ],
+      "from": "            json.loads(path.read_bytes())",
+      "to": "            json.loads(path.read_text(errors=\"replace\", encoding=\"utf-8\"))",
+      "only": "^adr-verify's syntax check parses a UTF-16 JSON file as JSON, not as replacement characters$"
+    },
+    {
+      "label": "ADR-085 T1: the Go build-failed row ignores an indented line",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "to": "    r\"\\[build failed\\]\",      # go",
+      "only": "^(?:a nested Go build failure inside a failing assertion is a kill)$"
+    },
+    {
+      "label": "ADR-085 T1: the Go build-failed row still matches a top-level failure",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "to": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[build failed\\] \",      # go",
+      "only": "^(?:a Go package that does not build at top level stays inconclusive)$"
+    },
+    {
+      "label": "ADR-085 T2: the Go setup-failed row",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[setup failed\\]\",      # go: an import cycle or a missing import (ADR-085)",
+      "to": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[zzsetup failed\\]\",      # go: an import cycle or a missing import (ADR-085)",
+      "only": "^(?:a Go setup failure is inconclusive, not a kill)$"
+    },
+    {
+      "label": "ADR-085 T2: the tap-prefixed SyntaxError row",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^(?:# )?SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
+      "to": "    r\"^SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
+      "only": "^(?:a TAP-prefixed SyntaxError is inconclusive, not a kill)$"
+    },
+    {
+      "label": "ADR-085 T2: the SyntaxError row ignores an indented line",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^(?:# )?SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
+      "to": "    r\"^\\s*(?:# )?SyntaxError:\",                # python / node; TAP prints node's behind `# ` (ADR-085)",
+      "only": "^(?:a SyntaxError quoted inside a failing assertion is still a kill)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a log prefix hides Go's build-failed line",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^(?!\\s)(?:.*\\s)?FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "to": "    r\"^FAIL\\s+\\S+ \\[build failed\\]\",      # go",
+      "only": "^(?:a Go build failure behind a log prefix stays inconclusive)$"
+    },
+    {
+      "label": "ADR-088 review: the sweep's claim reader takes the one sha width",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "vlog_row_is_lock_snapshot(ln) and sha_fits(row_sha(ln), sha_format)]",
+      "to": "vlog_row_is_lock_snapshot(ln)]",
+      "only": "^(?:the sweep counts a claim only when its sha fits the repository)$"
+    },
+    {
+      "label": "ADR-088 follow-up: relock's own lock check takes the repository's sha width",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    if not vlog_has_test_lock(text, object_format(cwd)):",
+      "to": "    if not vlog_has_test_lock(text):",
+      "only": "^(?:relock finds no lock in a row whose sha does not fit)$"
+    },
+    {
+      "label": "ADR-088 follow-up: relock hands lock_hasher its repository",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "        hasher = lock_hasher(vlog, root=cwd)",
+      "to": "        hasher = lock_hasher(vlog)",
+      "only": "^(?:relock reads the hasher from the rows whose sha fits)$"
+    },
+    {
+      "label": "ADR-092 T7: adr-verify's unlisted report",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "    if checked == 0 or unlisted or unread:",
+      "to": "    if checked == 0 or unread:",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 T7: adr-verify's any-case suffix",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "    walked = [q for q in walk(root, unlisted=unlisted) if q.name.lower().endswith(\".md\")]",
+      "to": "    walked = [q for q in walk(root, unlisted=unlisted) if q.name.endswith(\".md\")]",
+      "only": "^adr-debt and adr-verify read a .MD file$"
+    },
+    {
+      "label": "ADR-092 review: adr-verify's sweep drops a special task",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    unread = [(q, why) for q in walked for why in (special_file_problem(q),) if why]",
+      "to": "    unread = []",
+      "only": "^adr-verify --sweep names a task that is not a regular file$"
+    }
+  ]
+}

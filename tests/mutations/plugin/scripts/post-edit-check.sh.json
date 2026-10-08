@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "hook: the post-edit check acts only on the edit tools",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "  Edit|Write|MultiEdit|NotebookEdit) ;;",
+      "to": "  Edit|Write|MultiEdit|NotebookEdit|Bash) ;;",
+      "only": "^(?:the hook only acts on the tools it is for, and on files that exist)$"
+    },
+    {
+      "label": "hook: a broken shell script is reported after an edit",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "    bash -n \"$file_path\" 2>&1 | tail -30 || true",
+      "to": "    true",
+      "only": "^(?:the hook only acts on the tools it is for, and on files that exist)$"
+    },
+    {
+      "label": "post-edit-check: the completion marker must be a WHOLE line, not a substring",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "        QH-PARSE-COMPLETE|QH-PARSE-COMPLETE$'\\r') ran=yes ;;",
+      "to": "        *QH-PARSE-COMPLETE*) ran=yes ;;",
+      "only": "^(?:a dying checker cannot pass itself off as complete by printing the marker)$"
+    },
+    {
+      "label": "post-edit-check: the extension picks the parse goal, so a .mjs is not judged as a workflow",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "      *.js) parse_mode=--js ;;",
+      "to": "      *.js|*.mjs) parse_mode=--js ;;",
+      "only": "^(?:the hook picks the parse goal from the extension, and diagnostics cannot forge the marker)$"
+    },
+    {
+      "label": "post-edit-check: the completion marker is read from stdout, never from a diagnostic",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "    parse_out=$(node \"$parser\" \"$parse_mode\" \"$file_path\" 2>\"$parse_err\") || parse_status=$?",
+      "to": "    parse_out=$(node \"$parser\" \"$parse_mode\" \"$file_path\" 2>&1) || parse_status=$?",
+      "only": "^(?:the hook reports a syntax error without failing the edit|a Workflow script is not reported as broken, and a broken one still is|a checker that could not run is UNRUN, never a finding about the file|a dying checker cannot pass itself off as complete by printing the marker|the hook picks the parse goal from the extension, and diagnostics cannot forge the marker)$"
+    },
+    {
+      "label": "hook-work: per-edit hooks leave project compilers explicit",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ],
+      "only": "edits do not launch project-wide",
+      "from": "  *.ts|*.tsx|*.rs|*.go)\n    ;;",
+      "to": "  *.ts|*.tsx|*.rs|*.go)\n    npx --no-install tsc --noEmit\n    ;;"
+    }
+  ]
+}

@@ -1,0 +1,1352 @@
+{
+  "mutations": [
+    {
+      "label": "§355: a task name with a dot after .md is a task file too",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "from": "    return re.sub(r\"[\\s.]+$\", \"\", name)",
+      "to": "    return name.rstrip()"
+    },
+    {
+      "label": "§355: a trailing dot is said as a dot, not as whitespace",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "ends in a dot after .md",
+      "from": "        tail = \"whitespace\" if not path.name[len(bare):].strip() else \"a dot\"",
+      "to": "        tail = \"whitespace\""
+    },
+    {
+      "label": "next: a negator reaches an affirmative across two auxiliaries (2.110.0-rc round 2)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "(?:(?:yet|been|be|being|ever)\\s+){0,2}\"",
+      "to": "(?:(?:yet|been|be|being|ever)\\s+)?\"",
+      "only": "^(?:a negator directly before an affirmative is a stop, and a bare \"not\" elsewhere is not)$"
+    },
+    {
+      "label": "next: a follow-up label passes only on an affirmation BEFORE it (Codex review of f905d8a)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    return not AFFIRMATIVE.search(text[:hits[0].start()])",
+      "to": "    return not AFFIRMATIVE.search(NEGATED_AFFIRMATIVE.sub(\" \", text))",
+      "only": "^(?:a \"NOT done:\" follow-up list after an affirmation is not a stop, and the bare label still is)$"
+    },
+    {
+      "label": "next: human output shows a task heading defanged (2.110.0-rc chaos L7)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    clean = \" \".join(_UNSAFE.sub(\" \", _SEQUENCE.sub(\"\", str(value or \"\"))).split())",
+      "to": "    clean = str(value or \"\")",
+      "only": "^(?:a hostile task heading is quoted and defanged in the human output|a quoted title carries no zero-width character, and a BOM does not keep the heading mark)$"
+    },
+    {
+      "label": "next: a NOT-done label after an affirmation is a follow-up list, not a stop (2.110.0-rc chaos)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    return not AFFIRMATIVE.search(text[:hits[0].start()])",
+      "to": "    return True",
+      "only": "^(?:a \"NOT done:\" follow-up list after an affirmation is not a stop, and the bare label still is)$"
+    },
+    {
+      "label": "gates: an unknown flag is refused",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    reject_unknown_flags((\"--all\", \"--json\"))\n",
+      "to": "",
+      "only": "^(?:every gate refuses a flag it does not know)$"
+    },
+    {
+      "label": "gates: a README is not a task",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if path.name.lower() == \"readme.md\":\n            continue",
+      "to": "        if False:\n            continue",
+      "only": "^(?:the next task is the first with nothing open in front of it|a qualified id in Consumes leaves the record rather than binding locally|a task waiting on an OUTSIDE event is not offered as ready|a corpus with nothing left to do says so, and one that is stuck says why|--all reports every task and its state, including the done ones|--json carries the same three buckets and the same exit codes|the ADR is enough: adr-next finds the tasks directory beside it|a task whose sign-off says stop is not offered as ready|a dependency on a missing task blocks, and a task git lists but the disk lacks is stopped|two task files declaring one id are stopped as UNPROVEN, and both are named)$"
+    },
+    {
+      "label": "gates: a contract edge orders two tasks",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                if tokens & produced:\n                    out[tid].add(other)",
+      "to": "                if False:\n                    out[tid].add(other)",
+      "only": "^(?:a contract edge orders tasks that name no dependency at all)$"
+    },
+    {
+      "label": "skills: --all changes what adr-next prints",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "\"--all\" in flags",
+      "to": "\"--every\" in flags",
+      "only": "^(?:every multi-flag invocation the skills document actually runs)$"
+    },
+    {
+      "label": "next: a human sign-off that says stop is not done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text, root)",
+      "to": "        done = (not conflicted and not foreign_stop(text, owner)",
+      "only": "^(?:a human sign-off that reports a STOP is not counted as done|a negative word inside quoted program output does not stop an affirmative sign-off|the verb forms of a negative word are still read as a stop|a negator directly before an affirmative is a stop, and a bare \"not\" elsewhere is not|a negated stop word and a counter name are not verdicts, and the plain stop still is|a task whose sign-off says stop is not offered as ready|a corpus root whose records have nothing ready exits 3, not 0|a fully-read corpus with nothing ready is exit 3, a real verdict|a \"NOT done:\" follow-up list after an affirmation is not a stop, and the bare label still is|a hostile task heading is quoted and defanged in the human output)$"
+    },
+    {
+      "label": "next: a negative word outranks an affirmative one",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if NEGATIVE.search(outside):\n        return \"stop\"",
+      "to": "    if False:\n        return \"stop\"",
+      "only": "^(?:a human sign-off that reports a STOP is not counted as done|a negative word inside quoted program output does not stop an affirmative sign-off|the verb forms of a negative word are still read as a stop|a negated stop word and a counter name are not verdicts, and the plain stop still is|a task whose sign-off says stop is not offered as ready)$"
+    },
+    {
+      "label": "next: a foreign dependency that is not done blocks",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if state != \"done\":",
+      "to": "    if False:"
+    },
+    {
+      "label": "next: an edge that cannot be evaluated is not ready",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        return \"unknown\"\n    return \"unknown\"",
+      "to": "        return \"unknown\"\n    return \"done\"",
+      "only": "^(?:a qualified id in Consumes leaves the record rather than binding locally|a foreign record that cannot be read is not readiness)$"
+    },
+    {
+      "label": "next: a malformed cross-record pointer is not routed on",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                elif re.search(r\"(?<![A-Za-z])ADR(?![A-Za-z])\", part, re.I):",
+      "to": "                elif False:",
+      "only": "^(?:a malformed foreign pointer never binds to a same-numbered local task)$"
+    },
+    {
+      "label": "next: a qualified id in Consumes leaves the record, it does not bind locally",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                if QUALIFIED_DEP.match(part):\n                    note_foreign(part, corpus_dir, foreign, tid)\n                    continue",
+      "to": "                if False:\n                    note_foreign(part, corpus_dir, foreign, tid)\n                    continue",
+      "only": "^(?:a qualified id in Consumes leaves the record rather than binding locally)$"
+    },
+    {
+      "label": "next: an undecided record is named as undecided before its tasks are offered",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if status is not None and record_undecided(status):",
+      "to": "    if False:",
+      "only": "^(?:an undecided record is named as undecided, and its tasks are still answered)$"
+    },
+    {
+      "label": "next: the year of an ISO date is not a record number",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "RECORD_NUMBER = re.compile(r\"(?!\\d{4}-\\d{2}-\\d{2})(?:adr[-_]?)?0*(\\d{1,4})\\b\", re.I)",
+      "to": "RECORD_NUMBER = re.compile(r\"(?:adr[-_]?)?0*(\\d{1,4})\\b\", re.I)",
+      "only": "a date-named record never borrows a dated folder that no record names"
+    },
+    {
+      "label": "next: a legacy exit-0 row proves a single-line fence",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        want_legacy = first.replace(\"`\", \"'\")",
+      "to": "        want_legacy = None",
+      "only": "^(?:a pre-digest exit-0 row proves a single-line fence, and only that|a READY task says when it carries evidence that cannot prove its fence)$"
+    },
+    {
+      "label": "next: a record owning no tasks is answered, a missing path is refused",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        target = Path(args[0])",
+      "to": "        target = Path('/nonexistent-probe')"
+    },
+    {
+      "label": "adr-next: the fence is found with the shared opener, not a private ```bash-only match (ADR-045 T3)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    raw = acceptance_fence(body)\n    if raw is None:",
+      "to": "    m = re.search(r\"```bash\\n(.*?)```\", body, re.S)\n    raw = m.group(1) if m else None\n    if raw is None:",
+      "only": "^a sh-labelled Acceptance fence adr-verify recorded is done to adr-next$"
+    },
+    {
+      "label": "steps: adr-next still reads a row carrying the new trailing field",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"(?: · steps:S[1-9]\\d*(?:,S[1-9]\\d*)*)?\" + TEST_LOCK_FIELD_ANON + r\"$\")",
+      "to": "    r\"$\")",
+      "only": "^(?:--steps records the steps a run exercised, and every reader still parses it)$"
+    },
+    {
+      "label": "next: a negative word is matched as a verb, so a noun is not a verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs",
+        "tests/human-stop-3-8-9.test.mjs"
+      ],
+      "from": "NEGATIVE_WORD = (r\"block(?:ed|s|ing)|stop(?:ped|s|ping)?|\"",
+      "to": "NEGATIVE_WORD = (r\"block(?:ed|s|ing)?|stop(?:ped|s|ping)?|\"",
+      "only": "^(?:a negative word used as a noun is not read as a verdict|the verb forms of a negative word are still read as a stop|\"block\" as a noun with no \"no\" before it is not a verdict, and \"blocked\" still is)$"
+    },
+    {
+      "label": "next: the -s and -ing forms of a stop word are caught, not only -ed",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                 r\"abort(?:ed|s|ing)?\")",
+      "to": "                 r\"abort(?:ed)?\")",
+      "only": "^(?:the verb forms of a negative word are still read as a stop)$"
+    },
+    {
+      "label": "next: a negator before an affirmative is a stop, so \"not approved\" is not done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside) or TAKEN_BACK.search(outside):\n        return \"stop\"",
+      "to": "    if QUESTIONED_VERDICT.search(outside) or TAKEN_BACK.search(outside):\n        return \"stop\"",
+      "only": "^(?:a negator directly before an affirmative is a stop, and a bare \"not\" elsewhere is not|a \"NOT done:\" follow-up list after an affirmation is not a stop, and the bare label still is)$"
+    },
+    {
+      "label": "next: a negated negative word is not a stop, so \"approved, not blocked\" is done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    r\"(?<![a-z])\" + NEGATOR + r\"(?:\" + NEGATIVE_WORD + r\")(?![a-z])\"\n",
+      "to": "    r\"(?!x)x\"\n",
+      "only": "^(?:a negated stop word and a counter name are not verdicts, and the plain stop still is)$"
+    },
+    {
+      "label": "next: a hyphen-joined counter with its count is a metric, not a verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\", re.I)",
+      "to": "    r\"|(?!x)x\", re.I)",
+      "only": "^(?:a negated stop word and a counter name are not verdicts, and the plain stop still is)$"
+    },
+    {
+      "label": "next: a digit inside a hyphen-joined label is not its count",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\", re.I)",
+      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\", re.I)",
+      "only": "^(?:a negated stop word and a counter name are not verdicts, and the plain stop still is)$"
+    },
+    {
+      "label": "next: a task stopped by a human sign-off is not offered as ready",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if inf[\"stopped_by\"]:\n            stopped.append(inf)\n            continue",
+      "to": ""
+    },
+    {
+      "label": "next: a corpus root is enumerated, not reported empty",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if records or unreadable:",
+      "to": "        if False:",
+      "only": "^(?:a corpus root reports every record it holds, instead of reading as empty|a corpus root whose records have nothing ready exits 3, not 0|--json over a corpus root keys its answer by record|a corpus names an undecided record before offering its tasks as ready|a record this tool could not read is not counted as a record holding nothing|a fully-read corpus with nothing ready is exit 3, a real verdict|a symlinked record finds the record file beside the link, not beside its target|a status this tool could not read is unknown, never decided)$"
+    },
+    {
+      "label": "next: a corpus with nothing ready is not a corpus with ready work",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        any_ready = any_ready or bool(ready)",
+      "to": "        any_ready = True",
+      "only": "^(?:a corpus root whose records have nothing ready exits 3, not 0|a fully-read corpus with nothing ready is exit 3, a real verdict|nothing ready plus an unreadable record is exit 1, not exit 3)$"
+    },
+    {
+      "label": "next: a record folder is not a corpus of one",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if target.is_dir() and resolve_tasks_dir(target) == target and not load(target):",
+      "to": "    if target.is_dir() and not load(target):",
+      "only": "^(?:a record folder is still answered as one record, not as a corpus of one)$"
+    },
+    {
+      "label": "next: a corpus names an undecided record before offering its tasks",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if undecided and ready:",
+      "to": "        if False and ready:",
+      "only": "^(?:a corpus names an undecided record before offering its tasks as ready)$"
+    },
+    {
+      "label": "next: an unreadable record is could-not-look, not a record holding nothing",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        except OSError as exc:\n            unreadable.append((child.name, os_reason(exc)))",
+      "to": "        except ValueError as exc:\n            unreadable.append((child.name, os_reason(exc)))",
+      "only": "^(?:a record this tool could not read is not counted as a record holding nothing)$"
+    },
+    {
+      "label": "next: nothing ready is a verdict only when everything was read",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    verdict = 0 if any_ready else (1 if unreadable else 3)",
+      "to": "    verdict = 0 if any_ready else 3",
+      "only": "^(?:nothing ready plus an unreadable record is exit 1, not exit 3)$"
+    },
+    {
+      "label": "next: a status that could not be read is unknown, never decided",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    return None if status is None else status_kind(status) != \"governing\"",
+      "to": "    return status is not None and status_kind(status) != \"governing\"",
+      "only": "^(?:a status this tool could not read is unknown, never decided)$"
+    },
+    {
+      "label": "next: a symlinked record's owner sits beside the link, not beside its target",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        record_dir = (record_dir.absolute() if record_dir is not None",
+      "to": "        record_dir = (tasks_dir.resolve().parent if record_dir is not None",
+      "only": "^(?:a symlinked record finds the record file beside the link, not beside its target)$"
+    },
+    {
+      "label": "adr-next: a task waiting on an OUTSIDE event is not offered as ready",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a task waiting on an OUTSIDE event is not offered as ready",
+      "from": "        if inf.get(\"blocked_on\"):",
+      "to": "        if False:"
+    },
+    {
+      "label": "adr-next: a STOP sign-off is read whatever the Acceptance is",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a sign-off that says stop is honoured whatever the Acceptance is",
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),",
+      "to": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or (human_stop(text, root) if human else None) or status_stop(text) or acceptance_stop(text),"
+    },
+    {
+      "label": "adr-next: a task withdrawn in its own Status is not offered as the next work",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "withdrawn in its own Status",
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),",
+      "to": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or acceptance_stop(text),"
+    },
+    {
+      "label": "adr-next: an unrecognised Status is not actionable, so unknown does not mean ready",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "unrecognised Status is not actionable",
+      "from": "    if status in BUILDABLE_STATUSES or first in BUILDABLE_STATUSES:",
+      "to": "    if True:"
+    },
+    {
+      "label": "gates: a READY line names evidence that cannot prove its fence",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    return f\"  ({inf['unproven']})\" if inf.get(\"unproven\") else \"\"\n",
+      "to": "    return \"\"\n",
+      "only": "^(?:a READY task says when it carries evidence that cannot prove its fence)$"
+    },
+    {
+      "label": "gates: adr-next tells a pre-digest row from a changed Acceptance",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if legacy:\n        return (\"carries exit-0 evidence that predates acceptance digests and cannot \"\n                \"prove this fence; re-run `adr-verify`\")\n",
+      "to": "",
+      "only": "^(?:a READY task says when it carries evidence that cannot prove its fence)$"
+    },
+    {
+      "label": "adr-next: the section reader is the shared fence-aware one, not a private fence-blind copy (ADR-045)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402",
+      "to": "from record import acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
+      "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
+    },
+    {
+      "label": "adr-next: a gate copied without plugin/lib says so instead of dying in a traceback",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_record_file):",
+      "to": "if False:",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "adr-next: a task whose fence never closes says so in its note rather than reading as never attempted (ADR-045 T10)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first, root)),",
+      "to": "            \"unproven\": None if done else unprovable_evidence(text, digest, fence, first, root),",
+      "only": "^a task whose code fence never closes is READY with a note saying its sections could not be read$"
+    },
+    {
+      "label": "lock: is_done consults lock_blocks_done (ADR-050 T3)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if lock_blocks_done(text, root):\n                return False\n            return True",
+      "to": "            return True",
+      "only": "is_done refuses when a locked hash moved"
+    },
+    {
+      "label": "next: the single-record --json answer carries the owning record status",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                          \"status\": status, \"undecided\": undecided, \"owner_unreadable\": owner_unreadable,",
+      "to": "                          \"owner_unreadable\": owner_unreadable,",
+      "only": "single-record --json answer carries"
+    },
+    {
+      "label": "lock: a relock row is not a passing Acceptance run",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if vlog_row_is_lock_snapshot(line):\n                continue\n            if lock_blocks_done(text, root):\n",
+      "to": "            if False:\n                continue\n            if lock_blocks_done(text, root):\n",
+      "only": "does not make is_done without a passing"
+    },
+    {
+      "label": "adr-next: a done task carries no unproven note in --json",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            \"unproven\": None if done else (unreadable_note(text) or unprovable_evidence(text, digest, fence, first, root)),",
+      "to": "            \"unproven\": unreadable_note(text) or unprovable_evidence(text, digest, fence, first, root),",
+      "only": "^(?:a pre-digest exit-0 row proves a single-line fence, and only that)$"
+    },
+    {
+      "label": "§295.19: a task git lists and the disk lacks is read as stopped",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "    for name in listed_absent(tasks_dir):",
+      "to": "    for name in []:"
+    },
+    {
+      "label": "§295.19: a file on disk is not absent, whatever its title says",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "\n                  and name.lower() != \"readme.md\" and not (tasks_dir / name).exists())",
+      "to": "\n                  and name.lower() != \"readme.md\")"
+    },
+    {
+      "label": "§295.19: a Depends-on naming no task in the record blocks",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "                elif d not in infos:\n                    # A local id naming no task",
+      "to": "                elif False:\n                    # A local id naming no task"
+    },
+    {
+      "label": "§295.19: a Consumes naming no task in the record blocks",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "                    elif d not in infos:\n                        foreign[tid].append((d, \"missing\"))",
+      "to": "                    elif False:\n                        foreign[tid].append((d, \"missing\"))"
+    },
+    {
+      "label": "§295.19: a missing dependency is named as missing",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "else f\"{pointer} (no such task in this record)\" if state == \"missing\"\n",
+      "to": ""
+    },
+    {
+      "label": "§295.7: adr-next does not count a conflicted task done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text, root)",
+      "to": "        done = (not foreign_stop(text, owner) and not human_stop(text, root)",
+      "only": "^(?:a task holding unresolved merge-conflict markers is stopped, not done)$"
+    },
+    {
+      "label": "§295.7: adr-next stops a conflicted task with the lines named",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop(conflicted) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),",
+      "to": "            \"stopped_by\": foreign_stop(text, owner) or human_stop(text, root) or status_stop(text) or acceptance_stop(text),",
+      "only": "^(?:a task holding unresolved merge-conflict markers is stopped, not done)$"
+    },
+    {
+      "label": "2.111.0-rc: an empty task file is stopped as unreadable",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "NUL bytes is stopped",
+      "from": "                      else \"is empty\" if not text.strip() else None)",
+      "to": "                      else None)"
+    },
+    {
+      "label": "2.111.0-rc P3: a found-but-unreadable owner is told apart from none",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "depends on itself",
+      "from": "    owner_unreadable = owner_found and status is None",
+      "to": "    owner_unreadable = status is None"
+    },
+    {
+      "label": "2.111.0-rc P3: adr-next says an unreadable owner in the single-record path",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "depends on itself",
+      "from": "    if owner_unreadable and ready:",
+      "to": "    if False:"
+    },
+    {
+      "label": "2.111.0-rc CF4: a task that depends on itself waits",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "depends on itself",
+      "from": "                if d == tid:\n",
+      "to": "                if False:\n"
+    },
+    {
+      "label": "2.111.0-rc F2: a task file holding NUL bytes is stopped as unreadable",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "holding NUL bytes",
+      "from": "        unreadable = (\"holds NUL bytes (saved as UTF-16, or binary?)\" if \"\\x00\" in text",
+      "to": "        unreadable = (None if \"\\x00\" in text"
+    },
+    {
+      "label": "§295.7 (Codex): a conflicted task in another record cannot be evaluated",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a conflicted task in another record",
+      "from": "                if conflict_markers(text):\n                    return \"unknown\"",
+      "to": "                if False:\n                    return \"unknown\""
+    },
+    {
+      "label": "§295.19 (Codex): a lowercase absent task file still names its task",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a dependency on a missing task blocks",
+      "from": "        m = TID_RE.search(name.upper())",
+      "to": "        m = TID_RE.search(name)"
+    },
+    {
+      "label": "next: a row for the current fence withheld by the lock names the lock",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if digest and m.group(\"digest\") == digest:\n",
+      "to": "            if False:\n",
+      "only": "names a moved test lock"
+    },
+    {
+      "label": "next: the reason is decided over the whole log, not the first row",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if current:\n",
+      "to": "    if current and not other:\n",
+      "only": "names a moved test lock"
+    },
+    {
+      "label": "next: a Consumes that names its producer waits on no token sibling",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if not ids:\n                    unnamed.append(part)\n",
+      "to": "                unnamed.append(part)\n",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "next: an unnamed input still finds its producer by token",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "for part in unnamed for t in",
+      "to": "for part in (unnamed if not out[tid] else []) for t in",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "next: a quoted negative beside an affirmative is a pass",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        return \"pass\" if AFFIRMATIVE.search(outside) else \"stop\"",
+      "to": "        return \"stop\"",
+      "only": "inside quoted program output"
+    },
+    {
+      "label": "next: a quoted negative with nothing affirmed outside still stops",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        return \"pass\" if AFFIRMATIVE.search(outside) else \"stop\"",
+      "to": "        return \"pass\"",
+      "only": "inside quoted program output"
+    },
+    {
+      "label": "next: a negative outside the quotes still stops",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    outside = not_the_verdict(outside)\n    if NEGATIVE.search(outside):\n        return \"stop\"\n",
+      "to": "    outside = not_the_verdict(outside)\n",
+      "only": "inside quoted program output"
+    },
+    {
+      "label": "next: a quote no program marker introduces is the note's own verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if PROGRAM_MARKER.search(note[max(0, m.start() - 32):m.start()]):",
+      "to": "        if True:",
+      "only": "inside quoted program output"
+    },
+    {
+      "label": "chaos 626934a: adr-next marks a task it could not read",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "\"stopped_by\": why, \"blocked_on\": None, \"unreadable\": True,",
+      "to": "\"stopped_by\": why, \"blocked_on\": None,",
+      "only": "an unreadable task is marked in the JSON, and the acceptance line is quoted corpus text"
+    },
+    {
+      "label": "chaos 626934a: adr-next quotes the acceptance fence as corpus text",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        print(f\"  acceptance: {quoted(inf['acceptance'])}\")",
+      "to": "        print(f\"  acceptance: {shown(inf['acceptance'])}\")",
+      "only": "an unreadable task is marked in the JSON, and the acceptance line is quoted corpus text"
+    },
+    {
+      "label": "chaos 916b515: two files with one id are stopped, not overwritten",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if tid in infos and infos[tid][\"path\"] != Path(path).as_posix():",
+      "to": "        if False:",
+      "only": "declaring one id"
+    },
+    {
+      "label": "chaos 916b515: adr-next's quoting drops zero-width characters",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "_UNSAFE = re.compile(\"[\\x00-\\x1f\\x7f-\\x9f\\U0000200b-\\U0000200f\\U0000202a-\\U0000202e\\U00002060-\\U00002069\\U0000feff]\")",
+      "to": "_UNSAFE = re.compile(\"[\\x00-\\x1f\\x7f-\\x9f\\U0000200e\\U0000200f\\U0000202a-\\U0000202e\\U00002066-\\U00002069]\")",
+      "only": "zero-width character"
+    },
+    {
+      "label": "chaos 916b515: a BOM does not keep the heading mark in a title",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            \"goal\": (re.sub(r\"^#\\s+\", \"\", text.lstrip(\"\\U0000feff\").split(\"\\n\", 1)[0]).strip() if text else tid),",
+      "to": "            \"goal\": (re.sub(r\"^#\\s+\", \"\", text.split(\"\\n\", 1)[0]).strip() if text else tid),",
+      "only": "zero-width character"
+    },
+    {
+      "label": "chaos 916b515 G2: --json with no tasks directory answers JSON",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if \"--json\" in flags:\n            # A JSON caller parses stdout; this prose broke that (a Windows chaos round",
+      "to": "        if False:\n            # A JSON caller parses stdout; this prose broke that (a Windows chaos round",
+      "only": "no tasks directory answers in JSON"
+    },
+    {
+      "label": "chaos 916b515 C-4: a fence nobody read is not a fence that changed",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if fence is None and first != \"human-observed\" and \"· exit 0 ·\" in log:",
+      "to": "    if False:",
+      "only": "fence cannot be read says so"
+    },
+    {
+      "label": "chaos 916b515 C1: adr-next gives no record another's tasks by number",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            if not sibling.is_dir() or (sibling.name != target.stem",
+      "to": "            if not sibling.is_dir() or (False",
+      "only": "shares its number"
+    },
+    {
+      "label": "win: adr-next starts git with no window",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "                           capture_output=True, timeout=10, **NO_WINDOW)",
+      "to": "                           capture_output=True, timeout=10)",
+      "only": "starts its children with no window"
+    },
+    {
+      "label": "ADR-074 T4: adr-next's unsigned human-proof note is silent",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
+      "from": "            \"unsigned_human_proof\": unsigned_human_proof_steps(text) if done else [],",
+      "to": "            \"unsigned_human_proof\": [],",
+      "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
+    },
+    {
+      "label": "§321 ansi: adr-next shown no longer removes a whole escape sequence",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "_SEQUENCE.sub(\"\", str(value or \"\"))",
+      "to": "str(value or \"\")",
+      "only": "adr-next quotes a task heading"
+    },
+    {
+      "label": "§321 ansi: adr-next shown ends an OSC at BEL only",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "(?:\\x07|\\x1b\\\\)\")",
+      "to": "(?:\\x07)\")",
+      "only": "adr-next quotes a task heading"
+    },
+    {
+      "label": "§321 trailing-space: a name with whitespace after .md is never scanned",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "        if bare == path.name or not bare.lower().endswith(\".md\"):",
+      "to": "        if True:",
+      "only": "is named and stopped, never lost"
+    },
+    {
+      "label": "§321 trailing-space: a whitespace twin of a read task is skipped",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "        tid = m.group(0)\n        also =",
+      "to": "        tid = m.group(0)\n        if tid in infos:\n            continue\n        also =",
+      "only": "beside T1-a.md stops T1"
+    },
+    {
+      "label": "§321 trailing-space: the twin's reason does not name the other file",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "        also = f\"; {Path(infos[tid]['path']).name} names {tid} too\" if tid in infos else \"\"",
+      "to": "        also = \"\"",
+      "only": "beside T1-a.md stops T1"
+    },
+    {
+      "label": "§321 trailing-space: a git-listed absent task guesses a sparse checkout",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "            f\"it, so its state is UNPROVEN\"))",
+      "to": "            f\"it (a sparse or partial checkout?), so its state is UNPROVEN\"))",
+      "only": "an uncommitted rename"
+    },
+    {
+      "label": "§321 trailing-space: git's listing drops a tracked name ending in whitespace",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/chaos-315-trailing-space.test.mjs"
+      ],
+      "from": "                  if \"/\" not in name and _past_md(name).lower().endswith(\".md\")",
+      "to": "                  if \"/\" not in name and name.lower().endswith(\".md\")",
+      "only": "the disk does not hold is named as absent"
+    },
+    {
+      "label": "3.4.1: adr-next asks for advice it discards",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                                        root=root, tests=tests_table_rows(text), label=\"\", advise=False)",
+      "to": "                                        root=root, tests=tests_table_rows(text), label=\"\")",
+      "only": "^a caller that discards advice does not pay for the hasher-2 reading$"
+    },
+    {
+      "label": "§350 C6: tasks with no owning record are offered without a word",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    owner_missing = not owner_found",
+      "to": "    owner_missing = False",
+      "only": "^tasks with no owning record are said to have none, apart from an unreadable one$"
+    },
+    {
+      "label": "§350 C6: an ownerless task directory is offered unhedged to a corpus the matrix probes",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "    owner_missing = not owner_found",
+      "to": "    owner_missing = False",
+      "only": "^corpus orphan-tasks: every reader answers as reviewed, through a symlink$"
+    },
+    {
+      "label": "§350 C6 review: a slugged folder binds by number to another record",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            mine = RECORD_NUMBER.fullmatch(record_dir.name)",
+      "to": "            mine = RECORD_NUMBER.match(record_dir.name)",
+      "only": "^a task folder named for its own record is owned by that record and no other$"
+    },
+    {
+      "label": "§350 C6 review: a record inside its own folder is not looked for",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    for candidate in (record_dir.with_suffix(\".md\"), record_dir / f\"{record_dir.name}.md\", *siblings):",
+      "to": "    for candidate in (record_dir.with_suffix(\".md\"), *siblings):",
+      "only": "^a task folder named for its own record is owned by that record and no other$"
+    },
+    {
+      "label": "§350 item 5: a linked tasks directory's owner is looked for beside the target",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                      else Path(os.path.abspath(tasks_dir)).parent)",
+      "to": "                      else tasks_dir.resolve().parent)",
+      "only": "^a tasks directory reached through a link is owned by the record beside the link$"
+    },
+    {
+      "label": "§292: a task another record's title names is offered under this record",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-foreign-task.test.mjs"
+      ],
+      "from": "            \"stopped_by\": foreign_stop(text, owner) or conflict_stop",
+      "to": "            \"stopped_by\": conflict_stop",
+      "only": "^(?:a task whose title names another record is stopped, not offered under this record's name)$"
+    },
+    {
+      "label": "§351: adr-next opens a non-regular task entry",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/irregular-task-entry.test.mjs"
+      ],
+      "from": "        if not path.is_file():",
+      "to": "        if False:",
+      "only": "^(?:a FIFO named like a task is stopped unopened, and the other tasks are read|a directory named like a task is stopped unopened, and the other tasks are read)$"
+    },
+    {
+      "label": "§351: a sign-off that takes the approval back reads as a pass",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-outcome-negatives.test.mjs"
+      ],
+      "from": "    AFFIRMATIVE.pattern + r\"\\s*[,;.—–]\\s*(?:(?:then|later|since|subsequently|now|but)\\s+)?\"",
+      "to": "    AFFIRMATIVE.pattern + r\"\\s*[zz]\\s*(?:(?:then|later|since|subsequently|now|but)\\s+)?\"",
+      "only": "^(?:a sign-off that takes the approval back is a stop, and a real approval stays done)$"
+    },
+    {
+      "label": "§351: an affirmative asked and answered no reads as a pass",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-outcome-negatives.test.mjs"
+      ],
+      "from": "    if negated_verdict(outside) or QUESTIONED_VERDICT.search(outside) or TAKEN_BACK.search(outside):",
+      "to": "    if negated_verdict(outside) or TAKEN_BACK.search(outside):",
+      "only": "^(?:a sign-off that takes the approval back is a stop, and a real approval stays done)$"
+    },
+    {
+      "label": "§351: a file with no Acceptance in tasks/ is offered as ready",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/no-acceptance-task.test.mjs"
+      ],
+      "from": "    if re.search(r\"acceptance\", text, re.I):",
+      "to": "    if True:",
+      "only": "^(?:a file with no Acceptance section in tasks/ is stopped, not ready)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a cross reads as a stop only beside a space",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs",
+        "tests/human-outcome-negatives.test.mjs"
+      ],
+      "from": "    if \"❌\" in outside:",
+      "to": "    if False:",
+      "only": "^(?:success prose about revoking or rolling back is not a taken-back approval, and an unspaced cross is|a sign-off that takes the approval back is a stop, and a real approval stays done)$"
+    },
+    {
+      "label": "Codex 3ff59fb: an approval taken back by name reads as a pass",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "    r\"|(?<![a-z])(?:approval|sign[- ]?off|verdict)\\s+(?:(?:was|is|has|been|now)\\s+){0,2}\"",
+      "to": "    r\"|(?<![a-z])(?:zzapproval)\\s+(?:(?:was|is|has|been|now)\\s+){0,2}\"",
+      "only": "^(?:success prose about revoking or rolling back is not a taken-back approval, and an unspaced cross is|the last human sign-off decides: an approval taken back is not done, a stop later approved is)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a task titled for another record counts done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text, root)",
+      "to": "        done = (not conflicted and not human_stop(text, root)",
+      "only": "^(?:a task titled for another record is not done under this one, whatever its evidence)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a taken-back sign-off still counts done",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "        done = (not conflicted and not foreign_stop(text, owner) and not human_stop(text, root)",
+      "to": "        done = (not conflicted and not foreign_stop(text, owner)",
+      "only": "^(?:the last human sign-off decides: an approval taken back is not done, a stop later approved is)$"
+    },
+    {
+      "label": "Codex 3ff59fb: the first sign-off decides",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "    last = signed[-1][1] if signed else None",
+      "to": "    last = signed[0][1] if signed else None",
+      "only": "^(?:the last human sign-off decides: an approval taken back is not done, a stop later approved is)$"
+    },
+    {
+      "label": "Codex 3ff59fb: an irregular duplicate is skipped",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "            if m and m.group(0) in infos:",
+      "to": "            if False:",
+      "only": "^(?:an irregular entry sharing a done task's id withholds it, whichever name sorts first)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a foreign FIFO is opened",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "                if not f.is_file():\n                    return \"unknown\"",
+      "to": "                if False:\n                    return \"unknown\"",
+      "only": "^(?:a FIFO behind a cross-record dependency is not opened)$"
+    },
+    {
+      "label": "Codex 3ff59fb: a foreign task's taken-back approval meets a dependency",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next-codex-3-8-8.test.mjs"
+      ],
+      "from": "                return (\"done\" if not human_stop(text, git_root(tasks)) and is_done(text, digest, first == \"human-observed\",",
+      "to": "                return (\"done\" if is_done(text, digest, first == \"human-observed\",",
+      "only": "^(?:a dependency on another record's task whose approval was taken back is not met)$"
+    },
+    {
+      "label": "3.8.9: \"no visible blocking\" reads as a stop",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-9.test.mjs"
+      ],
+      "from": "    r\"|(?<![a-z])no\\s+(?:[a-z-]+\\s+)?\"",
+      "to": "    r\"|(?<![a-z])zzno\\s+(?:[a-z-]+\\s+)?\"",
+      "only": "^(?:\"no visible blocking\" in an approval is a finding, not a stop)$"
+    },
+    {
+      "label": "3.8.9: a stop does not name the words that stopped it",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-9.test.mjs"
+      ],
+      "from": "        words = stop_words(last.group(\"note\"))",
+      "to": "        words = None",
+      "only": "^(?:a stop names the words that stopped it before the note it quotes)$"
+    },
+    {
+      "label": "3.8.9: a human-mutant row stops an evidenced task",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-mutant-row.test.mjs"
+      ],
+      "from": "              and not HUMAN_MUTANT_NOTE.match(m.group(\"note\"))]",
+      "to": "              ]",
+      "only": "^(?:a human-mutant row after exit-0 evidence does not take the task back)$"
+    },
+    {
+      "label": "3.8.9: a human-mutant row signs off a human-observed task (adr-next)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-mutant-row.test.mjs"
+      ],
+      "from": "        if human and (m := VLOG_HUMAN_RE.match(line)) and not HUMAN_MUTANT_NOTE.match(m.group(\"note\")):",
+      "to": "        if human and (m := VLOG_HUMAN_RE.match(line)):",
+      "only": "^(?:a human-mutant row is not a human-observed task's sign-off)$"
+    },
+    {
+      "label": "3.8.10: an older stop takes back later exit-0 evidence",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "    if last and not later_pass and human_outcome(last.group(\"note\")) == \"stop\":",
+      "to": "    if last and human_outcome(last.group(\"note\")) == \"stop\":",
+      "only": "^(?:a human stop older than later exit-0 evidence does not take that evidence back)$"
+    },
+    {
+      "label": "3.8.10: \"no\" spans a conjunction into another clause",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "    r\"|(?<![a-z])no\\s+(?:[a-z-]+\\s+)?\"",
+      "to": "    r\"|(?<![a-z])no\\s+(?:[a-z-]+\\s+){0,2}\"",
+      "only": "^(?:\"no\" names one absent thing and never spans into another clause)$"
+    },
+    {
+      "label": "3.8.10: later evidence for another fence outranks a stop",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "        (d := VLOG_DIGEST_RE.match(row)) and d.group(\"exit\") == \"0\" and d.group(\"digest\") == digest",
+      "to": "        (d := VLOG_DIGEST_RE.match(row)) and d.group(\"exit\") == \"0\"",
+      "only": "^(?:only later evidence for the CURRENT Acceptance outranks an older stop)$"
+    },
+    {
+      "label": "3.8.10: an exit-0 row dated before a stop clears it",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-3-8-10.test.mjs"
+      ],
+      "from": "        and row[2:12] >= rows[signed[-1][0]][2:12]",
+      "to": "        and True",
+      "only": "^(?:an exit-0 row dated before a stop does not clear it, wherever it sits)$"
+    },
+    {
+      "label": "3.8.10: adr-next counts a row with an impossible date",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/impossible-row-date.test.mjs"
+      ],
+      "from": "        if row_date_problem(line):\n            continue",
+      "to": "        if False:\n            continue",
+      "only": "^(?:a Verification Log row dated on a day that does not exist, or in the future, is not evidence)$"
+    },
+    {
+      "label": "ADR-088 T1: adr-next reads the one sha field, so a 4-character row is done to it as to adr-lint",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "VLOG_DIGEST_RE = re.compile(\n    r\"^- \\d{4}-\\d{2}-\\d{2} · \" + SHA_FIELD + r\" · exit",
+      "to": "VLOG_DIGEST_RE = re.compile(\n    r\"^- \\d{4}-\\d{2}-\\d{2} · (?:[0-9a-f]{7,40}\\*?|no-git) · exit",
+      "only": "^(?:every row reader takes the sha width git can print)$"
+    },
+    {
+      "label": "ADR-092 T2: adr-next's owner recognition",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        if not recognised_as_record(candidate, text, git_root(candidate.parent))[0]:",
+      "to": "        if False:",
+      "only": "^adr-next does not take an unrecognised file for a decided owner$"
+    },
+    {
+      "label": "ADR-092 review: adr-next lists task files case-sensitively",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        listed = sorted(entry for entry in tasks_dir.iterdir() if entry.name.lower().endswith(\".md\"))",
+      "to": "        listed = sorted(entry for entry in tasks_dir.iterdir() if entry.name.endswith(\".md\"))",
+      "only": "^adr-next reads a task named .MD$"
+    },
+    {
+      "label": "ADR-092 review: owning_record answers two values at the filesystem root",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    if record_dir == record_dir.parent:      # filesystem root: no record can own it\n        return False, None, None",
+      "to": "    if record_dir == record_dir.parent:      # filesystem root: no record can own it\n        return False, None",
+      "only": "^adr-next answers three values for a tasks directory at the filesystem root$"
+    },
+    {
+      "label": "§361: a run report exempts a red run nothing affirmed before",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    if not reds or not AFFIRMATIVE.search(text[:reds[-1].start()]):",
+      "to": "    if not reds:",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: any run, not only a green one, clears the red run",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "GREEN_RUN = re.compile(r\"(?<![a-z])green\\s+run(?![a-z])\", re.I)",
+      "to": "GREEN_RUN = re.compile(r\"(?<![a-z])\\w+\\s+run(?![a-z])\", re.I)",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: a green run with no pass word of its own clears the red run",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    if not passed:\n        return text\n    return text[:red.start()]",
+      "to": "    if False:\n        return text\n    return text[:red.start()]",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: the green clause runs to the end of the note",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    end = end.start() if end else len(text)",
+      "to": "    end = len(text)",
+      "only": "^a run report whose own verdict is a failure still stops$"
+    },
+    {
+      "label": "§361: the red run's clause is not blanked",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    return text[:red.start()] + FAIL_WORD.sub(\" \", text[red.start():brk.start()]) + text[brk.start():]",
+      "to": "    return text",
+      "only": "^an affirmed red-then-green run report is evidence, not a stop$"
+    },
+    {
+      "label": "§361: not_the_verdict skips the run report",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    return NEUTRALISED.sub(\" \", ABSENT_FAILURE.sub(r\"\\1 \", run_report_removed(text)))",
+      "to": "    return NEUTRALISED.sub(\" \", ABSENT_FAILURE.sub(r\"\\1 \", text))",
+      "only": "^an affirmed red-then-green run report is evidence, not a stop$|^the run report in the row shape it was found in"
+    },
+    {
+      "label": "§361: human_outcome reads the note without removing the run report",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    outside = not_the_verdict(outside)\n    if NEGATIVE.search(outside):",
+      "to": "    outside = NEUTRALISED.sub(\" \", outside)\n    if NEGATIVE.search(outside):",
+      "only": "^an affirmed red-then-green run report is evidence, not a stop$"
+    },
+    {
+      "label": "§361: a stop's reason names the red run's word it quoted",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    for text in (not_the_verdict(outside), NEUTRALISED.sub(\" \", note)):",
+      "to": "    for text in (NEUTRALISED.sub(\" \", outside), NEUTRALISED.sub(\" \", note)):",
+      "only": "^a stop after a run report names its own word, not the red run it quoted$"
+    },
+    {
+      "label": "§361: the absence form takes any word before failed",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "to": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:[a-z]+\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "only": "names an absent failure; anything wider still stops$"
+    },
+    {
+      "label": "§361: no absence form at all",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "to": "    r\"(^|[;,:.—–(])\\s*zzno\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "only": "names an absent failure; anything wider still stops$"
+    },
+    {
+      "label": "§361: the absence form spans a comma",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "to": "    r\"(^|[;,:.—–(])\\s*no\\W+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "only": "names an absent failure; anything wider still stops$"
+    },
+    {
+      "label": "§361 review: the red run's clause is blanked whole",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    return text[:red.start()] + FAIL_WORD.sub(\" \", text[red.start():brk.start()]) + text[brk.start():]",
+      "to": "    return text[:red.start()] + \" \" + text[brk.start():]",
+      "only": "^a stop sharing the red run clause, or a denied absence, still stops$"
+    },
+    {
+      "label": "§361 review: the absence needs no clause end",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"\\s*(?=$|[;,.)—–])\", re.I | re.M)",
+      "to": "    r\"\", re.I | re.M)",
+      "only": "^a stop sharing the red run clause, or a denied absence, still stops$"
+    },
+    {
+      "label": "§361 review: the absence needs no clause start",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"(^|[;,:.—–(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "to": "    r\"(^|[;,:.—–(]|\\s)\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "only": "^a stop sharing the red run clause, or a denied absence, still stops$"
+    }
+  ]
+}

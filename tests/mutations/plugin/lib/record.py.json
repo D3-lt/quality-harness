@@ -1,0 +1,2680 @@
+{
+  "mutations": [
+    {
+      "label": "§355 probe: a clip that falls after a space drops it before the mark",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/clipped-quotes.test.mjs"
+      ],
+      "only": "a quote cut to its width says it was cut",
+      "from": "    return text if len(text) <= width else text[:width].rstrip() + \"…\"",
+      "to": "    return text if len(text) <= width else text[:width] + \"…\""
+    },
+    {
+      "label": "§355: status_labels lists every label, not only the first",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/two-status-lines.test.mjs"
+      ],
+      "from": "            yield \"label\", _STATUS_MARKUP.sub(\"\", value).strip(_EDGE_SPACE)\n            continue",
+      "to": "            yield \"label\", _STATUS_MARKUP.sub(\"\", value).strip(_EDGE_SPACE)\n            return"
+    },
+    {
+      "label": "clipped: a cut quote says it was cut",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/clipped-quotes.test.mjs"
+      ],
+      "only": "a quote cut to its width",
+      "from": "    return text if len(text) <= width else text[:width].rstrip() + \"…\"",
+      "to": "    return text if len(text) <= width else text[:width].rstrip()"
+    },
+    {
+      "label": "clipped: a quote that fits its width is printed whole",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/clipped-quotes.test.mjs"
+      ],
+      "only": "a quote cut to its width",
+      "from": "    return text if len(text) <= width else text[:width].rstrip() + \"…\"",
+      "to": "    return text if len(text) < width else text[:width].rstrip() + \"…\""
+    },
+    {
+      "label": "lint: a spaced title is compared by its decoded value, so an escaped quote is not stale (§284)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            out.append({\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\", \"b\": \"\\b\", \"f\": \"\\f\", \"v\": \"\\v\"}.get(nxt, nxt))",
+      "to": "            out.append(\"\\\\\" + nxt)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "spec-verify: a regex may follow the paren closing an if header (the lexer's reading, ADR-079)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return prev[1] in CONTROL_HEADER",
+      "to": "        return False",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "ADR-079 T1: a family suffix is left out of the one JavaScript set",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "JS_FAMILY_SUFFIXES = (\".js\", \".mjs\", \".cjs\", \".jsx\", \".ts\", \".tsx\", \".mts\", \".cts\")",
+      "to": "JS_FAMILY_SUFFIXES = (\".js\", \".jsx\", \".ts\", \".tsx\")",
+      "only": "^spec-verify finds a JavaScript test only where its registration is code, in every family suffix$"
+    },
+    {
+      "label": "ADR-079 Codex: a comment between a title and its comma loses the test",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        while j < n and (text[j] in \" \\t\\n\\r\" or kinds[j] == 2):",
+      "to": "        while j < n and text[j] in \" \\t\\n\\r\":",
+      "only": "^adr-lint finds a JavaScript test with a comment beside its title, and never one inside a comment$"
+    },
+    {
+      "label": "ADR-083 T1: a < after a value opens an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if jsx and c == \"<\" and prev != (\"op\", \"<\") and _h2_slash_opens_regex(prev, ts) is True:",
+      "to": "        if jsx and c == \"<\" and prev != (\"op\", \"<\"):",
+      "only": "^a comparison is not an element$"
+    },
+    {
+      "label": "ADR-083 T1: JSX text is read as code",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        while end < n and text[end] not in \"{<\":\n            end += 1\n        mark(j, end, 1)",
+      "to": "        while end < n and text[end] not in \"{<\":\n            end += 1\n        mark(j, end, 0)",
+      "only": "^the lexer reads JSX: elements, fragments, attributes, expressions and text$"
+    },
+    {
+      "label": "ADR-083 T1: a JSX expression is read as text",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            frame[1], frame[3], frame[2] = 0, frame[2], \"expr\"",
+      "to": "            frame[1], frame[3], frame[2] = 0, frame[2], frame[2]",
+      "only": "^the lexer reads JSX: elements, fragments, attributes, expressions and text$"
+    },
+    {
+      "label": "ADR-083 T1: a closing tag that names another element is accepted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if end >= n or text[end] != \">\" or name != frame[4]:",
+      "to": "            if end >= n or text[end] != \">\":",
+      "only": "^an element the lexer cannot read is a stop, never a guess$"
+    },
+    {
+      "label": "ADR-083 T1: plain TypeScript is read as JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "JSX_SUFFIXES = (\".js\", \".mjs\", \".cjs\", \".jsx\", \".tsx\")",
+      "to": "JSX_SUFFIXES = (\".js\", \".mjs\", \".cjs\", \".jsx\", \".tsx\", \".ts\")",
+      "only": "^only a JSX-capable suffix reads JSX, and a tsx generic arrow is not an element$"
+    },
+    {
+      "label": "ADR-083 T1: a tsx generic arrow opens an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if text.startswith((\",\", \"=\"), k) or (text.startswith(\"extends\", k) and not word_after):",
+      "to": "            if False:",
+      "only": "^only a JSX-capable suffix reads JSX, and a tsx generic arrow is not an element$"
+    },
+    {
+      "label": "ADR-083 T2: a hasher-3 lock reads its file without JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                hasher >= 3 and suffix in JSX_SUFFIXES):",
+      "to": "                False):",
+      "only": "^a lock over a JSX file is taken by hasher 3, and every other lock by hasher 2$"
+    },
+    {
+      "label": "ADR-083 T2: every new lock is hasher 2",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        hasher = 3 if any(_jsx_changes_reading(path, source) for _rel, path, source in files) else 2",
+      "to": "        hasher = 2",
+      "only": "^a lock over a JSX file is taken by hasher 3, and every other lock by hasher 2$"
+    },
+    {
+      "label": "ADR-083 T2: a hasher-2 lock is read with JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                hasher >= 3 and suffix in JSX_SUFFIXES):",
+      "to": "                hasher >= 2 and suffix in JSX_SUFFIXES):",
+      "only": "^hasher 2 reads a JSX file exactly as it did$"
+    },
+    {
+      "label": "ADR-083 T3: the gates read a JSX file without JSX",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    masked, kinds, stop, _ = _js_lex(text, ts=suffix in _JS_TS_SUFFIXES, jsx=suffix in JSX_SUFFIXES)",
+      "to": "    masked, kinds, stop, _ = _js_lex(text, ts=suffix in _JS_TS_SUFFIXES, jsx=False)",
+      "only": "^a test past a JSX tag is found by both gates, and a never-written one is missing$"
+    },
+    {
+      "label": "ADR-083 T3: a never-written name in a file read to its end is UNPROVEN",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    return (\"missing\" if complete else \"unproven\"), None, masked",
+      "to": "    return \"unproven\", None, masked",
+      "only": "^a test past a JSX tag is found by both gates, and a never-written one is missing$"
+    },
+    {
+      "label": "ADR-083 T1: a < in JSX text that opens nothing is read as an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            return None if end is None else push_element(j, end)",
+      "to": "            return push_element(j, j + 2)",
+      "only": "^a < in JSX text that opens nothing is a stop$"
+    },
+    {
+      "label": "review of ADR-083: a shift opens an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if jsx and c == \"<\" and prev != (\"op\", \"<\") and _h2_slash_opens_regex(prev, ts) is True:",
+      "to": "        if jsx and c == \"<\" and _h2_slash_opens_regex(prev, ts) is True:",
+      "only": "^a shift, a tsx generic arrow, a generic component and a comment in a tag are read$"
+    },
+    {
+      "label": "review of ADR-083: a const type parameter opens an element",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if text[j + 1:end] == \"const\":",
+      "to": "            if False:",
+      "only": "^a shift, a tsx generic arrow, a generic component and a comment in a tag are read$"
+    },
+    {
+      "label": "review of ADR-083: a generic component's type arguments stop the lexer",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if ts and end < n and text[end] == \"<\":",
+      "to": "        if False:",
+      "only": "^a shift, a tsx generic arrow, a generic component and a comment in a tag are read$"
+    },
+    {
+      "label": "review of ADR-083: a block comment in a tag stops the lexer",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if text.startswith(\"/*\", j):\n                end = text.find(\"*/\", j + 2)",
+      "to": "            if False:\n                end = text.find(\"*/\", j + 2)",
+      "only": "^a shift, a tsx generic arrow, a generic component and a comment in a tag are read$"
+    },
+    {
+      "label": "review of ADR-083: a closed element's start outlives it",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not any(frame[0] == \"jsx\" for frame in ctx):\n            outer_jsx = None",
+      "to": "        if False:\n            outer_jsx = None",
+      "only": "^a file ending in a template after an element closed stops at the template$"
+    },
+    {
+      "label": "review of ADR-083: a hasher-2 lock over JSX is not advised",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        newer = snapshot_lock(root, tests)",
+      "to": "        newer = snapshot_lock(root, tests, hasher=2)",
+      "only": "^a hasher-2 lock over a file JSX now reads is advised to relock$"
+    },
+    {
+      "label": "lint: a commented-out registration is not a test",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for head in _JS_LOOKUP_HEAD.finditer(text):\n        if kinds[head.start()] != 0:\n            continue\n",
+      "to": "    for head in _JS_LOOKUP_HEAD.finditer(text):\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the sha grammar accepts every width git can produce",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "SHA_FIELD = r\"(?:[0-9a-f]{4,64}\\*?|no-git)\"",
+      "to": "SHA_FIELD = r\"(?:[0-9a-f]{7,40}\\*?|no-git)\"",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "record: an Acceptance fence may be spelled sh or shell, and every gate reads that one opener (ADR-045 T3)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/evidence-chain.test.mjs",
+        "tests/adr-next.test.mjs",
+        "tests/gates.test.mjs"
+      ],
+      "from": "_RUNNABLE_INFO = re.compile(r\"(?:bash|sh|shell)[ \\t]*$\")",
+      "to": "_RUNNABLE_INFO = re.compile(r\"(?:bash)[ \\t]*$\")",
+      "only": "^an Acceptance fence may be spelled sh or shell$|^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$|^a sh-labelled Acceptance fence adr-verify recorded is done to adr-next$|^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "lint: a file NAMED ADR- keeps its findings even with no Status line",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if _NUMBERED_REF.match(path.name):\n        return True, status_value, kept, \"canonical\"",
+      "to": "    if False:\n        return True, status_value, kept, \"canonical\"",
+      "only": "^(?:a form finding is reported to the reader without failing the record|a document that never claimed to be a record is not judged as a malformed one \\(BACKLOG §141\\))$"
+    },
+    {
+      "label": "record: a ## line inside a code fence is text, not a heading (ADR-045)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs",
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if opened:\n                fence = (lineno, line, opened)",
+      "to": "            if False:\n                fence = (lineno, line, opened)",
+      "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$|^record\\.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that$"
+    },
+    {
+      "label": "record: normalize_acceptance trims the blank lines at the fence's trailing edge",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    while end > start and not lines[end - 1].strip():\n        end -= 1",
+      "to": "    while False:\n        end -= 1",
+      "only": "^record\\.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that$"
+    },
+    {
+      "label": "record: acceptance_digest hashes the fence it was given, not a constant",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return hashlib.sha256(command.encode(\"utf-8\")).hexdigest()",
+      "to": "    return hashlib.sha256(b\"\").hexdigest()",
+      "only": "^record\\.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that$"
+    },
+    {
+      "label": "record: a repeated heading is named, not swallowed (ADR-045 T5)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/evidence-chain.test.mjs",
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return dup",
+      "to": "    return []",
+      "only": "^a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice$|^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: unterminated_fence names the fence the walk left open (ADR-045 T8)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    open_fence = _scan(text)[1]\n    return None if open_fence is None else open_fence[:2]",
+      "to": "    return None",
+      "only": "^record\\.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle$"
+    },
+    {
+      "label": "record: fence_safe escapes a fence line rather than returning it (ADR-045 T8)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    m = _FENCE.match(line)\n    if not m:\n        return line",
+      "to": "    m = None\n    if not m:\n        return line",
+      "only": "^record\\.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle$"
+    },
+    {
+      "label": "record: a tilde fence is a fence for heading purposes (ADR-045 T8)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "_FENCE = re.compile(r\"^(?P<indent>[ \\t]*)(?P<marker>`{3,}|~{3,})(?P<rest>.*)$\")",
+      "to": "_FENCE = re.compile(r\"^(?P<indent>[ \\t]*)(?P<marker>`{3,})(?P<rest>.*)$\")",
+      "only": "^record\\.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle$"
+    },
+    {
+      "label": "record: a fence closes only at the opening length or longer, so an inner ``` is text inside a ```` fence (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            and len(m.group(\"marker\")) >= opened[1] and re.fullmatch(r\"[ \\t]*\", m.group(\"rest\")))",
+      "to": "            and re.fullmatch(r\"[ \\t]*\", m.group(\"rest\")))",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: a fence closes only on its own marker character (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return (m is not None and m.group(\"marker\")[0] == opened[0]",
+      "to": "    return (m is not None",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: a closer has nothing after the marker, so a labelled line inside an example is text (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            and len(m.group(\"marker\")) >= opened[1] and re.fullmatch(r\"[ \\t]*\", m.group(\"rest\")))",
+      "to": "            and len(m.group(\"marker\")) >= opened[1])",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: only a backtick fence is runnable; a ~~~bash fence is text to the runner (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if opened and opened[0] == \"`\" and _RUNNABLE_INFO.fullmatch(",
+      "to": "            if opened and _RUNNABLE_INFO.fullmatch(",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: a backtick line whose info string holds a backtick is inline code, not a fence (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if marker[0] == \"`\" and \"`\" in rest:\n        return None\n    return marker[0], len(marker)",
+      "to": "    return marker[0], len(marker)",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: only CR, LF and CRLF break a line; the eight other separators are bytes (ADR-045 T11)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "_LINE_BREAK = re.compile(r\"\\r\\n|\\r|\\n\")",
+      "to": "_LINE_BREAK = re.compile(r\"\\r\\n|\\r|\\n|[\\v\\f\\x1c\\x1d\\x1e\\x85\\u2028\\u2029]\")",
+      "only": "^record\\.py: only CR, LF and CRLF break a line — a heading holding a form feed is one heading and a NEL reaches the digest$"
+    },
+    {
+      "label": "record: section_span points at the section the reader returns (ADR-045 T6)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if name == heading:\n            span = (start, body_start, end)",
+      "to": "        if name == heading and span is None:\n            span = (start, body_start, end)",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: a closer rest is ASCII space and tab only; NEL and NBSP do not close a fence (ADR-045 T12)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            and len(m.group(\"marker\")) >= opened[1] and re.fullmatch(r\"[ \\t]*\", m.group(\"rest\")))",
+      "to": "            and len(m.group(\"marker\")) >= opened[1] and not m.group(\"rest\").strip())",
+      "only": "^record\\.py: a closer rest is only ASCII space and tab — NEL does not close a fence$"
+    },
+    {
+      "label": "lock: a brace inside a JS string does not close the hashed body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        i += 1\n    if brace is None:\n        return None\n    end = _matching_js_brace(masked, brace)\n    if end is None:\n        return None\n    return text[brace:end + 1]",
+      "to": "        i += 1\n    if brace is None:\n        return None\n    depth, index = 0, brace\n    end = None\n    while index < len(text):\n        if text[index] == \"{\":\n            depth += 1\n        elif text[index] == \"}\":\n            depth -= 1\n            if depth == 0:\n                end = index\n                break\n        index += 1\n    if end is None:\n        return None\n    return text[brace:end + 1]",
+      "only": "a brace inside a string does not keep the first-red hash after the assertion moves"
+    },
+    {
+      "label": "lock: a Go func Test is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        go = path.suffix.lower() == \".go\"\n        php = path.suffix.lower() == \".php\"",
+      "to": "        go = False\n        php = path.suffix.lower() == \".php\"",
+      "only": "a Go func Test is hashed"
+    },
+    {
+      "label": "lock: a Go func Fuzz target is hashed like a func Test",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    r\"(?m)^[ \\t]*func[ \\t]+((?:Test|Fuzz)(?:[^a-z]\\w*)?)[ \\t]*\\(\"",
+      "to": "    r\"(?m)^[ \\t]*func[ \\t]+(Test(?:[^a-z]\\w*)?)[ \\t]*\\(\"",
+      "only": "a Go func Fuzz target is hashed"
+    },
+    {
+      "label": "lock: a later red pinning different bodies refuses done (ADR-050)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if recorded.get(\"conflict\"):",
+      "to": "    if False:",
+      "only": "a later red carrying a different lock hash"
+    },
+    {
+      "label": "lock: later red locks are collected, not dropped (ADR-050)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            elif sha and not kind:\n                later_red_locks.append(sha.group(1))\n",
+      "to": "            elif sha and not kind:\n                pass\n",
+      "only": "a later red carrying a different lock hash"
+    },
+    {
+      "label": "lock: the lock field is read from the end of the row, not the command",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return re.search(r\" · test-lock-sha256:([0-9a-f]{64})\"\n                     r\"(?: · test-lock-b64:[A-Za-z0-9_-]+)?\"\n                     r\"(?: · test-lock-kind:(relock|replace))?\"\n                     r\"[ \\t]*$\", line)",
+      "to": "    return _LOCK_SHA.search(line)",
+      "only": "a later red carrying a different lock hash"
+    },
+    {
+      "label": "lock: JS string interiors stay in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return hashlib.sha256(_code_normalize(\n        text, python=python, php=php, shell=shell, rust=rust, go=go).encode(\"utf-8\")).hexdigest()",
+      "to": "    collapsed = []\n    for line in text.split(\"\\n\"):\n        collapsed.append(re.sub(r\"[ \\t]+\", \" \", line).strip())\n    return hashlib.sha256(\"\\n\".join(collapsed).strip().encode(\"utf-8\")).hexdigest()",
+      "only": "^hasher 1 still keeps the whitespace inside a string in its digest$"
+    },
+    {
+      "label": "lock: a fenced excerpt is not a later red",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if fence is None:\n            opened = _fence_opened(raw)\n            if opened:\n                fence = opened\n                continue\n        else:\n            if _fence_closes(raw, fence):\n                fence = None\n            continue\n        line = raw.strip()",
+      "to": "        line = raw.strip()",
+      "only": "later-red lock printed inside a fenced excerpt"
+    },
+    {
+      "label": "lock: a PHPUnit function test is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        php = path.suffix.lower() == \".php\"\n        rust = path.suffix.lower() == \".rs\"",
+      "to": "        php = False\n        rust = path.suffix.lower() == \".rs\"",
+      "only": "a PHPUnit function test is hashed"
+    },
+    {
+      "label": "lock: a Rust #[test] fn is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        rust = path.suffix.lower() == \".rs\"\n        shell = path.suffix.lower() in (\".sh\", \".bash\")",
+      "to": "        rust = False\n        shell = path.suffix.lower() in (\".sh\", \".bash\")",
+      "only": "a Rust #\\[test\\] fn is hashed"
+    },
+    {
+      "label": "lock: a PHPUnit #[Test] method is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        for fn in _PHP_ATTR_TEST.finditer(body):",
+      "to": "        for fn in _PHP_ATTR_TEST.finditer(\"\"):",
+      "only": "a PHPUnit #\\[Test\\] method is hashed"
+    },
+    {
+      "label": "lock: a PHPUnit @test docblock method is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        for fn in _PHP_DOCBLOCK_TEST.finditer(orig):",
+      "to": "        for fn in _PHP_DOCBLOCK_TEST.finditer(\"\"):",
+      "only": "a PHPUnit @test docblock"
+    },
+    {
+      "label": "lock: a brace inside a Rust raw string is hashed, not a prefix",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if rust_raw:\n            prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == \"_\")",
+      "to": "        if False:\n            prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == \"_\")",
+      "only": "a brace inside a Rust raw string"
+    },
+    {
+      "label": "lock: a Go t.Run name is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        for name, _after in _iter_go_t_runs(text):",
+      "to": "        for name, _after in []:",
+      "only": "a Go t.Run name is hashed"
+    },
+    {
+      "label": "lock: a Go method Test is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        for name, _after in _iter_go_method_tests(text):",
+      "to": "        for name, _after in []:",
+      "only": "a Go method Test is hashed"
+    },
+    {
+      "label": "lock: a shell test_* function is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        shell = path.suffix.lower() in (\".sh\", \".bash\")\n        swift = path.suffix.lower() == \".swift\"",
+      "to": "        shell = False\n        swift = path.suffix.lower() == \".swift\"",
+      "only": "a shell test_\\* function is hashed"
+    },
+    {
+      "label": "lock: a Swift Testing @Test func is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        swift = path.suffix.lower() == \".swift\"\n        suffix = path.suffix.lower()",
+      "to": "        swift = False\n        suffix = path.suffix.lower()",
+      "only": "a Swift Testing @Test func is hashed"
+    },
+    {
+      "label": "lock: an XCTest test method is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    for fn in _SWIFT_XCTEST_FN.finditer(masked):",
+      "to": "    for fn in _SWIFT_XCTEST_FN.finditer(\"\"):",
+      "only": "an XCTest test method is hashed"
+    },
+    {
+      "label": "lock: a Swift @Test with arguments before its attributes is still found",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if masked.startswith(\"(\", i):\n                i = _swift_balanced_parens_end(masked, i)",
+      "to": "            if False:\n                i = _swift_balanced_parens_end(masked, i)",
+      "only": "a Swift Testing @Test func is hashed"
+    },
+    {
+      "label": "lock: a brace inside a Swift literal is hashed, not a prefix",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            literal = _swift_literal_scan(text, i)\n            end = literal[0] if literal is not None else _swift_regex_end(text, i)",
+      "to": "            literal = None\n            end = literal[0] if literal is not None else _swift_regex_end(text, i)",
+      "only": "a brace inside a Swift multi-line"
+    },
+    {
+      "label": "lock: a Swift raw string closes on its hashes, not the first quote",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    closer, escape = delim + hashes, \"\\\\\" + hashes",
+      "to": "    closer, escape = delim, \"\\\\\" + hashes",
+      "only": "a brace inside a Swift multi-line"
+    },
+    {
+      "label": "lock: a literal nested in a Swift interpolation does not end the interpolation",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    literal = _swift_literal_scan(text, k)\n    if literal is not None:\n        return literal[0]",
+      "to": "    literal = None\n    if literal is not None:\n        return literal[0]",
+      "only": "a brace inside a Swift multi-line"
+    },
+    {
+      "label": "lock: a Swift nested comment does not close the hashed body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if rust_raw or swift:\n                depth, j = 1, i + 2",
+      "to": "            if rust_raw:\n                depth, j = 1, i + 2",
+      "only": "a Swift nested block comment does not keep"
+    },
+    {
+      "label": "lock: a Swift body that might hold a bare regex literal is UNPROVEN",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if _swift_ambiguous_slash(text):\n            return None",
+      "to": "        if False:\n            return None",
+      "only": "a Swift body that might hold a bare regex literal is UNPROVEN"
+    },
+    {
+      "label": "lock: an escaped slash does not close an extended Swift regex",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if text[j] == \"\\\\\":\n            j += 2\n            continue\n        if text.startswith(\"/\" + hashes, j):",
+      "to": "        if False:\n            j += 2\n            continue\n        if text.startswith(\"/\" + hashes, j):",
+      "only": "an escaped delimiter inside an extended Swift regex"
+    },
+    {
+      "label": "lock: a Swift regex literal is kept verbatim in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            end = _swift_regex_end(text, i)\n            if end is not None:\n                out.append(text[i:end])",
+      "to": "            end = None\n            if end is not None:\n                out.append(text[i:end])",
+      "only": "a Swift regex literal holding"
+    },
+    {
+      "label": "lock: a comment inside a Swift interpolation is skipped before counting parens",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if text.startswith(\"/*\", k):\n        depth, j = 1, k + 2",
+      "to": "    if False:\n        depth, j = 1, k + 2",
+      "only": "a comment inside a Swift interpolation does not end"
+    },
+    {
+      "label": "lock: every declaration of a duplicated Swift test name is hashed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            return None\n        return \"\\n\".join(spans)",
+      "to": "            return None\n        return spans[0]",
+      "only": "declared in two suites"
+    },
+    {
+      "label": "lock: a backticked Swift test name is kept as code",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if text[i] == \"`\":\n                # An escaped identifier",
+      "to": "            if False:\n                # An escaped identifier",
+      "only": "a Swift test with a backticked name"
+    },
+    {
+      "label": "lock: comments inside a Swift interpolation are stripped from the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                    out.append(_strip_comments_keep_strings(text[start:stop], swift=True))",
+      "to": "                    out.append(text[start:stop])",
+      "only": "rewording a comment inside a Swift interpolation"
+    },
+    {
+      "label": "lock: a backticked XCTest method name is extracted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    r\"func\\s+(`?)(test\\w*)\\1\\s*(\\()\\s*\\)\"",
+      "to": "    r\"func\\s+()(test\\w*)\\1\\s*(\\()\\s*\\)\"",
+      "only": "a backticked XCTest method sharing a name"
+    },
+    {
+      "label": "lock: a regex inside a Swift interpolation is seen by the refusal",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                out[start:stop] = _swift_code_view(text[start:stop])",
+      "to": "                blank(start, stop)",
+      "only": "a bare regex inside an interpolation, or outside the test"
+    },
+    {
+      "label": "lock: an inline XCTest method declaration is extracted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    r\"(?<![\\w`.])(?:(?:@",
+      "to": "    r\"(?m)^[ \\t]*(?:(?:@",
+      "only": "an XCTest method declared inline"
+    },
+    {
+      "label": "lock: a multi-line XCTest signature is extracted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    r\"func\\s+(`?)(test\\w*)\\1\\s*(\\()\\s*\\)\"",
+      "to": "    r\"func[ \\t]+(`?)(test\\w*)\\1[ \\t]*(\\()[ \\t]*\\)\"",
+      "only": "a multi-line XCTest signature and a qualified"
+    },
+    {
+      "label": "lock: a qualified @Testing.Test is a test attribute",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    r\"@[ \\t]*(?:`?Testing`?[ \\t\\r\\n]*\\.[ \\t\\r\\n]*)?`?Test`?(?![\\w`])\")",
+      "to": "    r\"@Test\\b\")",
+      "only": "spaced and intervening qualified attributes"
+    },
+    {
+      "label": "lock: Swift literal whitespace is kept in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if swift:\n        return hashlib.sha256(_swift_normalize(text).encode(\"utf-8\")).hexdigest()\n    return hashlib.sha256(_code_normalize(\n        text, python=python, php=php, shell=shell, rust=rust, go=go).encode(\"utf-8\")).hexdigest()",
+      "to": "    collapsed = []\n    for line in text.split(\"\\n\"):\n        collapsed.append(re.sub(r\"[ \\t]+\", \" \", line).strip())\n    return hashlib.sha256(\"\\n\".join(collapsed).strip().encode(\"utf-8\")).hexdigest()",
+      "only": "whitespace inside a Swift string literal"
+    },
+    {
+      "label": "lock: a slash with no closer on its line is division, not a refusal",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            return j + 1\n        j += 1\n    return None\n\n\ndef _swift_ambiguous_slash",
+      "to": "            return j + 1\n        j += 1\n    return n\n\n\ndef _swift_ambiguous_slash",
+      "only": "division with no closing slash on its line"
+    },
+    {
+      "label": "lock: a quote inside a possible Swift regex refuses the file",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\\\\"'`\"):",
+      "to": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\'`\"):",
+      "only": "division with no closing slash on its line"
+    },
+    {
+      "label": "lock: an apostrophe inside a possible Swift regex refuses the file",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\\\\"'`\"):",
+      "to": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\\\\"`\"):",
+      "only": "an apostrophe inside a possible Swift regex"
+    },
+    {
+      "label": "lock: a possible bare Swift regex is kept verbatim in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            _swift_regex_end(text, i) or _swift_bare_regex_end(text, i))",
+      "to": "            _swift_regex_end(text, i))",
+      "only": "whitespace inside a possible bare Swift regex literal"
+    },
+    {
+      "label": "lock: a Swift regex candidate stops at a comment",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if text.startswith(\"//\", j) or text.startswith(\"/*\", j):\n            return None",
+      "to": "        if False:\n            return None",
+      "only": "a trailing comment after inline Swift division"
+    },
+    {
+      "label": "lock: a qualified attribute between @Test and func is consumed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                r\"@[ \\t]*`?\\w+`?(?:[ \\t\\r\\n]*\\.[ \\t\\r\\n]*`?\\w+`?)*\", masked[i:])",
+      "to": "                r\"@\\w+\", masked[i:])",
+      "only": "spaced and intervening qualified attributes"
+    },
+    {
+      "label": "lock: an unrecognised same-named Swift declaration refuses the row",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not spans or len(spans) != declared or any(span is None for span in spans):",
+      "to": "        if not spans or any(span is None for span in spans):",
+      "only": "spaced and intervening qualified attributes"
+    },
+    {
+      "label": "lock: a Go signature comment does not close the hashed body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        masked = _mask_lock_noncode(text, go=True)",
+      "to": "        masked = text",
+      "only": "a Go signature comment does not keep"
+    },
+    {
+      "label": "lock: a Go t.Run helper is not hashed as the named subtest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if not (masked.startswith(\"func\", i)\n            and (i + 4 >= n or not (masked[i + 4].isalnum() or masked[i + 4] == \"_\"))):\n        return None",
+      "to": "    if False:\n        return None",
+      "only": "a Go t.Run that names a helper"
+    },
+    {
+      "label": "lock: a Rust nested comment does not close the hashed body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if rust_raw or swift:\n                depth, j = 1, i + 2",
+      "to": "            if swift:\n                depth, j = 1, i + 2",
+      "only": "a Rust nested comment does not keep"
+    },
+    {
+      "label": "lock: a shell heredoc does not close the hashed function",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        masked = _mask_lock_noncode(text, hash_comments=True, shell_heredocs=True)",
+      "to": "        masked = _mask_lock_noncode(text, hash_comments=True)",
+      "only": "a shell heredoc does not keep"
+    },
+    {
+      "label": "lock: a Rust raw string does not swallow a same-line assertion",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        out.append((name, None if body is None else body_digest(\n            body, python=python, php=php, shell=shell, rust=rust,",
+      "to": "        out.append((name, None if body is None else body_digest(\n            body, python=python, php=php, shell=shell,",
+      "only": "a Rust raw string does not swallow a same-line assertion"
+    },
+    {
+      "label": "lock: a Go raw string ending in backslash does not swallow a later assertion",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            swift=swift, go=go, **reading)))",
+      "to": "            swift=swift, **reading)))",
+      "only": "does not keep the hash after the assertion moves"
+    },
+    {
+      "label": "lock: Go raw backticks do not C-escape in the digest stripper",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            if c == \"\\\\\" and i + 1 < n and not (go and quote == \"`\"):",
+      "to": "            if c == \"\\\\\" and i + 1 < n:",
+      "only": "does not keep the hash after the assertion moves"
+    },
+    {
+      "label": "lock: escaped same-quote BDD names stay discoverable",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "    for name, _after in _iter_bdd_calls(text, php=php, in_code=in_code):",
+      "to": "    for name, _after in ((m.group(1) or m.group(2) or m.group(3), m.end()) for m in re.compile(r\"\"\"(?:\\b(?:it|test)\\s*\\()\\s*(?:'([^'\\n]+)'|\"([^\"\\n]+)\"|`([^`\\n]+)`)\\s*,\"\"\").finditer(text)):  # [^'\\n]+",
+      "only": "escaped same-quote BDD names are discovered"
+    },
+    {
+      "label": "lock: decoded lock delimiters in a BDD name stay unhashed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "        if any(ch in name for ch in \"\\n\\t\\r\"):\n            continue\n",
+      "to": "",
+      "only": "decoded lock delimiters"
+    },
+    {
+      "label": "lock: a BDD name may wrap after the opening paren",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "        while i < n and text[i] in \" \\t\\r\\n\":",
+      "to": "        while i < n and text[i] in \" \\t\":",
+      "only": "a BDD name may wrap after the opening paren"
+    },
+    {
+      "label": "lock: PHP double-quoted unknown escapes keep their backslash",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            if php and quote == '\"':",
+      "to": "            if False and php and quote == '\"':",
+      "only": "PHP double-quoted unknown escapes keep"
+    },
+    {
+      "label": "lock: JS control escapes do not collapse onto a shorter name",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            out.append({\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\", \"b\": \"\\b\", \"f\": \"\\f\", \"v\": \"\\v\"}.get(nxt, nxt))",
+      "to": "            out.append({\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\"}.get(nxt, nxt))",
+      "only": "JS control escapes do not collapse"
+    },
+    {
+      "label": "lock: PHP double-quoted known control escapes do not collide with single-quoted unknown",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "                mapped = {\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\", \"v\": \"\\v\", \"f\": \"\\f\", \"e\": \"\\x1b\", \"\\\\\": \"\\\\\", '\"': '\"'}",
+      "to": "                mapped = {\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\", \"\\\\\": \"\\\\\", '\"': '\"'}",
+      "only": "PHP double-quoted known control escapes do not collide"
+    },
+    {
+      "label": "lock: JS NUL does not collapse onto a shorter name",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            if nxt == \"0\" and (i + 2 >= n or text[i + 2] not in \"0123456789\"):",
+      "to": "            if False:",
+      "only": "JS NUL does not collapse"
+    },
+    {
+      "label": "lock: JS line continuation does not leave an escaped name UNPROVEN",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            if nxt in \"\\n\\r\":",
+      "to": "            if False:",
+      "only": "JS line continuation does not leave"
+    },
+    {
+      "label": "lock: a shell URL is not a C comment in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not python and not shell and c == \"/\" and i + 1 < n:",
+      "to": "        if not python and c == \"/\" and i + 1 < n:",
+      "only": "a shell URL does not keep"
+    },
+    {
+      "label": "lock: a shell URL fragment is not a hash comment in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if shell and c == \"#\" and (i == 0 or (text[i - 1] in \" \\t\\n;|&\" and not _char_is_escaped(text, i - 1))):",
+      "to": "        if shell and c == \"#\":",
+      "only": "a shell URL does not keep"
+    },
+    {
+      "label": "lock: an escaped shell separator is not a hash comment in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if shell and c == \"#\" and (i == 0 or (text[i - 1] in \" \\t\\n;|&\" and not _char_is_escaped(text, i - 1))):",
+      "to": "        if shell and c == \"#\" and (i == 0 or text[i - 1] in \" \\t\\n;|&\"):",
+      "only": "an escaped shell separator does not keep"
+    },
+    {
+      "label": "lock: a Pest arrow body is bounded to its own test() call",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                close = _closing_paren(masked, i)",
+      "to": "                close = len(masked) - 1",
+      "only": "a Pest arrow test does not borrow|the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: an escaped separator does not open a shell comment (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return slashes % 2 == 1",
+      "to": "    return False",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: an arrow callback is an expression body, not the next brace (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif depth == 0 and masked.startswith(\"=>\", i):",
+      "to": "        elif False:",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: shell heredoc text stays in the digest (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    elif (shell and text.startswith(\"<<\", i) and (i == 0 or text[i - 1] != \"<\")\n          and not _in_arithmetic(text, i)):",
+      "to": "    elif (shell and text.startswith(\"<<\", i)\n          and not _in_arithmetic(text, i)):",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: a mid-word # is not a shell comment (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if shell and c == \"#\" and (i == 0 or (text[i - 1] in \" \\t\\n;|&\" and not _char_is_escaped(text, i - 1))):",
+      "to": "        if shell and c == \"#\" and not _char_is_escaped(text, i - 1):",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: heredoc text stays in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        heredoc = _heredoc_span(text, i, php=php, shell=shell)\n        if heredoc is not None:\n            # The opener token is code and the rest of its line is stripped like",
+      "to": "        heredoc = None\n        if heredoc is not None:\n            # The opener token is code and the rest of its line is stripped like",
+      "only": "a PHP heredoc URL does not keep|a shell heredoc line beginning with #"
+    },
+    {
+      "label": "lock: a regex literal that closes the call is UNPROVEN, not a truncated hash",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                if \"/\" in masked[i:close]:",
+      "to": "                if False:",
+      "only": "a regex literal that closes the call is UNPROVEN"
+    },
+    {
+      "label": "lock: a quote inside a JS regex does not keep a proven hash",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            regex_end = _js_regex_span_end(text, i)\n            if regex_end is not None:\n                out.append(code(text[start:i]))",
+      "to": "            regex_end = None\n            if regex_end is not None:\n                out.append(code(text[start:i]))",
+      "only": "^hasher 1 still reads a quote inside a regex without keeping a proven hash$"
+    },
+    {
+      "label": "lock: the comment stripper keeps a JS regex before it looks for quotes",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            regex_end = _js_regex_span_end(text, i)\n            if regex_end is not None:\n                out.append(text[i:regex_end])",
+      "to": "            regex_end = None\n            if regex_end is not None:\n                out.append(text[i:regex_end])",
+      "only": "^hasher 1 still reads a quote inside a regex without keeping a proven hash$"
+    },
+    {
+      "label": "lock: a JS regex candidate with a leftover quote is not trusted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if inner.startswith(\"[\") and \"]\" in inner:\n        return end\n    return None",
+      "to": "    if inner.startswith(\"[\") and \"]\" in inner:\n        return end\n    return end",
+      "only": "^hasher 1 still reads a quote inside a regex without keeping a proven hash$"
+    },
+    {
+      "label": "lock: a comment on a heredoc opener line is still a comment",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            pending = (heredoc[1], heredoc[2])",
+      "to": "            pending = (heredoc[0], heredoc[2])",
+      "only": "a comment on a heredoc opener line is still a comment"
+    },
+    {
+      "label": "lock: the opener-line remainder after a heredoc marker stays in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            out.append(code(text[start:head_end]))\n            out.append(code(text[head_end:payload_start]))\n            out.append(text[payload_start:end])",
+      "to": "            out.append(code(text[start:head_end]))\n            out.append(text[payload_start:end])",
+      "only": "code after a heredoc marker on its opener line stays"
+    },
+    {
+      "label": "lock: a `<<` inside ((…)) is a shift, whatever follows the operand (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    opened = text.rfind(\"((\", line_start, i)\n    if opened < 0:\n        return False",
+      "to": "    opened = text.rfind(\"((\", line_start, i)\n    if True:\n        return False",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: a `((` inside quotes is text, not an arithmetic context",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return _ARITHMETIC_BETWEEN.fullmatch(between) is not None",
+      "to": "    return True",
+      "only": "inside a string does not stop a later heredoc|inside a command substitution inside arithmetic|the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: the arithmetic scan is bounded to the heredoc's own line",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    line_start = text.rfind(\"\\n\", 0, i) + 1",
+      "to": "    line_start = 0",
+      "only": "inside a string does not stop a later heredoc|the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: a UTF-8 lock map with no check record is unreadable",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if checks != 1:\n        return None\n    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven, \"hasher\": hasher}",
+      "to": "    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven, \"hasher\": hasher}",
+      "only": "a lock map with no check record is unreadable"
+    },
+    {
+      "label": "lock: empty bodies unproven that the hasher can now see is advice",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if tool_blind and (rel, name) in current[\"bodies\"]:",
+      "to": "        if False and (rel, name) in current[\"bodies\"]:",
+      "only": "lock that hashed no bodies"
+    },
+    {
+      "label": "lock: a later row recovers a lock the first red never carried",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not sha:\n            # R3: the first red predates the lock writer. Take the first later\n            # machine row that carries a trailing lock (any exit). Weaker than\n            # first-red; later reds after that with a different sha still conflict.\n            past = False\n",
+      "to": "        if not sha:\n            return first_date, None\n            past = False\n",
+      "only": "later row can recover"
+    },
+    {
+      "label": "lock: recovered lock from a later row is named as weaker",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    elif recorded.get(\"recovered\"):",
+      "to": "    elif False:",
+      "only": "later row can recover"
+    },
+    {
+      "label": "lint: a record title below frontmatter is read (the frontmatter is stripped)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if head is not None and index <= head:\n            continue\n        if _HEADING_LINE.match(line):",
+      "to": "        if _HEADING_LINE.match(line):",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a record title below a blank line is read (not only line one)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if _HEADING_LINE.match(line):\n            return line\n    return None",
+      "to": "        return line if _HEADING_LINE.match(line) else None\n    return None",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lock: a JS regex literal is masked, so a quote or paren inside it keeps the body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif js and text[i] == \"/\" and starts_regex(\"\".join(view[:i]), i) and js_regex_end(text, i) is not None:",
+      "to": "        elif False:",
+      "only": "^hasher 1 still masks a regex literal holding a quote or a paren$"
+    },
+    {
+      "label": "lock: bdd_callback_body masks JavaScript regex literals",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php, js=js and not php)",
+      "to": "    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php)",
+      "only": "^hasher 1 still masks a regex literal holding a quote or a paren$"
+    },
+    {
+      "label": "lock: a lock taken before regex masking is told apart from a moved hash",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            elif hasher == 1 and _legacy_digest(root, rel, name, before_regex_masking=True) == digest:",
+      "to": "            elif False:",
+      "only": "taken before regex masking is told apart"
+    },
+    {
+      "label": "lock: a division after a postfix increment is not a regex",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if text[j] in \"+-\" and j > 0 and text[j - 1] == text[j]:\n        return False\n",
+      "to": "",
+      "only": "^hasher 1 still reads a division after a postfix increment, a comment or a regex literal$"
+    },
+    {
+      "label": "lint: a fenced code block is not read for the title",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for index, line in unfenced_numbered(lines, document=True):\n        if head is not None and index <= head:",
+      "to": "    for index, line in enumerate(lines):\n        if head is not None and index <= head:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lock: a comment before a division does not make it a regex",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "starts_regex(\"\".join(view[:i]), i)",
+      "to": "starts_regex(text, i)",
+      "only": "^hasher 1 still reads a division after a postfix increment, a comment or a regex literal$"
+    },
+    {
+      "label": "lint: a fence closes only on a bare marker",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif _fence_closes(line, fence):",
+      "to": "        elif _fence_opened(line):",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lock: missing lock names frozen first-red and adr-verify recovery",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            \"UNPROVEN, not a skip of the lock; frozen at the first red — run \"\n            \"adr-verify again so a later row can carry a recovery lock \"\n            \"(weaker than first-red)\"\n",
+      "to": "            \"UNPROVEN, not a skip of the lock\"\n",
+      "only": "post-cutover done without"
+    },
+    {
+      "label": "lock: a green-only log is told a red run is required, not another adr-verify",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not any(m.group(\"exit\") != \"0\" for _line, m in _vlog_machine_rows(vlog, sha_format)):",
+      "to": "        if False:",
+      "only": "green-only log is told"
+    },
+    {
+      "label": "lock: recovery lock attaches on a later row when the log still has none",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if code != 0 or vlog_has_red(text, object_format(root)):",
+      "to": "    if code != 0:",
+      "only": "later green attaches a recovery lock"
+    },
+    {
+      "label": "lock: a command naming test-lock-sha256 is not a trailing lock",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return any(_row_lock_sha(line)\n               for line, _m in _vlog_machine_rows(\n                   sections_of(text).get(\"Verification Log\", []), sha_format))",
+      "to": "    return bool(_LOCK_SHA.search(text))",
+      "only": "later green attaches a recovery lock"
+    },
+    {
+      "label": "lock: a PHP 8/\"1/2\" quote is not a regex literal in the stripper",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not (python or php or shell or rust or swift or go):\n            # Same JS `/…/` keep as `_code_normalize`: a quote inside `/\"/`\n            # must not start string state or `//` inside the next string is\n            # stripped as a comment (Codex high on 6e0fe99).\n            regex_end = _js_regex_span_end(text, i)\n",
+      "to": "        if not (python or shell or rust or swift or go):\n            # Same JS `/…/` keep as `_code_normalize`: a quote inside `/\"/`\n            # must not start string state or `//` inside the next string is\n            # stripped as a comment (Codex high on 6e0fe99).\n            regex_end = _swift_bare_regex_end(text, i)\n",
+      "only": "a PHP 8/\"1/2\" quote does not keep"
+    },
+    {
+      "label": "lock: a relock row is weaker than first-red",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if recorded.get(\"kind\"):",
+      "to": "    if False:",
+      "only": "a relock row is the done map"
+    },
+    {
+      "label": "lock: later-red conflict skips kind rows only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            elif sha and not kind:\n                later_red_locks.append(sha.group(1))\n",
+      "to": "            elif False:\n                later_red_locks.append(sha.group(1))\n",
+      "only": "later red with a different sha and no kind"
+    },
+    {
+      "label": "ADR-063: a date-shaped name is its stem, not a number",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-slug archive passes",
+      "from": "        return stem",
+      "to": "        return None"
+    },
+    {
+      "label": "ADR-063: a date-shaped name is never read as a record number",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-shaped name never yields",
+      "from": "    if DATE_SHAPED_RE.match(shaped):",
+      "to": "    if False and DATE_SHAPED_RE.match(shaped):"
+    },
+    {
+      "label": "ADR-063: a receipt names a dated record by stem",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-slug archive passes",
+      "from": "                found.append((offset, part, filename or pathlike))",
+      "to": "                pass"
+    },
+    {
+      "label": "ADR-063: the identity regexes are ASCII",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "both identity rules read ASCII digits only",
+      "from": "_RECORD_NUMBER = re.compile(r\"^(?:adr[-_]?)?([0-9]{1,4})[-._]\", re.I)",
+      "to": "_RECORD_NUMBER = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)"
+    },
+    {
+      "label": "ADR-063: a dated filename is a name in a supersession",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a dated filename in a supersession",
+      "from": "        if explicit or not _BARE_DATE.fullmatch(name):",
+      "to": "        if not _BARE_DATE.fullmatch(name):"
+    },
+    {
+      "label": "ADR-063: a title's whitespace is read alike in both copies",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "whatever its whitespace",
+      "from": "_TITLE_ADR = re.compile(r\"^﻿?#\\s*ADR[-_ ]?(?P<rest>[0-9].*)$\", re.I)",
+      "to": "_TITLE_ADR = re.compile(r\"^﻿?#\\s*ADR[-_ ]?(?P<rest>[0-9].*)$\", re.I | re.ASCII)"
+    },
+    {
+      "label": "ADR-063: a heading token reads ASCII digits only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a Unicode-digit title",
+      "from": "_FIRST_NUMBER = re.compile(r\"(?<!\\w)ADR-?([0-9]+)(?!\\w)\", re.I)",
+      "to": "_FIRST_NUMBER = re.compile(r\"(?<!\\w)ADR-?(\\d+)(?!\\w)\", re.I)"
+    },
+    {
+      "label": "ADR-063: the exclusion guards read any decimal digit",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the exclusion guards read any decimal digit",
+      "from": "TASK_SHAPED_RE = re.compile(rf\"^(?:adr[-_]?)?[{DECIMAL_DIGIT}]{{1,4}}[-._]T[{DECIMAL_DIGIT}]+(?:[-._]|\\Z)\", re.I)",
+      "to": "TASK_SHAPED_RE = re.compile(rf\"^(?:adr[-_]?)?[0-9]{{1,4}}[-._]T[0-9]+(?:[-._]|\\Z)\", re.I)"
+    },
+    {
+      "label": "ADR-063: a heading token never reads a date as a number",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a dated title never gives its record a number",
+      "from": "        if not (skip_dates and DATE_SHAPED_RE.match(text[found.start(1):])):",
+      "to": "        if True:"
+    },
+    {
+      "label": "ADR-063: only a heading skips a dated token",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "keeps a token that looks like a date",
+      "from": "def first_number_id(text, skip_dates=False):",
+      "to": "def first_number_id(text, skip_dates=True):"
+    },
+    {
+      "label": "record.unfenced_lines: a fence closes, so the rows after it are read again",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif _fence_closes(line, fence):\n            fence = None\n    return out",
+      "to": "        elif False:\n            fence = None\n    return out",
+      "only": "^(?:quoted output inside the excerpt fence is not a Verification Log entry)$"
+    },
+    {
+      "label": "§295.23.1: the position inside */ is code, as the prefix scan said",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "_js_like_in_code answers from one scan per text",
+      "from": "                out[index + 1] = 1\n",
+      "to": ""
+    },
+    {
+      "label": "§295.23.1: one scan answers every position of a text",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "_js_like_in_code answers from one scan per text",
+      "from": "@lru_cache(maxsize=32)\ndef _js_like_code_positions(text):",
+      "to": "@lru_cache(maxsize=0)\ndef _js_like_code_positions(text):"
+    },
+    {
+      "label": "§295.7: conflict markers are found",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs",
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            return [n for n, _kind, _fenced in found]\n    return []",
+      "to": "            return []\n    return []",
+      "only": "^(?:a task holding unresolved merge-conflict markers is stopped, not done|a dependency on a conflicted task in another record cannot be evaluated|unresolved merge-conflict markers are refused by adr-verify, blocked in a task and advised in an ADR)$"
+    },
+    {
+      "label": "§295.7: a lone ======= is a setext underline, not a conflict",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if kind != \"<\":\n            continue",
+      "to": "        if kind not in \"<=>\":\n            continue",
+      "only": "^(?:a task holding unresolved merge-conflict markers is stopped, not done)$"
+    },
+    {
+      "label": "§295.7: markers inside a code fence are an example",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if closing is not None and not (fenced and closing[2]):",
+      "to": "        if closing is not None:",
+      "only": "^(?:a task holding unresolved merge-conflict markers is stopped, not done)$"
+    },
+    {
+      "label": "2.111.0-rc2 (Codex): a NUL-bearing owner record is unreadable",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "depends on itself",
+      "from": "    if \"\\x00\" in text:\n        raise NotText(",
+      "to": "    if False:\n        raise NotText("
+    },
+    {
+      "label": "§295.7 (Codex): a fence opened inside a hunk hides no marker",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs",
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "merge-conflict",
+      "from": "        if closing is not None and not (fenced and closing[2]):",
+      "to": "        if closing is not None and not fenced and not closing[2]:"
+    },
+    {
+      "label": "test-lock: a Rust lifetime is code, not a char literal's opening quote (§271)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif rust_raw and text[i] == \"'\" and not _RUST_CHAR_LITERAL.match(text, i):",
+      "to": "        elif False:",
+      "only": "^(?:a Rust lifetime does not swallow every test after it|a Rust loop label does not cut the body before its assertion)$"
+    },
+    {
+      "label": "test-lock: a Rust label's quote is blanked, so the brace matcher does not pair it and cut the body (§271 round 2)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            out[i] = \" \"  # a lifetime's or label's quote is blanked for the brace matcher",
+      "to": "            pass",
+      "only": "^(?:a Rust loop label does not cut the body before its assertion)$"
+    },
+    {
+      "label": "test-lock: a Rust '\\xNN' escape is a char literal, not a lifetime (§271 round 2)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^xu\\n]))'\")",
+      "to": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^u\\n]))'\")",
+      "only": "^(?:a Rust hex or unicode char escape beside a quote char literal does not swallow the next test)$"
+    },
+    {
+      "label": "test-lock: a Rust unicode escape is hex digits each followed by underscores, not six of either (§271 round 3)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{(?:[0-9a-fA-F]_*){1,6}\\}|[^xu\\n]))'\")",
+      "to": "_RUST_CHAR_LITERAL = re.compile(r\"'(?:[^'\\\\\\n]|\\\\(?:x[0-9a-fA-F]{2}|u\\{[0-9a-fA-F_]{1,6}\\}|[^xu\\n]))'\")",
+      "only": "^(?:a Rust hex or unicode char escape beside a quote char literal does not swallow the next test)$"
+    },
+    {
+      "label": "lock: a masked regex literal is a value, so a `/` after it divides",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            view[end - 1] = \"0\"  # the literal is a value, so a `/` after it divides\n",
+      "to": "",
+      "only": "^hasher 1 still reads a division after a postfix increment, a comment or a regex literal$"
+    },
+    {
+      "label": "lock: one text is masked once, however many tests are hashed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "@lru_cache(maxsize=32)\ndef _mask_lock_noncode(",
+      "to": "def _mask_lock_noncode(",
+      "only": "masked once"
+    },
+    {
+      "label": "lock: a moved hash names the reviewed relock remedy",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                              \"once the change to the test is reviewed, \"",
+      "to": "                              \"\"",
+      "only": "a lock taken before regex masking"
+    },
+    {
+      "label": "lock: an object argument at depth 0 is skipped, not hashed as the body (§305)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "only": "options object before the callback",
+      "from": "            if options and back >= 0 and masked[back] in \",:\":",
+      "to": "            if False:"
+    },
+    {
+      "label": "lock: a lock taken over the options object is UNPROVEN, not a clean pass (§305)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "only": "options object before the callback",
+      "from": "            if hasher == 1 and _legacy_digest(root, rel, name, options_as_body=True) == digest:",
+      "to": "            if False:"
+    },
+    {
+      "label": "can-fail: a TypeScript return type is not the callback body (§305)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "only": "options object before the callback is not the body the can-fail",
+      "from": "            if options and back >= 0 and masked[back] in \",:\":",
+      "to": "            if options and back >= 0 and masked[back] in \",\":"
+    },
+    {
+      "label": "can-fail: any JS whitespace before an options object is whitespace (§305)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "only": "options object before the callback is not the body the can-fail",
+      "from": "            while back >= 0 and masked[back].isspace():",
+      "to": "            while back >= 0 and masked[back] in \" \\t\\r\\n\":"
+    },
+    {
+      "label": "chaos 916b515: the pre-cutover advice is about the entry",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            return [], [missing + f\" (advisory: {when})\"]",
+      "to": "            return [], [missing + f\" (advisory until {TEST_HASH_REQUIRED_FROM})\"]",
+      "only": "about the entry, not about today"
+    },
+    {
+      "label": "win: no_window names CREATE_NO_WINDOW on Windows",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/untimed-children.test.mjs"
+      ],
+      "from": "    return {\"creationflags\": 0x08000000} if platform == \"nt\" else {}",
+      "to": "    return {}",
+      "only": "no_window names"
+    },
+    {
+      "label": "code-review of ADR-074: the Python Status reader reads inside a code fence (C4 next-line reading is now impossible by construction)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
+      "from": "    for index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)], document=True):",
+      "to": "    for index, line in enumerate([line for line, _start, _end in split_lines(text)]):",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "BACKLOG §320.2: a tab inside a quoted line is escaped too",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "def visible(text, keep=\"\\t\"):",
+      "to": "def visible(text, keep=\"\"):",
+      "only": "control bytes are written into the task as visible escapes"
+    },
+    {
+      "label": "§307 F-1: a recognised Status with a qualifier is called unrecognised",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "    run = _STATUS_RUN.match((value or \"\").strip(_EDGE_SPACE))",
+      "to": "    run = _STATUS_RUN.fullmatch((value or \"\").strip(_EDGE_SPACE))",
+      "only": "Status is not one the readers recognise"
+    },
+    {
+      "label": "ADR-074 T1: markup is kept in a record's Status value",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
+      "from": "            yield \"label\", _STATUS_MARKUP.sub(\"\", value).strip(_EDGE_SPACE)",
+      "to": "            yield \"label\", value.strip(_EDGE_SPACE)",
+      "only": "^every reader gives one Status the same reading$"
+    },
+    {
+      "label": "ADR-074 T1: the label forms are narrowed to **Status:**",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^\\*\\*Status:\\*\\*[ \\t]*([^\\r\\n]*)$\")",
+      "only": "^every reader gives one Status the same reading$"
+    },
+    {
+      "label": "ADR-074 T2: the Status section is ignored",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
+      "from": "    section = status_section(text)",
+      "to": "    section = None",
+      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
+      "label": "ADR-074 T2: the section wins over an inline line",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
+      "from": "        found = _STATUS_LINE.match(line)",
+      "to": "        found = None if status_section(text) is not None else _STATUS_LINE.match(line)",
+      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
+      "label": "ADR-074 T3: the old adr<digit> name arm is back",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-by-name.test.mjs"
+      ],
+      "from": "_SPEC_NAME = re.compile(rf\"spec[-_]?[{DECIMAL_DIGIT}]\", re.I)",
+      "to": "_SPEC_NAME = re.compile(rf\"(?:adr|spec)[-_]?[{DECIMAL_DIGIT}]\", re.I)",
+      "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
+    },
+    {
+      "label": "ADR-074 T3: the content arm is dropped",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-by-name.test.mjs"
+      ],
+      "from": "    recognised = heading and (kept or (bold and status_kind(status_value) is not None))",
+      "to": "    recognised = False",
+      "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
+    },
+    {
+      "label": "ADR-074 T3: a Status alone admits a file",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-by-name.test.mjs"
+      ],
+      "from": "    recognised = heading and (kept or (bold and status_kind(status_value) is not None))",
+      "to": "    recognised = True",
+      "only": "^a file named adr<digit> without record content is not a record, and a canonical ADR-<n> name still is$"
+    },
+    {
+      "label": "ADR-074 T3 (owner, after): content admits a record in any directory",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-by-name.test.mjs"
+      ],
+      "from": "    kept = _kept_where_records_are(list(placed.parent.parts), placed.name)",
+      "to": "    kept = True",
+      "only": "^a Status section makes a record only in a directory records are kept in$"
+    },
+    {
+      "label": "ADR-074 T3 (owner, after): a note under tasks/ reads as a record",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-by-name.test.mjs",
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if \"tasks\" in (part.lower() for part in directories):\n        return False",
+      "to": "    if False:\n        return False",
+      "only": "^(?:a Status section makes a record only in a directory records are kept in|every row of the recognition table reads its approved answer in record.py and adr-lint)$"
+    },
+    {
+      "label": "ADR-074 T4: a human-observed sign-off does not clear the advice",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
+      "from": "    if any(\"· human-observed ·\" in line for line in sections.get(\"Verification Log\", [])):",
+      "to": "    if False:",
+      "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
+    },
+    {
+      "label": "559827d chaos: record.py's content test ignores a Status section",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
+      "from": "    status_value = record_status(text)[0]\n    kept = _kept_where_records_are(",
+      "to": "    status_value = record_status(text)[0] if record_status(text)[1] == \"inline\" else None\n    kept = _kept_where_records_are(",
+      "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
+    },
+    {
+      "label": "559827d chaos: a numbered step without an id is not read",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
+      "from": "        elif step and step.group(\"ordinal\"):",
+      "to": "        elif False:",
+      "only": "^the human-proof advice names the task file, reads a step without an id, and agrees in number$"
+    },
+    {
+      "label": "code-review of ADR-074: a Status label needs no colon",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss]:?\\*{0,2}[ \\t]*:?[ \\t]*([^\\r\\n]*)$\")",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "code-review of ADR-074: the Status label is folded by re.I",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}Status(?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\", re.I)",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "code-review of ADR-074: Python's strip decides a value's edges",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
+      "from": "    run = _STATUS_RUN.match((value or \"\").strip(_EDGE_SPACE))",
+      "to": "    run = _STATUS_RUN.match((value or \"\").strip())",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "code-review of ADR-074: an indented sub-item is a step",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
+      "from": "_STEP_ID = re.compile(r\"^(?:(?P<ordinal>\\d+)[.)]|[-*])[ \\t]+(?:\\[S(?P<number>[1-9]\\d*)\\])?\")",
+      "to": "_STEP_ID = re.compile(r\"^\\s*(?:(?P<ordinal>\\d+)[.)]|[-*])[ \\t]+(?:\\[S(?P<number>[1-9]\\d*)\\])?\")",
+      "only": "^a sub-item is not a step, a `1\\)` list is, and a human-observed task is told once$"
+    },
+    {
+      "label": "the React SPA corpus at 084d925: a no-break space is not edge whitespace in Python",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
+      "from": "_EDGE_SPACE = \"\".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, *range(0x2000, 0x200B),",
+      "to": "_EDGE_SPACE = \"\".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x1680, *range(0x2000, 0x200B),",
+      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
+    },
+    {
+      "label": "§321 fifo: record.py's lock snapshot reads only a regular Tests-row file",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "        if not path.is_file():\n            return None\n        return path.read_text(encoding=\"utf-8\")",
+      "to": "        return path.read_text(encoding=\"utf-8\")",
+      "only": "lock snapshot answers UNPROVEN for a Tests-row FIFO"
+    },
+    {
+      "label": "Codex 3.1.6 #2: a bare Status label is the first label (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$\")",
+      "to": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$\")",
+      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
+    },
+    {
+      "label": "Codex 3.1.6 #5: a record directory folds ASCII letters only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "|^archives?[-_](?:adrs?|decisions?|records?)\\Z\", re.I | re.A)",
+      "to": "|^archives?[-_](?:adrs?|decisions?|records?)\\Z\", re.I)",
+      "only": "^the Codex round of 3.1.6: a directory is a record directory by ASCII letters only"
+    },
+    {
+      "label": "Codex 3.1.6 #5: the record content test folds ASCII letters only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "_RECORD_SECTION = re.compile(r\"^##[^\\S\\r\\n]+(?:[Cc][Oo][Nn][Tt][Ee][Xx][Tt]|[Dd][Ee][Cc][Ii][Ss][Ii][Oo][Nn])(?![A-Za-z0-9_])\", re.M)",
+      "to": "_RECORD_SECTION = re.compile(r\"^##[^\\S\\r\\n]+(?:Context|Decision)\\b\", re.M | re.I)",
+      "only": "^the Codex round of 3.1.6: a directory is a record directory by ASCII letters only"
+    },
+    {
+      "label": "ADR-078 T1: a head inside a string, comment, regex or template text is a test",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if in_code is not None and not in_code(head.start()):",
+      "to": "        if False:",
+      "only": "^hasher 2 counts a test only where its call is code$"
+    },
+    {
+      "label": "ADR-078 T1: a regex after a break/continue label is a division",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if label:\n            return True\n        if word in _H2_CONTEXTUAL:",
+      "to": "        if word in _H2_CONTEXTUAL:",
+      "only": "^hasher 2 reads a regex literal as a regex and a division as a division$"
+    },
+    {
+      "label": "ADR-078 T1: the brace closing an interpolation is a code brace",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if c == \"`\" or (c == \"}\" and ctx and ctx[-1][0] == \"tpl\" and ctx[-1][1] == 0):",
+      "to": "        if c == \"`\":",
+      "only": "^hasher 2 reads a template.s interpolation as code$"
+    },
+    {
+      "label": "ADR-078 T1: hasher 2 reaches PHP Pest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "in_code=_h2_in_code(text, ts, jsx) if hasher >= 2 and not php else None",
+      "to": "in_code=_h2_in_code(text, ts, jsx) if hasher >= 2 else None",
+      "only": "^hasher 2 reads a non-JavaScript test file exactly as hasher 1 does$"
+    },
+    {
+      "label": "ADR-078 T2: a new lock is taken by hasher 1",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "def snapshot_lock(root, tests_rows, hasher=None):",
+      "to": "def snapshot_lock(root, tests_rows, hasher=1):",
+      "only": "^a lock taken before the lexer is read as it was taken$"
+    },
+    {
+      "label": "ADR-078 T2: a lock is compared under hasher 2 whatever took it",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    current = snapshot_lock(root, tests, hasher=hasher)",
+      "to": "    current = snapshot_lock(root, tests)",
+      "only": "^a lock taken before the lexer is read as it was taken$"
+    },
+    {
+      "label": "ADR-078 T2: an unknown hasher is compared",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if hasher not in LOCK_HASHERS:",
+      "to": "    if False:",
+      "only": "^a lock naming a hasher this reader does not know is unproven$"
+    },
+    {
+      "label": "ADR-078 T2: a differing hasher-1 lock is not advised",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if newer[\"hasher\"] > hasher and (newer[\"bodies\"], newer[\"unproven\"]) != (current[\"bodies\"], current[\"unproven\"]):",
+      "to": "        if False:",
+      "only": "^a hasher-1 lock that hasher 2 reads differently is advised, naming the relock$"
+    },
+    {
+      "label": "ADR-078 T2: a hasher-2 lock is readable to 3.3.0",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    key = \"check\" if hasher == 1 else f\"check@{hasher}\"",
+      "to": "    key = \"check\"",
+      "only": "^a lock taken by hasher 2 cannot be read by the 3.3.0 reader$"
+    },
+    {
+      "label": "ADR-078 T2: a TypeScript file is read as JavaScript",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                hasher if suffix in _H2_JS_SUFFIXES else 1, suffix in _H2_TS_SUFFIXES,",
+      "to": "                hasher if suffix in _H2_JS_SUFFIXES else 1, False,",
+      "only": "^a slash hasher 2 cannot place leaves the tests it reaches unproven$"
+    },
+    {
+      "label": "Codex 01443dd: a literal is masked as white space before an arrow's expression body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        ch if kinds[j] == 0 or ch == \"\\n\" else \"\\0\" if kinds[j] == 1 else \" \"",
+      "to": "        ch if kinds[j] == 0 or ch == \"\\n\" else \" \"",
+      "only": "^a literal opening an arrow expression body is inside its lock$"
+    },
+    {
+      "label": "Codex 01443dd: a property name is told only across white space, not a comment",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                dot = prev == (\"op\", \".\")",
+      "to": "                dot = text[i - 1:i] == \".\"",
+      "only": "^a division is never read as a regex that swallows a block$"
+    },
+    {
+      "label": "Codex 01443dd: TypeScript's non-null assertion is an operator",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif c == \"!\" and ts and _h2_is_value(prev) and not text.startswith(\"!=\", i):",
+      "to": "        elif False:",
+      "only": "^a division is never read as a regex that swallows a block$"
+    },
+    {
+      "label": "Codex 01443dd: a slash after of, yield or await is guessed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if word in _H2_CONTEXTUAL:\n            return None\n",
+      "to": "",
+      "only": "^a slash after of, yield or await is never guessed$"
+    },
+    {
+      "label": "Codex 01443dd: a slash after a reserved word divides",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        return word in _H2_RESERVED and word not in _H2_VALUE_WORDS",
+      "to": "        return False",
+      "only": "^a regex after debugger or a for-await header is data, never a test$"
+    },
+    {
+      "label": "Codex 01443dd: a for-await header is not a for header",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if header == \"await\" and prev[4] == \"for\":",
+      "to": "            if False:",
+      "only": "^a regex after debugger or a for-await header is data, never a test$"
+    },
+    {
+      "label": "Codex 01443dd: Unicode white space is an identifier",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if _h2_space(c):",
+      "to": "        if c in \" \\t\\r\\n\":",
+      "only": "^a Unicode line terminator or space is read as JavaScript reads it$"
+    },
+    {
+      "label": "Codex 01443dd: a line comment ends only at a line feed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            end = _h2_line_end(text, i)\n            mark(i, end, 2)",
+      "to": "            end = text.find(\"\\n\", i)\n            end = len(text) if end < 0 else end\n            mark(i, end, 2)",
+      "only": "^a Unicode line terminator or space is read as JavaScript reads it$"
+    },
+    {
+      "label": "Codex 01443dd: a file ending inside an interpolation is read whole",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if stop is None and ctx:",
+      "to": "    if False:",
+      "only": "^an interpolation still open at the end of the file leaves its tests unproven$"
+    },
+    {
+      "label": "Codex 01443dd: an unreadable recorded lock is hasher 1 to a relock",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if recorded is not None and recorded.get(\"map\") is None:\n        return None\n",
+      "to": "",
+      "only": "^a versioned lock that cannot be read, or reads two ways, is never read as hasher 1$"
+    },
+    {
+      "label": "3.4.1: the hasher-2 advice reading ignores advise=False",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if advise and any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):",
+      "to": "    if any(Path(rel).suffix.lower() in _H2_JS_SUFFIXES for _n, rel in tests):",
+      "only": "^a caller that discards advice does not pay for the hasher-2 reading$"
+    },
+    {
+      "label": "3.4.1: lock_blocks_done asks for advice it discards",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        log, root=root, tests=tests_table_rows(text), label=\"\", advise=False)",
+      "to": "        log, root=root, tests=tests_table_rows(text), label=\"\")",
+      "only": "^a caller that discards advice does not pay for the hasher-2 reading$"
+    },
+    {
+      "label": "3.4.1: a file's digests are read again for every task",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "@lru_cache(maxsize=32)\ndef _file_lock_digests(",
+      "to": "def _file_lock_digests(",
+      "only": "^a test file named by several tasks is read once, on its text$"
+    },
+    {
+      "label": "§350 C1: an undecodable test file crashes the lock",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    except (OSError, UnicodeDecodeError):",
+      "to": "    except OSError:",
+      "only": "^a lock over a test file it cannot decode says unproven, and does not crash$"
+    },
+    {
+      "label": "§350 C1 at 3.8.5: a locked file that is there and unreadable reads as vanished",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "        if now is None and rel in current.get(\"unreadable\", ()):",
+      "to": "        if False:",
+      "only": "^a locked test file that is there and cannot be read is UNPROVEN, not vanished$"
+    },
+    {
+      "label": "§350 C1 at 3.8.5: the snapshot does not record a file that is there and unreadable",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "        if source is None and path is not None and _present(path):",
+      "to": "        if False:",
+      "only": "^a locked test file that is there and cannot be read is UNPROVEN, not vanished$"
+    },
+    {
+      "label": "§350 C7 Python: the walk enters a directory it is told is a link",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/walk-links.test.mjs"
+      ],
+      "from": "            if stat.S_ISDIR(mode) and not is_link(entry):",
+      "to": "            if stat.S_ISDIR(mode):",
+      "only": "^record\\.walk yields what rglob yields, and never enters a directory it is told is a link$"
+    },
+    {
+      "label": "§350 C1 review: a lookup that failed reads as a file that is gone",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "    except OSError:\n        return True\n    return stat.S_ISREG(mode)",
+      "to": "    except OSError:\n        return False\n    return stat.S_ISREG(mode)",
+      "only": "^a file behind a directory this process may not search is not gone$"
+    },
+    {
+      "label": "§350 C3: a sharing violation reads as Permission denied",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/one-unreadable-task.test.mjs"
+      ],
+      "from": "    if getattr(exc, \"winerror\", None) == 32:",
+      "to": "    if False:",
+      "only": "^a sharing violation is named as one, and no reason carries the path it failed on$"
+    },
+    {
+      "label": "§350 C2: the project root is asked of the link's target",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "            if (candidate / \".git\").exists():",
+      "to": "            if False:",
+      "only": "^a done task reached through a link that leaves the tree is done, its project check read$"
+    },
+    {
+      "label": "§350 C8: another spelling of a locked file is vanished",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "            # link, a case variant — is not a vanished test: compare its digest (BACKLOG §350 C8).\n            now = next((d for (r, n), d in current[\"bodies\"].items()\n                        if n == name and r != rel and _same_file(root, r, rel)), None)",
+      "to": "            # link, a case variant — is not a vanished test: compare its digest (BACKLOG §350 C8).\n            now = next((d for (r, n), d in current[\"bodies\"].items()\n                        if n == name and r != rel and False), None)",
+      "only": "^(?:a locked test reached through another spelling of the same file is not vanished)$"
+    },
+    {
+      "label": "§350 review: --relock calls an aliased body moved",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/lock-unreadable.test.mjs"
+      ],
+      "from": "            # a link while `--relock` called the same body moved (a stand-in review of f8d1eaf).\n            now = next((d for (r, n), d in current[\"bodies\"].items()\n                        if n == name and r != rel and _same_file(root, r, rel)), None)",
+      "to": "            # a link while `--relock` called the same body moved (a stand-in review of f8d1eaf).\n            now = next((d for (r, n), d in current[\"bodies\"].items()\n                        if n == name and r != rel and False), None)",
+      "only": "^(?:a locked test reached through another spelling of the same file is not vanished)$"
+    },
+    {
+      "label": "ADR-087 T1: record.py reads a quoted frontmatter Status with its quotes",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "                value = _frontmatter_value(value)",
+      "to": "                value = value",
+      "only": "^(?:a frontmatter status is read as its corpora write it)$"
+    },
+    {
+      "label": "ADR-087 T1: record.py does not act on active",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    \"accepted\": \"governing\", \"active\": \"governing\",",
+      "to": "    \"accepted\": \"governing\",",
+      "only": "^(?:a frontmatter status is read as its corpora write it)$"
+    },
+    {
+      "label": "ADR-087 T2: record.py drops the MADR 2 bullet label",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    if bullet:",
+      "to": "    if False:",
+      "only": "^(?:a MADR 2 bullet status is read above the first section)$"
+    },
+    {
+      "label": "ADR-087 T2: record.py reads a Status bullet below the first section",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "        if above and _HEADING.match(line):",
+      "to": "        if False:",
+      "only": "^(?:a status bullet inside a section is not the record status)$"
+    },
+    {
+      "label": "3.8.10: a row dated on a day that does not exist is evidence",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/impossible-row-date.test.mjs"
+      ],
+      "from": "        return f\"is dated {found.group(0)[2:12]}, a day that does not exist\"",
+      "to": "        return None",
+      "only": "^(?:a Verification Log row dated on a day that does not exist, or in the future, is not evidence)$"
+    },
+    {
+      "label": "3.8.10: a row dated in the future is evidence",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/impossible-row-date.test.mjs"
+      ],
+      "from": "    if day > (today or datetime.date.today()) + datetime.timedelta(days=1):",
+      "to": "    if False:",
+      "only": "^(?:a Verification Log row dated on a day that does not exist, or in the future, is not evidence)$"
+    },
+    {
+      "label": "ADR-088 T1: a sha wider than 40 characters does not fit a SHA-1 repository",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    return len(sha.rstrip(\"*\")) <= 40",
+      "to": "    return True",
+      "only": "^(?:a sha wider than the object format is not evidence)$"
+    },
+    {
+      "label": "ADR-088 review 2: the test lock reads only rows whose sha fits",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "        if m and sha_fits(row_sha(line), sha_format):",
+      "to": "        if m:",
+      "only": "^(?:a lock snapshot whose sha does not fit does not release a moved lock)$"
+    },
+    {
+      "label": "ADR-088 review 3: the writer's lock reader takes the repository's sha width",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    if vlog_has_test_lock(text, object_format(root)):",
+      "to": "    if vlog_has_test_lock(text):",
+      "only": "^(?:a lock snapshot whose sha does not fit does not stand in for the recovery lock)$"
+    },
+    {
+      "label": "ADR-088 follow-up: lock_hasher takes the repository's sha width",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    _date, recorded = _recorded_lock(vlog, object_format(root))\n    if recorded is not None",
+      "to": "    _date, recorded = _recorded_lock(vlog)\n    if recorded is not None",
+      "only": "^(?:relock reads the hasher from the rows whose sha fits)$"
+    },
+    {
+      "label": "ADR-088 follow-up: moved_lock_bodies takes the repository's sha width",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/vlog-sha-width.test.mjs"
+      ],
+      "from": "    _date, recorded = _recorded_lock(vlog, object_format(root))\n    if not recorded or",
+      "to": "    _date, recorded = _recorded_lock(vlog)\n    if not recorded or",
+      "only": "^(?:relock compares bodies with the lock whose sha fits)$"
+    },
+    {
+      "label": "ADR-087 review F1: an indented frontmatter line is read as the Status (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "        if in_block and line[:1] in (\" \", \"\\t\"):",
+      "to": "        if False:",
+      "only": "a status inside a frontmatter literal block is not the record status"
+    },
+    {
+      "label": "ADR-087 review F2: a bullet in an indented code block is a Status (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "_STATUS_BULLET = re.compile(r\"^ {0,3}[*-]",
+      "to": "_STATUS_BULLET = re.compile(r\"^[ \\t]*[*-]",
+      "only": "a status bullet in an indented code block is not the record status"
+    },
+    {
+      "label": "owner 2026-10-07: a Status line in an indented code block is the Status (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "_STATUS_LINE = re.compile(r\"^ {0,3}\\*{0,2}",
+      "to": "_STATUS_LINE = re.compile(r\"^[ \\t]*\\*{0,2}",
+      "only": "a Status line in an indented code block is not the record status"
+    },
+    {
+      "label": "ADR-092 T5: the section code-block rule (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "                  if line.strip(_EDGE_SPACE) and indent_columns(line) < 4), \"\")",
+      "to": "                  if line.strip(_EDGE_SPACE)), \"\")",
+      "only": "^no indented code-block line is a Status, section form included$"
+    },
+    {
+      "label": "ADR-092 T5: the section fence rule (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "    first = next((line.strip(_EDGE_SPACE) for _index, line in unfenced_numbered(lines)",
+      "to": "    first = next((line.strip(_EDGE_SPACE) for _index, line in enumerate(lines)",
+      "only": "^a fenced line in a Status section is no Status, indented fence or not$"
+    },
+    {
+      "label": "ADR-092 T5: the frontmatter-first fence walk (record.py unfenced_numbered)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "    head = _frontmatter_close(lines) if document else None",
+      "to": "    head = None",
+      "only": "^a fence opened inside the frontmatter hides nothing below it$"
+    },
+    {
+      "label": "ADR-092 T5: the frontmatter-first fence walk (record.py _scan)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "            opened = None if head is not None and lineno <= head + 1 else _fence_opened(line)",
+      "to": "            opened = _fence_opened(line)",
+      "only": "^a fence opened inside the frontmatter hides nothing below it$"
+    },
+    {
+      "label": "ADR-092 T5: the document-only frontmatter",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "    return [line for _index, line in unfenced_numbered(lines)]",
+      "to": "    return [line for _index, line in unfenced_numbered(lines, document=True)]",
+      "only": "^a section that opens with a rule is not read as frontmatter$"
+    },
+    {
+      "label": "ADR-092 T5: the column indentation rule (record.py)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/status-code-blocks.test.mjs"
+      ],
+      "from": "            column += 4 - column % 4",
+      "to": "            column += 2",
+      "only": "^indentation is measured in columns at four-column tab stops$"
+    },
+    {
+      "label": "ADR-092 T1: the canonical-name arm",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if _NUMBERED_REF.match(path.name):\n        return True, status_value, kept, \"canonical\"",
+      "to": "    if None:\n        return True, status_value, kept, \"canonical\"",
+      "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the content arm",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    recognised = heading and (kept or (bold and status_kind(status_value) is not None))",
+      "to": "    recognised = heading and (bold and status_kind(status_value) is not None)",
+      "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the placement fallback",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    listed = _listed_relative(path, root)\n    return listed if listed is not None else path",
+      "to": "    return path",
+      "only": "^the link rows read their approved answers in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the templates exclusion",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts, *spelled)):",
+      "to": "    if False:",
+      "only": "^a templates directory admits no record by either arm and the same file outside it is judged as any other$"
+    },
+    {
+      "label": "ADR-092 T1: the templates exclusion asks the listed path too",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in (*listed.parent.parts, *placed.parent.parts, *spelled)):",
+      "to": "    if any(_TEMPLATES_DIRECTORY.fullmatch(part) for part in placed.parent.parts):",
+      "only": "^the link rows read their approved answers in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the eligibility rule",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "                   or UNINTERESTING_DIRECTORY.fullmatch(part) for part in parts[:-1])",
+      "to": "                   for part in parts[:-1])",
+      "only": "^(?:corpus eligibility is one rule in record.py)$"
+    },
+    {
+      "label": "ADR-092 T1: the one-line heading",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        heading = heading or bool(_RECORD_SECTION.match(line))",
+      "to": "        heading = heading or bool(re.search(r\"^##\\s+(?:Context|Decision)\", text, re.M))",
+      "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T1: the unfenced discriminators",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    for _index, line in unfenced_numbered([line for line, _start, _end in split_lines(text)], document=True):\n        bold = bold or bool(_BOLD_STATUS.match(line))",
+      "to": "    for _index, line in enumerate([line for line, _start, _end in split_lines(text)]):\n        bold = bold or bool(_BOLD_STATUS.match(line))",
+      "only": "^a fenced example is not a discriminator$"
+    },
+    {
+      "label": "ADR-092 T1: a note inside a record's own directory is not kept where records are",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    return found is not None and found != own",
+      "to": "    return False",
+      "only": "^every row of the recognition table reads its approved answer in record.py and adr-lint$"
+    },
+    {
+      "label": "ADR-092 T2: the regular-file guard",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if problem:\n        raise NotARegularFile(None, problem, str(path))",
+      "to": "    if False:\n        raise NotARegularFile(None, problem, str(path))",
+      "only": "^adr-next does not take an unrecognised file for a decided owner$"
+    },
+    {
+      "label": "ADR-092 T2: the not-text guard",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    if \"\\x00\" in text:\n        raise NotText(",
+      "to": "    if None:\n        raise NotText(",
+      "only": "^no Python reader reads a record holding a NUL byte as text$"
+    },
+    {
+      "label": "ADR-092 T2: the unlisted-directory report",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "            if unlisted is not None:\n                unlisted.append(directory)",
+      "to": "            if False:\n                unlisted.append(directory)",
+      "only": "^every adr-retire-check walk names a directory it could not list$"
+    },
+    {
+      "label": "ADR-092 T2: a record in its own folder is kept where records are",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    return found is not None and found != own",
+      "to": "    return found is not None",
+      "only": "^adr-retire-check counts the identified records and advises on every other recognised one$"
+    },
+    {
+      "label": "ADR-092 review: the Python digit table drops a range",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "(0x1D7CE, 0x1D7FF), ",
+      "to": "",
+      "only": "^the name arms read one frozen table of decimal digits in both languages$"
+    },
+    {
+      "label": "ADR-092 review: the Python spec arm reads ASCII digits only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "_SPEC_NAME = re.compile(rf\"spec[-_]?[{DECIMAL_DIGIT}]\", re.I)",
+      "to": "_SPEC_NAME = re.compile(r\"spec[-_]?[0-9]\", re.I)",
+      "only": "^the name arms read one frozen table of decimal digits in both languages$"
+    },
+    {
+      "label": "ADR-092 review: a record directory's name may end in a line feed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "(?:[-_]archived?s?)?\\Z|",
+      "to": "(?:[-_]archived?s?)?$|",
+      "only": "^a path component holding a line feed or a backslash reads alike in both languages$"
+    },
+    {
+      "label": "ADR-092 review: the Python templates check ignores the spelled path",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-definition-parity.test.mjs"
+      ],
+      "from": "*placed.parent.parts, *spelled)):",
+      "to": "*placed.parent.parts)):",
+      "only": "^a templates directory reached through a directory link admits no record in either language$"
+    },
+    {
+      "label": "ADR-092 review: a walk skips an entry it could not inspect",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "                if unlisted is not None:\n                    unlisted.append(entry)\n                continue",
+      "to": "                continue",
+      "only": "^a walk names a child (?:directory it could not inspect|of a directory it may list but not search)$"
+    },
+    {
+      "label": "ADR-092 outside probe: a content record outside a record directory needs no recognised Status (Python)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    recognised = heading and (kept or (bold and status_kind(status_value) is not None))",
+      "to": "    recognised = heading and (kept or bold)",
+      "only": "^every row of the recognition table reads its approved answer in record\\.py and adr-lint$"
+    }
+  ]
+}

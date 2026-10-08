@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "role: a spawned role that declares no capability is reported",
+      "file": "plugin/workflows/review-ring.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet', agentType: 'quality-harness:qh-narrow-fixer' })",
+      "to": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, agentType: 'quality-harness:qh-narrow-fixer' })",
+      "only": "^(?:every spawned role declares the capability it needs)$"
+    },
+    {
+      "label": "role: a pinned model id is refused where an alias is required",
+      "file": "plugin/workflows/review-ring.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet', agentType: 'quality-harness:qh-narrow-fixer' })",
+      "to": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'claude-sonnet-5', agentType: 'quality-harness:qh-narrow-fixer' })",
+      "only": "^(?:every spawned role declares the capability it needs|a role names a capability class, never a pinned model id)$"
+    },
+    {
+      "label": "routing stress: review-ring fixer runs as qh-narrow-fixer",
+      "file": "plugin/workflows/review-ring.js",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "agentType: 'quality-harness:qh-narrow-fixer'",
+      "to": "agentType: 'quality-harness:qh-correctness-reviewer'",
+      "only": "^(?:removing every route to one shipped element reports exactly that element|every role quality-cycle and review-ring spawn carries the agentType the Decision names, on every path)$"
+    }
+  ]
+}

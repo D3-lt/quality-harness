@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "§332: a rename Windows reports busy is not retried",
+      "file": "plugin/scripts/replace-file.mjs",
+      "tests": [
+        "tests/replace-file.test.mjs"
+      ],
+      "from": "      if (attempt >= tries || !BUSY.has(error?.code)) throw error",
+      "to": "      throw error",
+      "only": "^a rename Windows reports busy is retried, a growing wait apart, until it succeeds$"
+    },
+    {
+      "label": "§332: the wait between tries does not grow",
+      "file": "plugin/scripts/replace-file.mjs",
+      "tests": [
+        "tests/replace-file.test.mjs"
+      ],
+      "from": "      sleep(waitMs * attempt)",
+      "to": "      sleep(waitMs)",
+      "only": "^a rename Windows reports busy is retried, a growing wait apart, until it succeeds$"
+    }
+  ]
+}

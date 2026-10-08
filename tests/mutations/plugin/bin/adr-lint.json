@@ -1,0 +1,3190 @@
+{
+  "mutations": [
+    {
+      "label": "§351.11: a fullwidth-digit name is folded by NFKC",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/lookalike-names.test.mjs"
+      ],
+      "only": "a record or task named with look-alike characters",
+      "from": "        folded = unicodedata.normalize(\"NFKC\", name).translate(_LOOKALIKE)",
+      "to": "        folded = name.translate(_LOOKALIKE)"
+    },
+    {
+      "label": "§351.11: a Cyrillic capital A reads as A",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/lookalike-names.test.mjs"
+      ],
+      "only": "a record or task named with look-alike characters",
+      "from": "_LOOKALIKE = str.maketrans({chr(0x0410): \"A\", ",
+      "to": "_LOOKALIKE = str.maketrans({"
+    },
+    {
+      "label": "§351.11: task file names are checked for look-alikes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/lookalike-names.test.mjs"
+      ],
+      "only": "a record or task named with look-alike characters",
+      "from": "        check_lookalike_names([p.name for p in task_files], errors)\n",
+      "to": ""
+    },
+    {
+      "label": "§351.11: a record's own name is checked for look-alikes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/lookalike-names.test.mjs"
+      ],
+      "only": "a record or task named with look-alike characters",
+      "from": "    check_lookalike_names([adr.name], errors)\n",
+      "to": ""
+    },
+    {
+      "label": "§355 review 1: a dated stray name lends no record number",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dated stray name lends no number",
+      "from": "        identity = record_id(bare)",
+      "to": "        identity = None if TASK_SHAPED_RE.match(bare) else f\"ADR-{m.group(1)}\" if (m := re.match(r\"(?:adr[-_]?)?0*([0-9]{1,4})[-_]\", bare, re.I)) else None"
+    },
+    {
+      "label": "§355 review 3: a task-shaped stray name lends no record number",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dated stray name lends no number",
+      "from": "        identity = record_id(bare)",
+      "to": "        identity = None if DATE_SHAPED_RE.match(bare) else f\"ADR-{m.group(1)}\" if (m := re.match(r\"(?:adr[-_]?)?0*([0-9]{1,4})[-_]\", bare, re.I)) else None"
+    },
+    {
+      "label": "§355 review 2: a citation of an unreadable-named record still warns",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dated stray name lends no number",
+      "from": "    # at all on None, so None silenced an unresolved citation (the same review, finding 2).\n    return False",
+      "to": "    # at all on None, so None silenced an unresolved citation (the same review, finding 2).\n    return None"
+    },
+    {
+      "label": "§355: adr-lint names an unreadable record name's number as could-not-look",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dependency on a record whose name ends in a dot",
+      "from": "        if bare == name or \"/\" in name or not bare.lower().endswith(\".md\"):\n            continue\n        # Only a name that IS a numbered record",
+      "to": "        if True:\n            continue\n        # Only a name that IS a numbered record"
+    },
+    {
+      "label": "§355: an unrelated missing dependency is still a FAIL beside an unreadable record name",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dependency on a record whose name ends in a dot",
+      "from": "                return True\n    return None if number in unreadable_record_numbers(root, corpus_dir, tracked) else False",
+      "to": "                return True\n    return None if unreadable_record_numbers(root, corpus_dir, tracked) else False"
+    },
+    {
+      "label": "§355: adr-lint names two Status lines that disagree",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/two-status-lines.test.mjs"
+      ],
+      "only": "two Status lines that disagree",
+      "from": "    if len({status_kind(value) for value in labels}) > 1:",
+      "to": "    if False:"
+    },
+    {
+      "label": "§355: two Status lines that agree are not named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/two-status-lines.test.mjs"
+      ],
+      "only": "two Status lines that disagree",
+      "from": "    if len({status_kind(value) for value in labels}) > 1:",
+      "to": "    if len(labels) > 1:"
+    },
+    {
+      "label": "§355: adr-lint names another record carrying the same number",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/duplicate-record-number.test.mjs"
+      ],
+      "from": "    others = sorted(path.name for path, number in records if number == mine and path.name != adr_path.name)",
+      "to": "    others = []"
+    },
+    {
+      "label": "§355: adr-lint's duplicate-number advice is not said about distinct numbers",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/duplicate-record-number.test.mjs"
+      ],
+      "from": "    others = sorted(path.name for path, number in records if number == mine and path.name != adr_path.name)",
+      "to": "    others = sorted(path.name for path, number in records if path.name != adr_path.name)"
+    },
+    {
+      "label": "§355: adr-lint lints a duplicate-number record with the check wired in",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/duplicate-record-number.test.mjs"
+      ],
+      "from": "    check_duplicate_number(adr, root, tracked, errors)\n",
+      "to": "\n"
+    },
+    {
+      "label": "clipped: adr-lint's Verification Log sentence goes through clipped",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/clipped-quotes.test.mjs"
+      ],
+      "only": "no gate prints a quote sliced",
+      "from": "                          f\"it: `{clipped(b, 60)}`. Re-run `adr-verify <task.md>` rather than editing the log\")",
+      "to": "                          f\"it: `{b[:60]}…`. Re-run `adr-verify <task.md>` rather than editing the log\")"
+    },
+    {
+      "label": "adr-lint: a pytest :: selector runs only what it names",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "            if selector:",
+      "to": "            if False:"
+    },
+    {
+      "label": "adr-lint: a runner must start its segment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "    (re.compile(r\"^\\s*(?:\\w+=\\S*\\s+)*(?:pytest|py\\.test|python3?\\s+-m\\s+(?:pytest|unittest))\\b\"), (\".py\",)),",
+      "to": "    (re.compile(r\"(?:pytest|py\\.test|python3?\\s+-m\\s+(?:pytest|unittest))\\b\"), (\".py\",)),"
+    },
+    {
+      "label": "adr-lint: cargo --test selects one integration binary",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "        if not binaries or any(path.endswith(f\"tests/{b}.rs\") or f\"tests/{b}/\" in path for b in binaries):",
+      "to": "        if True:"
+    },
+    {
+      "label": "adr-lint: a cargo --test asks whether its rows run",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "        if not acc or not (narrowing.search(acc) or re.search(r\"\\bcargo\\b.*--test[= ]\", acc)):",
+      "to": "        if not acc or not narrowing.search(acc):"
+    },
+    {
+      "label": "adr-lint: a relock row is not judged as a fast fence run",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "            if timed and timed.group(\"ms\") and timed.group(\"exit\") == \"0\" and not vlog_row_is_lock_snapshot(row) \\",
+      "to": "            if timed and timed.group(\"ms\") and timed.group(\"exit\") == \"0\" \\"
+    },
+    {
+      "label": "adr-lint: cargo's --test is not a test-name filter",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "    narrowing = re.compile(r\"(-run|--filter|-k|--name)\\b\")",
+      "to": "    narrowing = re.compile(r\"(-run|--filter|-k|--test|--name)\\b\")"
+    },
+    {
+      "label": "adr-lint: an unfiltered runner beside a filtered one runs its own rows",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "            if not selected_by_filter(acc, name, rel) and not unfiltered_runner_runs(acc, rel, narrowing, name) \\\n                    and not cargo_runs(acc, rel):",
+      "to": "            if not selected_by_filter(acc, name, rel) \\\n                    and not cargo_runs(acc, rel):"
+    },
+    {
+      "label": "adr-lint: an unfiltered runner runs only its own language's rows",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "                       if suffix in suffixes for m in [pattern.search(segment)] if m), None)",
+      "to": "                       for m in [pattern.search(segment)] if m), None)"
+    },
+    {
+      "label": "adr-lint: an unfiltered runner selects only a file it names",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "            if path == base or path.startswith(base + \"/\"):",
+      "to": "            if base in path:"
+    },
+    {
+      "label": "adr-lint: a task's id is the first task-id token in its name",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "a task whose name mentions another task does not depend on itself",
+      "from": "    return found is not None and found.group(0).upper() == tid.upper()",
+      "to": "    return re.search(rf\"(?<!\\w){re.escape(tid)}(?!\\w)\", stem, re.I) is not None"
+    },
+    {
+      "label": "lint: a stale spaced JS test title is advised, not skipped as prose (§284)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                elif status == \"missing\":",
+      "to": "                elif False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a spaced title in a JS/TS test file's row is recognised as a title (§284)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return not IDENTIFIER_TEST_NAME.match(name) and bool(JS_TEST_FILE.search(rel))",
+      "to": "    return False",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "evidence: done status is checked at all",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        found = next(((i, m) for i, c in enumerate(cells)",
+      "to": "        found = next(((i, m) for i, c in enumerate(cells[:1])"
+    },
+    {
+      "label": "gates: a dependency cycle is detected",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for n in sorted(nodes):\n        if not state.get(n):\n            c = dfs(n)\n            if c:\n                return c\n    return None",
+      "to": "    for n in sorted(nodes):\n        if not state.get(n):\n            dfs(n)\n    return None",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "gates: a done task needs an exit-0 entry",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        passing = [b for b in entries if \"· exit 0 ·\" in b and not vlog_row_is_lock_snapshot(b)]",
+      "to": "        passing = list(entries)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "gates: a test that cannot go red is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                    (errors.advise if spaced else errors.append)(\n                        f\"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body \"\n",
+      "to": "                    (lambda *a: None)(\n                        f\"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body \"\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "severity: advice does not block",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    def advise(self, message):\n        self.advice.append(message)",
+      "to": "    def advise(self, message):\n        self.append(message)",
+      "only": "^(?:all bundled gates accept the conforming corpus|adr-verify executes acceptance and writes digest-bound evidence|adr-verify says before the run what a failure on an already-verified task will read as|a form finding is reported to the reader without failing the record|an inline task claiming done is told nothing can prove it|a Proposed record with no tasks is told its Status was not checked, and when its paths all exist|focused false-green regressions remain closed|adr-lint reports Go fences whose required success is unreachable|a task whose archived path would exceed the Windows ceiling is advised, one under it is not|strictFrom lets a corpus adopt these gates without failing on its own history|strictFrom never reaches the evidence chain|a task file's own done claim needs evidence, whatever the README says|a task file this record owns and cannot read is could-not-run, never a traceback|adr-lint cross-checks every ordered step against an explicit proof|a parallelised acceptance fence that never collects its children is reported|a step whose proof is a named test has a run that names it|a task with no steps field anywhere is silent, not uncovered|a step the run does name is not reported|a path::name pointer at a production function does not resolve as a test)$"
+    },
+    {
+      "label": "severity: a placeholder still blocks",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "errors.append(f\"{adr_path.name}: **Served-path change:** is still the template placeho",
+      "to": "errors.advise(f\"{adr_path.name}: **Served-path change:** is still the template placeho",
+      "only": "^(?:placeholder and invalid artifacts are rejected|editing a template does not fail the facts gate|focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "severity: an empty section still blocks",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "errors.append(f\"{adr_path.name}: Alternatives Considered has no entries",
+      "to": "errors.advise(f\"{adr_path.name}: Alternatives Considered has no entries",
+      "only": "^(?:a form finding is reported to the reader without failing the record|focused false-green regressions remain closed|strictFrom lets a corpus adopt these gates without failing on its own history|a step whose proof is a named test has a run that names it|a task with no steps field anywhere is silent, not uncovered|a step the run does name is not reported)$"
+    },
+    {
+      "label": "severity: advice is reported, not swallowed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for a in errors.advice:\n        print(visible(f\"  advice: {a}\", keep=\"\"))",
+      "to": "    pass",
+      "only": "^(?:a form finding is reported to the reader without failing the record|an inline task claiming done is told nothing can prove it|a Proposed record with no tasks is told its Status was not checked, and when its paths all exist|a corpus that does not prefix its records with ADR- is still seen, and still spoken to|a cited tracker id or section number is not reported as a missing file|focused false-green regressions remain closed|adr-lint reports Go fences whose required success is unreachable|an evidenced task whose Affected Files git ignores is reported, with the pattern|a task whose archived path would exceed the Windows ceiling is advised, one under it is not|strictFrom lets a corpus adopt these gates without failing on its own history|strictFrom never reaches the evidence chain|an unreadable or unusable strictFrom changes nothing, and says so|adr-lint cross-checks every ordered step against an explicit proof|a parallelised acceptance fence that never collects its children is reported|a step whose proof is a named test has a run that names it|a path::name pointer at a production function does not resolve as a test)$"
+    },
+    {
+      "label": "inline: a done claim with nowhere to prove it is named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if inline_done:\n            errors.advise(",
+      "to": "        if False:\n            errors.advise(",
+      "only": "^(?:an inline task claiming done is told nothing can prove it)$"
+    },
+    {
+      "label": "inline: the advice does not fire on layout alone",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                       if re.search(r\"(?<!\\w)T\\d+(?!\\w)\", ln) and re.search(r\"\\bdone\\b\", ln, re.I)]",
+      "to": "                       if True]",
+      "only": "^(?:an inline task claiming done is told nothing can prove it)$"
+    },
+    {
+      "label": "strictFrom: demotes, and only downward",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if self.demotion and not evidence and not self._protected:",
+      "to": "        if self.demotion is None and not evidence and not self._protected:",
+      "only": "^(?:placeholder and invalid artifacts are rejected|a form finding is reported to the reader without failing the record|a file whose name and title disagree on the ADR number is refused|a one-digit filename and a different title number is refused|a corpus that does not prefix its records with ADR- is still seen, and still spoken to|editing a template does not fail the facts gate|focused false-green regressions remain closed|strictFrom lets a corpus adopt these gates without failing on its own history|strictFrom never reaches the evidence chain|a task file's own done claim needs evidence, whatever the README says|an unreadable or unusable strictFrom changes nothing, and says so|adr-lint cross-checks every ordered step against an explicit proof|a step whose proof is a named test has a run that names it|a task with no steps field anywhere is silent, not uncovered|a step the run does name is not reported|a document that never claimed to be a record is not judged as a malformed one \\(BACKLOG §141\\))$"
+    },
+    {
+      "label": "strictFrom: the evidence chain is never demoted",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if self.demotion and not evidence and not self._protected:",
+      "to": "        if self.demotion:",
+      "only": "^(?:strictFrom never reaches the evidence chain|a task file's own done claim needs evidence, whatever the README says)$"
+    },
+    {
+      "label": "strictFrom: a record at the cutoff is checked in full",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif number < cutoff:",
+      "to": "        elif number <= cutoff:",
+      "only": "^(?:strictFrom lets a corpus adopt these gates without failing on its own history)$"
+    },
+    {
+      "label": "strictFrom: an unreadable config loosens nothing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        errors.advise(f\"{CONFIG_NAME} could not be read ({exc.__class__.__name__}); \"",
+      "to": "        errors.demotion = 'unreadable config'; errors.advise(f\"{CONFIG_NAME} could not be read ({exc.__class__.__name__}); \"",
+      "only": "^(?:an unreadable or unusable strictFrom changes nothing, and says so)$"
+    },
+    {
+      "label": "strictFrom: a demoted PASS is not a clean PASS",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        print(f\"[strictFrom] {one_line(errors.demotion)}\")",
+      "to": "        pass",
+      "only": "^(?:strictFrom lets a corpus adopt these gates without failing on its own history)$"
+    },
+    {
+      "label": "ADR-079 T2: a JavaScript body is bounded on a second masking, not the lexer's view",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    body = bdd_callback_body(text, after, masked=masked)",
+      "to": "    body = bdd_callback_body(text, after)",
+      "only": "^(?:adr-lint reads a JavaScript test where its call is code, bounded as the lock bounds it|adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound)$"
+    },
+    {
+      "label": "ADR-079 T2: a found JavaScript call whose body cannot be bounded is called found",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    return (\"found\", body) if body is not None else (\"unproven\", None)",
+      "to": "    return (\"found\", body)",
+      "only": "^adr-lint says UNPROVEN for a JavaScript test whose body it cannot bound$"
+    },
+    {
+      "label": "ADR-079 T2: UNPROVEN on a done task is advice",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        errors.append(message, evidence=True)",
+      "to": "        errors.advise(message)",
+      "only": "^adr-lint says UNPROVEN, and withholds done, for a JavaScript test it could not read to$"
+    },
+    {
+      "label": "ADR-079 T2: UNPROVEN on a frozen record blocks",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    elif frozen:",
+      "to": "    elif False:",
+      "only": "^UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is$"
+    },
+    {
+      "label": "ADR-079 T2: UNPROVEN below strictFrom blocks",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    elif errors.demotion:",
+      "to": "    elif False:",
+      "only": "^UNPROVEN on a frozen record, or below strictFrom, is advice as a moved lock is$"
+    },
+    {
+      "label": "ADR-079 T2: an enforcement pointer past the stop is taken as resolved",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "        if form == \"unproven\":",
+      "to": "        if False:",
+      "only": "^an enforcement pointer to a JavaScript test is resolved on the lexer$"
+    },
+    {
+      "label": "ADR-079 T3: can-fail reads a JavaScript body's raw text, not the code view",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "    body = bdd_callback_body(masked, after, masked=masked)",
+      "to": "    body = bdd_callback_body(text, after, masked=masked)",
+      "only": "^adr-lint judges a JavaScript body and its helpers on the code view$"
+    },
+    {
+      "label": "ADR-079 T3: a same-file JavaScript helper that asserts is not followed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "            if helper and FAIL_CALLS.search(helper):",
+      "to": "            if False:",
+      "only": "^adr-lint judges a JavaScript body and its helpers on the code view$"
+    },
+    {
+      "label": "ADR-079 T3: a spaced title found with an unbounded body is skipped in silence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                if status == \"unproven\" and (spaced or names_its_own_file(f, name, raw)) \\",
+      "to": "                if False \\",
+      "only": "^adr-lint says UNPROVEN for a spaced JavaScript title it found but whose body it cannot bound$"
+    },
+    {
+      "label": "ADR-079 Codex: a row naming its own file never has its unbounded body said",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                if status == \"unproven\" and (spaced or names_its_own_file(f, name, raw)) \\",
+      "to": "                if status == \"unproven\" and (spaced) \\",
+      "only": "^adr-lint says UNPROVEN for a test named by its own file whose body it cannot bound$"
+    },
+    {
+      "label": "ADR-079 Codex: a binding to anything is followed as a helper",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/js-reading.test.mjs"
+      ],
+      "from": "                       + re.escape(name) + r\"\\s*=\\s*(?:async\\s+)?(?:function\\b|\\([^()]*\\)\\s*=>|\"",
+      "to": "                       + re.escape(name) + r\"\\s*=\\s*(?:async\\s+)?(?:|function\\b|\\([^()]*\\)\\s*=>|\"",
+      "only": "^adr-lint follows a helper only into its own function$"
+    },
+    {
+      "label": "lint: a log that only ever passed is advised on",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if passing and entries and \"· exit 0 ·\" in entries[0] and not inf[\"human\"] and not killed:",
+      "to": "        if False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a killed mutant exempts a task from the red-run advice",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        killed = any(\"mutant killed\" in b for b in inf.get(\"mlog\", []))",
+      "to": "        killed = False",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: Enforced-by naming nothing is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if form is None:",
+      "to": "        if False:",
+      "only": "^(?:focused false-green regressions remain closed|a path::name pointer at a production function does not resolve as a test)$"
+    },
+    {
+      "label": "lint: None is an answer, not an unresolvable pointer",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    # mirrored in the JS suite so the two cannot drift again unnoticed.\n    if not value or re.match(r\"none\\b\", value, re.I):",
+      "to": "    # mirrored in the JS suite so the two cannot drift again unnoticed.\n    if not value or False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a node:test name is a string, not a function name",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                    return \"test\" if status == \"found\" else \"unproven\"",
+      "to": "                    return None",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a qualified dependency is consumed whole, not scanned for a local id",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        (qualified if QUALIFIED_DEP.match(part) else local).append(part)",
+      "to": "        local.append(part)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a cross-record dependency must resolve to a real task",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if id_matches(task, name[:-len(\".md\")]):\n",
+      "to": "            if True or id_matches(task, name[:-len(\".md\")]):\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a cycle across two records is caught",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    cycle = find_cycle(edges, nodes)\n    if cycle:",
+      "to": "    cycle = None\n    if cycle:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the DAG scans only the LOCAL half of Depends-on and Consumes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            _, cons_local = split_dependencies(cons)\n            named = tid_re.findall(\" \".join(cons_local).upper())",
+      "to": "            cons_local = [cons]\n            named = tid_re.findall(\" \".join(cons_local).upper())",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a pointer may not leave the repository",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if root is None or leaves_the_tree(pointer):",
+      "to": "    if root is None:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a Windows-spelled traversal still leaves the tree",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    normal = pointer.replace(\"\\\\\", \"/\")",
+      "to": "    normal = pointer",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the comment stripper knows a regex literal from a comment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif char == \"/\" and starts_regex(text, i):",
+      "to": "        elif char == \"/\" and False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a path::name pointer names a test file, not a production function",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if wanted and not javascript and looks_like_a_test(f) and test_body(",
+      "to": "            if wanted and not javascript and test_body(",
+      "only": "^(?:focused false-green regressions remain closed|a path::name pointer at a production function does not resolve as a test)$"
+    },
+    {
+      "label": "lint: a Governs path that matches nothing tracked is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif not any(path_matches_declaration(f, declaration) for f in tracked):",
+      "to": "        elif False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a section number is a whole number, not a prefix",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return re.search(rf\"^#{{1,6}}\\s+0*{number}\\b\", text, re.M) is not None",
+      "to": "    return re.search(rf\"^#{{1,6}}\\s+0*{number}\", text, re.M) is not None",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a cited section that does not exist is named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif not has_section(body, number):",
+      "to": "        elif False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a bare fragment inherits the file cited beside it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if current:\n            pairs += [(current, int(n)) for n in SECTION_FRAGMENT.findall(pointer)]",
+      "to": "        if current and _looks_like_a_path(pointer.split()[0] if pointer.split() else ''):\n            pairs += [(current, int(n)) for n in SECTION_FRAGMENT.findall(pointer)]",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a disposition's parentheses are balanced, not just the last run",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if depth == 0:\n                    return text[opening.start() + 1:i], opening.start(), i + 1",
+      "to": "                return text[opening.start() + 1:i], opening.start(), i + 1",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a disposition must END the Out of Scope bullet",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return bool(span) and closes_the_line(bullet, span[2]) and bool(DISPOSITION_TEXT.match(span[0]))",
+      "to": "    return bool(span) and bool(DISPOSITION_TEXT.match(span[0]))",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: sentence punctuation after a disposition is not a second parenthetical",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return text[end:].strip(\" \\t.,;:\") == \"\"",
+      "to": "    return text[end:].strip() == \"\"",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a disposition that wraps is read whole, not judged on its first line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            current += \" \" + line.strip()",
+      "to": "            pass",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a nested sub-bullet is a child, not an Out of Scope entry",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if current is not None and lead > indent:",
+      "to": "            if current is not None and False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: every bullet under a child list belongs to it, not just the first",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if subtree is not None and SCOPE_BULLET.match(line) and lead > subtree:",
+      "to": "        if False and SCOPE_BULLET.match(line) and lead > subtree:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: step 1 is judged by whether it establishes RED, not by the word 'test'",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    elif not re.search(r\"\\b(tests?|red|fail(s|ed|ing|ure)?)\\b\", steps[0], re.I):",
+      "to": "    elif \"test\" not in steps[0].lower():",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a BDD test named by a string is found",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        r\"\"\"(['\"`])\"\"\" + re.escape(name) + r\"\"\"\\1\\s*,\"\"\",",
+      "to": "        r\"\"\"(['\"`])\"\"\" + re.escape(name) + r\"\"\"\\1\\s*,ZZZ\"\"\",",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a rejected row is quoted where it stopped matching, not at its prefix",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for end in range(len(line), 0, -1):",
+      "to": "    for end in range(0, 0, -1):",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a git probe that could not run is not 'nothing is ignored'",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if asked is None and named:",
+      "to": "        if False:",
+      "only": "^(?:an evidenced task whose Affected Files git ignores is reported, with the pattern)$"
+    },
+    {
+      "label": "lint: an evidenced task whose Affected Files are ignored is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        for name, pattern in sorted((asked or {}).items()):",
+      "to": "        for name, pattern in []:",
+      "only": "^(?:an evidenced task whose Affected Files git ignores is reported, with the pattern)$"
+    },
+    {
+      "label": "lint: a human-observed row is passing evidence for the ignored-path check",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                or \"· human-observed ·\" in ln)",
+      "to": "                or False)",
+      "only": "^(?:an evidenced task whose Affected Files git ignores is reported, with the pattern)$"
+    },
+    {
+      "label": "adr-lint: the digest path reads the shared opener, not a private bash-only regex that skips the check on a sh fence (ADR-045 T3)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    acc_body = acceptance_fence(acc)\n    if acc_body is None and \"Acceptance is human-observed:\" not in acc:",
+      "to": "    acc_match = re.search(r\"```bash\\s*\\n(.*?)```\", acc, re.S)\n    acc_body = acc_match.group(1) if acc_match else None\n    if acc_body is None and \"Acceptance is human-observed:\" not in acc:",
+      "only": "^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$"
+    },
+    {
+      "label": "adr-lint: an Acceptance with no runnable fence is a finding, not an empty acc_all that skips the digest check (ADR-045 T3)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if acc_body is None and \"Acceptance is human-observed:\" not in acc:",
+      "to": "    if False:",
+      "only": "^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$"
+    },
+    {
+      "label": "lint: a status this reader does not act on is reported, not skipped",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if status_word(value) in KNOWN_TASK_STATUS or found not in infos:",
+      "to": "        if True:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a status is read as its word, not as the whole decorated cell",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    lead = re.match(r\"[\\s*_`~]*([A-Za-z][A-Za-z-]*)\", cell or \"\")",
+      "to": "    lead = re.match(r\"([A-Za-z][A-Za-z-]*)\", cell or \"\")",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a status column is bound to its own table, not to the first header seen",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if header:",
+      "to": "        if header and status_column is None:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "ADR-013: the human mutation arm still refuses a kill on a passing test",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"human-observed · mutant killed · test exit [1-9]\\d* · \"",
+      "to": "    r\"human-observed · mutant killed · test exit \\d* · \"",
+      "only": "^(?:a human-observed row that cannot be reproduced is refused, not advised)$"
+    },
+    {
+      "label": "ADR-013: from/to are code spans, so a mutated line may hold a backtick",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            r\"|``(?:[^`\\n]|`(?!`))\" + quant + r\"``\"",
+      "to": "            r\"|``(?:[^`\\n])\" + quant + r\"``\"",
+      "only": "^(?:a mutation a human performed is accepted where the tool could not run it)$"
+    },
+    {
+      "label": "ADR-013: the human-lane advisory is bound to a runnable fence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if any(MLOG_HUMAN_RE.match(b) for b in mlog) and acc_body is not None:",
+      "to": "    if any(MLOG_HUMAN_RE.match(b) for b in mlog):",
+      "only": "^(?:the human lane is advised against where a fence could have run)$"
+    },
+    {
+      "label": "ADR-014: partial is a status the reader acts on",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\", \"partial\"}",
+      "to": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\"}",
+      "only": "^(?:a partial task is a status the reader acts on, not an unknown word)$"
+    },
+    {
+      "label": "ADR-014: a task is selected by its evidence not by its status word",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        if any(VLOG_RE.match(b) and \"· exit 0 ·\" in b and not vlog_row_is_lock_snapshot(b) for b in inf.get(\"vlog\", [])):\n            ids.add(tid)",
+      "to": "        if False:\n            ids.add(tid)",
+      "only": "^(?:a partial task with a passing fence still owes a killed mutant)$"
+    },
+    {
+      "label": "ADR-014: Blocked-on cannot name a task this corpus owns",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        if (sibling := next((d for d in re.findall(r\"\\bT\\d+\\b\", blocked_on)\n                               if any(id_matches(d, stem) for stem in all_stems)), None)):",
+      "to": "        if False:",
+      "only": "^(?:Blocked-on is accepted on a task that can run its own acceptance|Blocked-on naming a sibling task is refused, and an external event is not)$"
+    },
+    {
+      "label": "peer: a Tests path outside the repo is unproven not absent",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                if leaves_the_tree(rel):",
+      "to": "                if False:",
+      "only": "^(?:a Tests row pointing outside the repository is unproven, not failed)$"
+    },
+    {
+      "label": "ADR-014: an unpaired backtick is not a code span",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            if rest != -1 and text[first + run:rest].strip():",
+      "to": "            if True:",
+      "only": "^(?:a Blocked-on with an unpaired backtick is still asked for a way to check)$"
+    },
+    {
+      "label": "foreign: a cross-repo Tests path does not block a consumer corpus",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/foreign-corpus.test.mjs"
+      ],
+      "from": "                if leaves_the_tree(rel):",
+      "to": "                if False:",
+      "only": "^(?:a consumer-shaped corpus draws no verdict the gates did not earn)$"
+    },
+    {
+      "label": "foreign: partial stays in the vocabulary a consumer corpus uses",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/foreign-corpus.test.mjs"
+      ],
+      "from": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\", \"partial\"}",
+      "to": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\"}",
+      "only": "^(?:a consumer-shaped corpus draws no verdict the gates did not earn)$"
+    },
+    {
+      "label": "windows: adr-lint treats a rooted path as rooted",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return bool(re.match(r\"^[A-Za-z]:\", text)) or text[:1] in (\"/\", \"\\\\\")",
+      "to": "    return Path(text).is_absolute()",
+      "only": "^(?:a rooted path is rooted on every platform, not re-rooted onto the cwd drive)$"
+    },
+    {
+      "label": "lint: a Go fence selects the test whose PASS line it requires",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        check_go_acceptance_fences(infos, errors, root, tracked)",
+      "to": "        pass  # the Go fence check no longer runs",
+      "only": "^(?:adr-lint reports Go fences whose required success is unreachable)$"
+    },
+    {
+      "label": "lint: no test files is a healthy Go status, not an exclusion",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "fence[\"rejects_no_test_files\"]",
+      "to": "False and fence[\"rejects_no_test_files\"]",
+      "only": "^(?:adr-lint reports Go fences whose required success is unreachable)$"
+    },
+    {
+      "label": "lint: a permanent disposition names whether it is boundary or fact",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            check_permanent_disposition(\n                span[0], adr_path, errors, root, permanent_candidates)",
+      "to": "            pass",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a permanent fact file citation resolves to a repository line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if line > len(lines):\n        _permanent_advice(\n            errors, record, entry=entry,\n            detail=f\"file citation `{receipt}` names line {line}, but that line does not exist\")",
+      "to": "    if False:\n        _permanent_advice(\n            errors, record, entry=entry,\n            detail=f\"file citation `{receipt}` names line {line}, but that line does not exist\")",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: every proof-map step is accounted for",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    covered = set()",
+      "to": "    covered = set(counts)",
+      "only": "^(?:focused false-green regressions remain closed|adr-lint cross-checks every ordered step against an explicit proof|a step the run does name is not reported)$"
+    },
+    {
+      "label": "lint: an unmarked task says its proof map was not checked",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if not headers:\n        errors.advise(PROOF_MAP_LEGACY_ADVICE.format(task=path.name))\n        return",
+      "to": "    if not headers:\n        return",
+      "only": "^(?:focused false-green regressions remain closed|adr-lint cross-checks every ordered step against an explicit proof)$"
+    },
+    {
+      "label": "lint: a digest-less acceptance row that is not committed is refused",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if timed and not timed.group(\"digest\") \\\n                    and known is not None and row not in known:",
+      "to": "            if False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a git lookup that could not answer tolerates rather than convicts",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if timed and not timed.group(\"digest\") \\\n                    and known is not None and row not in known:",
+      "to": "            if timed and not timed.group(\"digest\") \\\n                    and row not in (known or frozenset()):",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the fence-drift finding does not name the digest it demands",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                              f\"current Acceptance digest.\"",
+      "to": "                              f\"current Acceptance digest acceptance-sha256:{want_digest}.\"",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the mutation finding does not name the digest it demands",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                      f\"mutant against the current Acceptance digest\"",
+      "to": "                      f\"mutant for acceptance-sha256:{want_digest}\"",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a permanent-basis advisory names the entry it came from",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    where = f\" in `{_excerpt(entry)}`\" if entry else \"\"",
+      "to": "    where = \"\"",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a duration that could not have run the fence is advised",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return any(ms < floor for pattern, floor in _FLOOR_MS if pattern.search(command or \"\"))",
+      "to": "    return False",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: an unrecognised fence gets no floor at all",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return any(ms < floor for pattern, floor in _FLOOR_MS if pattern.search(command or \"\"))",
+      "to": "    return ms < 500",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a committed evidence row that has gone missing is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if known is not None:\n            here = {ln.strip() for ln in (inf.get(\"text\") or \"\").split(\"\\n\")}",
+      "to": "        if False:\n            here = {ln.strip() for ln in (inf.get(\"text\") or \"\").split(\"\\n\")}",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the floor reads every row that claims a machine run",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            timed = VLOG_TIMED_RE.match(row)",
+      "to": "            timed = VLOG_DIGEST_RE.match(row)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the duration floor is CALLED, not merely defined",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if timed and timed.group(\"ms\") and timed.group(\"exit\") == \"0\" and not vlog_row_is_lock_snapshot(row) \\\n                    and implausibly_fast(int(timed.group(\"ms\")),\n                                                                inf.get(\"acc_all\", \"\")):",
+      "to": "            if False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a declaration that cannot be read is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    m = re.search(r\"^\\*\\*Rests-on:\\*\\*(.*)$\", text, re.M)\n    if m is None:\n        return None",
+      "to": "    m = re.search(r\"^\\*\\*Rests-on:\\*\\*(.*)$\", text, re.M)\n    if m is None:\n        return []",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a declared mechanism with no bound mutant is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            report_uncovered_mechanisms(inf, tid, killed, errors)",
+      "to": "            pass  # the uncovered reading is never called",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a segment rule shared by the gate and the sweep",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return [s for s in segments if not FENCE_SETUP_RE.match(s)]",
+      "to": "    return segments  # setup lines counted as assertions",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: an inert negated guard is told from a load-bearing one",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return [s for s in segments[:-1] if NEGATED_GREP_RE.match(s)]",
+      "to": "    return [s for s in segments if NEGATED_GREP_RE.match(s)]  # last one too",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: errexit is detected in every option-cluster spelling",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "ERREXIT_RE = re.compile(r\"^\\s*set\\s+(?:-[a-zA-Z]*e[a-zA-Z]*|-o\\s+errexit)\\b\", re.M)",
+      "to": "ERREXIT_RE = re.compile(r\"^\\s*set\\s+(?:-[a-zA-Z]*e|-o\\s+errexit)\\b\", re.M)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a comment marker inside a string literal is not a comment (issue #7)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            elif char == state:\n                state = \"code\"",
+      "to": "            elif char == state or pair == \"/*\":\n                state = \"code\"",
+      "only": "^(?:adr-lint reports Go fences whose required success is unreachable|neither gate loses code to a quote character inside a comment, and the two agree \\(BACKLOG §139\\))$"
+    },
+    {
+      "label": "lint: the sentinel is checked before a record reference is extracted",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if not value or re.match(r\"(?:none|nothing)\\b\", value, re.I):",
+      "to": "    if not value or re.match(r\"(?:none)\\b\", value, re.I):",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: Invalidates resolves a reference anywhere, not the leading token",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    reference = re.search(r\"\\bADR-\\d{1,4}\\b\", value, re.I)",
+      "to": "    reference = re.match(r\"\\bADR-\\d{1,4}\\b\", value, re.I)",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a pending task's Produces is not yet expected to exist",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for tid in done_task_ids(readme_text):\n        inf = infos.get(tid)\n        if inf is None:\n            continue\n        produces = header_val(inf.get(\"text\", \"\"), \"Produces\") or \"\"",
+      "to": "    for tid in infos:\n        inf = infos.get(tid)\n        if inf is None:\n            continue\n        produces = header_val(inf.get(\"text\", \"\"), \"Produces\") or \"\"",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a Produces sentence is not read as a symbol",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    ident = re.compile(r\"^[A-Za-z_][A-Za-z0-9_]*(\\(\\))?$\")",
+      "to": "    ident = re.compile(r\"^.+$\")",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: an Awaiting-decision that names no choice is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        names_options = re.search(r\"\\bor\\b|\\bversus\\b|\\bvs\\.?\\b|\\?|;\", value)",
+      "to": "        names_options = True",
+      "only": "^(?:a task waiting on a choice nobody has made says so, and names the choice)$"
+    },
+    {
+      "label": "lint: a parallel fence with an uncollected bare wait is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    match = BARE_WAIT_RE.search(fence)\n    return match.group(0) if match else None",
+      "to": "    return None",
+      "only": "^(?:a parallelised acceptance fence that never collects its children is reported)$"
+    },
+    {
+      "label": "steps: a step no run names is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            named.update(token.strip() for token in match.group(\"steps\").split(\",\"))",
+      "to": "            named.update(covered)",
+      "only": "^(?:a step whose proof is a named test has a run that names it)$"
+    },
+    {
+      "label": "steps: absence of the field stays silent rather than becoming a finding",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if saw_field:",
+      "to": "    if True:",
+      "only": "^(?:a task with no steps field anywhere is silent, not uncovered)$"
+    },
+    {
+      "label": "version: a gate reads the manifest beside itself, not one resolved elsewhere",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    manifest = here.parent.parent / \".claude-plugin\" / \"plugin.json\"",
+      "to": "    manifest = _Path.cwd() / \".claude-plugin\" / \"plugin.json\"",
+      "only": "^(?:every shipped gate answers --version with the version of the tree it was run from|every gate that returns a verdict names the binary that reached it \\(BACKLOG §143\\))$"
+    },
+    {
+      "label": "version: an unreadable manifest is reported, never guessed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return f\"{here.name} (version unreadable: {_shown(manifest)} — {getattr(exc, 'strerror', None) or exc})\"",
+      "to": "        return f\"{here.name} 2.60.0\"",
+      "only": "^(?:a gate whose manifest cannot be read says so instead of guessing|a gate whose manifest is unreadable says so, and states no version \\(BACKLOG §143\\))$"
+    },
+    {
+      "label": "lint: a disposition inside a code span is a mention, not a disposition",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if any(a < opening.start() < b - 1 for a, b in spans):\n            continue",
+      "to": "        pass",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: --help is answered, not rejected as an unknown flag",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if \"--help\" in sys.argv[1:] or \"-h\" in sys.argv[1:]:\n        print(__doc__)\n        sys.exit(0)\n    unknown = [a for a in sys.argv[1:] if a.startswith(\"--\") and a not in known]",
+      "to": "    unknown = [a for a in sys.argv[1:] if a.startswith(\"--\") and a not in known]",
+      "only": "^(?:every gate answers --help, because a gate that will not explain itself is run wrong)$"
+    },
+    {
+      "label": "adr-lint: the proof-map advisory says UNRUN and names an edit to THIS file",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    \"{task}: UNRUN — the proof-map cross-check did not run here: no **Proof map:** \"",
+      "to": "    \"{task}: Proof map: v1 was not checked because this legacy task has no **Proof map:** \"",
+      "only": "^(?:focused false-green regressions remain closed|adr-lint cross-checks every ordered step against an explicit proof)$"
+    },
+    {
+      "label": "adr-lint: a survival count nobody stored is not a count",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if not write(data):\n        return None\n    return out",
+      "to": "    write(data)\n    return out",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a survival note whose runs is not a number is UNKNOWN, not a crash",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if not isinstance(entry.get(\"runs\"), int) or isinstance(entry.get(\"runs\"), bool):\n                return False",
+      "to": "            if False:\n                return False",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: a changed finding is a new finding, and its survival resets",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return hashlib.sha256(f\"{record_key}\\n{message}\".encode(\"utf-8\")).hexdigest()[:16]",
+      "to": "    return hashlib.sha256(f\"{record_key}\".encode(\"utf-8\")).hexdigest()[:16]",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: nowhere to record advice survival is UNKNOWN, not a first sighting",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if path is None and read is None:\n        return None",
+      "to": "    if path is None and read is None:\n        return [(message, 1) for message in messages]",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: comments and literals are scanned in one pass, not stripped by regex order",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return scan_code_only(text, hash_comments=True, swift=swift)",
+      "to": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)\n    text = re.sub(r\"(?m)(^|[^:])//.*$\", r\"\\1 \", text)\n    return text",
+      "only": "^(?:neither gate loses code to a quote character inside a comment, and the two agree \\(BACKLOG §139\\))$"
+    },
+    {
+      "label": "scanner: a line comment ends at the newline and nothing else",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif state == \"line-comment\":\n            output.append(\"\\n\" if char == \"\\n\" else \" \")\n            if char == \"\\n\":\n                state = \"code\"",
+      "to": "        elif state == \"line-comment\":\n            output.append(\"\\n\" if char == \"\\n\" else \" \")\n            if char == \"`\":\n                state = \"code\"",
+      "only": "^(?:adr-lint reports Go fences whose required success is unreachable|neither gate loses code to a quote character inside a comment, and the two agree \\(BACKLOG §139\\))$"
+    },
+    {
+      "label": "lint: a document with no Status line and no ADR name is not judged as a record",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records, arm))}.\")\n        sys.exit(2)",
+      "to": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records, arm))}.\")\n        pass",
+      "only": "^(?:missing file, directory, and not-recognised stay their current exits|a document that never claimed to be a record is not judged as a malformed one \\(BACKLOG §141\\))$"
+    },
+    {
+      "label": "issue-11: adr-lint still reads the `ms:` field adr-verify writes, so the two gates cannot drift apart",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "adr-lint accepts the entry adr-verify wrote",
+      "from": "MS_FIELD = r\"(?: · ms:(?P<ms>\\d+))?\"",
+      "to": "MS_FIELD = r\"\""
+    },
+    {
+      "label": "lint: the status advisory says WHEN Blocked-on is legal, so it does not walk a reader into a refusal",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "partial",
+      "from": "            f\"fence, `Blocked-on` is REFUSED there — a task that can run its own acceptance is not \"",
+      "to": "            f\"\""
+    },
+    {
+      "label": "lint: a test body is read with the parser, so a multi-line def signature does not hide its assertions",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "                    start = node.body[0].lineno - 1",
+      "to": "                    start = node.lineno - 1"
+    },
+    {
+      "label": "adr-lint: advice about a withdrawn task is withheld, and the withholding is said",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "withholds advice about a withdrawn task",
+      "from": "            owner = next((name for name in withdrawn_tasks if a.startswith(f\"{name}: \")), None)",
+      "to": "            owner = None"
+    },
+    {
+      "label": "adr-lint: only a RECOGNISED terminal status withholds anything",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "withholds advice about a withdrawn task",
+      "from": "    return value if (value in TERMINAL_TASK_STATUSES or first in TERMINAL_TASK_STATUSES) else None",
+      "to": "    return value"
+    },
+    {
+      "label": "adr-lint: a terminal README status is not sent to the done/pending/blocked vocabulary",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "terminal README status is not sent to the wrong vocabulary",
+      "from": "        if word in TERMINAL_TASK_STATUSES:",
+      "to": "        if False:"
+    },
+    {
+      "label": "lint: an inert guard that is the only vacuity check fails the record",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if not vacuity_checks(acc_all) and not unaccounted:\n",
+      "to": "        if False:\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the inert-guard advisory names the cost of editing a verified fence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if any(\"· exit 0 ·\" in b and not vlog_row_is_lock_snapshot(b) for b in vlog) else \"\")\n",
+      "to": "                if False else \"\")\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a fence that cannot parse is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if parsed == \"error\":\n",
+      "to": "        if False:\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a Tests row naming a file with no test in it is still reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if names_its_own_file(f, name, source):\n                continue\n",
+      "to": "            if name in (f.stem, f.name):\n                continue\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a Proposed record whose Implementation paths all exist is told so",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            elif named and all(path_is_tracked(p, tracked) for p in named):\n",
+      "to": "            elif False:\n",
+      "only": "^(?:a Proposed record with no tasks is told its Status was not checked, and when its paths all exist)$"
+    },
+    {
+      "label": "lint: a runner that fails on an empty selection is itself the vacuity check",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if EMPTY_RUN_FAILS_RE.match(stage) and not EMPTY_RUN_OPT_OUT_RE.search(stage):\n                return True\n",
+      "to": "            pass\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a fence is not declared vacuous over a command the gate cannot classify",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if not vacuity_checks(acc_all) and not unaccounted:\n",
+      "to": "        if not vacuity_checks(acc_all):\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: an Implementation heading is matched by prefix, not exactly",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                     if re.match(r\"implementation\\b\", heading.strip(), re.I)\n",
+      "to": "                     if heading.strip() == \"Implementation\"\n",
+      "only": "^(?:a Proposed record with no tasks is told its Status was not checked, and when its paths all exist)$"
+    },
+    {
+      "label": "lint: the runner table is keyed on the filter case, not an empty directory",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"(?:\\S*/)?(?:pytest|bun\\s+test)(?![-\\w])\")\n",
+      "to": "    r\"(?:\\S*/)?(?:pytest)(?![-\\w])\")\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a wrapper command is never classified as asserting nothing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)(?![-\\w])\")\n",
+      "to": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test|(?:npm|yarn)\\s+test|make|docker)(?![-\\w])\")\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: an opt-out flag disarms a runner's own vacuity fencing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "EMPTY_RUN_OPT_OUT_RE = re.compile(r\"--pass-?with-?no-?tests\\b|--allow-?empty\\b\", re.I)\n",
+      "to": "EMPTY_RUN_OPT_OUT_RE = re.compile(r\"zzzNeverMatchesAnyFlag\")\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a pipeline stage other than the first can be the vacuity check",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        for stage in status_carriers(segment, pipefail):\n",
+      "to": "        for stage in [segment]:\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: every stage of a pipeline must be accounted for",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "               for alternative in or_alternatives(segment)\n               for stage in pipeline_stages(alternative)):\n",
+      "to": "               for alternative in [segment]\n               for stage in [alternative]):\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the pipeline splitter does not cut inside quotes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if char in \"'\\\"\":\n            quote = char\n            current += char\n            index += 1\n            continue\n",
+      "to": "        if char in \"\\x00\":\n            quote = char\n            current += char\n            index += 1\n            continue\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a runner name is matched whole, so a hyphenated lookalike is not it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)(?![-\\w])\")\n",
+      "to": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)\\b\")\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: an OR tail that always fails makes its head load-bearing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if len(alternatives) > 1 and ALWAYS_FAILS_RE.match(alternatives[-1]):\n",
+      "to": "    if False:\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a pipe masks a runner's status unless pipefail is set",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return stages if pipefail else stages[-1:]\n",
+      "to": "        return stages\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a row naming a file that never existed does not claim the behaviour is unfenced",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                              f\"fenced ELSEWHERE is unproven here: a file that was planned and never \"\n",
+      "to": "                              f\"fenced ELSEWHERE is not in doubt: nothing can run it, and never \"\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the shell splitter does not cut inside a command substitution",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if segment.startswith(\"$(\", index):\n            depth += 1\n",
+      "to": "        if False:\n            depth += 1\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: the shell splitter honours a backslash escape inside quotes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if char == \"\\\\\" and quote == '\"' and index + 1 < len(segment):\n",
+      "to": "            if False:\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a test expecting an exception is recognised as able to fail",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"|\\b(?:pytest|pytest_asyncio)\\.(?:raises|warns|deprecated_call)\\b\"\n",
+      "to": "    r\"|\\bzzzNeverMatchesThisToken\\b\"\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a body that calls something is UNPROVEN, not a dead test",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if calls:\n",
+      "to": "                if False:\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: an OR alternative that always succeeds makes the list unable to fail",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if any(ALWAYS_SUCCEEDS_RE.match(alt) for alt in alternatives[:-1]):\n        return []\n",
+      "to": "    if False:\n        return []\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a shell function definition is not a check being performed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                    and not FUNCTION_DEF_RE.match(stage)):\n",
+      "to": "                    and True):\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a record is enumerated whether or not its name carries the ADR- prefix",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    found = RECORD_FILE_RE.match(name)\n    if not found:\n        identity = record_id(name, title)\n        return int(identity[len(\"ADR-\"):]) if identity and identity.startswith(\"ADR-\") else False",
+      "to": "    found = re.match(r\"^ADR-0*(\\d{1,4})\", name, re.I)\n    if not found:\n        return False",
+      "only": "^(?:a corpus that does not prefix its records with ADR- is still seen, and still spoken to|a tracked path git has to quote is still a record, not an empty corpus|focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a date-named file's year is not read as a record number",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if TASK_SHAPED_RE.match(name[:-len(\".md\")]) or DATE_SHAPED_RE.match(name):",
+      "to": "    if TASK_SHAPED_RE.match(name[:-len(\".md\")]):",
+      "only": "^(?:a corpus that does not prefix its records with ADR- is still seen, and still spoken to|focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a cited token needs a file extension, not merely a slash",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return \"/\" in cited and bool(FILE_EXTENSION_RE.search(cited))\n",
+      "to": "    return bool(re.search(r\"[/\\\\]\", cited) or FILE_EXTENSION_RE.search(cited))\n",
+      "only": "^(?:a cited tracker id or section number is not reported as a missing file)$"
+    },
+    {
+      "label": "lint: a :line suffix is not part of the filename it follows",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            cited = without_line_suffix(head)\n",
+      "to": "            cited = head\n",
+      "only": "^(?:a cited tracker id or section number is not reported as a missing file)$"
+    },
+    {
+      "label": "lint: a task file does not stand in for the record it belongs to",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if title is None or TITLE_TASK_RE.match(title) or not TITLE_RECORD_RE.match(title):",
+      "to": "        if title is None or not TITLE_RECORD_RE.match(title):",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a corpus that cannot be listed is not a corpus with nothing in it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if tracked is None:\n        return None\n",
+      "to": "    if tracked is None:\n        return []\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a qualified dependency resolves against git, not the worktree",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        for entry in tracked:\n            if not entry.startswith(tasks_prefix):\n",
+      "to": "        for entry in sorted(str(p.relative_to(root)) for p in (candidate.with_suffix(\"\") / \"tasks\").glob(\"*.md\")):\n            if not entry.startswith(tasks_prefix):\n",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a tracked path git has to quote is read verbatim",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for args in ([\"ls-files\", \"-z\"], [\"ls-files\", \"--others\", \"--exclude-standard\", \"-z\"]):\n",
+      "to": "    for args in ([\"ls-files\"], [\"ls-files\", \"--others\", \"--exclude-standard\"]):\n",
+      "only": "^(?:a Proposed record with no tasks is told its Status was not checked, and when its paths all exist|a corpus that does not prefix its records with ADR- is still seen, and still spoken to|a cited tracker id or section number is not reported as a missing file|a tracked path git has to quote is still a record, not an empty corpus|focused false-green regressions remain closed|adr-lint reports Go fences whose required success is unreachable|a task file this record owns and cannot read is could-not-run, never a traceback|adr-lint's tracked_or_unignored_paths includes an untracked file; arch-lint's tracked_paths excludes it)$"
+    },
+    {
+      "label": "adr-lint: a gate copied without plugin/lib says so instead of dying in a traceback",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_record_file):",
+      "to": "if False:",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "adr-lint: a repeated ## Acceptance BLOCKS, at the severity of the no-fence check (ADR-045 T5)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_repeated_headings(path, text, errors, blocking=(\"Acceptance\",))",
+      "to": "    check_repeated_headings(path, text, errors)",
+      "only": "^a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice$"
+    },
+    {
+      "label": "adr-lint: an ADR's repeated heading is reported too (ADR-045 T5)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_repeated_headings(Path(adr_path), text, errors)",
+      "to": "    pass",
+      "only": "^a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice$"
+    },
+    {
+      "label": "adr-lint: an unclosed fence in a task blocks, not advises (ADR-045 T8)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_unterminated_fence(path, text, errors, blocking=True)",
+      "to": "    check_unterminated_fence(path, text, errors, blocking=False)",
+      "only": "^a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked$"
+    },
+    {
+      "label": "adr-lint: an unrunnable opener is named whole, not to its first token (ADR-045 T9)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        opener = first_fence_line(acc)",
+      "to": "        opener = (lambda m: m and m.group(0).strip())(re.search(r\"^[ \\t]*```\\S*\", acc, re.M))",
+      "only": "^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$"
+    },
+    {
+      "label": "adr-lint: tracked_or_unignored_paths lists the unignored files on disk as well as the tracked ones (ADR-045)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for args in ([\"ls-files\", \"-z\"], [\"ls-files\", \"--others\", \"--exclude-standard\", \"-z\"]):",
+      "to": "    for args in ([\"ls-files\", \"-z\"],):",
+      "only": "^adr\\-lint's tracked_or_unignored_paths includes an untracked file; arch\\-lint's tracked_paths excludes it$"
+    },
+    {
+      "label": "adr-lint: Exit block names unknown flag / no record / missing file as 1, not 2 (ADR-045 T13)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "Exit: 0 pass · 1 failures found — an unknown flag, no record named, or a missing file ·\n      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied\n      on its own; ADR-045), a named path that exists but could not be read, or a file that never claimed to be a record (not-recognised).",
+      "to": "Exit: 0 pass · 1 failures found · 2 unknown flag, no record named, or a missing file ·\n      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied\n      on its own; ADR-045), or a file that never claimed to be a record (not-recognised).",
+      "only": "^adr-lint's Exit block names the exits it actually produces$"
+    },
+    {
+      "label": "adr-lint: an arrow-bodied BDD test does not borrow its neighbour's body",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        body = bdd_callback_body(text, bdd.end(), php=php)",
+      "to": "        body = text[text.find(\"{\", bdd.end()):]",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "adr-lint: a PHP test body is masked as PHP, so `# )` is a comment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        body = bdd_callback_body(text, bdd.end(), php=php)",
+      "to": "        body = bdd_callback_body(text, bdd.end())",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "adr-lint: a date-shaped filename is not ADR-year",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if DATE_SHAPED_RE.match(path.name):\n        return (None, title_n)",
+      "to": "    if False:\n        return (None, title_n)",
+      "only": "a date-shaped filename is not an ADR year"
+    },
+    {
+      "label": "adr-lint: a one-digit filename number is the same identity as the title",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    found = RECORD_FILE_RE.match(path.name)",
+      "to": "    found = re.search(r\"(?:adr[-_]?)?(\\d{3,4})[-._]\", path.name, re.I)",
+      "only": "a one-digit filename and a different title"
+    },
+    {
+      "label": "adr-lint: filename and title ADR numbers must be the same identity",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if name_n is not None and title_n is not None and name_n != title_n:\n        errors.append(",
+      "to": "    if False:\n        errors.append(",
+      "only": "a file whose name and title disagree on the ADR number is refused"
+    },
+    {
+      "label": "lock: check_test_lock is called (ADR-050 T2)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            check_test_lock(infos, readme_text, errors, root, adr, tracked)",
+      "to": "            pass",
+      "only": "rewriting a locked assertion refuses done"
+    },
+    {
+      "label": "lint: a Rust assertion macro is a failure call",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"|\\b(?:\\w+_)?assert\\w*!\\s*[(\\[{]\"\n",
+      "to": "    r\"|\\bzzzNeverMatchesThisToken\\b\"\n",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: the title number is read from the same title the record check read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        numbered = re.match(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", title, re.I)",
+      "to": "        numbered = re.search(r\"^﻿?#\\s*ADR[-_ ]?(\\d{1,4})\\b\", text, re.I | re.M)",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a Tests row naming a Fuzz-only Go file is not a missing test",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+(?:Test|Fuzz)\\w*\\s*\\(|\"",
+      "to": "    return re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+Test\\w*\\s*\\(|\"",
+      "only": "focused false-green"
+    },
+    {
+      "label": "lock: lint passing ignores a relock snapshot",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        passing = [b for b in entries if \"· exit 0 ·\" in b and not vlog_row_is_lock_snapshot(b)]\n",
+      "to": "        passing = [b for b in entries if \"· exit 0 ·\" in b]\n",
+      "only": "does not make is_done without a passing"
+    },
+    {
+      "label": "adr-lint: a task path past the Windows ceiling is advised at authoring time",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "TASK_PATH_ADVISE_LEN = 140",
+      "to": "TASK_PATH_ADVISE_LEN = 1400",
+      "only": "^(?:a task whose archived path would exceed the Windows ceiling is advised, one under it is not)$"
+    },
+    {
+      "label": "lint: a record retired to the sibling archive is still a record a citation can name",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if number in archived_record_numbers(root, corpus_dir, tracked):\n        return True",
+      "to": "    if False:\n        return True",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "lint: a sibling directory without the Lifecycle marker is not part of the corpus",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if not ARCHIVE_LIFECYCLE_RE.search(catalog):",
+      "to": "        if False:",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "adr-lint: 'Acceptance changed after verification' needs a digest row to have observed it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                changed_note = (\" Acceptance changed after verification;\" if any(VLOG_DIGEST_RE.match(b) for b in passing)",
+      "to": "                changed_note = (\" Acceptance changed after verification;\" if passing",
+      "only": "^(?:a legacy-only log is refused for what it is, not for an Acceptance change nobody observed)$"
+    },
+    {
+      "label": "adr-lint: a red run's quoted output inside the excerpt fence is not a Verification Log entry",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    vlog = [ln.strip() for ln in unfenced_lines(secs.get(\"Verification Log\", []))",
+      "to": "    vlog = [ln.strip() for ln in secs.get(\"Verification Log\", [])",
+      "only": "^(?:quoted output inside the excerpt fence is not a Verification Log entry)$"
+    },
+    {
+      "label": "§295.7: adr-lint blocks a conflicted task",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_conflict_markers(path, text, errors, blocking=True)",
+      "to": "    check_conflict_markers(path, text, errors, blocking=False)",
+      "only": "^(?:unresolved merge-conflict markers are refused by adr-verify, blocked in a task and advised in an ADR)$"
+    },
+    {
+      "label": "§295.7: adr-lint advises a conflicted ADR",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_conflict_markers(Path(adr_path), text, errors, blocking=False)\n",
+      "to": "",
+      "only": "^(?:unresolved merge-conflict markers are refused by adr-verify, blocked in a task and advised in an ADR)$"
+    },
+    {
+      "label": "2.111.0-rc CF4: adr-lint refuses a self-dependency",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "refuses a task that depends on itself",
+      "from": "        if id_matches(d, path.stem):",
+      "to": "        if False:"
+    },
+    {
+      "label": "2.111.0-rc F2: adr-lint says a task holding NUL bytes is not text",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "NUL bytes is not UTF-8 text",
+      "from": "    if \"\\x00\" in text:\n        # Said first and plainly",
+      "to": "    if False:\n        # Said first and plainly"
+    },
+    {
+      "label": "lint: Rust source is stripped with the lock's Rust masker",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        masked = list(_mask_lock_noncode(text, rust_raw=True))\n",
+      "to": "        return scan_code_only(text, hash_comments=True)\n",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: test_body passes Rust through to the stripper",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    stripped = code_only(text, python=python, swift=swift, rust=rust)",
+      "to": "    stripped = code_only(text, python=python, swift=swift)",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: the tests-exist check reads a .rs file as Rust",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                                                rust=f.suffix == \".rs\") is None else \"found\"",
+      "to": "                                                rust=False) is None else \"found\"",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: the can-fail check reads a .rs body as Rust",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                                 rust=f.suffix == \".rs\")",
+      "to": "                body = test_body(text, name, python=f.suffix == \".py\", php=f.suffix == \".php\", swift=swift,\n                                 rust=False)",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a Rust lifetime or label name is not code",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if masked[found.start()] == \" \":\n",
+      "to": "            if False:\n",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a raw Rust lifetime is blanked as one token",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "re.finditer(r\"'((?:r#)?[A-Za-z_]\\w*)\", text)",
+      "to": "re.finditer(r\"'([A-Za-z_]\\w*)\", text)",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a Consumes that names its producer draws no token edge",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            ctoks = {t.lower() for part in cons_local if not tid_re.search(part.upper())",
+      "to": "            ctoks = {t.lower() for part in cons_local if True",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a record with inline tasks skips a tasks directory it does not own",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "            if inline_tasks and not any(p.name.lower() != \"readme.md\" for p in cand.glob(\"*.md\")):\n                continue\n",
+      "to": "",
+      "only": "inline tasks is not paired"
+    },
+    {
+      "label": "lint: inline tasks are named as not read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if re.search(r\"(?m)^#{2,4}\\s+T\\d+\\b\", text):\n            errors.advise(",
+      "to": "        if False:\n            errors.advise(",
+      "only": "inline tasks is not paired"
+    },
+    {
+      "label": "lint: an unnamed input still finds its producer by token",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            ctoks = {t.lower() for part in cons_local if not tid_re.search(part.upper())",
+      "to": "            ctoks = {t.lower() for part in (cons_local if not named else []) if not tid_re.search(part.upper())",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a pnpm workspace filter is not a test filter",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        acc = without_workspace_filters(inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\")",
+      "to": "        acc = inf.get(\"acc_all\") or inf.get(\"acc_first\") or \"\"",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a Tests row's basename resolves against git's listing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if tracked is not None:",
+      "to": "    if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: an Enforced-by pointer resolves against git's listing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        f = resolve_test_file(root, rel.strip(), tracked)",
+      "to": "        f = resolve_test_file(root, rel.strip())",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: task info carries the task's text, so Produces is read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            \"text\": text}",
+      "to": "            \"unused\": text}",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a Tests-row finding names the row's line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            return f\"{inf['path'].name}:{number}\"",
+      "to": "            return inf[\"path\"].name",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: the unselected-row finding names the row's line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                errors.append(f\"{tests_row_ref(inf, name, rel)}: {tid} names `{name}` in its Tests table, but \"",
+      "to": "                errors.append(f\"{inf['path'].name}: {tid} names `{name}` in its Tests table, but \"",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a frozen record's lock drift is advice",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if frozen:",
+      "to": "            if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: only a tracked catalog freezes a record",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if readme not in tracked:",
+      "to": "        if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: a listed test file that is not on disk resolves to nothing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if len(hits) == 1 and not hits[0].is_file():",
+      "to": "        if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lint: pnpm -C and --dir are consumed with their value before the filter",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"(\\bpnpm\\b(?:[^\\S\\n]+(?:-C|--dir)(?:=\\S+|[^\\S\\n]+\\S+)|[^\\S\\n]+-{1,2}[\\w-]+(?:=\\S+)?)*?)[^\\S\\n]+(?:--filter|-F)(?:=\\S+|[^\\S\\n]+\\S+)\")",
+      "to": "    r\"(\\bpnpm\\b(?:[^\\S\\n]+-{1,2}[\\w-]+(?:=\\S+)?)*?)[^\\S\\n]+(?:--filter|-F)(?:=\\S+|[^\\S\\n]+\\S+)\")",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "adr-lint: a class selector can run the row, a test selector only its own",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "    return last == str(name or \"\").replace(\"::\", \".\").split(\".\")[-1] or not last.startswith(\"test\")",
+      "to": "    return last == str(name or \"\").replace(\"::\", \".\").split(\".\")[-1]"
+    },
+    {
+      "label": "adr-lint: a selector naming another test does not run the row",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "    return last == str(name or \"\").replace(\"::\", \".\").split(\".\")[-1] or not last.startswith(\"test\")",
+      "to": "    return True"
+    },
+    {
+      "label": "adr-lint: go test of a directory does not descend into subpackages",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "                elif path == norm(target) or str(PurePosixPath(path).parent) == (norm(target) or \".\"):",
+      "to": "                elif path.startswith(norm(target) + \"/\"):"
+    },
+    {
+      "label": "adr-lint: a bare go test runs the working directory's package only",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "                if \"/\" not in path or re.search(r\"(?:^|&&|\\|\\||;|\\n)\\s*cd\\s\", acc):",
+      "to": "                if True:"
+    },
+    {
+      "label": "adr-lint: after a cd a bare go test is not shown not to run a row",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "                if \"/\" not in path or re.search(r\"(?:^|&&|\\|\\||;|\\n)\\s*cd\\s\", acc):",
+      "to": "                if \"/\" not in path:"
+    },
+    {
+      "label": "adr-lint: a quoted cargo --test binary is the same binary",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "        binaries = re.findall(r\"--test[= ]+['\\\"]?([^\\s'\\\"]+)\", segment)",
+      "to": "        binaries = re.findall(r\"--test[= ]+([^\\s'\\\"]+)\", segment)"
+    },
+    {
+      "label": "chaos 626934a: adr-lint blocks a record holding NUL bytes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        errors.append(f\"{adr_path.name}: holds NUL bytes",
+      "to": "        errors.advise(f\"{adr_path.name}: holds NUL bytes",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "chaos 626934a: another version's survival note is not read as empty",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if set(data) - {\"records\"}:",
+      "to": "    if False:",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "chaos 626934a: QUALITY_HARNESS_STATE_DIR moves the survival note",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if state:\n        key = hashlib",
+      "to": "    if False:\n        key = hashlib",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the survival override keeps one note per repository",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return keyed / ADVICE_SURVIVAL_NAME",
+      "to": "        return Path(state).resolve() / ADVICE_SURVIVAL_NAME",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "chaos 916b515: a task file's own done claim needs evidence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for tid in readme_done + [t for t in own_done_claims(infos) if t not in readme_done]:",
+      "to": "    for tid in readme_done:",
+      "only": "own done claim"
+    },
+    {
+      "label": "chaos 916b515: the own done claim reads any horizontal space",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "OWN_DONE_RE = re.compile(r\"^[^\\S\\r\\n]*[-*]?[^\\S\\r\\n]*\\*{0,2}(?:Status|State):?\\*{0,2}:?[^\\S\\r\\n]*done\\b\", re.M | re.I)",
+      "to": "OWN_DONE_RE = re.compile(r\"^[ \\t]*[-*]?[ \\t]*\\*{0,2}(?:Status|State):?\\*{0,2}:?[ \\t]*done\\b\", re.M | re.I)",
+      "only": "own done claim"
+    },
+    {
+      "label": "chaos 916b515 C-5: adr-lint answers could-not-run for a file it cannot read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    except OSError as exc:\n        # Relative where it can be, so no home path",
+      "to": "    except ZeroDivisionError as exc:\n        # Relative where it can be, so no home path",
+      "only": "cannot read is could-not-run"
+    },
+    {
+      "label": "BACKLOG §319 F: adr-lint reads a named file that is not regular",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "    if problem:\n        print(f\"[adr-lint] could not run: {one_line(path)} — {problem}\", file=sys.stderr)",
+      "to": "    if False:\n        print(f\"[adr-lint] could not run: {one_line(path)} — {problem}\", file=sys.stderr)",
+      "only": "adr-lint refuses a file that is not a regular file"
+    },
+    {
+      "label": "BACKLOG §319 F: adr-lint reads a task that is not regular",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "            refuse_irregular(p)",
+      "to": "            pass",
+      "only": "adr-lint refuses a file that is not a regular file"
+    },
+    {
+      "label": "BACKLOG §319 F: the cross-record check reads another record's irregular task",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "            if f.exists() and not f.is_file():\n                unread.append(f\"`{shown(f)}`: not a regular file\")",
+      "to": "            if False:\n                unread.append(f\"`{shown(f)}`: not a regular file\")",
+      "only": "adr-lint refuses a file that is not a regular file"
+    },
+    {
+      "label": "BACKLOG §319 G: an npm script is not a definition",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "            if f.name == \"package.json\" and name in npm_scripts(source):",
+      "to": "            if False:",
+      "only": "adr-lint reads a package.json script"
+    },
+    {
+      "label": "BACKLOG §319 G: any mention of the name in package.json is a definition",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "            if f.name == \"package.json\" and name in npm_scripts(source):",
+      "to": "            if f.name == \"package.json\" and f'\"{name}\"' in source:",
+      "only": "adr-lint reads a package.json script"
+    },
+    {
+      "label": "BACKLOG §319 G: a script whose value is not a string is a definition",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "    return {name for name, value in scripts.items() if isinstance(value, str)} if isinstance(scripts, dict) else set()",
+      "to": "    return set(scripts) if isinstance(scripts, dict) else set()",
+      "only": "adr-lint reads a package.json script"
+    },
+    {
+      "label": "BACKLOG §319 G: a BOM hides every script",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "        manifest = json.loads(source.lstrip(chr(0xFEFF)))",
+      "to": "        manifest = json.loads(source)",
+      "only": "adr-lint reads a package.json script"
+    },
+    {
+      "label": "BACKLOG §319 C4: an empty Status line is not said",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "    elif not status_value.strip(\": \\t\"):",
+      "to": "    elif False:",
+      "only": "an empty Status line is not read"
+    },
+    {
+      "label": "§319 A6: adr-lint prints a finding's newline raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "print(visible(f\"  {e}\", keep=\"\"))",
+      "to": "print(f\"  {e}\")",
+      "only": "a newline in a task file name is shown escaped in adr-lint"
+    },
+    {
+      "label": "§319 A6: adr-lint prints advice's newline raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "print(visible(f\"  advice: {a}\", keep=\"\"))",
+      "to": "print(f\"  advice: {a}\")",
+      "only": "a newline in a task file name is shown escaped in adr-lint"
+    },
+    {
+      "label": "§319 A6: the withheld-advice line keeps a task name's newline",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "f\"Blocking checks still ran.\", keep=\"\"))",
+      "to": "f\"Blocking checks still ran.\", keep=\"\\n\"))",
+      "only": "a newline in a task file name is shown escaped in adr-lint"
+    },
+    {
+      "label": "§319 A6: the verdict line keeps a record name's newline",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "f\" · {gate_identity()}\", keep=\"\"))",
+      "to": "f\" · {gate_identity()}\", keep=\"\\n\"))",
+      "only": "a newline in a task file name is shown escaped in adr-lint"
+    },
+    {
+      "label": "§307 F-1: an unrecognised record Status is not said",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "    elif status_kind(status_value) is None:",
+      "to": "    elif False:",
+      "only": "Status is not one the readers recognise"
+    },
+    {
+      "label": "§307 F-1: a Status holding bytes that are not UTF-8 is not named as such",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "if chr(0xFFFD) in status_value else",
+      "to": "if False else",
+      "only": "Status is not one the readers recognise"
+    },
+    {
+      "label": "§321 codex P2: adr-lint prints a missing file's name raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "print(f\"ADR not found: {one_line(adr)}\")",
+      "to": "print(f\"ADR not found: {adr}\")",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "§321 codex P2: adr-lint prints an unknown option raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "print(f\"unknown option: {one_line(unknown[0])}\", file=sys.stderr)",
+      "to": "print(f\"unknown option: {unknown[0]}\", file=sys.stderr)",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "§321 codex P2: a survival line prints its finding raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "unchanged · {one_line(message)}\")",
+      "to": "unchanged · {message}\")",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "§321 codex P2: a directory's name prints raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "print(f\"expected a record FILE, got a directory: {one_line(adr)}\")",
+      "to": "print(f\"expected a record FILE, got a directory: {adr}\")",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "§321 codex P2: a file adr-lint does not recognise prints its name raw",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "print(f\"not-recognised: {one_line(adr)} is not named",
+      "to": "print(f\"not-recognised: {adr} is not named",
+      "only": "other printers show a newline escaped"
+    },
+    {
+      "label": "ADR-074 T2: a line and a section that disagree are not said",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/status-section.test.mjs"
+      ],
+      "from": "    if section_value is not None and status_kind(section_value) != status_kind(status_value):",
+      "to": "    if False:",
+      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
+    },
+    {
+      "label": "ADR-074 T4: adr-lint's unsigned human-proof advice is silent",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
+      "from": "        if unsigned:",
+      "to": "        if False:",
+      "only": "^a human-proof step with no sign-off is advised on, and done is unchanged$"
+    },
+    {
+      "label": "559827d chaos: the human-proof advice names README.md",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
+      "from": "            errors.advise(f\"{inf['path'].name}: {tid} is done, and {', '.join(unsigned)} \"",
+      "to": "            errors.advise(f\"README.md: {tid} is done, and {', '.join(unsigned)} \"",
+      "only": "^the human-proof advice names the task file, reads a step without an id, and agrees in number$"
+    },
+    {
+      "label": "559827d chaos: two steps read \"names\"",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
+      "from": "                          f\"{'names' if len(unsigned) == 1 else 'name'} \"",
+      "to": "                          f\"names \"",
+      "only": "^the human-proof advice names the task file, reads a step without an id, and agrees in number$"
+    },
+    {
+      "label": "559827d chaos: a leading character that is not a letter is not named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
+      "from": "                         if not status_value[0].isalnum() else \"\")",
+      "to": "                         if False else \"\")",
+      "only": "^the Status advice names a leading character that is not a letter, and the section form when there is none$"
+    },
+    {
+      "label": "code-review of ADR-074: a human-observed task is told twice",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/human-proof-advice.test.mjs"
+      ],
+      "from": "        unsigned = [] if inf[\"human\"] else unsigned_human_proof_steps(inf.get(\"text\") or \"\")",
+      "to": "        unsigned = unsigned_human_proof_steps(inf.get(\"text\") or \"\")",
+      "only": "^a sub-item is not a step, a `1\\)` list is, and a human-observed task is told once$"
+    },
+    {
+      "label": "code-review of ADR-074: an empty section is called a line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
+      "from": "        where = \"## Status section is\" if status_source == \"section\" else \"**Status:** line is\"",
+      "to": "        where = \"**Status:** line is\"",
+      "only": "^an empty Status section is called a section, not a line$"
+    },
+    {
+      "label": "code-review of ADR-074: a label colon that is not \":\" is not named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
+      "from": "                         f\"is not the colon `:`\" if near else \"\"))",
+      "to": "                         f\"is not the colon `:`\" if False else \"\"))",
+      "only": "^a Status label written with a fullwidth colon is named as not the colon$"
+    },
+    {
+      "label": "§321 codex status: U+FFFD is called bytes that are not UTF-8",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
+      "from": "+ (\"; the value holds U+FFFD, which is what bytes that are not UTF-8 are read as\"",
+      "to": "+ (\", and it holds bytes that are not UTF-8\"",
+      "only": "a Status holding U\\+FFFD is named as holding U\\+FFFD"
+    },
+    {
+      "label": "§321 codex status: the advice claims every reader agrees",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-codex-status.test.mjs"
+      ],
+      "from": "f\"calls a record undecided, a plan and not a work order, unless its Status starts with \"",
+      "to": "f\"and these readers treat it as not Accepted, unless its Status starts with \"",
+      "only": "the Status advice states adr-next"
+    },
+    {
+      "label": "§321 b9: a README row's width is never checked",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "            check_readme_row_widths(readme_text, errors)",
+      "to": "            pass"
+    },
+    {
+      "label": "§321 b9: a README row longer than its header is called short",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "        if header is not None and len(cells) < len(header):",
+      "to": "        if header is not None and len(cells) != len(header):"
+    },
+    {
+      "label": "§321 b9: a short README row blocks instead of advising",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "            errors.advise(f\"README.md: row `{line}` has {len(cells)} cell(s) under the \"",
+      "to": "            errors.append(f\"README.md: row `{line}` has {len(cells)} cell(s) under the \""
+    },
+    {
+      "label": "§321 b9: an empty cell written as || is not counted",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "        inner = line[1:-1] if len(line) > 1 and line.endswith(\"|\") and not line.endswith(\"\\\\|\") else line[1:]",
+      "to": "        inner = line.strip(\"|\")"
+    },
+    {
+      "label": "§321 b9: a README table's header outlives the table",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "an Execution Order row with its Depends-on cell dropped",
+      "from": "            header = None",
+      "to": "            pass"
+    },
+    {
+      "label": "§321 b9: a table inside a fence is measured as a README table",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        lines.append(\"\" if was_fenced or fence_line else raw.strip())",
+      "to": "        lines.append(raw.strip())"
+    },
+    {
+      "label": "§321 b9: a <!-- anywhere on a line opens a README comment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        opening = None if fence is not None else re.match(r\"^ {0,3}<!--\", raw)",
+      "to": "        opening = None if fence is not None else re.search(r\"<!--\", raw)"
+    },
+    {
+      "label": "§321 b9: four spaces of indent open a README comment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        opening = None if fence is not None else re.match(r\"^ {0,3}<!--\", raw)",
+      "to": "        opening = None if fence is not None else re.match(r\"^\\s*<!--\", raw)"
+    },
+    {
+      "label": "§321 b9: a README comment ends by inline state, not at the line holding -->",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "            comment = \"-->\" not in raw[opening.end():]",
+      "to": "            comment = raw.rfind(\"<!--\") > raw.rfind(\"-->\")"
+    },
+    {
+      "label": "§321 b9: a backtick run with a backtick after it opens a README fence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        if was_fenced or not re.match(r\"^ {0,3}`{3,}(?!`)[^`]*`\", raw):",
+      "to": "        if True:"
+    },
+    {
+      "label": "§321 b9: a four-backtick README fence is read as inline code",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-b9.test.mjs"
+      ],
+      "only": "a short row in a fenced or commented example",
+      "from": "        if was_fenced or not re.match(r\"^ {0,3}`{3,}(?!`)[^`]*`\", raw):",
+      "to": "        if was_fenced or not re.match(r\"^ {0,3}`{3,}[^`]*`\", raw):"
+    },
+    {
+      "label": "§321 fifo: a Spec: line naming a FIFO is refused, not waited on",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "    refuse_special(spec_path)\n",
+      "to": "",
+      "only": "refuses a Spec: line naming a FIFO"
+    },
+    {
+      "label": "§321 fifo: a tasks README that is a FIFO is refused, not waited on",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "            refuse_special(readme)\n",
+      "to": "",
+      "only": "refuses a tasks README that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a Tests-row file that is a FIFO is refused, not waited on",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "            if f is not None:\n                refuse_special(f)\n",
+      "to": "",
+      "only": "refuses a Tests-row file that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a directory keeps its site's own answer, never the FIFO refusal",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "    if not Path(path).is_dir():\n        refuse_irregular(path)",
+      "to": "    if True:\n        refuse_irregular(path)",
+      "only": "and a directory there keeps"
+    },
+    {
+      "label": "§321 fifo: a .quality-harness.json that is a FIFO is never opened",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "    if not config.is_file() and not config.is_dir():",
+      "to": "    if False:",
+      "only": "advises on a .quality-harness.json that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a FIFO config is said, never passed over in silence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "        errors.advise(f\"{CONFIG_NAME} could not be read (not a regular file); \"\n                      f\"strictFrom is not in effect and every record is checked in full\")\n        return None\n    try:",
+      "to": "        return None\n    try:",
+      "only": "advises on a .quality-harness.json that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a FIFO config loosens nothing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "        errors.advise(f\"{CONFIG_NAME} could not be read (not a regular file); \"",
+      "to": "        errors.demotion = 'unreadable config'; errors.advise(f\"{CONFIG_NAME} could not be read (not a regular file); \"",
+      "only": "advises on a .quality-harness.json that is a FIFO"
+    },
+    {
+      "label": "§321 fifo: a directory config keeps the except arm's own words",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-fifo.test.mjs"
+      ],
+      "from": "    if not config.is_file() and not config.is_dir():",
+      "to": "    if not config.is_file():",
+      "only": "advises on a .quality-harness.json that is a FIFO"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint raises on a catalogue nested deeper than its parser goes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "    except (ValueError, OSError, RecursionError) as exc:",
+      "to": "    except (ValueError, OSError) as exc:",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint reads a catalogue that is not JSON as one holding no labels",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "return None, f\"{rel} could not be read as a catalogue ({type(exc).__name__}: {exc})\"",
+      "to": "return set(), None",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint reads a \"mutations\" that is not a list as a catalogue",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "    if not isinstance(entries, list):",
+      "to": "    if entries is None:",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint raises on an entry whose label is not a string",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "        if not isinstance(entry, dict) or not isinstance(entry.get(\"label\"), str):",
+      "to": "        if not isinstance(entry, dict):",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "§321 mutate-catalogue: adr-lint says a pointer is not a label of a catalogue it could not read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "            if unread:",
+      "to": "            if unread and False:",
+      "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
+    },
+    {
+      "label": "Codex 3.1.6 #1: the execution check reads a record Status with the record reader",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/status-codex-316.test.mjs"
+      ],
+      "from": "status_kind(status) == \"pending\" or record_status_word(status) == \"rejected\"",
+      "to": "status_kind(status) == \"pending\" or status_word(status) == \"rejected\"",
+      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
+    },
+    {
+      "label": "§350 item 6: adr-lint reads a test file leniently",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/undecodable-test-file.test.mjs"
+      ],
+      "from": "        return f.read_text(encoding=\"utf-8\")",
+      "to": "        return f.read_text(encoding=\"utf-8\", errors=\"replace\")",
+      "only": "^adr-lint reads a test file that is not UTF-8 as UNPROVEN, naming the encoding, never missing$"
+    },
+    {
+      "label": "§350 C3: one unreadable task another record owns stops this record's lint",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/one-unreadable-task.test.mjs"
+      ],
+      "from": "            except OSError as exc:\n                unread.append(f\"`{shown(f)}`: {os_reason(exc)}\")",
+      "to": "            except ValueError as exc:\n                unread.append(f\"`{shown(f)}`: {os_reason(exc)}\")",
+      "only": "^one unreadable task another record owns leaves this record linted, its cycle check UNPROVEN$"
+    },
+    {
+      "label": "§350 C8: a record that is not text is still judged on its content",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "        # saw (BACKLOG §350 C8). No spec is named, because none was read.\n        return None",
+      "to": "        # saw (BACKLOG §350 C8). No spec is named, because none was read.\n        pass",
+      "only": "^(?:adr-lint says nothing about the content of a record or task it called not UTF-8 text)$"
+    },
+    {
+      "label": "§350 C8: a task that is not text is still judged on its content",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "        # log to judge, and its `None` info keeps every later check off it (BACKLOG §350 C8).\n        return set(), None",
+      "to": "        # log to judge, and its `None` info keeps every later check off it (BACKLOG §350 C8).\n        pass",
+      "only": "^(?:adr-lint says nothing about the content of a record or task it called not UTF-8 text)$"
+    },
+    {
+      "label": "§350 C8: a lowercase readme.md is linted as a task",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "        task_files = sorted(p for p in tasks_dir.glob(\"*.md\") if p.name.lower() != \"readme.md\")",
+      "to": "        task_files = sorted(p for p in tasks_dir.glob(\"*.md\") if p.name != \"README.md\")",
+      "only": "^(?:a lowercase readme\\.md is the tasks README, never linted as a task)$"
+    },
+    {
+      "label": "§350 C8: the long-path ceiling goes negative again",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/reader-sentences.test.mjs"
+      ],
+      "from": "                   f\"repository\" if length < 260 else",
+      "to": "                   f\"repository\" if True else",
+      "only": "^(?:the long-path advice never prints a negative length)$"
+    },
+    {
+      "label": "§350 C4: a gate's banner prints the home directory",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return \"~\" if not rel.parts else \"~/\" + rel.as_posix()",
+      "to": "        return str(path)",
+      "only": "^every gate that returns a verdict names the binary that reached it \\(BACKLOG §143\\)$"
+    },
+    {
+      "label": "§350 C3: an unreadable task file is named against the unresolved root",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            rel = os.path.relpath(os.path.realpath(f), os.path.realpath(root))",
+      "to": "            rel = os.path.relpath(f, root)",
+      "only": "^a permission-denied task file another record owns is advice on the cycle check, never could-not-run or a traceback$"
+    },
+    {
+      "label": "§350 review: a NUL task's finding is demoted by strictFrom",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                      f\"and no gate can read it. Save it as UTF-8.\", evidence=True)",
+      "to": "                      f\"and no gate can read it. Save it as UTF-8.\")",
+      "only": "^(?:a done task nobody can read blocks, even before strictFrom)$"
+    },
+    {
+      "label": "§350 review: a done task under no readable Status stands",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        errors.unprove(f\"{adr_path.name}: {', '.join(sorted(done))} {'is' if len(done) == 1 else 'are'} marked \"",
+      "to": "        (lambda *a: None)(f\"{adr_path.name}: {', '.join(sorted(done))} {'is' if len(done) == 1 else 'are'} marked \"",
+      "only": "^(?:a done task under a record whose Status nobody could read is UNPROVEN, even before strictFrom)$"
+    },
+    {
+      "label": "§349.4: the floor judges a fast failing row",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "timed.group(\"exit\") == \"0\" and ",
+      "to": "",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "§313: a shared tasks directory's subdirectories are not named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/adr-lint-nested-tasks.test.mjs"
+      ],
+      "from": "                if nested else f\"{tasks_dir}: no task files\")",
+      "to": "                if False else f\"{tasks_dir}: no task files\")",
+      "only": "^(?:a tasks directory holding only a subdirectory of tasks names it, not \"no task files\")$"
+    },
+    {
+      "label": "3.8.9: a human-mutant row signs off a human-observed task (adr-lint)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/human-mutant-row.test.mjs"
+      ],
+      "from": "            if not any(\"· human-observed ·\" in b and \"· human-observed · mutant \" not in b for b in inf[\"vlog\"]):",
+      "to": "            if not any(\"· human-observed ·\" in b for b in inf[\"vlog\"]):",
+      "only": "^(?:adr-lint does not take a human-mutant row for a done human-observed task's sign-off)$"
+    },
+    {
+      "label": "§354.3: an absent Alternatives section reads as an empty one",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/alternatives-heading.test.mjs"
+      ],
+      "from": "        absent = \"\" if \"Alternatives Considered\" in secs else (",
+      "to": "        absent = \"\" if True else (",
+      "only": "^(?:an Alternatives section under another name is named as absent, with the heading found)$"
+    },
+    {
+      "label": "§354.1: an unrecognised Status value goes unnamed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/not-recognised-reason.test.mjs"
+      ],
+      "from": "        elif not status_kind(status_value):\n            # A YAML `status: on hold` IS read as a Status; what no reader does is act on `on hold`.",
+      "to": "        elif False:\n            # A YAML `status: on hold` IS read as a Status; what no reader does is act on `on hold`.",
+      "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
+    },
+    {
+      "label": "§354.1: a not-recognised file is not told what it lacks",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/not-recognised-reason.test.mjs"
+      ],
+      "from": "              f\"This file: {'; '.join(_not_recognised_because(text, status_value, kept_as_records, arm))}.\")",
+      "to": "              f\"\")",
+      "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
+    },
+    {
+      "label": "3.8.10: a pending record's git listing is re-taken as None",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/adr-lint-pending-tracked.test.mjs"
+      ],
+      "from": "            named = implementation_paths(body)",
+      "to": "            named = implementation_paths(body); tracked = tracked if named else None",
+      "only": "^(?:a pending record is read against git like an accepted one)$"
+    },
+    {
+      "label": "3.8.10: a Mutation Log row still in the file is reported as removed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/mutation-log-row-kept.test.mjs"
+      ],
+      "from": "            for gone in sorted({b for b in known if VLOG_RE.match(b) and b.strip() not in here}):",
+      "to": "            for gone in sorted({b for b in known if VLOG_RE.match(b) and b not in inf[\"vlog\"]}):",
+      "only": "^(?:a Mutation Log row still in the file is not reported as removed, and a removed row still is)$"
+    },
+    {
+      "label": "3.8.10: adr-lint does not name a row with an impossible date",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/impossible-row-date.test.mjs"
+      ],
+      "from": "        elif (problem := row_date_problem(b)):",
+      "to": "        elif False and (problem := row_date_problem(b)):",
+      "only": "^(?:a Verification Log row dated on a day that does not exist, or in the future, is not evidence)$"
+    },
+    {
+      "label": "ADR-092 T1: the one title reading",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    title = _TITLE_NUMBER_RE.match(title_line(text) or \"\")",
+      "to": "    title = re.search(r\"^#\\s+ADR[-_ ]?(\\d{1,4})\\b\", text, re.M | re.I)",
+      "only": "^one title reading decides identity and adr-lint finds no false mismatch$"
+    },
+    {
+      "label": "ADR-092 T7: adr-lint's unlisted report",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/walk-unlisted.test.mjs"
+      ],
+      "from": "        UNLISTED_DIRECTORIES.extend(d for d in unlisted if d not in UNLISTED_DIRECTORIES)",
+      "to": "        pass",
+      "only": "^every walk caller names a directory whose listing failed$"
+    },
+    {
+      "label": "ADR-092 review: adr-lint enumerates without the definition",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    if not recognised_as_record(Path(path), text, None if root is None else Path(root))[0]:\n        return False",
+      "to": "    if False:\n        return False",
+      "only": "^adr-lint enumerates a corpus by the one definition$"
+    },
+    {
+      "label": "ADR-092 review: adr-lint numbers no record by its identity",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        return int(identity[len(\"ADR-\"):]) if identity and identity.startswith(\"ADR-\") else False",
+      "to": "        return False",
+      "only": "^adr-lint enumerates a corpus by the one definition$"
+    },
+    {
+      "label": "ADR-092 review: adr-lint drops a corpus file it could not read",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    except OSError:\n        return None\n    if not recognised_as_record",
+      "to": "    except OSError:\n        return False\n    if not recognised_as_record",
+      "only": "^arch-lint and adr-lint never open a FIFO they were pointed at or walked into$"
+    },
+    {
+      "label": "ADR-092 last review: adr-lint enumerates a record through the raw reader",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        text = read_record_text(path)",
+      "to": "        text = read_regular(path)",
+      "only": "^adr-lint counts no record its record reader refuses as text$"
+    },
+    {
+      "label": "ADR-092 last review: an archive citation resolves by name alone",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "                    is not False and number == int(shaped.group(1))):",
+      "to": "                    is not None):",
+      "only": "^an archive citation resolves only a file the one definition calls a record$"
+    },
+    {
+      "label": "ADR-092 last review: the archive catalog is opened without asking what it is",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "            catalog = read_regular(Path(root) / parent / directory / \"README.md\")",
+      "to": "            catalog = (Path(root) / parent / directory / \"README.md\").read_text(encoding=\"utf-8\", errors=\"replace\")",
+      "only": "^an archive catalog that is a FIFO contributes nothing and is never opened$"
+    },
+    {
+      "label": "ADR-091 T2: adr-lint reads labels from per-source files",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/catalogue-readers.test.mjs"
+      ],
+      "from": "        for rel in sorted(p for p in listed if p.startswith(\"tests/mutations/\") and p.endswith(\".json\")):",
+      "to": "        for rel in []:",
+      "only": "^adr-lint (resolves an Enforced-by label from a per-source catalogue file|says UNPROVEN and names the per-source file that is not a catalogue)$"
+    }
+  ]
+}

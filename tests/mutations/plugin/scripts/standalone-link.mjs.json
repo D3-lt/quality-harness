@@ -1,0 +1,394 @@
+{
+  "mutations": [
+    {
+      "label": "context: a drifted template is named too",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'templates', shipped: 'templates', whenAbsent: 'skip', wired: false },",
+      "to": "",
+      "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named|every directory the plugin ships is a directory the scanners look in|--link says what it does NOT handle, instead of \"nothing to do\"|the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "context: a drifted skill is named too",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'skills', shipped: 'skills', leaf: 'SKILL.md', whenAbsent: 'skip', wired: false },",
+      "to": "  { home: 'skills', shipped: 'skills', leaf: 'ABSENT.md', whenAbsent: 'skip', wired: false },",
+      "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named|the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "link: no skill is ever linked",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  return work.map(entry => ({ ...entry, ...currentState(entry, homeDirectory, platform) }))",
+      "to": "  for (const name of (() => {\n    try { return readdirSync(path.join(source, 'skills')) } catch { return [] }\n  })()) {\n    work.push({ kind: 'link', to: path.join(home, 'skills', name),\n      relative: path.join('skills', name), target: path.join(source, 'skills', name),\n      lineage: 'skill', directory: true })\n  }\n  return work.map(entry => ({ ...entry, ...currentState(entry, homeDirectory, platform) }))",
+      "only": "^(?:a file this plugin never installed is left alone|a forwarder this tool wrote may be rewritten by it|a symlink pointing outside this plugin is left alone|a skill this plugin does not ship is unreachable, not merely unlisted|no skill is ever linked, because a link would hide the namespaced skill|no template is linked either, so nothing this plans can dangle|every gate the plugin ships gets both a forwarder and a Windows shim|the original is kept before it is replaced|a directory where a file belongs is reported, not clobbered|a refused archive leaves this entry exactly as it found it)$"
+    },
+    {
+      "label": "link: the resolver orders versions numerically, not lexically",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "'v.sort((a,b)=>b.m[1]-a.m[1]||b.m[2]-a.m[2]||b.m[3]-a.m[3]);',",
+      "to": "'v.sort((a,b)=>b.n<a.n?-1:1);',",
+      "only": "^(?:the resolver orders versions numerically, not lexically)$"
+    },
+    {
+      "label": "link: a cached version with no gates is not a candidate",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "'.filter(x=>x.m&&f.existsSync(p.join(c,x.n,\"bin\")));',",
+      "to": "'.filter(x=>x.m);',",
+      "only": "^(?:the resolver ignores a cached version with no gates in it)$"
+    },
+    {
+      "label": "link: the Windows forwarder is written with CRLF",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  ].join('\\r\\n')\n}",
+      "to": "  ].join('\\n')\n}",
+      "only": "^(?:a cmd forwarder runs one interpreter and returns its exit code|the Windows forwarder uses CRLF and resolves the bare name through PATHEXT|every gate the plugin ships gets both a forwarder and a Windows shim)$"
+    },
+    {
+      "label": "link: a symlink pointing outside this plugin is left alone",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    return points.startsWith(cacheDirectory(homeDirectory))",
+      "to": "    return true || points.startsWith(cacheDirectory(homeDirectory))",
+      "only": "^(?:a symlink pointing outside this plugin is left alone)$"
+    },
+    {
+      "label": "link: a file this plugin never installed is left alone",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  return sameLineage(target, entry.source ?? entry.target, lineage)\n    ? { ok: true, why: 'a drifted copy of this same file' }\n    : { ok: false, why: 'not a file this plugin installed — it may be your own' }",
+      "to": "  return { ok: true, why: 'a drifted copy of this same file' }",
+      "only": "^(?:a file this plugin never installed is left alone)$"
+    },
+    {
+      "label": "link: a gate with no docstring subject is matched on its opening line",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    return subject(here) !== null || subject(there) !== null\n      ? subject(here) === subject(there)\n      : here === there",
+      "to": "    return subject(here) === subject(there)",
+      "only": "^(?:a gate is recognised by its subject, and by its opening line when it has no subject)$"
+    },
+    {
+      "label": "link: every gate gets a Windows shim beside it",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      contents: forwarderCmd(gate, homeDirectory),",
+      "to": "      contents: forwarderScript(gate, homeDirectory),",
+      "only": "^(?:every gate the plugin ships gets both a forwarder and a Windows shim)$"
+    },
+    {
+      "label": "link: the original is archived before it is replaced",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const kept = stamp ? archive(entry, stamp, homeDirectory, makeLink) : null",
+      "to": "  const kept = null",
+      "only": "^(?:the original is kept before it is replaced|a link that cannot be recreated fails the archive and leaves the original alone|a refused archive leaves this entry exactly as it found it)$"
+    },
+    {
+      "label": "link: a symlink is archived as a symlink, not dereferenced",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  if (info.isSymbolicLink()) {\n    const points = readlinkSync(entry.to)",
+      "to": "  if (false) {\n    const points = readlinkSync(entry.to)",
+      "only": "^(?:a dangling symlink is archived rather than throwing mid-run|a link that cannot be recreated fails the archive and leaves the original alone|an archive that cannot recreate a link refuses rather than recording its target|a refused archive leaves this entry exactly as it found it)$"
+    },
+    {
+      "label": "link: a skill directory is archived whole",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  cpSync(entry.to, kept, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true })",
+      "to": "  cpSync(entry.to, kept, { recursive: false, preserveTimestamps: true, verbatimSymlinks: true })",
+      "only": "^(?:a directory is kept whole, not just the one file that named it)$"
+    },
+    {
+      "label": "link: an archive that cannot recreate the link REFUSES instead of degrading",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      throw new Error(\n        `quality-harness: could not archive the link ${entry.to} — it was NOT replaced. `\n        + `Recreating it under ${kept} failed: ${cause?.code ?? ''} ${cause?.message ?? cause}`.trim(),\n        { cause })\n",
+      "to": "      return kept\n",
+      "only": "^(?:a link that cannot be recreated fails the archive and leaves the original alone|an archive that cannot recreate a link refuses rather than recording its target|a refused archive leaves this entry exactly as it found it)$"
+    },
+    {
+      "label": "link: no template is linked either",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  return work.map(entry => ({ ...entry, ...currentState(entry, homeDirectory, platform) }))",
+      "to": "  for (const name of (() => {\n    try { return readdirSync(path.join(source, 'templates')) } catch { return [] }\n  })()) {\n    work.push({ kind: 'link', to: path.join(home, 'templates', name),\n      relative: path.join('templates', name), target: path.join(source, 'templates', name),\n      lineage: 'template', directory: false })\n  }\n  return work.map(entry => ({ ...entry, ...currentState(entry, homeDirectory, platform) }))",
+      "only": "^(?:a file this plugin never installed is left alone|a forwarder this tool wrote may be rewritten by it|a symlink pointing outside this plugin is left alone|a skill this plugin does not ship is unreachable, not merely unlisted|no skill is ever linked, because a link would hide the namespaced skill|no template is linked either, so nothing this plans can dangle|every gate the plugin ships gets both a forwarder and a Windows shim|the original is kept before it is replaced|a directory where a file belongs is reported, not clobbered|a refused archive leaves this entry exactly as it found it)$"
+    },
+    {
+      "label": "sync: a template the user does not have is not created",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'templates', shipped: 'templates', whenAbsent: 'skip', wired: false },",
+      "to": "  { home: 'templates', shipped: 'templates', whenAbsent: 'create', wired: false },",
+      "only": "^(?:the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "sync: a gate the user does not have IS created",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'bin', shipped: 'bin', whenAbsent: 'create', wired: false },",
+      "to": "  { home: 'bin', shipped: 'bin', whenAbsent: 'skip', wired: false },",
+      "only": "^(?:the sync command reports before it writes, and syncs from the newest install)$"
+    },
+    {
+      "label": "link: a directory in bin is not a gate",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      .filter(entry => entry.isFile() && !entry.name.includes('.'))",
+      "to": "      .filter(entry => !entry.name.includes('.'))",
+      "only": "^(?:a directory in bin/ is not a gate, whatever it is named)$"
+    },
+    {
+      "label": "link: a forwarder that could not run the gate does not exit 0",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    '  exit 4',",
+      "to": "    '  exit 0',",
+      "only": "^(?:a forwarder that could not run the gate does not report a pass|a forwarder that cannot run its resolver says so, and blames neither the plugin)$"
+    },
+    {
+      "label": "link: a forwarder directory nothing searches is not reported as reachable",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  return searchPathIndex(directory, pathValue, platform) >= 0",
+      "to": "  return true",
+      "only": "^(?:a forwarder in a directory nothing searches is reported, not assumed to work)$"
+    },
+    {
+      "label": "link: the resolver prefers the installed version over a leftover cache directory",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  'if(ok.length)root=ok[0].installPath;',",
+      "to": "  'if(false)root=ok[0].installPath;',",
+      "only": "^(?:the resolver asks what is INSTALLED, and falls back to the cache scan)$"
+    },
+    {
+      "label": "windows: a cmd forwarder selects one interpreter",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    'where /q py && goto :usepy',",
+      "to": "    'where /q py && (py -3 \"%QH_ROOT%\\\\bin\\\\' + gate + '\" %*) || (',",
+      "only": "^(?:a cmd forwarder runs one interpreter and returns its exit code)$"
+    },
+    {
+      "label": "notice: an unreadable PATH is unknown, not an absence",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (pathValue === undefined || pathValue === null) return { known: false, winner: null }",
+      "to": "  if (false) return { known: false, winner: null }",
+      "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named)$"
+    },
+    {
+      "label": "notice: which copy answers is precedence, not presence",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    : standalone < plugin ? 'standalone' : 'plugin'",
+      "to": "    : 'standalone'",
+      "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named)$"
+    },
+    {
+      "label": "scope: hooks ship under scripts/, not under hooks/",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'hooks', shipped: 'scripts', whenAbsent: 'skip', wired: true },",
+      "to": "  { home: 'hooks', shipped: 'hooks', whenAbsent: 'skip', wired: true },",
+      "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named|every directory the plugin ships is a directory the scanners look in|what the drift notice reports is what the repair tool can act on)$"
+    },
+    {
+      "label": "sync: a hook the user does not have is not created",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'hooks', shipped: 'scripts', whenAbsent: 'skip', wired: true },",
+      "to": "  { home: 'hooks', shipped: 'scripts', whenAbsent: 'create', wired: true },",
+      "only": "^(?:what the drift notice reports is what the repair tool can act on)$"
+    },
+    {
+      "label": "link: PATH entries are normalised by the target platform, not the host",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const rules = windows ? path.win32 : path.posix",
+      "to": "  const rules = path",
+      "only": "^(?:which copy a bare gate name reaches is precedence, not presence)$"
+    },
+    {
+      "label": "link: the cache prefix uses the target platform separator",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const separator = windows ? path.win32.sep : path.posix.sep",
+      "to": "  const separator = path.sep",
+      "only": "^(?:which copy a bare gate name reaches is precedence, not presence)$"
+    },
+    {
+      "label": "scope: a shipped directory is scanned unless it is excluded on purpose",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'workflows', shipped: 'workflows', whenAbsent: 'skip', wired: false },\n",
+      "to": "",
+      "only": "^(?:every directory the plugin ships is a directory the scanners look in)$"
+    },
+    {
+      "label": "scope: a workflow the user does not have is not created",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'workflows', shipped: 'workflows', whenAbsent: 'skip', wired: false },",
+      "to": "  { home: 'workflows', shipped: 'workflows', whenAbsent: 'create', wired: false },",
+      "only": "^(?:every directory the plugin ships is a directory the scanners look in)$"
+    },
+    {
+      "label": "orphan: a file this plugin cannot prove it wrote is never named",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  return { state: 'unidentified', route: null, version: null, first: null, shared: null }",
+      "to": "  return { state: 'ours-orphan', route: 'residual', version: null, first: null, shared: null }",
+      "only": "^(?:a file no release ever shipped is unidentified, not an orphan of ours|another vendor's file is unidentified even when the basename is in some cache|a cache directory that is not a release contributes nothing|an unidentified file gets a row rather than being dropped)$"
+    },
+    {
+      "label": "orphan: the history walk is bound to this plugin cache namespace",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const cache = cacheDirectory(homeDirectory)\n  let versions = []\n  try { versions = readdirSync(cache) } catch { return [] }\n  const found = []",
+      "to": "  const cache = path.join(homeDirectory, '.claude', 'plugins', 'cache')\n  let versions = []\n  try { versions = readdirSync(cache) } catch { return [] }\n  const found = []",
+      "only": "^(?:a file the plugin no longer ships is ours only when something proves it|another vendor's file is unidentified even when the basename is in some cache|a basename that moved between releases is still recognised|an orphan cites the release it best matches, not the first one found|a cached version list is ordered numerically, not lexically)$"
+    },
+    {
+      "label": "orphan: a still-shipped file is never called an orphan",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  if (shippedNow) return { state: 'ours-shipped', route: 'shipped', version: null, first: null, shared: null }",
+      "to": "  if (false) return { state: 'ours-shipped', route: 'shipped', version: null, first: null, shared: null }",
+      "only": "^(?:a file the plugin ships today is never called an orphan)$"
+    },
+    {
+      "label": "orphan: the scan set is derived from the releases, not written down",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const names = new Set(SHADOW_SCOPE.map(scope => scope.home))",
+      "to": "  const names = new Set(SHADOW_SCOPE.map(scope => scope.home))\n  return [...names].sort()\n  // eslint-disable-next-line no-unreachable",
+      "only": "^(?:the scan set is derived from what the releases shipped|neither write mode touches a file it named as an orphan)$"
+    },
+    {
+      "label": "orphan: an unidentified file still gets a row",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })",
+      "to": "      if (verdict.state !== 'unidentified') rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })",
+      "only": "^(?:an unidentified file gets a row rather than being dropped)$"
+    },
+    {
+      "label": "orphan: the report never becomes a write",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })",
+      "to": "      if (verdict.state === 'ours-orphan') rmSync(path.join(shadow, entry.name), { force: true })\n      rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })",
+      "only": "^(?:neither write mode touches a file it named as an orphan)$"
+    },
+    {
+      "label": "orphan: the cited release is the best match, not the first found",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    .sort((a, b) => b.shared - a.shared)",
+      "to": "",
+      "only": "^(?:an orphan cites the release it best matches, not the first one found)$"
+    },
+    {
+      "label": "orphan: cached versions are ordered numerically, not lexically",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "export function bySemver(names) {\n  const parts = name => /^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(name)?.slice(1, 4).map(Number) ?? null",
+      "to": "export function bySemver(names) {\n  return [...names].sort()\n  // eslint-disable-next-line no-unreachable\n  const parts = name => /^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(name)?.slice(1, 4).map(Number) ?? null",
+      "only": "^(?:a cached version list is ordered numerically, not lexically|semver ordering puts 2\\.0\\.10 after 2\\.0\\.4 and keeps non-releases last)$"
+    },
+    {
+      "label": "orphan: a citation says what matched",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const shared = evidence.shared\n    ? `, sharing ${evidence.shared} line(s) with it`\n    : ''",
+      "to": "  const shared = ''",
+      "only": "^(?:a citation says what matched, and never claims to be the last release)$"
+    }
+  ]
+}

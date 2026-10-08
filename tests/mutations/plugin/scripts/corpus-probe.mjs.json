@@ -1,0 +1,746 @@
+{
+  "mutations": [
+    {
+      "label": "probe: the summary carries work-next's tasks not on disk",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-tasks-not-on-disk.test.mjs"
+      ],
+      "from": "      tasksNotOnDisk: workNext.tasksNotOnDisk ?? null, tasksUninspected: workNext.tasksUninspected ?? null,",
+      "to": "      tasksUninspected: workNext.tasksUninspected ?? null,"
+    },
+    {
+      "label": "probe: --diff compares the tasks not on disk",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-tasks-not-on-disk.test.mjs"
+      ],
+      "from": "['records', 'accepted', 'tasks', 'tasksNotOnDisk', 'tasksUninspected', 'specs']",
+      "to": "['records', 'accepted', 'tasks', 'tasksUninspected', 'specs']"
+    },
+    {
+      "label": "§355: a FAIL row's reason prefers a task nobody could read",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-nul-reason.test.mjs"
+      ],
+      "from": "      ? failing.find(line => /holds NUL bytes/.test(line)) ?? failing[0]",
+      "to": "      ? failing[0]"
+    },
+    {
+      "label": "§362: the attestation counts undecided records beside acted-on ones",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-undecided.test.mjs"
+      ],
+      "from": "  if (report.workNext?.records != null) return { records: report.workNext.records, ...undecided, tasks:",
+      "to": "  if (report.workNext?.records != null) return { records: report.workNext.records, tasks:"
+    },
+    {
+      "label": "§362: an older report without an undecided list gets no count",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-undecided.test.mjs"
+      ],
+      "from": "  const undecided = Array.isArray(report.undecided) ? { undecided: report.undecided.length } : {}",
+      "to": "  const undecided = { undecided: report.undecided?.length ?? 0 }"
+    },
+    {
+      "label": "probe: the work-next summary carries the unproven-spec list (inbox, ts-generator)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      unprovenSpecs: workNextPaths('unprovenSpecs'),",
+      "to": ""
+    },
+    {
+      "label": "probe: an attestation falls back to corpus-report counts, and says so (§289.5)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (!answered.length) return { records: null, ...undecided, tasks: null, taskDirectories }",
+      "to": "  return { records: null, ...undecided, tasks: null, taskDirectories }",
+      "only": "^(?:an attestation falls back to corpus-report counts when work-next did not answer)$"
+    },
+    {
+      "label": "probe: a reader absent on one side of a diff is one line, not one per field (§289.6)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (absent.has(group)) continue\n",
+      "to": "",
+      "only": "^(?:corpus-probe --diff names a reader absent on one side once)$"
+    },
+    {
+      "label": "ADR-082 T1: no adr-lint verdict move is found",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (old.verdict !== entry.verdict) moves.push({ file: entry.file, from: old.verdict, to: entry.verdict, reason: entry.reason })",
+      "to": "    if (false) moves.push({ file: entry.file, from: old.verdict, to: entry.verdict, reason: entry.reason })",
+      "only": "^an attestation counts the adr-lint verdicts that moved since an earlier report$"
+    },
+    {
+      "label": "ADR-082 T1: reports of different corpora are counted",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (!before || !comparable(before, after) || !Array.isArray(before.adrLint) || !Array.isArray(after.adrLint)) return null",
+      "to": "  if (!before) return null",
+      "only": "^an attestation that compared nothing says null, never zero$"
+    },
+    {
+      "label": "ADR-082 T1: --since never reaches the attestation",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    since = earlier.report",
+      "to": "    since = undefined",
+      "only": "^corpus-probe --attest --since prints the verdict changes$"
+    },
+    {
+      "label": "review of ADR-082: a report compared against the same readers counts",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (readers(before) && readers(before) === readers(after)) return null",
+      "to": "  if (false) return null",
+      "only": "^an attestation compares only an earlier reading, and counts each record once$"
+    },
+    {
+      "label": "review of ADR-082: a record listed twice counts twice",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  for (const entry of now.values()) {",
+      "to": "  for (const entry of after.adrLint ?? []) {",
+      "only": "^an attestation compares only an earlier reading, and counts each record once$"
+    },
+    {
+      "label": "probe: a task of a record that is not Accepted is not a disagreement",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": " && !unread.has(entry.tasksDir) && entry.undecided !== true)",
+      "to": " && !unread.has(entry.tasksDir))",
+      "only": "not Accepted is not a disagreement"
+    },
+    {
+      "label": "corpus-probe: a task adr-next calls ready that work-next does not offer is a disagreement, said",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "      if (!workNextReady.has(task.path)) {",
+      "to": "      if (false) {",
+      "only": "^(?:compareReaders: a directory work-next could not read is not a disagreement, and a crashed reader compares nothing|compareReaders: a task of a record that is not Accepted is not a disagreement)$"
+    },
+    {
+      "label": "corpus-probe: a directory work-next could not read is not compared",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const answered = adrNext.filter(entry => entry.ready !== null && !unread.has(entry.tasksDir) && entry.undecided !== true)",
+      "to": "  const answered = adrNext.filter(entry => entry.ready !== null && entry.undecided !== true)",
+      "only": "^(?:compareReaders: a directory work-next could not read is not a disagreement, and a crashed reader compares nothing)$"
+    },
+    {
+      "label": "probe: a frozen record's lint entry says it is frozen",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "  const frozen = record => (record.frozen ? { frozen: true } : {})",
+      "to": "  const frozen = record => ({})"
+    },
+    {
+      "label": "probe: a FAIL carries its first finding",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "...(finding ? { reason: scrub(finding.trim()) } : {})",
+      "to": "...({})"
+    },
+    {
+      "label": "archive: corpus-probe copies unmarkedArchives",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      unmarkedArchives: workNextPaths('unmarkedArchives'),",
+      "to": "      unmarkedArchives: [],",
+      "only": "an archive-named directory"
+    },
+    {
+      "label": "probe: every report carries the reader fingerprint",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "      version: pluginVersion(), sha256: probeDigest(), readers: readersOfRun(readersAtStart, readerFingerprint(pluginRoot)),",
+      "to": "      version: pluginVersion(), sha256: probeDigest(),",
+      "only": "leaves nothing in the probed repository"
+    },
+    {
+      "label": "probe: readers that moved during the run carry no commit",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  return start.sha256 === end.sha256 && start.git === end.git ? end : { ...end, moved: true }",
+      "to": "  return end",
+      "only": "moved during the run"
+    },
+    {
+      "label": "probe: --diff names a FAIL whose reason changed",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "      else if ((old.reason ?? null) !== (entry.reason ?? null)) say(",
+      "to": "      else if (false) say(",
+      "only": "changed FAIL reason"
+    },
+    {
+      "label": "probe: a saved file's parse error is not quoted back",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  try { parsed = JSON.parse(text) } catch { return { why: 'not valid JSON' } }",
+      "to": "  try { parsed = JSON.parse(text) } catch (error) { return { why: error.message } }",
+      "only": "changed FAIL reason"
+    },
+    {
+      "label": "probe: a saved file that is null is not a report",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  if (parsed === null || typeof parsed !== 'object' || Array.isArray(parsed)) return { why: 'not a JSON object' }",
+      "to": "  if (false) return { why: 'not a JSON object' }",
+      "only": "changed FAIL reason"
+    },
+    {
+      "label": "chaos 626934a: the probe names the records it could not use",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const undecided = (corpus.unreadable ?? []).filter(entry => !entry.alias).map(entry => ({",
+      "to": "  const undecided = [].map(entry => ({",
+      "only": "a corpus with records is linted without writing"
+    },
+    {
+      "label": "chaos 626934a: the probe lints a record it could not use",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const adrLint = [...corpus, ...(corpus.unreadable ?? []), ...(corpus.notRecognised",
+      "to": "  const adrLint = [...corpus, ...(corpus.notRecognised",
+      "only": "a corpus with records is linted without writing"
+    },
+    {
+      "label": "chaos 626934a: the probe's adr-lint runs record into scratch, not the corpus",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, maxBuffer: outputLimit, env: { ...process.env, QUALITY_HARNESS_STATE_DIR: lintState } }))",
+      "to": "      { cwd: resolved, encoding: 'utf8', timeout: timeoutMs, maxBuffer: outputLimit }))",
+      "only": "a corpus with records is linted without writing"
+    },
+    {
+      "label": "chaos 626934a: the probe names the task files adr-next could not read",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      unreadable: answer ? (answer.stopped ?? []).filter(task => task.unreadable)",
+      "to": "      unreadable: answer ? [].filter(task => task.unreadable)",
+      "only": "corpus undecided-records"
+    },
+    {
+      "label": "chaos 916b515: a probe that could not look attests no commit",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const looked = report.look !== 'UNPROVEN' && report.workNext?.look !== 'UNPROVEN'",
+      "to": "  const looked = true",
+      "only": "could not look"
+    },
+    {
+      "label": "chaos 916b515: work-next's blind look withholds the commit too",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const looked = report.look !== 'UNPROVEN' && report.workNext?.look !== 'UNPROVEN'",
+      "to": "  const looked = report.look !== 'UNPROVEN'",
+      "only": "could not look"
+    },
+    {
+      "label": "chaos 916b515 C-5: an exit-code verdict carries its reason",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "      : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\\n').find(line => line.trim())",
+      "to": "      : /^exit /.test(verdict) ? undefined",
+      "only": "only an exit code carries"
+    },
+    {
+      "label": "chaos 916b515: a record nobody opened is named unread, not linted",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (record.reason) return { file: rel(record.file), exit: null, verdict: 'unread', reason: scrub(record.reason), ...frozen(record), undecided: true }",
+      "to": "    if (false) return { file: rel(record.file), exit: null, verdict: 'unread', reason: scrub(record.reason), ...frozen(record), undecided: true }",
+      "only": "never opened is named unread"
+    },
+    {
+      "label": "§321 probe: the probe carries adr-lint's advice beside its verdict",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...(unproven.length ? { unproven } : {}), ...frozen(record),",
+      "to": "      ...(unproven.length ? { unproven } : {}), ...frozen(record),",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all|a PASS that carries advice is not reported as a bare PASS)$"
+    },
+    {
+      "label": "§321 probe: the advice the probe carries is scrubbed like the reason",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "advice(?: withheld)?: /.test(line)).map(line => scrub(line.trim()))",
+      "to": "advice(?: withheld)?: /.test(line)).map(line => line.trim())",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
+    },
+    {
+      "label": "§321 probe: a withheld-advice line travels with the advice",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "/^ {2}advice(?: withheld)?: /",
+      "to": "/^ {2}advice: /",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
+    },
+    {
+      "label": "§321 probe: a record nothing opened carries no advice list, not an empty one",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "verdict: 'unread', reason: scrub(record.reason), ...frozen(record), undecided: true }",
+      "to": "verdict: 'unread', reason: scrub(record.reason), advice: [], ...frozen(record), undecided: true }",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
+    },
+    {
+      "label": "§321 probe: the probe's text puts the advice count beside the verdict",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "${entry.verdict ?? 'could not run'}${entry.advice?.length ? ` · ${entry.advice.length} advice line(s)` : ''}`),",
+      "to": "${entry.verdict ?? 'could not run'}`),",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all|a PASS that carries advice is not reported as a bare PASS)$"
+    },
+    {
+      "label": "§321 probe: the matrix names the advice php-multi-root's PASS carries (§18)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...(unproven.length ? { unproven } : {}), ...frozen(record),",
+      "to": "      ...(unproven.length ? { unproven } : {}), ...frozen(record),",
+      "only": "^corpus php-multi-root: every reader answers as reviewed, through a symlink$"
+    },
+    {
+      "label": "§321 probe: advice rides only under a verdict the gate reached",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "      ...(verdict === 'PASS' || verdict === 'FAIL' ? { advice } : {}), ...(unproven.length ? { unproven } : {}), ...frozen(record),",
+      "to": "      advice, ...(unproven.length ? { unproven } : {}), ...frozen(record),",
+      "only": "^(?:the probe carries what adr-lint advised, scrubbed, and a record the gate never checked carries no advice at all)$"
+    },
+    {
+      "label": "§321 probe: the verdict line is found by name, not by its bracket",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "/^\\[(?:PASS|FAIL|UNPROVEN)\\] |not-recognised|NOT A DECISION RECORD/",
+      "to": "/^\\[|not-recognised|NOT A DECISION RECORD/",
+      "only": "^(?:a record strictFrom demotes is read by its verdict line, not the demotion line above it)$"
+    },
+    {
+      "label": "§321 probe: --diff compares advice under a verdict that held",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "      if (old && old.verdict === entry.verdict) adviceChange(",
+      "to": "      if (false) adviceChange(",
+      "only": "^(?:corpus-probe --diff names advice that came or went on a verdict that held)$"
+    },
+    {
+      "label": "§321 probe: --diff leaves a verdict that moved to its own line",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/chaos-315-probe.test.mjs"
+      ],
+      "from": "if (old && old.verdict === entry.verdict) adviceChange(",
+      "to": "if (old) adviceChange(",
+      "only": "^(?:corpus-probe --diff names advice that came or went on a verdict that held)$"
+    },
+    {
+      "label": "§350 C1: a temp directory the probe cannot use is a stack trace",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (!(error instanceof ScratchError)) throw error",
+      "to": "    throw error",
+      "only": "^probe: a temp directory that does not exist is said, not a stack trace$"
+    },
+    {
+      "label": "§350 item 3: the probe lists a link copy as undecided",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "  const undecided = (corpus.unreadable ?? []).filter(entry => !entry.alias).map(entry => ({",
+      "to": "  const undecided = (corpus.unreadable ?? []).map(entry => ({",
+      "only": "^corpus-probe names a link copy of a record as unread, never as an undecided record$"
+    },
+    {
+      "label": "§346: --diff names no environment change",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    if (b !== undefined && a !== undefined && b !== a) say(`environment: ${key} ${b} → ${a}`)",
+      "to": "    if (false) say(`environment: ${key} ${b} → ${a}`)",
+      "only": "^--diff names undecided records that came, went or changed reason, and an environment change$"
+    },
+    {
+      "label": "§346: --diff compares no undecided set",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    setChange('undecided', before.undecided.map(entry => entry.file), after.undecided.map(entry => entry.file))",
+      "to": "    void setChange",
+      "only": "^--diff names undecided records that came, went or changed reason, and an environment change$"
+    },
+    {
+      "label": "§350 C3: the probe does not count an adr-lint that could not run",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/one-unreadable-task.test.mjs"
+      ],
+      "from": "      note(`adr-lint ${rel(record.file)}`, `${run.stderr ?? ''}`.split('\\n').find(line => line.trim())?.trim() ?? 'exit 2')",
+      "to": "      void 0",
+      "only": "^corpus-probe counts an adr-lint that could not run, by record$"
+    },
+    {
+      "label": "§350 C5: a PARTIAL diff says only 'not compared'",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "    named('partialBecause', ...[before, after]",
+      "to": "    if (false) named('partialBecause', ...[before, after]",
+      "only": "^(?:a PARTIAL diff names what made it partial and what dropped out)$"
+    },
+    {
+      "label": "§350 review: an UNPROVEN in the probe carries no reason",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      : verdict === 'UNPROVEN' ? `${run.stdout ?? ''}`.split('\\n').find(line => /^ {2}unproven: /.test(line))",
+      "to": "      : verdict === 'UNPROVEN' ? undefined",
+      "only": "corpus undecided-records: every reader answers as reviewed"
+    },
+    {
+      "label": "§350 RC: a not-recognised file is counted as could-not-run",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/one-unreadable-task.test.mjs"
+      ],
+      "from": "    if (run.status === 2 && !/not-recognised|NOT A DECISION RECORD/.test(`${run.stdout ?? ''}${run.stderr ?? ''}`)) {",
+      "to": "    if (run.status === 2) {",
+      "only": "^(?:corpus-probe counts an adr-lint that could not run, by record)$"
+    },
+    {
+      "label": "§350 RC: the probe drops what adr-lint could not decide",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "...(unproven.length ? { unproven } : {}), ",
+      "to": "",
+      "only": "^(?:the probe keeps what adr-lint could not decide, under whatever verdict it reached)$"
+    },
+    {
+      "label": "§350 RC: a Status line is copied into the report unscrubbed",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "status: record.status == null ? null : scrub(record.status), kind",
+      "to": "status: record.status ?? null, kind",
+      "only": "^(?:the probe scrubs a Status line it copies into the report)$"
+    },
+    {
+      "label": "§350 RC: --diff says nothing of a record's Status",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "      if (was.has(record.file) && scrub(String(was.get(record.file))) !== scrub(String(record.status ?? null))) {",
+      "to": "      if (false) {",
+      "only": "^(?:--diff names a record whose Status changed, and a record that came or went)$"
+    },
+    {
+      "label": "§350 RC: --diff calls a redaction-only Status a change",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "scrub(String(was.get(record.file))) !== scrub(String(record.status ?? null))",
+      "to": "String(was.get(record.file)) !== String(record.status ?? null)",
+      "only": "^(?:--diff does not report a Status whose only change is redaction)$"
+    },
+    {
+      "label": "§354.1: the probe drops a not-recognised file's reason",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/not-recognised-reason.test.mjs"
+      ],
+      "from": "      : verdict === 'not-recognised' ? (first.match(/This file: [^\\r\\n]*/) ?? [])[0] : undefined",
+      "to": "      : undefined",
+      "only": "^(?:a not-recognised file is told what it lacks, and the probe carries the reason)$"
+    },
+    {
+      "label": "ADR-087 T4: corpus-probe drops work-next's notRead",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "      notRead: (workNext.notRead ?? []).map(entry => ({ file: normal(entry.file) })),",
+      "to": "      notRead: [],",
+      "only": "^(?:a numbered file with a frontmatter status outside a record directory is named as not read)$"
+    },
+    {
+      "label": "ADR-087 T4: corpus-probe --diff does not compare notRead",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-shapes.test.mjs"
+      ],
+      "from": "    setChange('workNext.notRead', ...[before, after].map(report => report.workNext?.notRead?.map(entry => entry.file)))",
+      "to": "    void 0",
+      "only": "^(?:corpus-probe --diff names a file that came into or left notRead)$"
+    },
+    {
+      "label": "ADR-089 T1: a PARTIAL pair compares no verdict (comparable requires ok)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": "  return LOOKED.has(before.look) && LOOKED.has(after.look) && corpora(before) === corpora(after)",
+      "to": "  return before.look === 'ok' && after.look === 'ok' && corpora(before) === corpora(after)",
+      "only": "a partial pair compares the verdicts both runs read"
+    },
+    {
+      "label": "ADR-089 T1: two elements joined on one --diff line again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": "  const named = (field, b, a, mark = line => line) => { for (const line of elementLines(field, b, a)) say(mark(line)) }",
+      "to": "  const named = (field, b, a, mark = line => line) => { const all = elementLines(field, b, a).map(mark); if (all.length) say(all.join(\", \")) }",
+      "only": "every element that came or went is its own marked line"
+    },
+    {
+      "label": "ADR-089 T1: a removed element prints with no mark after its field",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": ".map(x => `${field}: - ${x}`)",
+      "to": ".map(x => `${field}: ${x}`)",
+      "only": "every element that came or went is its own marked line"
+    },
+    {
+      "label": "ADR-089 T1: --diff skips workNext.specs again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": "['records', 'accepted', 'tasks', 'tasksNotOnDisk', 'tasksUninspected', 'specs']",
+      "to": "['records', 'accepted', 'tasks', 'tasksNotOnDisk', 'tasksUninspected']",
+      "only": "diff compares the fields it used to skip"
+    },
+    {
+      "label": "ADR-089 T1: the probe report drops uncoveredReadySpecs (§18 matrix)",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-matrix.test.mjs"
+      ],
+      "from": "      uncoveredReadySpecs: workNextPaths('uncoveredReadySpecs'),\n",
+      "to": "",
+      "only": "corpus go-module: every reader answers as reviewed"
+    },
+    {
+      "label": "ADR-089 T2: an attestation carries no look",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-partial.test.mjs"
+      ],
+      "from": "    look: runLook(report),\n",
+      "to": "",
+      "only": "an attestation carries the look of its run"
+    },
+    {
+      "label": "ADR-089 T2: verdictChanges is null under a PARTIAL look again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-partial.test.mjs"
+      ],
+      "from": "  if (!before || !comparable(before, after) || !Array.isArray(before.adrLint)",
+      "to": "  if (!before || before.look !== 'ok' || after.look !== 'ok' || !comparable(before, after) || !Array.isArray(before.adrLint)",
+      "only": "a partial attestation counts the verdicts both runs read and names the rest"
+    },
+    {
+      "label": "ADR-089 T2: notCompared reads 0 whatever was not compared",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-partial.test.mjs"
+      ],
+      "from": "    notCompared: changes ? verdictMoves(since, report).notCompared : null,",
+      "to": "    notCompared: changes ? 0 : null,",
+      "only": "a partial attestation counts the verdicts both runs read and names the rest"
+    },
+    {
+      "label": "ADR-089 T2: git that could not run is called a missing checkout",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-attest-partial.test.mjs"
+      ],
+      "from": "(readers.gitReason ? `${readers.gitReason}, so the readers' commit is unknown` : 'the plugin is not a git checkout')",
+      "to": "'the plugin is not a git checkout'",
+      "only": "git that could not run is not called a missing checkout"
+    },
+    {
+      "label": "ADR-089 T4: an overflowed reader reads did not start again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-enobufs.test.mjs"
+      ],
+      "from": "  if (error.code === 'ENOBUFS') return",
+      "to": "  if (false) return",
+      "only": "an overflowed reader is said to have run and overflowed"
+    },
+    {
+      "label": "ADR-089 T4: the gate helper drops the output limit",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-enobufs.test.mjs"
+      ],
+      "from": "timeout, maxBuffer: outputLimit })",
+      "to": "timeout })",
+      "only": "every reader spawn in the probe carries the output limit"
+    },
+    {
+      "label": "ADR-089 T4: reader() reads a cut-off stdout instead of noting the overflow",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-enobufs.test.mjs"
+      ],
+      "from": "  if (result.error) {",
+      "to": "  if (result.error && result.error.code !== 'ENOBUFS') {",
+      "only": "every reader spawn in the probe carries the output limit"
+    },
+    {
+      "label": "ADR-089 T4: a killed reader is worded did not start again",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  return error.code === 'ETIMEDOUT'",
+      "to": "  return false",
+      "only": "failedToRun: a child killed at the deadline is said to have been killed, with the budget"
+    },
+    {
+      "label": "ADR-089 review: a control character in a diff value prints raw and forges a line",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-marks.test.mjs"
+      ],
+      "from": "  return text.replace(/[\\u0000-\\u001f\\u007f]/g",
+      "to": "  return text.replace(/(?!)/g",
+      "only": "a value carrying a line break is one escaped line"
+    },
+    {
+      "label": "owner 2026-10-07: the probe does not lint the files no reader counts",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/not-recognised-reason.test.mjs"
+      ],
+      "from": ", ...(corpus.notRecognised ?? []).map(file => ({ file }))].map(record => {",
+      "to": "].map(record => {",
+      "only": "a not-recognised file is told what it lacks, and the probe carries the reason"
+    },
+    {
+      "label": "ADR-092 T4: the probe's unread format",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/record-naming.test.mjs"
+      ],
+      "from": "    if (!UNPARSED_FORMAT.test(entry.reason ?? '')) continue",
+      "to": "    continue",
+      "only": "^a numbered file in a format no reader parses is named, and an attachment of a counted record is not$"
+    },
+    {
+      "label": "§356: a could-not-look advice line is printed unmarked",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-transient.test.mjs"
+      ],
+      "from": "    named(field, b ?? [], a ?? [], line => (COULD_NOT_LOOK.test(line) ? ",
+      "to": "    named(field, b ?? [], a ?? [], line => (false ? ",
+      "only": "^a could-not-look advice line that came or went is marked as about the run$"
+    },
+    {
+      "label": "§356: every advice line is marked could-not-look",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-diff-transient.test.mjs"
+      ],
+      "from": "    named(field, b ?? [], a ?? [], line => (COULD_NOT_LOOK.test(line) ? ",
+      "to": "    named(field, b ?? [], a ?? [], line => (true ? ",
+      "only": "^an ordinary advice line that came or went is printed unmarked$"
+    }
+  ]
+}

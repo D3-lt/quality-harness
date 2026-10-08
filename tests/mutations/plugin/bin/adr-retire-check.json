@@ -1,0 +1,324 @@
+{
+  "mutations": [
+    {
+      "label": "evidence: the seal survives a CRLF checkout",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        digest.update(canonical_bytes(path.read_bytes()))",
+      "to": "        digest.update(path.read_bytes())",
+      "only": "^(?:the retirement seal survives a checkout that rewrote line endings)$"
+    },
+    {
+      "label": "severity: the seal still blocks",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "errors.append(f\"{adr_id}: SHA-256 does not match the frozen decision unit",
+      "to": "errors.advise(f\"{adr_id}: SHA-256 does not match the frozen decision unit",
+      "only": "^(?:every adr-retire-check row rule has a case that makes it fire)$"
+    },
+    {
+      "label": "severity: a retirement date advises",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "errors.advise(f\"{adr_id}: Retired must be YYYY-MM-DD",
+      "to": "errors.append(f\"{adr_id}: Retired must be YYYY-MM-DD",
+      "only": "^(?:every adr-retire-check row rule has a case that makes it fire)$"
+    },
+    {
+      "label": "adr-retire-check: a disposition's parentheses are balanced, not just the last run",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if depth == 0:\n                    return text[opening.start() + 1:i], opening.start(), i + 1",
+      "to": "                return text[opening.start() + 1:i], opening.start(), i + 1",
+      "only": "^(?:focused false-green regressions remain closed)$"
+    },
+    {
+      "label": "exit contract: a gate that drops its Exit block entirely is caught",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "declared in its own docstring",
+      "from": "Exit: 0 the contract holds · 1 it does not · 2 could not run: plugin/lib/record.py\nis not beside this gate's bin/ (a gate copied on its own; ADR-045), a named path that exists but\ncould not be read, a corpus file that is not a regular file or not text, or a directory a walk\ncould not list (ADR-092 Decision 10).",
+      "to": "The contract either holds or it does not."
+    },
+    {
+      "label": "ADR-063: a receipt names a record only as a whole token",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a reference names a record only as a whole token",
+      "from": "and adr_id in references_in(line)",
+      "to": "and adr_id in line"
+    },
+    {
+      "label": "ADR-063: a supersession may name a dated record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a date-slug archive passes",
+      "from": "                replacements[adr_id] = named",
+      "to": "                replacements[adr_id] = named if named.startswith(\"ADR-\") else None"
+    },
+    {
+      "label": "ADR-063: a record is found by its content, not only by an ADR- name",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "an NNN-slug archive keeps",
+      "from": "        if not recognised_as_record(path, text, repository)[0]:\n            continue",
+      "to": "        if not path.name.startswith(\"ADR-\"):\n            continue"
+    },
+    {
+      "label": "ADR-063: an admitted file with no identity is named, not dropped",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a file with no identity is advice",
+      "from": "unidentified.append(path)",
+      "to": "pass"
+    },
+    {
+      "label": "ADR-063: a numbered attachment keeps its ADR token",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a numbered attachment keeps",
+      "from": "    for part in reversed(relative.parts):\n        found = first_number_id(part)",
+      "to": "    for part in reversed(relative.parts[:-1]):\n        found = first_number_id(part)"
+    },
+    {
+      "label": "ADR-063: a supersession names its first reference",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a supersession names its first reference",
+      "from": "            named = first_reference(row[\"effect\"][len(\"superseded by \"):])",
+      "to": "            named = next(iter(sorted(set(references_in(row[\"effect\"][len(\"superseded by \"):])) & known)), None)"
+    },
+    {
+      "label": "ADR-063: --adopt names an unidentified record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "names an unidentified record as advice",
+      "from": "    for path in unidentified:\n        print(f\"  advice: {path.relative_to(active_root.parent)",
+      "to": "    for path in []:\n        print(f\"  advice: {path.relative_to(active_root.parent)"
+    },
+    {
+      "label": "ADR-063: a record's own name comes before the companion rule",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a record is its own record",
+      "from": "    if not in_tasks and \"\\x00\" not in text and recognised_as_record(",
+      "to": "    if False and recognised_as_record("
+    },
+    {
+      "label": "ADR-063: the numbered ADR-token rule runs before the dated layer",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a numbered attachment keeps its ADR token over",
+      "from": "    for part in reversed(relative.parts):\n        found = first_number_id(part)",
+      "to": "    for part in []:\n        found = first_number_id(part)"
+    },
+    {
+      "label": "ADR-063: a task file never takes its own record-shaped name",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a record-shaped file under tasks",
+      "from": "    if not in_tasks and \"\\x00\" not in text and recognised_as_record(",
+      "to": "    if \"\\x00\" not in text and recognised_as_record("
+    },
+    {
+      "label": "ADR-063: a companion belongs to the longest stem",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "the longest stem it extends",
+      "from": "        return max(companions, key=len)",
+      "to": "        return min(companions, key=len)"
+    },
+    {
+      "label": "ADR-063: a non-record's bare number names no record",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "a non-record with a bare-number name",
+      "from": "    return found if found and not found.startswith(\"ADR-\") else None",
+      "to": "    return found"
+    },
+    {
+      "label": "ADR-063: a decision unit sorts by case-sensitive parts on every host",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-identity.test.mjs"
+      ],
+      "only": "hashes in the same order on every platform",
+      "from": "    return sorted(paths, key=lambda path: path.parts)",
+      "to": "    return sorted(paths)"
+    },
+    {
+      "label": "ADR-074 T1: adr-retire-check bypasses the shared rule",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/status-reading.test.mjs"
+      ],
+      "from": "    return status_kind(status) == \"governing\"",
+      "to": "    return status.strip().casefold() == \"accepted\"",
+      "only": "^every reader gives one Status the same reading$"
+    },
+    {
+      "label": "§350 item 6: adr-retire-check given a directory says README not found",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if archive_readme.is_dir():",
+      "to": "    if False:",
+      "only": "^missing file, directory, and not-recognised stay their current exits$"
+    },
+    {
+      "label": "ADR-089 T5: --adopt prints the resolved absolute root again",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/adopt-wording.test.mjs"
+      ],
+      "from": "        return root.relative_to(cwd).as_posix() if root.is_relative_to(cwd) else root.name",
+      "to": "        return str(root)",
+      "only": "adopt prints no absolute path"
+    },
+    {
+      "label": "ADR-092 T2: adr-retire-check's recognition",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        if not recognised_as_record(path, text, repository)[0]:\n            continue",
+      "to": "        if False:\n            continue",
+      "only": "^adr-retire-check counts the identified records and advises on every other recognised one$"
+    },
+    {
+      "label": "ADR-092 T2: the identity partition",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "            if unidentified is not None:\n                unidentified.append(path)",
+      "to": "            if unidentified is not None and not path.name.startswith(\"ADR-\"):\n                unidentified.append(path)",
+      "only": "^adr-retire-check counts the identified records and advises on every other recognised one$"
+    },
+    {
+      "label": "ADR-092 T2: the duplicate-path message",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    return f\" ({', '.join(_shown(path) for path in paths)} are one file on disk)\" if same else \"\"",
+      "to": "    return \"\"",
+      "only": "^the link rows read their approved answers in adr-retire-check$"
+    },
+    {
+      "label": "ADR-092 T2: the any-case obligation walk",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        if not path.name.lower().endswith(\".md\"):",
+      "to": "        if not path.name.endswith(\".md\"):",
+      "only": "^adr-retire-check counts a .MD record and its obligations$"
+    },
+    {
+      "label": "ADR-092 T2: the attachment read",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "    text = _read(path)\n    relative = path.relative_to(root)",
+      "to": "    text = _read_record(path)\n    relative = path.relative_to(root)",
+      "only": "^a binary attachment is still attributed and sealed$"
+    },
+    {
+      "label": "ADR-092 T2: adr-retire-check walks only eligible paths",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/record-recognition.test.mjs"
+      ],
+      "from": "        if not corpus_eligible(path.relative_to(root).as_posix()):\n            continue",
+      "to": "        if not path.name.lower().endswith(\".md\"):\n            continue",
+      "only": "^adr-retire-check counts the identified records and advises on every other recognised one$"
+    },
+    {
+      "label": "ADR-092 review: a seal leaves out a special attachment",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "        if problem:\n            _could_not_run(path, f\"{problem}, so the decision unit",
+      "to": "        if False:\n            _could_not_run(path, f\"{problem}, so the decision unit",
+      "only": "^an archive seal names a special attachment, in a unit directory and in a flat archive$"
+    },
+    {
+      "label": "ADR-092 review: a special catalog file reads as missing",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/python-readers-special-files.test.mjs"
+      ],
+      "from": "    problem = special_file_problem(path)\n    if problem:\n        _could_not_run(path, problem)\n    return Path(path).is_file()",
+      "to": "    return Path(path).is_file()",
+      "only": "^an archive or active README that exists and is not a regular file is could-not-run, not missing$"
+    },
+    {
+      "label": "ADR-092 review: a record's obligations go where its first two lines point",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/archive-attribution.test.mjs"
+      ],
+      "from": "        adr_id = own.get(path) or adr_id_for_file(path, root, known)",
+      "to": "        adr_id = adr_id_for_file(path, root, known)",
+      "only": "^a record's obligations are its own, whatever its frontmatter comment names, and none goes unchecked$"
+    },
+    {
+      "label": "ADR-092 review: an obligation of an uncatalogued id goes unchecked",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/archive-attribution.test.mjs"
+      ],
+      "from": "        if adr_id not in rows:\n            errors.append(f\"{adr_id}: {count} archived obligation(s) belong",
+      "to": "        if False:\n            errors.append(f\"{adr_id}: {count} archived obligation(s) belong",
+      "only": "^a record's obligations are its own, whatever its frontmatter comment names, and none goes unchecked$"
+    },
+    {
+      "label": "ADR-092 review: every flat seal attributes the archive again",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/archive-attribution.test.mjs"
+      ],
+      "from": "    return unit_order({source} | _flat_units(archive_root, known).get(adr_id, set()))",
+      "to": "    return unit_order({source} | (_flat_units.cache_clear(), _flat_units(archive_root, known))[1].get(adr_id, set()))",
+      "only": "^a flat archive is attributed once per check, not once per record$"
+    }
+  ]
+}

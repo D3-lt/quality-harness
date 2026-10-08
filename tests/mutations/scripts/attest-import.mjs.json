@@ -1,0 +1,144 @@
+{
+  "mutations": [
+    {
+      "label": "§362: attest-import files corpus.undecided",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "only": "counts undecided records is filed",
+      "from": "const CORPUS_KEYS = ['records', 'undecided', 'tasks', 'taskDirectories', 'countsFrom']",
+      "to": "const CORPUS_KEYS = ['records', 'tasks', 'taskDirectories', 'countsFrom']"
+    },
+    {
+      "label": "ADR-082 T2: verdictChanges is outside the schema",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "'look', 'notCompared', 'verdictChanges', 'runner', 'found']",
+      "to": "'look', 'notCompared', 'runner', 'found']",
+      "only": "^attest-import files verdictChanges and refuses a malformed one$"
+    },
+    {
+      "label": "ADR-082 T2: a malformed verdictChanges is filed",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if ('verdictChanges' in attestation && !verdictChangesShape(attestation.verdictChanges)) {",
+      "to": "  if (false) {",
+      "only": "^attest-import files verdictChanges and refuses a malformed one$"
+    },
+    {
+      "label": "ADR-070 T1: the readers fingerprint is not compared with the commit's",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (attestation.readers !== readers) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "an attestation is filed only when its digests are the ones its commit gives"
+    },
+    {
+      "label": "ADR-070 T1: the probe digest is not compared with the commit's",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (attestation.probeSha256 !== probeSha256) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "an attestation is filed only when its digests are the ones its commit gives"
+    },
+    {
+      "label": "ADR-070 T1: an annotated plugin version is filed",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (attestation.plugin !== pluginVersion) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "an attestation is filed only when its digests are the ones its commit gives"
+    },
+    {
+      "label": "ADR-070 T1: a key outside the schema, such as a report's, is filed",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (unknown.length || corpusUnknown.length) {",
+      "to": "  if (false) {",
+      "only": "a message that is not exactly one clean attestation is refused"
+    },
+    {
+      "label": "ADR-070 T1: the same run is filed twice",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (duplicate) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "an attestation is filed only when its digests are the ones its commit gives"
+    },
+    {
+      "label": "ADR-070 T1: an at the clone lacks is reported as a refusal",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "    return 3",
+      "to": "    return 1",
+      "only": "an at this clone lacks is could-not-look"
+    },
+    {
+      "label": "ADR-070 T1: --check writes the file",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (checkOnly) {",
+      "to": "  if (false) {",
+      "only": "a message that is not exactly one clean attestation is refused"
+    },
+    {
+      "label": "review e0ef6d4 F1: an attestation date must be a date",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (typeof attestation.date !== 'string' || !/^\\d{4}-\\d{2}-\\d{2}$/.test(attestation.date)) {",
+      "to": "  if (false) {",
+      "only": "date that is not a date"
+    },
+    {
+      "label": "review e0ef6d4 F1: an attestation files under a plain name",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-import.test.mjs"
+      ],
+      "from": "  if (name !== path.basename(name) || name.startsWith('.')) refused.push(",
+      "to": "  if (false) refused.push(",
+      "only": "date that is not a date"
+    },
+    {
+      "label": "ADR-089 T3: look is outside the attestation schema",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-look.test.mjs"
+      ],
+      "from": "'readinessUnproven', 'look', 'notCompared', 'verdictChanges'",
+      "to": "'readinessUnproven', 'notCompared', 'verdictChanges'",
+      "only": "attest-import files look and notCompared and refuses malformed ones"
+    },
+    {
+      "label": "ADR-089 T3: attest-import accepts any notCompared",
+      "file": "scripts/attest-import.mjs",
+      "tests": [
+        "tests/attest-look.test.mjs"
+      ],
+      "from": "    if (!(n === null || (Number.isInteger(n) && n >= 0))) refused.push(",
+      "to": "    if (false) refused.push(",
+      "only": "attest-import files look and notCompared and refuses malformed ones"
+    }
+  ]
+}

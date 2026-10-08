@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "host-review: a result without a findings array is not a review",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": " || !Array.isArray(parsed.findings)) return false",
+      "to": ") return false",
+      "only": "^(?:a host result missing the schema is unavailable, and the host is told the target)$"
+    },
+    {
+      "label": "host-review: the host is told the repository and scope",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": "    `Repository: ${JSON.stringify(repo)}. Scope: ${JSON.stringify(scope)}.`,",
+      "to": "    '',",
+      "only": "^(?:a host result missing the schema is unavailable, and the host is told the target)$"
+    },
+    {
+      "label": "host-review: a missing cursor agent is not a clean review",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/host-review.test.mjs"
+      ],
+      "from": "  if (!bin) return unavailable('cursor', null, 'cursor agent binary is absent', model)",
+      "to": "  if (!bin) return { status: 'clean', host: 'cursor', model, effort: null, bound: 'reported', findings: [], reason: '' }",
+      "only": "^(?:a host review is the schema or unavailable)$"
+    }
+  ]
+}

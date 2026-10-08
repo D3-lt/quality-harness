@@ -5,7 +5,7 @@ paths:
   - ".claude-plugin/**"
   - ".gitignore"
   - ".gitattributes"
-  - "tests/mutations.json"
+  - "tests/mutations/**"
   - "tests/package.test.mjs"
 ---
 
@@ -36,7 +36,8 @@ nothing else` fails if the manifest and the tree disagree, in either direction.
 1. `.gitignore` patterns (a rule that stops matching does not warn — this repository published a
    personal home path that way, and nothing warned).
 2. `.gitattributes` (`plugin/bin/* text eol=lf` is what makes the Windows job see LF gates).
-3. `tests/mutations.json` `file:` paths.
+3. The `file:` paths in `tests/mutations/<source>.json`, and that file's own path, which moves with its
+   source (ADR-091).
 4. **Every `Governs:` header in `docs/adr/`.** On 2026-08-28 the move un-governed the entire corpus:
    records named paths that no longer existed, `adr-context` answered "none governs", and
    `adr-lint` passed throughout because `Governs:` was checked for shape and never against the tree.

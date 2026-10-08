@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "performance-trace: diagnostic destinations cannot modify gated artifacts",
+      "file": "plugin/scripts/performance-trace.mjs",
+      "tests": [
+        "tests/performance-trace.test.mjs"
+      ],
+      "from": "        const target = traceTarget(file, protectedPaths)",
+      "to": "        const target = file",
+      "only": "^(?:disabled, expired, full and unavailable trace targets never change execution|trace destinations cannot modify a checkout, a gated file or its aliases)$"
+    }
+  ]
+}

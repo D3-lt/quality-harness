@@ -165,13 +165,17 @@ export function proposals(root, { testsDirectory = 'tests' } = {}) {
   const testFileSet = new Set(testFiles)
   // The runner's own catalogue is not a test. It records that a mutation exists;
   // whether anything notices it is what the runner is for. Counting it as
-  // coverage would make every catalogued string look asserted by itself.
+  // coverage would make every catalogued string look asserted by itself. It is
+  // one mutations.json, or one `<source>.json` per mutated source under
+  // `<testsDirectory>/mutations/` (ADR-091).
+  const isCatalogue = file => /mutations?\.json$/.test(file)
+    || (relative(file).startsWith(`${testsDirectory}/mutations/`) && file.endsWith('.json'))
   const catalogueText = testFiles
-    .filter(file => /mutations?\.json$/.test(file))
+    .filter(isCatalogue)
     .map(file => readIfSmall(file) ?? '')
     .join('\n')
   const testTexts = testFiles
-    .filter(file => !/mutations?\.json$/.test(file))
+    .filter(file => !isCatalogue(file))
     .map(file => readIfSmall(file) ?? '')
 
   // The tools this tree ships, so a document naming one is making a promise that

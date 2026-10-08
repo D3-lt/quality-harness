@@ -56,23 +56,45 @@ export function missingMutations(added, catalogueText) {
  * level up. `git show :path` reads the INDEX, which is what is about to become
  * the commit. The fallback exists so the suite can drive the real guard from a
  * scratch repository that has no staged catalogue of its own.
+ *
+ * ADR-091: each `added` file's entries may instead be staged in its own
+ * `tests/mutations/<file>.json`. Those are read from the index too, and joined to
+ * the single file's. When any of `added` was asked about and neither location
+ * holds anything, the answer is an empty catalogue, which refuses them: the
+ * index was read, and it holds no entry.
  */
-export function stagedCatalogue(run, fallback) {
+export function stagedCatalogue(run, fallback, added = []) {
+  const perSource = []
+  for (const file of added) {
+    const staged = run(['show', `:tests/mutations/${file}.json`])
+    if (staged.status !== 0 || !staged.stdout.trim()) continue
+    try {
+      const entries = JSON.parse(staged.stdout).mutations
+      if (Array.isArray(entries)) perSource.push(...entries)
+    } catch {}
+  }
   const staged = run(['show', ':tests/mutations.json'])
-  if (staged.status === 0 && staged.stdout.trim()) return staged.stdout
-  try { return readFileSync(fallback, 'utf8') } catch { return '' }
+  let single = ''
+  if (staged.status === 0 && staged.stdout.trim()) single = staged.stdout
+  else { try { single = readFileSync(fallback, 'utf8') } catch {} }
+  if (!added.length) return single
+  if (!single) return JSON.stringify({ mutations: perSource })
+  if (!perSource.length) return single
+  let entries
+  try { entries = JSON.parse(single).mutations } catch { return single }
+  return Array.isArray(entries) ? JSON.stringify({ mutations: [...perSource, ...entries] }) : single
 }
 
 function main(stdin, catalogue = join(HERE, '..', 'tests', 'mutations.json')) {
   const added = stdin.split('\n').map(line => line.trim()).filter(Boolean)
   if (!added.length) return 0
   const text = stagedCatalogue(
-    args => spawnSync('git', args, { encoding: 'utf8', timeout: 30_000 }), catalogue)
+    args => spawnSync('git', args, { encoding: 'utf8', timeout: 30_000 }), catalogue, added)
   if (!text) return 0
   const { looked, missing } = missingMutations(added, text)
   if (!looked || !missing.length) return 0
   process.stderr.write([
-    'pre-commit REFUSED: a shipped file is being added with no mutation in tests/mutations.json:',
+    'pre-commit REFUSED: a shipped file is being added with no mutation in tests/mutations/<file>.json or tests/mutations.json:',
     '',
     ...missing.map(file => `  ${file}`),
     '',

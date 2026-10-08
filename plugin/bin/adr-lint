@@ -3821,33 +3821,49 @@ def leaves_the_tree(pointer):
             or re.match(r"^[A-Za-z]:", pointer) is not None)
 
 
-def mutation_labels(root):
-    """The labels in `root`'s tests/mutations.json, and why they could not be read.
+def mutation_labels(root, tracked=None):
+    """The labels in `root`'s mutation catalogue, and why they could not be read.
 
-    `(labels, None)`, or `(None, why)` when the file is there and is not a catalogue: not
-    JSON, nested too deep for the parser, or not an object whose "mutations" is a list of
-    objects each with a string "label". No file at all is `(set(), None)`: nothing there is
-    a mutation, which is seen, not assumed.
+    The catalogue is tests/mutations.json and every tests/mutations/<source>.json git lists
+    (`tracked`, else `tracked_or_unignored_paths`; ADR-091). `(labels, None)`, or `(None, why)`
+    when a file is there and is not a catalogue: not JSON, nested too deep for the parser, or
+    not an object whose "mutations" is a list of objects each with a string "label". `why`
+    names that file. No file at all is `(set(), None)`: nothing there is a mutation, which is
+    seen, not assumed. A tests/mutations/ directory git cannot list is `(None, why)`: the
+    labels in it were not looked at, which is not the same as none.
 
     Never raises. A file of another shape under that name raised out of check_enforcement,
     which runs outside `protected()`, so linting a record with an Enforced-by pointer ended
     in a traceback; and an unparsable one read as holding no labels, so the advice said a
     pointer "is not a mutation label" of a catalogue nobody read (ADR-005).
     """
-    catalogue = root / "tests" / "mutations.json"
-    if not catalogue.is_file():
-        return set(), None
-    try:
-        data = json.loads(catalogue.read_text(encoding="utf-8", errors="replace"))
-    except (ValueError, OSError, RecursionError) as exc:
-        return None, f"{type(exc).__name__}: {exc}"
-    entries = data.get("mutations") if isinstance(data, dict) else None
-    if not isinstance(entries, list):
-        return None, 'it is not a JSON object whose "mutations" is a list'
-    for index, entry in enumerate(entries):
-        if not isinstance(entry, dict) or not isinstance(entry.get("label"), str):
-            return None, f'its entry {index} is not an object with a string "label"'
-    return {entry["label"] for entry in entries}, None
+    files = []
+    single = root / "tests" / "mutations.json"
+    if single.is_file():
+        files.append(("tests/mutations.json", single))
+    # Whether the directory is there only decides whether git's listing is needed; which files
+    # the catalogue holds is git's answer (CLAUDE.md §8).
+    if (root / "tests" / "mutations").is_dir():
+        listed = tracked if tracked is not None else tracked_or_unignored_paths(root)
+        if listed is None:
+            return None, "tests/mutations/ could not be listed (git did not answer)"
+        for rel in sorted(p for p in listed if p.startswith("tests/mutations/") and p.endswith(".json")):
+            if (root / rel).is_file():
+                files.append((rel, root / rel))
+    labels = set()
+    for rel, catalogue in files:
+        try:
+            data = json.loads(catalogue.read_text(encoding="utf-8", errors="replace"))
+        except (ValueError, OSError, RecursionError) as exc:
+            return None, f"{rel} could not be read as a catalogue ({type(exc).__name__}: {exc})"
+        entries = data.get("mutations") if isinstance(data, dict) else None
+        if not isinstance(entries, list):
+            return None, f'{rel} could not be read as a catalogue (it is not a JSON object whose "mutations" is a list)'
+        for index, entry in enumerate(entries):
+            if not isinstance(entry, dict) or not isinstance(entry.get("label"), str):
+                return None, f'{rel} could not be read as a catalogue (its entry {index} is not an object with a string "label")'
+        labels |= {entry["label"] for entry in entries}
+    return labels, None
 
 
 def resolve_enforcement(pointer, root, tracked=None):
@@ -3870,7 +3886,7 @@ def resolve_enforcement(pointer, root, tracked=None):
     """
     if root is None or leaves_the_tree(pointer):
         return None
-    labels, _ = mutation_labels(root)
+    labels, _ = mutation_labels(root, tracked)
     if labels and pointer in labels:
         return "mutation"
     if "::" in pointer:
@@ -3951,17 +3967,17 @@ def check_enforcement(text, path, errors, root, tracked=None):
                           f"that construct, or name the check another way")
             continue
         if form is None:
-            unread = mutation_labels(root)[1] if root is not None else None
+            unread = mutation_labels(root, tracked)[1] if root is not None else None
             if unread:
                 errors.advise(f"{path.name}: Enforced-by names `{pointer}`, which is not a `path::name` "
                               f"test that exists or a gate in bin/, and whether it is a mutation label "
-                              f"is UNPROVEN: tests/mutations.json could not be read as a catalogue "
-                              f"({unread}). Make it one, or name the check another way")
+                              f"is UNPROVEN: {unread}. Make it one, or name the check another way")
                 continue
             errors.advise(f"{path.name}: Enforced-by names `{pointer}`, which is not a mutation "
-                          f"label in tests/mutations.json, a `path::name` test that exists, or a "
-                          f"gate in bin/ — a pointer to nothing is the rot this header exists to "
-                          f"avoid. Name the check, or say `None — <reason>`")
+                          f"label in tests/mutations.json or tests/mutations/<source>.json, a "
+                          f"`path::name` test that exists, or a gate in bin/ — a pointer to nothing "
+                          f"is the rot this header exists to avoid. Name the check, or say "
+                          f"`None — <reason>`")
 
 def implementation_paths(text):
     """Repository paths a record's ## Implementation section names in backticks.

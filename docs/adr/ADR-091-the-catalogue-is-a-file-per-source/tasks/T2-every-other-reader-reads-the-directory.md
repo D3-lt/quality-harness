@@ -55,8 +55,10 @@ out=$(node --test --test-reporter=tap tests/catalogue-readers.test.mjs 2>&1) \
 | `the staged guard passes an added source whose per-source file is staged` | `tests/catalogue-readers.test.mjs` | exit 0 with the per-source file staged | none | S1, S4 |
 | `the staged guard refuses an added source with no staged catalogue entry` | `tests/catalogue-readers.test.mjs` | exit non-zero when the per-source file exists in the working tree but is not staged — the twin | none | S1, S4 |
 
-`campaign-parity` and `corpus-metrics` are covered by the regression command and by T3's run over the real
-catalogue (S5 is mapped there: `tests/campaign-parity.test.mjs` exercises the filter).
+`campaign-parity` over per-source files is covered by a sixth test in the same file, `campaign-parity keeps
+only the entries whose tests include --tests, across per-source files`, which the fence's first command runs;
+`tests/campaign-parity.test.mjs` keeps the single-file filter. `corpus-metrics` is covered by T3's run over
+the real catalogue.
 
 ## Reachability
 
@@ -68,6 +70,10 @@ catalogue (S5 is mapped there: `tests/campaign-parity.test.mjs` exercises the fi
 | 4 — it is used | this repository after T3; adopters' use is not measured |
 
 ## Mutation Log
+- 2026-10-08 · 9fedbb4c* · mutant killed · exit 1 · `plugin/bin/adr-lint` · adr-lint reads only tests/mutations.json, so a label held in a per-source file is a pointer to nothing · acceptance-sha256:c97da438e885a78d3f48a8d76406b57cd62aaee1994a1a4125c483ad53323b8d · covers:adr-lint reads labels from per-source files
+- 2026-10-08 · 9fedbb4c* · mutant killed · exit 1 · `plugin/scripts/mutate-propose.mjs` · a per-source catalogue file is read as a test, so every string it catalogues reads as asserted · acceptance-sha256:c97da438e885a78d3f48a8d76406b57cd62aaee1994a1a4125c483ad53323b8d · covers:mutate-propose treats a per-source file as catalogue
+- 2026-10-08 · 9fedbb4c* · mutant killed · exit 1 · `scripts/staged-mutation-guard.mjs` · the guard never reads a staged per-source file, so an added source catalogued there is refused · acceptance-sha256:c97da438e885a78d3f48a8d76406b57cd62aaee1994a1a4125c483ad53323b8d · covers:the staged guard reads the staged per-source file
+- 2026-10-08 · 9fedbb4c* · mutant killed · exit 1 · `scripts/campaign-parity.mjs` · only the single file is filtered by --tests, so every per-source entry stays selected · acceptance-sha256:c97da438e885a78d3f48a8d76406b57cd62aaee1994a1a4125c483ad53323b8d · covers:campaign-parity filters each per-source file by test
 
 ## Invariants
 
@@ -87,3 +93,10 @@ Stop and ask if `tracked_or_unignored_paths` cannot be called from `mutation_lab
 - `scripts/mutate.mjs` — T1. The data and the docs — T3.
 
 ## Verification Log
+- 2026-10-08 · 9fedbb4c* · exit 1 · `out=$(node --test --test-reporter=tap tests/catalogue-readers.test.mjs 2>&1) \ …` · acceptance-sha256:c97da438e885a78d3f48a8d76406b57cd62aaee1994a1a4125c483ad53323b8d · ms:649 · test-lock-sha256:7553944e67373373e399a4d94a2ad8ab065cb70f63ef2a1cf46e5212e56f9488 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvY2F0YWxvZ3VlLXJlYWRlcnMudGVzdC5tanMJYWRyLWxpbnQgcmVzb2x2ZXMgYW4gRW5mb3JjZWQtYnkgbGFiZWwgZnJvbSBhIHBlci1zb3VyY2UgY2F0YWxvZ3VlIGZpbGUJNGQwZGMwMjA1OGVmYWM4YzkyZGM4OTgzYTU3NGRkYTc1MDEyNGRjZTMxNDQwZjkxZWQzYzU0OGU4N2ZlM2JhNQpib2R5CXRlc3RzL2NhdGFsb2d1ZS1yZWFkZXJzLnRlc3QubWpzCWFkci1saW50IHNheXMgVU5QUk9WRU4gYW5kIG5hbWVzIHRoZSBwZXItc291cmNlIGZpbGUgdGhhdCBpcyBub3QgYSBjYXRhbG9ndWUJNmQyYWIxYjA5OWRjZGFmNTA3NGEyOGVmOWY5ZTBkZDJmM2E0MTRmMDQ3M2Y4ODA1MDg4NGE5YzMyNGIwZmIzZApib2R5CXRlc3RzL2NhdGFsb2d1ZS1yZWFkZXJzLnRlc3QubWpzCW11dGF0ZS1wcm9wb3NlIGNvdW50cyBhIHBlci1zb3VyY2UgY2F0YWxvZ3VlIGZpbGUgYXMgY2F0YWxvZ3VlIGFuZCBub3QgYXMgYSB0ZXN0CTcwNDI3MGI4ZGFmOGE2NjI2YTdmNmU2MmJmYjJlOGJmM2RjM2RkODQyMDYxN2QxZWJiZmU5OWE1YjU5MmUwNjgKYm9keQl0ZXN0cy9jYXRhbG9ndWUtcmVhZGVycy50ZXN0Lm1qcwl0aGUgc3RhZ2VkIGd1YXJkIHBhc3NlcyBhbiBhZGRlZCBzb3VyY2Ugd2hvc2UgcGVyLXNvdXJjZSBmaWxlIGlzIHN0YWdlZAliYTk3YjQ4YmE2ZTVhYzJiNWI5ZmU1ZmI5NGM2MjVlMDdiYTZhN2M3N2E3ZjNmYjhjYjgxZDJmZThlYWUwNzEzCmJvZHkJdGVzdHMvY2F0YWxvZ3VlLXJlYWRlcnMudGVzdC5tanMJdGhlIHN0YWdlZCBndWFyZCByZWZ1c2VzIGFuIGFkZGVkIHNvdXJjZSB3aXRoIG5vIHN0YWdlZCBjYXRhbG9ndWUgZW50cnkJYmVhZWI2NGI4MWVmMjAzZTMxN2MwM2UxYzBlOGVkN2U3MzRmZGI3ZmI4MGY0NGIyN2Q4NjllNDVmMjc4NmExMQ
+  ```
+  ```
+- 2026-10-08 · 9fedbb4c* · exit 0 · `out=$(node --test --test-reporter=tap tests/catalogue-readers.test.mjs 2>&1) \ …` · acceptance-sha256:c97da438e885a78d3f48a8d76406b57cd62aaee1994a1a4125c483ad53323b8d · ms:30537
+- 2026-10-08 · 9fedbb4c* · exit 0 · `out=$(node --test --test-reporter=tap tests/catalogue-readers.test.mjs 2>&1) \ …` · acceptance-sha256:c97da438e885a78d3f48a8d76406b57cd62aaee1994a1a4125c483ad53323b8d · ms:30616
+- 2026-10-08 · 9fedbb4c* · exit 0 · `out=$(node --test --test-reporter=tap tests/catalogue-readers.test.mjs 2>&1) \ …` · acceptance-sha256:c97da438e885a78d3f48a8d76406b57cd62aaee1994a1a4125c483ad53323b8d · ms:30770
+- 2026-10-08 · 9fedbb4c* · exit 0 · `out=$(node --test --test-reporter=tap tests/catalogue-readers.test.mjs 2>&1) \ …` · acceptance-sha256:c97da438e885a78d3f48a8d76406b57cd62aaee1994a1a4125c483ad53323b8d · ms:31195

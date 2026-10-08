@@ -570,7 +570,7 @@ const COULD_NOT_LOOK = /\bNOT checked\b|\bcould not (?:be )?(?:listed|read|check
 export function diffReports(before, after, scrub = text => String(text)) {
   const lines = []
   const say = text => lines.push(oneLine(scrub(text)))
-  const named = (field, b, a) => { for (const line of elementLines(field, b, a)) say(line) }
+  const named = (field, b, a, mark = line => line) => { for (const line of elementLines(field, b, a)) say(mark(line)) }
   const lacks = (field, b, a) => {
     if (b === undefined && a !== undefined) { say(`before lacks ${field}`); return true }
     if (a === undefined && b !== undefined) { say(`after lacks ${field}`); return true }
@@ -586,9 +586,7 @@ export function diffReports(before, after, scrub = text => String(text)) {
   // still printed; only ordinary advice is unmarked.
   const adviceChange = (field, b, a) => {
     if (lacks(field, b, a)) return
-    for (const line of elementLines(field, b ?? [], a ?? [])) {
-      say(COULD_NOT_LOOK.test(line) ? `${line} — could-not-look: about this run, not the corpus; re-run before reading it as a change` : line)
-    }
+    named(field, b ?? [], a ?? [], line => (COULD_NOT_LOOK.test(line) ? `${line} — could-not-look: about this run, not the corpus; re-run before reading it as a change` : line))
   }
   // The adr-lint verdicts, by file: which records came or went, a verdict that moved, a reason that
   // changed under one that held, and its advice. Under a PARTIAL look too (ADR-089).

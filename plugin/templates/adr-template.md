@@ -55,8 +55,9 @@ resolve to nothing:
 
 A MUTATION LABEL is the strongest: a label in the repository's `tests/mutations.json`, or in a
 `tests/mutations/<source>.json` holding one mutated source's entries, names a
-mutation its campaign grades RED or GREEN on every run, so the claim is measured rather than
-asserted. A TEST ID proves the check exists, not that it can fail — that is the mutation's job. A
+mutation its campaign runs: it grades RED or GREEN, or STALE when its `from` no longer matches the
+source, so the claim is measured rather than asserted. A TEST ID proves the check exists, not that it
+can fail — that is the mutation's job. A
 GATE NAME is the weakest and the broadest.
 
 `None — <reason>` is a first-class answer, not a failure to fill something in. Most durable decisions

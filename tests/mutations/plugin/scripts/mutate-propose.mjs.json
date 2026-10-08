@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-091 review: mutate-propose says unproven when a catalogue file was not read",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "    if (candidate.coverage === 'unasserted' && unreadCatalogues.length) {",
+      "to": "    if (false) {",
+      "only": "^(?:mutate-propose says a string is unproven, not neither, when a catalogue file could not be read)$"
+    },
+    {
+      "label": "ADR-091 review: mutate-propose normalizes the --tests directory",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "  const testsDir = String(testsDirectory).replaceAll('\\\\', '/').replace(/\\/+$/, '')",
+      "to": "  const testsDir = String(testsDirectory)",
+      "only": "^(?:mutate-propose reads a --tests directory written with backslashes as the same directory)$"
+    },
+    {
       "label": "propose: the catalogue is not counted as coverage",
       "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
@@ -116,7 +136,7 @@
       "tests": [
         "tests/catalogue-readers.test.mjs"
       ],
-      "from": "    || (relative(file).startsWith(`${testsDirectory}/mutations/`) && file.endsWith('.json'))",
+      "from": "    || (relative(file).startsWith(`${testsDir}/mutations/`) && file.endsWith('.json'))",
       "to": "    || false",
       "only": "^mutate-propose counts a per-source catalogue file as catalogue and not as a test$"
     }

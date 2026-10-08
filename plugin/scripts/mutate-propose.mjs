@@ -157,10 +157,13 @@ function escapeForPattern(value) {
 export function proposals(root, { testsDirectory = 'tests' } = {}) {
   const files = filesBelow(root)
   const relative = file => path.relative(root, file).split(path.sep).join('/')
+  // Normalized as the paths it is compared with are: `qa\tests` and `qa/tests/` named the same
+  // directory and matched nothing (a gpt-6.1-sol review of ADR-091).
+  const testsDir = String(testsDirectory).replaceAll('\\', '/').replace(/\/+$/, '')
 
   const testFiles = files.filter(file => {
     const rel = relative(file)
-    return rel.startsWith(`${testsDirectory}/`) || /\.(?:test|spec)\.[a-z]+$/.test(rel)
+    return rel.startsWith(`${testsDir}/`) || /\.(?:test|spec)\.[a-z]+$/.test(rel)
   })
   const testFileSet = new Set(testFiles)
   // The runner's own catalogue is not a test. It records that a mutation exists;
@@ -169,11 +172,19 @@ export function proposals(root, { testsDirectory = 'tests' } = {}) {
   // one mutations.json, or one `<source>.json` per mutated source under
   // `<testsDirectory>/mutations/` (ADR-091).
   const isCatalogue = file => /mutations?\.json$/.test(file)
-    || (relative(file).startsWith(`${testsDirectory}/mutations/`) && file.endsWith('.json'))
-  const catalogueText = testFiles
-    .filter(isCatalogue)
-    .map(file => readIfSmall(file) ?? '')
-    .join('\n')
+    || (relative(file).startsWith(`${testsDir}/mutations/`) && file.endsWith('.json'))
+  // A catalogue file that could not be read, ran past the size bound, or is not a JSON object is not
+  // "no catalogue": whether a string is catalogued there is unknown (the same review).
+  const catalogueTexts = []
+  const unreadCatalogues = []
+  for (const file of testFiles.filter(isCatalogue)) {
+    const text = readIfSmall(file)
+    let parsed = null
+    try { parsed = text == null ? null : JSON.parse(text) } catch {}
+    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) catalogueTexts.push(text)
+    else unreadCatalogues.push(relative(file))
+  }
+  const catalogueText = catalogueTexts.join('\n')
   const testTexts = testFiles
     .filter(file => !isCatalogue(file))
     .map(file => readIfSmall(file) ?? '')
@@ -246,6 +257,10 @@ export function proposals(root, { testsDirectory = 'tests' } = {}) {
 
   for (const candidate of found) {
     candidate.coverage = coverageOf(candidate.from, testTexts, catalogueText)
+    if (candidate.coverage === 'unasserted' && unreadCatalogues.length) {
+      candidate.coverage = 'unproven'
+      candidate.unreadCatalogues = unreadCatalogues
+    }
   }
   return found.sort((a, b) => a.file.localeCompare(b.file) || a.from.localeCompare(b.from))
 }
@@ -269,11 +284,16 @@ export function report(found, { all = false } = {}) {
     lines.push(`${candidate.coverage.toUpperCase().padEnd(11)} ${candidate.file}  [${candidate.kind}]`)
     lines.push(`            "${candidate.from}"`)
   }
-  const counts = { asserted: 0, catalogued: 0, unasserted: 0 }
+  const counts = { asserted: 0, catalogued: 0, unasserted: 0, unproven: 0 }
   for (const candidate of found) counts[candidate.coverage] += 1
   lines.push('')
   lines.push(`${found.length} contract string(s): ${counts.asserted} asserted by a test, `
     + `${counts.catalogued} catalogued for the runner, ${counts.unasserted} neither.`)
+  if (counts.unproven) {
+    const unread = found.find(candidate => candidate.unreadCatalogues)?.unreadCatalogues ?? []
+    lines.push(`${counts.unproven} unproven: a catalogue file could not be read (${unread.join(', ')}), so whether `
+      + 'they are catalogued is not known.')
+  }
   if (counts.unasserted) {
     lines.push('A contract nothing asserts is not a failing test — it is a green one that would '
       + 'stay green with the promise deleted. Assert the ones that carry weight; the rest '

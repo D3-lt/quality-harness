@@ -3848,9 +3848,17 @@ def mutation_labels(root, tracked=None):
         if listed is None:
             return None, "tests/mutations/ could not be listed (git did not answer)"
         for rel in sorted(p for p in listed if p.startswith("tests/mutations/") and p.endswith(".json")):
-            if (root / rel).is_file():
-                files.append((rel, root / rel))
+            # A listed path that is not a regular file (a link loop, a FIFO, gone from a sparse
+            # checkout) was skipped, and its labels read as absent: could-not-look instead (a
+            # gpt-6.1-sol review of ADR-091).
+            if not (root / rel).is_file():
+                return None, f"{rel} could not be read as a catalogue (git lists it and it is not a regular file here)"
+            files.append((rel, root / rel))
+    # The campaign's own rules (scripts/mutate.mjs loadCatalogue): a per-source file holds only its
+    # source's entries and at least one, and a label is used once across every file, case aside. A
+    # catalogue the campaign refuses grades nothing, so a label in it measures nothing (the same review).
     labels = set()
+    seen = {}
     for rel, catalogue in files:
         try:
             data = json.loads(catalogue.read_text(encoding="utf-8", errors="replace"))
@@ -3859,9 +3867,18 @@ def mutation_labels(root, tracked=None):
         entries = data.get("mutations") if isinstance(data, dict) else None
         if not isinstance(entries, list):
             return None, f'{rel} could not be read as a catalogue (it is not a JSON object whose "mutations" is a list)'
+        source = rel[len("tests/mutations/"):-len(".json")] if rel != "tests/mutations.json" else None
+        if source is not None and not entries:
+            return None, f"{rel} could not be read as a catalogue (it holds no entries, which the campaign refuses)"
         for index, entry in enumerate(entries):
             if not isinstance(entry, dict) or not isinstance(entry.get("label"), str):
                 return None, f'{rel} could not be read as a catalogue (its entry {index} is not an object with a string "label")'
+            if source is not None and entry.get("file") != source:
+                return None, f"{rel} could not be read as a catalogue (its entry {index} mutates {entry.get('file')!r}, not {source!r}, which the campaign refuses)"
+            prior = seen.get(entry["label"].lower())
+            if prior is not None:
+                return None, f"{rel} could not be read as a catalogue (the label {entry['label']!r} is used again, after {prior}, which the campaign refuses)"
+            seen[entry["label"].lower()] = rel
         labels |= {entry["label"] for entry in entries}
     return labels, None
 
@@ -3871,8 +3888,9 @@ def resolve_enforcement(pointer, root, tracked=None):
 
     Three forms, deliberately ordered by how much they prove:
 
-      "mutation"  a catalogue label — the campaign grades it RED or GREEN on
-                  every run, so the claim is MEASURED rather than asserted.
+      "mutation"  a catalogue label — the campaign runs it and grades it RED or
+                  GREEN, or STALE when its `from` no longer matches, so the claim
+                  is MEASURED rather than asserted.
       "test"      a `path::name` id — proves the check exists, not that it can
                   fail. That is ADR-003's rule and mutate.mjs's job.
       "gate"      an executable in bin/.

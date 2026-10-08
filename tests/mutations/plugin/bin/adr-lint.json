@@ -1,6 +1,46 @@
 {
   "mutations": [
     {
+      "label": "ADR-091 review: a per-source entry for another source is not a label",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "            if source is not None and entry.get(\"file\") != source:",
+      "to": "            if False:",
+      "only": "^(?:adr-lint does not resolve a label from a per-source catalogue the campaign refuses)$"
+    },
+    {
+      "label": "ADR-091 review: a label used twice across the catalogue is not a label",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "            if prior is not None:\n                return None, f\"{rel} could not be read as a catalogue (the label",
+      "to": "            if False:\n                return None, f\"{rel} could not be read as a catalogue (the label",
+      "only": "^(?:adr-lint does not resolve a label from a per-source catalogue the campaign refuses)$"
+    },
+    {
+      "label": "ADR-091 review: an empty per-source file makes the catalogue unread",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "        if source is not None and not entries:",
+      "to": "        if False:",
+      "only": "^(?:adr-lint does not resolve a label from a per-source catalogue the campaign refuses)$"
+    },
+    {
+      "label": "ADR-091 review: a listed catalogue path that is not a regular file is could-not-look",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "            if not (root / rel).is_file():\n                return None, f\"{rel} could not be read as a catalogue (git lists it",
+      "to": "            if not (root / rel).is_file():\n                continue\n                return None, f\"{rel} could not be read as a catalogue (git lists it",
+      "only": "^(?:adr-lint says UNPROVEN for a listed catalogue path that is not a regular file)$"
+    },
+    {
       "label": "§351.11: a fullwidth-digit name is folded by NFKC",
       "file": "plugin/bin/adr-lint",
       "tests": [

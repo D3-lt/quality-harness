@@ -211,10 +211,7 @@ NEUTRALISED = re.compile(
     # (Codex review of 73f930f). "no, it failed" keeps its comma and stops.
     r"|(?<![a-z])no\s+(?:[a-z-]+\s+)?"
     r"(?:block|fail|stopp|refus|reject|abort)ing(?![a-z])"
-    # "no tests failed", "no failed tests": an absent failure, but only of a CLOSED list of nouns
-    # (BACKLOG §361, left open in §354). An open word would read "No it failed" as an absence;
-    # "no deploys failed" and "no tests stopped" stay stops.
-    r"|(?<![a-z])no\s+(?:(?:tests?|checks?|jobs?|cases?)\s+failed|failed\s+(?:tests?|checks?|jobs?|cases?))(?![a-z])"
+    # ("no tests failed" is read by ABSENT_FAILURE below, as a clause of its own.)
     # NO count rule: "2374 passed / 1 failed" cannot be told from "Safari 17 passed; 18 failed the
     # manual check" by text, and two reviews found a count rule wider than its case (Codex on 73f930f,
     # ee82e08). A pasted summary that is the LAST sign-off stays a stop, the conservative reading; one
@@ -236,6 +233,16 @@ NEUTRALISED = re.compile(
 RED_RUN = re.compile(r"(?<![a-z])red\s+run(?![a-z])", re.I)
 GREEN_RUN = re.compile(r"(?<![a-z])green\s+run(?![a-z])", re.I)
 CLAUSE_BREAK = re.compile(r"[;—–]|\.(?=\s|$)|(?<![a-z])(?:but|then|however)(?![a-z])", re.I)
+# "no tests failed", "no failed tests": an absent failure, but only of a CLOSED list of nouns (BACKLOG §361,
+# left open in §354), and only as a WHOLE CLAUSE: the start of the note or a punctuation mark before it, the
+# end or one after it. Inside a sentence it may be denied, "the claim that no tests failed is false", and
+# was read as an absence there (the verification review of §361, 2026-10-08); "no tests failed but …" stops.
+ABSENT_FAILURE = re.compile(
+    r"(^|[;,:.—–(])\s*no\s+(?:(?:tests?|checks?|jobs?|cases?)\s+failed|failed\s+(?:tests?|checks?|jobs?|cases?))"
+    r"\s*(?=$|[;,.)—–])", re.I | re.M)
+# The red run's clause loses only its fail words: a stop sharing that clause, "TestAlpha failed, deployment
+# remains blocked", still speaks (the same review: blanking the whole clause erased it).
+FAIL_WORD = re.compile(r"(?<![a-z])fail(?:s|ed|ing|ures?)?(?![a-z])", re.I)
 
 
 def run_report_removed(text):
@@ -253,12 +260,12 @@ def run_report_removed(text):
     passed = AFFIRMATIVE.search(text, green.end(), end)
     if not passed:
         return text
-    return text[:red.start()] + " " + text[brk.start():]
+    return text[:red.start()] + FAIL_WORD.sub(" ", text[red.start():brk.start()]) + text[brk.start():]
 
 
 def not_the_verdict(text):
     """text with what it reports rather than decides blanked: a run report, a negated negative, a counter."""
-    return NEUTRALISED.sub(" ", run_report_removed(text))
+    return NEUTRALISED.sub(" ", ABSENT_FAILURE.sub(r"\1 ", run_report_removed(text)))
 
 
 # A record NUMBER from a filename, and NOT the year of an ISO date. Every

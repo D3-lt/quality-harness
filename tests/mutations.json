@@ -23633,7 +23633,7 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    return text[:red.start()] + \" \" + text[brk.start():]",
+      "from": "    return text[:red.start()] + FAIL_WORD.sub(\" \", text[red.start():brk.start()]) + text[brk.start():]",
       "to": "    return text",
       "only": "^an affirmed red-then-green run report is evidence, not a stop$"
     },
@@ -23643,8 +23643,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    return NEUTRALISED.sub(\" \", run_report_removed(text))",
-      "to": "    return NEUTRALISED.sub(\" \", text)",
+      "from": "    return NEUTRALISED.sub(\" \", ABSENT_FAILURE.sub(r\"\\1 \", run_report_removed(text)))",
+      "to": "    return NEUTRALISED.sub(\" \", ABSENT_FAILURE.sub(r\"\\1 \", text))",
       "only": "^an affirmed red-then-green run report is evidence, not a stop$|^the run report in the row shape it was found in"
     },
     {
@@ -23673,8 +23673,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    r\"|(?<![a-z])no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
-      "to": "    r\"|(?<![a-z])no\\s+(?:[a-z]+\\s+failed|",
+      "from": "    r\"(^|[;,:.\u2014\u2013(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "to": "    r\"(^|[;,:.\u2014\u2013(])\\s*no\\s+(?:[a-z]+\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
       "only": "names an absent failure; anything wider still stops$"
     },
     {
@@ -23683,8 +23683,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    r\"|(?<![a-z])no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
-      "to": "    r\"|(?<![a-z])zzno\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
+      "from": "    r\"(^|[;,:.\u2014\u2013(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "to": "    r\"(^|[;,:.\u2014\u2013(])\\s*zzno\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
       "only": "names an absent failure; anything wider still stops$"
     },
     {
@@ -23693,9 +23693,39 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    r\"|(?<![a-z])no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
-      "to": "    r\"|(?<![a-z])no\\W+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|",
+      "from": "    r\"(^|[;,:.\u2014\u2013(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "to": "    r\"(^|[;,:.\u2014\u2013(])\\s*no\\W+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
       "only": "names an absent failure; anything wider still stops$"
+    },
+    {
+      "label": "\u00a7361 review: the red run's clause is blanked whole",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    return text[:red.start()] + FAIL_WORD.sub(\" \", text[red.start():brk.start()]) + text[brk.start():]",
+      "to": "    return text[:red.start()] + \" \" + text[brk.start():]",
+      "only": "^a stop sharing the red run clause, or a denied absence, still stops$"
+    },
+    {
+      "label": "\u00a7361 review: the absence needs no clause end",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"\\s*(?=$|[;,.)\u2014\u2013])\", re.I | re.M)",
+      "to": "    r\"\", re.I | re.M)",
+      "only": "^a stop sharing the red run clause, or a denied absence, still stops$"
+    },
+    {
+      "label": "\u00a7361 review: the absence needs no clause start",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/human-stop-red-green.test.mjs"
+      ],
+      "from": "    r\"(^|[;,:.\u2014\u2013(])\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "to": "    r\"(^|[;,:.\u2014\u2013(]|\\s)\\s*no\\s+(?:(?:tests?|checks?|jobs?|cases?)\\s+failed|failed\\s+(?:tests?|checks?|jobs?|cases?))\"",
+      "only": "^a stop sharing the red run clause, or a denied absence, still stops$"
     }
   ]
 }

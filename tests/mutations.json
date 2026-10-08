@@ -30,6 +30,55 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355: adr-lint's enumeration is could-not-look on a record name with a dot after .md",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dependency on a record whose name ends in a dot",
+      "from": "        if bare != name and \"/\" not in name and bare.lower().endswith(\".md\") and record_id(bare) is not None:",
+      "to": "        if False:"
+    },
+    {
+      "label": "§355: work-next names a record file with a dot or whitespace after .md",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a record file whose name ends in a dot",
+      "from": "    if (trimmed !== base && /\\.md$/i.test(trimmed) && corpusEligible([...parts, trimmed].join('/'))",
+      "to": "    if (false && corpusEligible([...parts, trimmed].join('/'))"
+    },
+    {
+      "label": "§355: a record name's trailing dot is said as a dot",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a record file whose name ends in a dot",
+      "from": "      const tail = base.slice(trimmed.length).trim() ? 'a dot' : 'whitespace'",
+      "to": "      const tail = 'whitespace'"
+    },
+    {
+      "label": "§355: a task name with a dot after .md is a task file too",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "from": "    return re.sub(r\"[\\s.]+$\", \"\", name)",
+      "to": "    return name.rstrip()"
+    },
+    {
+      "label": "§355: a trailing dot is said as a dot, not as whitespace",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "ends in a dot after .md",
+      "from": "        tail = \"whitespace\" if not path.name[len(bare):].strip() else \"a dot\"",
+      "to": "        tail = \"whitespace\""
+    },
+    {
       "label": "§355: a FAIL row's reason prefers a task nobody could read",
       "file": "plugin/scripts/corpus-probe.mjs",
       "tests": [
@@ -18462,7 +18511,7 @@
       "tests": [
         "tests/chaos-315-trailing-space.test.mjs"
       ],
-      "from": "                  if \"/\" not in name and name.rstrip().lower().endswith(\".md\")",
+      "from": "                  if \"/\" not in name and _past_md(name).lower().endswith(\".md\")",
       "to": "                  if \"/\" not in name and name.lower().endswith(\".md\")",
       "only": "the disk does not hold is named as absent"
     },

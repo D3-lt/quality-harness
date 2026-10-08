@@ -496,10 +496,16 @@ def listed_absent(tasks_dir):
     if r.returncode != 0:
         return []
     names = (os.fsdecode(raw) for raw in r.stdout.split(b"\0") if raw)
-    # `rstrip`: a tracked "T1-a.md " is a task file too, and was dropped here (§321).
+    # A tracked "T1-a.md " is a task file too, and was dropped here (§321); so is "T1-a.md.", the
+    # Windows twin, since Windows strips a trailing dot as it strips a trailing space (§355).
     return sorted(name for name in names
-                  if "/" not in name and name.rstrip().lower().endswith(".md")
+                  if "/" not in name and _past_md(name).lower().endswith(".md")
                   and name.lower() != "readme.md" and not (tasks_dir / name).exists())
+
+
+def _past_md(name):
+    """`name` without the whitespace and dots after its last letter: "T1-a.md. " is "T1-a.md"."""
+    return re.sub(r"[\s.]+$", "", name)
 
 
 
@@ -870,7 +876,7 @@ def load(tasks_dir):
     # js-spa-client and php-react-app A1). It is named and stopped, never read as a task, so it
     # is never READY; a file already read as the same id is stopped with it.
     for path in sorted(tasks_dir.iterdir()):
-        bare = path.name.rstrip()
+        bare = _past_md(path.name)
         if bare == path.name or not bare.lower().endswith(".md"):
             continue
         m = TID_RE.search(bare.upper())
@@ -878,8 +884,10 @@ def load(tasks_dir):
             continue
         tid = m.group(0)
         also = f"; {Path(infos[tid]['path']).name} names {tid} too" if tid in infos else ""
+        # Whitespace keeps the §321 wording; a dot is said as a dot, which Windows cannot even check out.
+        tail = "whitespace" if not path.name[len(bare):].strip() else "a dot"
         infos[tid] = unreadable_task(tid, path, (
-            f"could not read it: the file name {bare} ends in whitespace after .md, so it is "
+            f"could not read it: the file name {bare} ends in {tail} after .md, so it is "
             f"not read as a task file and its state is UNPROVEN{also}"))
     # A task git lists and the disk lacks is an entry this reader could not read.
     # It is stopped with that reason rather than skipped, so what depends on it is

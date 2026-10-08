@@ -232,6 +232,16 @@ function notReadFiles(directory, listing, corpus) {
       }
       continue
     }
+    // A numbered name with whitespace or dots after `.md` (`ADR-001-a.md `, `ADR-001-a.md.`) matches no
+    // `.md` test, so it was counted nowhere and named nowhere, with look ok (BACKLOG §355, the record
+    // twin of §321's task name). Windows strips both from a name and cannot check such a file out.
+    const trimmed = base.replace(/[\s.]+$/u, '')
+    if (trimmed !== base && /\.md$/i.test(trimmed) && corpusEligible([...parts, trimmed].join('/'))
+      && (kept ? NUMBERED_IN_RECORD_DIRECTORY : NUMBERED_NAME).test(trimmed)) {
+      const tail = base.slice(trimmed.length).trim() ? 'a dot' : 'whitespace'
+      failed.push({ file, reason: `its name ends in ${tail} after .md, so no reader reads it as a record` })
+      continue
+    }
     if (!corpusEligible(posixRel(rel))) continue
     if (!(kept ? NUMBERED_IN_RECORD_DIRECTORY : NUMBERED_NAME).test(base)) continue
     const problem = candidateProblem(file)

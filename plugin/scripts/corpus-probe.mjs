@@ -336,8 +336,12 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     // reads as a failure with nothing behind it (a Windows chaos round of 916b515, C-5).
     // An UNPROVEN carries what could not be decided, as a FAIL carries its finding: a move to
     // UNPROVEN said no reason (a stand-in review of f8d1eaf).
+    // A FAIL's reason is its first finding, unless one says a file could not be read: a record's own
+    // content findings print before a task's "holds NUL bytes", and the reason then hid that the task
+    // was never read at all (BACKLOG §355, a Windows corpus-chaos run of v3.8.9).
+    const failing = `${run.stdout ?? ''}`.split('\n').filter(line => /^ {2}\S/.test(line) && !/^ {2}advice:/.test(line))
     const finding = verdict === 'FAIL'
-      ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}\S/.test(line) && !/^ {2}advice:/.test(line))
+      ? failing.find(line => /holds NUL bytes/.test(line)) ?? failing[0]
       : verdict === 'UNPROVEN' ? `${run.stdout ?? ''}`.split('\n').find(line => /^ {2}unproven: /.test(line))
       : /^exit /.test(verdict) ? `${run.stderr ?? ''}`.split('\n').find(line => line.trim())
       // A not-recognised file carries what IT lacks, the clause adr-lint ends its sentence with: 32

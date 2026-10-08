@@ -30,6 +30,15 @@
       "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
     },
     {
+      "label": "§355: a FAIL row's reason prefers a task nobody could read",
+      "file": "plugin/scripts/corpus-probe.mjs",
+      "tests": [
+        "tests/probe-nul-reason.test.mjs"
+      ],
+      "from": "      ? failing.find(line => /holds NUL bytes/.test(line)) ?? failing[0]",
+      "to": "      ? failing[0]"
+    },
+    {
       "label": "§355: adr-lint names two Status lines that disagree",
       "file": "plugin/bin/adr-lint",
       "tests": [

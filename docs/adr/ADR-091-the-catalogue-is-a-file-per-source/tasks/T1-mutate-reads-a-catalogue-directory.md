@@ -63,6 +63,10 @@ campaigns in worktrees and is the slow part; it stays because those locks are wh
 | 4 — it is used | T3 and every campaign after it |
 
 ## Mutation Log
+- 2026-10-08 · 5f776809* · mutant killed · exit 1 · `scripts/mutate.mjs` · a repeated label is refused only within one file, so the same label in two per-source files reads as two entries · acceptance-sha256:bccc1364d0209b162c7f3faa93ded085a97054e7605543ab316bb468b5bcb0b2 · covers:a label repeated across files is refused
+- 2026-10-08 · 5f776809* · mutant killed · exit 1 · `scripts/mutate.mjs` · an entry for another source is read from a per-source file as if it were filed there · acceptance-sha256:bccc1364d0209b162c7f3faa93ded085a97054e7605543ab316bb468b5bcb0b2 · covers:an entry under another source's file is refused
+- 2026-10-08 · 5f776809* · mutant killed · exit 1 · `scripts/mutate.mjs` · the per-source files are read against path order, so entries come out in an order no path predicts · acceptance-sha256:bccc1364d0209b162c7f3faa93ded085a97054e7605543ab316bb468b5bcb0b2 · covers:the directory is read in path order
+- 2026-10-08 · 5f776809* · mutant killed · exit 1 · `scripts/mutate.mjs` · a write mode rewrites every catalogue file, not only the one holding the changed entry · acceptance-sha256:bccc1364d0209b162c7f3faa93ded085a97054e7605543ab316bb468b5bcb0b2 · covers:a write rewrites only the file holding the entry
 
 ## Invariants
 
@@ -84,3 +88,10 @@ Stop and ask if a locked test in `tests/mutate-runner.test.mjs` or `tests/mutate
 - The other readers — T2. Moving this repository's entries — T3.
 
 ## Verification Log
+- 2026-10-08 · 5f776809* · exit 1 · `out=$(node --test --test-reporter=tap tests/mutate-catalogue-dir.test.mjs 2>&1) \ …` · acceptance-sha256:bccc1364d0209b162c7f3faa93ded085a97054e7605543ab316bb468b5bcb0b2 · ms:1184 · test-lock-sha256:5091de62dbcae8eb48ca3cd7cd3feccf825d7fc66de822a3c94e38e1ea3a0214 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvbXV0YXRlLWNhdGFsb2d1ZS1kaXIudGVzdC5tanMJYSBsYWJlbCByZXBlYXRlZCBhY3Jvc3MgdHdvIGNhdGFsb2d1ZSBmaWxlcyBpcyByZWZ1c2VkIGJlZm9yZSBhbnl0aGluZyBydW5zCWU5MzFkNDZmNDExYmUyOWYxNTkwODljMTUzNTQ4NTM4Mzc5MTM0ZTZkODY3NDk1MGEzZWI5NjQzN2EyNTUyYTkKYm9keQl0ZXN0cy9tdXRhdGUtY2F0YWxvZ3VlLWRpci50ZXN0Lm1qcwlhbiBlbnRyeSBmaWxlZCB1bmRlciBhbm90aGVyIHNvdXJjZSBpcyByZWZ1c2VkCWRhMmI3MWE3NWU1YjY4M2MxYTgzNzdmZjNkY2QzN2Q5YzcyY2MzYTAxZTBhMTg1NGEyNTE5MzQ1Y2E2NDE5YTMKYm9keQl0ZXN0cy9tdXRhdGUtY2F0YWxvZ3VlLWRpci50ZXN0Lm1qcwlyZXBvaW50IHdyaXRlIHJld3JpdGVzIG9ubHkgdGhlIGZpbGUgdGhhdCBob2xkcyB0aGUgZW50cnkJZGUyMWY3MTBiZDU1YjA1MGQ1ZjFjNGMyYzFhODA5YjllMzkxNmQyNzNiODc3NmUxNzczMjZlN2M3YjBiMzUwZQpib2R5CXRlc3RzL211dGF0ZS1jYXRhbG9ndWUtZGlyLnRlc3QubWpzCXRoZSBjYXRhbG9ndWUgZGlyZWN0b3J5IGlzIHJlYWQgaW4gcGF0aCBvcmRlciBiZXNpZGUgdGhlIHNpbmdsZSBmaWxlCThkOGJkNTZiNjA2ZTA3YjI4OGVmMTc2M2EzOTk2YWU4NWNmYTE0MzMxYzAzNWM3NTdjZTMwNWQyMGFmZGZiMDk
+  ```
+  ```
+- 2026-10-08 · 5f776809* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutate-catalogue-dir.test.mjs 2>&1) \ …` · acceptance-sha256:bccc1364d0209b162c7f3faa93ded085a97054e7605543ab316bb468b5bcb0b2 · ms:59446
+- 2026-10-08 · 5f776809* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutate-catalogue-dir.test.mjs 2>&1) \ …` · acceptance-sha256:bccc1364d0209b162c7f3faa93ded085a97054e7605543ab316bb468b5bcb0b2 · ms:60346
+- 2026-10-08 · 5f776809* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutate-catalogue-dir.test.mjs 2>&1) \ …` · acceptance-sha256:bccc1364d0209b162c7f3faa93ded085a97054e7605543ab316bb468b5bcb0b2 · ms:58466
+- 2026-10-08 · 5f776809* · exit 0 · `out=$(node --test --test-reporter=tap tests/mutate-catalogue-dir.test.mjs 2>&1) \ …` · acceptance-sha256:bccc1364d0209b162c7f3faa93ded085a97054e7605543ab316bb468b5bcb0b2 · ms:57134

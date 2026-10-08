@@ -16711,8 +16711,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "    if (repeated.size) {",
-      "to": "    if (false) {",
+      "from": "      if (prior) {",
+      "to": "      if (false) {",
       "only": "measures only what it narrowed, fresh"
     },
     {
@@ -18434,8 +18434,8 @@
       "tests": [
         "tests/chaos-315-mutate-catalogue.test.mjs"
       ],
-      "from": "is not a mutation catalogue: ${malformed}\\n`)\n    return 2",
-      "to": "is not a mutation catalogue: ${malformed}\\n`)\n    return 1",
+      "from": "  if (loaded.error) {\n    process.stderr.write(`mutate: ${loaded.error}\\n`)\n    return 2",
+      "to": "  if (loaded.error) {\n    process.stderr.write(`mutate: ${loaded.error}\\n`)\n    return 1",
       "only": "mutate refuses a catalogue that is not"
     },
     {
@@ -18444,8 +18444,8 @@
       "tests": [
         "tests/chaos-315-mutate-catalogue.test.mjs"
       ],
-      "from": "process.stderr.write(`mutate: ${paths.catalogue} is not a mutation catalogue",
-      "to": "process.stderr.write(`mutate: the catalogue is not a mutation catalogue",
+      "from": "if (malformed) return { error: `${file.path} is not a mutation catalogue",
+      "to": "if (malformed) return { error: `the catalogue is not a mutation catalogue",
       "only": "mutate refuses a catalogue that is not"
     },
     {
@@ -24150,6 +24150,46 @@
       "from": "  const fastSeen = treeUnchecked ? latestFastPass(cwd, now.tree, found.root ?? cwd) : null",
       "to": "  const fastSeen = null",
       "only": "^a refusal after a fast pass says the fast check passed and why it does not count here$"
+    },
+    {
+      "label": "ADR-091 T1: a label repeated across files is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-dir.test.mjs"
+      ],
+      "from": "      if (prior) {",
+      "to": "      if (prior && prior.path === file.path) {",
+      "only": "^a label repeated across two catalogue files is refused before anything runs$"
+    },
+    {
+      "label": "ADR-091 T1: an entry under another source's file is refused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-dir.test.mjs"
+      ],
+      "from": "      if (file.source !== null && entry.file !== file.source) {",
+      "to": "      if (false) {",
+      "only": "^an entry filed under another source is refused$"
+    },
+    {
+      "label": "ADR-091 T1: the directory is read in path order",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-dir.test.mjs"
+      ],
+      "from": "!gone.has(file)).sort() }",
+      "to": "!gone.has(file)).sort().reverse() }",
+      "only": "^the catalogue directory is read in path order beside the single file$"
+    },
+    {
+      "label": "ADR-091 T1: a write rewrites only the file holding the entry",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-catalogue-dir.test.mjs"
+      ],
+      "from": "  const touched = loaded.files.filter(file => file.catalogue.mutations.some(entry => changed.has(entry)))",
+      "to": "  const touched = loaded.files",
+      "only": "^repoint write rewrites only the file that holds the entry$"
     }
   ]
 }

@@ -19,7 +19,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | mutate.mjs reads a catalogue directory and refuses a repeated label | pending | none — no spec | `node --test tests/mutate-catalogue-dir.test.mjs` (named tests pass) plus the mutate regression files |
+| T1 | mutate.mjs reads a catalogue directory and refuses a repeated label | done | none — no spec | `node --test tests/mutate-catalogue-dir.test.mjs` (named tests pass) plus the mutate regression files |
 | T2 | every other reader reads the directory | pending | none — no spec | `node --test tests/catalogue-readers.test.mjs` (named tests pass) |
 | T3 | the catalogue moves in one commit | pending | none — no spec | the union equals the old file, `--stale` is clean, `--case` selects the same labels |
 

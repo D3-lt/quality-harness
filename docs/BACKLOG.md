@@ -18433,6 +18433,7 @@ The owner brought five Windows 11 desktops back for testing. Each ran the probe 
       - A dated stray name (`2026-10-08-notes.md.`) gave its year as a record number, and a missing `ADR-2026-T1` became advice. Only an `ADR-NNN-` or `NNNN-` name, never a dated one, lends a number now.
       - The citation path returned could-not-look to callers that act only on "not a record", so the warning went silent. Citations are left as they were at 139713e3.
       - Both inputs are rows in `tests/trailing-dot-task.test.mjs` through the CLI; two mutants RED; all 19 §355 mutants re-ran RED.
+      - **The one scoped verification review found a third, introduced by the first fix**: a task-shaped stray name (`004-T2-note.md.`) lent 4, and a missing `ADR-004-T1` became advice. The number now comes from `record_id`, ADR-063's identity rule, so a dated name is its stem and a task-shaped name is no record. A third row and a third mutant, RED; the moved §355 entry repointed and RED. Its verdict on the SessionStart change: no regression.
       - The same full gate caught a regression in the SessionStart change: the UNPROVEN line displaced an existing ready line under an unreadable record. It now replaces only the "fully evidenced" count.
     - Tests `tests/trailing-dot-task.test.mjs`, four cases, each skipped where the filesystem drops the name. Five mutants RED; the moved §321 entry repointed; all 103 §321 and 111 ADR-092 mutants re-ran RED.
 - Two Status lines (Superseded, then Accepted) read silently as the first.

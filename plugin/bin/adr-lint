@@ -4323,10 +4323,6 @@ def record_files(root, corpus_dir, tracked):
     return sorted(out)
 
 
-# The record names a `ADR-NNN` pointer can name: an `ADR-` prefix or none, then 1-4 ASCII digits.
-_POINTER_NUMBERED = re.compile(r"^(?:adr[-_]?)?0*([0-9]{1,4})[-_]", re.I | re.A)
-
-
 def unreadable_record_numbers(root, corpus_dir, tracked):
     """The numbers of record-named files no reader can read as records: whitespace or dots after `.md`.
 
@@ -4345,12 +4341,13 @@ def unreadable_record_numbers(root, corpus_dir, tracked):
         bare = re.sub(r"[\s.]+$", "", name)
         if bare == name or "/" in name or not bare.lower().endswith(".md"):
             continue
-        # Only a name a pointer can name: `ADR-001-…` or `0001-…`, ASCII digits, never a dated name. A
-        # dated `2026-10-08-notes.md.` gave 2026 here, and a missing `ADR-2026-T1` became advice (a
-        # gpt-6.1-sol review of this batch, finding 1).
-        numbered = _POINTER_NUMBERED.match(bare)
-        if numbered and not DATE_SHAPED_RE.match(bare):
-            numbers.add(int(numbered.group(1)))
+        # Only a name that IS a numbered record by ADR-063's rule (`record_id`): a dated name is its stem,
+        # never a number, and a task-shaped `001-T2-…` is no record. Mined by a looser pattern, a dated
+        # `2026-10-08-notes.md.` lent 2026 and a `001-T2-note.md.` lent 1, and a missing dependency on
+        # that number became advice (a gpt-6.1-sol review of this batch, findings 1 and 3).
+        identity = record_id(bare)
+        if identity and identity.startswith("ADR-"):
+            numbers.add(int(identity[len("ADR-"):]))
     return numbers
 
 

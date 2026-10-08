@@ -36,8 +36,18 @@
         "tests/trailing-dot-task.test.mjs"
       ],
       "only": "a dated stray name lends no number",
-      "from": "        if numbered and not DATE_SHAPED_RE.match(bare):",
-      "to": "        if numbered:"
+      "from": "        identity = record_id(bare)",
+      "to": "        identity = None if TASK_SHAPED_RE.match(bare) else f\"ADR-{m.group(1)}\" if (m := re.match(r\"(?:adr[-_]?)?0*([0-9]{1,4})[-_]\", bare, re.I)) else None"
+    },
+    {
+      "label": "§355 review 3: a task-shaped stray name lends no record number",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/trailing-dot-task.test.mjs"
+      ],
+      "only": "a dated stray name lends no number",
+      "from": "        identity = record_id(bare)",
+      "to": "        identity = None if DATE_SHAPED_RE.match(bare) else f\"ADR-{m.group(1)}\" if (m := re.match(r\"(?:adr[-_]?)?0*([0-9]{1,4})[-_]\", bare, re.I)) else None"
     },
     {
       "label": "§355 review 2: a citation of an unreadable-named record still warns",
@@ -95,8 +105,8 @@
         "tests/trailing-dot-task.test.mjs"
       ],
       "only": "a dependency on a record whose name ends in a dot",
-      "from": "        if bare == name or \"/\" in name or not bare.lower().endswith(\".md\"):\n            continue\n        # Only a name a pointer can name",
-      "to": "        if True:\n            continue\n        # Only a name a pointer can name"
+      "from": "        if bare == name or \"/\" in name or not bare.lower().endswith(\".md\"):\n            continue\n        # Only a name that IS a numbered record",
+      "to": "        if True:\n            continue\n        # Only a name that IS a numbered record"
     },
     {
       "label": "§355: an unrelated missing dependency is still a FAIL beside an unreadable record name",

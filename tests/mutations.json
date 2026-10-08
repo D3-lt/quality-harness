@@ -21960,8 +21960,8 @@
       "tests": [
         "tests/probe-diff-marks.test.mjs"
       ],
-      "from": "  const named = (field, b, a) => { for (const line of elementLines(field, b, a)) say(line) }",
-      "to": "  const named = (field, b, a) => { const all = elementLines(field, b, a); if (all.length) say(all.join(', ')) }",
+      "from": "  const named = (field, b, a, mark = line => line) => { for (const line of elementLines(field, b, a)) say(mark(line)) }",
+      "to": "  const named = (field, b, a, mark = line => line) => { const all = elementLines(field, b, a).map(mark); if (all.length) say(all.join(\", \")) }",
       "only": "every element that came or went is its own marked line"
     },
     {
@@ -23573,8 +23573,8 @@
       "tests": [
         "tests/probe-diff-transient.test.mjs"
       ],
-      "from": "      say(COULD_NOT_LOOK.test(line) ? ",
-      "to": "      say(false ? ",
+      "from": "    named(field, b ?? [], a ?? [], line => (COULD_NOT_LOOK.test(line) ? ",
+      "to": "    named(field, b ?? [], a ?? [], line => (false ? ",
       "only": "^a could-not-look advice line that came or went is marked as about the run$"
     },
     {
@@ -23583,8 +23583,8 @@
       "tests": [
         "tests/probe-diff-transient.test.mjs"
       ],
-      "from": "      say(COULD_NOT_LOOK.test(line) ? ",
-      "to": "      say(true ? ",
+      "from": "    named(field, b ?? [], a ?? [], line => (COULD_NOT_LOOK.test(line) ? ",
+      "to": "    named(field, b ?? [], a ?? [], line => (true ? ",
       "only": "^an ordinary advice line that came or went is printed unmarked$"
     },
     {

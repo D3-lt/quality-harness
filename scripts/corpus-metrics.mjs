@@ -23,6 +23,7 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
+import { loadCatalogue } from './mutate.mjs'
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -96,8 +97,10 @@ function main() {
   const entries = verificationEntries(texts)
   const verdicts = mutationVerdicts(texts)
 
-  const catalogue = JSON.parse(read('tests/mutations.json'))
-  const mutants = Array.isArray(catalogue) ? catalogue : catalogue.mutations
+  // The single file and every per-source file under tests/mutations/ (ADR-091).
+  const catalogue = loadCatalogue(repoRoot)
+  if (catalogue.error) throw new Error(catalogue.error)
+  const mutants = catalogue.mutations
 
   const green = entries.filter(e => e.exit === 0).length
   const red = entries.filter(e => e.exit !== 0).length

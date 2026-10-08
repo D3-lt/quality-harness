@@ -2360,7 +2360,7 @@
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
-      "from": "    .filter(file => !/mutations?\\.json$/.test(file))\n    .map(file => readIfSmall(file) ?? '')",
+      "from": "    .filter(file => !isCatalogue(file))\n    .map(file => readIfSmall(file) ?? '')",
       "to": "    .map(file => readIfSmall(file) ?? '')",
       "only": "^(?:a contract named only by the catalogue is reported, and one a test names is not)$"
     },
@@ -18514,8 +18514,8 @@
       "tests": [
         "tests/chaos-315-mutate-catalogue.test.mjs"
       ],
-      "from": "        return None, f\"{type(exc).__name__}: {exc}\"",
-      "to": "        return set(), None",
+      "from": "return None, f\"{rel} could not be read as a catalogue ({type(exc).__name__}: {exc})\"",
+      "to": "return set(), None",
       "only": "adr-lint calls an Enforced-by pointer UNPROVEN"
     },
     {
@@ -24190,6 +24190,46 @@
       "from": "  const touched = loaded.files.filter(file => file.catalogue.mutations.some(entry => changed.has(entry)))",
       "to": "  const touched = loaded.files",
       "only": "^repoint write rewrites only the file that holds the entry$"
+    },
+    {
+      "label": "ADR-091 T2: adr-lint reads labels from per-source files",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/catalogue-readers.test.mjs"
+      ],
+      "from": "        for rel in sorted(p for p in listed if p.startswith(\"tests/mutations/\") and p.endswith(\".json\")):",
+      "to": "        for rel in []:",
+      "only": "^adr-lint (resolves an Enforced-by label from a per-source catalogue file|says UNPROVEN and names the per-source file that is not a catalogue)$"
+    },
+    {
+      "label": "ADR-091 T2: mutate-propose treats a per-source file as catalogue",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/catalogue-readers.test.mjs"
+      ],
+      "from": "    || (relative(file).startsWith(`${testsDirectory}/mutations/`) && file.endsWith('.json'))",
+      "to": "    || false",
+      "only": "^mutate-propose counts a per-source catalogue file as catalogue and not as a test$"
+    },
+    {
+      "label": "ADR-091 T2: the staged guard reads the staged per-source file",
+      "file": "scripts/staged-mutation-guard.mjs",
+      "tests": [
+        "tests/catalogue-readers.test.mjs"
+      ],
+      "from": "    const staged = run(['show', `:tests/mutations/${file}.json`])",
+      "to": "    const staged = { status: 1, stdout: '' }",
+      "only": "^the staged guard passes an added source whose per-source file is staged$"
+    },
+    {
+      "label": "ADR-091 T2: campaign-parity filters each per-source file by test",
+      "file": "scripts/campaign-parity.mjs",
+      "tests": [
+        "tests/catalogue-readers.test.mjs"
+      ],
+      "from": "        file.catalogue.mutations = file.catalogue.mutations.filter(entry => entry.tests.includes(tests))",
+      "to": "        file.catalogue.mutations = file.catalogue.mutations.filter(entry => file.path === campaignPaths(clone).catalogue ? entry.tests.includes(tests) : true)",
+      "only": "^campaign-parity keeps only the entries whose tests include --tests, across per-source files$"
     }
   ]
 }

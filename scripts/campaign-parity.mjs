@@ -11,10 +11,11 @@
 // Exit:  0 no mismatch, and every worktree under 2 s · 1 a mismatch or a slow worktree ·
 //        2 usage, it could not run, or a campaign did not finish or left a selected entry ungraded
 import { spawnSync } from 'node:child_process'
-import { readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { rmSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
+import { campaignPaths, loadCatalogue, writeCatalogue } from './mutate.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 const mutateScript = path.join(here, 'mutate.mjs')
@@ -91,10 +92,18 @@ function main(argv) {
   try {
     const tests = value('--tests')
     if (tests) {
-      const file = path.join(clone, 'tests', 'mutations.json')
-      const catalogue = JSON.parse(readFileSync(file, 'utf8'))
-      catalogue.mutations = catalogue.mutations.filter(entry => entry.tests.includes(tests))
-      writeFileSync(file, `${JSON.stringify(catalogue, null, 2)}\n`)
+      // Every catalogue file in the clone (ADR-091), each filtered in place. A per-source file
+      // left empty is removed, since the campaign refuses an empty one; the single file stays.
+      const loaded = loadCatalogue(clone)
+      if (loaded.error) {
+        process.stderr.write(`campaign-parity: ${loaded.error}\n`)
+        return 2
+      }
+      for (const file of loaded.files) {
+        file.catalogue.mutations = file.catalogue.mutations.filter(entry => entry.tests.includes(tests))
+        if (!file.catalogue.mutations.length && file.path !== campaignPaths(clone).catalogue) rmSync(file.path)
+        else writeCatalogue(file.path, file.catalogue)
+      }
       git(clone, ['commit', '--quiet', '--no-verify', '-am', `parity: the entries whose tests include ${tests}`])
     }
     const args = ['--root', clone, '--no-cache']

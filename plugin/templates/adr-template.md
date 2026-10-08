@@ -53,7 +53,8 @@ resolve to nothing:
     **Enforced-by:** `tests/package.test.mjs::every shipped gate carries at least one mutation`
     **Enforced-by:** `adr-lint`
 
-A MUTATION LABEL is the strongest: a label in the repository's `tests/mutations.json` names a
+A MUTATION LABEL is the strongest: a label in the repository's `tests/mutations.json`, or in a
+`tests/mutations/<source>.json` holding one mutated source's entries, names a
 mutation its campaign grades RED or GREEN on every run, so the claim is measured rather than
 asserted. A TEST ID proves the check exists, not that it can fail — that is the mutation's job. A
 GATE NAME is the weakest and the broadest.

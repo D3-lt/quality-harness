@@ -738,19 +738,27 @@ export function fastCheckCommand(root) {
 // said, never partly read (CLAUDE.md §16: an unrecognised input is not a safe one). The grammar is
 // POSITIVE, because a list of the specs that name too much is an open set (`***` passed the first one):
 // a literal path or directory prefix, a literal first directory then a glob, or every file with one
-// literal extension. Each must also match a tracked path, and no spec may match a submodule
-// (`rm --cached` would drop the gitlink) or `.quality-harness.json` (it holds the check), tracked or
-// not and in any letter case.
+// literal extension. Each must also match a tracked path and no submodule (`rm --cached` would drop the
+// gitlink), and none may be able to name `.quality-harness.json` (it holds the check) in any letter case.
+// That last is decided on the SPEC, not on a listing: an ignored or untracked config is invisible to a
+// listing (found by a Codex review of ADR-094), and with this grammar only the file's own name and a
+// `*.json` extension spec can reach a root file.
 const PROSE_LITERAL = /^[\w.@+][\w.@+/-]*$/
 const PROSE_UNDER = /^[\w.@+][\w.@+-]*\/[\w.@+/*?[\]-]*$/
 const PROSE_EXTENSION = /^(?:\*\*\/)?\*\.[A-Za-z0-9]+$/
 const PROSE_MOST = 20
 // Why a spec is refused before git is asked, or null. Judged by its grammar and its segments, not by what git
 // makes of it: git matches `:(top).` and `docs/../src/` to nothing today, which is a quirk, not a guard.
+const CONFIG_NAME = '.quality-harness.json'
+const specCouldNameConfig = spec => {
+  const lower = spec.toLowerCase()
+  return lower === CONFIG_NAME || (PROSE_EXTENSION.test(spec) && lower.endsWith('.json'))
+}
 export function proseSpecProblem(spec) {
   const plain = typeof spec === 'string' && (PROSE_LITERAL.test(spec) || PROSE_UNDER.test(spec) || PROSE_EXTENSION.test(spec))
   if (!plain) return `${JSON.stringify(spec)} is not a plain pathspec (a literal path or directory, a literal directory then a glob, or \`*.ext\`)`
   if (spec.split('/').some(part => part === '.' || part === '..')) return `${JSON.stringify(spec)} would name the whole tree or leave it`
+  if (specCouldNameConfig(spec)) return `${JSON.stringify(spec)} could name .quality-harness.json, which holds the check`
   return null
 }
 export function proseSpecs(root) {
@@ -766,20 +774,12 @@ export function proseSpecs(root) {
     const problem = proseSpecProblem(spec)
     if (problem) return refuse(problem)
   }
-  const isConfig = file => file.toLowerCase() === '.quality-harness.json'
-  const list = (spec, ...flags) => spawnSync('git', ['-C', root, 'ls-files', ...flags, '-z', '--', `:(top)${spec}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
   for (const spec of declared) {
-    const tracked = list(spec, '-s')
-    const untracked = list(spec, '--others', '--exclude-standard')
-    if (tracked.error || tracked.status !== 0 || untracked.error || untracked.status !== 0) return refuse(`git could not list ${JSON.stringify(spec)}`)
+    const tracked = spawnSync('git', ['-C', root, 'ls-files', '-s', '-z', '--', `:(top)${spec}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    if (tracked.error || tracked.status !== 0) return refuse(`git could not list ${JSON.stringify(spec)}`)
     const entries = tracked.stdout.split('\0').filter(Boolean)
     if (entries.length === 0) return refuse(`${JSON.stringify(spec)} matches no tracked path`)
-    for (const entry of entries) {
-      const [meta, file] = entry.split('\t')
-      if (meta.startsWith('160000')) return refuse(`${JSON.stringify(spec)} matches a submodule`)
-      if (isConfig(file)) return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)
-    }
-    if (untracked.stdout.split('\0').filter(Boolean).some(isConfig)) return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)
+    if (entries.some(entry => entry.startsWith('160000'))) return refuse(`${JSON.stringify(spec)} matches a submodule`)
   }
   return { specs: declared, problem: null }
 }
@@ -854,13 +854,20 @@ export function unseenWriteSince(root, { seen, seq, started }) {
   return false
 }
 
-// Whether `file` lies outside the repository at `root`. The leaf keeps its own name (`canonicalFile`): a
-// link inside the tree to a file outside it is a write the tree hash cannot see, and resolving it here
-// read it as outside (found by a Codex review of ADR-094). Case is folded where the filesystem folds it.
+// Whether `file` lies outside the repository at `root`. INSIDE when any spelling of the path is inside any
+// spelling of the root: the path as given, and with its parent resolved (the leaf keeps its own name, so a
+// link inside the tree to a file outside it stays a write the tree hash cannot see); the root as given and
+// resolved. A path under a directory link that leads out is still spelled inside, and it counts — resolving
+// it first read it as outside (Codex reviews of ADR-094). It errs toward counting. Case is folded where the
+// filesystem folds it.
 function outsideRoot(root, file) {
   const fold = value => (process.platform === 'win32' || process.platform === 'darwin' ? value.toLowerCase() : value)
-  const relative = path.relative(fold(canonical(root)), fold(canonicalFile(file))).replace(/\\/g, '/')
-  return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) || /^[A-Za-z]:/.test(relative)
+  const inside = (base, target) => {
+    const relative = path.relative(fold(base), fold(target)).replace(/\\/g, '/')
+    return !(relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) || /^[A-Za-z]:/.test(relative))
+  }
+  const files = [file, canonicalFile(file)]
+  return !([root, canonical(root)].some(base => files.some(target => inside(base, target))))
 }
 
 /**

@@ -163,34 +163,20 @@ test('a declaration that could hide code is refused and said', t => {
 // Supplementary (NOT in the Acceptance fence): a concurrent writer between the decision and the append.
 
 
-// Supplementary (NOT in the Acceptance fence): the grammar and the segment guard, judged without git.
+// Supplementary (NOT in the Acceptance fence): the grammar, the segment guard and the config guard, judged without git.
+// The config guard is on the SPEC, because an ignored or untracked config is invisible to any listing (a Codex review
+// of ADR-094): only the file's own name and a `*.json` extension spec can reach a root file under this grammar.
 test('a pathspec is judged by its grammar before git is asked', () => {
-  for (const good of ['docs/', 'README.md', 'docs/a.md', 'docs/**/*.md', 'docs/*.md', '*.md', '**/*.rst', 'site/content/']) {
+  for (const good of ['docs/', 'README.md', 'docs/a.md', 'docs/**/*.md', 'docs/*.md', '*.md', '**/*.rst', 'site/content/', 'docs/data.json', 'docs/*.json']) {
     assert.equal(proseSpecProblem(good), null, `${good} is a plain pathspec`)
   }
   for (const bad of ['.', '..', './', '*', '**', '***', '*.*', '?*', '*.m*', '**/*', '*docs/', 'docs/../src/', './src/', 'docs/./a.md',
     '-x', ':(exclude)docs', '/etc', '', 'a b', 'docs\\a', undefined, 7, null]) {
     assert.notEqual(proseSpecProblem(bad), null, `${JSON.stringify(bad)} is refused`)
   }
-})
-// Supplementary: on a filesystem that folds case the config can be tracked under another spelling than the one
-// qh-check reads; a spec that matches it is still refused (a Codex review of ADR-094). Skipped where the
-// filesystem keeps case: there the other spelling is a different file and is not the config.
-test('a config tracked under another letter case is still the config', t => {
-  const top = sandbox(t)
-  writeFileSync(path.join(top, 'probe.txt'), 'x')
-  let folds = false
-  try { readFileSync(path.join(top, 'PROBE.txt')); folds = true } catch { folds = false }
-  if (!folds) return t.skip('this filesystem keeps letter case, so the other spelling is a different file')
-  const repo = path.join(top, 'case-repo')
-  mkdirSync(path.join(repo, 'docs'), { recursive: true })
-  git(repo, 'init', '-q')
-  write(repo, 'check.mjs', 'process.exit(0)\n')
-  write(repo, 'docs/a.md', 'one\n')
-  write(repo, '.QUALITY-harness.json', JSON.stringify({ check: 'node check.mjs', prose: ['*.json'] }))
-  git(repo, 'add', '-A')
-  git(repo, 'commit', '-q', '-m', 'one', '--no-gpg-sign')
-  assert.match(proseSpecs(repo).problem ?? '', /matches .quality-harness.json/)
+  for (const config of ['.quality-harness.json', '.QUALITY-harness.json', '*.json', '*.JSON', '**/*.json']) {
+    assert.match(proseSpecProblem(config) ?? '', /\.quality-harness\.json/, `${config} could name the config`)
+  }
 })
 test('a ledger row appended since the reuse was decided stops the reuse', async t => {
   const top = sandbox(t)
@@ -206,7 +192,10 @@ test('a ledger row appended since the reuse was decided stops the reuse', async 
   const code = await runCheck({ cwd: ctx.repo, env, stdout: sink, stderr: sink, beforeReuse: () => appendFileSync(file, `${JSON.stringify(failure)}\n`) })
   assert.equal(code, 0)
   assert.equal(runCount(ctx), 2, 'the check ran instead of reusing over a newer failure')
-  assert.equal(ledger(ctx.repo, 'checks.jsonl').some(row => row.reusedFrom), false, 'no reuse row was written')
+  // Our row is already in the ledger, behind the newcomer; the row that decides is the real run that follows it.
+  const decided = ledger(ctx.repo, 'checks.jsonl').at(-1)
+  assert.equal(decided.reusedFrom, undefined, 'the last row is the check that ran, not a reuse')
+  assert.equal(decided.exit, 0)
 })
 
 test('an unseen write after the original pass vetoes a reuse', t => {
@@ -266,6 +255,11 @@ test('the hint is said after a passing prose-only run and never after a failed o
   git(dirty.repo, 'checkout', '--', 'src/code.js')
   write(dirty.repo, 'docs/a.md', 'two\n')
   assert.doesNotMatch(qhCheck(top, dirty, { env: hurry }).stderr, /"prose"/, 'a pass over uncommitted code is not placed by HEAD')
+  // A rename out of a code path is not "only documents": rename-aware output lists the destination alone (a Codex review).
+  const moved = build(top, 'hint-rename', { check: CHECK })
+  assert.equal(qhCheck(top, moved, { env: hurry }).status, 0)
+  git(moved.repo, 'mv', 'src/code.js', 'docs/code.md')
+  assert.doesNotMatch(qhCheck(top, moved, { env: hurry }).stderr, /"prose"/, 'a code file renamed into docs is a code change')
   // And below the threshold nothing is said.
   const quick = build(top, 'hint-quick', { check: CHECK })
   assert.equal(qhCheck(top, quick).status, 0)

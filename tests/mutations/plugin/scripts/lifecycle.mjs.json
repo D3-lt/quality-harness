@@ -4270,8 +4270,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)",
-      "to": "return relative === '..' || path.isAbsolute(relative)",
+      "from": "return !(relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)",
+      "to": "return !(relative === '..' || path.isAbsolute(relative)",
       "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
     },
     {
@@ -5892,9 +5892,9 @@
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "      if (isConfig(file)) return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)",
-      "to": "      void file",
-      "only": "^a declaration that could hide code is refused and said$"
+      "from": "  if (specCouldNameConfig(spec)) return `${JSON.stringify(spec)} could name .quality-harness.json, which holds the check`",
+      "to": "  if (false) return null",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
     },
     {
       "label": "ADR-094 T3: a dot or parent segment passes the declaration",
@@ -5937,14 +5937,14 @@
       "only": "^a pathspec is judged by its grammar before git is asked$"
     },
     {
-      "label": "ADR-094 T3: an untracked config is not looked for",
+      "label": "ADR-094 T3: a *.json spec is not taken for the config",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "if (untracked.stdout.split('\\0').filter(Boolean).some(isConfig)) return refuse(",
-      "to": "if (false) return refuse(",
-      "only": "^a declaration that could hide code is refused and said$"
+      "from": "return lower === CONFIG_NAME || (PROSE_EXTENSION.test(spec) && lower.endsWith('.json'))",
+      "to": "return lower === CONFIG_NAME",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
     },
     {
       "label": "ADR-094 T3: the config is compared in one letter case",
@@ -5952,9 +5952,19 @@
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "const isConfig = file => file.toLowerCase() === '.quality-harness.json'",
-      "to": "const isConfig = file => file === '.quality-harness.json'",
-      "only": "^a config tracked under another letter case is still the config$"
+      "from": "  const lower = spec.toLowerCase()",
+      "to": "  const lower = spec",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
+    },
+    {
+      "label": "ADR-094 T4: a path is placed with its parent resolved before the lexical spelling is tried",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/outside-root-writes.test.mjs"
+      ],
+      "from": "const files = [file, canonicalFile(file)]",
+      "to": "const files = [canonicalFile(file)]",
+      "only": "^a relative or unplaceable write path is still counted as unseen$"
     },
     {
       "label": "ADR-094 T4: a symlink leaf is resolved before it is placed",
@@ -5962,8 +5972,8 @@
       "tests": [
         "tests/outside-root-writes.test.mjs"
       ],
-      "from": "fold(canonicalFile(file))",
-      "to": "fold(canonical(file))",
+      "from": "const files = [file, canonicalFile(file)]",
+      "to": "const files = [canonical(file)]",
       "only": "^a relative or unplaceable write path is still counted as unseen$"
     },
     {

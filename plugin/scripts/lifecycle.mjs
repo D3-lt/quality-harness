@@ -3832,23 +3832,7 @@ export function sweepStaleMarkers(tmp = os.tmpdir(), now = Date.now()) {
   const report = { swept: false, removed: 0, kept: 0, unreadable: [] }
   try { mkdirSync(directory, { recursive: true }) } catch (error) { report.unreadable.push(`mkdir: ${error?.code ?? error}`); return report }
   const guard = path.join(directory, '.swept')
-  // ⚠ ONLY A FINITE STAMP INSIDE THE WINDOW HOLDS THE SWEEP. A stamp in the
-  // future — a clock that jumped forward and was corrected, or `Infinity` from
-  // a corrupted file — would otherwise suppress every sweep from then on, and
-  // a guard that wedges shut is worse than no guard because nothing says it
-  // happened (Codex review, 2026-09-06). Garbage reads as NaN and self-heals.
-  let last = NaN
-  try { last = Number(readFileSync(guard, 'utf8')) } catch {}
-  if (Number.isFinite(last) && last <= now && now - last < SAID_SWEEP_INTERVAL_MS) return report
-  // Written before the sweep, so a sweep that fails halfway does not retry on
-  // every hook call for the rest of the day. If it cannot be written the work
-  // cannot be bounded AT ALL, and an unbounded readdir of the temp root on
-  // every hook call is worse than markers accumulating — which is only the
-  // state §146 already described. So it is said and nothing is read.
-  try { writeFileSync(guard, String(now)) } catch (error) {
-    report.unreadable.push(`guard: ${error?.code ?? error}`)
-    return report
-  }
+  if (!claimDailySweep(guard, now, report)) return report
   report.swept = true
   const stale = file => {
     try { return now - statSync(file).mtimeMs > SAID_MARKER_MAX_AGE_MS } catch { return false }
@@ -3865,6 +3849,72 @@ export function sweepStaleMarkers(tmp = os.tmpdir(), now = Date.now()) {
   }
   sweep(directory, name => MARKER_NAME.test(name))
   sweep(tmp, name => LEGACY_MARKER.test(name))
+  return report
+}
+
+// Whether today's sweep is still owed, with the guard stamped for it. False means the
+// guard held, or could not be written (said in `report.unreadable`): either way the
+// caller removes nothing. One definition for both sweeps, so they cannot disagree.
+function claimDailySweep(guard, now, report) {
+  // ⚠ ONLY A FINITE STAMP INSIDE THE WINDOW HOLDS THE SWEEP. A stamp in the
+  // future — a clock that jumped forward and was corrected, or `Infinity` from
+  // a corrupted file — would otherwise suppress every sweep from then on, and
+  // a guard that wedges shut is worse than no guard because nothing says it
+  // happened (Codex review, 2026-09-06). Garbage reads as NaN and self-heals.
+  let last = NaN
+  try { last = Number(readFileSync(guard, 'utf8')) } catch {}
+  if (Number.isFinite(last) && last <= now && now - last < SAID_SWEEP_INTERVAL_MS) return false
+  // Written before the sweep, so a sweep that fails halfway does not retry on
+  // every hook call for the rest of the day. If it cannot be written the work
+  // cannot be bounded AT ALL, and an unbounded readdir of the temp root on
+  // every hook call is worse than markers accumulating — which is only the
+  // state §146 already described. So it is said and nothing is read.
+  try { writeFileSync(guard, String(now)) } catch (error) {
+    report.unreadable.push(`guard: ${error?.code ?? error}`)
+    return false
+  }
+  return true
+}
+
+// Session logs older than a week, removed at most once a day per repository, so the
+// directory stops growing without bound (the per-event cost is not the problem, the
+// disk is: every log carries a full copy of `checks.jsonl`).
+//
+// ⚠ A LOG THAT HOLDS A WRITE GIT COULD NOT SEE IS KEPT, WHATEVER ITS AGE.
+// `unseenWriteSince` reads every log in this directory and vetoes a commit on such a
+// write recorded after a check began. Deleting that log would turn the veto into a pass
+// for a check older than the write — the fail-open direction (ADR-005). Age cannot tell
+// the two apart, so the log is read; one that cannot be read is kept. Never throws: it
+// runs inside a hook, and a failed sweep costs disk and nothing else. `swept` false means
+// the daily guard held; `unreadable` names every place it could not look.
+const UNSEEN_WRITE_LINE = /"observable":\s*false/
+export function sweepStaleSessionLogs(cwd, session, now = Date.now()) {
+  const report = { swept: false, removed: 0, kept: 0, unreadable: [] }
+  const directory = path.join(stateDir(cwd), 'sessions')
+  const guard = path.join(directory, '.swept')
+  let names
+  try { names = readdirSync(directory) } catch (error) {
+    if (error?.code !== 'ENOENT') report.unreadable.push(`${directory}: ${error?.code ?? error}`)
+    return report
+  }
+  if (!claimDailySweep(guard, now, report)) return report
+  report.swept = true
+  const own = typeof session === 'string' && session ? path.basename(sessionLogFile(cwd, session)) : null
+  for (const name of names) {
+    if (!name.endsWith('.jsonl') || name === own) continue
+    const file = path.join(directory, name)
+    try {
+      if (now - statSync(file).mtimeMs <= SAID_MARKER_MAX_AGE_MS || UNSEEN_WRITE_LINE.test(readFileSync(file, 'utf8'))) {
+        report.kept += 1
+        continue
+      }
+      unlinkSync(file)
+      report.removed += 1
+    } catch (error) {
+      report.kept += 1
+      report.unreadable.push(`${name}: ${error?.code ?? error}`)
+    }
+  }
   return report
 }
 
@@ -6397,8 +6447,30 @@ function ledgerEvidence(log, observation, baseline, commits, writes, check, stat
 export function alreadyAnswered(answered, file, identity) {
   if (!answered.has(file)) return false
   const recorded = answered.get(file)
-  if (recorded === null || recorded === undefined || identity === null || identity === undefined) return false
+  if (identity === null || identity === undefined) return false
+  // A set holds every blob this path was gated COMPLETE on: content that returns to one
+  // of them is that answer again. A string is the last one only (the older shape).
+  if (recorded instanceof Set) return recorded.has(identity)
+  if (recorded === null || recorded === undefined) return false
   return recorded === identity
+}
+
+/**
+ * Every blob each path was gated COMPLETE on, from the session log. An incomplete
+ * verdict is not an answer, so it is never in here (ADR-005). A set rather than the
+ * last blob: content that returns to one already gated (A, then B, then A again) is
+ * that answer again, and re-gating it was 24 of 1,444 gates in a week.
+ */
+export function answeredBlobs(log) {
+  const answered = new Map()
+  for (const entry of log) {
+    if (entry.event === 'artifact.gated' && typeof entry.path === 'string' && entry.complete === true) {
+      const blobs = answered.get(entry.path) ?? new Set()
+      blobs.add(entry.blob ?? null)
+      answered.set(entry.path, blobs)
+    }
+  }
+  return answered
 }
 
 async function artifactRule(input, recorded) {
@@ -6431,12 +6503,7 @@ async function artifactRule(input, recorded) {
   // A COMPLETE result about the same content is the only reason to leave a path
   // out: a timeout, an UNRUN or an UNPROVEN is not an answer, so the next
   // boundary asks again (ADR-005).
-  const answered = new Map()
-  for (const entry of log) {
-    if (entry.event === 'artifact.gated' && typeof entry.path === 'string' && entry.complete === true) {
-      answered.set(entry.path, entry.blob ?? null)
-    }
-  }
+  const answered = answeredBlobs(log)
   // ⚠ IDENTITIES BEFORE THE GATES RUN, for the same reason the per-edit gate takes
   // its identity first: a file edited WHILE the batch is gating it would otherwise
   // be filed under the NEW content carrying the OLD content's verdict, and rule A
@@ -6965,6 +7032,9 @@ export async function handleHook(input) {
     // After compaction the session has none of the context the once-per-session
     // markers gated; a new generation makes every first mention first again.
     if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)
+    // The state directory grows by a full copy of checks.jsonl per session; a week-old
+    // log with no unseen write in it is dead weight (never throws, once a day).
+    try { sweepStaleSessionLogs(input.cwd ?? process.cwd(), input.session_id) } catch { /* disk only */ }
     // ADR-066 T2: offer git the publish hook for this session's Bash. A failure
     // here is said and costs the session nothing but the offer.
     try { offerPublishHook({ cwd: input.cwd, session: input.session_id }) } catch (failure) {

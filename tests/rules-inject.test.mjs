@@ -18,7 +18,7 @@ import { join, dirname } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
   MAX_RULES, normalize, globToRegExp, parseRulePaths, loadRules,
-  candidatePaths, resolveAgainstGit, matchRules, decide, run,
+  candidatePaths, resolveAgainstGit, matchRules, decide, run, isMatchAll,
 } from '../scripts/rules-inject.mjs'
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
@@ -179,6 +179,25 @@ test('garbage in means nothing out, never a throw', () => {
   assert.equal(run(''), null)
   assert.equal(run('{}', { rulesDir: '/nonexistent' }), null)
   assert.equal(run(JSON.stringify({ tool_name: 'Bash' }), { rulesDir: '/nonexistent' }), null)
+})
+
+test('a rule that matches every path is the loader\'s, not this hook\'s', (t) => {
+  // Measured 2026-10-09: `14-mrw-and-team-memory.md` (`paths: "**"`) is resident from
+  // SessionStart, and this hook delivered it again on the first tracked-file touch.
+  assert.equal(isMatchAll('**'), true)
+  assert.equal(isMatchAll('**/'), true)
+  assert.equal(isMatchAll('plugin/**'), false)
+  assert.equal(isMatchAll('*.md'), false)
+  assert.equal(isMatchAll('scripts/**'), false)
+
+  const rulesDir = mkdtempSync(join(tmpdir(), 'rules-inject-all-'))
+  t.after(() => rmSync(rulesDir, { recursive: true, force: true }))
+  writeFileSync(join(rulesDir, '00-everywhere.md'), '---\npaths:\n  - "**"\n---\n\nRESIDENT EVERYWHERE\n')
+  writeFileSync(join(rulesDir, '02-scripts.md'), '---\npaths:\n  - "scripts/**"\n---\n\nONLY ON SCRIPTS\n')
+  const payload = JSON.stringify({ tool_name: 'Bash', tool_input: { command: 'cat scripts/x.sh' }, cwd: '/repo' })
+  const text = run(payload, { cwd: '/repo', rulesDir, sent: new Set(), runGit: gitStub(['scripts/x.sh']) })
+  assert.match(text, /ONLY ON SCRIPTS/, 'a rule scoped to the touched path is still delivered')
+  assert.doesNotMatch(text, /RESIDENT EVERYWHERE/, 'a match-all rule is not sent a second time')
 })
 
 test('end to end, in a repository the test creates: mrw_read delivers what Read would', (t) => {

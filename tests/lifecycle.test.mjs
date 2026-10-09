@@ -34,6 +34,8 @@ import {
   completionClaim,
   saidMarkerDirectory,
   sweepStaleMarkers,
+  sweepStaleSessionLogs,
+  stateDir,
   observeBudgetMs,
 } from '../plugin/scripts/lifecycle.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
@@ -4059,6 +4061,86 @@ test('a guard that cannot be written stops the sweep instead of running unbounde
   assert.equal(report.removed, 0)
   assert.match(report.unreadable.join(' '), /guard: E/, 'and the failure is named')
   assert.equal(existsSync(marker), true, 'the stale marker is left, which is only the state §146 described')
+})
+
+// The state directory gets a full copy of checks.jsonl per session, so a log nobody will
+// read again is removed — but `unseenWriteSince` vetoes a commit on a write git could not
+// see, wherever it is recorded, so a log holding one is kept at any age. Both arms of
+// every claim are shown: the old log that goes AND the old log that stays.
+test('a week-old session log is swept, unless it holds a write git could not see', () => {
+  const day = 24 * 60 * 60 * 1000
+  const cwd = mkdtempSync(path.join(testTmp, 'session-sweep-'))
+  const previous = process.env.QUALITY_HARNESS_STATE_DIR
+  process.env.QUALITY_HARNESS_STATE_DIR = path.join(cwd, 'state')
+  try {
+    const sessions = path.join(stateDir(cwd), 'sessions')
+    mkdirSync(sessions, { recursive: true })
+    const now = Date.now()
+    const plant = (name, body, ageDays) => {
+      const file = path.join(sessions, name)
+      writeFileSync(file, body)
+      const t = (now - ageDays * day) / 1000
+      utimesSync(file, t, t)
+      return file
+    }
+    const ordinary = '{"at":"2026-01-01T00:00:00.000Z","event":"check.passed","record":"r"}\n'
+    const unseen = '{"at":"2026-01-01T00:00:00.000Z","event":"file.written","path":"/x","observable":false}\n'
+    const seen = '{"at":"2026-01-01T00:00:00.000Z","event":"file.written","path":"/x","observable":true}\n'
+    const old = plant('old.jsonl', ordinary, 8)
+    const oldSeen = plant('old-seen.jsonl', seen, 8)
+    const recent = plant('recent.jsonl', ordinary, 1)
+    const own = plant('own.jsonl', ordinary, 8)
+    const veto = plant('veto.jsonl', unseen, 8)
+    const note = plant('notes.txt', 'not a log', 8)
+    const blocked = path.join(sessions, 'unreadable.jsonl')
+    mkdirSync(blocked)
+    const t = (now - 8 * day) / 1000
+    utimesSync(blocked, t, t)
+
+    const report = sweepStaleSessionLogs(cwd, 'own', now)
+    assert.equal(report.swept, true, JSON.stringify(report))
+    assert.equal(report.removed, 2, JSON.stringify(report))
+    assert.equal(existsSync(old), false, 'a week-old log with nothing unseen in it is removed')
+    assert.equal(existsSync(oldSeen), false, 'an OBSERVABLE write does not keep a log')
+    assert.equal(existsSync(recent), true, 'a recent log is kept')
+    assert.equal(existsSync(own), true, 'the running session\'s own log is never removed')
+    assert.equal(existsSync(veto), true, 'a log holding a write git could not see is kept at any age')
+    assert.equal(existsSync(note), true, 'only session logs are ours')
+    assert.equal(existsSync(blocked), true, 'a log that cannot be read is kept')
+    assert.match(report.unreadable.join(' '), /unreadable\.jsonl: /, 'and it is named, not swallowed')
+
+    // The daily guard holds, then lets go.
+    const again = plant('old-again.jsonl', ordinary, 8)
+    assert.equal(sweepStaleSessionLogs(cwd, 'own', now + 60 * 60 * 1000).swept, false)
+    assert.equal(existsSync(again), true, 'within a day nothing is read')
+    const later = sweepStaleSessionLogs(cwd, 'own', now + 25 * 60 * 60 * 1000)
+    assert.equal(later.swept, true)
+    assert.equal(existsSync(again), false)
+  } finally {
+    if (previous === undefined) delete process.env.QUALITY_HARNESS_STATE_DIR
+    else process.env.QUALITY_HARNESS_STATE_DIR = previous
+  }
+})
+
+test('a session-log sweep that cannot look says where, and never throws', () => {
+  const cwd = mkdtempSync(path.join(testTmp, 'session-sweep-blocked-'))
+  const previous = process.env.QUALITY_HARNESS_STATE_DIR
+  process.env.QUALITY_HARNESS_STATE_DIR = path.join(cwd, 'state')
+  try {
+    // `sessions` is a FILE, so nothing below it can be listed.
+    mkdirSync(stateDir(cwd), { recursive: true })
+    writeFileSync(path.join(stateDir(cwd), 'sessions'), 'not a directory')
+    const report = sweepStaleSessionLogs(cwd, 'own', Date.now())
+    assert.equal(report.swept, false)
+    assert.equal(report.removed, 0)
+    assert.match(report.unreadable.join(' '), /sessions: /, JSON.stringify(report))
+    // And a repository that has no state at all is not an error.
+    const none = sweepStaleSessionLogs(mkdtempSync(path.join(testTmp, 'session-sweep-none-')), 'own', Date.now())
+    assert.deepEqual(none, { swept: false, removed: 0, kept: 0, unreadable: [] })
+  } finally {
+    if (previous === undefined) delete process.env.QUALITY_HARNESS_STATE_DIR
+    else process.env.QUALITY_HARNESS_STATE_DIR = previous
+  }
 })
 
 test('every command this harness OFFERS, it also accepts as evidence', () => {

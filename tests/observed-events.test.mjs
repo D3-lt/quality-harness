@@ -1418,6 +1418,28 @@ test('a session that began before the first commit still sees the commits it gai
   assert.ok(rules.includes('R2'), `R2 must fire for the commits gained since an unborn HEAD: ${rules}`)
 })
 
+test('content that returns to a blob already gated complete is that answer again', () => {
+  // Measured 2026-10-09 over a week of one session log: 24 of 1,444 gates re-gated a
+  // blob already gated COMPLETE (22 of them A, then B, then A); another 61 were
+  // incomplete gates retried on purpose. Only the first kind may be suppressed.
+  const log = [
+    { event: 'artifact.gated', path: '/x/a.md', blob: 'aaa', complete: true },
+    { event: 'artifact.gated', path: '/x/a.md', blob: 'bbb', complete: true },
+    { event: 'artifact.gated', path: '/x/a.md', blob: 'ccc', complete: false },
+    { event: 'artifact.gated', path: '/x/n.md', blob: null, complete: true },
+    { event: 'action.emitted', rule: 'A', key: 'k' },
+  ]
+  const answered = lifecycle.answeredBlobs(log)
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/a.md', 'bbb'), true, 'B is still answered after A')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/a.md', 'aaa'), true, 'and A is answered again after B')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/a.md', 'ccc'), false, 'an INCOMPLETE gate is not an answer')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/a.md', 'ddd'), false, 'new content is a new question')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/a.md', null), false, 'unreadable now matches nothing')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/n.md', null), false, 'two unknowns are still not a match')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/n.md', 'aaa'), false)
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/never.md', 'aaa'), false)
+})
+
 test('an unknown content identity matches nothing, including another unknown', () => {
   // ⚠ THE READER CONTRADICTED ITS OWN CONTRACT. `contentId` says in its own doc
   // comment: "Null means unreadable, which a reader must treat as unknown and not

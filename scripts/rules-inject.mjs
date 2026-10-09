@@ -295,12 +295,21 @@ export function decide(payload, rules, sent, options = {}) {
   return { text: parts.join('\n\n'), names: delivered.map((r) => r.name) }
 }
 
+/** Whether a glob matches every path. The host loads such a rule at SessionStart, so
+ * delivering it again on the first tracked-file touch is a duplicate: measured
+ * 2026-10-09, `14-mrw-and-team-memory.md` (`**`) arrived twice, once resident and
+ * once from this hook. A rule that matches EVERYTHING cannot be one this hook is
+ * needed for — it exists for the rules the loader reaches only on a `Read`. */
+export function isMatchAll(pattern) {
+  return /^(?:\*\*\/?)+$/.test(normalize(pattern))
+}
+
 export function run(stdin, options = {}) {
   let payload
   try { payload = JSON.parse(stdin) } catch { return null }
   const cwd = options.cwd ?? payload?.cwd ?? process.cwd()
   const rulesDir = options.rulesDir ?? join(cwd, '.claude', 'rules')
-  const rules = loadRules(rulesDir)
+  const rules = loadRules(rulesDir).filter((rule) => !rule.patterns.some(isMatchAll))
   if (!rules.length) return null
   const sessionId = payload?.session_id ?? ''
   const sent = options.sent ?? alreadySent(sessionId)

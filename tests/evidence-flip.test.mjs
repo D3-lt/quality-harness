@@ -268,6 +268,7 @@ test('every reader of the session log is driven above, or says why a lost line c
     unobservableWrites: 'ordered by the log; an incomplete log leaves every such write outstanding',
     sessionBaseline: 'the first start that looked; a lost line can only remove it, which every caller reads as unchecked, because a late baseline is adopted only from a log read whole',
     tornRecord: 'names which record tore, asked only once logIncomplete is true; a lost session-log line makes it name the session log, and it answers nothing positive',
+    answeredBlobs: 'reads only complete artifact.gated rows; a lost line removes an answer, so the path is gated again, which is the safe direction (ADR-005)',
   }
   const naming = []
   const taking = []

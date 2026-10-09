@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-091 verification: an entry of a shape the campaign refuses is not a label",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "            if wrong is not None:\n                return None, f'{rel} could not be read as a catalogue (its entry {index}\\'s",
+      "to": "            if False:\n                return None, f'{rel} could not be read as a catalogue (its entry {index}\\'s",
+      "only": "^(?:adr-lint does not resolve a label from a per-source catalogue the campaign refuses)$"
+    },
+    {
+      "label": "ADR-091 verification: a catalogue file the checkout deleted is gone, not unread",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "            if not os.path.lexists(root / rel):\n                continue\n",
+      "to": "",
+      "only": "^(?:a tracked catalogue file deleted from the checkout does not make the catalogue unread)$"
+    },
+    {
       "label": "ADR-091 review: a per-source entry for another source is not a label",
       "file": "plugin/bin/adr-lint",
       "tests": [

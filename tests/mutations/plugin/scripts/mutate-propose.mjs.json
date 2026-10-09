@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "ADR-091 verification: a catalogue the campaign refuses is unread, not text",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "Array.isArray(parsed?.mutations) && parsed.mutations.every(isCatalogueEntry) ? parsed.mutations : null",
+      "to": "Array.isArray(parsed?.mutations) ? parsed.mutations : null",
+      "only": "^(?:mutate-propose says a string is unproven, not neither, when a catalogue file could not be read)$"
+    },
+    {
+      "label": "ADR-091 verification: a string is catalogued by an entry's from, not by its metadata",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "    if (entries) catalogued.push(...entries.map(entry => entry.from))",
+      "to": "    if (entries) catalogued.push(text)",
+      "only": "^(?:mutate-propose says a string is unproven, not neither, when a catalogue file could not be read)$"
+    },
+    {
       "label": "ADR-091 review: mutate-propose says unproven when a catalogue file was not read",
       "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [

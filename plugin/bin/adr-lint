@@ -3821,6 +3821,18 @@ def leaves_the_tree(pointer):
             or re.match(r"^[A-Za-z]:", pointer) is not None)
 
 
+# What each field of a catalogue entry must be: scripts/mutate.mjs ENTRY_FIELDS, the campaign's own
+# shape check. `only` may be absent; present, it is a string (a JSON null is not).
+_ABSENT = object()
+_ENTRY_FIELDS = (
+    ("file", lambda value: isinstance(value, str)),
+    ("from", lambda value: isinstance(value, str)),
+    ("to", lambda value: isinstance(value, str)),
+    ("tests", lambda value: isinstance(value, list) and all(isinstance(test, str) for test in value)),
+    ("only", lambda value: value is _ABSENT or isinstance(value, str)),
+)
+
+
 def mutation_labels(root, tracked=None):
     """The labels in `root`'s mutation catalogue, and why they could not be read.
 
@@ -3848,9 +3860,12 @@ def mutation_labels(root, tracked=None):
         if listed is None:
             return None, "tests/mutations/ could not be listed (git did not answer)"
         for rel in sorted(p for p in listed if p.startswith("tests/mutations/") and p.endswith(".json")):
-            # A listed path that is not a regular file (a link loop, a FIFO, gone from a sparse
-            # checkout) was skipped, and its labels read as absent: could-not-look instead (a
-            # gpt-6.1-sol review of ADR-091).
+            # A listed path the checkout deleted is gone, as `git ls-files --deleted` makes it to the
+            # campaign (listCatalogueFiles). One that is there and is not a regular file (a link loop,
+            # a FIFO) was skipped, and its labels read as absent: could-not-look instead (a
+            # gpt-6.1-sol review of ADR-091, and its verification review).
+            if not os.path.lexists(root / rel):
+                continue
             if not (root / rel).is_file():
                 return None, f"{rel} could not be read as a catalogue (git lists it and it is not a regular file here)"
             files.append((rel, root / rel))
@@ -3873,6 +3888,9 @@ def mutation_labels(root, tracked=None):
         for index, entry in enumerate(entries):
             if not isinstance(entry, dict) or not isinstance(entry.get("label"), str):
                 return None, f'{rel} could not be read as a catalogue (its entry {index} is not an object with a string "label")'
+            wrong = next((name for name, holds in _ENTRY_FIELDS if not holds(entry.get(name, _ABSENT) if name == "only" else entry.get(name))), None)
+            if wrong is not None:
+                return None, f'{rel} could not be read as a catalogue (its entry {index}\'s "{wrong}" is not what the campaign requires)'
             if source is not None and entry.get("file") != source:
                 return None, f"{rel} could not be read as a catalogue (its entry {index} mutates {entry.get('file')!r}, not {source!r}, which the campaign refuses)"
             prior = seen.get(entry["label"].lower())

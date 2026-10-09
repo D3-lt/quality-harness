@@ -1,6 +1,6 @@
 # ADR-093: An armed session leaves a commit into a literal-variable directory to git
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-10-09
 **Owner:** Zy
 **Spec:** None — no spec stage; the owner asked on 2026-10-09 for the scratch-repository false refusal measured that day (docs/BACKLOG.md §367) to be fixed, armed arm only
@@ -29,7 +29,7 @@
 
 ## Decision
 
-A **literal directory variable** is a name `V`, outside `HOOK_ENVIRONMENT_NAMES` and outside the shell-special names (`IFS`, `CDPATH`, `PWD`, `OLDPWD`, `SHELLOPTS`, `BASHOPTS`, `PS4`, `PROMPT_COMMAND`, `BASH_*`), assigned exactly once in the command text as a bare assignment command `V=<value>`. The value is spelled unquoted and unescaped in the raw text (the parser strips quotes, so the spelling is checked against the text) and matches `^/?[\w.][\w./-]*$` with no `.` or `..` segment: it holds no `$`, backtick, quote, glob, brace, space, comma, colon, `@`, `%`, `+` or leading `-`. `V` is named nowhere else as a word (`export V`, `local V`, `read V`, `for V`), and the text names no shell-special name anywhere, `IFS` above all.
+A **literal directory variable** is a name `V`, outside `HOOK_ENVIRONMENT_NAMES` and outside the shell-special names (`IFS`, `CDPATH`, `PWD`, `OLDPWD`, `SHELLOPTS`, `BASHOPTS`, `PS4`, `PROMPT_COMMAND`, `BASH_*`), assigned exactly once in the command text as a bare assignment command `V=<value>`. The value is spelled unquoted and unescaped in the raw text (the parser strips quotes, so the spelling is checked against the text) and matches `^/?[\w.][\w./:-]*$` with no `.` or `..` segment: it holds no `$`, backtick, quote, glob, brace, space, comma, `@`, `%`, `+` or leading `-`. A colon is allowed after the first character so a drive-letter path stays plain; it splits nothing once `IFS` is excluded. `V` is named nowhere else as a word (`export V`, `local V`, `read V`, `for V`), and the text names no shell-special name anywhere, `IFS` above all.
 
 In an armed Bash session, `leavesHookInPlace` treats a use of a literal directory variable as plain when the word is `$V`, `"$V"`, `$V/seg…` or `"$V/seg…"` (each `seg` plain, not `.` or `..`) and stands as the sole operand of `cd`, the sole operand of `mkdir` (no option), the value of `git -C`, or the directory operand of `git init`. These operand forms apply to literal directory variables only: a fresh-directory variable keeps exactly ADR-086's admission (`$V` and `"$V"` as `cd`, `-C` and `init` operands), so ADR-086's rows are unchanged. Every other `$` or backtick still returns false, and every other rule of the function (`.git/`, `hookspath`, environment names, arithmetic, a push in the text) still runs over the whole text. Git's hook then judges the repository the commit lands in. Nothing about the unarmed arm, a push, PowerShell, git's own hook, the `"publish": "warn"` opt-out or the reviewer guard changes.
 

@@ -16,7 +16,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | an armed session leaves a literal-variable directory commit to git | pending | none — no spec | `node --test tests/publish-command.test.mjs` (three named tests pass) |
+| T1 | an armed session leaves a literal-variable directory commit to git | done | none — no spec | `node --test tests/publish-command.test.mjs` (two fenced tests pass; a third executes the rows) |
 
 ## Contract Coupling
 

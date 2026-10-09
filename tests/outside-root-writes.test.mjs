@@ -4,7 +4,7 @@
 // did not. An unplaceable path is not an outside one (CLAUDE.md §16): it keeps its count.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
@@ -53,6 +53,7 @@ test('a relative or unplaceable write path is still counted as unseen', t => {
   // A link inside the tree to a file outside it keeps its own name (canonicalFile), so it is inside.
   const target = path.join(elsewhere, 'target.txt')
   const leaf = path.join(root, 'src', 'link.txt')
+  writeFileSync(target, 'x') // the link must lead somewhere real, or resolving it falls back to its own name
   symlinkSync(target, leaf)
   assert.equal(lifecycle.unobservableWrites([unseen(leaf)], root).length, 1, 'an escaping symlink leaf is a write the tree hash cannot see')
   // The same, with the root spelled through a link (a Codex review of ADR-094 found the leaf resolved as outside).
@@ -62,4 +63,11 @@ test('a relative or unplaceable write path is still counted as unseen', t => {
     'an escaping symlink leaf stays counted when the root is an alias')
   // Mixed: only the outside one drops out.
   assert.equal(lifecycle.unobservableWrites([...counted.slice(0, 1), unseen(path.join(elsewhere, 'x'))], root).length, 1)
+  // A path under a DIRECTORY link that leads out of the tree is spelled inside it, and the tree hash cannot see it
+  // (a Codex review of ADR-094 found it discarded once the parent was resolved).
+  const outwards = path.join(elsewhere, 'dir')
+  mkdirSync(outwards)
+  symlinkSync(outwards, path.join(root, 'link'), 'dir')
+  assert.equal(lifecycle.unobservableWrites([unseen(path.join(root, 'link', 'a.js'))], root).length, 1, 'a write through a directory link stays counted')
+  assert.equal(lifecycle.unobservableWrites([unseen(path.join(realpathSync(root), 'link', 'a.js'))], alias).length, 1, 'and through an alias root, spelled as it is recorded')
 })

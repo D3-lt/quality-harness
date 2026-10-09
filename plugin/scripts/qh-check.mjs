@@ -59,7 +59,7 @@ function previousPassHead(root, command) {
 }
 function onlyTextChangedSince(root, head) {
   const paths = []
-  for (const args of [['diff', '--name-only', '-z', head, '--'], ['ls-files', '-z', '--others', '--exclude-standard']]) {
+  for (const args of [['diff', '--no-renames', '--name-only', '-z', head, '--'], ['ls-files', '-z', '--others', '--exclude-standard']]) {
     const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
     if (run.error || run.status !== 0) return false
     paths.push(...run.stdout.split('\0').filter(Boolean))
@@ -169,19 +169,20 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
       before: { ...already.now, at: original.before.at }, after: { ...already.now, at: original.after.at },
       exit: 0, signal: null, verdict: original.verdict, cores: original.cores, contended: original.contended,
       beside: null, besideAtEnd: null, waitedMs: 0, prose: prose.specs, reusedFrom: original.reusedFrom ?? original.id }
-    // The ledger must be as it was when the decision read it: a record appended since (a concurrent `--again` that
-    // failed, say) would otherwise be followed by this pass and read as superseded (found by a Codex review of ADR-094).
-    // `beforeReuse` is the seam a test uses to be that concurrent writer.
+    // The reuse row must land where the decision left the ledger: a record appended in between (a concurrent `--again`
+    // that failed, say) would be followed by this pass and read as superseded (Codex reviews of ADR-094). The append is
+    // atomic and a count read before it is not, so the position is checked AFTER: ours must be the next row. If it is
+    // not, the check runs, and its own row follows ours and decides. `beforeReuse` is the seam a test uses to be that
+    // concurrent writer.
     beforeReuse()
     try {
       mkdirSync(stateDir(root), { recursive: true })
       const file = path.join(stateDir(root), 'checks.jsonl')
-      let rows = 0
-      try { rows = readFileSync(file, 'utf8').split('\n').filter(line => line.trim()).length } catch { rows = 0 }
-      if (rows !== already.rows) throw Object.assign(new Error('the ledger changed since it was read'), { code: 'ELEDGER' })
       appendFileSync(file, `${JSON.stringify(row)}\n`, 'utf8')
+      const ids = readFileSync(file, 'utf8').split('\n').filter(line => line.trim()).map(line => { try { return JSON.parse(line).id } catch { return null } })
+      if (ids.indexOf(row.id) !== already.rows) throw Object.assign(new Error('the ledger gained a record between the decision and the append'), { code: 'ELEDGER' })
     } catch (failure) {
-      stderr.write(`qh-check: the prose reuse was not recorded (${failure.code ?? failure.message}), so the check runs.\n`)
+      stderr.write(`qh-check: the prose reuse could not be relied on (${failure.code ?? failure.message}), so the check runs.\n`)
       already = null
     }
     if (already) already.reuse = row

@@ -1092,6 +1092,20 @@ const LITERAL_DOLLARS_REFUSED = (p, session) => [
   `path=${p}; cd $path && git commit -qm f`,
   `S=${p}; printf -v IFS %s ,; git -C $S commit -qm f`,
   `if true; then S=${p}; fi; git -C $S commit -qm f`,
+  // Codex review of c47dbbd6: a quoted or escaped spelling of IFS, a name the shell manages, a
+  // protected path hidden behind the variable, and a decoy assignment in a heredoc body.
+  `S=${p}:commit:--no-verify; printf -v I''FS %s :; git -C $S commit -qm f`,
+  `S=${p}:commit:--no-verify; printf -v I\\FS %s :; git -C $S commit -qm f`,
+  `DIRSTACK=${p}; git -C $DIRSTACK commit -qm f`,
+  `dirstack=${p}; pushd ${p}; git -C $dirstack commit -qm f`,
+  `HISTCMD=${p}; git -C $HISTCMD commit -qm f`,
+  `GROUPS=${p}; git -C $GROUPS commit -qm f`,
+  `WORK=${p}; cd $WORK && git commit -qm f`,
+  `S=${p}; git -C $S/.git/hooks commit -qm f`,
+  `S=${p}; git -C $S/hooksPath commit -qm f`,
+  `S=${p}; git -C $S/.git commit -qm f`,
+  `S=${p}/.git; cd $S && git commit -qm f`,
+  `S="${p}"; : <<EOF\n: S=${p}\nEOF\ngit -C $S commit -qm f`,
 ]
 // A fresh-directory variable keeps exactly ADR-086's operand forms.
 const FRESH_KEEPS_ADR_086 = () => [
@@ -1108,6 +1122,12 @@ const FRESH_KEEPS_ADR_086 = () => [
   `reply=$(mktemp -d ${freshTemplate()}); read -A; git -C $reply commit -qm f`,
   `IFS=,; R=$(mktemp -d ${freshTemplate()}); cd $R && git init -q && git commit -qm f`,
   `R=$(mktemp -d ${freshTemplate()}); printf -v IFS %s ,; git -C $R commit -qm f`,
+  // Codex review of c47dbbd6, for ADR-086's variable in the armed arm: a quoted IFS, a managed
+  // name, and a name outside the scratch grammar.
+  `R=$(mktemp -d ${freshTemplate()}); printf -v I''FS %s ,; git -C $R commit -qm f`,
+  `DIRSTACK=$(mktemp -d ${freshTemplate()}); git -C $DIRSTACK commit -qm f`,
+  `HISTCMD=$(mktemp -d ${freshTemplate()}); git -C $HISTCMD commit -qm f`,
+  `DIR=$(mktemp -d ${freshTemplate()}); cd $DIR && git init -q && git commit -qm f`,
 ]
 
 test('an armed session leaves a literal-variable directory commit to git', () => {
@@ -1151,6 +1171,35 @@ test('an admitted row run under bash commits only into the repository it created
   }
 })
 
+// Supplementary, outside the Acceptance fence: CLAUDE.md §16 says execute each name before it is
+// written down. The armed arm admits a directory variable only under a positive name grammar,
+// one letter and up to two digits, because the names a shell manages for itself are an open set
+// (DIRSTACK, HISTCMD, zsh's tied arrays …) that a list chased through three Codex rounds. This
+// runs the claim in the shells this runner has: every grammar name round-trips a literal, the
+// predicate admits each, and no name a shell lists for itself is admitted.
+const SCRATCH_NAMES = [...'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz'].flatMap(letter => [letter, ...Array.from({ length: 100 }, (_, n) => `${letter}${n}`)])
+const ROUND_TRIP = String.raw`while read -r __name; do
+  __seen=$( ( eval "$__name=/tmp/x" && eval "printf %s \"\$$__name\"" ) 2>/dev/null )
+  [ "$__seen" = /tmp/x ] || echo "$__name"
+done`
+test('a one-letter scratch name round-trips a literal in every installed shell, and no name a shell manages is admitted', { skip: process.platform === 'win32' && 'the probe shells are POSIX' }, () => {
+  const shells = ['bash', 'zsh', 'sh'].filter(shell => spawnSync(shell, ['-c', ':'], { timeout: 10_000 }).status === 0)
+  assert.ok(shells.includes('bash'), 'bash is on every POSIX runner')
+  const listed = new Set(['EPOCHSECONDS', 'EPOCHREALTIME', 'SRANDOM', 'BASH_ARGV0', 'DIRSTACK', 'HISTCMD', 'GROUPS', 'UID', 'EUID', 'PS1', 'PS2', 'dirstack', 'path', 'fpath', 'cdpath', 'psvar', 'argv', 'status', 'reply', '_'])
+  for (const shell of shells) {
+    const run = spawnSync(shell, ['-c', ROUND_TRIP], { input: `${SCRATCH_NAMES.join('\n')}\n`, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.stdout.trim(), '', `${shell}: a grammar name that does not round-trip a literal: ${run.stdout.trim()}`)
+    const own = spawnSync(shell, ['-c', shell === 'zsh' ? 'print -l ${(k)parameters}' : 'compgen -v'], { encoding: 'utf8', timeout: 20_000 })
+    for (const name of own.stdout.split('\n')) if (/^[A-Za-z_]\w*$/.test(name)) listed.add(name)
+  }
+  // The row names no one-letter option (`-C`, `-m`): a name equal to a word of the command counts as mentioned.
+  for (const name of SCRATCH_NAMES) assert.equal(leavesHookInPlace(`${name}=/tmp/x; cd $${name} && git commit --no-edit`), true, name)
+  for (const name of listed) {
+    if (SCRATCH_NAMES.includes(name)) continue
+    assert.equal(leavesHookInPlace(`${name}=/tmp/x; cd $${name} && git commit --no-edit`), false, name)
+  }
+})
+
 // ── ADR-086 T2: an unarmed commit into a repository the command creates is advised ──
 //
 // With no git hook to judge at the event, only the text can prove where the commit
@@ -1167,6 +1216,9 @@ const FRESH_REPOSITORY_ROWS = (parent, session) => [
 const FRESH_REPOSITORY_TWINS = (parent, session) => [
   `R=$(mktemp -d ${parent}/fresh.XXXX); cd "$R" && git init -q && git commit -qm f`,
   `R=$(mktemp -d ${parent}/fresh.XXXX); cd $R && git init -q && git add . && git commit -qm f`,
+  // The shell-updated names stay refused in the unarmed arm too, where no scratch-name grammar applies.
+  `_=$(mktemp -d ${parent}/fresh.XXXX) && cd $_ && git init -q && git add -A && git commit -q --allow-empty -m f`,
+  `reply=$(mktemp -d ${parent}/fresh.XXXX) && cd $reply && git init -q && git add -A && git commit -q --allow-empty -m f`,
   `cd ${session} && git commit -qm f`,
   'git -C . commit -qm f',
   'cd "$R"; cd -; git commit -qm f',

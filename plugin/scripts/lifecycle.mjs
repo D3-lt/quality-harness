@@ -5756,7 +5756,7 @@ function runsInThisShell(commands, index) {
   return index === 0 || commands[index - 1].ended === ';' || commands[index - 1].ended === '\n'
 }
 export function freshDirectoryVariables(commands, text = '') {
-  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES
+  if (namesShellSpecial(text)) return NO_FRESH_DIRECTORIES
   const assigned = assignmentCounts(commands)
   const fresh = new Set()
   commands.forEach((command, index) => {
@@ -5797,24 +5797,37 @@ const SHELL_SPECIAL_NAMES = /\b(?:IFS|CDPATH|PWD|OLDPWD|SHELLOPTS|BASHOPTS|PS4|P
 // after `mapfile`, and zsh's tied arrays. Judged by the candidate's NAME, never by a word in
 // the text (a command may say `status`), and for both kinds of directory variable.
 const AUTO_UPDATED_NAMES = /^(?:_|REPLY|reply|OPTARG|OPTIND|LINENO|RANDOM|SECONDS|PIPESTATUS|pipestatus|FUNCNAME|BASHPID|PPID|SHLVL|MAPFILE|path|cdpath|fpath|mailpath|manpath|module_path|psvar|watch|argv|status|signals|histchars)$/
+// ADR-093 (review of c47dbbd6): the armed arm admits a directory variable only under a POSITIVE
+// name grammar, one letter and up to two digits. The names a shell manages for itself are an open
+// set — `DIRSTACK`, `HISTCMD`, `EPOCHSECONDS`, zsh's tied arrays — and a list of them was chased
+// through three Codex rounds; no shell manages such a name, which the supplementary test executes
+// in every shell the runner has (CLAUDE.md §16). `AUTO_UPDATED_NAMES` stays for the unarmed arm.
+const SCRATCH_NAME = /^[A-Za-z]\d{0,2}$/
+// A quote or a backslash inside a word is gone by the time the shell sees it: `I''FS` and `I\FS`
+// are `IFS`. So the special-name test reads the text once as written and once with them removed.
+const namesShellSpecial = text => SHELL_SPECIAL_NAMES.test(text) || SHELL_SPECIAL_NAMES.test(text.replace(/['"\\]/g, ''))
+// The check for a write into the repository's own configuration reads the text the variable's use
+// stood in: a use that spells a `.git` or `hookspath` segment keeps the refusal.
+const PROTECTED_SUFFIX = /\.git|hookspath/i
 const LITERAL_VALUE = /^\/?[\w.][\w./:-]*$/
 const LITERAL_SUFFIX = /^[\w.:-]+(?:\/[\w.:-]+)*$/
 const hasDotSegment = value => value.split('/').some(part => part === '.' || part === '..')
 export function literalDirectoryVariables(commands, text) {
-  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES
+  // A heredoc body is text the raw-spelling count below cannot tell from code: a decoy `S=/tmp`
+  // line there would stand for a quoted assignment.
+  if (namesShellSpecial(text) || commands.some(command => command.heredocs.length)) return NO_FRESH_DIRECTORIES
   const assigned = assignmentCounts(commands)
   const literal = new Set()
   commands.forEach((command, index) => {
-    if (command.argv.length || command.assignments.length !== 1 || command.substitutions.length
-      || command.heredocs.length || command.redirects) return
+    if (command.argv.length || command.assignments.length !== 1 || command.substitutions.length || command.redirects) return
     const [assignment] = command.assignments
     const found = /^([A-Za-z_]\w*)=(.*)$/s.exec(assignment)
     if (!found) return
     const [, name, value] = found
-    if (assigned.get(name) !== 1 || mentionedNames(commands, index).has(name) || HOOK_ENVIRONMENT_NAMES.test(name)) return
-    if (AUTO_UPDATED_NAMES.test(name)) return
+    if (!SCRATCH_NAME.test(name)) return
+    if (assigned.get(name) !== 1 || mentionedNames(commands, index).has(name)) return
     if (!runsInThisShell(commands, index)) return
-    if (!LITERAL_VALUE.test(value) || hasDotSegment(value)) return
+    if (!LITERAL_VALUE.test(value) || hasDotSegment(value) || PROTECTED_SUFFIX.test(value)) return
     // The parser strips quotes and escapes, so the spelling is read in the raw text: a
     // quoted or escaped value is not the bare assignment this reads.
     const spelled = new RegExp(`(?<=^|[\\s;&|(])${assignment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[\\s;&|)])`, 'g')
@@ -5924,7 +5937,7 @@ function freshDirectoryText(text) {
   text = maskedMessages(text)
   if (!/[$`]/.test(text)) return { raw: text, fresh: NO_FRESH_DIRECTORIES }
   const { commands } = shellWords(text)
-  const fresh = freshDirectoryVariables(commands, text)
+  const fresh = new Set([...freshDirectoryVariables(commands, text)].filter(name => SCRATCH_NAME.test(name)))
   const literal = literalDirectoryVariables(commands, text)
   const unchanged = { raw: text, fresh: NO_FRESH_DIRECTORIES }
   if ((fresh.size === 0 && literal.size === 0) || /(?<![\w.-])push(?![\w-])/.test(text)) return unchanged
@@ -5943,6 +5956,7 @@ function freshDirectoryText(text) {
     const at = commands.findIndex(command => command.argv.length === 0 && command.assignments[0]?.startsWith(`${name}=`))
     const uses = commands.slice(at + 1).reduce((sum, command) => sum + directoryOperands(command, `$${name}`, true), 0)
     const operand = new RegExp(`(?<=^|[\\s;&|(])(?:"\\$${name}(?:/[\\w./:-]*)?"|\\$${name}(?:/[\\w./:-]*)?)(?=$|[\\s;&|)])`, 'g')
+    if ((plain.match(operand) ?? []).some(use => PROTECTED_SUFFIX.test(use))) return unchanged
     if (!usesAreOperands(plain, name, uses, operand)) return unchanged
     plain = plain.replace(operand, () => 'fresh')
   }

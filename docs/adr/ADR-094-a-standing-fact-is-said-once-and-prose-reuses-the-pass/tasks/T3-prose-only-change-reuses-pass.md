@@ -5,7 +5,7 @@
 **Estimated scope:** L (qh-check, observe, the ledger and the hint)
 **Owner:** unassigned
 **Produces:** `proseSpecs(root)` (validated declaration) and the `codeTree` field of `observe()`'s optional result
-**Consumes:** `passedAlready` and `saidHere` (T2)
+**Consumes:** `passedAlready` and `firstMentionHere` (T2)
 **Data dependency:** hermetic
 **Proof map:** v1
 **Rests-on:** `no declaration changes nothing`, `a pass is reused only when the tree minus the declared paths is equal`, `a declaration that could hide code is refused`, `a reuse keeps the unseen-write veto`, `the hint is said after a passing prose-only run`
@@ -31,7 +31,7 @@ In a project whose `.quality-harness.json` declares `prose`, a commit that chang
 3. [S3] `observe(cwd, budgetMs, { without })` returns `codeTree` (`git rm --cached -r --ignore-unmatch -- :(top)<spec>…` on the temporary index, then `write-tree`). No hook passes `without`.
 4. [S4] `passedAlready` accepts a row when its command and `prose` list equal the current ones, it has a `codeTree`, and that equals the current one; the unseen-write veto runs from the original pass's start. A row without `codeTree` is never reused this way.
 5. [S5] On a reuse, append the pass row and the `skips.jsonl` row and say one line. Do not reuse across a changed `prose` list.
-6. [S6] The hint: after a full run that exited 0 and took at least a minute, where every path changed since the previous full pass of the same command is a text document (`.md`, `.mdx`, `.txt`, `.rst`), print one line naming `prose` and `fastCheck` and saying a declaration needs the project owner's approval; once per repository through `saidHere`. Nothing is printed after a failed run.
+6. [S6] The hint: after a full run that exited 0 and took at least a minute, where every path changed since the previous full pass of the same command is a text document (`.md`, `.mdx`, `.txt`, `.rst`), print one line naming `prose` and `fastCheck` and saying a declaration needs the project owner's approval; once per repository through `firstMentionHere`. Nothing is printed after a failed run.
 7. [S7] Record five killed mutants, one per `Rests-on` name. [proof: mutation]
 
 ## Acceptance

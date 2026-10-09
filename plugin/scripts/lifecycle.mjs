@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { createHash, randomUUID } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
-import { appendFileSync, closeSync, copyFileSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readlinkSync, readSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, closeSync, copyFileSync, existsSync, linkSync, lstatSync, mkdirSync, mkdtempSync, openSync, readdirSync, readlinkSync, readSync, realpathSync, renameSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { StringDecoder } from 'node:string_decoder'
 import os from 'node:os'
 import path from 'node:path'
@@ -807,6 +807,49 @@ export function unseenWriteSince(root, { seen, seq, started }) {
 function outsideRoot(root, file) {
   const relative = relativeWithinRoot(root, file).replace(/\\/g, '/')
   return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) || /^[A-Za-z]:/.test(relative)
+}
+
+/**
+ * passedAlready answers whether the ledger already proves this tree (ADR-081): the
+ * LATEST record, by position, for the same command on the tree as it is now must
+ * grade `check.passed`. Anything it cannot establish answers null, and the check
+ * runs (ADR-005):
+ * - a ledger line it cannot read;
+ * - a tree it cannot observe;
+ * - a directory outside git;
+ * - a write git cannot see, recorded in ANY session's log after the pass started,
+ *   since a tree hash cannot speak for it. Every session, because a check run by
+ *   hand carries no session id; a log last changed before the pass cannot hold one.
+ * `observeTree` is the seam a test replaces. It lives here, not in qh-check, because
+ * SessionStart reads it too (ADR-094 T2) and qh-check imports this module.
+ */
+export function passedAlready({ root, git, command, env = process.env, observeTree = observe }) {
+  if (git !== true) return null
+  const now = observeTree(root)
+  if (now?.ok !== true) return null
+  let text
+  try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
+  let latest = null
+  let seq = 0
+  let latestSeq = 0
+  // ⚠ qh-check ends every record with a newline, so a last line without one was not written
+  // whole even when it parses, and proves nothing: read as the importer reads it (ADR-088).
+  const lines = text.split('\n')
+  if (lines.pop().trim()) return null
+  for (const line of lines) {
+    if (!line.trim()) continue
+    let record
+    try { record = JSON.parse(line) } catch { return null }
+    // A row that is not a record proves nothing, as the importer reads it.
+    if (typeof record?.id !== 'string') return null
+    seq += 1
+    if (record?.command === command && record?.after?.tree === now.tree) latest = record
+    if (latest === record) latestSeq = seq
+  }
+  if (!latest || checkEventName(latest) !== 'check.passed') return null
+  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
+  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)
+  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree }
 }
 
 /**
@@ -3761,8 +3804,14 @@ function previousSessionNotice(cwd, platform = process.platform) {
   if (!row || row.status !== 'unverified') return ''
   const files = Array.isArray(row.files) ? row.files.slice(0, 5).map(file => shownPath(path.relative(cwd, file) || file)) : []
   const other = Number(row.other) || 0
-  const what = [row.files?.length ? `${row.files.length} edit(s)` : '', other ? `${other} shell mutation(s)` : ''].filter(Boolean).join(' and ') || 'edits'
+  const what = [row.files?.length ? `${row.files.length} edit(s)` : '', other ? `${other} write(s) git cannot see` : ''].filter(Boolean).join(' and ') || 'edits'
   const check = projectCheckCommand(cwd)
+  // ADR-094 T2: a pass recorded for the tree as it is now answers this notice, dirty or clean. No pass, a
+  // tree that could not be observed and no declared check all keep it: only a proven tree is silent.
+  const directory = nearestExistingDirectory(path.resolve(cwd))
+  const repository = directory ? gitRepositoryRoot(directory) : null
+  const declared = repository ? checkCommandOrigin(repository).command : null
+  if (repository && declared && passedAlready({ root: repository, git: true, command: declared })) return ''
   // ⚠ AN `unverified` ROW IS NOT ALWAYS A ROW ABOUT EDITS. A session whose tree
   // could not be observed, or that was watched only from partway through, is
   // persisted `unverified` with NO files — and `|| 'edits'` above then told the
@@ -3929,6 +3978,27 @@ function alreadyMentionedThisSession(sessionId, key) {
   const marker = sessionMentionPath(sessionId, key)
   if (!marker) return false
   try { return Date.now() - statSync(marker).mtimeMs <= SAID_MARKER_MAX_AGE_MS } catch { return false }
+}
+
+// ADR-094 T2: a STANDING fact is said once per repository and text for three days, not at every start.
+// Keyed on the repository and the text's hash, in the directory and under the sweep of the per-session
+// markers, so a changed text is a new key and is said. True means "say it now" and refreshes the marker;
+// a marker that cannot be kept errs toward saying, as firstMentionThisSession does. Compaction and clear
+// lose the context, so they never ask.
+const STANDING_FACT_MAX_AGE_MS = 3 * 24 * 60 * 60 * 1000
+export function firstMentionHere(root, text, { tmp = os.tmpdir(), now = Date.now() } = {}) {
+  const directory = saidMarkerDirectory(tmp)
+  const marker = path.join(directory, createHash('sha256').update(`here#${root}#${text}`).digest('hex').slice(0, 32))
+  try {
+    mkdirSync(directory, { recursive: true })
+    sweepStaleMarkers(tmp, now)
+    let age = null
+    try { age = now - statSync(marker).mtimeMs } catch { age = null }
+    if (age !== null && age >= 0 && age < STANDING_FACT_MAX_AGE_MS) return false
+    writeFileSync(marker, '')
+    utimesSync(marker, new Date(now), new Date(now))
+  } catch { /* a marker that cannot be kept errs toward saying */ }
+  return true
 }
 
 export function firstMentionThisSession(sessionId, key) {
@@ -4177,25 +4247,28 @@ export function danglingCorpusLinks(root) {
   return found
 }
 
-export function sessionOrientation(cwd) {
+export function sessionOrientation(cwd, { once = false } = {}) {
   const directory = nearestExistingDirectory(path.resolve(cwd ?? process.cwd()))
   if (!directory) return ''
   const found = gitRepositoryLookup(directory)
   const repositoryRoot = found.ok ? found.root : null
   const root = repositoryRoot ?? directory
   const lines = []
+  // ADR-094 T2: the standing paragraphs below go through `standing`; where the hook asks (startup and
+  // resume) each is said once per repository per three days. The could-not-look lines never do (ADR-005).
+  const standing = text => { if (!once || firstMentionHere(root, text)) lines.push(text) }
   if (!found.ok) {
     lines.push(`could-not-look: the repository root could not be read (${found.reason}). Whether this directory is a repository, and which check it declares, is unknown.`)
   }
 
   const { command: check, origin } = found.ok ? checkCommandOrigin(root) : { command: null, origin: 'unproven' }
   if (origin === 'refused') {
-    lines.push('Verification: the check declared in `.quality-harness.json` is a constant success and was refused. Declare a command that can fail.')
+    standing('Verification: the check declared in `.quality-harness.json` is a constant success and was refused. Declare a command that can fail.')
   } else if (check) {
     const named = origin === 'declared'
       ? `this project's own check is ${checkInCode(check)}`
       : `no \`check\` is declared in \`.quality-harness.json\`; inferred ${checkInCode(check)} from a manifest — that is not this project's own check, and it may be narrower than this project's own gate (a step the inference did not pick, such as a typecheck or lint), so its pass is not that gate's pass`
-    lines.push(`Verification: ${named}. `
+    standing(`Verification: ${named}. `
       // ADR-060: a check is an EVENT `qh-check` writes, so how the command is
       // spelled, piped or redirected no longer decides anything — but running it
       // any other way now leaves no record at all, and the orientation has to say
@@ -4208,7 +4281,7 @@ export function sessionOrientation(cwd) {
   }
 
   const stale = staleVersionNotice()
-  if (stale) lines.push(stale)
+  if (stale) standing(stale)
 
   const inside = repositoryRoot !== null
   const listing = inside ? trackedPaths(root) : null
@@ -4222,7 +4295,7 @@ export function sessionOrientation(cwd) {
   if (corpusLook === true) {
     // The name test: SessionStart opens no record content (CLAUDE.md §19, ADR-092 Decision 11).
     for (const archive of unmarkedArchives(root, listing)) {
-      lines.push(`${pathInCode(archive)} looks like an archive but has no Lifecycle marker, so it is read as live — `
+      standing(`${pathInCode(archive)} looks like an archive but has no Lifecycle marker, so it is read as live — `
         + '`adr-retire-check --adopt <active> <archive>` reports what adopting it needs; it changes nothing (skills/adr-retire §Existing Archives).')
     }
   }
@@ -4236,7 +4309,7 @@ export function sessionOrientation(cwd) {
   if (check || ready.lines.length || corpusLook === true || corpusLook === 'UNPROVEN') {
     const shadow = shadowInstallNotice()
     if (shadow) {
-      lines.push(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports `
+      standing(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports `
         + 'what differs. `--apply` copies over it, which is the fix you have to remember again '
         + 'next release; `--link` turns each gate into a forwarder that resolves the newest '
         + 'installed plugin at call time, so no release touches a gate again — and a gate is now '
@@ -4250,7 +4323,7 @@ export function sessionOrientation(cwd) {
 
   if (ready.lines.length) {
     const shown = surfaceReadyLines(ready.lines)
-    lines.push(['ADR tasks in flight:', ...shown].join('\n'))
+    standing(['ADR tasks in flight:', ...shown].join('\n'))
   }
 
   return lines.join('\n\n')
@@ -7163,12 +7236,13 @@ export async function handleHook(input) {
       process.stderr.write(`[quality-harness] the publish hook was not offered (${failure?.message ?? failure}).\n`)
     }
     const sections = []
-    const orientation = sessionOrientation(input.cwd)
+    const orientation = sessionOrientation(input.cwd, { once: input.source === 'startup' || input.source === 'resume' || input.source === undefined })
     if (orientation) sections.push(orientation)
     // ADR-068 T2: after a compaction or resume, the Bash tool picks up the exports only
     // from the next user prompt (measured 2026-09-26). While no hook run follows the
     // latest offer, say which refusal is in force; it changes no verdict.
-    if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))) {
+    if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))
+      && (input.source === 'compact' || firstMentionHere(path.resolve(input.cwd ?? process.cwd()), ARMING_NOTE))) {
       sections.push(ARMING_NOTE)
     }
     if (input.source === 'compact') {

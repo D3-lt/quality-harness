@@ -5592,8 +5592,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES\n  const assigned = assignmentCounts(commands)\n  const literal",
-      "to": "  if (false) return NO_FRESH_DIRECTORIES\n  const assigned = assignmentCounts(commands)\n  const literal",
+      "from": "  if (namesShellSpecial(text) || commands.some(command => command.heredocs.length)) return NO_FRESH_DIRECTORIES",
+      "to": "  if (commands.some(command => command.heredocs.length)) return NO_FRESH_DIRECTORIES",
       "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
     },
     {
@@ -5612,19 +5612,19 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "if (assigned.get(name) !== 1 || mentionedNames(commands, index).has(name) || HOOK_ENVIRONMENT_NAMES.test(name)) return",
-      "to": "if (assigned.get(name) !== 1 || HOOK_ENVIRONMENT_NAMES.test(name)) return",
+      "from": "if (assigned.get(name) !== 1 || mentionedNames(commands, index).has(name)) return",
+      "to": "if (assigned.get(name) !== 1) return",
       "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
     },
     {
-      "label": "ADR-093: a variable the shell updates itself is not a literal directory variable",
+      "label": "ADR-093: a variable the shell updates itself is not a fresh directory variable in the unarmed arm",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/publish-command.test.mjs"
       ],
       "from": "/^(?:_|REPLY|reply|OPTARG",
       "to": "/^(?:REPLY|reply|OPTARG",
-      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+      "only": "^an unarmed chain the text cannot place in a fresh repository is still refused$"
     },
     {
       "label": "ADR-093: a fresh mktemp variable must have been assigned in the shell that expands it",
@@ -5637,24 +5637,24 @@
       "only": "^an armed session leaves a literal-variable directory commit to git$"
     },
     {
-      "label": "ADR-093: zsh's implicit reply array is not a literal directory variable",
+      "label": "ADR-093: zsh's implicit reply array is not a fresh directory variable in the unarmed arm",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/publish-command.test.mjs"
       ],
       "from": "_|REPLY|reply|OPTARG",
       "to": "_|REPLY|OPTARG",
-      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+      "only": "^an unarmed chain the text cannot place in a fresh repository is still refused$"
     },
     {
-      "label": "ADR-093: a fresh mktemp variable is not a variable the shell updates itself",
+      "label": "ADR-093: a fresh mktemp variable is not a variable the shell updates itself (unarmed arm)",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/publish-command.test.mjs"
       ],
       "from": "    if (AUTO_UPDATED_NAMES.test(name)) return\n    const [inner] = command.substitutions",
       "to": "    const [inner] = command.substitutions",
-      "only": "^an armed session leaves a literal-variable directory commit to git$"
+      "only": "^an unarmed chain the text cannot place in a fresh repository is still refused$"
     },
     {
       "label": "ADR-093: IFS in the text takes the fresh mktemp variable away too",
@@ -5662,9 +5662,79 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "export function freshDirectoryVariables(commands, text = '') {\n  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES",
+      "from": "export function freshDirectoryVariables(commands, text = '') {\n  if (namesShellSpecial(text)) return NO_FRESH_DIRECTORIES",
       "to": "export function freshDirectoryVariables(commands, text = '') {",
       "only": "^an armed session leaves a literal-variable directory commit to git$"
+    },
+    {
+      "label": "ADR-093: a quoted or escaped spelling of a special name is that name",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": " || SHELL_SPECIAL_NAMES.test(text.replace(/['\"\\\\]/g, ''))",
+      "to": " || false",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: a name outside the scratch grammar is not a literal directory variable",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (!SCRATCH_NAME.test(name)) return",
+      "to": "    if (false) return",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: a name outside the scratch grammar is not a fresh directory variable in the armed arm",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": ".filter(name => SCRATCH_NAME.test(name))",
+      "to": ".filter(() => true)",
+      "only": "^an armed session leaves a literal-variable directory commit to git$"
+    },
+    {
+      "label": "ADR-093: a use that spells a protected segment keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": ".some(use => PROTECTED_SUFFIX.test(use))",
+      "to": ".some(() => false)",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: a protected segment in the assigned value keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "hasDotSegment(value) || PROTECTED_SUFFIX.test(value)) return",
+      "to": "hasDotSegment(value)) return",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: a heredoc anywhere in the text takes the literal variables away",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "namesShellSpecial(text) || commands.some(command => command.heredocs.length)) return NO_FRESH_DIRECTORIES",
+      "to": "namesShellSpecial(text)) return NO_FRESH_DIRECTORIES",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: no name a shell manages is admitted as a scratch name",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "const SCRATCH_NAME = /^[A-Za-z]\\d{0,2}$/",
+      "to": "const SCRATCH_NAME = /^[A-Za-z_]\\w*$/",
+      "only": "^a one-letter scratch name round-trips a literal in every installed shell, and no name a shell manages is admitted$"
     }
   ]
 }

@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "2026-10-09: a rule that matches every path is not delivered again",
+      "file": "scripts/rules-inject.mjs",
+      "tests": [
+        "tests/rules-inject.test.mjs"
+      ],
+      "from": "  const rules = loadRules(rulesDir).filter((rule) => !rule.patterns.some(isMatchAll))",
+      "to": "  const rules = loadRules(rulesDir)",
+      "only": "^a rule that matches every path is the loader's, not this hook's$"
+    },
+    {
+      "label": "2026-10-09: a scoped glob is not a match-all glob",
+      "file": "scripts/rules-inject.mjs",
+      "tests": [
+        "tests/rules-inject.test.mjs"
+      ],
+      "from": "  return /^(?:\\*\\*\\/?)+$/.test(normalize(pattern))",
+      "to": "  return true",
+      "only": "^a rule that matches every path is the loader's, not this hook's$"
+    }
+  ]
+}

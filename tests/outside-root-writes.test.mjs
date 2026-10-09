@@ -4,10 +4,11 @@
 // did not. An unplaceable path is not an outside one (CLAUDE.md §16): it keeps its count.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
+import { canonical } from '../plugin/scripts/event-log.mjs'
 
 const unseen = file => ({ event: 'file.written', path: file, observable: false })
 
@@ -31,7 +32,7 @@ test('an absolute write outside the repository is not counted as unseen', t => {
   const link = path.join(base, 'link-to-repo')
   symlinkSync(root, link, 'dir')
   assert.equal(lifecycle.unobservableWrites([outside], link).length, 0, 'a symlinked root still places the scratchpad outside')
-  const real = realpathSync(root)
+  const real = canonical(root) // the spelling the hook records: native, so Windows 8.3 short names are long
   assert.equal(lifecycle.unobservableWrites([unseen(path.join(real, 'src', 'a.js'))], link).length, 1,
     'and a write inside the real root is still inside, however the root is spelled')
   // The old callers pass no root and keep today's count.
@@ -59,7 +60,7 @@ test('a relative or unplaceable write path is still counted as unseen', t => {
   // The same, with the root spelled through a link (a Codex review of ADR-094 found the leaf resolved as outside).
   const alias = path.join(base, 'alias-of-repo')
   symlinkSync(root, alias, 'dir')
-  assert.equal(lifecycle.unobservableWrites([unseen(path.join(realpathSync(root), 'src', 'link.txt'))], alias).length, 1,
+  assert.equal(lifecycle.unobservableWrites([unseen(path.join(canonical(root), 'src', 'link.txt'))], alias).length, 1,
     'an escaping symlink leaf stays counted when the root is an alias')
   // Mixed: only the outside one drops out.
   assert.equal(lifecycle.unobservableWrites([...counted.slice(0, 1), unseen(path.join(elsewhere, 'x'))], root).length, 1)
@@ -69,5 +70,5 @@ test('a relative or unplaceable write path is still counted as unseen', t => {
   mkdirSync(outwards)
   symlinkSync(outwards, path.join(root, 'link'), 'dir')
   assert.equal(lifecycle.unobservableWrites([unseen(path.join(root, 'link', 'a.js'))], root).length, 1, 'a write through a directory link stays counted')
-  assert.equal(lifecycle.unobservableWrites([unseen(path.join(realpathSync(root), 'link', 'a.js'))], alias).length, 1, 'and through an alias root, spelled as it is recorded')
+  assert.equal(lifecycle.unobservableWrites([unseen(path.join(canonical(root), 'link', 'a.js'))], alias).length, 1, 'and through an alias root, spelled as it is recorded')
 })

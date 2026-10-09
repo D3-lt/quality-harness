@@ -186,12 +186,18 @@ export function proposals(root, { testsDirectory = 'tests' } = {}) {
   // "no catalogue": whether a string is catalogued there is unknown. And a string is catalogued only
   // where an entry mutates it — its `from` — never because a label or a note mentions it (a gpt-6.1-sol
   // review of ADR-091, and its verification review).
+  // Those campaign rules apply where the catalogue has the per-source form, which is that campaign's.
+  // A single mutations.json alone is read as before ADR-091, its whole text: the plugin ships no
+  // runner, and an adopter's catalogue follows its own schema.
+  const catalogueFiles = testFiles.filter(isCatalogue)
+  const strict = catalogueFiles.some(file => relative(file).startsWith(`${testsDir}/mutations/`))
   const catalogued = []
   const unreadCatalogues = []
-  for (const file of testFiles.filter(isCatalogue)) {
+  for (const file of catalogueFiles) {
     const text = readIfSmall(file)
     let parsed = null
     try { parsed = text == null ? null : JSON.parse(text) } catch {}
+    if (!strict && parsed && typeof parsed === 'object' && !Array.isArray(parsed)) { catalogued.push(text); continue }
     const entries = Array.isArray(parsed?.mutations) && parsed.mutations.every(isCatalogueEntry) ? parsed.mutations : null
     if (entries) catalogued.push(...entries.map(entry => entry.from))
     else unreadCatalogues.push(relative(file))

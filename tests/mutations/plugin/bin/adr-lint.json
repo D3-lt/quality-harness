@@ -1,6 +1,24 @@
 {
   "mutations": [
     {
+      "label": "ADR-091 scope: a legacy-only catalogue is read as before (strict forced on)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/chaos-315-mutate-catalogue.test.mjs"
+      ],
+      "from": "    strict = any(rel != \"tests/mutations.json\" for rel, _ in files)",
+      "to": "    strict = True"
+    },
+    {
+      "label": "ADR-091 scope: the per-source form gets the campaign's rules (strict forced off)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "    strict = any(rel != \"tests/mutations.json\" for rel, _ in files)",
+      "to": "    strict = False"
+    },
+    {
       "label": "ADR-091 verification: an entry of a shape the campaign refuses is not a label",
       "file": "plugin/bin/adr-lint",
       "tests": [

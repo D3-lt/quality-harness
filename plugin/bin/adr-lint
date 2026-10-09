@@ -3870,8 +3870,12 @@ def mutation_labels(root, tracked=None):
                 return None, f"{rel} could not be read as a catalogue (git lists it and it is not a regular file here)"
             files.append((rel, root / rel))
     # The campaign's own rules (scripts/mutate.mjs loadCatalogue): a per-source file holds only its
-    # source's entries and at least one, and a label is used once across every file, case aside. A
-    # catalogue the campaign refuses grades nothing, so a label in it measures nothing (the same review).
+    # source's entries and at least one, each entry has the campaign's fields, and a label is used
+    # once across every file, case aside. A catalogue the campaign refuses grades nothing, so a label
+    # in it measures nothing (the same review). They apply where the catalogue has the per-source
+    # form, which is that campaign's; a single tests/mutations.json alone is read as it was before
+    # ADR-091, because the plugin ships no runner and an adopter's catalogue follows its own.
+    strict = any(rel != "tests/mutations.json" for rel, _ in files)
     labels = set()
     seen = {}
     for rel, catalogue in files:
@@ -3888,12 +3892,12 @@ def mutation_labels(root, tracked=None):
         for index, entry in enumerate(entries):
             if not isinstance(entry, dict) or not isinstance(entry.get("label"), str):
                 return None, f'{rel} could not be read as a catalogue (its entry {index} is not an object with a string "label")'
-            wrong = next((name for name, holds in _ENTRY_FIELDS if not holds(entry.get(name, _ABSENT) if name == "only" else entry.get(name))), None)
+            wrong = next((name for name, holds in _ENTRY_FIELDS if not holds(entry.get(name, _ABSENT) if name == "only" else entry.get(name))), None) if strict else None
             if wrong is not None:
                 return None, f'{rel} could not be read as a catalogue (its entry {index}\'s "{wrong}" is not what the campaign requires)'
             if source is not None and entry.get("file") != source:
                 return None, f"{rel} could not be read as a catalogue (its entry {index} mutates {entry.get('file')!r}, not {source!r}, which the campaign refuses)"
-            prior = seen.get(entry["label"].lower())
+            prior = seen.get(entry["label"].lower()) if strict else None
             if prior is not None:
                 return None, f"{rel} could not be read as a catalogue (the label {entry['label']!r} is used again, after {prior}, which the campaign refuses)"
             seen[entry["label"].lower()] = rel

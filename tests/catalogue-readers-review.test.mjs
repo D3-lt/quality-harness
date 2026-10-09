@@ -107,14 +107,20 @@ test('mutate-propose says a string is unproven, not neither, when a catalogue fi
   const clean = scratch({ ...base, 'tests/mutations.json': serialize([]) })
   assert.equal(coverage(clean)['tick off a task'], 'unasserted')
   assert.equal(coverage(clean)['to audit a run'], 'asserted')
-  // The verification review: an object the campaign refuses (no "mutations") holding the string, and a
-  // valid entry whose `from` differs while its metadata carries the string, are not "catalogued".
-  const noMutations = scratch({ ...base, 'tests/mutations.json': '{"note": "tick off a task"}\n' })
+  // The verification review: in the per-source form, which is the campaign's, an object the campaign
+  // refuses (no "mutations", or an entry missing fields) holding the string, and a valid entry whose
+  // `from` differs while its metadata carries the string, are not "catalogued".
+  const PER_SOURCE = 'tests/mutations/skills/demo/SKILL.md.json'
+  const noMutations = scratch({ ...base, [PER_SOURCE]: '{"note": "tick off a task"}\n' })
   assert.equal(coverage(noMutations)['tick off a task'], 'unproven')
-  const partial = scratch({ ...base, 'tests/mutations.json': '{"mutations": [{"from": "tick off a task"}]}\n' })
+  const partial = scratch({ ...base, [PER_SOURCE]: '{"mutations": [{"from": "tick off a task"}]}\n' })
   assert.equal(coverage(partial)['tick off a task'], 'unproven')
-  const inMetadata = scratch({ ...base, 'tests/mutations.json': serialize([{ ...entry('tick off a task', 'skills/demo/SKILL.md'), from: 'different' }]) })
+  const inMetadata = scratch({ ...base, [PER_SOURCE]: serialize([{ ...entry('tick off a task', 'skills/demo/SKILL.md'), from: 'different' }]) })
   assert.equal(coverage(inMetadata)['tick off a task'], 'unasserted')
+  // The twin: a single mutations.json alone follows an adopter's own schema, and reads as it did
+  // before ADR-091, its whole text.
+  const legacy = scratch({ ...base, 'tests/mutations.json': '{"mutations": [{"from": "tick off a task"}]}\n' })
+  assert.equal(coverage(legacy)['tick off a task'], 'catalogued')
   if (process.platform === 'win32' || process.getuid?.() === 0) return
   const locked = scratch({ ...base, 'tests/mutations/skills/demo/SKILL.md.json': serialize([]) })
   chmodSync(join(locked, 'tests/mutations/skills/demo/SKILL.md.json'), 0o000)

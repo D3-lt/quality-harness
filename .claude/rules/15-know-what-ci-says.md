@@ -48,9 +48,18 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
   session: of the briefs re-sent unchanged, COULD NOT LOOK (a branch with no run yet) was the largest
   class, then a red run, then the cap's withheld message, whose age changed on every prompt. An adopter
   on any unpushed branch was told COULD NOT LOOK on every prompt until they pushed. A completed failed
-  run still repeats, because it is what blocks a release; an unknown is said when it changes.
-  `ciRed` replaced `ciAlarm`, which also counted could-not-look as an alarm. The test is
+  run still shows its ⚠ on every prompt, because it is what blocks a release; an unknown is said when it
+  changes. `ciRed` replaced `ciAlarm`, which also counted could-not-look as an alarm. The test is
   `an unchanged unknown is said once, and only a red CI repeats`.
+- **A red run is said in full when it changes and as one line otherwise; a withheld snapshot says nothing
+  (ADR-094 T1, owner, 2026-10-09).** A survey of fifteen adopter sessions found fourteen ignoring the
+  brief: the full text, job names included, was resent on every prompt. The key is the sha, the
+  conclusion and the sorted FULL set of failed jobs, never the capped text a brief displays, and the
+  short line is never stored as `said`, or the next full text would be a bounce. Past the cap nothing is
+  stored; only a refresh that could not start says so, once, with no age in the text. The tests are
+  `a completed red CI is said in full once, then one unchanged line`, `a red CI whose failing jobs change
+  past the third name is said in full again` and `a snapshot past the cap says nothing, and a refresh
+  that could not start says so once`.
 - **The release line NAMES its anchor and points at the check; it does not conclude** (BACKLOG §157).
   `git describe` reads LOCAL refs and `gh release create` tags the remote, so the machine that cuts
   the releases is the one whose anchor goes stale — it printed "a green shipped change is released,

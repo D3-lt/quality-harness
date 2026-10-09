@@ -22,7 +22,7 @@ README must be regenerated.
 | T1 | a red CI is said in full once, and a withheld snapshot says nothing | done | none — no spec | `node --test tests/branch-state.test.mjs` (three named tests pass) |
 | T4 | a write outside the repository is not an unseen write | done | none — no spec | `node --test tests/outside-root-writes.test.mjs` (two named tests pass) |
 | T2 | SessionStart says a standing paragraph once, and the notice only without a pass | done | none — no spec | `node --test tests/standing-facts.test.mjs` (four named tests pass) |
-| T3 | a prose-only change reuses the last pass where the project declared it | pending | none — no spec | `node --test tests/prose-reuse.test.mjs` (six named tests pass) |
+| T3 | a prose-only change reuses the last pass where the project declared it | done | none — no spec | `node --test tests/prose-reuse.test.mjs tests/observe-racy.test.mjs` (seven named tests pass) |
 
 ## Contract Coupling
 

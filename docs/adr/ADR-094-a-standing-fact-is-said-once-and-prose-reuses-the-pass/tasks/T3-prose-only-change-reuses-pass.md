@@ -8,7 +8,7 @@
 **Consumes:** `passedAlready` and `firstMentionHere` (T2)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `no declaration changes nothing`, `a pass is reused only when the tree minus the declared paths is equal`, `a declaration that could hide code is refused`, `a reuse keeps the unseen-write veto`, `the hint is said after a passing prose-only run`
+**Rests-on:** `no declaration changes nothing`, `a pass is reused only when the tree minus the declared paths is equal`, `a declaration that could hide code is refused`, `a reuse keeps the unseen-write veto`, `a reuse is a pass row for the new tree`, `the hint is said after a passing prose-only run`, `an observed index copy keeps the original's time`
 
 ## Goal
 
@@ -18,50 +18,60 @@ In a project whose `.quality-harness.json` declares `prose`, a commit that chang
 
 | File | Change | Why |
 |------|--------|-----|
-| `plugin/scripts/lifecycle.mjs` | edit | `proseSpecs(root)` validates the declaration (a reader beside `fastCheckCommand`); `observe(cwd, budgetMs, { without })` computes `codeTree` only when asked (`:4954`); `passedAlready` accepts `codeTree` equality when the command and the `prose` list are equal and the row has a `codeTree` |
-| `plugin/scripts/qh-check.mjs` | edit | passes `without` for a declared project, records `codeTree` and `prose` in `after`, appends the reuse row (`origin: 'reused'`, `reusedFrom`, `before.at` and `after.at` from the original) and the `skips.jsonl` row, prints the hint after a passing prose-only full run |
-| `tests/prose-reuse.test.mjs` | add | the tests of the table, in a repository the test builds (CLAUDE.md §9) |
-| `tests/mutations/plugin/scripts/lifecycle.mjs.json`, `tests/mutations/plugin/scripts/qh-check.mjs.json` | edit | one entry per `Rests-on` name |
-| the file documenting `.quality-harness.json` keys (found with `mrw read --grep 'fastCheck' docs README.md plugin`) | edit | the `prose` key, what it asserts, and that a check which reads those files makes reuse wrong |
+| `plugin/scripts/lifecycle.mjs` | edit | `proseSpecs(root)` validates the declaration (a reader beside `fastCheckCommand`); `observe(cwd, budgetMs, { without })` computes `codeTree` only when asked, and its copy of the index keeps the original's time; `passedAlready` accepts `codeTree` equality when the command and the `prose` list are equal and the row has a `codeTree`, and returns the row, the observation and `viaProse` |
+| `plugin/scripts/qh-check.mjs` | edit | validates the declaration and says a refusal; passes `without` for a declared project; records `codeTree` and `prose`; on a reuse appends a pass row for the new tree (`reusedFrom`, `before.at` and `after.at` from the original, `origin` kept) and the `skips.jsonl` row (`viaProse`); prints the hint after a passing prose-only full run (`QUALITY_HARNESS_PROSE_HINT_MS` sets the threshold, 60 seconds by default) |
+| `tests/prose-reuse.test.mjs` | add | the six tests of the table, in repositories the test builds (CLAUDE.md §9) |
+| `tests/observe-racy.test.mjs` | add | the regression for the index copy's time, found while writing the tests above |
+| `tests/mutations/plugin/scripts/lifecycle.mjs.json`, `tests/mutations/plugin/scripts/qh-check.mjs.json` | edit | the entries for the `Rests-on` names |
+| `plugin/bin/qh-check` | edit | its usage text: the `prose` key, what it asserts, and that a check which reads those files makes reuse wrong |
 
 ## Ordered Steps
 
 1. [S1] Run `python3 scripts/test-locks.py tests/qh-check-reads-the-ledger.test.mjs`, then write the tests of the Tests table and record the red run (TDD red). The first test to write is reuse from a subdirectory.
-2. [S2] `proseSpecs(root)`: refuse and say a declaration that is not an array of at most twenty non-empty strings, one starting with `-` or `:`, `.`, `*`, `**`, a spec matching no tracked path, a spec matching `.quality-harness.json`, a spec matching a gitlink. All specs are used with `:(top)` and the git default pathspec semantics.
+2. [S2] `proseSpecs(root)`: refuse and say a declaration that is not an array of one to twenty strings, an entry that is not a plain pathspec (letters, digits and `._/-@+`, the globs `*?[]`, not starting with `-`, `:` or `/`), `.`, `*`, `**`, a `.` or `..` segment, a spec matching no tracked path, a spec matching `.quality-harness.json`, a spec matching a gitlink. Every spec is used with `:(top)` and git's default pathspec semantics, so `*.md` matches at every depth and `docs*` matches `docs-gen/`.
 3. [S3] `observe(cwd, budgetMs, { without })` returns `codeTree` (`git rm --cached -r --ignore-unmatch -- :(top)<spec>…` on the temporary index, then `write-tree`). No hook passes `without`.
 4. [S4] `passedAlready` accepts a row when its command and `prose` list equal the current ones, it has a `codeTree`, and that equals the current one; the unseen-write veto runs from the original pass's start. A row without `codeTree` is never reused this way.
-5. [S5] On a reuse, append the pass row and the `skips.jsonl` row and say one line. Do not reuse across a changed `prose` list.
+5. [S5] On a reuse, append the pass row (`reusedFrom` names the pass that actually ran, `origin` is the original's) and the `skips.jsonl` row, and say one line; a row that cannot be written runs the check. Do not reuse across a changed `prose` list.
 6. [S6] The hint: after a full run that exited 0 and took at least a minute, where every path changed since the previous full pass of the same command is a text document (`.md`, `.mdx`, `.txt`, `.rst`), print one line naming `prose` and `fastCheck` and saying a declaration needs the project owner's approval; once per repository through `firstMentionHere`. Nothing is printed after a failed run.
-7. [S7] Record five killed mutants, one per `Rests-on` name. [proof: mutation]
+7. [S7] Add the catalogue entries and record a killed mutant per `Rests-on` name through `adr-verify --mutant`. [proof: mutation]
+8. [S8] Found at execution: `observe` hashes a COPY of the index, and a copy made now is newer than every entry, so git did not treat an entry written in the same second as racily clean and a same-size rewrite in that second read as unchanged (flaky tests, and a reuse that could have missed a code edit). The copy takes the original's time. The regression sets entry and index into one second and rewrites at the same size, thirty times.
 
 ## Acceptance
 
 ```bash
-out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs 2>&1) \
-  && for t in 'a declared prose-only change reuses the last pass, from a subdirectory too' 'a change outside the declared paths runs the check, whatever else is reused' 'a declaration that could hide code is refused and said' 'an unseen write after the original pass vetoes a reuse' 'a project that declares nothing is unchanged' 'the hint is said after a passing prose-only run and never after a failed one'; do test "$(printf '%s\n' "$out" | grep -cxE "ok [0-9]+ - $t")" = 1 || exit 1; done
+out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \
+  && for t in 'a declared prose-only change reuses the last pass, from a subdirectory too' 'a change outside the declared paths runs the check, whatever else is reused' 'a declaration that could hide code is refused and said' 'an unseen write after the original pass vetoes a reuse' 'a project that declares nothing is unchanged' 'the hint is said after a passing prose-only run and never after a failed one' 'observe sees a file rewritten in the same second at the same size'; do test "$(printf '%s\n' "$out" | grep -cxE "ok [0-9]+ - $t")" = 1 || exit 1; done
 ```
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `a declared prose-only change reuses the last pass, from a subdirectory too` | `tests/prose-reuse.test.mjs` | with `"prose": ["docs/"]`, a pass, then an edit under `docs/` run from `packages/web/`: reuse fires, one pass row with `origin: 'reused'` and `reusedFrom`, one skip row, and the publish verdict reads a pass for the new tree | none | S1, S3, S4, S5 |
-| `a change outside the declared paths runs the check, whatever else is reused` | `tests/prose-reuse.test.mjs` | the dirty twins, each runs: a code file edited with a docs edit, a rename out of and into `docs/`, a deletion of a code file, a mode change, a check command changed, the `prose` list changed, an old row without `codeTree` | none | S1, S4 |
-| `a declaration that could hide code is refused and said` | `tests/prose-reuse.test.mjs` | `.`, `*`, `**`, `*.json` (matches `.quality-harness.json`), a spec matching nothing, a gitlink under a prefix, a leading `-` or `:`, more than twenty — each is said and nothing is reused | none | S1, S2 |
+| `a declared prose-only change reuses the last pass, from a subdirectory too` | `tests/prose-reuse.test.mjs` | with `"prose": ["docs/"]`, a pass, then an edit under `docs/` run from `packages/web/`: reuse fires, one pass row with `reusedFrom`, the original's times and `check.passed`, one skip row, a chain of reuses pointing at the pass that ran, and the publish verdict reads a pass for the new tree | none | S1, S3, S4, S5 |
+| `a change outside the declared paths runs the check, whatever else is reused` | `tests/prose-reuse.test.mjs` | the dirty twins, each runs: a code file edited with a docs edit, a rename out of and into `docs/`, a deletion, a new code file, a mode change, the config and the check script themselves; and through the tree seam: another command, another declared list, no declaration, another code tree, a tree observed without the prose removed, an old row without `codeTree` | none | S1, S4 |
+| `a declaration that could hide code is refused and said` | `tests/prose-reuse.test.mjs` | `.`, `*`, `**`, `*.json` (matches the config), a spec matching nothing, a leading dash, pathspec magic, a parent segment, an absolute path, an empty entry, not an array, more than twenty, a gitlink — each is said and nothing is reused; and `.`, `*`, `**` with the config untracked, where only the explicit guard stands | none | S1, S2 |
 | `an unseen write after the original pass vetoes a reuse` | `tests/prose-reuse.test.mjs` | an unobservable write logged after the original pass started: the check runs | none | S1, S4 |
 | `a project that declares nothing is unchanged` | `tests/prose-reuse.test.mjs` | no `prose`: no `codeTree` computed, same-tree skip as before, rows without the new fields | none | S1, S3 |
 | `the hint is said after a passing prose-only run and never after a failed one` | `tests/prose-reuse.test.mjs` | a passing run over only `.md` changes prints the hint once; a failed run and a code change print none | none | S1, S6 |
+| `observe sees a file rewritten in the same second at the same size` | `tests/observe-racy.test.mjs` | thirty attempts with entry and index in one second: the observed tree changes every time | none | S8 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the six tests |
+| 1 — exists | the seven tests |
 | 2 — something selects it | `runCheck` asks `passedAlready` first; deleting the `codeTree` branch turns the first test red, and deleting the refusal of `*.json` turns the third red |
 | 3 — the caller can discover it | the documented `prose` key and the hint line |
-| 4 — it is used | a declaring project's skips with `origin: 'reused'` in `skips.jsonl`, counted by the outside run; nothing measures this yet |
+| 4 — it is used | a declaring project's skips with `viaProse` in `skips.jsonl` and `reusedFrom` rows in `checks.jsonl`, counted by the outside run; nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-09 · 672d1070* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · computes a code tree for a project that declared nothing, so every record gains a field · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · covers:no declaration changes nothing
+- 2026-10-09 · 672d1070* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · reuses a pass whatever the code tree is, so a changed code file is reused over · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · covers:a pass is reused only when the tree minus the declared paths is equal
+- 2026-10-09 · 672d1070* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · accepts a declaration that matches the config, so editing the check can be reused over · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · covers:a declaration that could hide code is refused
+- 2026-10-09 · 672d1070* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · drops the unseen-write veto, so a write git cannot see no longer stops a reuse · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · covers:a reuse keeps the unseen-write veto
+- 2026-10-09 · 672d1070* · mutant killed · exit 1 · `plugin/scripts/qh-check.mjs` · does not write the reuse row, so the publish verdict finds no pass for the new tree · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · covers:a reuse is a pass row for the new tree
+- 2026-10-09 · 672d1070* · mutant killed · exit 1 · `plugin/scripts/qh-check.mjs` · says the hint after a code change too · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · covers:the hint is said after a passing prose-only run
+- 2026-10-09 · 672d1070* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · gives the observed index copy the time of the copy, so a same-second same-size rewrite reads as unchanged · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · covers:an observed index copy keeps the original's time
 
 ## Invariants
 
@@ -85,3 +95,14 @@ Stop and ask if `observe`'s temporary-index trick cannot compute `codeTree` insi
 - Declaring `prose` in this repository (permanent: boundary: its selftest reads the documents)
 
 ## Verification Log
+- 2026-10-09 · 672d1070* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \ …` · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · ms:26629
+- 2026-10-09 · 672d1070* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \ …` · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · ms:24148
+- 2026-10-09 · 672d1070* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \ …` · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · ms:23707
+- 2026-10-09 · 672d1070* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \ …` · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · ms:24317
+- 2026-10-09 · 672d1070* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \ …` · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · ms:24024
+- 2026-10-09 · 672d1070* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \ …` · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · ms:23962
+- 2026-10-09 · 672d1070* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \ …` · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · ms:24002
+- 2026-10-09 · 672d1070* · exit 1 · `out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \ …` · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · ms:9330 · test-lock-sha256:1a33074a233e17a7e38fe2d039cd38d9768581ed68e2721be107478274a0318a · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvb2JzZXJ2ZS1yYWN5LnRlc3QubWpzCW9ic2VydmUgc2VlcyBhIGZpbGUgcmV3cml0dGVuIGluIHRoZSBzYW1lIHNlY29uZCBhdCB0aGUgc2FtZSBzaXplCWUxNmY4Y2Y4OWM2MmM0NTlhMmI5ZDc1OTdjMGEwYjYzOTI4ZTI0YjdhZGI2YjMwYjUwMmE4MGNlODE4OTU1NjkKYm9keQl0ZXN0cy9wcm9zZS1yZXVzZS50ZXN0Lm1qcwlhIGNoYW5nZSBvdXRzaWRlIHRoZSBkZWNsYXJlZCBwYXRocyBydW5zIHRoZSBjaGVjaywgd2hhdGV2ZXIgZWxzZSBpcyByZXVzZWQJNThmOTg5YjZkZmQ2YTAxOGEzZmU2MTY0NTI5ZGM5MTlmZGM5NzMzMWMzNGE3N2Y4N2E2MmM1ZTE3MzJkNWU1MApib2R5CXRlc3RzL3Byb3NlLXJldXNlLnRlc3QubWpzCWEgZGVjbGFyYXRpb24gdGhhdCBjb3VsZCBoaWRlIGNvZGUgaXMgcmVmdXNlZCBhbmQgc2FpZAljNGJmYjRkNGRjMGQ3MDBmMTA5NmZkMjFmYjljNzdkYzU3NzkzMzA2ZjExMmE1YTRkY2RiYjA2NTdmYWUyODhmCmJvZHkJdGVzdHMvcHJvc2UtcmV1c2UudGVzdC5tanMJYSBkZWNsYXJlZCBwcm9zZS1vbmx5IGNoYW5nZSByZXVzZXMgdGhlIGxhc3QgcGFzcywgZnJvbSBhIHN1YmRpcmVjdG9yeSB0b28JNTNiMzMyNGQ2OTUyMTM1ZTQ2MTNmOWU1Yjg4YmNiMjdiYzRlOGExOGQ0OGU3ZjUxOTM0ZDg1M2M2MjlmZDRlMQpib2R5CXRlc3RzL3Byb3NlLXJldXNlLnRlc3QubWpzCWEgcHJvamVjdCB0aGF0IGRlY2xhcmVzIG5vdGhpbmcgaXMgdW5jaGFuZ2VkCTlkMTljZjc3NjU4MmQ4YjZmYjk0MTM4N2VjMmFiNDE4OTg1YjBhNjUzNjQ4ZDkwZDFhYmM5ZGJiYThkMjM2Y2YKYm9keQl0ZXN0cy9wcm9zZS1yZXVzZS50ZXN0Lm1qcwlhbiB1bnNlZW4gd3JpdGUgYWZ0ZXIgdGhlIG9yaWdpbmFsIHBhc3MgdmV0b2VzIGEgcmV1c2UJZjliNTZkNWU2ZmFiZThlY2IwN2RjNmU0YTZkNTdmMTNlMjFiZjE0MTg4YzA0YjJkMWVhY2EwM2UyZmFmNmU5MQpib2R5CXRlc3RzL3Byb3NlLXJldXNlLnRlc3QubWpzCXRoZSBoaW50IGlzIHNhaWQgYWZ0ZXIgYSBwYXNzaW5nIHByb3NlLW9ubHkgcnVuIGFuZCBuZXZlciBhZnRlciBhIGZhaWxlZCBvbmUJZTM5NGRlNDZhM2E0ZGQwYTliZmM5NGIxMjY0NmJkNGZlZmJhMzM2YjA4NTRiMzNhODM5YzZmYzBhZTRjNTBhYw
+  ```
+  ```
+- 2026-10-09 · 672d1070* · exit 0 · `out=$(node --test --test-reporter=tap tests/prose-reuse.test.mjs tests/observe-racy.test.mjs 2>&1) \ …` · acceptance-sha256:f9d1d3734ad1cf7bfd02e1c816d4111e54fa1308334ed03090ff8867681d84ec · ms:24784

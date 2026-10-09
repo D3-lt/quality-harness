@@ -136,8 +136,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "const already = again || env.QUALITY_HARNESS_CHECK_AGAIN === '1' ? null",
-      "to": "const already = env.QUALITY_HARNESS_CHECK_AGAIN === '1' ? null",
+      "from": "let already = again || env.QUALITY_HARNESS_CHECK_AGAIN === '1' ? null",
+      "to": "let already = env.QUALITY_HARNESS_CHECK_AGAIN === '1' ? null",
       "only": "^--again runs a tree that already passed$"
     },
     {
@@ -189,6 +189,36 @@
       "from": "stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\\n`)",
       "to": "throw failure",
       "only": "^a skip whose ledger cannot be written is said, and still skips$"
+    },
+    {
+      "label": "ADR-094 T3: the hint is said after a code change",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "    && onlyTextChangedSince(root, previousHead) && firstMentionHere(root, PROSE_HINT)) {",
+      "to": "    && true && firstMentionHere(root, PROSE_HINT)) {",
+      "only": "^the hint is said after a passing prose-only run and never after a failed one$"
+    },
+    {
+      "label": "ADR-094 T3: the hint is said after a failed run",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "  if (previousHead && checkEventName(record) === 'check.passed' && Date.parse(after.at)",
+      "to": "  if (previousHead && Date.parse(after.at)",
+      "only": "^the hint is said after a passing prose-only run and never after a failed one$"
+    },
+    {
+      "label": "ADR-094 T3: the prose reuse row is not written",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "      appendFileSync(path.join(stateDir(root), 'checks.jsonl'), `${JSON.stringify(row)}\\n`, 'utf8')",
+      "to": "      void row",
+      "only": "^a declared prose-only change reuses the last pass, from a subdirectory too$"
     }
   ]
 }

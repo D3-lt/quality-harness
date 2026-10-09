@@ -21,6 +21,8 @@
 | `plugin/scripts/lifecycle.mjs` | edit | `unobservableWrites(log, root)` (`:6315`) uses `outsideRoot` (`:807`); every caller passes the root; the comment at `:5299-5304`, which records the opposite decision, is corrected |
 | `tests/outside-root-writes.test.mjs` | add | two tests |
 | `tests/mutations/plugin/scripts/lifecycle.mjs.json` | edit | two entries, one per `Rests-on` name |
+| `tests/lifecycle.test.mjs` | edit | the two ADR-068 T2 tests that used a path outside the repository as their "write git cannot see" (`SessionEnd records what was left unverified, and the next startup here says so`; `EVIDENCE-LIMITED opens the completion gate only with a stated reason, and only over docs`) use an ignored file inside the tree; the first also writes outside the repository and asserts it is not counted. Owner decision, 2026-10-09: "Keep T4 and relock" |
+| `docs/adr/ADR-068-git-refuses-in-a-linked-worktree-and-says-when-it-is-armed/tasks/T2-sessionstart-says-git-not-armed.md` | edit | its lock snapshot is re-recorded by `adr-verify --relock --replace-hashes` (appended to its Verification Log by the tool) |
 
 ## Ordered Steps
 

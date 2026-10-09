@@ -95,3 +95,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-091](ADR-091-the-catalogue-is-a-file-per-source.md) | The catalogue is a file per source | Accepted |
 | [ADR-092](ADR-092-one-definition-of-a-record.md) | One definition of a record, in Python, with lifecycle as its only mirror | Accepted |
 | [ADR-093](ADR-093-a-literal-variable-directory-is-left-to-git.md) | An armed session leaves a commit into a literal-variable directory to git | Accepted |
+| [ADR-094](ADR-094-a-standing-fact-is-said-once-and-prose-reuses-the-pass.md) | A standing fact is said once, and a prose-only change reuses the last pass | Accepted |

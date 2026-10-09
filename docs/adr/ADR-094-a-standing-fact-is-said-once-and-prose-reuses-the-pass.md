@@ -112,6 +112,6 @@ Revert each task's commit. The ledger keeps rows with extra fields, which every 
 
 ## Follow-ups
 
-- [ ] Owner decision: amend CLAUDE.md §15's two sentences on the brief once T1 is Accepted and shipped.
+- [x] CLAUDE.md §15's sentences on the brief, and `.claude/rules/15-know-what-ci-says.md`, were amended with T1's shipping (2026-10-09, under the owner's goal "end to end … stable"); the owner may revert the wording.
 - [ ] Owner decision: whether this repository declares `prose` for its own docs. It does not: its selftest reads them.
 - [ ] Outside run (CLAUDE.md §18) at the release-candidate sha: the survey sessions count their hook lines before and after, and a Windows Git Bash run of T3.

@@ -14,6 +14,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { budgeted, cached, collect, gitDir, pastShowCap, refreshBehind, render, shell, snapshotKey, usableCache } from '../plugin/scripts/branch-state.mjs'
+import * as branchState from '../plugin/scripts/branch-state.mjs'
 
 const ok = out => ({ ok: true, out })
 const no = note => ({ ok: false, out: '', note })
@@ -925,8 +926,8 @@ test('a due brief is served and one refresher starts behind the prompt', t => {
 })
 
 // The owner's decision, 2026-10-01 (BACKLOG §324): a snapshot past the age cap is not shown at all.
-// One hours old named a branch the checkout no longer held. The brief says how old the last answer
-// is and that it is refreshing, and the refresher still starts behind it.
+// One hours old named a branch the checkout no longer held. ADR-094 T1: nothing is said in its place
+// (a refresh is running), and the refresher still starts behind the prompt.
 test('a brief snapshot past the age cap is not shown, and a refresh starts', t => {
   const { project, gitDir } = keyedRepository(t, 'qh-capped-')
   const cache = path.join(gitDir, 'qh-branch-state.json')
@@ -936,7 +937,7 @@ test('a brief snapshot past the age cap is not shown, and a refresh starts', t =
   const served = brief()
   assert.equal(served.status, 0, served.stderr)
   assert.doesNotMatch(served.stdout, /an-old-branch|every job concluded success/, served.stdout)
-  assert.match(served.stdout, /120 min old.*not shown.*refreshing/, served.stdout)
+  assert.equal(served.stdout, '', `nothing is said past the cap: ${served.stdout}`)
   assert.ok(waitForSnapshot(cache, snapshot => snapshot.state?.looked === false), 'a refresher wrote the snapshot')
 })
 
@@ -954,7 +955,7 @@ test('a brief never shows a snapshot past the cap, whatever --cached allows', t 
       { cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000 })
     assert.equal(served.status, 0, served.stderr)
     assert.doesNotMatch(served.stdout, /an-old-branch|every job concluded success/, `${ageMs} ms old: ${served.stdout}`)
-    assert.match(served.stdout, /past the 10-minute cap/, served.stdout)
+    assert.equal(served.stdout, '', `ADR-094: past the cap, with a refresh running, nothing is said: ${served.stdout}`)
   }
   // The comparison itself, where a clock cannot make the case: 0.4 s past the cap is past it.
   assert.equal(pastShowCap(600_400), true)
@@ -982,13 +983,89 @@ test('an unchanged unknown is said once, and only a red CI repeats', t => {
   // snapshot between the two prompts.
   writeFileSync(path.join(gitDir, 'qh-branch-state.lock'), String(process.pid))
   writeFileSync(cache, JSON.stringify({ at: Date.now() - 1_800_000, key: snapshotKey(gitDir), state: greenState }))
-  assert.match(brief().stdout, /past the 10-minute cap/)
-  assert.equal(brief().stdout, '', 'a withheld snapshot is said once')
+  assert.equal(brief().stdout, '', 'ADR-094: past the cap the brief says nothing')
+  assert.equal(brief().stdout, '', 'and still nothing on the next prompt')
   // Codex on f79d84d: the cache writer keeps `said` across a refresh, so a stamp that
   // named no snapshot silenced the NEXT snapshot's expiry. A replacement is said again.
   const kept = JSON.parse(readFileSync(cache, 'utf8'))
   writeFileSync(cache, JSON.stringify({ ...kept, at: Date.now() - 1_200_000, state: { ...greenState, head: 'def5678' } }))
-  assert.match(brief().stdout, /past the 10-minute cap/, 'a replaced snapshot that expired is said again')
+  assert.equal(brief().stdout, '', 'a replaced snapshot that expired is also silent')
+})
+
+// ADR-094 T1. Fourteen of fifteen surveyed sessions ignored the per-prompt brief; a completed
+// red run repeated its full text, job names included, on every prompt.
+const briefIn = (project, cached = '120') => spawnSync(process.execPath, [branchScript, '--brief', '--cached', cached],
+  { cwd: project, env: { ...process.env, PATH: '' }, encoding: 'utf8', timeout: 10_000 })
+const redState = failed => ({ ...greenState, ci: { ...greenState.ci, conclusion: 'failure', failed } })
+
+test('a completed red CI is said in full once, then one unchanged line', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-red-once-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: snapshotKey(gitDir), state: redState(['coverage: failure', 'windows: failure']) }))
+  const first = briefIn(project).stdout
+  assert.match(first, /⚠ CI abc1234: FAILURE — coverage: failure, windows: failure/, first)
+  assert.match(first, /A LOCAL GREEN GATE DOES NOT ANSWER THIS/, first)
+  for (const prompt of [2, 3]) {
+    const again = briefIn(project).stdout
+    assert.equal(again, '⚠ CI abc1234: FAILURE, 2 job(s), unchanged\n', `prompt ${prompt}: ${again}`)
+  }
+  // The short line is never stored as `said`: a stored one would make the next full text a bounce.
+  const stored = JSON.parse(readFileSync(cache, 'utf8'))
+  assert.match(stored.said, /FAILURE — coverage: failure/, 'said holds the last full text')
+  assert.doesNotMatch(stored.said, /unchanged/)
+  // A refresh to the same run, which keeps `said` and the key, stays one line; a new sha is said in full.
+  writeFileSync(cache, JSON.stringify({ ...stored, at: Date.now() - 1000 }))
+  assert.match(briefIn(project).stdout, /unchanged\n$/, 'a refresh to the same run does not reprint in full')
+  writeFileSync(cache, JSON.stringify({ ...stored, at: Date.now() - 1000,
+    state: { ...redState(['coverage: failure', 'windows: failure']), ci: { ...redState([]).ci, sha: 'def5678', failed: ['coverage: failure', 'windows: failure'] } } }))
+  assert.match(briefIn(project).stdout, /⚠ CI def5678: FAILURE — coverage/, 'a new run is said in full')
+})
+
+test('a red CI whose failing jobs change past the third name is said in full again', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-red-key-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  const five = ['a: failure', 'b: failure', 'c: failure', 'd: failure', 'e: failure']
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, key: snapshotKey(gitDir), state: redState(five) }))
+  const first = briefIn(project).stdout
+  assert.match(first, /FAILURE — a: failure, b: failure, c: failure, \+2 more/, 'the display is capped at three names')
+  assert.doesNotMatch(first, /d: failure/)
+  assert.equal(briefIn(project).stdout, '⚠ CI abc1234: FAILURE, 5 job(s), unchanged\n')
+  // The fifth name swapped: the capped text is identical, the key (the full sorted set) is not.
+  const stored = JSON.parse(readFileSync(cache, 'utf8'))
+  writeFileSync(cache, JSON.stringify({ ...stored, at: Date.now() - 1000, state: redState([...five.slice(0, 4), 'f: failure']) }))
+  const changed = briefIn(project).stdout
+  assert.match(changed, /FAILURE — a: failure, b: failure, c: failure, \+2 more/, changed)
+  assert.doesNotMatch(changed, /unchanged/, 'a changed job set is said in full')
+  // Only the conclusion changes (sha and failed set equal): the key carries it, so it is said in full.
+  const swapped = JSON.parse(readFileSync(cache, 'utf8'))
+  writeFileSync(cache, JSON.stringify({ ...swapped, at: Date.now() - 1000, state: redState([]) }))
+  assert.match(briefIn(project).stdout, /⚠ CI abc1234: FAILURE\b/)
+  const kept = JSON.parse(readFileSync(cache, 'utf8'))
+  // A cancelled run has no failed job: the conclusion is the word, and the count is not "0 jobs".
+  writeFileSync(cache, JSON.stringify({ ...kept, at: Date.now() - 1000,
+    state: { ...greenState, ci: { ...greenState.ci, conclusion: 'cancelled', failed: [] } } }))
+  const cancelled = briefIn(project).stdout
+  assert.match(cancelled, /⚠ CI abc1234: CANCELLED/, 'a changed conclusion alone is said in full')
+  assert.doesNotMatch(cancelled, /unchanged/, cancelled)
+  const short = briefIn(project).stdout
+  assert.equal(short, '⚠ CI abc1234: CANCELLED, unchanged\n', short)
+})
+
+test('a snapshot past the cap says nothing, and a refresh that could not start says so once', t => {
+  const { project, gitDir } = keyedRepository(t, 'qh-cap-silent-')
+  const cache = path.join(gitDir, 'qh-branch-state.json')
+  // A young refresher lock is held, so a refresh is running and the prompt starts none.
+  writeFileSync(path.join(gitDir, 'qh-branch-state.lock'), String(process.pid))
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1_800_000, key: snapshotKey(gitDir), state: greenState, said: 'shown earlier' }))
+  assert.equal(briefIn(project).stdout, '')
+  assert.equal(briefIn(project).stdout, '')
+  assert.equal(JSON.parse(readFileSync(cache, 'utf8')).said, 'shown earlier', 'nothing is stored past the cap')
+  // The decision itself, where a refresh that cannot start cannot be arranged through the CLI.
+  assert.equal(branchState.pastCapLine(true, { said: 'x' }), null, 'a running refresh says nothing')
+  const line = branchState.pastCapLine(false, { said: 'x' })
+  assert.match(line, /past the 10-minute cap.*a refresh could not be started/)
+  assert.doesNotMatch(line, /\d+ min old/, 'no age in the text, or it changes every prompt')
+  assert.equal(branchState.pastCapLine(false, { said: line }), null, 'said once')
 })
 
 test('the full report and a brief with no snapshot are collected in the foreground', t => {

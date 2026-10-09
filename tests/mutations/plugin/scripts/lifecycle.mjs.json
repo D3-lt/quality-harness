@@ -5735,6 +5735,16 @@
       "from": "const SCRATCH_NAME = /^[A-Za-z]\\d{0,2}$/",
       "to": "const SCRATCH_NAME = /^[A-Za-z_]\\w*$/",
       "only": "^a one-letter scratch name round-trips a literal in every installed shell, and no name a shell manages is admitted$"
+    },
+    {
+      "label": "ADR-093: zsh's repeat and foreach keywords stop an assignment counting as run",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "'((', 'repeat', 'foreach', 'end', 'always'])",
+      "to": "'(('])",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
     }
   ]
 }

@@ -69,6 +69,7 @@ out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \
 - 2026-10-09 · c47dbbd6* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · drops the protected-segment check on a use, so $S/.git/hooks and $S/hooksPath are admitted · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:a dollar outside a literal directory operand keeps the refusal
 - 2026-10-09 · c47dbbd6* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · reads the special-name text only as written, so printf -v I''FS and I\FS are not IFS · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:a dollar outside a literal directory operand keeps the refusal
 - 2026-10-09 · c47dbbd6* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · drops the heredoc guard, so a decoy assignment line in a heredoc body stands for a quoted assignment · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:a dollar outside a literal directory operand keeps the refusal
+- 2026-10-09 · 47b10e13* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · drops zsh's repeat and foreach from the keyword set, so a skipped body's assignment counts as run · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:a dollar outside a literal directory operand keeps the refusal
 
 ## Invariants
 
@@ -110,3 +111,4 @@ Stop and ask if any twin row is not `deny` after S4, if `segmentVerdict`'s chang
 - 2026-10-09 · c47dbbd6* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:101650
 - 2026-10-09 · c47dbbd6* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:107825
 - 2026-10-09 · c47dbbd6* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:110347
+- 2026-10-09 · 47b10e13* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:100721

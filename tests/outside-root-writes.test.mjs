@@ -4,11 +4,12 @@
 // did not. An unplaceable path is not an outside one (CLAUDE.md §16): it keeps its count.
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
-import { canonical } from '../plugin/scripts/event-log.mjs'
+import { canonical, readEvents } from '../plugin/scripts/event-log.mjs'
 
 const unseen = file => ({ event: 'file.written', path: file, observable: false })
 
@@ -71,4 +72,32 @@ test('a relative or unplaceable write path is still counted as unseen', t => {
   symlinkSync(outwards, path.join(root, 'link'), 'dir')
   assert.equal(lifecycle.unobservableWrites([unseen(path.join(root, 'link', 'a.js'))], root).length, 1, 'a write through a directory link stays counted')
   assert.equal(lifecycle.unobservableWrites([unseen(path.join(canonical(root), 'link', 'a.js'))], alias).length, 1, 'and through an alias root, spelled as it is recorded')
+})
+
+// Supplementary (NOT in the Acceptance fence): the recorder is the writer of the log, and it canonicalises a path under
+// a directory link to its target; the inside spelling it keeps (`lexical`) is what keeps the write counted (a Codex
+// review of ADR-094 found the tests supplied a spelling the recorder discards).
+test('a write through a directory link is counted when the hook records it', t => {
+  const { base, root, elsewhere } = layout(t)
+  const git = spawnSync('git', ['-C', root, 'init', '-q'], { encoding: 'utf8', timeout: 30_000 })
+  assert.equal(git.status, 0, git.stderr)
+  const outwards = path.join(elsewhere, 'dir')
+  mkdirSync(outwards)
+  symlinkSync(outwards, path.join(root, 'link'), 'dir')
+  const state = path.join(base, 'state')
+  const run = spawnSync(process.execPath, [new URL('../plugin/scripts/lifecycle.mjs', import.meta.url).pathname], {
+    encoding: 'utf8', timeout: 60_000, windowsHide: true,
+    env: { ...process.env, QUALITY_HARNESS_STATE_DIR: state, CLAUDE_PLUGIN_DATA: path.join(base, 'data'), TMPDIR: base, TMP: base, TEMP: base },
+    input: JSON.stringify({ hook_event_name: 'PostToolUse', session_id: 'dirlink', cwd: root, tool_name: 'Write',
+      tool_input: { file_path: path.join(root, 'link', 'a.js'), content: 'x' }, tool_response: { success: true } }),
+  })
+  assert.equal(run.status, 0, run.stderr)
+  const prior = process.env.QUALITY_HARNESS_STATE_DIR
+  process.env.QUALITY_HARNESS_STATE_DIR = state
+  let events
+  try { events = readEvents(root, 'dirlink') } finally { if (prior === undefined) delete process.env.QUALITY_HARNESS_STATE_DIR; else process.env.QUALITY_HARNESS_STATE_DIR = prior }
+  const written = events.filter(entry => entry.event === 'file.written')
+  assert.equal(written.length, 1, JSON.stringify(events))
+  assert.equal(typeof written[0].lexical, 'string', 'the spelling the tool was given is kept')
+  assert.equal(lifecycle.unobservableWrites(events, root).length, 1, 'and the write is counted')
 })

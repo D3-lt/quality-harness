@@ -845,7 +845,7 @@ export function unseenWriteSince(root, { seen, seq, started }) {
       try { entry = JSON.parse(line) } catch { return true }
       if (entry?.event !== 'file.written' || entry.observable !== false) continue
       // A path that is not absolute says nothing about where it landed, and vetoes.
-      if (typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path)) continue
+      if (typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry)) continue
       const counted = entry[seen]
       const recordedBefore = counted === undefined || (Number.isInteger(counted) && counted < seq)
       if (!(recordedBefore && Date.parse(entry.at) < started)) return true
@@ -868,6 +868,13 @@ function outsideRoot(root, file) {
   }
   const files = [file, canonicalFile(file)]
   return !([root, canonical(root)].some(base => files.some(target => inside(base, target))))
+}
+
+// Whether a recorded write was outside the tree under EVERY spelling it was given: the canonical path the log keeps
+// and the one the tool was handed (`lexical`), which differs for a path under a directory link.
+function writtenOutside(root, entry) {
+  return outsideRoot(root, entry.path)
+    && (typeof entry.lexical !== 'string' || !path.isAbsolute(entry.lexical) || outsideRoot(root, entry.lexical))
 }
 
 /**
@@ -5329,6 +5336,11 @@ function recordFileWritten(input) {
     event: 'file.written', path: absolute, observable: false,
     checksSeen: ledgerRecordCount(input.cwd, 'checks.jsonl'), fastSeen: ledgerRecordCount(input.cwd, 'fast-checks.jsonl'),
   }
+  // The spelling the tool was given, kept when canonicalising changed it: a path under a directory link that leads out
+  // of the tree is canonicalised to its target, and the inside spelling is the only evidence the write was ours to see
+  // (a Codex review of ADR-094).
+  const lexical = path.resolve(input.cwd, target)
+  if (lexical !== absolute) entry.lexical = lexical
   const directory = nearestExistingDirectory(path.resolve(input.cwd))
   const root = directory ? gitRepositoryRoot(directory) : null
   const parent = nearestExistingDirectory(absolute)
@@ -6476,7 +6488,7 @@ function namedByPublish(log, tree, revision) {
 // path, and a symlink leaf (it keeps its own name inside the tree), still count; no root keeps today's count.
 export function unobservableWrites(log, root = null) {
   const writes = (entry) => entry.event === 'file.written' && entry.observable === false
-    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path))
+    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry))
   if (logIncomplete(log)) return log.filter(writes)
   const recordedAfter = (write, pass) => write.checksSeen === undefined
     || (Number.isInteger(write.checksSeen) && Number.isInteger(pass.seq) && pass.seq > write.checksSeen)

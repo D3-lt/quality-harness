@@ -132,3 +132,4 @@ advice count rises, or if the owner has not answered `Awaiting-decision`.
 - 2026-10-08 · 2579c8ca* · exit 0 · `set -o pipefail …` · acceptance-sha256:216ac5685453e4ae4c53819d66d283e55ed2976f702a3fc818b5ef5aae28d81a · ms:63361
 - 2026-10-08 · 2579c8ca* · exit 0 · `set -o pipefail …` · acceptance-sha256:216ac5685453e4ae4c53819d66d283e55ed2976f702a3fc818b5ef5aae28d81a · ms:53369
 - 2026-10-08 · 2579c8ca* · exit 0 · `set -o pipefail …` · acceptance-sha256:216ac5685453e4ae4c53819d66d283e55ed2976f702a3fc818b5ef5aae28d81a · ms:51624
+- 2026-10-09 · human-observed · S2 and S6 observed by the agent that executed T3 and relayed in its report, recorded with the owner's approval on 2026-10-09: Enforced-by advice 10 and Governs advice 2 both before and after the move, and mutate --stale clean both times. NOT done: S8, the per-shard timings of the first dispatched campaign after the push.

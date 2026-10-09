@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, unlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, renameSync, rmSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -196,6 +196,13 @@ test('a ledger row appended since the reuse was decided stops the reuse', async 
   const decided = ledger(ctx.repo, 'checks.jsonl').at(-1)
   assert.equal(decided.reusedFrom, undefined, 'the last row is the check that ran, not a reuse')
   assert.equal(decided.exit, 0)
+  // The stale reuse row is retracted by a row that does not grade as a pass, so an interrupted run that follows
+  // it cannot leave a pass for a tree nobody checked (a Codex review of ADR-094).
+  const all = ledger(ctx.repo, 'checks.jsonl')
+  const reuse = all.findIndex(row => row.reusedFrom)
+  assert.ok(reuse >= 0, 'the reuse row is in the ledger, behind the newcomer')
+  assert.equal(all[reuse + 1].retracts, all[reuse].id, 'and the very next row retracts it')
+  assert.equal(checkEventName(all[reuse + 1]), 'check.unproven')
 })
 
 test('an unseen write after the original pass vetoes a reuse', t => {
@@ -260,6 +267,32 @@ test('the hint is said after a passing prose-only run and never after a failed o
   assert.equal(qhCheck(top, moved, { env: hurry }).status, 0)
   git(moved.repo, 'mv', 'src/code.js', 'docs/code.md')
   assert.doesNotMatch(qhCheck(top, moved, { env: hurry }).stderr, /"prose"/, 'a code file renamed into docs is a code change')
+  // A link or an executable NAMED like a document is not a document: retargeting a link between code files, or
+  // changing a mode, passes a suffix test (a Codex review of ADR-094).
+  // Without rename detection a renamed DOCUMENT is a deletion and an addition of regular text files, so the hint still
+  // fires; with it, git's two-path record is not one this parser reads (the mutant that drops the flag).
+  const docMoved = build(top, 'hint-doc-rename', { check: CHECK })
+  assert.equal(qhCheck(top, docMoved, { env: hurry }).status, 0)
+  git(docMoved.repo, 'mv', 'docs/a.md', 'docs/b.md')
+  assert.match(qhCheck(top, docMoved, { env: hurry }).stderr, /"prose"/, 'a document renamed to a document is only documents')
+  if (process.platform !== 'win32') {
+    const linked = build(top, 'hint-link', { check: CHECK })
+    symlinkSync('../src/code.js', path.join(linked.repo, 'docs', 'guide.md'))
+    git(linked.repo, 'add', '-A')
+    git(linked.repo, 'commit', '-q', '-m', 'link', '--no-gpg-sign')
+    assert.equal(qhCheck(top, linked, { env: hurry }).status, 0)
+    unlinkSync(path.join(linked.repo, 'docs', 'guide.md'))
+    symlinkSync('../packages/web/index.js', path.join(linked.repo, 'docs', 'guide.md'))
+    assert.doesNotMatch(qhCheck(top, linked, { env: hurry }).stderr, /"prose"/, 'a retargeted link named like a document is not one')
+    const mode = build(top, 'hint-mode', { check: CHECK })
+    assert.equal(qhCheck(top, mode, { env: hurry }).status, 0)
+    chmodSync(path.join(mode.repo, 'docs', 'a.md'), 0o755)
+    assert.doesNotMatch(qhCheck(top, mode, { env: hurry }).stderr, /"prose"/, 'an executable bit is not a text change')
+    const fresh = build(top, 'hint-untracked-link', { check: CHECK })
+    assert.equal(qhCheck(top, fresh, { env: hurry }).status, 0)
+    symlinkSync('../src/code.js', path.join(fresh.repo, 'docs', 'new.md'))
+    assert.doesNotMatch(qhCheck(top, fresh, { env: hurry }).stderr, /"prose"/, 'an untracked link named like a document is not one')
+  }
   // And below the threshold nothing is said.
   const quick = build(top, 'hint-quick', { check: CHECK })
   assert.equal(qhCheck(top, quick).status, 0)

@@ -9,7 +9,7 @@
 // it would have cleared stays open.
 import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
+import { appendFileSync, lstatSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 import { checkCommandOrigin, checkEventName, fastCheckCommand, firstMentionHere, observe, observeBudgetMs, passedAlready, proseSpecs, stateDir, validationVerdict } from './lifecycle.mjs'
@@ -58,11 +58,25 @@ function previousPassHead(root, command) {
   return !tree.error && tree.status === 0 && tree.stdout.trim() === latest.after.tree ? latest.after.head : null
 }
 function onlyTextChangedSince(root, head) {
+  const git = args => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  const changed = git(['diff', '--no-renames', '--raw', '-z', head, '--'])
+  const untracked = git(['ls-files', '-z', '--others', '--exclude-standard'])
+  if (changed.error || changed.status !== 0 || untracked.error || untracked.status !== 0) return false
+  // A suffix says nothing about what a path IS: a link, a gitlink or an executable named `*.md` is not a document, and
+  // a retargeted link between code files would pass the suffix test (a Codex review of ADR-094). Only a regular file,
+  // on both sides of the diff, counts; a path added or removed has mode 000000 on the other side.
+  const regular = mode => mode === '000000' || mode === '100644'
   const paths = []
-  for (const args of [['diff', '--no-renames', '--name-only', '-z', head, '--'], ['ls-files', '-z', '--others', '--exclude-standard']]) {
-    const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
-    if (run.error || run.status !== 0) return false
-    paths.push(...run.stdout.split('\0').filter(Boolean))
+  const fields = changed.stdout.split('\0')
+  for (let at = 0; at + 1 < fields.length; at += 2) {
+    if (!fields[at].startsWith(':')) return false
+    const [before, after] = fields[at].slice(1).split(' ')
+    if (!regular(before) || !regular(after)) return false
+    paths.push(fields[at + 1])
+  }
+  for (const file of untracked.stdout.split('\0').filter(Boolean)) {
+    try { if (!lstatSync(path.join(root, file)).isFile()) return false } catch { return false }
+    paths.push(file)
   }
   return paths.length > 0 && paths.every(file => TEXT_DOCUMENT.test(file))
 }
@@ -175,13 +189,24 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     // not, the check runs, and its own row follows ours and decides. `beforeReuse` is the seam a test uses to be that
     // concurrent writer.
     beforeReuse()
+    const ledgerFile = path.join(stateDir(root), 'checks.jsonl')
+    let appended = false
     try {
       mkdirSync(stateDir(root), { recursive: true })
-      const file = path.join(stateDir(root), 'checks.jsonl')
-      appendFileSync(file, `${JSON.stringify(row)}\n`, 'utf8')
-      const ids = readFileSync(file, 'utf8').split('\n').filter(line => line.trim()).map(line => { try { return JSON.parse(line).id } catch { return null } })
+      appendFileSync(ledgerFile, `${JSON.stringify(row)}\n`, 'utf8')
+      appended = true
+      const ids = readFileSync(ledgerFile, 'utf8').split('\n').filter(line => line.trim()).map(line => { try { return JSON.parse(line).id } catch { return null } })
       if (ids.indexOf(row.id) !== already.rows) throw Object.assign(new Error('the ledger gained a record between the decision and the append'), { code: 'ELEDGER' })
     } catch (failure) {
+      // An append cannot be undone, and a reuse row left as the tree's latest would pass a tree nobody checked if the
+      // run that follows is interrupted: it is retracted by a row that grades as unproven (a Codex review of ADR-094).
+      if (appended) {
+        try {
+          appendFileSync(ledgerFile, `${JSON.stringify({ ...row, id: randomUUID(), at: new Date().toISOString(), exit: null, verdict: 'unproven', reusedFrom: undefined, retracts: row.id })}\n`, 'utf8')
+        } catch (retraction) {
+          stderr.write(`qh-check: the prose reuse could not be retracted either (${retraction.code ?? retraction.message}); \`qh-check --again\` writes the row that decides.\n`)
+        }
+      }
       stderr.write(`qh-check: the prose reuse could not be relied on (${failure.code ?? failure.message}), so the check runs.\n`)
       already = null
     }

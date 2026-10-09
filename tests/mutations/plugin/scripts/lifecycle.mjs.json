@@ -4260,7 +4260,7 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "if (typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path)) continue",
+      "from": "if (typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry)) continue",
       "to": "if (false) continue",
       "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
     },
@@ -5752,7 +5752,7 @@
       "tests": [
         "tests/outside-root-writes.test.mjs"
       ],
-      "from": "    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path))",
+      "from": "    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry))",
       "to": "    && true",
       "only": "^an absolute write outside the repository is not counted as unseen$"
     },
@@ -5762,8 +5762,8 @@
       "tests": [
         "tests/outside-root-writes.test.mjs"
       ],
-      "from": "    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path))",
-      "to": "    && !(root && (typeof entry.path !== 'string' || (path.isAbsolute(entry.path) && outsideRoot(root, entry.path))))",
+      "from": "    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry))",
+      "to": "    && !(root && (typeof entry.path !== 'string' || (path.isAbsolute(entry.path) && writtenOutside(root, entry))))",
       "only": "^a relative or unplaceable write path is still counted as unseen$"
     },
     {
@@ -5985,6 +5985,26 @@
       "from": "const PROSE_LITERAL = /^[\\w.@+][\\w.@+/-]*$/",
       "to": "const PROSE_LITERAL = /^[\\w.@+-][\\w.@+/-]*$/",
       "only": "^a pathspec is judged by its grammar before git is asked$"
+    },
+    {
+      "label": "ADR-094 T4: the recorder drops the spelling the tool was given",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/outside-root-writes.test.mjs"
+      ],
+      "from": "if (lexical !== absolute) entry.lexical = lexical",
+      "to": "void lexical",
+      "only": "^a write through a directory link is counted when the hook records it$"
+    },
+    {
+      "label": "ADR-094 T4: a recorded write is outside by its canonical spelling alone",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/outside-root-writes.test.mjs"
+      ],
+      "from": "    && (typeof entry.lexical !== 'string' || !path.isAbsolute(entry.lexical) || outsideRoot(root, entry.lexical))",
+      "to": "    && true",
+      "only": "^a write through a directory link is counted when the hook records it$"
     }
   ]
 }

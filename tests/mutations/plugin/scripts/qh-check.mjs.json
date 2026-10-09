@@ -216,7 +216,7 @@
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "      appendFileSync(file, `${JSON.stringify(row)}\\n`, 'utf8')",
+      "from": "      appendFileSync(ledgerFile, `${JSON.stringify(row)}\\n`, 'utf8')",
       "to": "      void row",
       "only": "^a declared prose-only change reuses the last pass, from a subdirectory too$"
     },
@@ -236,8 +236,8 @@
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "['diff', '--no-renames', '--name-only'",
-      "to": "['diff', '--name-only'",
+      "from": "['diff', '--no-renames', '--raw'",
+      "to": "['diff', '--raw'",
       "only": "^the hint is said after a passing prose-only run and never after a failed one$"
     },
     {
@@ -248,6 +248,36 @@
       ],
       "from": "&& tree.stdout.trim() === latest.after.tree ? latest.after.head : null",
       "to": "? latest.after.head : null",
+      "only": "^the hint is said after a passing prose-only run and never after a failed one$"
+    },
+    {
+      "label": "ADR-094 T3: a stale reuse row is not retracted",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "      if (appended) {",
+      "to": "      if (false) {",
+      "only": "^a ledger row appended since the reuse was decided stops the reuse$"
+    },
+    {
+      "label": "ADR-094 T3: a link or an executable named like a document passes the hint",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "    if (!regular(before) || !regular(after)) return false",
+      "to": "    if (false) return false",
+      "only": "^the hint is said after a passing prose-only run and never after a failed one$"
+    },
+    {
+      "label": "ADR-094 T3: an untracked link named like a document passes the hint",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "    try { if (!lstatSync(path.join(root, file)).isFile()) return false } catch { return false }",
+      "to": "    void file",
       "only": "^the hint is said after a passing prose-only run and never after a failed one$"
     }
   ]

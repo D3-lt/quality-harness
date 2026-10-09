@@ -1,6 +1,25 @@
 {
   "mutations": [
     {
+      "label": "ADR-091 scope: mutate-propose reads a legacy-only catalogue as before (strict forced on)",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs",
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "  const strict = catalogueFiles.some(file => relative(file).startsWith(`${testsDir}/mutations/`))",
+      "to": "  const strict = true"
+    },
+    {
+      "label": "ADR-091 scope: mutate-propose applies the campaign's rules to the per-source form (strict forced off)",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/catalogue-readers-review.test.mjs"
+      ],
+      "from": "  const strict = catalogueFiles.some(file => relative(file).startsWith(`${testsDir}/mutations/`))",
+      "to": "  const strict = false"
+    },
+    {
       "label": "ADR-091 verification: a catalogue the campaign refuses is unread, not text",
       "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [

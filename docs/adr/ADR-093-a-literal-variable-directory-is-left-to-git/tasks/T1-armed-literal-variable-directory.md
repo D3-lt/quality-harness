@@ -29,6 +29,7 @@ In an armed Bash session, rule P gives ADR-066's advice, not a refusal, to a com
 3. [S3] In `freshDirectoryText`, take the union of the fresh and the literal sets, but read the `mkdir` operand and the `/seg` suffix only for a literal variable (`directoryOperands` takes the set it is asked about). Every other `$` or backtick still returns the text unchanged, so `leavesHookInPlace` returns false.
 4. [S4] In `segmentVerdict`, a literal directory variable's assignment segment returns 0. Every other `NAME=` segment still returns -1.
 5. [S5] Record three killed mutants: one that drops the admission (the data test goes red), one that admits a `$` in any position (the twin goes red), one that lets `freshRepositoryCommit` read the literal set (the unarmed twin in the data test goes red). [proof: mutation]
+6. [S6] Harden after the Codex review of `3772a178`: `runsInThisShell`, `mentionedNames` and `assignmentCounts` (an append `V+=x` is a second assignment), and the shell-updated variables (`_`, `REPLY` and the rest) in the shell-special names, applied to `freshDirectoryVariables` as well as `literalDirectoryVariables`. The review's bypass rows and their ADR-086 siblings are twins in the two fenced tests. [proof: mutation]
 
 ## Acceptance
 
@@ -58,6 +59,10 @@ out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \
 - 2026-10-09 · 933f98f4* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · drops the literal-variable admission, so an armed literal-directory commit is refused again · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:an armed session admits a literal directory variable as a directory operand
 - 2026-10-09 · 933f98f4* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · admits a literal variable wherever a dollar word stands, so a dollar outside a directory operand is no longer refused · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:a dollar outside a literal directory operand keeps the refusal
 - 2026-10-09 · 933f98f4* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · lets the unarmed proof read a literal variable, so the unarmed arm accepts what only the armed arm may · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:the unarmed arm does not read a literal directory variable
+- 2026-10-09 · 3772a178* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · drops the same-shell proof for a literal assignment, so (S=/tmp); git -C $S commit and false && S=/tmp are admitted · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:a dollar outside a literal directory operand keeps the refusal
+- 2026-10-09 · 3772a178* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · drops the mention check, so read S[0], S+=x and declare -n are no longer seen writing a literal variable · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:a dollar outside a literal directory operand keeps the refusal
+- 2026-10-09 · 3772a178* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · drops the shell-updated underscore from the special names, so $_ is admitted as a literal directory variable · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · covers:a dollar outside a literal directory operand keeps the refusal
+- 2026-10-09 · 3772a178* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · drops the same-shell proof for the fresh mktemp variable, so a subshell or conditional assignment is admitted again · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc
 
 ## Invariants
 
@@ -86,3 +91,12 @@ Stop and ask if any twin row is not `deny` after S4, if `segmentVerdict`'s chang
 - 2026-10-09 · 933f98f4* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:85184
 - 2026-10-09 · 933f98f4* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:84309
 - 2026-10-09 · 933f98f4* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:83647
+- 2026-10-09 · 3772a178* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:91106
+- 2026-10-09 · 3772a178* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:109261
+- 2026-10-09 · 3772a178* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:83246
+- 2026-10-09 · 3772a178* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:80305
+- 2026-10-09 · 3772a178* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:79502
+- 2026-10-09 · 3772a178* · exit 1 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:93155
+  ```
+  ```
+- 2026-10-09 · 3772a178* · exit 0 · `out=$(node --test --test-reporter=tap tests/publish-command.test.mjs 2>&1) \ …` · acceptance-sha256:3640bc802904c01951634a85db84019d3eaf33041469ce763c49e7fd4e877fcc · ms:88218

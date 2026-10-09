@@ -4510,8 +4510,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    if (inner !== made.argv.join(' ')) continue",
-      "to": "    if (false) continue",
+      "from": "    if (inner !== made.argv.join(' ')) return",
+      "to": "    if (false) return",
       "only": "^(?:an unarmed fresh substitution is one foreground mktemp and nothing after it)$"
     },
     {
@@ -5592,9 +5592,79 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES",
-      "to": "  if (false) return NO_FRESH_DIRECTORIES",
+      "from": "  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES\n  const assigned = assignmentCounts(commands)\n  const literal",
+      "to": "  if (false) return NO_FRESH_DIRECTORIES\n  const assigned = assignmentCounts(commands)\n  const literal",
       "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: a literal assignment must have run in the shell that expands it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (!runsInThisShell(commands, index)) return",
+      "to": "    if (false) return",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: a name another command mentions is not a literal directory variable",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "if (assigned.get(name) !== 1 || mentionedNames(commands, index).has(name) || HOOK_ENVIRONMENT_NAMES.test(name)) return",
+      "to": "if (assigned.get(name) !== 1 || HOOK_ENVIRONMENT_NAMES.test(name)) return",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: a variable the shell updates itself is not a literal directory variable",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "/^(?:_|REPLY|reply|OPTARG",
+      "to": "/^(?:REPLY|reply|OPTARG",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: a fresh mktemp variable must have been assigned in the shell that expands it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "|| mentionedNames(commands, index).has(name) || !runsInThisShell(commands, index)) return",
+      "to": "|| mentionedNames(commands, index).has(name)) return",
+      "only": "^an armed session leaves a literal-variable directory commit to git$"
+    },
+    {
+      "label": "ADR-093: zsh's implicit reply array is not a literal directory variable",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "_|REPLY|reply|OPTARG",
+      "to": "_|REPLY|OPTARG",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: a fresh mktemp variable is not a variable the shell updates itself",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "    if (AUTO_UPDATED_NAMES.test(name)) return\n    const [inner] = command.substitutions",
+      "to": "    const [inner] = command.substitutions",
+      "only": "^an armed session leaves a literal-variable directory commit to git$"
+    },
+    {
+      "label": "ADR-093: IFS in the text takes the fresh mktemp variable away too",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "export function freshDirectoryVariables(commands, text = '') {\n  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES",
+      "to": "export function freshDirectoryVariables(commands, text = '') {",
+      "only": "^an armed session leaves a literal-variable directory commit to git$"
     }
   ]
 }

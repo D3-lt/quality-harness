@@ -3547,7 +3547,7 @@ export function bumpSessionGeneration(sessionId) {
 // ADR-060 T6: its input is the event log's reading of the tree, not a
 // transcript, so what it reports is what git and the tool events show.
 export function observedFacts(log, root, observation) {
-  const writes = unobservableWrites(log)
+  const writes = unobservableWrites(log, root)
   const baseline = sessionBaseline(log)?.observation
   const status = observation?.ok === true ? statusPaths(root) : []
   // By when it RAN, like the verdict: this kept `.at(-1)` after `latestCheckFor`
@@ -5300,7 +5300,7 @@ export function recordHookEvent(input) {
     // before any observing hook runs; commit it, and the first Stop sees a clean
     // tree. Adopting that as the baseline would call a session with a known,
     // unchecked write `neutral`. Only a write GIT CAN SEE counts: one outside the
-    // repository says nothing about this tree, stays outstanding on its own, and
+    // repository says nothing about this tree and is not counted (ADR-094 T4), and
     // refusing the baseline over it accused a repository nothing had touched.
     // A `session.started` that could not look is no baseline either (sessionBaseline).
     // Nor after any earlier boundary already saw the tree (lateBaselineAllowed).
@@ -6312,8 +6312,13 @@ function namedByPublish(log, tree, revision) {
 // mutation campaign on 0150376). Together, only a clock stepping backwards
 // DURING a check can still hide a write. An incomplete log leaves every such
 // write outstanding.
-export function unobservableWrites(log) {
+// ADR-094 T4: given the repository's root, an ABSOLUTE path outside it is not a write this tree could
+// hold — `unseenWriteSince` has always skipped it, and a scratchpad Write made the previous-session
+// notice and the completion advice accuse a repository nothing had touched. A relative or unplaceable
+// path, and a symlink leaf (it keeps its own name inside the tree), still count; no root keeps today's count.
+export function unobservableWrites(log, root = null) {
   const writes = (entry) => entry.event === 'file.written' && entry.observable === false
+    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path))
   if (logIncomplete(log)) return log.filter(writes)
   const recordedAfter = (write, pass) => write.checksSeen === undefined
     || (Number.isInteger(write.checksSeen) && Number.isInteger(pass.seq) && pass.seq > write.checksSeen)
@@ -7020,7 +7025,7 @@ function completionRules(input, ended) {
   const found = directory ? gitRepositoryLookup(directory) : { ok: false, root: null, reason: 'no directory' }
   const root = found.ok ? found.root : null
   const baseline = sessionBaseline(log)?.observation
-  const writes = unobservableWrites(log)
+  const writes = unobservableWrites(log, root)
   const status = observation?.ok !== true ? []
     : !found.ok ? mark([], false, found.reason)
     : statusPaths(root)

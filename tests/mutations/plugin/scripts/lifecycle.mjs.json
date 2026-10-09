@@ -5745,6 +5745,36 @@
       "from": "'((', 'repeat', 'foreach', 'end', 'always'])",
       "to": "'(('])",
       "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-094 T4: an absolute write outside the root is counted as unseen again",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/outside-root-writes.test.mjs"
+      ],
+      "from": "    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path))",
+      "to": "    && true",
+      "only": "^an absolute write outside the repository is not counted as unseen$"
+    },
+    {
+      "label": "ADR-094 T4: an unplaceable write path is skipped as if it were outside",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/outside-root-writes.test.mjs"
+      ],
+      "from": "    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && outsideRoot(root, entry.path))",
+      "to": "    && !(root && (typeof entry.path !== 'string' || (path.isAbsolute(entry.path) && outsideRoot(root, entry.path))))",
+      "only": "^a relative or unplaceable write path is still counted as unseen$"
+    },
+    {
+      "label": "ADR-094 T4: the previous-session count is taken without the root",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/outside-root-writes.test.mjs"
+      ],
+      "from": "  const writes = unobservableWrites(log, root)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
+      "to": "  const writes = unobservableWrites(log)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
+      "only": "^an absolute write outside the repository is not counted as unseen$"
     }
   ]
 }

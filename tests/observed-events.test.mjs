@@ -721,22 +721,25 @@ test('writes the tree cannot see re-open the finding', () => {
   git(dir, 'add', '-A')
   git(dir, 'commit', '-q', '-m', 'check')
   const state = path.join(dir, '.git', 'quality-harness')
+  // A write the tree cannot see is an IGNORED file in the tree: a path outside the repository is not this tree's
+  // (ADR-094 T4), so it is no longer the example.
+  writeFileSync(path.join(dir, '.git', 'info', 'exclude'), 'ignored-*.md\n')
   const session = sessionId('outside')
   const rules = () => named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule)
-  const editedOutside = (id, sessionFor) => {
-    const file = path.join(testTmp, 'outside-' + id + '.md')
+  const editedUnseen = (id, sessionFor) => {
+    const file = path.join(dir, 'ignored-' + id + '.md')
     writeFileSync(file, id + '\n')
     hook({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: file }, session_id: sessionFor, cwd: dir })
     return file
   }
   hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
-  const first = editedOutside(session + '-1', session)
+  const first = editedUnseen(session + '-1', session)
   const one = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
   assert.deepEqual(rules(), ['R1'])
   assert.match(one.stdout, OUTSIDE_COUNT)
   assert.equal(one.stdout.includes(first), false, one.stdout)
   // A second write the tree cannot see is a new state, so the finding re-opens.
-  editedOutside(session + '-2', session)
+  editedUnseen(session + '-2', session)
   hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
   assert.deepEqual(rules(), ['R1', 'R1'])
   // A pass clears what was written before it started.
@@ -749,7 +752,7 @@ test('writes the tree cannot see re-open the finding', () => {
   git(dir, 'worktree', 'add', '-q', '-b', 'linked', linked)
   const worktreeSession = sessionId('worktree-a')
   hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: worktreeSession, cwd: dir })
-  editedOutside(worktreeSession + '-1', worktreeSession)
+  editedUnseen(worktreeSession + '-1', worktreeSession)
   assert.equal(qhCheckRun(linked, 'pass').status, 0)
   hook({ hook_event_name: 'Stop', session_id: worktreeSession, cwd: dir })
   assert.deepEqual(named(eventsIn(state, worktreeSession), 'action.emitted').map(entry => entry.rule), ['R1'])

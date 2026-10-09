@@ -122,6 +122,14 @@ function occurrences(haystack, needle) {
   return haystack.split(needle).length - 1
 }
 
+// An entry of the shape the campaign accepts (scripts/mutate.mjs ENTRY_FIELDS): `only` may be absent.
+function isCatalogueEntry(entry) {
+  return entry !== null && typeof entry === 'object' && !Array.isArray(entry)
+    && ['label', 'file', 'from', 'to'].every(key => typeof entry[key] === 'string')
+    && Array.isArray(entry.tests) && entry.tests.every(test => typeof test === 'string')
+    && (entry.only === undefined || typeof entry.only === 'string')
+}
+
 /**
  * Where a contract string is covered. `test` is an assertion about it;
  * `catalogue` only records that a mutation exists, which is the runner's
@@ -173,18 +181,22 @@ export function proposals(root, { testsDirectory = 'tests' } = {}) {
   // `<testsDirectory>/mutations/` (ADR-091).
   const isCatalogue = file => /mutations?\.json$/.test(file)
     || (relative(file).startsWith(`${testsDir}/mutations/`) && file.endsWith('.json'))
-  // A catalogue file that could not be read, ran past the size bound, or is not a JSON object is not
-  // "no catalogue": whether a string is catalogued there is unknown (the same review).
-  const catalogueTexts = []
+  // A catalogue file that could not be read, ran past the size bound, or is not a catalogue the
+  // campaign accepts (`{ mutations: [entry, …] }`, each entry's fields of the right kind) is not
+  // "no catalogue": whether a string is catalogued there is unknown. And a string is catalogued only
+  // where an entry mutates it — its `from` — never because a label or a note mentions it (a gpt-6.1-sol
+  // review of ADR-091, and its verification review).
+  const catalogued = []
   const unreadCatalogues = []
   for (const file of testFiles.filter(isCatalogue)) {
     const text = readIfSmall(file)
     let parsed = null
     try { parsed = text == null ? null : JSON.parse(text) } catch {}
-    if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) catalogueTexts.push(text)
+    const entries = Array.isArray(parsed?.mutations) && parsed.mutations.every(isCatalogueEntry) ? parsed.mutations : null
+    if (entries) catalogued.push(...entries.map(entry => entry.from))
     else unreadCatalogues.push(relative(file))
   }
-  const catalogueText = catalogueTexts.join('\n')
+  const catalogueText = catalogued.join('\n\0')
   const testTexts = testFiles
     .filter(file => !isCatalogue(file))
     .map(file => readIfSmall(file) ?? '')

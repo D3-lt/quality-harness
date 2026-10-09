@@ -59,6 +59,10 @@ test('adr-lint does not resolve a label from a per-source catalogue the campaign
     'tests/mutations/x.mjs.json': serialize([entry('probe', 'x.mjs')]),
     'tests/mutations.json': serialize([entry('PROBE', 'z.mjs')]),
   }), 'probe'), unproven)
+  // An entry the campaign's shape check refuses: no "from", and an "only" that is null.
+  const bare = { label: 'probe', file: 'x.mjs', tests: ['tests/x.test.mjs'], to: 'b' }
+  assert.match(enforcement(scratch({ 'tests/mutations/x.mjs.json': serialize([bare]) }), 'probe'), unproven)
+  assert.match(enforcement(scratch({ 'tests/mutations/x.mjs.json': serialize([{ ...entry('probe', 'x.mjs'), only: null }]) }), 'probe'), unproven)
   // A per-source file with no entries.
   assert.match(enforcement(scratch({ 'tests/mutations/x.mjs.json': serialize([]), 'tests/mutations.json': serialize([entry('probe', 'z.mjs')]) }), 'probe'), unproven)
   // The twin: a well-formed per-source file resolves, and says nothing.
@@ -72,6 +76,20 @@ test('adr-lint says UNPROVEN for a listed catalogue path that is not a regular f
   const advice = enforcement(dir, 'probe')
   assert.match(advice, /Enforced-by names `probe`.*UNPROVEN.*tests\/mutations\/x\.mjs\.json/, advice)
   assert.ok(!advice.includes('pointer to nothing'), advice)
+})
+
+// The verification review: a tracked catalogue file deleted from the checkout and not yet staged is
+// gone to the campaign (`git ls-files --deleted`), so it is gone here too, not could-not-look.
+test('a tracked catalogue file deleted from the checkout does not make the catalogue unread', () => {
+  const dir = scratch({
+    'tests/mutations/x.mjs.json': serialize([entry('keep', 'x.mjs')]),
+    'tests/mutations/old.mjs.json': serialize([entry('gone', 'old.mjs')]),
+  })
+  spawnSync('git', ['init', '-q'], { cwd: dir, timeout: 30_000, windowsHide: true })
+  spawnSync('git', ['add', '-A'], { cwd: dir, timeout: 30_000, windowsHide: true })
+  rmSync(join(dir, 'tests', 'mutations', 'old.mjs.json'))
+  assert.equal(enforcement(dir, 'keep'), '')
+  assert.match(enforcement(dir, 'gone'), /Enforced-by names `gone`, which is not a mutation label/)
 })
 
 const SKILL = '---\nname: demo\ndescription: Use when the user asks to mark it done, tick off a task, or to audit a run\n---\n\n# Demo\n\nBody.\n'
@@ -89,6 +107,14 @@ test('mutate-propose says a string is unproven, not neither, when a catalogue fi
   const clean = scratch({ ...base, 'tests/mutations.json': serialize([]) })
   assert.equal(coverage(clean)['tick off a task'], 'unasserted')
   assert.equal(coverage(clean)['to audit a run'], 'asserted')
+  // The verification review: an object the campaign refuses (no "mutations") holding the string, and a
+  // valid entry whose `from` differs while its metadata carries the string, are not "catalogued".
+  const noMutations = scratch({ ...base, 'tests/mutations.json': '{"note": "tick off a task"}\n' })
+  assert.equal(coverage(noMutations)['tick off a task'], 'unproven')
+  const partial = scratch({ ...base, 'tests/mutations.json': '{"mutations": [{"from": "tick off a task"}]}\n' })
+  assert.equal(coverage(partial)['tick off a task'], 'unproven')
+  const inMetadata = scratch({ ...base, 'tests/mutations.json': serialize([{ ...entry('tick off a task', 'skills/demo/SKILL.md'), from: 'different' }]) })
+  assert.equal(coverage(inMetadata)['tick off a task'], 'unasserted')
   if (process.platform === 'win32' || process.getuid?.() === 0) return
   const locked = scratch({ ...base, 'tests/mutations/skills/demo/SKILL.md.json': serialize([]) })
   chmodSync(join(locked, 'tests/mutations/skills/demo/SKILL.md.json'), 0o000)

@@ -77,7 +77,8 @@ test('a contract named only by the catalogue is reported, and one a test names i
     // The whole clause, because coverage is a substring test on the clause the
     // runner would replace — a test naming half of it asserts a different string.
     'tests/demo.test.mjs': "assert.match(description, /to audit a run/)\n",
-    'tests/mutations.json': JSON.stringify({ mutations: [{ from: 'tick off a task' }] }),
+    // A whole entry: one the campaign would refuse is unproven, not catalogued (ADR-091's review).
+    'tests/mutations.json': JSON.stringify({ mutations: [{ label: 'l', file: 'skills/demo/SKILL.md', from: 'tick off a task', to: 'x', tests: ['tests/demo.test.mjs'] }] }),
   })
   try {
     const found = proposals(root)

@@ -10,8 +10,9 @@ import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, realpa
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { checkEventName, passedAlready, stateDir } from '../plugin/scripts/lifecycle.mjs'
+import { checkEventName, passedAlready, proseSpecProblem, proseSpecs, stateDir } from '../plugin/scripts/lifecycle.mjs'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
+import { runCheck } from '../plugin/scripts/qh-check.mjs'
 
 const qhCheckScript = fileURLToPath(new URL('../plugin/scripts/qh-check.mjs', import.meta.url))
 const CHECK = 'node check.mjs'
@@ -128,7 +129,8 @@ test('a change outside the declared paths runs the check, whatever else is reuse
 test('a declaration that could hide code is refused and said', t => {
   const top = sandbox(t)
   const declarations = {
-    '.': ['.'], '*': ['*'], '**': ['**'], 'a glob that matches the config': ['*.json'], 'a spec that matches nothing': ['nothing/'],
+    '.': ['.'], '*': ['*'], '**': ['**'], '***': ['***'], 'a wildcard in the extension': ['*.*'], 'a question mark': ['?*'],
+    'a glob that matches the config': ['*.json'], 'the config by name, in another case': ['.QUALITY-harness.json'], 'a spec that matches nothing': ['nothing/'],
     'a leading dash': ['-x'], 'a pathspec magic': [':(exclude)docs'], 'a parent segment': ['docs/../src/'], 'an absolute path': ['/etc'],
     'an empty entry': [''], 'not an array': 'docs/', 'more than twenty': Array.from({ length: 21 }, (_, n) => `docs/d${n}/`),
     'a gitlink': ['vendor/'],
@@ -142,10 +144,13 @@ test('a declaration that could hide code is refused and said', t => {
     const second = qhCheck(top, ctx)
     assert.equal(second.runs, 2, `${name}: nothing was reused — ${second.stderr}`)
   }
-  // The twins whose only guard is the explicit one: with the config UNTRACKED, `*` and `.` match every code file
-  // and no `.quality-harness.json` stands in their way.
-  for (const prose of [['.'], ['*'], ['**'], ['*', 'docs/']]) {
+  // The twins whose only guard is the one under test: with the config UNTRACKED, `*` and `.` match every code file
+  // and a glob such as `*.json` matches the config only through the untracked listing (a tracked json file keeps
+  // the "matches nothing" refusal from standing in for it).
+  for (const prose of [['.'], ['*'], ['**'], ['***'], ['?*'], ['*.json'], ['*', 'docs/']]) {
     const ctx = build(top, `untracked-${prose.join('-').replace(/\W/g, '_')}`, { check: CHECK, prose })
+    write(ctx.repo, 'docs/data.json', '{}\n')
+    git(ctx.repo, 'add', '-A')
     git(ctx.repo, 'rm', '--cached', '-q', '.quality-harness.json')
     git(ctx.repo, 'commit', '-q', '-m', 'untrack the config', '--no-gpg-sign')
     const first = qhCheck(top, ctx)
@@ -153,6 +158,55 @@ test('a declaration that could hide code is refused and said', t => {
     write(ctx.repo, 'src/code.js', 'export const a = 2\n')
     assert.equal(qhCheck(top, ctx).runs, 2, `${JSON.stringify(prose)}: a code edit ran the check`)
   }
+})
+
+// Supplementary (NOT in the Acceptance fence): a concurrent writer between the decision and the append.
+
+
+// Supplementary (NOT in the Acceptance fence): the grammar and the segment guard, judged without git.
+test('a pathspec is judged by its grammar before git is asked', () => {
+  for (const good of ['docs/', 'README.md', 'docs/a.md', 'docs/**/*.md', 'docs/*.md', '*.md', '**/*.rst', 'site/content/']) {
+    assert.equal(proseSpecProblem(good), null, `${good} is a plain pathspec`)
+  }
+  for (const bad of ['.', '..', './', '*', '**', '***', '*.*', '?*', '*.m*', '**/*', '*docs/', 'docs/../src/', './src/', 'docs/./a.md',
+    '-x', ':(exclude)docs', '/etc', '', 'a b', 'docs\\a', undefined, 7, null]) {
+    assert.notEqual(proseSpecProblem(bad), null, `${JSON.stringify(bad)} is refused`)
+  }
+})
+// Supplementary: on a filesystem that folds case the config can be tracked under another spelling than the one
+// qh-check reads; a spec that matches it is still refused (a Codex review of ADR-094). Skipped where the
+// filesystem keeps case: there the other spelling is a different file and is not the config.
+test('a config tracked under another letter case is still the config', t => {
+  const top = sandbox(t)
+  writeFileSync(path.join(top, 'probe.txt'), 'x')
+  let folds = false
+  try { readFileSync(path.join(top, 'PROBE.txt')); folds = true } catch { folds = false }
+  if (!folds) return t.skip('this filesystem keeps letter case, so the other spelling is a different file')
+  const repo = path.join(top, 'case-repo')
+  mkdirSync(path.join(repo, 'docs'), { recursive: true })
+  git(repo, 'init', '-q')
+  write(repo, 'check.mjs', 'process.exit(0)\n')
+  write(repo, 'docs/a.md', 'one\n')
+  write(repo, '.QUALITY-harness.json', JSON.stringify({ check: 'node check.mjs', prose: ['*.json'] }))
+  git(repo, 'add', '-A')
+  git(repo, 'commit', '-q', '-m', 'one', '--no-gpg-sign')
+  assert.match(proseSpecs(repo).problem ?? '', /matches .quality-harness.json/)
+})
+test('a ledger row appended since the reuse was decided stops the reuse', async t => {
+  const top = sandbox(t)
+  const ctx = build(top, 'race')
+  assert.equal(qhCheck(top, ctx).runs, 1)
+  write(ctx.repo, 'docs/a.md', 'two\n')
+  const [original] = ledger(ctx.repo, 'checks.jsonl')
+  const file = path.join(stateDir(ctx.repo), 'checks.jsonl')
+  // What a concurrent `qh-check --again` would have appended: a failure for the tree being decided.
+  const failure = { ...original, id: 'concurrent-failure', exit: 1, verdict: 'failed' }
+  const sink = { write() {} }
+  const env = { ...process.env, TMPDIR: top, TMP: top, TEMP: top, QH_RUNS: ctx.runs, QUALITY_HARNESS_OBSERVE_BUDGET_MS: '60000' }
+  const code = await runCheck({ cwd: ctx.repo, env, stdout: sink, stderr: sink, beforeReuse: () => appendFileSync(file, `${JSON.stringify(failure)}\n`) })
+  assert.equal(code, 0)
+  assert.equal(runCount(ctx), 2, 'the check ran instead of reusing over a newer failure')
+  assert.equal(ledger(ctx.repo, 'checks.jsonl').some(row => row.reusedFrom), false, 'no reuse row was written')
 })
 
 test('an unseen write after the original pass vetoes a reuse', t => {
@@ -204,6 +258,14 @@ test('the hint is said after a passing prose-only run and never after a failed o
   assert.equal(qhCheck(top, code, { env: hurry }).status, 0)
   write(code.repo, 'src/code.js', 'export const a = 3\n')
   assert.doesNotMatch(qhCheck(top, code, { env: hurry }).stderr, /"prose"/)
+  // A pass over UNCOMMITTED code is not placed by HEAD: restore the committed code, edit a document, and the
+  // hint must not claim that only documents changed (a Codex review of ADR-094).
+  const dirty = build(top, 'hint-dirty', { check: CHECK })
+  write(dirty.repo, 'src/code.js', 'export const a = 9\n')
+  assert.equal(qhCheck(top, dirty, { env: hurry }).status, 0)
+  git(dirty.repo, 'checkout', '--', 'src/code.js')
+  write(dirty.repo, 'docs/a.md', 'two\n')
+  assert.doesNotMatch(qhCheck(top, dirty, { env: hurry }).stderr, /"prose"/, 'a pass over uncommitted code is not placed by HEAD')
   // And below the threshold nothing is said.
   const quick = build(top, 'hint-quick', { check: CHECK })
   assert.equal(qhCheck(top, quick).status, 0)

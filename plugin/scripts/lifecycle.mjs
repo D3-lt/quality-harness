@@ -735,11 +735,24 @@ export function fastCheckCommand(root) {
 // ADR-094 T3: the paths a project DECLARES as prose in `.quality-harness.json` (`"prose": [pathspecs]`),
 // default none. A tree that differs from a passed one only under them may reuse the pass; the project
 // asserts that its check reads none of them. A declaration that could hide code is refused whole and
-// said, never partly read (CLAUDE.md §16: an unrecognised input is not a safe one): a spec is a plain
-// pathspec of at most twenty, none naming the whole tree or leaving it, and each matches a tracked path,
-// no `.quality-harness.json` (it holds the check) and no submodule (`rm --cached` would drop the gitlink).
-const PROSE_SPEC = /^[\w.*][\w./*?[\]@+-]*$/
+// said, never partly read (CLAUDE.md §16: an unrecognised input is not a safe one). The grammar is
+// POSITIVE, because a list of the specs that name too much is an open set (`***` passed the first one):
+// a literal path or directory prefix, a literal first directory then a glob, or every file with one
+// literal extension. Each must also match a tracked path, and no spec may match a submodule
+// (`rm --cached` would drop the gitlink) or `.quality-harness.json` (it holds the check), tracked or
+// not and in any letter case.
+const PROSE_LITERAL = /^[\w.@+][\w.@+/-]*$/
+const PROSE_UNDER = /^[\w.@+][\w.@+-]*\/[\w.@+/*?[\]-]*$/
+const PROSE_EXTENSION = /^(?:\*\*\/)?\*\.[A-Za-z0-9]+$/
 const PROSE_MOST = 20
+// Why a spec is refused before git is asked, or null. Judged by its grammar and its segments, not by what git
+// makes of it: git matches `:(top).` and `docs/../src/` to nothing today, which is a quirk, not a guard.
+export function proseSpecProblem(spec) {
+  const plain = typeof spec === 'string' && (PROSE_LITERAL.test(spec) || PROSE_UNDER.test(spec) || PROSE_EXTENSION.test(spec))
+  if (!plain) return `${JSON.stringify(spec)} is not a plain pathspec (a literal path or directory, a literal directory then a glob, or \`*.ext\`)`
+  if (spec.split('/').some(part => part === '.' || part === '..')) return `${JSON.stringify(spec)} would name the whole tree or leave it`
+  return null
+}
 export function proseSpecs(root) {
   let config
   try { config = JSON.parse(readFileSync(path.join(root, '.quality-harness.json'), 'utf8')) } catch { return { specs: [], problem: null } }
@@ -750,23 +763,23 @@ export function proseSpecs(root) {
     return refuse(`it must be an array of one to ${PROSE_MOST} pathspecs`)
   }
   for (const spec of declared) {
-    if (typeof spec !== 'string' || !PROSE_SPEC.test(spec)) {
-      return refuse(`${JSON.stringify(spec)} is not a plain pathspec (letters, digits and \`._/-@+\`, the globs \`*?[]\`, not starting with \`-\`, \`:\` or \`/\`)`)
-    }
-    if (['.', '*', '**'].includes(spec) || spec.split('/').some(part => part === '.' || part === '..')) {
-      return refuse(`${JSON.stringify(spec)} would name the whole tree or leave it`)
-    }
+    const problem = proseSpecProblem(spec)
+    if (problem) return refuse(problem)
   }
+  const isConfig = file => file.toLowerCase() === '.quality-harness.json'
+  const list = (spec, ...flags) => spawnSync('git', ['-C', root, 'ls-files', ...flags, '-z', '--', `:(top)${spec}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
   for (const spec of declared) {
-    const listed = spawnSync('git', ['-C', root, 'ls-files', '-s', '-z', '--', `:(top)${spec}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
-    if (listed.error || listed.status !== 0) return refuse(`git could not list ${JSON.stringify(spec)}`)
-    const entries = listed.stdout.split('\0').filter(Boolean)
+    const tracked = list(spec, '-s')
+    const untracked = list(spec, '--others', '--exclude-standard')
+    if (tracked.error || tracked.status !== 0 || untracked.error || untracked.status !== 0) return refuse(`git could not list ${JSON.stringify(spec)}`)
+    const entries = tracked.stdout.split('\0').filter(Boolean)
     if (entries.length === 0) return refuse(`${JSON.stringify(spec)} matches no tracked path`)
     for (const entry of entries) {
       const [meta, file] = entry.split('\t')
       if (meta.startsWith('160000')) return refuse(`${JSON.stringify(spec)} matches a submodule`)
-      if (file === '.quality-harness.json') return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)
+      if (isConfig(file)) return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)
     }
+    if (untracked.stdout.split('\0').filter(Boolean).some(isConfig)) return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)
   }
   return { specs: declared, problem: null }
 }
@@ -841,10 +854,12 @@ export function unseenWriteSince(root, { seen, seq, started }) {
   return false
 }
 
-// Whether `file` lies outside the repository at `root`, through `relativeWithinRoot`'s
-// spellings (a symlinked /tmp, a drive letter); its answer is a relative path either way.
+// Whether `file` lies outside the repository at `root`. The leaf keeps its own name (`canonicalFile`): a
+// link inside the tree to a file outside it is a write the tree hash cannot see, and resolving it here
+// read it as outside (found by a Codex review of ADR-094). Case is folded where the filesystem folds it.
 function outsideRoot(root, file) {
-  const relative = relativeWithinRoot(root, file).replace(/\\/g, '/')
+  const fold = value => (process.platform === 'win32' || process.platform === 'darwin' ? value.toLowerCase() : value)
+  const relative = path.relative(fold(canonical(root)), fold(canonicalFile(file))).replace(/\\/g, '/')
   return relative === '..' || relative.startsWith('../') || path.isAbsolute(relative) || /^[A-Za-z]:/.test(relative)
 }
 
@@ -897,7 +912,7 @@ export function passedAlready({ root, git, command, env = process.env, observeTr
   if (!latest || checkEventName(latest) !== 'check.passed') return null
   if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
   const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)
-  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, viaProse: latest.after.tree !== now.tree }
+  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, rows: seq, viaProse: latest.after.tree !== now.tree }
 }
 
 /**

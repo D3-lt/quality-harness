@@ -39,7 +39,7 @@ test('an absolute write outside the repository is not counted as unseen', t => {
 })
 
 test('a relative or unplaceable write path is still counted as unseen', t => {
-  const { root, elsewhere } = layout(t)
+  const { base, root, elsewhere } = layout(t)
   const counted = [
     unseen(path.join(root, 'src', 'a.js')),
     unseen(path.join(root, 'src', 'not-yet-created.js')),
@@ -55,6 +55,11 @@ test('a relative or unplaceable write path is still counted as unseen', t => {
   const leaf = path.join(root, 'src', 'link.txt')
   symlinkSync(target, leaf)
   assert.equal(lifecycle.unobservableWrites([unseen(leaf)], root).length, 1, 'an escaping symlink leaf is a write the tree hash cannot see')
+  // The same, with the root spelled through a link (a Codex review of ADR-094 found the leaf resolved as outside).
+  const alias = path.join(base, 'alias-of-repo')
+  symlinkSync(root, alias, 'dir')
+  assert.equal(lifecycle.unobservableWrites([unseen(path.join(realpathSync(root), 'src', 'link.txt'))], alias).length, 1,
+    'an escaping symlink leaf stays counted when the root is an alias')
   // Mixed: only the outside one drops out.
   assert.equal(lifecycle.unobservableWrites([...counted.slice(0, 1), unseen(path.join(elsewhere, 'x'))], root).length, 1)
 })

@@ -1106,6 +1106,10 @@ const LITERAL_DOLLARS_REFUSED = (p, session) => [
   `S=${p}; git -C $S/.git commit -qm f`,
   `S=${p}/.git; cd $S && git commit -qm f`,
   `S="${p}"; : <<EOF\n: S=${p}\nEOF\ngit -C $S commit -qm f`,
+  // Codex verification review of 47b10e13: zsh's `repeat` and `foreach` skip a body, so the
+  // assignment never ran and the use reads an inherited value (measured, zsh 5.9).
+  `repeat 0; S=${p}; git -C $S commit -qm f`,
+  `foreach x (); S=${p}; end; git -C $S commit -qm f`,
 ]
 // A fresh-directory variable keeps exactly ADR-086's operand forms.
 const FRESH_KEEPS_ADR_086 = () => [

@@ -5750,7 +5750,7 @@ function assignmentCounts(commands) {
 // after `;` or a newline.
 const FLAT_JOINERS = new Set([';', '&&', '\n', ''])
 const SHELL_KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'fi', 'while', 'until', 'do', 'done', 'for', 'case', 'esac',
-  'select', 'function', 'time', 'coproc', 'in', '!', '{', '}', '[[', '(('])
+  'select', 'function', 'time', 'coproc', 'in', '!', '{', '}', '[[', '((', 'repeat', 'foreach', 'end', 'always'])
 function runsInThisShell(commands, index) {
   if (!commands.every(command => FLAT_JOINERS.has(command.ended) && command.pipeTo === null && !SHELL_KEYWORDS.has(command.argv[0]))) return false
   return index === 0 || commands[index - 1].ended === ';' || commands[index - 1].ended === '\n'
@@ -5803,8 +5803,9 @@ const AUTO_UPDATED_NAMES = /^(?:_|REPLY|reply|OPTARG|OPTIND|LINENO|RANDOM|SECOND
 // through three Codex rounds; no shell manages such a name, which the supplementary test executes
 // in every shell the runner has (CLAUDE.md §16). `AUTO_UPDATED_NAMES` stays for the unarmed arm.
 const SCRATCH_NAME = /^[A-Za-z]\d{0,2}$/
-// A quote or a backslash inside a word is gone by the time the shell sees it: `I''FS` and `I\FS`
-// are `IFS`. So the special-name test reads the text once as written and once with them removed.
+// A quote or a backslash inside a word is often gone by the time the shell sees it: `I''FS` and
+// `I\FS` are `IFS`. Inside single quotes a backslash stays, so removing them is a conservative
+// check, not shell behaviour: the special-name test reads the text as written and with them removed.
 const namesShellSpecial = text => SHELL_SPECIAL_NAMES.test(text) || SHELL_SPECIAL_NAMES.test(text.replace(/['"\\]/g, ''))
 // The check for a write into the repository's own configuration reads the text the variable's use
 // stood in: a use that spells a `.git` or `hookspath` segment keeps the refusal.

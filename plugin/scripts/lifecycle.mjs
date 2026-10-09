@@ -5745,12 +5745,59 @@ export function freshDirectoryVariables(commands) {
   return fresh
 }
 
+
+// ADR-093: a literal directory variable is a name the command assigns exactly once, as a
+// bare `V=<value>` whose value is plain path text (no `$`, quote, glob, space, comma or
+// leading `-`, no `.` or `..` segment), spelled unquoted in the raw text, named nowhere
+// else as a word, and outside the names the hook and the shell read. `IFS` is the way to
+// split a plain value into git arguments (measured under bash, 2026-10-09), so a text
+// that names it, or any other shell-special name, has no literal variable at all. The
+// armed arm only: the unarmed proof reads `freshDirectoryVariables` and never this.
+const SHELL_SPECIAL_NAMES = /\b(?:IFS|CDPATH|PWD|OLDPWD|SHELLOPTS|BASHOPTS|PS4|PROMPT_COMMAND|BASH_\w+)\b/
+const LITERAL_VALUE = /^\/?[\w.][\w./:-]*$/
+const LITERAL_SUFFIX = /^[\w.:-]+(?:\/[\w.:-]+)*$/
+const hasDotSegment = value => value.split('/').some(part => part === '.' || part === '..')
+export function literalDirectoryVariables(commands, text) {
+  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES
+  const assigned = new Map()
+  const named = new Set()
+  for (const command of commands) {
+    for (const assignment of command.assignments) {
+      const name = assignment.slice(0, assignment.indexOf('='))
+      assigned.set(name, (assigned.get(name) ?? 0) + 1)
+    }
+    for (const word of command.argv) named.add(word.split('=')[0])
+  }
+  const literal = new Set()
+  for (const command of commands) {
+    if (command.argv.length || command.assignments.length !== 1 || command.substitutions.length
+      || command.heredocs.length || command.redirects) continue
+    const [assignment] = command.assignments
+    const found = /^([A-Za-z_]\w*)=(.*)$/s.exec(assignment)
+    if (!found) continue
+    const [, name, value] = found
+    if (assigned.get(name) !== 1 || named.has(name) || HOOK_ENVIRONMENT_NAMES.test(name)) continue
+    if (!LITERAL_VALUE.test(value) || hasDotSegment(value)) continue
+    // The parser strips quotes and escapes, so the spelling is read in the raw text: a
+    // quoted or escaped value is not the bare assignment this reads.
+    const spelled = new RegExp(`(?<=^|[\\s;&|(])${assignment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[\\s;&|)])`, 'g')
+    if ((text.match(spelled)?.length ?? 0) !== 1) continue
+    literal.add(name)
+  }
+  return literal
+}
 // How many of `command`'s words are `operand` standing as a directory: the only
-// operand of `cd`, the value of `git -C`, or the directory of `git init` (ADR-086).
-function directoryOperands(command, operand) {
+// operand of `cd`, the value of `git -C`, or the directory of `git init` (ADR-086). For a
+// literal directory variable (ADR-093) the only operand of `mkdir` counts too, and the
+// operand may carry a plain `/seg…` suffix; a fresh-directory variable keeps ADR-086's forms.
+function directoryOperands(command, operand, literal = false) {
   const { argv } = command
-  const expanded = k => argv[k] === operand && command.dynamic.includes(k)
+  const placed = word => word === operand
+    || (literal && typeof word === 'string' && word.startsWith(`${operand}/`)
+      && LITERAL_SUFFIX.test(word.slice(operand.length + 1)) && !hasDotSegment(word.slice(operand.length + 1)))
+  const expanded = k => placed(argv[k]) && command.dynamic.includes(k)
   if (argv[0] === 'cd') return argv.length === 2 && expanded(1) ? 1 : 0
+  if (literal && argv[0] === 'mkdir') return argv.length === 2 && expanded(1) ? 1 : 0
   if (argv[0] !== 'git') return 0
   let found = 0
   let at = 1
@@ -5820,9 +5867,19 @@ function maskedMessages(text) {
   return masked
 }
 
+// Whether every `$name` in `plain` stands as a directory operand: the commands' own operand
+// count and the text's operand matches both equal the number of references (ADR-086 T1).
+// One definition for both kinds of directory variable, so they cannot disagree.
+function usesAreOperands(plain, name, uses, operand) {
+  const references = plain.match(new RegExp(`\\$\\{?${name}(?!\\w)`, 'g'))?.length ?? 0
+  return uses === references && (plain.match(operand)?.length ?? 0) === references
+}
+
 // ADR-086 T1: `text` with each fresh-directory variable's assignment, and every use of
 // it as a directory operand, made plain. When any `$V` stands anywhere else, or the
 // text names a push, the text is returned as it came, and its `$` keeps the refusal.
+// ADR-093: a literal directory variable's uses are made plain the same way (its
+// assignment is plain text already), and the returned set holds both kinds of name.
 function freshDirectoryText(text) {
   // ADR-090 T1: every rule reading this text, here and in leavesHookInPlace, reads each
   // quoted commit message masked.
@@ -5830,8 +5887,9 @@ function freshDirectoryText(text) {
   if (!/[$`]/.test(text)) return { raw: text, fresh: NO_FRESH_DIRECTORIES }
   const { commands } = shellWords(text)
   const fresh = freshDirectoryVariables(commands)
+  const literal = literalDirectoryVariables(commands, text)
   const unchanged = { raw: text, fresh: NO_FRESH_DIRECTORIES }
-  if (fresh.size === 0 || /(?<![\w.-])push(?![\w-])/.test(text)) return unchanged
+  if ((fresh.size === 0 && literal.size === 0) || /(?<![\w.-])push(?![\w-])/.test(text)) return unchanged
   let plain = text
   for (const name of fresh) {
     const at = commands.findIndex(command => command.argv.length === 0 && command.assignments[0]?.startsWith(`${name}=`))
@@ -5839,12 +5897,18 @@ function freshDirectoryText(text) {
     const [template = ''] = shellWords(commands[at].substitutions[0]).commands[0].argv.slice(2)
     if (plain.split(assignment).length !== 2) return unchanged
     const uses = commands.slice(at + 1).reduce((sum, command) => sum + directoryOperands(command, `$${name}`), 0)
-    const references = plain.match(new RegExp(`\\$\\{?${name}(?!\\w)`, 'g'))?.length ?? 0
     const operand = new RegExp(`(?<=^|[\\s;&|(])(?:"\\$${name}"|\\$${name})(?=$|[\\s;&|)])`, 'g')
-    if (uses !== references || (plain.match(operand)?.length ?? 0) !== references) return unchanged
+    if (!usesAreOperands(plain, name, uses, operand)) return unchanged
     plain = plain.replace(assignment, () => `${name}=${template}`).replace(operand, () => 'fresh')
   }
-  return { raw: plain, fresh }
+  for (const name of literal) {
+    const at = commands.findIndex(command => command.argv.length === 0 && command.assignments[0]?.startsWith(`${name}=`))
+    const uses = commands.slice(at + 1).reduce((sum, command) => sum + directoryOperands(command, `$${name}`, true), 0)
+    const operand = new RegExp(`(?<=^|[\\s;&|(])(?:"\\$${name}(?:/[\\w./:-]*)?"|\\$${name}(?:/[\\w./:-]*)?)(?=$|[\\s;&|)])`, 'g')
+    if (!usesAreOperands(plain, name, uses, operand)) return unchanged
+    plain = plain.replace(operand, () => 'fresh')
+  }
+  return { raw: plain, fresh: new Set([...fresh, ...literal]) }
 }
 
 /**

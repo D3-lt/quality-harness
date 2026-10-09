@@ -4470,8 +4470,8 @@
       "tests": [
         "tests/publish-command.test.mjs"
       ],
-      "from": "    if (uses !== references || (plain.match(operand)?.length ?? 0) !== references) return unchanged",
-      "to": "    if ((plain.match(operand)?.length ?? 0) !== references) return unchanged",
+      "from": "  return uses === references && (plain.match(operand)?.length ?? 0) === references",
+      "to": "  return (plain.match(operand)?.length ?? 0) === references",
       "only": "^(?:an armed session still refuses a dollar it cannot place as a directory)$"
     },
     {
@@ -5555,6 +5555,46 @@
       "from": "  if (identity === null || identity === undefined) return false",
       "to": "  if (identity === undefined) return false",
       "only": "^content that returns to a blob already gated complete is that answer again$"
+    },
+    {
+      "label": "ADR-093: an armed session admits a literal directory variable as a directory operand",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const literal = literalDirectoryVariables(commands, text)",
+      "to": "  const literal = NO_FRESH_DIRECTORIES",
+      "only": "^an armed session leaves a literal-variable directory commit to git$"
+    },
+    {
+      "label": "ADR-093: a dollar outside a literal directory operand keeps the refusal",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  return uses === references && (plain.match(operand)?.length ?? 0) === references",
+      "to": "  return true",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
+    },
+    {
+      "label": "ADR-093: the unarmed arm does not read a literal directory variable",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "if (made.argv.length || !freshDirectoryVariables(commands).has(name)) return false",
+      "to": "if (made.argv.length || !(freshDirectoryVariables(commands).has(name) || literalDirectoryVariables(commands, text).has(name))) return false",
+      "only": "^an armed session leaves a literal-variable directory commit to git$"
+    },
+    {
+      "label": "ADR-093: a shell-special name takes every literal variable away",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES",
+      "to": "  if (false) return NO_FRESH_DIRECTORIES",
+      "only": "^an armed session still refuses a dollar it cannot place as a literal directory$"
     }
   ]
 }

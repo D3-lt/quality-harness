@@ -1038,6 +1038,92 @@ test('a target repository config does not switch off the injected hook', { skip:
   }
 })
 
+// ── ADR-093 T1: an armed session leaves a commit into a literal-variable directory to git ──
+//
+// A `$NAME` the text assigns once as a plain literal and uses only as a directory operand
+// cannot split, glob or inject (the text names no `IFS`), and cannot switch git's injected
+// hook off, so the commit is left to git. Every other `$` keeps the refusal (§16 twins).
+const litSlash = file => file.replace(/\\/g, '/')
+const literalParent = () => litSlash(mkdtempSync(path.join(hookTmp, 'lit-parent-')))
+const LITERAL_DIRECTORY_COMMITS = p => [
+  `S=${p}; mkdir $S/y && cd $S/y && git init -q && git commit -qm f`,
+  `S=${p}; mkdir "$S/y" && cd "$S/y" && git init -q && git commit -qm f`,
+  `S=${p}; cd $S && git init -q && git add . && git commit -qm f`,
+  `S=${p} && git init -q $S && git -C $S commit -qm f`,
+  `S=${p} && cd $S && git init -q && git commit -qm f`,
+]
+const LITERAL_DOLLARS_REFUSED = (p, session) => [
+  'cd $S && git commit -qm f',
+  'S=$(pwd); cd $S && git commit -qm f',
+  `S=${p} S2=x; cd $S && git commit -qm f`,
+  `export S=${p}; cd $S && git commit -qm f`,
+  `S=${p}; S=/other; cd $S && git commit -qm f`,
+  `S=${p}; read S; cd $S && git commit -qm f`,
+  `S=${p}; cd \${S} && git commit -qm f`,
+  `S=${p}; cd $S/.. && git commit -qm f`,
+  `S=${p}/..; cd $S && git commit -qm f`,
+  'S=..; cd $S && git commit -qm f',
+  `S="${p}"; cd $S && git commit -qm f`,
+  `S=${p}/\\x; cd $S && git commit -qm f`,
+  `S='${p} x'; cd $S && git commit -qm f`,
+  'S=-C; git -C $S commit -qm f',
+  `IFS=,; S=${p}; cd $S && git commit -qm f`,
+  `IFS=/; S=${p}; cd $S && git commit -qm f`,
+  `CDPATH=${p}; S=${p}; cd $S && git commit -qm f`,
+  `S=${p}; mkdir -p $S/y && cd $S/y && git commit -qm f`,
+  `S=${p}; rm -rf $S/y && git commit -qm f`,
+  `S=${p}; git -c core.hooksPath=$S commit -qm f`,
+  `S=${p}; git commit -qm $S`,
+  `GIT_DIR=${p}; cd $GIT_DIR && git commit -qm f`,
+  `S=${p}; cd $S && git init -q && git remote add o ${session} && git push o HEAD:x`,
+]
+// A fresh-directory variable keeps exactly ADR-086's operand forms.
+const FRESH_KEEPS_ADR_086 = () => [
+  `R=$(mktemp -d ${freshTemplate()}); mkdir $R && cd $R && git init -q && git commit -qm f`,
+  `R=$(mktemp -d ${freshTemplate()}); cd $R/y && git init -q && git commit -qm f`,
+]
+
+test('an armed session leaves a literal-variable directory commit to git', () => {
+  const armed = armedSession('lit-armed-')
+  const p = literalParent()
+  for (const command of LITERAL_DIRECTORY_COMMITS(p)) assert.notEqual(armed.decide(command), 'deny', command)
+  // DIRTY twins: unarmed there is no git hook to judge, so the same rows are refused, and the
+  // unarmed proof (freshRepositoryCommit) never reads a literal variable; a fresh variable
+  // keeps ADR-086's forms only.
+  const unarmed = armedSession('lit-unarmed-', { armed: false })
+  for (const command of LITERAL_DIRECTORY_COMMITS(p)) {
+    assert.equal(unarmed.decide(command), 'deny', command)
+    assert.equal(freshRepositoryCommit(command), false, command)
+  }
+  for (const command of FRESH_KEEPS_ADR_086()) assert.equal(armed.decide(command), 'deny', command)
+})
+
+test('an armed session still refuses a dollar it cannot place as a literal directory', () => {
+  const armed = armedSession('lit-dollar-')
+  const rows = LITERAL_DOLLARS_REFUSED(literalParent(), armed.dir)
+  for (const command of rows) assert.equal(armed.decide(command), 'deny', command)
+  // CLEAN twin: on a checked tree the same rows are not refused.
+  armed.check()
+  for (const command of rows) assert.notEqual(armed.decide(command), 'deny', command)
+})
+
+// Supplementary, outside the Acceptance fence: it executes the admitted rows.
+test('an admitted row run under bash commits only into the repository it created', { skip: process.platform === 'win32' && 'the rows are POSIX shell' }, () => {
+  const armed = armedSession('lit-run-')
+  const head = dir => spawnSync('git', ['-C', dir, 'rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 10_000 })
+  const before = head(armed.dir).stdout.trim()
+  const clean = Object.fromEntries(Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_')))
+  for (const template of LITERAL_DIRECTORY_COMMITS('@@P@@')) {
+    const p = literalParent()
+    const row = template.replaceAll('@@P@@', p).replace(' commit -qm f', ' commit -q --allow-empty -m f')
+    const run = spawnSync('bash', ['-c', row], { cwd: armed.dir, encoding: 'utf8', timeout: 60_000, env: { ...clean, ...IDENTITY, HOME: hookTmp } })
+    assert.equal(run.status, 0, `${row}: ${run.stderr}`)
+    assert.equal(head(armed.dir).stdout.trim(), before, `${row} moved the outer repository`)
+    const made = [p, `${p}/y`].filter(dir => existsSync(`${dir}/.git`) && head(dir).status === 0)
+    assert.equal(made.length, 1, `${row} committed in ${made.length} created repositories`)
+  }
+})
+
 // ── ADR-086 T2: an unarmed commit into a repository the command creates is advised ──
 //
 // With no git hook to judge at the event, only the text can prove where the commit

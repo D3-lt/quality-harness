@@ -9,10 +9,10 @@
 // it would have cleared stays open.
 import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
+import { appendFileSync, mkdirSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
-import { checkCommandOrigin, checkEventName, fastCheckCommand, observe, stateDir, unseenWriteSince, validationVerdict } from './lifecycle.mjs'
+import { checkCommandOrigin, fastCheckCommand, observe, passedAlready, stateDir, validationVerdict } from './lifecycle.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
@@ -64,48 +64,6 @@ export function checkLaunch(command, platform = process.platform, env = process.
   return bash ? { file: bash, args: ['-c', command], shell: false } : null
 }
 
-
-/**
- * passedAlready answers whether the ledger already proves this tree (ADR-081): the
- * LATEST record, by position, for the same command on the tree as it is now must
- * grade `check.passed`. Anything it cannot establish answers null, and the check
- * runs (ADR-005):
- * - a ledger line it cannot read;
- * - a tree it cannot observe;
- * - a directory outside git;
- * - a write git cannot see, recorded in ANY session's log after the pass started,
- *   since a tree hash cannot speak for it. Every session, because a check run by
- *   hand carries no session id; a log last changed before the pass cannot hold one.
- * `observeTree` is the seam a test replaces.
- */
-export function passedAlready({ root, git, command, env = process.env, observeTree = observe }) {
-  if (git !== true) return null
-  const now = observeTree(root)
-  if (now?.ok !== true) return null
-  let text
-  try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
-  let latest = null
-  let seq = 0
-  let latestSeq = 0
-  // ⚠ qh-check ends every record with a newline, so a last line without one was not written
-  // whole even when it parses, and proves nothing: read as the importer reads it (ADR-088).
-  const lines = text.split('\n')
-  if (lines.pop().trim()) return null
-  for (const line of lines) {
-    if (!line.trim()) continue
-    let record
-    try { record = JSON.parse(line) } catch { return null }
-    // A row that is not a record proves nothing, as the importer reads it.
-    if (typeof record?.id !== 'string') return null
-    seq += 1
-    if (record?.command === command && record?.after?.tree === now.tree) latest = record
-    if (latest === record) latestSeq = seq
-  }
-  if (!latest || checkEventName(latest) !== 'check.passed') return null
-  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
-  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)
-  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree }
-}
 // Runs a launched check to its end, forwarding SIGINT/SIGTERM and enforcing the
 // timeout. `received` is the signal this process forwarded, if any.
 async function runLaunched({ file, args, shell }, { root, env, platform, timeoutMs, stdout, stderr, keep }) {

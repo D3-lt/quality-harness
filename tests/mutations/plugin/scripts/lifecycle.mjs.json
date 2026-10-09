@@ -2210,8 +2210,8 @@
         "tests/lifecycle.test.mjs"
       ],
       "only": "the armed line is silent",
-      "from": "    if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))) {",
-      "to": "    if (awaitingArming(readEvents(input.cwd, input.session_id))) {"
+      "from": "    if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))",
+      "to": "    if (awaitingArming(readEvents(input.cwd, input.session_id))"
     },
     {
       "label": "ADR-068 T2: the arming line stops once the hook has run",
@@ -3800,8 +3800,8 @@
       "tests": [
         "tests/chaos-315-codex-render.test.mjs"
       ],
-      "from": "      lines.push(`${pathInCode(archive)} looks like an archive",
-      "to": "      lines.push(`\\`${archive}\\` looks like an archive",
+      "from": "      standing(`${pathInCode(archive)} looks like an archive",
+      "to": "      standing(`\\`${archive}\\` looks like an archive",
       "only": "SessionStart names an unmarked archive holding a tag"
     },
     {
@@ -4160,8 +4160,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "if (!latest || checkEventName(latest) !== 'check.passed') return null",
-      "to": "if (!latest) return null",
+      "from": "    if (record?.after?.tree === tree) { latest = record; latestSeq = count }\n  }\n  if (!latest || checkEventName(latest) !== 'check.passed') return null",
+      "to": "    if (record?.after?.tree === tree) { latest = record; latestSeq = count }\n  }\n  if (!latest) return null",
       "only": "^a commit with no fast pass, or a failed one, is still refused$"
     },
     {
@@ -4830,8 +4830,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "  if (lines.pop().trim()) return null",
-      "to": "  ;",
+      "from": "read as the importer reads `checks.jsonl`.\n  const lines = text.split('\\n')\n  if (lines.pop().trim()) return null",
+      "to": "read as the importer reads `checks.jsonl`.\n  const lines = text.split('\\n')\n  ;",
       "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
     },
     {
@@ -5775,6 +5775,96 @@
       "from": "  const writes = unobservableWrites(log, root)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
       "to": "  const writes = unobservableWrites(log)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
       "only": "^an absolute write outside the repository is not counted as unseen$"
+    },
+    {
+      "label": "ADR-094 T2: a standing paragraph is keyed without its text",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "update(`here#${root}#${text}`)",
+      "to": "update(`here#${root}`)",
+      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
+    },
+    {
+      "label": "ADR-094 T2: a standing paragraph is keyed without its repository",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "update(`here#${root}#${text}`)",
+      "to": "update(`here#${text}`)",
+      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
+    },
+    {
+      "label": "ADR-094 T2: a standing paragraph never expires",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "age >= 0 && age < STANDING_FACT_MAX_AGE_MS",
+      "to": "age >= 0 && age < Infinity",
+      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
+    },
+    {
+      "label": "ADR-094 T2: compaction and clear are gated like a start",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "{ once: input.source === 'startup' || input.source === 'resume' || input.source === undefined }",
+      "to": "{ once: true }",
+      "only": "^compaction and clear say every paragraph again$"
+    },
+    {
+      "label": "ADR-094 T2: a recorded pass no longer silences the previous-session notice",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared })) return ''",
+      "to": "if (false) return ''",
+      "only": "^the previous-session notice is silent when a pass is recorded for the current tree$"
+    },
+    {
+      "label": "ADR-094 T2: a clean tree silences the previous-session notice without a pass",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared })) return ''",
+      "to": "if (repository && declared && (passedAlready({ root: repository, git: true, command: declared }) || statusPaths(repository).length === 0)) return ''",
+      "only": "^a tree with no pass keeps the previous-session notice, clean or dirty$"
+    },
+    {
+      "label": "ADR-081 T1: the first record on the tree decides instead of the latest",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "if (record?.command === command && record?.after?.tree === now.tree) latest = record",
+      "to": "if (!latest && record?.command === command && record?.after?.tree === now.tree) latest = record",
+      "only": "^a pass followed by a failure on the same tree checks again$"
+    },
+    {
+      "label": "ADR-081 review: a row that is not a record is read as one by the skip",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "    if (typeof record?.id !== 'string') return null\n    seq += 1",
+      "to": "    if (false) return null\n    seq += 1",
+      "only": "^a row that is not a record proves nothing, in either ledger$"
+    },
+    {
+      "label": "ADR-088 follow-up: qh-check's skip reads an unterminated last line as torn",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "reads it (ADR-088).\n  const lines = text.split('\\n')\n  if (lines.pop().trim()) return null",
+      "to": "reads it (ADR-088).\n  const lines = text.split('\\n')\n  ;",
+      "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
     }
   ]
 }

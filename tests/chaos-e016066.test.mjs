@@ -401,7 +401,9 @@ test('a declared check cannot forge a line or a frame in SessionStart, and an or
   }
   // The control: an ordinary command, a redirection in it, is written as it is.
   write(repo, '.quality-harness.json', JSON.stringify({ check: 'bash scripts/selftest.sh 2>&1 < /dev/null' }))
-  assert.ok(start().includes("Verification: this project's own check is `bash scripts/selftest.sh 2>&1 < /dev/null`"), start())
+  // Once: ADR-094 T2 says a standing paragraph once per repository, so a second start here is silent.
+  const control = start()
+  assert.ok(control.includes("Verification: this project's own check is `bash scripts/selftest.sh 2>&1 < /dev/null`"), control)
   assert.ok(runTheCheckSentence(repo).includes('it runs `bash scripts/selftest.sh 2>&1 < /dev/null` (this project'), runTheCheckSentence(repo))
 })
 

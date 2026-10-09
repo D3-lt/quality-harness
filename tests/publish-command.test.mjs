@@ -1076,11 +1076,38 @@ const LITERAL_DOLLARS_REFUSED = (p, session) => [
   `S=${p}; git commit -qm $S`,
   `GIT_DIR=${p}; cd $GIT_DIR && git commit -qm f`,
   `S=${p}; cd $S && git init -q && git remote add o ${session} && git push o HEAD:x`,
+  // Codex review of 3772a178: each of these reached git as `-C . -c hook…enabled=false commit`.
+  `_=${p}; : '. -c hook.qh-publish-commit.enabled=false'; git -C $_ commit -qm f`,
+  `REPLY=${p}; git -C $REPLY commit -qm f`,
+  `S=${p}; read 'S[0]'; git -C $S commit -qm f`,
+  `S=${p}; S+=x; git -C $S commit -qm f`,
+  `S=${p}; declare -n r=S; git -C $S commit -qm f`,
+  `(S=${p}); git -C $S commit -qm f`,
+  `false && S=${p}; git -C $S commit -qm f`,
+  `true || S=${p}; git -C $S commit -qm f`,
+  `S=${p} & git -C $S commit -qm f`,
+  `S=${p} | cat; git -C $S commit -qm f`,
+  // Codex verification review: zsh's implicit reply array, and path (tied to PATH).
+  `reply=${p}; read -A; git -C $reply commit -qm f`,
+  `path=${p}; cd $path && git commit -qm f`,
+  `S=${p}; printf -v IFS %s ,; git -C $S commit -qm f`,
+  `if true; then S=${p}; fi; git -C $S commit -qm f`,
 ]
 // A fresh-directory variable keeps exactly ADR-086's operand forms.
 const FRESH_KEEPS_ADR_086 = () => [
   `R=$(mktemp -d ${freshTemplate()}); mkdir $R && cd $R && git init -q && git commit -qm f`,
   `R=$(mktemp -d ${freshTemplate()}); cd $R/y && git init -q && git commit -qm f`,
+  // The same gaps, closed for ADR-086's variable by the same review.
+  `R=$(mktemp -d ${freshTemplate()}); R+=x; cd $R && git init -q && git commit -qm f`,
+  `(R=$(mktemp -d ${freshTemplate()})); cd $R && git init -q && git commit -qm f`,
+  `false && R=$(mktemp -d ${freshTemplate()}); cd $R && git init -q && git commit -qm f`,
+  // The shell-updated names and IFS, for ADR-086's variable in the armed arm too.
+  `_=$(mktemp -d ${freshTemplate()}); : '. -c hook.qh-publish-commit.enabled=false'; git -C $_ commit -qm f`,
+  `REPLY=$(mktemp -d ${freshTemplate()}); read; git -C $REPLY commit -qm f`,
+  `OPTARG=$(mktemp -d ${freshTemplate()}); getopts a b; git -C $OPTARG commit -qm f`,
+  `reply=$(mktemp -d ${freshTemplate()}); read -A; git -C $reply commit -qm f`,
+  `IFS=,; R=$(mktemp -d ${freshTemplate()}); cd $R && git init -q && git commit -qm f`,
+  `R=$(mktemp -d ${freshTemplate()}); printf -v IFS %s ,; git -C $R commit -qm f`,
 ]
 
 test('an armed session leaves a literal-variable directory commit to git', () => {

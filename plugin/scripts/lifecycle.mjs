@@ -5711,37 +5711,75 @@ function plainPublishes(text, depth, inherited = false, fresh = NO_FRESH_DIRECTO
 const HOOK_ENVIRONMENT_NAMES = /\b(?:GIT_\w*|CLAUDE_\w*|PATH|HOME|XDG_CONFIG_HOME|env)\b/
 const NO_FRESH_DIRECTORIES = new Set()
 const FRESH_TEMPLATE = /^[\w./@%+:,][\w./@%+:,-]*$/
-export function freshDirectoryVariables(commands) {
+// ADR-093 (review of 3772a178): what a fresh or literal directory variable must also be.
+// Every identifier a command may write BY NAME is "mentioned": the words of its arguments
+// (`read S`, `printf -v S`, `declare -n r=S`, `S+=x` — which the lexer leaves as a word, not
+// an assignment — and `read 'S[0]'`) and the values of the other assignments (a nameref
+// target). A plain `$name…` operand only reads, so it is not. A mentioned name is not a
+// variable the text assigns once and leaves alone.
+const IDENTIFIER = /[A-Za-z_]\w*/g
+const OPERAND_SHAPE = /^\$[A-Za-z_]\w*(?:\/[\w.:-]+)*$/
+function mentionedNames(commands, except) {
+  const names = new Set()
+  commands.forEach((command, index) => {
+    for (const word of command.argv) {
+      if (!OPERAND_SHAPE.test(word)) for (const id of word.match(IDENTIFIER) ?? []) names.add(id)
+    }
+    if (index === except) return
+    for (const assignment of command.assignments) {
+      for (const id of assignment.slice(assignment.indexOf('=') + 1).match(IDENTIFIER) ?? []) names.add(id)
+    }
+  })
+  return names
+}
+// How often each name is assigned; `S+=x` appended to `S` is a second assignment of `S`.
+function assignmentCounts(commands) {
   const assigned = new Map()
-  const named = new Set()
   for (const command of commands) {
     for (const assignment of command.assignments) {
-      const name = assignment.slice(0, assignment.indexOf('='))
+      const name = assignment.slice(0, assignment.indexOf('=')).replace(/\+$/, '')
       assigned.set(name, (assigned.get(name) ?? 0) + 1)
     }
-    for (const word of command.argv) named.add(word.split('=')[0])
   }
+  return assigned
+}
+// The assignment provably ran in the shell that expands its uses: every command of the text
+// is a plain foreground command joined by `;`, `&&` or a newline (no pipe, `||`, `&`,
+// subshell, group or keyword — `(S=/tmp); cd $S` and `false && S=/tmp; cd $S` leave an
+// inherited value), and the assignment follows no `&&`: it is the first command, or comes
+// after `;` or a newline.
+const FLAT_JOINERS = new Set([';', '&&', '\n', ''])
+const SHELL_KEYWORDS = new Set(['if', 'then', 'else', 'elif', 'fi', 'while', 'until', 'do', 'done', 'for', 'case', 'esac',
+  'select', 'function', 'time', 'coproc', 'in', '!', '{', '}', '[[', '(('])
+function runsInThisShell(commands, index) {
+  if (!commands.every(command => FLAT_JOINERS.has(command.ended) && command.pipeTo === null && !SHELL_KEYWORDS.has(command.argv[0]))) return false
+  return index === 0 || commands[index - 1].ended === ';' || commands[index - 1].ended === '\n'
+}
+export function freshDirectoryVariables(commands, text = '') {
+  if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES
+  const assigned = assignmentCounts(commands)
   const fresh = new Set()
-  for (const command of commands) {
+  commands.forEach((command, index) => {
     if (command.argv.length || command.assignments.length !== 1 || command.substitutions.length !== 1
-      || command.heredocs.length || command.redirects) continue
+      || command.heredocs.length || command.redirects) return
     const [assignment] = command.assignments
     const name = /^([A-Za-z_]\w*)=/.exec(assignment)?.[1]
-    if (!name || assigned.get(name) !== 1 || named.has(name)) continue
-    if (HOOK_ENVIRONMENT_NAMES.test(name)) continue
+    if (!name || assigned.get(name) !== 1 || mentionedNames(commands, index).has(name) || !runsInThisShell(commands, index)) return
+    if (HOOK_ENVIRONMENT_NAMES.test(name)) return
+    if (AUTO_UPDATED_NAMES.test(name)) return
     const [inner] = command.substitutions
-    if (assignment !== `${name}=$(${inner})`) continue
+    if (assignment !== `${name}=$(${inner})`) return
     const parsed = shellWords(inner)
-    if (!parsed.complete || parsed.commands.length !== 1) continue
+    if (!parsed.complete || parsed.commands.length !== 1) return
     const [made] = parsed.commands
-    if (made.assignments.length || made.dynamic.length || made.substitutions.length || made.heredocs.length || made.redirects) continue
+    if (made.assignments.length || made.dynamic.length || made.substitutions.length || made.heredocs.length || made.redirects) return
     const [program, flag, ...templates] = made.argv
-    if (program !== 'mktemp' || flag !== '-d' || templates.length > 1 || !templates.every(word => FRESH_TEMPLATE.test(word))) continue
+    if (program !== 'mktemp' || flag !== '-d' || templates.length > 1 || !templates.every(word => FRESH_TEMPLATE.test(word))) return
     // The substitution is that ONE foreground command, word for word: an `&`, a `;`, a
     // pipe, a group or an arithmetic construct beside it is not (Codex re-review of a14a751).
-    if (inner !== made.argv.join(' ')) continue
+    if (inner !== made.argv.join(' ')) return
     fresh.add(name)
-  }
+  })
   return fresh
 }
 
@@ -5754,38 +5792,38 @@ export function freshDirectoryVariables(commands) {
 // that names it, or any other shell-special name, has no literal variable at all. The
 // armed arm only: the unarmed proof reads `freshDirectoryVariables` and never this.
 const SHELL_SPECIAL_NAMES = /\b(?:IFS|CDPATH|PWD|OLDPWD|SHELLOPTS|BASHOPTS|PS4|PROMPT_COMMAND|BASH_\w+)\b/
+// A variable the shell writes itself, without the text naming it: `_` after every command,
+// `REPLY` and zsh's `reply` after an operandless `read`, `OPTARG` after `getopts`, `MAPFILE`
+// after `mapfile`, and zsh's tied arrays. Judged by the candidate's NAME, never by a word in
+// the text (a command may say `status`), and for both kinds of directory variable.
+const AUTO_UPDATED_NAMES = /^(?:_|REPLY|reply|OPTARG|OPTIND|LINENO|RANDOM|SECONDS|PIPESTATUS|pipestatus|FUNCNAME|BASHPID|PPID|SHLVL|MAPFILE|path|cdpath|fpath|mailpath|manpath|module_path|psvar|watch|argv|status|signals|histchars)$/
 const LITERAL_VALUE = /^\/?[\w.][\w./:-]*$/
 const LITERAL_SUFFIX = /^[\w.:-]+(?:\/[\w.:-]+)*$/
 const hasDotSegment = value => value.split('/').some(part => part === '.' || part === '..')
 export function literalDirectoryVariables(commands, text) {
   if (SHELL_SPECIAL_NAMES.test(text)) return NO_FRESH_DIRECTORIES
-  const assigned = new Map()
-  const named = new Set()
-  for (const command of commands) {
-    for (const assignment of command.assignments) {
-      const name = assignment.slice(0, assignment.indexOf('='))
-      assigned.set(name, (assigned.get(name) ?? 0) + 1)
-    }
-    for (const word of command.argv) named.add(word.split('=')[0])
-  }
+  const assigned = assignmentCounts(commands)
   const literal = new Set()
-  for (const command of commands) {
+  commands.forEach((command, index) => {
     if (command.argv.length || command.assignments.length !== 1 || command.substitutions.length
-      || command.heredocs.length || command.redirects) continue
+      || command.heredocs.length || command.redirects) return
     const [assignment] = command.assignments
     const found = /^([A-Za-z_]\w*)=(.*)$/s.exec(assignment)
-    if (!found) continue
+    if (!found) return
     const [, name, value] = found
-    if (assigned.get(name) !== 1 || named.has(name) || HOOK_ENVIRONMENT_NAMES.test(name)) continue
-    if (!LITERAL_VALUE.test(value) || hasDotSegment(value)) continue
+    if (assigned.get(name) !== 1 || mentionedNames(commands, index).has(name) || HOOK_ENVIRONMENT_NAMES.test(name)) return
+    if (AUTO_UPDATED_NAMES.test(name)) return
+    if (!runsInThisShell(commands, index)) return
+    if (!LITERAL_VALUE.test(value) || hasDotSegment(value)) return
     // The parser strips quotes and escapes, so the spelling is read in the raw text: a
     // quoted or escaped value is not the bare assignment this reads.
     const spelled = new RegExp(`(?<=^|[\\s;&|(])${assignment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?=$|[\\s;&|)])`, 'g')
-    if ((text.match(spelled)?.length ?? 0) !== 1) continue
+    if ((text.match(spelled)?.length ?? 0) !== 1) return
     literal.add(name)
-  }
+  })
   return literal
 }
+
 // How many of `command`'s words are `operand` standing as a directory: the only
 // operand of `cd`, the value of `git -C`, or the directory of `git init` (ADR-086). For a
 // literal directory variable (ADR-093) the only operand of `mkdir` counts too, and the
@@ -5886,7 +5924,7 @@ function freshDirectoryText(text) {
   text = maskedMessages(text)
   if (!/[$`]/.test(text)) return { raw: text, fresh: NO_FRESH_DIRECTORIES }
   const { commands } = shellWords(text)
-  const fresh = freshDirectoryVariables(commands)
+  const fresh = freshDirectoryVariables(commands, text)
   const literal = literalDirectoryVariables(commands, text)
   const unchanged = { raw: text, fresh: NO_FRESH_DIRECTORIES }
   if ((fresh.size === 0 && literal.size === 0) || /(?<![\w.-])push(?![\w-])/.test(text)) return unchanged

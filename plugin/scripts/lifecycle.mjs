@@ -732,6 +732,45 @@ export function fastCheckCommand(root) {
   return fast && !constantSuccessCheck(fast) ? fast : null
 }
 
+// ADR-094 T3: the paths a project DECLARES as prose in `.quality-harness.json` (`"prose": [pathspecs]`),
+// default none. A tree that differs from a passed one only under them may reuse the pass; the project
+// asserts that its check reads none of them. A declaration that could hide code is refused whole and
+// said, never partly read (CLAUDE.md §16: an unrecognised input is not a safe one): a spec is a plain
+// pathspec of at most twenty, none naming the whole tree or leaving it, and each matches a tracked path,
+// no `.quality-harness.json` (it holds the check) and no submodule (`rm --cached` would drop the gitlink).
+const PROSE_SPEC = /^[\w.*][\w./*?[\]@+-]*$/
+const PROSE_MOST = 20
+export function proseSpecs(root) {
+  let config
+  try { config = JSON.parse(readFileSync(path.join(root, '.quality-harness.json'), 'utf8')) } catch { return { specs: [], problem: null } }
+  if (config === null || typeof config !== 'object' || !('prose' in config)) return { specs: [], problem: null }
+  const refuse = reason => ({ specs: [], problem: `the \`prose\` declaration in .quality-harness.json was ignored: ${reason}` })
+  const declared = config.prose
+  if (!Array.isArray(declared) || declared.length === 0 || declared.length > PROSE_MOST) {
+    return refuse(`it must be an array of one to ${PROSE_MOST} pathspecs`)
+  }
+  for (const spec of declared) {
+    if (typeof spec !== 'string' || !PROSE_SPEC.test(spec)) {
+      return refuse(`${JSON.stringify(spec)} is not a plain pathspec (letters, digits and \`._/-@+\`, the globs \`*?[]\`, not starting with \`-\`, \`:\` or \`/\`)`)
+    }
+    if (['.', '*', '**'].includes(spec) || spec.split('/').some(part => part === '.' || part === '..')) {
+      return refuse(`${JSON.stringify(spec)} would name the whole tree or leave it`)
+    }
+  }
+  for (const spec of declared) {
+    const listed = spawnSync('git', ['-C', root, 'ls-files', '-s', '-z', '--', `:(top)${spec}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    if (listed.error || listed.status !== 0) return refuse(`git could not list ${JSON.stringify(spec)}`)
+    const entries = listed.stdout.split('\0').filter(Boolean)
+    if (entries.length === 0) return refuse(`${JSON.stringify(spec)} matches no tracked path`)
+    for (const entry of entries) {
+      const [meta, file] = entry.split('\t')
+      if (meta.startsWith('160000')) return refuse(`${JSON.stringify(spec)} matches a submodule`)
+      if (file === '.quality-harness.json') return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)
+    }
+  }
+  return { specs: declared, problem: null }
+}
+
 /**
  * latestFastPass reads `fast-checks.jsonl`, which no reader of a full pass opens
  * (ADR-081): the LATEST fast record on this tree must grade as a pass. A line it
@@ -822,10 +861,16 @@ function outsideRoot(root, file) {
  *   hand carries no session id; a log last changed before the pass cannot hold one.
  * `observeTree` is the seam a test replaces. It lives here, not in qh-check, because
  * SessionStart reads it too (ADR-094 T2) and qh-check imports this module.
+ *
+ * ADR-094 T3: with `prose` (declared, validated paths) the tree is also observed with those
+ * paths removed, and a row whose `codeTree` is equal, for the same command and the same
+ * declared list, stands in for a tree that differs only under them (`viaProse`). A row
+ * written before the declaration has no `codeTree` and is never reused this way. The
+ * unseen-write veto below runs from the ORIGINAL pass's start either way.
  */
-export function passedAlready({ root, git, command, env = process.env, observeTree = observe }) {
+export function passedAlready({ root, git, command, env = process.env, observeTree = observe, prose = [] }) {
   if (git !== true) return null
-  const now = observeTree(root)
+  const now = prose.length ? observeTree(root, observeBudgetMs(env), { without: prose }) : observeTree(root)
   if (now?.ok !== true) return null
   let text
   try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
@@ -843,13 +888,16 @@ export function passedAlready({ root, git, command, env = process.env, observeTr
     // A row that is not a record proves nothing, as the importer reads it.
     if (typeof record?.id !== 'string') return null
     seq += 1
-    if (record?.command === command && record?.after?.tree === now.tree) latest = record
+    const sameTree = record?.after?.tree === now.tree
+    const sameCode = !sameTree && prose.length > 0 && typeof now.codeTree === 'string' && record?.after?.codeTree === now.codeTree
+      && Array.isArray(record?.prose) && record.prose.length === prose.length && record.prose.every((spec, at) => spec === prose[at])
+    if (record?.command === command && (sameTree || sameCode)) latest = record
     if (latest === record) latestSeq = seq
   }
   if (!latest || checkEventName(latest) !== 'check.passed') return null
   if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
   const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)
-  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree }
+  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, viaProse: latest.after.tree !== now.tree }
 }
 
 /**
@@ -5024,7 +5072,9 @@ export function observeBudgetMs(env = process.env) {
   const configured = Number(env.QUALITY_HARNESS_OBSERVE_BUDGET_MS)
   return Number.isSafeInteger(configured) && configured > 0 ? configured : OBSERVE_BUDGET_MS
 }
-export function observe(cwd, budgetMs = observeBudgetMs()) {
+// `without` (ADR-094 T3, only qh-check passes it) also returns `codeTree`: the tree with those paths removed from
+// the temporary index, anchored at the top. Hooks never ask, so they pay no git call for it.
+export function observe(cwd, budgetMs = observeBudgetMs(), { without = [] } = {}) {
   const started = Date.now()
   const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
   if (!directory) return { ok: false, reason: 'the working directory does not exist' }
@@ -5048,13 +5098,26 @@ export function observe(cwd, budgetMs = observeBudgetMs()) {
     const head = git(['rev-parse', '--verify', '-q', 'HEAD'], null, [0, 1])
     scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-observe-'))
     const index = path.join(scratch, 'index')
-    if (existsSync(indexPath)) copyFileSync(indexPath, index)
+    if (existsSync(indexPath)) {
+      copyFileSync(indexPath, index)
+      // ⚠ THE COPY KEEPS THE ORIGINAL'S TIME (ADR-094 T3, found at execution). Git trusts an entry's stat data
+      // unless the entry is not older than the INDEX FILE: such an entry is "racily clean" and is hashed. A copy
+      // made now is newer than every entry, so a file rewritten in the same second at the same size read as
+      // unchanged — and the observed tree, and every pass reused on it, missed the edit. Not older than the
+      // original is what git's own protocol asks. A time that cannot be set leaves the old behaviour.
+      try { const original = statSync(indexPath); utimesSync(index, original.atime, original.mtime) } catch { /* the copy keeps its own time */ }
+    }
     mkdirSync(path.join(scratch, 'objects'))
     const env = { GIT_INDEX_FILE: index, GIT_OBJECT_DIRECTORY: path.join(scratch, 'objects'), GIT_ALTERNATE_OBJECT_DIRECTORIES: objects }
     const indexTree = git(['write-tree'], env).out
     git(['add', '-A', ...harnessPathspecs(root)], env)
     const tree = git(['write-tree'], env).out
-    return { ok: true, tree, index: indexTree, head: head.status === 0 ? head.out : null }
+    let codeTree
+    if (without.length) {
+      git(['rm', '--cached', '-r', '-q', '--ignore-unmatch', '--', ...without.map(spec => `:(top)${spec}`)], env)
+      codeTree = git(['write-tree'], env).out
+    }
+    return { ok: true, tree, index: indexTree, head: head.status === 0 ? head.out : null, ...(codeTree === undefined ? {} : { codeTree }) }
   } catch (failure) {
     return { ok: false, reason: failure.message }
   } finally {

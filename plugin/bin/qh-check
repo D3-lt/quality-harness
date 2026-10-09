@@ -37,6 +37,14 @@ full check (ADR-081). With no `fastCheck` declared it says so and exits 2.
 A skip appends one row to `skips.jsonl` (the pass it reused, the tree, and that pass's duration as
 an estimate of the time saved), where no reader of a pass looks, so how often the skip saves a run can be counted.
 
+A project may declare `"prose": ["docs/", "*.md"]` in `.quality-harness.json` (ADR-094): pathspecs, at most
+twenty, whose changes alone reuse the last pass of the same check. It asserts that the project's check reads
+none of them, so the declaration is the project owner's to make; a check that does read them makes the reuse
+wrong. Each spec must match a tracked path, and none may be `.`, `*`, `**`, a path with a `..` segment, a
+submodule or `.quality-harness.json`: a declaration that breaks one is said and ignored whole. A reuse writes a
+pass row for the new tree (`reusedFrom`) and a skip row. With no declaration, one hint says so after a long
+passing run that followed a change to text documents only.
+
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root (ADR-031).
 """

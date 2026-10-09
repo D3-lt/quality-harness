@@ -5842,8 +5842,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "if (record?.command === command && record?.after?.tree === now.tree) latest = record",
-      "to": "if (!latest && record?.command === command && record?.after?.tree === now.tree) latest = record",
+      "from": "    if (record?.command === command && (sameTree || sameCode)) latest = record",
+      "to": "    if (!latest && record?.command === command && (sameTree || sameCode)) latest = record",
       "only": "^a pass followed by a failure on the same tree checks again$"
     },
     {
@@ -5865,6 +5865,66 @@
       "from": "reads it (ADR-088).\n  const lines = text.split('\\n')\n  if (lines.pop().trim()) return null",
       "to": "reads it (ADR-088).\n  const lines = text.split('\\n')\n  ;",
       "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
+    },
+    {
+      "label": "ADR-094 T3: a project that declares nothing gets a codeTree anyway",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "    if (without.length) {",
+      "to": "    if (true) {",
+      "only": "^a project that declares nothing is unchanged$"
+    },
+    {
+      "label": "ADR-094 T3: a pass is reused whatever the code tree is",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "typeof now.codeTree === 'string' && record?.after?.codeTree === now.codeTree",
+      "to": "typeof now.codeTree === 'string'",
+      "only": "^a change outside the declared paths runs the check, whatever else is reused$"
+    },
+    {
+      "label": "ADR-094 T3: a declaration matching the config is accepted",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "      if (file === '.quality-harness.json') return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)",
+      "to": "      void file",
+      "only": "^a declaration that could hide code is refused and said$"
+    },
+    {
+      "label": "ADR-094 T3: a declaration naming the whole tree is accepted when the config is untracked",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "['.', '*', '**'].includes(spec) || spec.split('/')",
+      "to": "spec.split('/')",
+      "only": "^a declaration that could hide code is refused and said$"
+    },
+    {
+      "label": "ADR-094 T3: the unseen-write veto does not run for a reuse",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null\n  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)\n  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, viaProse",
+      "to": "  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)\n  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, viaProse",
+      "only": "^an unseen write after the original pass vetoes a reuse$"
+    },
+    {
+      "label": "ADR-094 T3: the observed index copy takes the time of the copy",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observe-racy.test.mjs"
+      ],
+      "from": "utimesSync(index, original.atime, original.mtime)",
+      "to": "void original",
+      "only": "^observe sees a file rewritten in the same second at the same size$"
     }
   ]
 }

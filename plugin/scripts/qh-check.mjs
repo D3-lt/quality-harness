@@ -9,10 +9,10 @@
 // it would have cleared stays open.
 import { spawn, spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, realpathSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
-import { checkCommandOrigin, fastCheckCommand, observe, passedAlready, stateDir, validationVerdict } from './lifecycle.mjs'
+import { checkCommandOrigin, checkEventName, fastCheckCommand, firstMentionHere, observe, observeBudgetMs, passedAlready, proseSpecs, stateDir, validationVerdict } from './lifecycle.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
@@ -30,6 +30,38 @@ function checkTimeoutMs(env) {
 const inSeconds = ms => `${(ms / 1000).toFixed(1)}s`
 // A neighbour as the record keeps it: what its lease says, or that it could not be read.
 const recorded = seen => (seen ? [...seen.live, ...seen.unknown].map(({ file: _file, ...entry }) => entry) : null)
+
+// ADR-094 T3. A hint, once per repository, after a passing full run that took a while and followed a change to
+// nothing but text documents: the project may declare them as `prose`, which is its owner's call. Judged from
+// the previous full pass's HEAD (the tree hashes' objects are gone), so a change it cannot place says nothing.
+const PROSE_HINT = 'this run followed a change to nothing but text documents since the last full pass. If this project\'s check does not '
+  + 'read them, a "prose": [...] list in .quality-harness.json lets a later change to them alone reuse this pass (a check that does '
+  + 'read them makes that reuse wrong, so the declaration is the project owner\'s to approve); a "fastCheck" is the other lever (ADR-081).'
+const TEXT_DOCUMENT = /\.(?:md|mdx|txt|rst)$/i
+function proseHintMs(env) {
+  const configured = Number(env.QUALITY_HARNESS_PROSE_HINT_MS)
+  return Number.isSafeInteger(configured) && configured >= 0 ? configured : 60_000
+}
+function previousPassHead(root, command) {
+  let text
+  try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
+  let head = null
+  for (const line of text.split('\n')) {
+    let record
+    try { record = JSON.parse(line) } catch { continue }
+    if (record?.command === command && checkEventName(record) === 'check.passed' && typeof record.after?.head === 'string') head = record.after.head
+  }
+  return head
+}
+function onlyTextChangedSince(root, head) {
+  const paths = []
+  for (const args of [['diff', '--name-only', '-z', head, '--'], ['ls-files', '-z', '--others', '--exclude-standard']]) {
+    const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    if (run.error || run.status !== 0) return false
+    paths.push(...run.stdout.split('\0').filter(Boolean))
+  }
+  return paths.length > 0 && paths.every(file => TEXT_DOCUMENT.test(file))
+}
 // A spawn error or a missing status is not "this directory is not a repository".
 // That reading is the non-git exemption, and a pass then skips the tree comparison.
 export function repositoryDiscovery(spawnResult) {
@@ -116,15 +148,39 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     stderr.write('qh-check: this project has no check to run. Declare one as `check` in .quality-harness.json.\n')
     return 2
   }
+  // ADR-094 T3: the paths the project declared as prose, validated; a declaration that could hide code is said and ignored.
+  const prose = git === true && !fast ? proseSpecs(root) : { specs: [], problem: null }
+  if (prose.problem) stderr.write(`qh-check: ${prose.problem}\n`)
+  const observeNow = () => (prose.specs.length ? observe(root, observeBudgetMs(env), { without: prose.specs }) : observe(root))
   // ADR-081: the ledger answers before the lease is taken, so a skip never waits its
   // turn. A run that misses observes the tree again after its wait, below.
   // QUALITY_HARNESS_CHECK_AGAIN=1 is `--again` for every run: a project, or a test,
   // whose check depends on something outside the tree opts out of the skip.
-  const already = again || env.QUALITY_HARNESS_CHECK_AGAIN === '1' ? null : passedAlready({ root, git, command, env })
+  let already = again || env.QUALITY_HARNESS_CHECK_AGAIN === '1' ? null : passedAlready({ root, git, command, env, prose: prose.specs })
+  // A prose reuse is a pass row for THIS tree, so the publish verdict reads it as it reads any pass: its times are the
+  // original's (it claims no more), its marker is `reusedFrom`, and one that cannot be written runs the check instead.
+  if (already?.viaProse) {
+    const original = already.record
+    const row = { id: randomUUID(), at: new Date().toISOString(), git, command, origin: original.origin,
+      before: { ...already.now, at: original.before.at }, after: { ...already.now, at: original.after.at },
+      exit: 0, signal: null, verdict: original.verdict, cores: original.cores, contended: original.contended,
+      beside: null, besideAtEnd: null, waitedMs: 0, prose: prose.specs, reusedFrom: original.reusedFrom ?? original.id }
+    try {
+      mkdirSync(stateDir(root), { recursive: true })
+      appendFileSync(path.join(stateDir(root), 'checks.jsonl'), `${JSON.stringify(row)}\n`, 'utf8')
+    } catch (failure) {
+      stderr.write(`qh-check: the prose reuse could not be recorded (${failure.code ?? failure.message}), so the check runs.\n`)
+      already = null
+    }
+    if (already) already.reuse = row
+  }
   if (already) {
     const took = already.ms === null ? '' : `, in ${inSeconds(already.ms)}`
-    stderr.write(`qh-check: already passed on this tree at ${already.at}${took} (\`${command}\`) — not run again. `
-      + 'A tree hash covers no ignored file, environment or service; `qh-check --again` runs it.\n')
+    stderr.write(already.viaProse
+      ? `qh-check: only prose changed (${prose.specs.join(', ')}), so the pass at ${already.at}${took} (\`${command}\`) stands for this tree — not run again; `
+        + `recorded as a reuse of ${already.reuse.reusedFrom}. The tree without the prose covers no ignored file, environment or service; \`qh-check --again\` runs it.\n`
+      : `qh-check: already passed on this tree at ${already.at}${took} (\`${command}\`) — not run again. `
+        + 'A tree hash covers no ignored file, environment or service; `qh-check --again` runs it.\n')
     // The owner, 2026-10-02: a skip left no trace, so how often it saves a run could not be
     // counted (ADR-081's follow-up). It goes to `skips.jsonl`, where no reader of a pass looks —
     // a row in checks.jsonl would become the tree's latest record and undo the next skip. A
@@ -132,7 +188,8 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     try {
       mkdirSync(stateDir(root), { recursive: true })
       appendFileSync(path.join(stateDir(root), 'skips.jsonl'), `${JSON.stringify({ id: randomUUID(), at: new Date().toISOString(),
-        command, tree: already.tree, passId: already.id, passedAt: already.at, savedMs: already.ms })}\n`, 'utf8')
+        command, tree: already.tree, passId: already.id, passedAt: already.at, savedMs: already.ms,
+        ...(already.viaProse ? { viaProse: true } : {}) })}\n`, 'utf8')
     } catch (failure) {
       stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\n`)
     }
@@ -207,7 +264,9 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   // An option passed is used as given, so a 0 or a NaN is read as invalid, not replaced by the host's.
   const load = { ...(loadavg !== undefined ? { loadavg } : {}), ...(cores !== undefined ? { cores } : {}) }
   const loadAtStart = sampleLoad(load)
-  const before = { ...observe(root), at: startedAt, load: loadAtStart.load }
+  // The previous full pass's HEAD, read before this run's own row exists: the hint compares against it.
+  const previousHead = !fast && git === true && prose.specs.length === 0 ? previousPassHead(root, command) : null
+  const before = { ...observeNow(), at: startedAt, load: loadAtStart.load }
   let kept = Buffer.alloc(0)
   const keep = chunk => {
     kept = Buffer.concat([kept, chunk])
@@ -227,7 +286,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   }
   const { ended, received } = ran
   for (const line of besideAtEnd ? lease.besideLines(besideAtEnd) : []) stderr.write(`qh-check: at its end, ${line}\n`)
-  const after = { ...observe(root), at: new Date().toISOString(), load: sampleLoad(load).load }
+  const after = { ...observeNow(), at: new Date().toISOString(), load: sampleLoad(load).load }
   const signal = received ?? ended.signal ?? null
   const exit = ended.error ? null : ended.code
   // A check a signal ended did not finish, so it has no verdict: "failed" said it had
@@ -239,7 +298,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
       : validationVerdict({ exit_code: exit ?? 1, stdout: kept.toString('utf8') }, command, { anyCommand: true })
   const contended = contention(before.load, after.load, loadAtStart.cores)
   const record = { id: randomUUID(), at: after.at, git, command, origin, before, after, exit, signal, verdict, cores: loadAtStart.cores, contended,
-    beside: recorded(beside), besideAtEnd: recorded(besideAtEnd), waitedMs }
+    beside: recorded(beside), besideAtEnd: recorded(besideAtEnd), waitedMs, ...(prose.specs.length ? { prose: prose.specs } : {}) }
   try {
     const directory = stateDir(root)
     mkdirSync(directory, { recursive: true })
@@ -256,6 +315,10 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     stderr.write(`qh-check: ran \`${command}\` (${origin}) — ${said}; recorded in ${shown.startsWith('..') || path.isAbsolute(shown) ? file : shown}\n`)
   } catch (failure) {
     stderr.write(`qh-check: the check ran, but its record could not be written (${failure.code ?? failure.message}).\n`)
+  }
+  if (previousHead && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)
+    && onlyTextChangedSince(root, previousHead) && firstMentionHere(root, PROSE_HINT)) {
+    stderr.write(`qh-check: ${PROSE_HINT}\n`)
   }
   stderr.write(`qh-check: ${loadLine(before.load, after.load, loadAtStart.cores)}\n`)
   if (ended.error) {

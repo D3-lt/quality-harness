@@ -432,7 +432,7 @@ export function render(state, { brief = false } = {}) {
     ci = `${named}: every job concluded success.`
   } else {
     ci = `${named}: ${String(state.ci.conclusion).toUpperCase()}`
-      + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`
+      + `${state.ci.failed.length ? ` — ${brief ? cappedNames(state.ci.failed) : state.ci.failed.join(', ')}` : ''}`
     alarm = true
   }
   // A tip's answer is the pushed commit's as this clone last fetched it, not HEAD's: said at
@@ -653,12 +653,32 @@ export function ciRed(state) {
   return state.ci.status === 'completed' && state.ci.conclusion !== 'success'
 }
 
-// What a brief stamps when it withheld a snapshot past the cap, so the next prompt
-// that would withhold it again says nothing: the age in the message changes on every
-// prompt, and an unchanged unknown is said once (CLAUDE.md §15). The stamp names the
-// snapshot by its `at`: the cache writer keeps `said` across a refresh, and a stamp that
-// named none silenced the next snapshot's expiry too (Codex review of f79d84d).
-const withheldStamp = snapshot => `withheld: past the cap @${snapshot?.at}`
+// ADR-094 T1: a completed failed run is said in full when its KEY changes and as one line
+// otherwise. The key is the sha, the conclusion and the sorted FULL set of failed jobs, never
+// the capped text a brief displays: a swapped name past the third would otherwise read as
+// "unchanged" over a change. The short line is never stored as `said`, or the next full text
+// would be a bounce (full, short, full).
+const NAMES_SHOWN = 3
+const cappedNames = failed => failed.length > NAMES_SHOWN
+  ? `${failed.slice(0, NAMES_SHOWN).join(', ')}, +${failed.length - NAMES_SHOWN} more`
+  : failed.join(', ')
+export function redKey(state) {
+  if (!ciRed(state)) return null
+  const failed = Array.isArray(state.ci.failed) ? [...state.ci.failed].sort() : []
+  return JSON.stringify([state.ci.sha, String(state.ci.conclusion), failed])
+}
+const redLine = state => `⚠ CI ${state.ci.sha}: ${String(state.ci.conclusion).toUpperCase()}`
+  + `${state.ci.failed?.length ? `, ${state.ci.failed.length} job(s)` : ''}, unchanged`
+
+// Past the show cap a brief says nothing: the old answer is not shown, and a refresh is already
+// running. Only a refresh that could not be started is worth a line, and that line carries no
+// age (it would change on every prompt), so `said` holds it and it is said once (ADR-094 T1).
+export function pastCapLine(refreshing, previous) {
+  if (refreshing) return null
+  const line = `branch-state: the last answer is past the ${SHOW_AT_MOST_SECONDS / 60}-minute cap, `
+    + 'so it is not shown; a refresh could not be started.'
+  return previous?.said === line ? null : line
+}
 
 // The snapshot is replaced, never rewritten in place. A due brief stamps `said` while the
 // refresher it just started writes what it saw, and two truncating writes to one path
@@ -692,11 +712,11 @@ export function replaceFile(file, text, fs = { readdirSync, renameSync, statSync
   } catch { /* a directory that cannot be listed keeps what it holds */ }
 }
 
-function stampBriefSaid(store, said) {
+function stampBriefSaid(store, said, redKeyNow) {
   if (!store) return
   try {
     const current = JSON.parse(readFileSync(store, 'utf8'))
-    replaceFile(store, JSON.stringify({ ...current, said }))
+    replaceFile(store, JSON.stringify({ ...current, said, ...(redKeyNow === undefined ? {} : { redKey: redKeyNow }) }))
   } catch { /* a cache that cannot be written is not a failure */ }
 }
 
@@ -778,10 +798,16 @@ export function refreshBehind({ gitDir, spawnRefresher = startRefresher, now = D
 
 function emitCachedBranchState(state, { brief, age, previous, store, refreshing = false }) {
   const text = render(state, { brief })
-  if (brief && !ciRed(state) && previous && previous.said === text) return false
+  const key = brief ? redKey(state) : null
+  if (brief && key === null && previous && previous.said === text) return false
+  // ADR-094 T1: the same red run, already said in full, is one line. It is never stored.
+  if (key !== null && previous?.redKey === key) {
+    process.stdout.write(`${redLine(state)}\n`)
+    return true
+  }
   const suffix = age ? ` (read ${age}s ago${refreshing ? '; refreshing' : ''})` : ''
   process.stdout.write(`${text}${suffix}\n`)
-  if (brief) stampBriefSaid(store, text)
+  if (brief) stampBriefSaid(store, text, key)
   return true
 }
 function main(argv = process.argv.slice(2)) {
@@ -801,7 +827,7 @@ function main(argv = process.argv.slice(2)) {
       const current = read(store)
       // Keep `said` across a TTL refresh. Dropping it made every 120s reprint
       // an unchanged green brief (CLAUDE.md §17).
-      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))
+      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey }))
     } catch { /* a cache that cannot be written is not a failure */ }
   }
   if (argv.includes('--refresh')) {
@@ -854,15 +880,12 @@ function main(argv = process.argv.slice(2)) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
     const refreshing = refreshBehind({ gitDir: hint })
     if (pastShowCap(now - previous.at)) {
-      if (previous.said === withheldStamp(previous)) {
-        finish('withheld-stale-again', { status: 0 })
-        return 0
+      const line = pastCapLine(refreshing, previous)
+      if (line) {
+        process.stdout.write(`${line}\n`)
+        stampBriefSaid(join(hint, 'qh-branch-state.json'), line)
       }
-      process.stdout.write(`branch-state: the last answer is ${Math.round(age / 60)} min old, past the `
-        + `${SHOW_AT_MOST_SECONDS / 60}-minute cap, so it is not shown; `
-        + `${refreshing ? 'refreshing' : 'a refresh could not be started'}.\n`)
-      stampBriefSaid(join(hint, 'qh-branch-state.json'), withheldStamp(previous))
-      finish('withheld-stale', { status: 0 })
+      finish(line ? 'withheld-stale' : 'withheld-stale-again', { status: 0 })
       return 0
     }
     emitCachedBranchState(previous.state, { brief, age, previous, store: join(hint, 'qh-branch-state.json'), refreshing })

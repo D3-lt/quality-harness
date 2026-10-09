@@ -7,8 +7,8 @@
         "tests/branch-state.test.mjs"
       ],
       "only": "both snapshot writers replace the file",
-      "from": "    replaceFile(store, JSON.stringify({ ...current, said }))",
-      "to": "    writeFileSync(store, JSON.stringify({ ...current, said }))"
+      "from": "    replaceFile(store, JSON.stringify({ ...current, said, ...(redKeyNow === undefined ? {} : { redKey: redKeyNow }) }))",
+      "to": "    writeFileSync(store, JSON.stringify({ ...current, said, ...(redKeyNow === undefined ? {} : { redKey: redKeyNow }) }))"
     },
     {
       "label": "branch-state: the refresher replaces the snapshot rather than rewriting it in place",
@@ -17,8 +17,8 @@
         "tests/branch-state.test.mjs"
       ],
       "only": "both snapshot writers replace the file",
-      "from": "      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))",
-      "to": "      writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))"
+      "from": "      replaceFile(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey }))",
+      "to": "      writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said, redKey: payload.redKey ?? current?.redKey }))"
     },
     {
       "label": "branch-state: a refused rename still writes the snapshot in place",
@@ -186,8 +186,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "      + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`\n    alarm = true",
-      "to": "      + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`\n    alarm = false",
+      "from": "      + `${state.ci.failed.length ? ` — ${brief ? cappedNames(state.ci.failed) : state.ci.failed.join(', ')}` : ''}`\n    alarm = true",
+      "to": "      + `${state.ci.failed.length ? ` — ${brief ? cappedNames(state.ci.failed) : state.ci.failed.join(', ')}` : ''}`\n    alarm = false",
       "only": "^(?:a green run and a red run do not read alike|brief is one line, and still shouts when CI is red|the cached branch CLI reads a fresh answer without starting Git|a same-second tie reads the run that survived, whatever order gh lists it in|a green dispatch does not hide a red push at the same commit|every workflow at the newest commit answers, and a green one does not hide a red one|a run at an older commit does not colour the newest one, and HEAD answers when it ran|a re-run is as new as its latest start, and the id orders what the clock cannot|a listing that may have cut off a workflow is COULD NOT LOOK, never green)$"
     },
     {
@@ -540,14 +540,14 @@
       "only": "^an unchanged unknown is said once, and only a red CI repeats$"
     },
     {
-      "label": "branch-state: a withheld snapshot is said on every prompt",
+      "label": "branch-state: a refresh that could not start is said on every prompt",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "      if (previous.said === withheldStamp(previous)) {",
-      "to": "      if (false) {",
-      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
+      "from": "  return previous?.said === line ? null : line",
+      "to": "  return line",
+      "only": "^a snapshot past the cap says nothing, and a refresh that could not start says so once$"
     },
     {
       "label": "branch-state: a red CI is said once",
@@ -555,18 +555,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (brief && !ciRed(state) && previous && previous.said === text) return false",
+      "from": "  if (brief && key === null && previous && previous.said === text) return false",
       "to": "  if (brief && previous && previous.said === text) return false",
-      "only": "^an unchanged unknown is said once, and only a red CI repeats$"
-    },
-    {
-      "label": "branch-state: a withheld stamp names no snapshot",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "const withheldStamp = snapshot => `withheld: past the cap @${snapshot?.at}`",
-      "to": "const withheldStamp = snapshot => 'withheld: past the cap'",
       "only": "^an unchanged unknown is said once, and only a red CI repeats$"
     },
     {
@@ -628,6 +618,46 @@
       "from": "  const release = releaseHalf(run)",
       "to": "  const release = { tag: null, shippedSinceTag: null, releaseBlocked: null }",
       "only": "^job views stop at their budget, and the release half is read before gh$"
+    },
+    {
+      "label": "ADR-094 T1: the red key is the full sorted failed set, not the capped text",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "[...state.ci.failed].sort() : []",
+      "to": "[...state.ci.failed].sort().slice(0, NAMES_SHOWN) : []",
+      "only": "^a red CI whose failing jobs change past the third name is said in full again$"
+    },
+    {
+      "label": "ADR-094 T1: the red key carries the conclusion word",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "JSON.stringify([state.ci.sha, String(state.ci.conclusion), failed])",
+      "to": "JSON.stringify([state.ci.sha, failed])",
+      "only": "^a red CI whose failing jobs change past the third name is said in full again$"
+    },
+    {
+      "label": "ADR-094 T1: the short red line is never stored as said",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "    process.stdout.write(`${redLine(state)}\\n`)",
+      "to": "    process.stdout.write(`${redLine(state)}\\n`); stampBriefSaid(store, redLine(state), key)",
+      "only": "^a completed red CI is said in full once, then one unchanged line$"
+    },
+    {
+      "label": "ADR-094 T1: a withheld snapshot with a refresh running says nothing",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (refreshing) return null",
+      "to": "  if (refreshing) return 'branch-state: refreshing.'",
+      "only": "^a snapshot past the cap says nothing, and a refresh that could not start says so once$"
     }
   ]
 }

@@ -1118,7 +1118,15 @@ test('SessionEnd records what was left unverified, and the next startup here say
   // does not mask it; a checked end clears it; a different place is not here;
   // a subdirectory of the same repository is.
   const { dir: repo, session } = await unheldRepository('quality-sessionend-', 'service.py')
-  // A write git cannot see, so the row counts it beside the tree's own paths.
+  // A write git cannot see, so the row counts it beside the tree's own paths: an ignored file in the tree
+  // (ADR-094 T4 moved this example from a path outside the repository, which is no longer this tree's).
+  await writeFile(path.join(repo, '.git', 'info', 'exclude'), 'ignored-output.bin\n')
+  const hidden = path.join(repo, 'ignored-output.bin')
+  await writeFile(hidden, 'x')
+  runLifecycleHook({
+    hook_event_name: 'PostToolUse', tool_name: 'Write', cwd: repo, session_id: session,
+    tool_input: { file_path: hidden },
+  })
   const outside = path.join(testTmp, `sessionend-outside-${process.pid}.bin`)
   await writeFile(outside, 'x')
   runLifecycleHook({
@@ -1503,13 +1511,15 @@ test('EVIDENCE-LIMITED opens the completion gate only with a stated reason, and 
     'EVIDENCE-LIMITED: the integration environment is unreachable').stdout, /"systemMessage"/)
 
   // And a write git cannot see is not docs-only just because the tree's own
-  // changes are Markdown: the count of unseen paths is part of the finding.
+  // changes are Markdown: the count of unseen paths is part of the finding. The example is an
+  // ignored file in the tree; a path outside the repository is not this tree's (ADR-094 T4).
   const mixed = await unheldRepository('quality-escape-mixed-', 'notes.md')
-  const outside = path.join(testTmp, `escape-outside-${process.pid}.bin`)
-  await writeFile(outside, 'x')
+  await writeFile(path.join(mixed.dir, '.git', 'info', 'exclude'), 'ignored-output.bin\n')
+  const hidden = path.join(mixed.dir, 'ignored-output.bin')
+  await writeFile(hidden, 'x')
   runLifecycleHook({
     hook_event_name: 'PostToolUse', tool_name: 'Write', cwd: mixed.dir, session_id: mixed.session,
-    tool_input: { file_path: outside },
+    tool_input: { file_path: hidden },
   })
   assert.match(turnEnd(mixed.dir, mixed.session,
     'EVIDENCE-LIMITED: prose only, nothing here executes').stdout, /"systemMessage"/)

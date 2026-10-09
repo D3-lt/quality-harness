@@ -5892,19 +5892,19 @@
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "      if (file === '.quality-harness.json') return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)",
+      "from": "      if (isConfig(file)) return refuse(`${JSON.stringify(spec)} matches .quality-harness.json, which holds the check`)",
       "to": "      void file",
       "only": "^a declaration that could hide code is refused and said$"
     },
     {
-      "label": "ADR-094 T3: a declaration naming the whole tree is accepted when the config is untracked",
+      "label": "ADR-094 T3: a dot or parent segment passes the declaration",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "['.', '*', '**'].includes(spec) || spec.split('/')",
-      "to": "spec.split('/')",
-      "only": "^a declaration that could hide code is refused and said$"
+      "from": "if (spec.split('/').some(part => part === '.' || part === '..')) return",
+      "to": "if (false) return",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
     },
     {
       "label": "ADR-094 T3: the unseen-write veto does not run for a reuse",
@@ -5912,8 +5912,8 @@
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null\n  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)\n  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, viaProse",
-      "to": "  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)\n  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, viaProse",
+      "from": "  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null\n  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)\n  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, rows: seq, viaProse",
+      "to": "  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)\n  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, rows: seq, viaProse",
       "only": "^an unseen write after the original pass vetoes a reuse$"
     },
     {
@@ -5925,6 +5925,56 @@
       "from": "utimesSync(index, original.atime, original.mtime)",
       "to": "void original",
       "only": "^observe sees a file rewritten in the same second at the same size$"
+    },
+    {
+      "label": "ADR-094 T3: a wildcard-only spec passes the grammar",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "const PROSE_EXTENSION = /^(?:\\*\\*\\/)?\\*\\.[A-Za-z0-9]+$/",
+      "to": "const PROSE_EXTENSION = /^[\\w.*]+$/",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
+    },
+    {
+      "label": "ADR-094 T3: an untracked config is not looked for",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "if (untracked.stdout.split('\\0').filter(Boolean).some(isConfig)) return refuse(",
+      "to": "if (false) return refuse(",
+      "only": "^a declaration that could hide code is refused and said$"
+    },
+    {
+      "label": "ADR-094 T3: the config is compared in one letter case",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "const isConfig = file => file.toLowerCase() === '.quality-harness.json'",
+      "to": "const isConfig = file => file === '.quality-harness.json'",
+      "only": "^a config tracked under another letter case is still the config$"
+    },
+    {
+      "label": "ADR-094 T4: a symlink leaf is resolved before it is placed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/outside-root-writes.test.mjs"
+      ],
+      "from": "fold(canonicalFile(file))",
+      "to": "fold(canonical(file))",
+      "only": "^a relative or unplaceable write path is still counted as unseen$"
+    },
+    {
+      "label": "ADR-094 T3: a leading dash passes the grammar",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "const PROSE_LITERAL = /^[\\w.@+][\\w.@+/-]*$/",
+      "to": "const PROSE_LITERAL = /^[\\w.@+-][\\w.@+/-]*$/",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
     }
   ]
 }

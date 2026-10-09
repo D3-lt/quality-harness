@@ -45,13 +45,17 @@ function proseHintMs(env) {
 function previousPassHead(root, command) {
   let text
   try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
-  let head = null
+  let latest = null
   for (const line of text.split('\n')) {
     let record
     try { record = JSON.parse(line) } catch { continue }
-    if (record?.command === command && checkEventName(record) === 'check.passed' && typeof record.after?.head === 'string') head = record.after.head
+    if (record?.command === command && checkEventName(record) === 'check.passed' && typeof record.after?.head === 'string') latest = record
   }
-  return head
+  if (!latest) return null
+  // The pass is placed by its HEAD only when it was taken on that commit's own tree: a pass over uncommitted code
+  // says nothing about what differs from HEAD later (found by a Codex review of ADR-094).
+  const tree = spawnSync('git', ['-C', root, 'rev-parse', '--verify', '-q', `${latest.after.head}^{tree}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  return !tree.error && tree.status === 0 && tree.stdout.trim() === latest.after.tree ? latest.after.head : null
 }
 function onlyTextChangedSince(root, head) {
   const paths = []
@@ -124,7 +128,7 @@ async function runLaunched({ file, args, shell }, { root, env, platform, timeout
   return { ended, received }
 }
 
-export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false, again = false, fast = false, lease = leaseModule } = {}) {
+export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false, again = false, fast = false, lease = leaseModule, beforeReuse = () => {} } = {}) {
   const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
@@ -165,11 +169,19 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
       before: { ...already.now, at: original.before.at }, after: { ...already.now, at: original.after.at },
       exit: 0, signal: null, verdict: original.verdict, cores: original.cores, contended: original.contended,
       beside: null, besideAtEnd: null, waitedMs: 0, prose: prose.specs, reusedFrom: original.reusedFrom ?? original.id }
+    // The ledger must be as it was when the decision read it: a record appended since (a concurrent `--again` that
+    // failed, say) would otherwise be followed by this pass and read as superseded (found by a Codex review of ADR-094).
+    // `beforeReuse` is the seam a test uses to be that concurrent writer.
+    beforeReuse()
     try {
       mkdirSync(stateDir(root), { recursive: true })
-      appendFileSync(path.join(stateDir(root), 'checks.jsonl'), `${JSON.stringify(row)}\n`, 'utf8')
+      const file = path.join(stateDir(root), 'checks.jsonl')
+      let rows = 0
+      try { rows = readFileSync(file, 'utf8').split('\n').filter(line => line.trim()).length } catch { rows = 0 }
+      if (rows !== already.rows) throw Object.assign(new Error('the ledger changed since it was read'), { code: 'ELEDGER' })
+      appendFileSync(file, `${JSON.stringify(row)}\n`, 'utf8')
     } catch (failure) {
-      stderr.write(`qh-check: the prose reuse could not be recorded (${failure.code ?? failure.message}), so the check runs.\n`)
+      stderr.write(`qh-check: the prose reuse was not recorded (${failure.code ?? failure.message}), so the check runs.\n`)
       already = null
     }
     if (already) already.reuse = row

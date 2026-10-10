@@ -8,6 +8,9 @@ import { observe } from './tree-facts.mjs'
 import { statSync } from 'node:fs'
 import path from 'node:path'
 
+// ---- ADR-060: hooks are named events, each observed and appended to a log.
+// The state directory and the log itself are in `event-log.mjs`, imported above.
+
 export const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
 export function hasBackgroundWork(input) {

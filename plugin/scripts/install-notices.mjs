@@ -7,6 +7,10 @@ import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { FORWARDER_MARK, SHADOW_SCOPE, barePathWinner, citeOrphan, orphans, wiredInSettings } from './standalone-link.mjs'
 import path from 'node:path'
 
+// The standalone install's scope and PATH arithmetic live in one module, shared
+// with sync-standalone.mjs. Two copies of that list drifted apart once already.
+
+
 // A second, older copy of this toolkit answering instead of the plugin.
 //
 // A `.claude/bin/` and `.claude/hooks/` under the user's home hold a standalone

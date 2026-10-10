@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "hooks: SubagentStart names its own event",
+      "file": "plugin/scripts/on-subagent-start.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      hookEventName: 'SubagentStart',",
+      "to": "      hookEventName: 'SubagentStarted',",
+      "only": "^(?:SubagentStart states the leaf-role contract, and never blocks)$"
+    }
+  ]
+}

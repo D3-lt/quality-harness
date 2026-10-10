@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "lifecycle: SessionEnd writes the sessions ledger row",
+      "file": "plugin/scripts/on-session-end.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    appendFileSync(path.join(home, 'sessions.jsonl'), `${JSON.stringify({",
+      "to": "    void (path.join(home, 'sessions.jsonl'), `${JSON.stringify({",
+      "only": "^(?:SessionEnd records what was left unverified, and the next startup here says so)$"
+    }
+  ]
+}

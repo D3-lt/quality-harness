@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "advisory: the harness has no opinion about branches",
+      "file": "plugin/scripts/on-pre-tool-use.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (MUTATION_TOOLS.has(input.tool_name)) {",
+      "to": "  if (MUTATION_TOOLS.has(input.tool_name)) {\n    advise(\"you are on protected 'main'; create a task branch first\")",
+      "only": "^(?:reported: no advisory claims to have blocked anything|the harness has no opinion about git branches|the decision context is delivered once per path per session, and never as a finding|the corpus reader handles the spellings real repositories use)$"
+    },
+    {
+      "label": "lifecycle: inside a read-only role the plugin-level hook denies a write",
+      "file": "plugin/scripts/on-pre-tool-use.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (readOnlyRole(input.agent_type) && (SHELL_TOOLS.has(input.tool_name) || MUTATION_TOOLS.has(input.tool_name))) {",
+      "to": "  if (false) {",
+      "only": "^(?:a reviewer is denied only a command naming commit or push \\(ADR-060\\)|inside a read-only role, the plugin-level PreToolUse hook denies a write; elsewhere it does not \\(BACKLOG §135\\))$"
+    },
+    {
+      "label": "ADR-061: the artifact gate runs on a publish request only, never on a mention (§269 round 4)",
+      "file": "plugin/scripts/on-pre-tool-use.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "  if (recorded?.event === 'publish.requested') await artifactRule(input, recorded)",
+      "to": "  await artifactRule(input, recorded)",
+      "only": "^(?:a mention runs no artifact gate; a publish request does|a read-only reviewer is decided by the guard alone: no warning, no log write)$"
+    }
+  ]
+}

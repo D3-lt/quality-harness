@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "D: a turn that ends asks for the artifact pass",
+      "file": "plugin/scripts/on-turn-end.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "  await artifactRule(input, recorded)",
+      "to": "  void recorded",
+      "only": "^artifacts: a record written badly and a record written well are gated at the write and at the turn end$"
+    }
+  ]
+}

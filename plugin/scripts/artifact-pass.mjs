@@ -15,6 +15,13 @@ import { PLUGIN_ROOT } from './plugin-root.mjs'
 import { gitLines, gitRepositoryRoot, sessionBaseline, statusPaths, underTempRoot } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 
+// Rule A `artifact-invalid` (ADR-060): the artifact gates over everything this
+// session changed — committed since its first HEAD, uncommitted, and written by
+// a tool — minus every path a gate has already answered for THIS content. It has
+// no check gate: a malformed record is malformed whether or not the project
+// named a test command. Since ADR-080 it runs behind the boundary, in one pass
+// per session that writes its own ledger; see `startArtifactPass`.
+
 const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
 
 // Per artifact, at the commit and completion boundaries. The per-edit boundary

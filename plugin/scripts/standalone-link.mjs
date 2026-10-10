@@ -764,7 +764,11 @@ export function sameLineage(target, source, kind) {
 export function replaceable(entry, homeDirectory = os.homedir()) {
   const { to: target, relative, lineage } = entry
   let info
-  try { info = lstatSync(target) } catch { return { ok: true, why: 'absent' } }
+  try { info = lstatSync(target) } catch (error) {
+    // Only ENOENT is absent. A loop, a permission wall or an I/O error is a path nobody looked at, and the home
+    // directory holds the user's own tools (CLAUDE.md §3, ADR-005).
+    return error?.code === 'ENOENT' ? { ok: true, why: 'absent' } : { ok: false, why: `could not look at it (${error?.code ?? 'unknown error'})` }
+  }
   if (info.isSymbolicLink()) {
     const points = (() => { try { return readlinkSync(target) } catch { return '' } })()
     // Under the cache, or at exactly what this run would write. The second half

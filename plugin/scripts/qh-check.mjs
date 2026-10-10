@@ -12,7 +12,7 @@ import { randomUUID } from 'node:crypto'
 import { appendFileSync, lstatSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
-import { checkCommandOrigin, checkEventName, fastCheckCommand, firstMentionHere, observe, observeBudgetMs, passedAlready, proseSpecs, stateDir, validationVerdict } from './lifecycle.mjs'
+import { checkCommandOrigin, checkEventName, fastCheckCommand, firstMentionHere, observe, observeBudgetMs, passedAlready, projectConfigProblem, proseSpecs, stateDir, validationVerdict } from './lifecycle.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
@@ -146,6 +146,13 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
+  // A declaration that cannot be read is UNKNOWN, not empty: the inferred check below would be recorded as this
+  // project's pass in place of the one it declared (a trailing comma was enough).
+  const configProblem = projectConfigProblem(root)
+  if (configProblem) {
+    stderr.write(`qh-check: UNRUN — ${configProblem}, so the declared check, fastCheck and prose are UNKNOWN. A replacement would certify something the project did not name; fix the file and run again.\n`)
+    return 2
+  }
   // ADR-081: `--fast` runs the declared `fastCheck`, records it apart and never skips.
   const fastCommand = fast ? fastCheckCommand(root) : null
   if (fast && !fastCommand) {
@@ -226,7 +233,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     try {
       mkdirSync(stateDir(root), { recursive: true })
       appendFileSync(path.join(stateDir(root), 'skips.jsonl'), `${JSON.stringify({ id: randomUUID(), at: new Date().toISOString(),
-        command, tree: already.tree, passId: already.id, passedAt: already.at, savedMs: already.ms,
+        command, tree: already.tree, passId: already.passOf ?? already.id, passedAt: already.at, savedMs: already.ms,
         ...(already.viaProse ? { viaProse: true } : {}) })}\n`, 'utf8')
     } catch (failure) {
       stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\n`)

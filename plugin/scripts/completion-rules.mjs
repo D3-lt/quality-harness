@@ -517,12 +517,9 @@ function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn =
 // (ADR-060's key), carried in the action's detail.
 const NAMED_COMMIT_LIMIT = 5
 
-// Exported so its wording is tested without building newly reachable commits.
-export function uncheckedCommitsReason(cwd, commits, options = {}) {
-  return uncheckedCommitsText(runTheCheckSentence(cwd), commits, options)
-}
-
-function uncheckedCommitsText(sentence, commits, { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
+// Exported so its wording is tested without building newly reachable commits. The first argument is the sentence that names
+// the project's check (the facts carry it); the wording the tests look at is everything before it.
+export function uncheckedCommitsReason(sentence, commits, { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
   const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
   const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
@@ -664,7 +661,7 @@ export function completionJudgement(facts, input) {
     const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
     actions.push({
       rule: 'R2', key: keys.join(' '), detail: { commits: keys },
-      text: uncheckedCommitsText(facts.sentence(), unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),
+      text: uncheckedCommitsReason(facts.sentence(), unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),
     })
   }
   if (observation?.ok !== true || status?.ok === false || commits?.ok === false

@@ -13,6 +13,10 @@ import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
 const qhCheck = path.join(repoRoot, 'plugin', 'bin', 'qh-check')
+// A budget a test depends on is set by the test, never inherited from the product's default (CLAUDE.md §7): a loaded
+// Windows runner took 6.4 s over observe()'s 5 s here and read could-not-look (ADR-094 CI, 2026-10-10). The direct
+// `lifecycle.observe` calls and the hooks this file spawns read the same variable.
+process.env.QUALITY_HARNESS_OBSERVE_BUDGET_MS = '60000'
 const testTmp = realpathSync.native(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-fail-open-')))
 after(() => {

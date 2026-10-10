@@ -16,6 +16,9 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
 const hookScript = path.join(repoRoot, 'plugin', 'scripts', 'publish-hook.mjs')
 const qhCheck = path.join(repoRoot, 'plugin', 'bin', 'qh-check')
+// Set by the test, never inherited from the product's default (CLAUDE.md §7): its direct `lifecycle.observe` calls
+// and the hooks it spawns read this variable, and a loaded Windows runner outran the 5 s default (ADR-094 CI).
+process.env.QUALITY_HARNESS_OBSERVE_BUDGET_MS = '60000'
 const testTmp = realpathSync.native(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-ledger-binding-')))
 after(() => { try { rmSync(testTmp, { recursive: true, force: true }) } catch { /* the assertions already ran */ } })

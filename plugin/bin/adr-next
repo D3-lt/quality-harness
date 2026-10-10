@@ -273,7 +273,7 @@ def not_the_verdict(text):
 # any two of them "share" it: `adr-next <record with no tasks dir>` matched a
 # FOREIGN record's directory and answered with its tasks, confidently and with
 # that record's adr-verify command. Reported 2026-08-29 against the sibling
-# matching added the same day (docs/BACKLOG.md §66). `lifecycle.mjs::adrNumber`
+# matching added the same day (docs/BACKLOG.md §66). `decision-corpus.mjs::adrNumber`
 # already carried this lookahead for the same reason, measured 2026-08-26 — the
 # rule existed and this copy did not have it, which is what a third spelling of
 # one rule costs.
@@ -309,7 +309,7 @@ def program_output_removed(note):
 # a bidi override in a heading, and all of it printed raw on this tool's own "Next:"
 # line. So it is quoted and marked, stripped of controls, bidi overrides and ANSI,
 # its angle brackets neutralised (a quoted "</system-reminder>" is still a frame to a
-# reader), collapsed to one line and bounded. lifecycle.mjs quotedCorpusText is the
+# reader), collapsed to one line and bounded. corpus-text.mjs quotedCorpusText is the
 # same rule for SessionStart.
 # Zero-width characters and the BOM too: a U+200B passed into a quoted title (a Windows
 # chaos round of 916b515). Written as \U escapes, the same set as lifecycle.mjs.

@@ -1,0 +1,293 @@
+{
+  "mutations": [
+    {
+      "label": "lifecycle: a command keeps its real path and names an invisible character beside it (2.110.0-rc round 3 N4)",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  return `${codeSpan(shown)}${note}${tagged}`",
+      "to": "  return pathInCode(command)",
+      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
+    },
+    {
+      "label": "lifecycle: a path in the ready line cannot break out of its code span (2.110.0-rc round 2 N4)",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  const fence = '`'.repeat(longest + 1)",
+      "to": "  const fence = '`'",
+      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
+    },
+    {
+      "label": "lifecycle: an invisible character in a path is shown as an escape (2.110.0-rc round 2 N4)",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    char => `\\\\u{${char.codePointAt(0).toString(16)}}`)",
+      "to": "    char => char)",
+      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
+    },
+    {
+      "label": "lifecycle: SessionStart quotes a task's title and fence, defanged (2.110.0-rc chaos L7)",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, ' ')\n",
+      "to": "",
+      "only": "^(?:a ready task title and fence reach SessionStart quoted, and the fence is named as run)$"
+    },
+    {
+      "label": "corpus-probe: a known prefix is redacted in either separator spelling",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\\\', '/'), prefix.replaceAll('/', '\\\\')])]",
+      "to": "  const spellings = prefix => [prefix]",
+      "only": "^(?:scrubber: every absolute path is a placeholder, and a repository-relative one is untouched)$"
+    },
+    {
+      "label": "corpus-probe: a quoted path is redacted whole, spaces and all",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "    return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')",
+      "to": "    return out.replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')",
+      "only": "^(?:scrubber: every absolute path is a placeholder, and a repository-relative one is untouched)$"
+    },
+    {
+      "label": "corpus-probe: an unquoted path continues past a space when the next word is followed by a separator",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/corpus-probe.test.mjs"
+      ],
+      "from": "  const TAIL = /[^\\s'\"`)]*(?:[ \\t]+[^\\s'\"`)\\\\/]+(?=[\\\\/])[^\\s'\"`)]*)*/.source",
+      "to": "  const TAIL = /[^\\s'\"`)]*/.source",
+      "only": "^(?:scrubber: every absolute path is a placeholder, and a repository-relative one is untouched)$"
+    },
+    {
+      "label": "chaos 916b515: terminalText shows what drives a terminal as an escape",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "  return String(value).replace(/[\\u{0}-\\u{8}\\u{b}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, visiblePath)",
+      "to": "  return String(value)",
+      "only": "shows a hostile"
+    },
+    {
+      "label": "chaos 916b515: SessionStart quoting drops zero-width characters",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/terminal-output.test.mjs"
+      ],
+      "from": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, ' ')",
+      "to": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200e}\\u{200f}\\u{202a}-\\u{202e}\\u{2066}-\\u{2069}]/gu, ' ')",
+      "only": "drops zero-width"
+    },
+    {
+      "label": "§319 H1: a check command's controls are printed raw",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "return codeSpan(untagged(String(command).split('\\t').map(visiblePath).join('\\t')))",
+      "to": "return codeSpan(untagged(String(command)))",
+      "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "§319 H1: a tag in a check command is left to open or close a frame",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "codeSpan(untagged(String(command).split(",
+      "to": "codeSpan((String(command).split(",
+      "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "§319 H1: every < in a check command is neutralised, a redirection too",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "const TAG_OPEN = /<(?=\\/?[A-Za-z](?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "const TAG_OPEN = /</g",
+      "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "§319: a command in code keeps a control's bytes",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "/gu, visiblePath)\n  const hidden",
+      "to": "/gu, char => char)\n  const hidden",
+      "only": "a command keeps an invisible character a copy needs"
+    },
+    {
+      "label": "§321 codex render: the tag rule reverts to every < before a letter, a redirection too",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "const TAG_OPEN = /<(?=\\/?[A-Za-z](?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "const TAG_OPEN = /<(?=\\/?[A-Za-z])/g",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: a < that a > closes is kept when its name goes on",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "(?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$))",
+      "to": "(?:[\\w:-]*(?:[\\s/\\\\]|$))",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: a tag name that ends at a / is kept",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "[\\w:-]*(?:[\\s\\\\]|$)))/g",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: a tag name that ends the text is kept",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "[\\w:-]*(?:[\\s/])))/g",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: a tab in a check command is shown escaped",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "untagged(String(command).split('\\t').map(visiblePath).join('\\t'))",
+      "to": "untagged(visiblePath(command))",
+      "only": "a check command is shown byte for byte"
+    },
+    {
+      "label": "§321 codex render: the adr-verify command prints a tag raw",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "  return `${codeSpan(shown)}${note}${tagged}`",
+      "to": "  return `${codeSpan(text)}${note}${tagged}`",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: the adr-verify command does not say its shown path is not the real name",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "const tagged = shown === text ? '' :",
+      "to": "const tagged = true ? '' :",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: a ready line's own path prints a tag raw in its code span",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "  return codeSpan(shownPath(value))",
+      "to": "  return codeSpan(visiblePath(value))",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: a backslash does not end a tag's name",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "[\\w:-]*(?:[\\s/\\\\]|$)))/g",
+      "to": "[\\w:-]*(?:[\\s/]|$)))/g",
+      "only": "a tag whose name ends at a control"
+    },
+    {
+      "label": "§321 ansi: corpusText no longer removes a whole escape sequence",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "    .replace(ESCAPE_SEQUENCE, '')\n",
+      "to": ""
+    },
+    {
+      "label": "§321 ansi: corpusText ends an OSC at BEL only",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "(?:\\x07|\\x1b\\\\)/g",
+      "to": "(?:\\x07)/g",
+      "only": "adr-state quotes a record title"
+    },
+    {
+      "label": "§321 ansi: corpusText removes an unterminated OSC and the text after it",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/chaos-315-ansi.test.mjs"
+      ],
+      "from": "(?:\\x07|\\x1b\\\\)/g",
+      "to": "(?:\\x07|\\x1b\\\\)?/g",
+      "only": "adr-state quotes a record title"
+    },
+    {
+      "label": "§350 RC: a Windows path under ~ prints whole",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": ".replace(HOME_RELATIVE, '~<path>')",
+      "to": "",
+      "only": "^(?:a path under the home directory is a placeholder in either separator)$"
+    },
+    {
+      "label": "quoted corpus text: a » inside the text closes the quote",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/quoted-text-closes.test.mjs"
+      ],
+      "from": ".replaceAll('»', '›')",
+      "to": "",
+      "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
+    },
+    {
+      "label": "quoted corpus text: a « inside the text opens a second quote",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/quoted-text-closes.test.mjs"
+      ],
+      "from": "cut.replaceAll('«', '‹')",
+      "to": "cut",
+      "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
+    },
+    {
+      "label": "quoted corpus text: an angle bracket inside the text survives",
+      "file": "plugin/scripts/corpus-text.mjs",
+      "tests": [
+        "tests/quoted-text-closes.test.mjs"
+      ],
+      "from": ".replaceAll('<', '‹').replaceAll('>', '›')",
+      "to": "",
+      "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
+    }
+  ]
+}

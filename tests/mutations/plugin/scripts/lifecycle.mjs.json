@@ -110,56 +110,6 @@
       "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
     },
     {
-      "label": "lifecycle: a command keeps its real path and names an invisible character beside it (2.110.0-rc round 3 N4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  return `${codeSpan(shown)}${note}${tagged}`",
-      "to": "  return pathInCode(command)",
-      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
-    },
-    {
-      "label": "lifecycle: a path in the ready line cannot break out of its code span (2.110.0-rc round 2 N4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  const fence = '`'.repeat(longest + 1)",
-      "to": "  const fence = '`'",
-      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
-    },
-    {
-      "label": "lifecycle: an invisible character in a path is shown as an escape (2.110.0-rc round 2 N4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "    char => `\\\\u{${char.codePointAt(0).toString(16)}}`)",
-      "to": "    char => char)",
-      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
-    },
-    {
-      "label": "lifecycle: trackedPaths lists names git would quote (2.110.0-rc chaos)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/work-next-readiness.test.mjs"
-      ],
-      "from": "  for (const args of [['ls-files', '-z'], ['ls-files', '--others', '--exclude-standard', '-z']]) {",
-      "to": "  for (const args of [['ls-files'], ['ls-files', '--others', '--exclude-standard']]) {",
-      "only": "^(?:work-next text mode says UNPROVEN for a directory adr-next could not read, never an all-clear|a directory two records share offers only the Accepted record's task|a task under an archive whose README spelling is ambiguous is unproven, not work|work-next names the relock remedy when a claimed-done task is withheld by a moved lock|work-next marks a task that is both READY and claimed done without evidence|a record this reader cannot classify is not \"no corpus\"|a spec Status is read only where it is a Status, and only as a known value|a tracked file whose name git would quote is still listed|a task git lists but the disk does not hold is unproven, not counted|a done claim is read whatever horizontal space follows its Status)$"
-    },
-    {
-      "label": "lifecycle: SessionStart quotes a task's title and fence, defanged (2.110.0-rc chaos L7)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, ' ')\n",
-      "to": "",
-      "only": "^(?:a ready task title and fence reach SessionStart quoted, and the fence is named as run)$"
-    },
-    {
       "label": "orientation: a ready task under an unmarked archive leads with adopting it (§289.1)",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -260,46 +210,6 @@
       "only": "^(?:reported: no advisory claims to have blocked anything|the harness has no opinion about git branches|the decision context is delivered once per path per session, and never as a finding|the corpus reader handles the spellings real repositories use)$"
     },
     {
-      "label": "context: the archive is part of the corpus",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  ['superseded', 'graveyard'], ['withdrawn', 'graveyard'], ['rejected', 'graveyard'], ['deprecated', 'graveyard'],",
-      "to": "  ['superseded', null], ['withdrawn', null], ['rejected', null], ['deprecated', null],",
-      "only": "^(?:decisions reach the code: what governs a file, and what was killed there|reported: a shared tasks directory does not make every record claim its neighbours|adr-context answers which decisions govern a path, and which were killed there|adr-state derives what is decided now, instead of asking anyone to maintain it|the lifecycle router reads corpus state, and says so when it cannot)$"
-    },
-    {
-      "label": "context: a section is read without a JS \\Z anchor",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (/^#{1,6}\\s+\\S/.test(line)) break",
-      "to": "    if (false) break",
-      "only": "^(?:decisions reach the code: what governs a file, and what was killed there|reported: the layouts and scale a real corpus actually has)$"
-    },
-    {
-      "label": "context: a shared tasks directory is attributed, not assumed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    for (const entry of (claimed.length ? claimed : (sole ? texts : []))) {",
-      "to": "    for (const entry of texts) {",
-      "only": "^(?:decisions reach the code: what governs a file, and what was killed there|reported: a shared tasks directory does not make every record claim its neighbours|adr-state derives what is decided now, instead of asking anyone to maintain it)$"
-    },
-    {
-      "label": "context: a symlinked root still resolves",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const attempts = [path.relative(root, candidate), path.relative(real(root), real(candidate))]\n  const hit = attempts.find(inside)\n  if (hit !== undefined) return hit",
-      "to": "  return path.relative(root, candidate)",
-      "only": "^(?:reported: a symlinked checkout is not an empty corpus)$"
-    },
-    {
       "label": "context: said once per path per session",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -308,26 +218,6 @@
       "from": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return error?.code !== 'EEXIST' }",
       "to": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return true }",
       "only": "^(?:a finding is first once per session, and a compaction or /clear makes the session new)$"
-    },
-    {
-      "label": "context: only type path is resolved",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (matcher[1].toLowerCase() === 'path') paths.push(matcher[2].trim())",
-      "to": "      if (true) paths.push(matcher[2].trim())",
-      "only": "^(?:decisions reach the code: what governs a file, and what was killed there|a Governs declaration that matches nothing tracked is reported, and could-not-look is not)$"
-    },
-    {
-      "label": "context: * does not cross a separator",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        source += '[^/]*'",
-      "to": "        source += '.*'",
-      "only": "^(?:a declaration matches the file, the directory under it, and its globs|a Governs declaration that matches nothing tracked is reported, and could-not-look is not)$"
     },
     {
       "label": "context: a drifted standalone copy is named",
@@ -357,67 +247,6 @@
       "from": "  if (!newest || order(newest) <= order(running)) return ''",
       "to": "  if (!newest) return ''",
       "only": "^(?:reported: a session running a cached older plugin is told so)$"
-    },
-    {
-      "label": "state: a supersession chain is followed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      supersededBy: (/^superseded\\s+by\\b/i.test(status)",
-      "to": "      supersededBy: (false",
-      "only": "^(?:adr-state derives what is decided now, instead of asking anyone to maintain it)$"
-    },
-    {
-      "label": "corpus: tasks resolve from the directory named for the record",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if ((owns && Number(owns[1]) === number) || entry.name === stem) {",
-      "to": "    if (false) {",
-      "only": "^(?:a Proposed record has no ready tasks, and the router says why it stopped counting|a date-named record is read, and a docs/adr that yields nothing says so|reported: the layouts and scale a real corpus actually has|a signed-off human-observed task is finished, not ready forever)$"
-    },
-    {
-      "label": "corpus: a named directory is attribution in itself",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (tasks.owned) {",
-      "to": "        if (false) {",
-      "only": "^(?:reported: the layouts and scale a real corpus actually has)$"
-    },
-    {
-      "label": "corpus: an Affected Files cell is a path, not prose",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (/\\s/.test(cell) || !/[./\\\\]/.test(cell)) continue",
-      "to": "    if (false) continue",
-      "only": "^(?:reported: the layouts and scale a real corpus actually has)$"
-    },
-    {
-      "label": "corpus: an ISO-dated file is not a decision record",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs",
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i",
-      "to": "const ADR_FILE = /^(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i",
-      "only": "^(?:a date-named record is read, and a docs/adr that yields nothing says so|reported: the layouts and scale a real corpus actually has|every row of the recognition table reads its approved answer in lifecycle)$"
-    },
-    {
-      "label": "corpus: a status may carry a date after the word",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const word = edgeTrim(String(status ?? '')).match(/^[\\p{L}\\p{N}]+/u)?.[0].toLowerCase()",
-      "to": "  const word = edgeTrim(String(status ?? '')).toLowerCase()",
-      "only": "^(?:reported: the layouts and scale a real corpus actually has)$"
     },
     {
       "label": "verdict: a command that never started is not a failure",
@@ -508,77 +337,6 @@
       "from": "      if (scope.wired && !wired(name)) continue",
       "to": "      if (false) continue",
       "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named|what the drift notice reports is what the repair tool can act on)$"
-    },
-    {
-      "label": "state: a record that cannot be read is reported",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      unreadable.push({ file, status: status || null, taskFiles: recordTasks,\n        // Its identity, so one id claimed by an undecided record and a counted one is named (an outside\n        // probe run, 2026-10-07: `# ADR 006` with a Status no reader acts on beside ADR-006).\n        id: recordId(path.basename(file), titleLine(text)),\n        ...(archived?.unproven ? { unproven: archived.unproven, governs: wouldGovern(),\n          title: (text.match(/^#\\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })",
-      "to": "      void recordTasks",
-      "only": "^(?:a Proposed record has no ready tasks, and the router says why it stopped counting|a record the corpus reader cannot read is reported, not silently dropped|adr-state reports the three kinds of record it did not read, separately|a signed-off human-observed task is finished, not ready forever)$"
-    },
-    {
-      "label": "state: the unreadable list does not change the corpus shape",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })",
-      "to": "  records.unreadable = unreadable",
-      "only": "^(?:a record the corpus reader cannot read is reported, not silently dropped)$"
-    },
-    {
-      "label": "lifecycle: the hook says what the CLI says",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const caught = record => (record.enforcedBy?.length",
-      "to": "  const caught = record => (false && record.enforcedBy?.length",
-      "only": "^(?:adr-context answers which decisions govern a path, and which were killed there)$"
-    },
-    {
-      "label": "lifecycle: None in Enforced-by is not a check",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (!inline || /^none\\b/i.test(inline)) return []",
-      "to": "  if (!inline) return []",
-      "only": "^(?:adr-context answers which decisions govern a path, and which were killed there)$"
-    },
-    {
-      "label": "state: a Governs declaration that matches nothing is reported unresolved",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "            .filter(declaration => !tracked.some(file => pathMatchesDeclaration(file, declaration)))",
-      "to": "            .filter(() => false)",
-      "only": "^(?:a Governs declaration that matches nothing tracked is reported, and could-not-look is not)$"
-    },
-    {
-      "label": "state: a record this reader cannot classify still has its tasks attributed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  for (const tasks of taskDirectoriesFor(file, adrNumber(file, text), reader)) {",
-      "to": "  for (const tasks of []) {",
-      "only": "^(?:a Proposed record has no ready tasks, and the router says why it stopped counting|a signed-off human-observed task is finished, not ready forever)$"
-    },
-    {
-      "label": "corpus: a record is found by content when its filename does not announce it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs",
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "    if ((dirNorm && dirNorm.split('/').some(part => RECORD_DIRECTORY.test(part)))\n      || (dirNorm && placedUnderRecordDirectory(dirNorm)) || placedFileUnderRecordDirectory(absolute)) {",
-      "to": "    if (false) {",
-      "only": "^(?:a date-named record is read, and a docs/adr that yields nothing says so|every row of the recognition table reads its approved answer in lifecycle)$"
     },
     {
       "label": "checks: a build is not a project's check",
@@ -920,26 +678,6 @@
       "to": "  if (false) return ''"
     },
     {
-      "label": "hook-work: corpus inputs are read once per scan",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "only": "corpus scans",
-      "from": "      if (!results.has(key)) {",
-      "to": "      if (true) {",
-      "tests": [
-        "tests/hook-work.test.mjs"
-      ]
-    },
-    {
-      "label": "hook-work: corpus observations are fresh in each scan",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "only": "corpus scans",
-      "from": "  const reader = corpusReader()",
-      "to": "  const reader = adrCorpus.cachedReader ??= corpusReader()",
-      "tests": [
-        "tests/hook-work.test.mjs"
-      ]
-    },
-    {
       "label": "hook-work: a pre-start deadline identifies every unchecked artifact",
       "file": "plugin/scripts/lifecycle.mjs",
       "only": "artifact batch input",
@@ -978,26 +716,6 @@
       "from": "    const always = line.includes('UNPROVEN') || EVIDENCED_SUMMARY.test(line)\n    if (always || ordinary < cap) {\n      shown.push(line)\n      if (!always) ordinary += 1\n    }",
       "only": "^SessionStart always surfaces an UNPROVEN ready line and still caps ordinary ones$",
       "to": "    if (ordinary < cap) {\n      shown.push(line)\n      ordinary += 1\n    }"
-    },
-    {
-      "label": "corpus: an unreadable listed ADR is PARTIAL, not dropped as not-a-record",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/staged-product.test.mjs"
-      ],
-      "from": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: error?.code ?? 'unreadable' })\n      records.look = 'PARTIAL'\n      continue\n    }",
-      "to": "      continue\n    }",
-      "only": "a listed ADR that cannot be read is PARTIAL"
-    },
-    {
-      "label": "adr-state: a file never read carries a reason, not a missing Status line",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: error?.code ?? 'unreadable' })",
-      "to": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader) })",
-      "only": "adr-state names a file it could not open"
     },
     {
       "label": "observe: a write behind an in-tree link to an outside file is not observable",
@@ -1281,25 +999,6 @@
       "only": "^(?:at every hook boundary a torn log is never quieter than a whole one, however it tore)$"
     },
     {
-      "label": "orientation: a frozen archive's tasks are not work in flight",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "    if (archived === true) continue",
-      "to": "    if (false) continue",
-      "only": "^(?:session orientation asks adr-next about the active corpus and never about a frozen archive|a README git does not list cannot freeze a tracked task directory|an archive catalog at the repository root freezes the task directory beside it)$"
-    },
-    {
-      "label": "corpus: a retired record governs only if its archive catalog says so",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "    const status = archived?.unproven ? `frozen, effect UNPROVEN — ${archived.unproven}` : retired ? effect : recordStatus(text)",
-      "to": "    const status = archived?.unproven ? `frozen, effect UNPROVEN — ${archived.unproven}` : recordStatus(text)"
-    },
-    {
       "label": "advisory: the headline a person sees names the finding, not the prefix",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1479,80 +1178,6 @@
       "only": "^(?:the next session is not told of edits nobody observed|an UNKNOWN previous session still says what was independently known to be outstanding)$"
     },
     {
-      "label": "catalog: a record with no row is UNPROVEN, not governing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }",
-      "to": "  if (effects.length === 0) return null"
-    },
-    {
-      "label": "catalog: two rows for one record are UNPROVEN",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }",
-      "to": "  if (false) return { unproven: '' }"
-    },
-    {
-      "label": "catalog: only the three effects adr-retire-check accepts are read",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by \\S.*)$/i",
-      "to": "const ARCHIVE_EFFECT = /./"
-    },
-    {
-      "label": "catalog: a README git does not list governs nothing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate))",
-      "to": "  ['README.md']"
-    },
-    {
-      "label": "catalog: a row speaks for the file its link names",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "            const target = path.resolve(directory, ...href.split('/'))",
-      "to": "            const target = file"
-    },
-    {
-      "label": "catalog: an escaped pipe in a title is not a column",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "    if (line[index] === '\\\\' && line[index + 1] === '|') { cell += '|'; index += 1 }",
-      "to": "    if (false) { cell += '|'; index += 1 }"
-    },
-    {
-      "label": "orientation: a README git does not list freezes nothing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "        [...listed].filter(rel => rel.startsWith(prefix) && !rel.slice(prefix.length).includes('/')).map(rel => rel.slice(prefix.length)),",
-      "to": "        ['README.md'],",
-      "only": "^(?:session orientation asks adr-next about the active corpus and never about a frozen archive|a README git does not list cannot freeze a tracked task directory|an archive catalog at the repository root freezes the task directory beside it|a task directory that MAY be under a frozen archive gets an UNPROVEN line, not a ready one|work-next reads an unmarked archive as live, as every other reader does|an archive-named directory with no Lifecycle marker is named, with the adopt remedy|an unmarked archive is named only in a decision corpus, and only when it holds records|a ready task under an unmarked archive leads with adopting it, not with adr-verify|a ready task title and fence reach SessionStart quoted, and the fence is named as run|a path in the ready line cannot break out of its code span or hide a character|the ready line says first when the owning record is unreadable or not Accepted)$"
-    },
-    {
-      "label": "orientation: a tasks directory with no Markdown is not an ADR task set",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "    if (parts.length !== index + 2 || !/\\.md$/i.test(parts[index + 1])) continue",
-      "to": "    if (false) continue",
-      "only": "^(?:a directory named tasks that holds no Markdown is not an ADR task directory)$"
-    },
-    {
       "label": "verdict: a phrase alone is unproven, not unstarted",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1571,24 +1196,6 @@
       "from": "  if (record?.verdict === 'unproven') return 'check.unproven'",
       "to": "  void 0",
       "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
-    },
-    {
-      "label": "catalog: a fragment is not part of the file a row links to",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "            const href = link[1].split('#')[0]",
-      "to": "            const href = link[1]"
-    },
-    {
-      "label": "catalog: a README listed under another spelling is UNKNOWN, not absent",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": ".includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN : null } catch",
-      "to": ".includes(ARCHIVE_LIFECYCLE_LINE) ? null : null } catch"
     },
     {
       "label": "baseline: a SessionStart in the middle of a session is not its beginning",
@@ -1650,15 +1257,6 @@
       "only": "^(?:an order that cannot be established is said so, not reported as \"the failure ran last\")$"
     },
     {
-      "label": "catalog: a link is a plain relative path, or the row says nothing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "            if (!/^(?:\\.\\.?\\/)*[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$/.test(href)) continue",
-      "to": "            if (!href) continue"
-    },
-    {
       "label": "note: a log that could not be read whole cannot say which compaction was last",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1697,213 +1295,6 @@
       "only": "^(?:an archive catalog at the repository root freezes the task directory beside it|a task directory that MAY be under a frozen archive gets an UNPROVEN line, not a ready one)$"
     },
     {
-      "label": "orientation: a listed README that cannot be read may be a catalog",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "catch { frozen = 'unknown' }",
-      "to": "catch { frozen = false }",
-      "only": "^(?:an archive catalog at the repository root freezes the task directory beside it|a task directory that MAY be under a frozen archive gets an UNPROVEN line, not a ready one)$"
-    },
-    {
-      "label": "catalog: an ordinary readme.md, with no marker, is not an archive question",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "return read(path.join(directory, spellings[0])).split(/\\r?\\n/).includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN",
-      "to": "return read(path.join(directory, spellings[0])).length >= 0 ? README_UNKNOWN"
-    },
-    {
-      "label": "catalog: two listed README spellings are unknown outright, whatever they read as",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  if (spellings.length > 1) return README_UNKNOWN",
-      "to": "  void 0"
-    },
-    {
-      "label": "context: a path only an UNPROVEN record declares is not answered with silence",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  if (!governing.length && !graveyard.length && !unproven.length) return ''",
-      "to": "  if (!governing.length && !graveyard.length) return ''",
-      "only": "^(?:an UNPROVEN record is named where its paths are edited, and PARTIAL hides nothing else)$"
-    },
-    {
-      "label": "context: an UNPROVEN record is named in the edit-time context",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  if (unproven.length) {\n    lines.push('UNPROVEN",
-      "to": "  if (false) {\n    lines.push('UNPROVEN",
-      "only": "^(?:an UNPROVEN record is named where its paths are edited, and PARTIAL hides nothing else)$"
-    },
-    {
-      "label": "context: an UNPROVEN record keeps the paths its task tables name",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "        ...recordTasks.flatMap(task => { try { return affectedFiles(reader.text(task)) } catch { return [] } })])]",
-      "to": "        ])]",
-      "only": "^(?:an UNPROVEN record is named where its paths are edited, and PARTIAL hides nothing else)$"
-    },
-    {
-      "label": "catalog: the exact README.md is one of the spellings, counted before it is returned",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  if (spellings.length > 1) return README_UNKNOWN\n  if (spellings[0] === 'README.md') return path.join(directory, 'README.md')",
-      "to": "  if (spellings.includes('README.md')) return path.join(directory, 'README.md')\n  if (spellings.length > 1) return README_UNKNOWN"
-    },
-    {
-      "label": "orientation: the ancestor walk begins at the repository root",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  for (let depth = 0; depth < dirParts.length; depth++) {",
-      "to": "  for (let depth = 1; depth < dirParts.length; depth++) {",
-      "only": "^(?:an archive catalog at the repository root freezes the task directory beside it)$"
-    },
-    {
-      "label": "ADR-063: a record under a frozen archive is listed by its content",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "^a record under a frozen archive with no record-directory name is listed by its content$",
-      "from": "      if (admitted) files.push(absolute)",
-      "to": "      if (false) files.push(absolute)"
-    },
-    {
-      "label": "ADR-063: the catalog is found at the archive root",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "the lifecycle archive reader reads a record by its stem",
-      "from": "  const directory = catalogDirectoryFor(file, root, reader, listed)",
-      "to": "  const directory = path.dirname(file)"
-    },
-    {
-      "label": "ADR-063: a supersession names an id, never a date's digits",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "a dated supersession is never record 2026",
-      "from": "        ? supersessionTarget(retired ? status : rawStatus(text), status)",
-      "to": "        ? (/(\\d{1,4})/.exec(status)?.[1] ?? null)"
-    },
-    {
-      "label": "ADR-063: lifecycle's identity rule gives a dated name its stem",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "the JS and Python identity rules agree",
-      "from": "  if (DATE_SHAPED_RE.test(shaped)) return stem",
-      "to": "  if (false) return stem"
-    },
-    {
-      "label": "ADR-063: an unreadable catalog leaves a dated record listed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "^a catalog this reader cannot read, under a non-record name, leaves the record listed$",
-      "from": "      if (admitted) files.push(absolute)",
-      "to": "      if (admitted && frozenArchiveOf(root, tracked)(norm) !== 'unknown') files.push(absolute)"
-    },
-    {
-      "label": "ADR-063: a supersession must name a record to be an effect",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "a supersession that names no record",
-      "from": "  if (/^superseded\\b/i.test(effects[0]) && supersessionTarget(effects[0]) === null) {",
-      "to": "  if (false) {"
-    },
-    {
-      "label": "ADR-063: numbered supersession spellings are read",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "a numbered supersession is read in every spelling",
-      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)",
-      "to": "  const loose = /(?<![A-Za-z0-9_])ADR-(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)"
-    },
-    {
-      "label": "ADR-063: a numbered supersession needs a whole identifier",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "a numbered supersession needs a whole identifier",
-      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)",
-      "to": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?!\\d)/i.exec(plain)"
-    },
-    {
-      "label": "ADR-063: a bare leading number is a supersession candidate",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "a supersession by a bare number",
-      "from": "  const first = [bare, numbered, dated].filter(Boolean).sort((a, b) => a.at - b.at)[0]",
-      "to": "  const first = [numbered, dated, bare].filter(Boolean)[0]"
-    },
-    {
-      "label": "ADR-063: an underscore prefix is not a numbered reference",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "an underscore-prefixed token",
-      "from": "  const loose = /(?<![A-Za-z0-9_])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)",
-      "to": "  const loose = /(?<![A-Za-z0-9])ADR[-_ ]?(\\d{1,4})(?![0-9A-Za-z_])/i.exec(plain)"
-    },
-    {
-      "label": "ADR-063: a status keeps the underscores in a record name",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "a supersession keeps the underscores",
-      "from": "  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*`]/g, ''))",
-      "to": "  return edgeTrim((inlineStatus(text) ?? statusSection(text) ?? '').replace(/[*_`]/g, ''))"
-    },
-    {
-      "label": "ADR-063: a numbered supersession is read from the classified status",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-identity.test.mjs"
-      ],
-      "only": "emphasis around a numbered supersession",
-      "from": "  const plain = classified.replace(/^superseded\\s+by\\s*/i, '')",
-      "to": "  const plain = rest"
-    },
-    {
-      "label": "SessionStart: a task directory past the read cap is counted as unread, never dropped",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  return { read: ranked.slice(0, cap), unread: Math.max(0, ranked.length - cap), aliases: once.aliases, absent }",
-      "to": "  return { read: ranked.slice(0, cap), unread: 0, aliases: once.aliases, absent }",
-      "only": "^(?:SessionStart says how many task directories it did not read)$"
-    },
-    {
       "label": "lifecycle: a hook payload that is not JSON is said on stderr, never swallowed",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1912,36 +1303,6 @@
       "from": "    process.stderr.write(`[quality-harness] the hook payload on stdin was not JSON; nothing was read and nothing is said.${utf16}\\n`)",
       "to": "    process.stderr.write('')",
       "only": "^(?:a hook payload with a BOM is read, and one that is not JSON is said, not swallowed)$"
-    },
-    {
-      "label": "corpus-probe: a known prefix is redacted in either separator spelling",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-probe.test.mjs"
-      ],
-      "from": "  const spellings = prefix => [...new Set([prefix, prefix.replaceAll('\\\\', '/'), prefix.replaceAll('/', '\\\\')])]",
-      "to": "  const spellings = prefix => [prefix]",
-      "only": "^(?:scrubber: every absolute path is a placeholder, and a repository-relative one is untouched)$"
-    },
-    {
-      "label": "corpus-probe: a quoted path is redacted whole, spaces and all",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-probe.test.mjs"
-      ],
-      "from": "    return out.replace(QUOTED, '$1<path>$1').replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')",
-      "to": "    return out.replace(HOME_RELATIVE, '~<path>').replace(ABSOLUTE, '<path>')",
-      "only": "^(?:scrubber: every absolute path is a placeholder, and a repository-relative one is untouched)$"
-    },
-    {
-      "label": "corpus-probe: an unquoted path continues past a space when the next word is followed by a separator",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-probe.test.mjs"
-      ],
-      "from": "  const TAIL = /[^\\s'\"`)]*(?:[ \\t]+[^\\s'\"`)\\\\/]+(?=[\\\\/])[^\\s'\"`)]*)*/.source",
-      "to": "  const TAIL = /[^\\s'\"`)]*/.source",
-      "only": "^(?:scrubber: every absolute path is a placeholder, and a repository-relative one is untouched)$"
     },
     {
       "label": "SessionStart: the read-but-capped count prints before the not-read count, each saying what it counts",
@@ -2074,16 +1435,6 @@
       "only": "^(?:the same Go shapes under `go test -json` \\(real event lines\\) read the same)$"
     },
     {
-      "label": "archive: an unmarked archive-named directory is named",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "cache, listed) === false) found.add(",
-      "to": "cache, listed) === 'x') found.add(",
-      "only": "an archive-named directory"
-    },
-    {
       "label": "archive: SessionStart names an unmarked archive",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2121,16 +1472,6 @@
       ],
       "from": "  if (corpusLook === true) {\n    // The name test: SessionStart opens no record content (CLAUDE.md §19, ADR-092 Decision 11).\n    for (const archive of unmarkedArchives(root, listing)) {",
       "to": "  if (true) {\n    // The name test: SessionStart opens no record content (CLAUDE.md §19, ADR-092 Decision 11).\n    for (const archive of unmarkedArchives(root, listing)) {",
-      "only": "only in a decision corpus"
-    },
-    {
-      "label": "archive: only a directory holding records is named as an unmarked archive",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "    if (!record && !task) continue",
-      "to": "    if (false) continue",
       "only": "only in a decision corpus"
     },
     {
@@ -2324,26 +1665,6 @@
       "only": "an oversized command is still read"
     },
     {
-      "label": "chaos 916b515 C-1: the record budget marks where it stopped",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-budget.test.mjs"
-      ],
-      "from": "    if (charged >= RECORD_BUDGET) {",
-      "to": "    if (false) {",
-      "only": "a corpus past the record budget"
-    },
-    {
-      "label": "chaos 916b515 C-1: a stopped look names the file it did not examine",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-budget.test.mjs"
-      ],
-      "from": "      unreadable.push({ file, status: null, taskFiles: [],\n        reason: `record budget",
-      "to": "      void ({ file, status: null, taskFiles: [],\n        reason: `record budget",
-      "only": "a corpus past the record budget"
-    },
-    {
       "label": "chaos 916b515 LEAD 1: a moved node falls back to the node on PATH",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2364,26 +1685,6 @@
       "only": "node moved still runs"
     },
     {
-      "label": "chaos 916b515: terminalText shows what drives a terminal as an escape",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/terminal-output.test.mjs"
-      ],
-      "from": "  return String(value).replace(/[\\u{0}-\\u{8}\\u{b}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, visiblePath)",
-      "to": "  return String(value)",
-      "only": "shows a hostile"
-    },
-    {
-      "label": "chaos 916b515: SessionStart quoting drops zero-width characters",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/terminal-output.test.mjs"
-      ],
-      "from": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, ' ')",
-      "to": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200e}\\u{200f}\\u{202a}-\\u{202e}\\u{2066}-\\u{2069}]/gu, ' ')",
-      "only": "drops zero-width"
-    },
-    {
       "label": "chaos 916b515 G2: an UNPROVEN task directory offers no ready task",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2394,26 +1695,6 @@
       "only": "unreadable task offers none"
     },
     {
-      "label": "chaos 916b515 C-5: an unread task file stays attributed to its record",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-budget.test.mjs"
-      ],
-      "from": "          unreadTasks.push(taskPath)\n          if (tasks.owned) owned.push(taskPath)",
-      "to": "          unreadTasks.push(taskPath)",
-      "only": "tracked task file nobody could read"
-    },
-    {
-      "label": "chaos 916b515 C-5: an unread task file is recorded as unread",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-budget.test.mjs"
-      ],
-      "from": "          unreadTasks.push(taskPath)\n          if (tasks.owned) owned.push(taskPath)",
-      "to": "          if (tasks.owned) owned.push(taskPath)",
-      "only": "scope unknown, not empty"
-    },
-    {
       "label": "chaos 916b515 C-4: a task with no fence is not sent to adr-verify",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2422,26 +1703,6 @@
       "from": "        + (next.acceptance === null && next.human_observed === false",
       "to": "        + (false",
       "only": "no runnable fence is not sent"
-    },
-    {
-      "label": "chaos 916b515 C1: a folder named for another record is not this one's",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-budget.test.mjs"
-      ],
-      "from": "    if (!entry.isDirectory() || (entry.name !== stem && stems.has(entry.name))) continue",
-      "to": "    if (!entry.isDirectory()) continue",
-      "only": "two records with one id"
-    },
-    {
-      "label": "chaos 916b515 C-2: an ADR-prefixed record is found at any width",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-budget.test.mjs"
-      ],
-      "from": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?\\d{1,4}|\\d{3,4})[-._]/i",
-      "to": "const ADR_FILE = /^(?![0-9]{4}[-_.][0-9]{1,2}[-_.])(?:adr[-_]?)?\\d{3,4}[-._]/i",
-      "only": "ADR prefix is found at any width"
     },
     {
       "label": "win: spawnGate hides the gate it starts on Windows",
@@ -2472,16 +1733,6 @@
       "from": "  return Number.isSafeInteger(configured) && configured > 0 ? configured : OBSERVE_BUDGET_MS",
       "to": "  return OBSERVE_BUDGET_MS",
       "only": "budget is read|could not be observed"
-    },
-    {
-      "label": "BACKLOG §319 B: a record holding NUL is read as text",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "    if (text.includes('\\u0000')) {\n      charged += 1\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
-      "to": "    if (false) {\n      charged += 1\n      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
-      "only": "a record holding a NUL byte"
     },
     {
       "label": "BACKLOG §319 D: a check record's exit is graded whatever its type",
@@ -2575,36 +1826,6 @@
       "only": "git's own hook gives a failed start"
     },
     {
-      "label": "§319 H1: a check command's controls are printed raw",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "return codeSpan(untagged(String(command).split('\\t').map(visiblePath).join('\\t')))",
-      "to": "return codeSpan(untagged(String(command)))",
-      "only": "a declared check cannot forge a line"
-    },
-    {
-      "label": "§319 H1: a tag in a check command is left to open or close a frame",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "codeSpan(untagged(String(command).split(",
-      "to": "codeSpan((String(command).split(",
-      "only": "a declared check cannot forge a line"
-    },
-    {
-      "label": "§319 H1: every < in a check command is neutralised, a redirection too",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "const TAG_OPEN = /<(?=\\/?[A-Za-z](?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$)))/g",
-      "to": "const TAG_OPEN = /</g",
-      "only": "a declared check cannot forge a line"
-    },
-    {
       "label": "§319 H1: SessionStart's Verification line prints the declared check raw",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2655,16 +1876,6 @@
       "only": "SessionStart says adr-next's failure relative to the repository"
     },
     {
-      "label": "§319: a command in code keeps a control's bytes",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "/gu, visiblePath)\n  const hidden",
-      "to": "/gu, char => char)\n  const hidden",
-      "only": "a command keeps an invisible character a copy needs"
-    },
-    {
       "label": "§319 D4: a torn checks.jsonl is named as the session log",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2695,76 +1906,6 @@
       "only": "a torn checks.jsonl is named as checks.jsonl"
     },
     {
-      "label": "§321 codex render: the tag rule reverts to every < before a letter, a redirection too",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "const TAG_OPEN = /<(?=\\/?[A-Za-z](?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$)))/g",
-      "to": "const TAG_OPEN = /<(?=\\/?[A-Za-z])/g",
-      "only": "a check command is shown byte for byte"
-    },
-    {
-      "label": "§321 codex render: a < that a > closes is kept when its name goes on",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "(?:[^>]*>|[\\w:-]*(?:[\\s/\\\\]|$))",
-      "to": "(?:[\\w:-]*(?:[\\s/\\\\]|$))",
-      "only": "a check command is shown byte for byte"
-    },
-    {
-      "label": "§321 codex render: a tag name that ends at a / is kept",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "[\\w:-]*(?:[\\s/\\\\]|$)))/g",
-      "to": "[\\w:-]*(?:[\\s\\\\]|$)))/g",
-      "only": "a check command is shown byte for byte"
-    },
-    {
-      "label": "§321 codex render: a tag name that ends the text is kept",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "[\\w:-]*(?:[\\s/\\\\]|$)))/g",
-      "to": "[\\w:-]*(?:[\\s/])))/g",
-      "only": "a check command is shown byte for byte"
-    },
-    {
-      "label": "§321 codex render: a tab in a check command is shown escaped",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "untagged(String(command).split('\\t').map(visiblePath).join('\\t'))",
-      "to": "untagged(visiblePath(command))",
-      "only": "a check command is shown byte for byte"
-    },
-    {
-      "label": "§321 codex render: the adr-verify command prints a tag raw",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "  return `${codeSpan(shown)}${note}${tagged}`",
-      "to": "  return `${codeSpan(text)}${note}${tagged}`",
-      "only": "a tag in a task directory or file name"
-    },
-    {
-      "label": "§321 codex render: the adr-verify command does not say its shown path is not the real name",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "const tagged = shown === text ? '' :",
-      "to": "const tagged = true ? '' :",
-      "only": "a tag in a task directory or file name"
-    },
-    {
       "label": "§321 codex render: a ready line's diagnostic prefix prints a tag raw",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2782,16 +1923,6 @@
       ],
       "from": "lines.push(`  ${shownPath(posixListed(path.relative(root, directory) || directory))}: UNPROVEN",
       "to": "lines.push(`  ${posixListed(path.relative(root, directory) || directory)}: UNPROVEN",
-      "only": "a tag in a task directory or file name"
-    },
-    {
-      "label": "§321 codex render: a ready line's own path prints a tag raw in its code span",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "  return codeSpan(shownPath(value))",
-      "to": "  return codeSpan(visiblePath(value))",
       "only": "a tag in a task directory or file name"
     },
     {
@@ -2883,176 +2014,6 @@
       "from": "INFERRED check (${checkInCode(facts.checkCommand ?? 'unknown')})",
       "to": "INFERRED check (\\`${facts.checkCommand ?? 'unknown'}\\`)",
       "only": "the compaction note shows"
-    },
-    {
-      "label": "§321 codex render: a backslash does not end a tag's name",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "[\\w:-]*(?:[\\s/\\\\]|$)))/g",
-      "to": "[\\w:-]*(?:[\\s/]|$)))/g",
-      "only": "a tag whose name ends at a control"
-    },
-    {
-      "label": "ADR-074 T1: an ASCII regex word end stands in for the lookup",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-reading.test.mjs"
-      ],
-      "from": "  const word = edgeTrim(String(status ?? '')).match(/^[\\p{L}\\p{N}]+/u)?.[0].toLowerCase()",
-      "to": "  const word = edgeTrim(String(status ?? '')).match(/^[a-z]+\\b/i)?.[0].toLowerCase()",
-      "only": "^every reader gives one Status the same reading$"
-    },
-    {
-      "label": "ADR-074 T2: lifecycle reads a ## Status inside a code fence",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-section.test.mjs",
-        "tests/status-code-blocks.test.mjs"
-      ],
-      "from": "    const heading = fenced ? null : line.match(STATUS_HEADING)",
-      "to": "    const heading = line.match(STATUS_HEADING)",
-      "only": "^(?:a Status section is read, and an inline Status wins with advice when they disagree|a Status heading inside a code fence opens no section)$"
-    },
-    {
-      "label": "ADR-074 T2: lifecycle reads a ### Status as the section",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-section.test.mjs"
-      ],
-      "from": "const STATUS_HEADING = new RegExp(`^## ([^\\\\r\\\\n]+?)",
-      "to": "const STATUS_HEADING = new RegExp(`^#{2,6} ([^\\\\r\\\\n]+?)",
-      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
-    },
-    {
-      "label": "ADR-074 T2: lifecycle keeps the markup on a section's value",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-section.test.mjs"
-      ],
-      "from": "  return value === null ? null : edgeTrim(value.replace(/[*_`]/g, ''))",
-      "to": "  return value === null ? null : edgeTrim(inlineStatus(text) === null ? value : value.replace(/[*_`]/g, ''))",
-      "only": "^a Status section is read, and an inline Status wins with advice when they disagree$"
-    },
-    {
-      "label": "559827d chaos: lifecycle's content test ignores a Status section",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-section.test.mjs"
-      ],
-      "from": "  const status = recordStatus(text)\n  const placedDirectories = directoriesOf(placed, platform)",
-      "to": "  const status = inlineStatus(text)\n  const placedDirectories = directoriesOf(placed, platform)",
-      "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
-    },
-    {
-      "label": "559827d chaos: lifecycle reads content records under adr only, not decisions",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-section.test.mjs"
-      ],
-      "from": "  return directories.some((part, index) => RECORD_DIRECTORY.test(part) && !directories.slice(index + 1).some(anotherRecords))",
-      "to": "  return directories.some((part, index) => /^adr$/i.test(part) && !directories.slice(index + 1).some(anotherRecords))",
-      "only": "^a record whose Status is a section, or that sits in docs/decisions, is listed by every corpus reader$"
-    },
-    {
-      "label": "code-review of ADR-074: JS trim decides a value's edges",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-reading.test.mjs"
-      ],
-      "from": "const edgeTrim = value => value.replace(EDGE_SPACE, '')",
-      "to": "const edgeTrim = value => value.trim()",
-      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
-    },
-    {
-      "label": "code-review of ADR-074: the JS Status reader reads inside a code fence",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-reading.test.mjs"
-      ],
-      "from": "  for (const [index, [line, fenced]] of fencedLines(text).entries()) {\n    if (fenced) continue",
-      "to": "  for (const [index, [line, fenced]] of fencedLines(text).entries()) {\n    if (false) continue",
-      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
-    },
-    {
-      "label": "the React SPA corpus at 084d925: a no-break space is not edge whitespace in JS",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-reading.test.mjs"
-      ],
-      "from": "const EDGE_CODES = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,",
-      "to": "const EDGE_CODES = [0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x1680, 0x2000, 0x2001, 0x2002, 0x2003, 0x2004,",
-      "only": "^a Status is read outside code fences and after a colon, with one idea of whitespace and case$"
-    },
-    {
-      "label": "§321 ansi: corpusText no longer removes a whole escape sequence",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-ansi.test.mjs"
-      ],
-      "from": "    .replace(ESCAPE_SEQUENCE, '')\n",
-      "to": ""
-    },
-    {
-      "label": "§321 ansi: corpusText ends an OSC at BEL only",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-ansi.test.mjs"
-      ],
-      "from": "(?:\\x07|\\x1b\\\\)/g",
-      "to": "(?:\\x07)/g",
-      "only": "adr-state quotes a record title"
-    },
-    {
-      "label": "§321 ansi: corpusText removes an unterminated OSC and the text after it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-315-ansi.test.mjs"
-      ],
-      "from": "(?:\\x07|\\x1b\\\\)/g",
-      "to": "(?:\\x07|\\x1b\\\\)?/g",
-      "only": "adr-state quotes a record title"
-    },
-    {
-      "label": "Codex 3.1.6 #2: a bare Status label is the first label (lifecycle)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-codex-316.test.mjs"
-      ],
-      "from": "const STATUS_LABEL = /^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]*)$/",
-      "to": "const STATUS_LABEL = /^ {0,3}\\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\\*{0,2}|\\*{0,2}:)[ \\t]*([^\\r\\n]+)$/",
-      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
-    },
-    {
-      "label": "Codex 3.1.6 #3: a fence opener runs to the end of its line in lifecycle",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-codex-316.test.mjs"
-      ],
-      "from": "const marker = line.match(/^[ \\t]*(`{3,}|~{3,})([^\\r\\n]*)$/)",
-      "to": "const marker = line.match(/^[ \\t]*(`{3,}|~{3,})(.*)$/)",
-      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
-    },
-    {
-      "label": "Codex 3.1.6 #4: a Status heading ends in Python whitespace in lifecycle",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-codex-316.test.mjs"
-      ],
-      "from": "codeClass([...EDGE_CODES, 0x1C, 0x1D, 0x1E, 0x1F, 0x85])",
-      "to": "codeClass([...EDGE_CODES, 0xFEFF])",
-      "only": "^the Codex round of 3.1.6: every reader reads these records alike"
-    },
-    {
-      "label": "3.4.1: SessionStart reads the first listed task directories",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    .sort((a, b) => b.newest - a.newest || a.order - b.order)",
-      "to": "    .sort((a, b) => a.order - b.order)",
-      "only": "^SessionStart reads the most recently changed task directories, not the first listed$"
     },
     {
       "label": "ADR-080 T1: every artifact pass is forced in-process, so the boundary waits on it",
@@ -3265,36 +2226,6 @@
       "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
     },
     {
-      "label": "§343 review: a sibling of the repository reads as inside it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "return !(relative === '..' || relative.startsWith('../') || path.isAbsolute(relative)",
-      "to": "return !(relative === '..' || path.isAbsolute(relative)",
-      "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
-    },
-    {
-      "label": "§345: a plan reads as an unknown status",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-probe.test.mjs"
-      ],
-      "from": "return recordStatusKind(entry.status) === 'pending' ? 'a plan, not yet decided' : 'a status this reader does not recognise'",
-      "to": "return 'a status this reader does not recognise'",
-      "only": "^probe: a record held back says why — a plan, an unknown status, or none read$"
-    },
-    {
-      "label": "§345: a missing status line reads as an unknown status",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-probe.test.mjs"
-      ],
-      "from": "  if (entry.status == null) return 'no status line this reader can read'",
-      "to": "  if (false) return 'no status line this reader can read'",
-      "only": "^probe: a record held back says why — a plan, an unknown status, or none read$"
-    },
-    {
       "label": "§350 C6: the ready line drops the missing-owner hedge",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -3303,36 +2234,6 @@
       "from": "  if (report.owner_missing === true) {",
       "to": "  if (false) {",
       "only": "^the ready line says when no record owns the tasks, before the instruction$"
-    },
-    {
-      "label": "§350 C7: a record reached through a link loop is read every time",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-link-loop.test.mjs"
-      ],
-      "from": "    const at = firstPathTo.get(real)",
-      "to": "    const at = undefined",
-      "only": "^a record reached again through a link that loops is read once, and the copies are named$"
-    },
-    {
-      "label": "§350 C7 review: the first path is named raw",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-link-loop.test.mjs"
-      ],
-      "from": "  return `another listed path to the same file on disk as ${shownPath(posixListed(path.relative(root, sameAs)))} `",
-      "to": "  return `another listed path to the same file on disk as ${posixListed(path.relative(root, sameAs))} `",
-      "only": "^the path a link copy is named against is shown, not printed raw$"
-    },
-    {
-      "label": "§350 item 3: SessionStart reads a task directory once per path",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-link-loop.test.mjs"
-      ],
-      "from": "  const ranked = found.filter(entry => kept.has(entry.directory) && !absent.includes(entry.directory))",
-      "to": "  const ranked = found.filter(entry => !absent.includes(entry.directory))",
-      "only": "^SessionStart reads a task directory reached again through a link once, and names the other path$"
     },
     {
       "label": "§350 item 3: SessionStart does not name the other path",
@@ -3353,46 +2254,6 @@
       "from": "    try { statSync(at) } catch { found.push(at) }",
       "to": "    try { statSync(at) } catch { }",
       "only": "^a corpus directory that is a link to nothing is named, never read as no corpus$"
-    },
-    {
-      "label": "§350 C5: a task under an unreadable record is in no list",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/named-not-dropped.test.mjs"
-      ],
-      "from": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: error?.code ?? 'unreadable' })",
-      "to": "      unreadable.push({ file, status: null, taskFiles: [], reason: error?.code ?? 'unreadable' })",
-      "only": "^(?:a readable task under a record nobody could read is attributed to it, not dropped)$"
-    },
-    {
-      "label": "§350 C5: a task under a record holding a NUL byte is in no list",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/named-not-dropped.test.mjs"
-      ],
-      "from": "      unreadable.push({ file, status: null, taskFiles: taskFilesFor(file, '', reader), reason: 'it holds a NUL byte, so it is not text this reader can read' })",
-      "to": "      unreadable.push({ file, status: null, taskFiles: [], reason: 'it holds a NUL byte, so it is not text this reader can read' })",
-      "only": "^(?:a readable task under a record nobody could read is attributed to it, not dropped)$"
-    },
-    {
-      "label": "§350 C5: a lone CR does not end a line",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/named-not-dropped.test.mjs"
-      ],
-      "from": "      return readFileSync(file, 'utf8').replace(/\\r(?!\\n)/g, '\\n')",
-      "to": "      return readFileSync(file, 'utf8')",
-      "only": "^(?:a CR-only task file loses none of its Affected Files)$"
-    },
-    {
-      "label": "§350 C5: a task directory missing from disk is one more 'not read'",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/named-not-dropped.test.mjs"
-      ],
-      "from": "  const absent = found.filter(entry => kept.has(entry.directory) && gone(entry)).map(entry => entry.directory)",
-      "to": "  const absent = []",
-      "only": "^(?:SessionStart names a task directory git lists and the disk does not hold)$"
     },
     {
       "label": "§350 C4: SessionStart repeats an absolute path a gate printed",
@@ -3425,36 +2286,6 @@
       "only": "^(?:the Skill hook is registered and records only this plugin's skills)$"
     },
     {
-      "label": "§350 RC: a Windows path under ~ prints whole",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/named-not-dropped.test.mjs"
-      ],
-      "from": ".replace(HOME_RELATIVE, '~<path>')",
-      "to": "",
-      "only": "^(?:a path under the home directory is a placeholder in either separator)$"
-    },
-    {
-      "label": "§351: work-next reads a non-regular task entry",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/irregular-task-entry.test.mjs"
-      ],
-      "from": "  if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)\n  const fd = openSync(file, 'r')",
-      "to": "  const fd = openSync(file, 'r')",
-      "only": "^(?:a FIFO named like a task is stopped unopened, and the other tasks are read)$"
-    },
-    {
-      "label": "§351: the corpus reader opens a non-regular task entry",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/irregular-task-entry.test.mjs"
-      ],
-      "from": "      if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)",
-      "to": "      if (false) throw new Error(`${file} is not a regular file`)",
-      "only": "^(?:a FIFO named like a task is stopped unopened, and the other tasks are read)$"
-    },
-    {
       "label": "ADR-086 T2: an unarmed fresh-repository commit is advised, not refused",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -3473,96 +2304,6 @@
       "from": "      ...verdict, deny: false, key: `${verdict.key}:fresh`,",
       "to": "      ...verdict, deny: false, key: verdict.key,",
       "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
-    },
-    {
-      "label": "ADR-087 T1: lifecycle reads a quoted frontmatter Status with its quotes",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "? frontmatterValue(found[1]) : found[1]",
-      "to": "? found[1] : found[1]",
-      "only": "^(?:a frontmatter status is read as its corpora write it)$"
-    },
-    {
-      "label": "ADR-087 T1: lifecycle does not act on active",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "  ['accepted', 'governing'], ['active', 'governing'],",
-      "to": "  ['accepted', 'governing'],",
-      "only": "^(?:a frontmatter status is read as its corpora write it)$"
-    },
-    {
-      "label": "ADR-087 T2: lifecycle drops the MADR 2 bullet label",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "  return bullet ? bullet[1] : null",
-      "to": "  return null",
-      "only": "^(?:a MADR 2 bullet status is read above the first section)$"
-    },
-    {
-      "label": "ADR-087 T2: lifecycle reads a Status bullet below the first section",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    if (above && STATUS_HEADING.test(line)) above = false",
-      "to": "    if (false) above = false",
-      "only": "^(?:a status bullet inside a section is not the record status)$"
-    },
-    {
-      "label": "ADR-087 T3: a frontmatter superseded_by is not read",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "        ?? (kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null),",
-      "to": "        ?? null,",
-      "only": "^(?:a frontmatter superseded_by names the replacement in the three measured spellings)$"
-    },
-    {
-      "label": "ADR-087 T3: a supersedes key is read as a replacement",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "const SUPERSEDED_BY_KEY = /^superseded_by[ \\t]*:",
-      "to": "const SUPERSEDED_BY_KEY = /^supersede(?:d_by|s)[ \\t]*:",
-      "only": "^(?:a frontmatter superseded_by names the replacement in the three measured spellings)$"
-    },
-    {
-      "label": "ADR-087 T3: superseded_by names a replacement for a governing record",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "        ?? (kind === 'graveyard' && !retired ? frontmatterSupersededBy(text) : null),",
-      "to": "        ?? (!retired ? frontmatterSupersededBy(text) : null),",
-      "only": "^(?:supersedes is never read and superseded_by never moves a governing record)$"
-    },
-    {
-      "label": "ADR-087 T5: the yaml-frontmatter corpus reads active as undecided",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-matrix.test.mjs"
-      ],
-      "from": "  ['accepted', 'governing'], ['active', 'governing'],",
-      "to": "  ['accepted', 'governing'],",
-      "only": "^corpus yaml-frontmatter: every reader answers as reviewed, through a symlink$"
-    },
-    {
-      "label": "3.8.10: a git listing gets Node's default 1 MiB buffer",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/large-listing.test.mjs"
-      ],
-      "from": "const GIT_LISTING_BUFFER = 256 * 1024 * 1024",
-      "to": "const GIT_LISTING_BUFFER = 1024 * 1024",
-      "only": "^(?:a tracked listing larger than 1 MiB is read whole)$"
     },
     {
       "label": "ADR-088 T2: the publish verdict judges the ledger-bound log, not the bare session log",
@@ -3705,588 +2446,6 @@
       "only": "the adopt remedy says it reports and changes nothing"
     },
     {
-      "label": "ADR-087 owner 2026-10-07: a file adr-lint does not recognise is counted as a record",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "to": "    if (false) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
-    },
-    {
-      "label": "ADR-087 owner 2026-10-07: a plain Status outside a record directory admits a record by content",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "  const recognised = heading && (kept || (bold && recordStatusKind(status) !== null))",
-      "to": "  const recognised = heading",
-      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
-    },
-    {
-      "label": "ADR-087 owner 2026-10-07: an ADR-<n> name no longer admits a headingless record",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "  if (CANONICAL_NAME.test(base)) return answer(true, 'canonical')",
-      "to": "  if (false) return answer(true, 'canonical')",
-      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
-    },
-    {
-      "label": "ADR-087 owner 2026-10-07: a **Status:** label no longer admits a record outside a record directory",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    bold ||= BOLD_STATUS.test(line)\n    heading ||= RECORD_SECTION.test(line)\n    if (bold && heading) break",
-      "to": "    heading ||= RECORD_SECTION.test(line)\n    if (bold && heading) break",
-      "only": "a file adr-lint does not recognise is counted by no reader and named as not read"
-    },
-    {
-      "label": "ADR-087 review F1: an indented frontmatter line is read as the Status (lifecycle)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    if (inBlock && /^[ \\t]/.test(line)) continue",
-      "to": "    if (false) continue",
-      "only": "a status inside a frontmatter literal block is not the record status"
-    },
-    {
-      "label": "ADR-087 review F2: a bullet in an indented code block is a Status (lifecycle)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "const STATUS_BULLET = /^ {0,3}[*-]",
-      "to": "const STATUS_BULLET = /^[ \\t]*[*-]",
-      "only": "a status bullet in an indented code block is not the record status"
-    },
-    {
-      "label": "ADR-087 review F5: a bare superseded by does not fall back to superseded_by",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "        ? supersessionTarget(retired ? status : rawStatus(text), status) : null)",
-      "to": "        ? (supersessionTarget(retired ? status : rawStatus(text), status) ?? false) : null)",
-      "only": "a superseded status that names no record takes its target from superseded_by"
-    },
-    {
-      "label": "ADR-087 review F6: the not-read look opens a FIFO",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "      if (!stat.isFile()) { failed.push({ file: absolute, reason: 'not a regular file, so the content screen could not read it' }); continue }",
-      "to": "      if (!stat.isFile() && false) continue",
-      "only": "a FIFO in place of a numbered file is not opened by the not-read look"
-    },
-    {
-      "label": "ADR-087 owner 2026-10-07: a file with no Status adr-lint does not recognise is still undecided",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "to": "    if (!recognisedAsRecord(root, file, text).recognised && recordStatusKind(recordStatus(text))) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "only": "a status bullet inside a section is not the record status"
-    },
-    {
-      "label": "ADR-087 owner 2026-10-07: a numbered file the reader lists by name with no acted-on Status is still undecided",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "to": "    if (!recognisedAsRecord(root, file, text).recognised && recordStatusKind(recordStatus(text))) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "only": "an unnumbered note or a record inside a record directory is not named as not read"
-    },
-    {
-      "label": "ADR-087 owner 2026-10-07: a file with only a directory for a Status is still undecided",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "to": "    if (!recognisedAsRecord(root, file, text).recognised && recordStatusKind(recordStatus(text))) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "only": "a directory name is never a status"
-    },
-    {
-      "label": "ADR-087 delta review F1: a frozen catalog row makes a record of a file adr-lint rejects",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "to": "    if (archiveDecisionEffect(file, reader, archiveEffects, listedFiles, root) == null && !recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "only": "a frozen archive catalog does not make a not-recognised file a record"
-    },
-    {
-      "label": "ADR-087 delta review F2: a link is placed by its own path, not its real one",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs",
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "    const placed = inside(realpathSync.native(root), realpathSync.native(file))\n    if (placed !== null) return placed",
-      "to": "    const placed = null\n    if (placed !== null) return placed",
-      "only": "^(?:a link to a record is placed where its target is kept, as adr-lint places it|discovery follows placement through a listed link)$"
-    },
-    {
-      "label": "ADR-087 delta review F3: the heading's whitespace loses Python's U+001C-U+001F and U+0085",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "\\\\x1c-\\\\x1f\\\\x85",
-      "to": "",
-      "only": "a heading after whitespace only one runtime calls whitespace is read alike by every reader"
-    },
-    {
-      "label": "ADR-087 delta review F3: a heading starts a line after U+2028",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "RegExp(`^##${PY_LINE_SPACE}",
-      "to": "RegExp(`(?:^|\\u2028)##${PY_LINE_SPACE}",
-      "only": "a heading after whitespace only one runtime calls whitespace is read alike by every reader"
-    },
-    {
-      "label": "owner 2026-10-07: a Status line in an indented code block is the Status (lifecycle)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "const STATUS_LABEL = /^ {0,3}\\*{0,2}",
-      "to": "const STATUS_LABEL = /^[ \\t]*\\*{0,2}",
-      "only": "a Status line in an indented code block is not the record status"
-    },
-    {
-      "label": "delta review F2: a link listed first is read and its target named as the copy",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    return linksOf(file) < linksOf(first)",
-      "to": "    return false",
-      "only": "a link and its target are read once, as the target, and the link is the alias"
-    },
-    {
-      "label": "owner 2026-10-07: only a path's last component is asked whether it is a link",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-shapes.test.mjs"
-      ],
-      "from": "    try { if (lstatSync(at).isSymbolicLink()) target = readlinkSync(at) } catch { /* unreadable: not known to be a link */ }",
-      "to": "    try { if (pending.length === 0 && lstatSync(at).isSymbolicLink()) target = readlinkSync(at) } catch { /* unreadable: not known to be a link */ }",
-      "only": "a path through a linked parent directory is the alias of the path with no link in it"
-    },
-    {
-      "label": "ADR-092 T5: the section code-block rule (lifecycle)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-code-blocks.test.mjs"
-      ],
-      "from": "    } else if (body && !fenced && indentColumns(line) < 4) {",
-      "to": "    } else if (body && !fenced) {",
-      "only": "^no indented code-block line is a Status, section form included$"
-    },
-    {
-      "label": "ADR-092 T5: the section fence rule (lifecycle)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-code-blocks.test.mjs"
-      ],
-      "from": "    } else if (body && !fenced && indentColumns(line) < 4) {",
-      "to": "    } else if (body && indentColumns(line) < 4) {",
-      "only": "^a fenced line in a Status section is no Status, indented fence or not$"
-    },
-    {
-      "label": "ADR-092 T5: the frontmatter-first fence walk (lifecycle)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-code-blocks.test.mjs"
-      ],
-      "from": "  const lines = text.split(/\\r\\n|\\r|\\n/)\n  const head = frontmatterClose(lines)",
-      "to": "  const lines = text.split(/\\r\\n|\\r|\\n/)\n  const head = null",
-      "only": "^a fence opened inside the frontmatter hides nothing below it$"
-    },
-    {
-      "label": "ADR-092 T5: the column indentation rule (lifecycle)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-code-blocks.test.mjs"
-      ],
-      "from": "    else if (char === '\\t') column += 4 - (column % 4)",
-      "to": "    else if (char === '\\t') column += 2",
-      "only": "^indentation is measured in columns at four-column tab stops$"
-    },
-    {
-      "label": "ADR-092 T5: the empty-versus-absent Status",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-code-blocks.test.mjs"
-      ],
-      "from": "  return value === null ? null : edgeTrim(value.replace(/[*_`]/g, ''))",
-      "to": "  return value === null ? '' : edgeTrim(value.replace(/[*_`]/g, ''))",
-      "only": "^an empty Status section reads an empty string and no Status reads null$"
-    },
-    {
-      "label": "ADR-092 T3: the name arms at any width",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "    if (ADR_FILE.test(base) || CANONICAL_NAME.test(base) || SPEC_NAME.test(base)) {",
-      "to": "    if (ADR_FILE.test(base)) {",
-      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
-    },
-    {
-      "label": "ADR-092 T3: the content screen",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "      if (admitted) files.push(absolute)",
-      "to": "      if (null) files.push(absolute)",
-      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
-    },
-    {
-      "label": "ADR-092 T3: the screen budget",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "        if (budget.left < 0) return null",
-      "to": "        if (false) return null",
-      "only": "^the content screen stops at its budget and names the first path it did not screen$"
-    },
-    {
-      "label": "ADR-092 T3: the content-arm narrowings (templates)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "  if ([...directoriesOf(listed, platform), ...placedDirectories, ...spelled].some(part => TEMPLATES_DIRECTORY.test(part))) return answer(false, 'templates')",
-      "to": "  if (false) return answer(false, 'templates')",
-      "only": "^the link rows read their approved answers in lifecycle$"
-    },
-    {
-      "label": "ADR-092 T3: the recognised-spelling preference",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "  const once = onceByRealPath(files, nameArmSpelling)",
-      "to": "  const once = onceByRealPath(files)",
-      "only": "^a recognised spelling wins the dedup over fewer links$"
-    },
-    {
-      "label": "ADR-092 T3: the per-hop link count",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "    pending.unshift(...rest.split(/[\\\\/]/).filter(Boolean))",
-      "to": "    resolved = at",
-      "only": "^links are counted by resolving each hop with one precedence at the limit$"
-    },
-    {
-      "label": "ADR-092 T3: placement-led discovery",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "      || (dirNorm && placedUnderRecordDirectory(dirNorm)) || placedFileUnderRecordDirectory(absolute)) {",
-      "to": "      ) {",
-      "only": "^discovery follows placement through a listed link$"
-    },
-    {
-      "label": "ADR-092 T3: the unfenced screen",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "  walk.fence = next\n  if (fenced) return",
-      "to": "  walk.fence = next",
-      "only": "^the content screen reads outside fences and past a frontmatter fence$"
-    },
-    {
-      "label": "ADR-092 T3: the screen delimits frontmatter first",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "        walks.block.head = FRONTMATTER_OPEN.test(line) ? true : null",
-      "to": "        walks.block.head = null",
-      "only": "^the content screen reads outside fences and past a frontmatter fence$"
-    },
-    {
-      "label": "ADR-092 T3: the one title reading in JS",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "    if (fenced || (head !== null && index <= head)) continue\n    if (HEADING_LINE_RE.test(line)) return line",
-      "to": "    if (head !== null && index <= head) continue\n    if (HEADING_LINE_RE.test(line)) return line",
-      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
-    },
-    {
-      "label": "ADR-092 T3: the undecided identity",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "        id: recordId(path.basename(file), titleLine(text)),",
-      "to": "        id: null,",
-      "only": "^a duplicate id among undecided records is named$"
-    },
-    {
-      "label": "ADR-092 T3: a failed screen read is named",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "      if (!stat.isFile()) { failed.push({ file: absolute, reason: 'not a regular file, so the content screen could not read it' }); continue }",
-      "to": "      if (!stat.isFile()) continue",
-      "only": "^a failed read is never dropped by discovery$"
-    },
-    {
-      "label": "ADR-092 T3: notRecognised names only what a name claimed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "to": "    if (!recognisedAsRecord(root, file, text).recognised) { notRecognised.push(file); continue }",
-      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
-    },
-    {
-      "label": "ADR-092 T6: the recognised set",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/unmarked-archives.test.mjs"
-      ],
-      "from": "  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked, recognisedFiles), enumerable: false })",
-      "to": "  Object.defineProperty(records, 'unmarkedArchives', { value: unmarkedArchives(root, tracked), enumerable: false })",
-      "only": "^the corpus reader names an archive by the records it holds and by nothing else$"
-    },
-    {
-      "label": "ADR-092 T6: the recognised set replaces the name test",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/unmarked-archives.test.mjs"
-      ],
-      "from": "    const record = recognised ? recognised.has(listedAbsolute(root, rel)) : RECORD_SHAPED",
-      "to": "    const record = recognised ? recognised.has(listedAbsolute(root, rel)) || RECORD_SHAPED.test(parts.at(-1)) : RECORD_SHAPED",
-      "only": "^the corpus reader names an archive by the records it holds and by nothing else$"
-    },
-    {
-      "label": "ADR-092 T6: the widened name test",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/unmarked-archives.test.mjs"
-      ],
-      "from": ": RECORD_SHAPED.test(parts.at(-1)) || SPEC_NAME.test(parts.at(-1))",
-      "to": ": RECORD_SHAPED.test(parts.at(-1))",
-      "only": "^the SessionStart archive test reads no record content and takes the name arms$"
-    },
-    {
-      "label": "ADR-092 T6: the templates exclusion here",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/unmarked-archives.test.mjs"
-      ],
-      "from": "    if (parts.slice(0, -1).some(part => TEMPLATES_DIRECTORY.test(part))) continue",
-      "to": "    if (false) continue",
-      "only": "^(?:the corpus reader names an archive by the records it holds and by nothing else|the SessionStart archive test reads no record content and takes the name arms)$"
-    },
-    {
-      "label": "ADR-092 T6: the frozen marker",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/unmarked-archives.test.mjs"
-      ],
-      "from": "      if (underFrozenArchive(root, parts.slice(0, depth + 1), cache, listed) === false) found.add(parts.slice(0, depth).join('/'))",
-      "to": "      found.add(parts.slice(0, depth).join('/'))",
-      "only": "^a listed Lifecycle marker freezes the archive in both paths$"
-    },
-    {
-      "label": "ADR-092 T4: the regular-file guard (the screen work-next reads through)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-naming.test.mjs"
-      ],
-      "from": "      if (!stat.isFile()) { failed.push({ file: absolute, reason: 'not a regular file, so the content screen could not read it' }); continue }",
-      "to": "      if (false) continue",
-      "only": "^a FIFO candidate is named and never opened$"
-    },
-    {
-      "label": "ADR-092 review: the JS digit table drops a range",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-definition-parity.test.mjs"
-      ],
-      "from": "[0x1D7CE, 0x1D7FF], ",
-      "to": "",
-      "only": "^the name arms read one frozen table of decimal digits in both languages$"
-    },
-    {
-      "label": "ADR-092 review: the JS spec arm reads ASCII digits only",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-definition-parity.test.mjs"
-      ],
-      "from": "const SPEC_NAME = new RegExp(`^[sSſ][pP][eE][cC][-_]?[${DECIMAL_DIGIT}]`, 'u')",
-      "to": "const SPEC_NAME = new RegExp(`^[sSſ][pP][eE][cC][-_]?[0-9]`, 'u')",
-      "only": "^the name arms read one frozen table of decimal digits in both languages$"
-    },
-    {
-      "label": "ADR-092 review: a backslash separates on POSIX",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-definition-parity.test.mjs"
-      ],
-      "from": "const separatorsOf = platform => (platform === 'win32' ? /[\\\\/]/ : /\\//)",
-      "to": "const separatorsOf = platform => /[\\\\/]/",
-      "only": "^a path component holding a line feed or a backslash reads alike in both languages$"
-    },
-    {
-      "label": "ADR-092 review: a backslash never separates on Windows",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-definition-parity.test.mjs"
-      ],
-      "from": "const separatorsOf = platform => (platform === 'win32' ? /[\\\\/]/ : /\\//)",
-      "to": "const separatorsOf = platform => /\\//",
-      "only": "^a path component holding a line feed or a backslash reads alike in both languages$"
-    },
-    {
-      "label": "ADR-092 review: the JS templates check ignores the spelled path",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-definition-parity.test.mjs"
-      ],
-      "from": ", ...placedDirectories, ...spelled].some(",
-      "to": ", ...placedDirectories].some(",
-      "only": "^a templates directory reached through a directory link admits no record in either language$"
-    },
-    {
-      "label": "ADR-092 review: the JS definition returns the raw Status",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-definition-parity.test.mjs"
-      ],
-      "from": "  const status = recordStatus(text)\n  const placedDirectories",
-      "to": "  const status = inlineStatus(text) ?? statusSection(text)\n  const placedDirectories",
-      "only": "^the definition returns the normalised Status in both languages for every plain row$"
-    },
-    {
-      "label": "ADR-092 review: the record budget is charged to every file discovered",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-reading-bounds.test.mjs"
-      ],
-      "from": "    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }\n    charged += 1",
-      "to": "    charged += 1\n    if (!recognisedAsRecord(root, file, text).recognised) { if (byName.has(file)) notRecognised.push(file); continue }",
-      "only": "^two hundred ordinary notes before a record read as v3.8.10 read them$"
-    },
-    {
-      "label": "ADR-092 review: the content screen ignores the bytes it read",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-reading-bounds.test.mjs"
-      ],
-      "from": "        if (budget.left < 0) return null",
-      "to": "        if (false) return null",
-      "only": "^the content screen stops at the bytes it was given, whatever size it was told$"
-    },
-    {
-      "label": "ADR-092 review: a bounded read ignores its limit",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-reading-bounds.test.mjs"
-      ],
-      "from": "      if (total > limit) throw",
-      "to": "      if (false) throw",
-      "only": "^the content screen stops at the bytes it was given, whatever size it was told$"
-    },
-    {
-      "label": "ADR-092 review: each chunk of a long line is scanned with all before it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-reading-bounds.test.mjs"
-      ],
-      "from": "      let start = pendingCr && chunk.startsWith('\\n') ? 1 : 0",
-      "to": "      chunk = parts.join('') + chunk\n      parts = []\n      let start = pendingCr && chunk.startsWith('\\n') ? 1 : 0",
-      "only": "^the content screen scans each character once however long a line runs$"
-    },
-    {
-      "label": "ADR-092 review: a CRLF across two chunks is two breaks",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-reading-bounds.test.mjs"
-      ],
-      "from": "        if (found[0] === '\\r' && start === chunk.length) pendingCr = true",
-      "to": "        if (false) pendingCr = true",
-      "only": "^the content screen scans each character once however long a line runs$"
-    },
-    {
-      "label": "ADR-092 review: alias replacement searches kept and rescans every alias",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-reading-bounds.test.mjs"
-      ],
-      "from": "      kept[at] = file\n      const moved = aliasesOf.get(first) ?? []\n      for (const entry of moved) entry.sameAs = file",
-      "to": "      kept[kept.indexOf(first)] = file\n      const moved = aliasesOf.get(first) ?? []\n      for (const entry of aliases) if (entry.sameAs === first) entry.sameAs = file",
-      "only": "^alias replacement grows with the paths listed, not with their square$"
-    },
-    {
-      "label": "ADR-092 review: an archive README is opened however it is made",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-reading-bounds.test.mjs"
-      ],
-      "from": "        try { frozen = readRegularText(readme).split(",
-      "to": "        try { frozen = readFileSync(readme, 'utf8').split(",
-      "only": "^an archive README that is a FIFO is unknown, and is never opened$"
-    },
-    {
-      "label": "ADR-092 review: a README spelled otherwise is opened however it is made",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/corpus-reading-bounds.test.mjs"
-      ],
-      "from": "        file => readRegularText(file))",
-      "to": "        file => readFileSync(file, 'utf8'))",
-      "only": "^an archive README that is a FIFO is unknown, and is never opened$"
-    },
-    {
-      "label": "ADR-092 review: a listed path rewrites a backslash on POSIX",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-definition-parity.test.mjs",
-        "tests/listed-backslash.test.mjs"
-      ],
-      "from": "  return platform === 'win32' ? posixListed(rel) : String(rel)",
-      "to": "  return posixListed(rel)",
-      "only": "^a (path component holding a line feed or a backslash reads alike in both languages|backslash in a listed (task|corpus) path is one name on POSIX and a separator on Windows)$"
-    },
-    {
-      "label": "ADR-092 review: taskDirectories reads a listing as Windows by default",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/listed-backslash.test.mjs"
-      ],
-      "from": "export function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP, platform = process.platform) {",
-      "to": "export function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP, platform = 'win32') {",
-      "only": "^a backslash in a listed task path is one name on POSIX and a separator on Windows$"
-    },
-    {
       "label": "ADR-092 review: hasDecisionCorpus reads a listing as Windows by default",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -4295,16 +2454,6 @@
       "from": "export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = process.platform) {",
       "to": "export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = 'win32') {",
       "only": "^a backslash in a listed corpus path is one name on POSIX and a separator on Windows$"
-    },
-    {
-      "label": "ADR-092 outside probe: a content record outside a record directory needs no recognised Status (JS)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/record-discovery.test.mjs"
-      ],
-      "from": "  const recognised = heading && (kept || (bold && recordStatusKind(status) !== null))",
-      "to": "  const recognised = heading && (kept || bold)",
-      "only": "^every row of the recognition table reads its approved answer in lifecycle$"
     },
     {
       "label": "2026-10-08: a refusal after a fast pass says no qh-check has passed",
@@ -4617,26 +2766,6 @@
       "only": "^a pathspec is judged by its grammar before git is asked$"
     },
     {
-      "label": "ADR-094 T4: a path is placed with its parent resolved before the lexical spelling is tried",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "const files = [file, canonicalFile(file)]",
-      "to": "const files = [canonicalFile(file)]",
-      "only": "^a relative or unplaceable write path is still counted as unseen$"
-    },
-    {
-      "label": "ADR-094 T4: a symlink leaf is resolved before it is placed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "const files = [file, canonicalFile(file)]",
-      "to": "const files = [canonical(file)]",
-      "only": "^a relative or unplaceable write path is still counted as unseen$"
-    },
-    {
       "label": "ADR-094 T3: a leading dash passes the grammar",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -4725,36 +2854,6 @@
       "from": "passOf: original?.id ?? latest.id,",
       "to": "passOf: latest.id,",
       "only": "^a skip row names the pass that ran, not the reuse row that stood for it$"
-    },
-    {
-      "label": "quoted corpus text: a » inside the text closes the quote",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/quoted-text-closes.test.mjs"
-      ],
-      "from": ".replaceAll('»', '›')",
-      "to": "",
-      "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
-    },
-    {
-      "label": "quoted corpus text: a « inside the text opens a second quote",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/quoted-text-closes.test.mjs"
-      ],
-      "from": "cut.replaceAll('«', '‹')",
-      "to": "cut",
-      "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
-    },
-    {
-      "label": "quoted corpus text: an angle bracket inside the text survives",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/quoted-text-closes.test.mjs"
-      ],
-      "from": ".replaceAll('<', '‹').replaceAll('>', '›')",
-      "to": "",
-      "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
     },
     {
       "label": "config problem: a link to nothing is an absent config",

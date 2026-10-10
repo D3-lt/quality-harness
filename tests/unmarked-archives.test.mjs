@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 
-import { adrCorpus, unmarkedArchives } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, unmarkedArchives } from '../plugin/scripts/decision-corpus.mjs'
 import { observe } from '../plugin/scripts/work-next.mjs'
 
 const temps = []

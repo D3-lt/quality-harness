@@ -8,36 +8,8 @@ import path from 'node:path'
 import test, { after, afterEach, beforeEach } from 'node:test'
 import { hookSaid, SLOW_HOOK_NOTE, stripPauseLines } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import {
-  artifactGateTimeoutMs,
-  checkCommandOrigin,
-  projectCheckCommand,
-  runTheCheckSentence,
-  budgetExhausted,
-  sessionOrientation,
-  sessionStateNote,
-  hasDecisionCorpus,
-  spawnGate,
-  resolvePython,
-  adrCorpus,
-  shadowInstallNotice,
-  staleVersionNotice,
-  decisionContext,
-  decisionsGoverning,
-  pathMatchesDeclaration,
-  readOnlyVerdict,
-  posixListed,
-  readyTaskLines,
-  runArtifactGates,
-  observe,
-  surfaceReadyLines,
-  completionClaim,
-  saidMarkerDirectory,
-  sweepStaleMarkers,
-  sweepStaleSessionLogs,
-  stateDir,
-  observeBudgetMs,
-} from '../plugin/scripts/lifecycle.mjs'
+import { artifactGateTimeoutMs, checkCommandOrigin, projectCheckCommand, runTheCheckSentence, budgetExhausted, sessionOrientation, sessionStateNote, hasDecisionCorpus, spawnGate, resolvePython, shadowInstallNotice, staleVersionNotice, readOnlyVerdict, readyTaskLines, runArtifactGates, observe, surfaceReadyLines, completionClaim, saidMarkerDirectory, sweepStaleMarkers, sweepStaleSessionLogs, stateDir, observeBudgetMs } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, decisionContext, decisionsGoverning, pathMatchesDeclaration, posixListed } from '../plugin/scripts/decision-corpus.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
@@ -2597,7 +2569,7 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
   // gate surface for two days after ADR-008 moved the tree, because seven
   // records' `Governs:` lines named paths that no longer existed. Nothing said
   // the declarations had stopped matching; the tool simply had less to say.
-  const { adrCorpus } = await import('../plugin/scripts/lifecycle.mjs')
+  const { adrCorpus } = await import('../plugin/scripts/decision-corpus.mjs')
   const dir = await mkdtemp(path.join(testTmp, 'adr-governs-'))
   await mkdir(path.join(dir, 'docs', 'adr'), { recursive: true })
   const record = (n, governs) =>
@@ -2799,7 +2771,7 @@ test('a date-named record is read, and a docs/adr that yields nothing says so', 
   // unopenable — the safety net sat downstream of the miss (ADR-005: a filter
   // that matched nothing is "I could not look", never "the thing is absent").
   const { observe, nextStage } = await import('../plugin/scripts/work-next.mjs')
-  const { adrCorpus } = await import('../plugin/scripts/lifecycle.mjs')
+  const { adrCorpus } = await import('../plugin/scripts/decision-corpus.mjs')
   const root = await mkdtemp(path.join(testTmp, 'quality-dated-'))
   const record = title => `# ${title}\n\n**Status:** Accepted\n\n## Context\n\nx\n`
   const task = '# Task T1\n\n**Depends-on:** none\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
@@ -3007,7 +2979,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
   // disagreed on three of these seven, which is the drift ADR-009 exists to
   // prevent appearing inside ADR-009. A rule with two implementations is only
   // shared if something compares them.
-  const { declaredEnforcement } = await import('../plugin/scripts/lifecycle.mjs')
+  const { declaredEnforcement } = await import('../plugin/scripts/decision-corpus.mjs')
   for (const [value, want] of [
     ['`a`, `b`', ['a', 'b']],
     ['a, b', ['a', 'b']],
@@ -3032,7 +3004,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
 
   // The HOOK renders from the same resolver, and must say the same thing. Two
   // callers of one resolver is exactly where this project has drifted before.
-  const { decisionContext } = await import('../plugin/scripts/lifecycle.mjs')
+  const { decisionContext } = await import('../plugin/scripts/decision-corpus.mjs')
   const hook = decisionContext(['src/pay.js'], dir)
   assert.match(hook, /caught by: every catalogue entry/,
     `the hook must carry the enforcing check too:\n${hook}`)
@@ -3469,7 +3441,7 @@ test('a record the corpus reader cannot read is reported, not silently dropped',
   // and skipped. A count that omits what it could not read is a count that reads
   // as coverage — the shape this whole harness exists to catch, in its own
   // corpus reader.
-  const { adrCorpus } = await import('../plugin/scripts/lifecycle.mjs')
+  const { adrCorpus } = await import('../plugin/scripts/decision-corpus.mjs')
   const root = await mkdtemp(path.join(testTmp, 'quality-unread-'))
   const adr = path.join(root, 'docs', 'adr')
   await mkdir(adr, { recursive: true })

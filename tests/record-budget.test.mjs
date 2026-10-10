@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { basename, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { adrCorpus } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus } from '../plugin/scripts/decision-corpus.mjs'
 
 const adrState = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'plugin', 'scripts', 'adr-state.mjs')
 

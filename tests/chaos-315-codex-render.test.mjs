@@ -11,7 +11,8 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { checkInCode, locationKey, readyTaskLines, runTheCheckSentence, sessionOrientation, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { locationKey, readyTaskLines, runTheCheckSentence, sessionOrientation, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { checkInCode } from '../plugin/scripts/corpus-text.mjs'
 import { hookSaid } from './hook-env.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')

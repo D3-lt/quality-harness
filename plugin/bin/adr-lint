@@ -4106,7 +4106,7 @@ def tracked_or_unignored_paths(root):
 def _glob_to_regexp(pattern):
     """One glob component at a time, so `**` crosses separators and `*` cannot.
 
-    A transcription of `lifecycle.mjs::globToRegExp`, and a transcription is what
+    A transcription of `decision-corpus.mjs::globToRegExp`, and a transcription is what
     it must stay: the two are compared input by input in
     `tests/gate-regressions.py::GOVERNS_MATCH_GRAMMAR`, mirrored in the JS suite.
     ADR-009 shipped one rule as two implementations on the same terms, and the
@@ -4178,7 +4178,7 @@ def _split_pointer_list(value):
 def governs_declarations(text):
     """The paths a record declares authority over, or [] when it declares none.
 
-    Tokenised the way `lifecycle.mjs::declaredGoverns` does — a backticked span
+    Tokenised the way `decision-corpus.mjs::declaredGoverns` does — a backticked span
     or a run of non-space, non-comma characters — because the two must agree
     about what a declaration IS before they can agree about whether it resolves.
     The adrkit typed form is deliberately not read here: `adr-state` already
@@ -4259,7 +4259,7 @@ def invalidates_pointer(text):
 # so on such a corpus it had ZERO nodes and was a gate that could not fail.
 #
 # ⚠ THE DATE GUARD IS NOT OPTIONAL AND IT IS BORROWED, NOT INVENTED.
-# `plugin/scripts/lifecycle.mjs::adrNumber` carries it from a real corpus on
+# `plugin/scripts/decision-corpus.mjs::adrNumber` carries it from a real corpus on
 # 2026-08-26: unanchored, `(\d{3,4})[-._]` reads the `2026` of `2026-07-12-x.md`
 # as an ADR number and the corpus grows an ADR-2026 (BACKLOG §66). Widening the
 # enumeration without it would trade one corpus's false absence for another's

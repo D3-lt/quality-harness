@@ -11,7 +11,8 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
+// The reader of the decision corpus, once part of lifecycle.mjs (BACKLOG section 375, stage B2): the local name stays, so no test body changes.
+import * as lifecycle from '../plugin/scripts/decision-corpus.mjs'
 import { runPython } from '../scripts/python-interpreter.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')

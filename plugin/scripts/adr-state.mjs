@@ -13,7 +13,8 @@
 // is NOT here on purpose: anything about lessons learned. That is a different
 // kind of memory with a different lifetime, and it lives outside this harness.
 import path from 'node:path'
-import { adrCorpus, quotedCorpusText, recordStatusKind, terminalText, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, recordStatusKind, trackedPaths } from './decision-corpus.mjs'
+import { quotedCorpusText, terminalText } from './corpus-text.mjs'
 
 import { isMainModule } from './main-module.mjs'
 
@@ -142,7 +143,7 @@ export function main(argv) {
     // not act on, or that it could not open, made `read` 0 with `look` ok and said
     // nothing else (a Windows chaos round of 626934a, F-1: `**Status：**`). `reason` is
     // the corpus reader's own, set only for a file it never read, so null still marks
-    // one it opened (lifecycle.mjs adrCorpus); `why` says why each one governs nothing.
+    // one it opened (decision-corpus.mjs adrCorpus); `why` says why each one governs nothing.
     unread: unreadable.map(entry => ({ file: relative(entry), status: entry.status ?? null, reason: entry.reason ?? null, why: why(entry) })),
     // Files the corpus reader dropped because adr-lint does not recognise them as records: counted by
     // no reader, and named here as work-next names them (the owner, 2026-10-07).

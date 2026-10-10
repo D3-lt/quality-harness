@@ -386,14 +386,14 @@ def fence_safe(line):
 
 
 # What a reader cannot see, or what moves the terminal: C0 and C1 controls, DEL, the zero-width
-# and bidi-control ranges, and the BOM. The same set lifecycle.mjs visiblePath escapes.
+# and bidi-control ranges, and the BOM. The same set corpus-text.mjs visiblePath escapes.
 _INVISIBLE = re.compile("[\x00-\x1f\x7f-\x9f\U0000200b-\U0000200f\U0000202a-\U0000202e\U00002060-\U00002069\U0000feff]")
 
 
 def visible(text, keep="\t"):
     """`text` with each invisible or control character written as the escape `\\u{hex}`.
 
-    lifecycle.mjs visiblePath spells it the same way, so one name reads one way in every reader.
+    corpus-text.mjs visiblePath spells it the same way, so one name reads one way in every reader.
     For text a writer quotes but did not author: a failed run's lines put NULs into a task file,
     and git then read the task as binary (BACKLOG §320.2). `keep` names what is left as it is: a tab
     inside a quoted line is layout.
@@ -532,7 +532,7 @@ def acceptance_digest(command):
 # version's Nd and Node's `\p{Nd}` is Node's, so U+11DE0 was a digit to Node 26 (Unicode 17) and not
 # to Python 3.14 (Unicode 16): `spec-𑷠-x.md` was a record to one reader only (a gpt-6.1-sol review of
 # ADR-092's execution, 2026-10-07, finding 3). Unicode 16.0's Nd ranges, frozen here and spelled the
-# same in lifecycle.mjs's DECIMAL_DIGIT_RANGES; tests/record-definition-parity.test.mjs holds the two
+# same in decision-corpus.mjs's DECIMAL_DIGIT_RANGES; tests/record-definition-parity.test.mjs holds the two
 # tables equal. Every digit guard on a name (the spec arm, TASK_SHAPED_RE, DATE_SHAPED_RE, a bare-number
 # directory) reads it.
 DECIMAL_DIGIT_RANGES = (
@@ -611,7 +611,7 @@ _STATUS_LINE = re.compile(r"^ {0,3}\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*
 # ADR-087 T2: MADR 2's list-item Status, `* Status: accepted` or `- Status: accepted`, is the same
 # label after a bullet, read only above the record's first unfenced `## ` heading; below it a bullet is
 # body text. An inline label anywhere still wins, and a bullet wins over a `## Status` section.
-# lifecycle.mjs's STATUS_BULLET is the same pattern.
+# decision-corpus.mjs's STATUS_BULLET is the same pattern.
 # Indented by at most three spaces: four, or a tab, make an indented code block, whose
 # `- Status: accepted` is an example (a gpt-6.1-sol review of ADR-087, finding 2).
 _STATUS_BULLET = re.compile(r"^ {0,3}[*-][ \t]+\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?::\*{0,2}|\*{0,2}:)[ \t]*([^\r\n]*)$")
@@ -623,7 +623,7 @@ _STATUS_BULLET = re.compile(r"^ {0,3}[*-][ \t]+\*{0,2}[Ss][Tt][Aa][Tt][Uu][Ss](?
 _EDGE_SPACE = "".join(map(chr, (0x20, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0xA0, 0x1680, *range(0x2000, 0x200B),
                                 0x2028, 0x2029, 0x202F, 0x205F, 0x3000)))
 # Where a record is kept, for a file admitted by its content (ADR-074 T3, the owner, 2026-09-29):
-# a directory named `adr`/`decisions`, or an archive of one. lifecycle.mjs's RECORD_DIRECTORY is
+# a directory named `adr`/`decisions`, or an archive of one. decision-corpus.mjs's RECORD_DIRECTORY is
 # this pattern, so adr-lint and the corpus readers look in the same places.
 # ASCII case folding only: `re.I` alone folds `ı` and `ſ` into `i` and `s`, which JS's `/i` does not,
 # so `decıſıons/` was a record directory here and nowhere else (the Codex round of 3.1.6, finding 5).
@@ -642,7 +642,7 @@ _STATUS_KINDS = {
 }
 # ADR-087 T1: a leading YAML frontmatter block — the text's first line is `---` (after a byte-order
 # mark, with trailing blanks), and the block ends at the next `---` or `...` line. An unclosed block is
-# not one. lifecycle.mjs's `frontmatterBlock` is the same rule.
+# not one. decision-corpus.mjs's `frontmatterBlock` is the same rule.
 _FRONTMATTER_OPEN = re.compile("﻿?---[ \t]*")
 _FRONTMATTER_CLOSE = re.compile(r"(?:---|\.\.\.)[ \t]*")
 # Inside the block only, a value wholly inside one pair of `"` or `'` is read without them, and a
@@ -981,7 +981,7 @@ def record_status(text):
     inside a leading frontmatter block is read as YAML writes it, quotes and a trailing
     comment removed first (ADR-087 T1). A caller reading WHICH record a supersession
     names reads the raw line itself: removing `_` is right for classifying and wrong for
-    a name (lifecycle.mjs `rawStatus`)."""
+    a name (decision-corpus.mjs `rawStatus`)."""
     bullet = None
     for kind, value in _status_lines(text):
         if kind == "label":
@@ -1041,7 +1041,7 @@ def status_section(text):
 
     A readable line is non-empty, outside every fence inside the section (a fence's own marker
     lines included), and indented less than four columns, since an indented code block's line is
-    an example (ADR-092 Decision 8). lifecycle.mjs's `statusSection` is the same rule."""
+    an example (ADR-092 Decision 8). decision-corpus.mjs's `statusSection` is the same rule."""
     lines = None
     for heading, body, _start, _body_start, _end in _sections(text):
         if heading.lower() == "status":

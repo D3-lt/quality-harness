@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
+import { readyTaskLines } from '../plugin/scripts/ready-lines.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const bin = join(repoRoot, 'plugin', 'bin')

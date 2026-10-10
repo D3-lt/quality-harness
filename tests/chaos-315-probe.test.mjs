@@ -18,7 +18,7 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { scrubber } from '../plugin/scripts/corpus-probe.mjs'
-import { spawnGate } from '../plugin/scripts/lifecycle.mjs'
+import { spawnGate } from '../plugin/scripts/ready-lines.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const pluginRoot = join(repoRoot, 'plugin')

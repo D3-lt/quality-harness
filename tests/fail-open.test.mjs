@@ -14,7 +14,8 @@ import * as checkLedger from '../plugin/scripts/check-ledger.mjs'
 import * as treeFacts from '../plugin/scripts/tree-facts.mjs'
 import * as checkCommand from '../plugin/scripts/check-command.mjs'
 import * as completionRules from '../plugin/scripts/completion-rules.mjs'
-const lifecycle = { ...lifecycleOwn, ...checkLedger, ...treeFacts, ...checkCommand, ...completionRules }
+import * as sessionNotes from '../plugin/scripts/session-notes.mjs'
+const lifecycle = { ...lifecycleOwn, ...checkLedger, ...treeFacts, ...checkCommand, ...completionRules, ...sessionNotes }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')

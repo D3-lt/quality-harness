@@ -19,11 +19,12 @@ import * as completionRules from '../plugin/scripts/completion-rules.mjs'
 import * as publishVerdict from '../plugin/scripts/publish-verdict.mjs'
 import * as checkCommand from '../plugin/scripts/check-command.mjs'
 import * as artifactPass from '../plugin/scripts/artifact-pass.mjs'
+import * as sessionNotes from '../plugin/scripts/session-notes.mjs'
 import * as statusline from '../plugin/scripts/statusline.mjs'
 import { tally } from '../plugin/scripts/claims-rate.mjs'
 import { ABSENT } from '../plugin/scripts/event-log.mjs'
 import { persistedEventPath } from '../plugin/scripts/run-shell-hook.mjs'
-const lifecycle = { ...lifecycleOwn, ...treeFacts, ...completionRules, ...publishVerdict, ...checkCommand, ...artifactPass }
+const lifecycle = { ...lifecycleOwn, ...treeFacts, ...completionRules, ...publishVerdict, ...checkCommand, ...artifactPass, ...sessionNotes }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')

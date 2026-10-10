@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "baseline: a session watched from late does not accuse a tree nothing changed",
+      "file": "plugin/scripts/hook-record.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "      lateBaseline = appendEvent(input.cwd, session, { event: 'session.started', late: true, observation: entry.observation }) !== false",
+      "to": "      lateBaseline = false",
+      "only": "^(?:a first Stop with no SessionStart does not accuse a tree nothing changed|a first mention with no SessionStart adopts the late baseline instead of accusing a pristine tree)$"
+    },
+    {
+      "label": "baseline: a SessionStart in the middle of a session is not its beginning",
+      "file": "plugin/scripts/hook-record.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    if (existing.length > 0 || existing.complete !== true) return null",
+      "to": "    if (existing.some(entry => entry.event === 'session.started')) return null",
+      "only": "^(?:a compact SessionStart does not hand a fresh baseline to a session with outstanding work)$"
+    },
+    {
+      "label": "ADR-061: a mention imports the check source before its warning reads the ledger (§269 round 4)",
+      "file": "plugin/scripts/hook-record.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "  const source = importCheckRecords(input.cwd, session)",
+      "to": "  const source = name === 'publish.mentioned' ? { complete: true } : importCheckRecords(input.cwd, session)",
+      "only": "^(?:a mention reads the check that ran before it, and is logged as no publish)$"
+    }
+  ]
+}

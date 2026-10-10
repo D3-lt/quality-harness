@@ -15,7 +15,8 @@
 // every check event; nothing read it.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { sessionOrientation, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { sessionOrientation } from '../plugin/scripts/session-orientation.mjs'
+import { sessionStateNote } from '../plugin/scripts/session-notes.mjs'
 import { observedFacts } from '../plugin/scripts/completion-rules.mjs'
 import { spawnSync } from 'node:child_process'
 import { reading, render } from '../plugin/scripts/statusline.mjs'

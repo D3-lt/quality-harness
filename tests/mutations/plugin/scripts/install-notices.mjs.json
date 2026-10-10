@@ -1,0 +1,74 @@
+{
+  "mutations": [
+    {
+      "label": "context: a drifted standalone copy is named",
+      "file": "plugin/scripts/install-notices.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (theirs && theirs !== digest(ours)) {",
+      "to": "      if (false) {",
+      "only": "^(?:listing-null still names a stale shadow install, not no corpus|reported: a stale standalone copy answering instead of the plugin is named|every directory the plugin ships is a directory the scanners look in|what the drift notice reports is what the repair tool can act on)$"
+    },
+    {
+      "label": "sync: a cached newer version outranks the running one",
+      "file": "plugin/scripts/install-notices.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!newest || order(newest) <= order(running)) return ''",
+      "to": "  if (!newest) return ''",
+      "only": "^(?:reported: a session running a cached older plugin is told so)$"
+    },
+    {
+      "label": "notice: the drift notice says the plugin itself is current",
+      "file": "plugin/scripts/install-notices.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return `Your plugin is up to date. What is behind is a SEPARATE copy of this toolkit under `",
+      "to": "  return `A second copy of this toolkit has drifted from the plugin — `",
+      "only": "^(?:listing-null still names a stale shadow install, not no corpus|reported: a stale standalone copy answering instead of the plugin is named)$"
+    },
+    {
+      "label": "notice: a forwarder or link is current, not drift",
+      "file": "plugin/scripts/install-notices.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (current(theirPath)) continue\n",
+      "to": "",
+      "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named)$"
+    },
+    {
+      "label": "notice: a hook nothing wires cannot answer",
+      "file": "plugin/scripts/install-notices.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (scope.wired && !wired(name)) continue",
+      "to": "      if (false) continue",
+      "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named|what the drift notice reports is what the repair tool can act on)$"
+    },
+    {
+      "label": "orphan: an orphan is named at session start",
+      "file": "plugin/scripts/install-notices.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!stale.length && !retired.length) return ''",
+      "to": "  if (!stale.length) return ''",
+      "only": "^(?:an orphan is named at session start, with its evidence)$"
+    },
+    {
+      "label": "orphan: an unidentified file is counted, never named",
+      "file": "plugin/scripts/install-notices.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const retired = found.filter(row => row.state === 'ours-orphan')",
+      "to": "  const retired = found.filter(row => row.state !== 'ours-shipped')",
+      "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named|unidentified files are counted, never listed)$"
+    }
+  ]
+}

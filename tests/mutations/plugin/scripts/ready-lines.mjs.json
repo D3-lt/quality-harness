@@ -1,0 +1,323 @@
+{
+  "mutations": [
+    {
+      "label": "§355: SessionStart names a task directory whose record could not be read",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/session-start-unreadable-owner.test.mjs"
+      ],
+      "from": "    } else if (report.done?.length && report.owner_unreadable) {",
+      "to": "    } else if (false) {"
+    },
+    {
+      "label": "lifecycle: the ready line's own path is in a code span (2.110.0-rc round 3 N4)",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    const readyPath = pathInCode(listed)",
+      "to": "    const readyPath = relative",
+      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
+    },
+    {
+      "label": "orientation: a ready task under an unmarked archive leads with adopting it (§289.1)",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      const archive = unmarked.find(dir => listed === dir || listed.startsWith(`${dir}/`))",
+      "to": "      const archive = undefined",
+      "only": "^(?:a ready task under an unmarked archive leads with adopting it, not with adr-verify|the ready line says first when the owning record is unreadable or not Accepted)$"
+    },
+    {
+      "label": "hooks: a bin/ gate is spawned so Windows can run it",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })",
+      "to": "    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })",
+      "only": "^(?:a bin/ gate is spawned in a way Windows can actually run|SessionStart always surfaces an UNPROVEN ready line and still caps ordinary ones|SessionStart says how many task directories it did not read)$"
+    },
+    {
+      "label": "windows: a python3 that is not Python is refused",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (probe.status === 0 && /^3(\\.\\d+)?$/.test(answered)) {",
+      "to": "    if (!probe.error) {",
+      "only": "^(?:a Windows python3 that is not Python is refused, not believed)$"
+    },
+    {
+      "label": "lifecycle: an adr-next that could not run is UNPROVEN in the orientation, not silence (ADR-046 T3)",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (run.status !== 0 && run.status !== 3) {\n      const said =",
+      "to": "    if (run.status !== 0 && run.status !== 3) continue\n    if (false) {\n      const said =",
+      "only": "^SessionStart says UNPROVEN, with the gate's reason, when adr-next could not run$"
+    },
+    {
+      "label": "lifecycle: SessionStart always surfaces UNPROVEN ready lines; the cap is ordinary lines only (ADR-046 T5)",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    const always = line.includes('UNPROVEN') || EVIDENCED_SUMMARY.test(line)\n    if (always || ordinary < cap) {\n      shown.push(line)\n      if (!always) ordinary += 1\n    }",
+      "only": "^SessionStart always surfaces an UNPROVEN ready line and still caps ordinary ones$",
+      "to": "    if (ordinary < cap) {\n      shown.push(line)\n      ordinary += 1\n    }"
+    },
+    {
+      "label": "advisory: the headline a person sees names the finding, not the prefix",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/advisory-headline.test.mjs"
+      ],
+      "from": "  const sentence = first.trim().replace(/^quality-harness:\\s*/i, '').split(/(?<=\\.)\\s/)[0]",
+      "to": "  const sentence = first.trim().split(/(?<=[.:])\\s/)[0]",
+      "only": "^(?:the headline a person sees at a publish warning names the finding)$"
+    },
+    {
+      "label": "orientation: a directory that may be under a frozen archive is UNPROVEN, never offered as ready",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (archive === 'unknown') {",
+      "to": "    if (false) {",
+      "only": "^(?:an archive catalog at the repository root freezes the task directory beside it|a task directory that MAY be under a frozen archive gets an UNPROVEN line, not a ready one)$"
+    },
+    {
+      "label": "SessionStart: the read-but-capped count prints before the not-read count, each saying what it counts",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (unread >= 0) shown.splice(unread, 0, note)",
+      "to": "    if (false) shown.splice(unread, 0, note)",
+      "only": "^(?:SessionStart says how many task directories it did not read)$"
+    },
+    {
+      "label": "2.111.0-rc2 (Codex): the unmarked-archive ready line names the owner",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "only": "owning record is unreadable or not Accepted",
+      "from": "if it is not, ${ownerCaveat(report)}${next.id} is ready",
+      "to": "if it is not, ${next.id} is ready"
+    },
+    {
+      "label": "2.111.0-rc P3: a Proposed owner is named on the ready line",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "only": "owning record is unreadable or not Accepted",
+      "from": "  if (report.undecided === true) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "2.111.0-rc P3: an unreadable owner is named on the ready line",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "only": "owning record is unreadable or not Accepted",
+      "from": "  if (report.owner_unreadable === true) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "orientation: a fully evidenced directory is counted, not listed",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      evidenced += 1",
+      "to": "      evidenced += 0",
+      "only": "did not read"
+    },
+    {
+      "label": "orientation: the evidenced count survives the render cap",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    const always = line.includes('UNPROVEN') || EVIDENCED_SUMMARY.test(line)",
+      "to": "    const always = line.includes('UNPROVEN')",
+      "only": "did not read"
+    },
+    {
+      "label": "chaos 626934a: SessionStart says a directory with an unreadable task is UNPROVEN",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    if (unreadTasks.length) {",
+      "to": "    if (false) {",
+      "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
+    },
+    {
+      "label": "chaos 626934a: SessionStart says a stopped task instead of dropping it",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "    } else if (report.stopped?.length) {",
+      "to": "    } else if (false) {",
+      "only": "a task adr-next could not read leaves its directory UNPROVEN in both readers"
+    },
+    {
+      "label": "chaos 916b515 G2: an UNPROVEN task directory offers no ready task",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "      // round of 916b515, G2).\n      continue",
+      "to": "      // round of 916b515, G2).",
+      "only": "unreadable task offers none"
+    },
+    {
+      "label": "chaos 916b515 C-4: a task with no fence is not sent to adr-verify",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/work-next-readiness.test.mjs"
+      ],
+      "from": "        + (next.acceptance === null && next.human_observed === false",
+      "to": "        + (false",
+      "only": "no runnable fence is not sent"
+    },
+    {
+      "label": "win: spawnGate hides the gate it starts on Windows",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/untimed-spawns.test.mjs"
+      ],
+      "from": "  return spawnSync(command, [...prefix, tool, ...args], { windowsHide: true, ...options })",
+      "to": "  return spawnSync(command, [...prefix, tool, ...args], options)",
+      "only": "passes windowsHide"
+    },
+    {
+      "label": "§319 item 6: SessionStart passes adr-next's line through raw",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "const said = gateSaid((run.stderr",
+      "to": "const said = String((run.stderr",
+      "only": "SessionStart says adr-next's failure relative to the repository"
+    },
+    {
+      "label": "§319 item 6: adr-next's line keeps the repository's absolute path",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "[[root, '.'], [os.homedir(), '~']]",
+      "to": "[[os.homedir(), '~']]",
+      "only": "SessionStart says adr-next's failure relative to the repository"
+    },
+    {
+      "label": "§319 item 6: adr-next's line is relativised but not cleaned",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  return corpusText(scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out))\n",
+      "to": "  return scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out)\n",
+      "only": "SessionStart says adr-next's failure relative to the repository"
+    },
+    {
+      "label": "§321 codex render: a ready line's diagnostic prefix prints a tag raw",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "    const relative = shownPath(listed)",
+      "to": "    const relative = visiblePath(listed)",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: the unreadable-README line prints its path raw",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "lines.push(`  ${shownPath(posixListed(path.relative(root, directory) || directory))}: UNPROVEN",
+      "to": "lines.push(`  ${posixListed(path.relative(root, directory) || directory)}: UNPROVEN",
+      "only": "a tag in a task directory or file name"
+    },
+    {
+      "label": "§321 codex render: an unmarked archive is matched on its shown path",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "unmarked.find(dir => listed === dir || listed.startsWith(`${dir}/`))",
+      "to": "unmarked.find(dir => relative === dir || relative.startsWith(`${dir}/`))",
+      "only": "an unmarked archive whose name holds a tag"
+    },
+    {
+      "label": "§321 codex render: the ready line prints an archive's name raw",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "read as live only because ${pathInCode(archive)} has no",
+      "to": "read as live only because \\`${archive}\\` has no",
+      "only": "an unmarked archive whose name holds a tag"
+    },
+    {
+      "label": "§321 codex render: the adopt command prints an archive's name raw",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "${codeSpan(`adr-retire-check --adopt <active> ${shownPath(archive)}`)}",
+      "to": "${codeSpan(`adr-retire-check --adopt <active> ${archive}`)}",
+      "only": "an unmarked archive whose name holds a tag"
+    },
+    {
+      "label": "§350 C6: the ready line drops the missing-owner hedge",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (report.owner_missing === true) {",
+      "to": "  if (false) {",
+      "only": "^the ready line says when no record owns the tasks, before the instruction$"
+    },
+    {
+      "label": "§350 item 3: SessionStart does not name the other path",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "  if (aliases.length > 0) {",
+      "to": "  if (false) {",
+      "only": "^SessionStart reads a task directory reached again through a link once, and names the other path$"
+    },
+    {
+      "label": "§350 C4: SessionStart repeats an absolute path a gate printed",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/named-not-dropped.test.mjs"
+      ],
+      "from": "  return corpusText(scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out))",
+      "to": "  return corpusText(out)",
+      "only": "^(?:SessionStart never repeats an absolute path a gate printed)$"
+    },
+    {
+      "label": "golden: a proposed record's ready task says what kind of thing it is",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "so this is a plan, not a work order",
+      "to": "so this is a plan, not an order",
+      "only": "^readiness: an accepted record with a ready task, an evidenced one and a proposed record are said as they were$"
+    }
+  ]
+}

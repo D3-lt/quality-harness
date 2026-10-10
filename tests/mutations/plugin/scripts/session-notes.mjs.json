@@ -1,0 +1,234 @@
+{
+  "mutations": [
+    {
+      "label": "context: said once per path per session",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/said-once.test.mjs"
+      ],
+      "from": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return error?.code !== 'EEXIST' }",
+      "to": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return true }",
+      "only": "^(?:a finding is first once per session, and a compaction or /clear makes the session new)$"
+    },
+    {
+      "label": "lifecycle: a once-per-session marker is scoped to the session's generation",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/said-once.test.mjs"
+      ],
+      "from": "  const generation = sessionGeneration(sessionId)\n  const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`)",
+      "to": "  const generation = 0\n  const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`)",
+      "only": "^(?:a finding is first once per session, and a compaction or /clear makes the session new)$"
+    },
+    {
+      "label": "lifecycle: PreCompact keeps the state note",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  try { write(sessionNotePath(sessionId), JSON.stringify(note)); return true } catch (failure) {",
+      "to": "  try { void note; return true } catch (failure) {",
+      "only": "^(?:PreCompact records what the gates measured, and the compact SessionStart hands it back)$"
+    },
+    {
+      "label": "lifecycle: a startup reads what the previous session here left unverified",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!row || row.status !== 'unverified') return ''",
+      "to": "  if (!row || row.status !== 'unverified' || row.status === 'unverified') return ''",
+      "only": "^(?:SessionEnd records what was left unverified, and the next startup here says so)$"
+    },
+    {
+      "label": "lifecycle: a neutral session does not mask what an earlier one left unverified",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (row.status === 'neutral') continue\n    return row",
+      "to": "    return row",
+      "only": "^(?:SessionEnd records what was left unverified, and the next startup here says so)$"
+    },
+    {
+      "label": "lifecycle: a PreCompact that fails leaves no earlier note to hand back",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/said-once.test.mjs"
+      ],
+      "from": "  try { unlinkSync(sessionNotePath(sessionId)) } catch (failure) { cleared = failure?.code === 'ENOENT' }",
+      "to": "  if (note === null) { try { unlinkSync(sessionNotePath(sessionId)) } catch {} }",
+      "only": "^(?:a session note that cannot be replaced is removed, never left to be handed back as current)$"
+    },
+    {
+      "label": "fail-open: a check that could not look is not worded as no check passing",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const unobserved = facts?.treeOrder === 'could-not-look'",
+      "to": "  const unobserved = false",
+      "only": "^(?:a check that could not look is not reported as no check passing)$"
+    },
+    {
+      "label": "evidence-flip: a committed turn with an unchecked tree is not neutral",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    : files.length === 0 && other === 0 && !pending ? (late ? 'unverified' : 'neutral')",
+      "to": "    : files.length === 0 && other === 0 ? (late ? 'unverified' : 'neutral')",
+      "only": "^(?:a turn that committed its work is not a session where nothing is outstanding \\(audit B1\\))$"
+    },
+    {
+      "label": "evidence-flip: a torn log does not say which check ran last",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  parts.push(facts?.whole === false ? 'Which check ran last is unknown.'",
+      "to": "  parts.push(false ? 'Which check ran last is unknown.'",
+      "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
+    },
+    {
+      "label": "note: a late baseline is never neutral",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  const late = facts?.late === true",
+      "to": "  const late = false",
+      "only": "^(?:a baseline adopted partway through a session does not speak for the whole of it|the next session is not told of edits nobody observed)$"
+    },
+    {
+      "label": "note: an unlink that failed is not a note removed",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "catch (failure) { cleared = failure?.code === 'ENOENT' }",
+      "to": "catch (failure) { cleared = true }",
+      "only": "^(?:a state note that could not be removed is not reported as removed)$"
+    },
+    {
+      "label": "ledger: an unverified row with no edits is read back as unknown, not as edits",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (typeof row.unknown === 'string' && row.unknown) {",
+      "to": "  if (false) {",
+      "only": "^(?:the next session is not told of edits nobody observed|an UNKNOWN previous session still says what was independently known to be outstanding)$"
+    },
+    {
+      "label": "ledger: an UNKNOWN row still names the writes known to be outstanding",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      + `${other ? ` ${other} write(s) git cannot see were recorded, and no passing check after them is on record.` : ''} `",
+      "to": "      + ' '",
+      "only": "^(?:an UNKNOWN previous session still says what was independently known to be outstanding)$"
+    },
+    {
+      "label": "§321 codex render: the previous-session line says to run the check as shown",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "(check ? `Run \\`qh-check\\` (it runs ${checkInCode(check)}) before building on them.`",
+      "to": "(check ? `Run ${checkInCode(check)} before building on them.`",
+      "only": "names the previous session"
+    },
+    {
+      "label": "§321 codex render: the previous session's files print a tag raw",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "row.files.slice(0, 5).map(file => shownPath(path.relative(cwd, file) || file))",
+      "to": "row.files.slice(0, 5).map(file => path.relative(cwd, file) || file)",
+      "only": "names the previous session"
+    },
+    {
+      "label": "§321 codex render: the compaction note's Last check prints the command raw",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "`Last check: ${checkInCode(facts.lastCheck.command ?? 'qh-check')}",
+      "to": "`Last check: \\`${facts.lastCheck.command ?? 'qh-check'}\\`",
+      "only": "the compaction note shows"
+    },
+    {
+      "label": "§321 codex render: the compaction note's paths print a tag raw",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "const shown = files.slice(0, 5).map(file => shownPath(path.relative(cwd, file) || file))",
+      "to": "const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)",
+      "only": "the compaction note shows"
+    },
+    {
+      "label": "§321 codex render: the compaction note's inferred check prints raw",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "INFERRED check (${checkInCode(facts.checkCommand ?? 'unknown')})",
+      "to": "INFERRED check (\\`${facts.checkCommand ?? 'unknown'}\\`)",
+      "only": "the compaction note shows"
+    },
+    {
+      "label": "ADR-094 T2: a standing paragraph is keyed without its text",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "update(`here#${root}#${text}`)",
+      "to": "update(`here#${root}`)",
+      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
+    },
+    {
+      "label": "ADR-094 T2: a standing paragraph is keyed without its repository",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "update(`here#${root}#${text}`)",
+      "to": "update(`here#${text}`)",
+      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
+    },
+    {
+      "label": "ADR-094 T2: a standing paragraph never expires",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "age >= 0 && age < STANDING_FACT_MAX_AGE_MS",
+      "to": "age >= 0 && age < Infinity",
+      "only": "^a standing paragraph is said once per repository for three days and again when its text changes$"
+    },
+    {
+      "label": "ADR-094 T2: a recorded pass no longer silences the previous-session notice",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared })) return ''",
+      "to": "if (false) return ''",
+      "only": "^the previous-session notice is silent when a pass is recorded for the current tree$"
+    },
+    {
+      "label": "ADR-094 T2: a clean tree silences the previous-session notice without a pass",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared })) return ''",
+      "to": "if (repository && declared && (passedAlready({ root: repository, git: true, command: declared }) || statusPaths(repository).length === 0)) return ''",
+      "only": "^a tree with no pass keeps the previous-session notice, clean or dirty$"
+    }
+  ]
+}

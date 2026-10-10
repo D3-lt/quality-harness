@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-10",
+  "at": "550fffb2279f38aa4249845d263dcc32344ac636",
+  "plugin": "3.8.17",
+  "kind": "probe",
+  "probeSha256": "f27398fad58db53e3d880e593b0fce0f4b309a9fc3f5dbe6254e70a8e74a1566",
+  "readers": "6b6647237422dae1a7ac5d979ccfd65896c925016c0c3c92cdb877af3708fb93",
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.14.8",
+  "corpus": {
+    "records": 17,
+    "undecided": 4,
+    "tasks": 24,
+    "taskDirectories": 7
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "PARTIAL",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 23,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "php-laravel-monolith",
+  "found": ""
+}

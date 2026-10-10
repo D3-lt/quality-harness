@@ -36,8 +36,8 @@
       "tests": [
         "tests/scanned-zero.test.mjs"
       ],
-      "from": "    if unparsed:\n        print(f\"UNRUN:",
-      "to": "    if False:\n        print(f\"UNRUN:",
+      "from": "    if unparsed or unreadable:",
+      "to": "    if unreadable:",
       "only": "^untimed-children: a gate that does not parse, and nothing to scan, are UNRUN; a clean and a dirty gate keep their answers$"
     },
     {
@@ -49,6 +49,16 @@
       "from": "    if not scanned:",
       "to": "    if False:",
       "only": "^untimed-children: a gate that does not parse, and nothing to scan, are UNRUN; a clean and a dirty gate keep their answers$"
+    },
+    {
+      "label": "zero: a named path that is not there is skipped",
+      "file": "scripts/untimed-children.py",
+      "tests": [
+        "tests/scanned-zero.test.mjs"
+      ],
+      "from": "            if argv:\n                unreadable.append(str(path))",
+      "to": "            if False:\n                unreadable.append(str(path))",
+      "only": "^(?:a good input beside one that cannot be read or parsed is still UNRUN \\(Codex review of 52cd9a66\\)|untimed-children: a gate that does not parse, and nothing to scan, are UNRUN; a clean and a dirty gate keep their answers)$"
     }
   ]
 }

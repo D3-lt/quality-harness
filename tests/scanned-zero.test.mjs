@@ -28,7 +28,7 @@ test('orphan-sweep: a shipped tree with files and no definitions is could-not-lo
   assert.equal(git('-c', 'user.name=t', '-c', 'user.email=t@t', 'commit', '-q', '-m', 'x').status, 0)
   const run = spawnSync(process.execPath, [path.join(repoRoot, 'scripts', 'orphan-sweep.mjs'), 'HEAD'], { cwd: dir, encoding: 'utf8', timeout: 30_000, windowsHide: true })
   assert.equal(run.status, 2, run.stdout + run.stderr)
-  assert.match(run.stderr, /no definitions/, run.stderr)
+  assert.match(run.stderr, /none holds a definition/, run.stderr)
 })
 
 test('untimed-spawns: an empty set of files is UNRUN, not a clean count', () => {
@@ -58,7 +58,36 @@ test('untimed-children: a gate that does not parse, and nothing to scan, are UNR
   assert.equal(mixed.status, 2, 'one file scanned and one not is still UNRUN: ' + mixed.stdout + mixed.stderr)
   const nothing = check(path.join(scratch, 'does-not-exist.py'))
   assert.equal(nothing.status, 2, nothing.stdout + nothing.stderr)
-  assert.match(nothing.stdout + nothing.stderr, /UNRUN: no gate to scan/, nothing.stdout + nothing.stderr)
+  assert.match(nothing.stdout + nothing.stderr, /does-not-exist\.py: could not read/, nothing.stdout + nothing.stderr)
+  // Only a shim to skip: nothing scanned and nothing wrong with any input.
+  const shim = check(put('shim.cmd', '@echo off\n'))
+  assert.equal(shim.status, 2, shim.stdout + shim.stderr)
+  assert.match(shim.stdout + shim.stderr, /UNRUN: no gate to scan/, shim.stdout + shim.stderr)
   assert.equal(check(put('clean.py', 'x = 1\n')).status, 0)
   assert.equal(check(put('dirty.py', 'import subprocess\nsubprocess.run(["x"])\n')).status, 1)
+})
+
+test('a good input beside one that cannot be read or parsed is still UNRUN (Codex review of 52cd9a66)', () => {
+  const spawns = (...files) => spawnSync(process.execPath, ['--expose-internals', path.join(repoRoot, 'scripts', 'untimed-spawns.mjs'), ...files], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  const mixedJs = spawns(put('mixed-good.mjs', 'export const a = 1\n'), put('mixed-bad.mjs', 'const = = ;\n'))
+  assert.equal(mixedJs.status, 2, mixedJs.stdout + mixedJs.stderr)
+  const children = (...paths) => spawnSync(python, [...prefix, path.join(repoRoot, 'scripts', 'untimed-children.py'), ...paths], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  const missing = children(put('named-clean.py', 'x = 1\n'), path.join(scratch, 'named-missing.py'))
+  assert.equal(missing.status, 2, missing.stdout + missing.stderr)
+  assert.match(missing.stdout + missing.stderr, /named-missing\.py: could not read/, missing.stdout + missing.stderr)
+})
+
+test('orphan-sweep: a listed file whose blob cannot be read is could-not-look, whatever else is readable', () => {
+  const dir = path.join(scratch, 'repo-gitlink')
+  mkdirSync(path.join(dir, 'plugin'), { recursive: true })
+  const git = (...args) => spawnSync('git', ['-C', dir, '-c', 'user.name=t', '-c', 'user.email=t@t', ...args], { encoding: 'utf8', timeout: 20_000, windowsHide: true })
+  assert.equal(git('init', '-q').status, 0)
+  writeFileSync(path.join(dir, 'plugin', 'live.mjs'), 'function live() {}\nlive()\n')
+  assert.equal(git('add', '-A').status, 0)
+  // A gitlink is listed by ls-tree under a shipped name, and `git show` cannot show it.
+  assert.equal(git('update-index', '--add', '--cacheinfo', '160000,1111111111111111111111111111111111111111,plugin/sub.mjs').status, 0)
+  assert.equal(git('commit', '-q', '-m', 'x').status, 0)
+  const run = spawnSync(process.execPath, [path.join(repoRoot, 'scripts', 'orphan-sweep.mjs'), 'HEAD'], { cwd: dir, encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  assert.equal(run.status, 2, run.stdout + run.stderr)
+  assert.match(run.stderr, /could not read 1 listed file/, run.stderr)
 })

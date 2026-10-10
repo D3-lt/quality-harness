@@ -29,6 +29,16 @@
       "from": "  if (defined === 0) {",
       "to": "  if (false) {",
       "only": "^orphan-sweep: a shipped tree with files and no definitions is could-not-look, not 0 orphans$"
+    },
+    {
+      "label": "orphan: a listed file git could not show is dropped",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": [
+        "tests/scanned-zero.test.mjs"
+      ],
+      "from": "  if (unreadable.length) {",
+      "to": "  if (false) {",
+      "only": "^orphan-sweep: a listed file whose blob cannot be read is could-not-look, whatever else is readable$"
     }
   ]
 }

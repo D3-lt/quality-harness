@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-10",
+  "at": "6fdf85081c1d74025a41ea83dbe5c380731fe47e",
+  "plugin": "3.8.17",
+  "kind": "probe",
+  "probeSha256": "f27398fad58db53e3d880e593b0fce0f4b309a9fc3f5dbe6254e70a8e74a1566",
+  "readers": "6b6647237422dae1a7ac5d979ccfd65896c925016c0c3c92cdb877af3708fb93",
+  "platform": "Darwin 27.0.0",
+  "node": "24.11.1",
+  "python": "3.14.8",
+  "corpus": {
+    "records": 165,
+    "undecided": 20,
+    "tasks": 551,
+    "taskDirectories": 75
+  },
+  "couldNotRun": 2,
+  "disagreements": 0,
+  "readinessUnproven": 5,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 185,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "rust-workspace",
+  "found": ""
+}

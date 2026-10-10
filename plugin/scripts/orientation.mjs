@@ -13,7 +13,7 @@
 import { statSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
-import { sessionOrientation } from './lifecycle.mjs'
+import { sessionOrientation } from './session-orientation.mjs'
 
 export function main(argv = process.argv.slice(2), stdout = process.stdout, stderr = process.stderr) {
   const directory = path.resolve(argv.find(arg => !arg.startsWith('--')) ?? process.cwd())

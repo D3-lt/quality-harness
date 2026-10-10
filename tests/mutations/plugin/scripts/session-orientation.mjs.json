@@ -1,0 +1,114 @@
+{
+  "mutations": [
+    {
+      "label": "hook-work: emitted context avoids repeating discovery",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ],
+      "only": "already-shown edit context",
+      "from": "  if (alreadyMentionedThisSession(input.session_id, resolved)) return ''",
+      "to": "  if (false) return ''"
+    },
+    {
+      "label": "lifecycle: listing-null still opens the shadow-install notice",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "only": "listing-null still names a stale shadow install",
+      "from": "  if (check || ready.lines.length || corpusLook === true || corpusLook === 'UNPROVEN') {",
+      "to": "  if (check || ready.lines.length || corpusLook === true) {"
+    },
+    {
+      "label": "orientation: an inferred check may be narrower than the project's own gate",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/inferred-pass.test.mjs"
+      ],
+      "from": ", and it may be narrower than this project's own gate (a step the inference did not pick, such as a typecheck or lint), so its pass is not that gate's pass",
+      "to": "",
+      "only": "may be narrower than the project gate"
+    },
+    {
+      "label": "archive: SessionStart names an unmarked archive",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    for (const archive of unmarkedArchives(root, listing)) {",
+      "to": "    for (const archive of []) {",
+      "only": "an archive-named directory"
+    },
+    {
+      "label": "orientation: an unmarked archive is named only in a decision corpus",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (corpusLook === true) {\n    // The name test: SessionStart opens no record content (CLAUDE.md §19, ADR-092 Decision 11).\n    for (const archive of unmarkedArchives(root, listing)) {",
+      "to": "  if (true) {\n    // The name test: SessionStart opens no record content (CLAUDE.md §19, ADR-092 Decision 11).\n    for (const archive of unmarkedArchives(root, listing)) {",
+      "only": "only in a decision corpus"
+    },
+    {
+      "label": "§319 H1: SessionStart's Verification line prints the declared check raw",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "? `this project's own check is ${checkInCode(check)}`",
+      "to": "? `this project's own check is \\`${check}\\``",
+      "only": "a declared check cannot forge a line"
+    },
+    {
+      "label": "§321 codex render: SessionStart prints an unmarked archive's name raw",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/chaos-315-codex-render.test.mjs"
+      ],
+      "from": "      standing(`${pathInCode(archive)} looks like an archive",
+      "to": "      standing(`\\`${archive}\\` looks like an archive",
+      "only": "SessionStart names an unmarked archive holding a tag"
+    },
+    {
+      "label": "§350 C10: a dangling corpus link reads as no corpus",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/corpus-link-loop.test.mjs"
+      ],
+      "from": "    try { statSync(at) } catch { found.push(at) }",
+      "to": "    try { statSync(at) } catch { }",
+      "only": "^a corpus directory that is a link to nothing is named, never read as no corpus$"
+    },
+    {
+      "label": "ADR-089 T5: SessionStart says --adopt adopts it",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/adopt-wording.test.mjs"
+      ],
+      "from": "reports what adopting it needs; it changes nothing (skills",
+      "to": "adopts it (skills",
+      "only": "the adopt remedy says it reports and changes nothing"
+    },
+    {
+      "label": "ADR-092 review: hasDecisionCorpus reads a listing as Windows by default",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/listed-backslash.test.mjs"
+      ],
+      "from": "export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = process.platform) {",
+      "to": "export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = 'win32') {",
+      "only": "^a backslash in a listed corpus path is one name on POSIX and a separator on Windows$"
+    },
+    {
+      "label": "golden: the orientation's check sentence changes",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "`this project's own check is ${checkInCode(check)}`",
+      "to": "`this project's check is ${checkInCode(check)}`",
+      "only": "^orientation: startup, resume, compact and clear say their standing paragraphs as designed$"
+    }
+  ]
+}

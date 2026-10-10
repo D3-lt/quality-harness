@@ -8,7 +8,12 @@ import path from 'node:path'
 import test, { after, afterEach, beforeEach } from 'node:test'
 import { hookSaid, SLOW_HOOK_NOTE, stripPauseLines } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { sessionOrientation, sessionStateNote, hasDecisionCorpus, spawnGate, resolvePython, shadowInstallNotice, staleVersionNotice, readyTaskLines, surfaceReadyLines, saidMarkerDirectory, sweepStaleMarkers, sweepStaleSessionLogs, stateDir } from '../plugin/scripts/lifecycle.mjs'
+import { stateDir } from '../plugin/scripts/lifecycle.mjs'
+import { sessionOrientation, hasDecisionCorpus } from '../plugin/scripts/session-orientation.mjs'
+import { sessionStateNote } from '../plugin/scripts/session-notes.mjs'
+import { spawnGate, resolvePython, readyTaskLines, surfaceReadyLines } from '../plugin/scripts/ready-lines.mjs'
+import { shadowInstallNotice, staleVersionNotice } from '../plugin/scripts/install-notices.mjs'
+import { saidMarkerDirectory, sweepStaleMarkers, sweepStaleSessionLogs } from '../plugin/scripts/housekeeping.mjs'
 import { artifactGateTimeoutMs, budgetExhausted, runArtifactGates } from '../plugin/scripts/artifact-pass.mjs'
 import { checkCommandOrigin, projectCheckCommand, runTheCheckSentence } from '../plugin/scripts/check-command.mjs'
 import { readOnlyVerdict } from '../plugin/scripts/publish-verdict.mjs'
@@ -1252,10 +1257,14 @@ test('a bin/ gate is spawned in a way Windows can actually run', async () => {
   }
 
   // Narrow guard against the exact regression. Exactly one `spawnSync(tool` may
-  // exist — spawnGate's own POSIX branch — so a second one means a caller went
-  // back to spawning a `#!` gate directly.
-  const source = await readFile(path.join(pluginDir, 'scripts', 'lifecycle.mjs'), 'utf8')
-  assert.equal((source.match(/spawnSync\(tool\b/g) ?? []).length, 1,
+  // exist in the plugin's scripts — spawnGate's own POSIX branch — so a second one
+  // means a caller went back to spawning a `#!` gate directly.
+  const scripts = path.join(pluginDir, 'scripts')
+  let spawns = 0
+  for (const name of (await readdir(scripts)).filter(file => file.endsWith('.mjs'))) {
+    spawns += ((await readFile(path.join(scripts, name), 'utf8')).match(/spawnSync\(tool\b/g) ?? []).length
+  }
+  assert.equal(spawns, 1,
     'a bin/ gate must be spawned through spawnGate, which names the interpreter on Windows')
 })
 

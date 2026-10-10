@@ -9,7 +9,7 @@ import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import test from 'node:test'
 
-import { hasDecisionCorpus } from '../plugin/scripts/lifecycle.mjs'
+import { hasDecisionCorpus } from '../plugin/scripts/session-orientation.mjs'
 import { taskDirectories } from '../plugin/scripts/decision-corpus.mjs'
 
 const onWindows = process.platform === 'win32'

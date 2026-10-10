@@ -54,7 +54,7 @@ import { mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync } from 'no
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { resolvePython, spawnGate } from './lifecycle.mjs'
+import { resolvePython, spawnGate } from './ready-lines.mjs'
 import { adrCorpus, trackedPaths, undecidedReason } from './decision-corpus.mjs'
 import { scrubber } from './corpus-text.mjs'
 import { publicPath, pluginVersion } from './corpus-report.mjs'

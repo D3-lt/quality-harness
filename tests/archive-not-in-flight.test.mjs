@@ -18,7 +18,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
+import { readyTaskLines } from '../plugin/scripts/ready-lines.mjs'
 import { adrCorpus, decisionContext, decisionsGoverning, listedReadme } from '../plugin/scripts/decision-corpus.mjs'
 
 test('session orientation asks adr-next about the active corpus and never about a frozen archive', () => {
@@ -486,7 +486,7 @@ test('work-next reads an unmarked archive as live, as every other reader does', 
 
 test('an archive-named directory with no Lifecycle marker is named, with the adopt remedy', async () => {
   const { observe } = await import('../plugin/scripts/work-next.mjs')
-  const { sessionOrientation } = await import('../plugin/scripts/lifecycle.mjs')
+  const { sessionOrientation } = await import('../plugin/scripts/session-orientation.mjs')
   const root = unmarkedArchiveRepo('qh-arc-named-')
   try {
     assert.deepEqual(adrCorpus(root).unmarkedArchives, ['docs/adr-archive'])
@@ -506,7 +506,7 @@ test('an archive-named directory with no Lifecycle marker is named, with the ado
 // adopt its blog's `content/archive/`, and would name any archive-named folder of
 // notes. The line is for a corpus, about a directory holding records or tasks.
 test('an unmarked archive is named only in a decision corpus, and only when it holds records', async () => {
-  const { sessionOrientation } = await import('../plugin/scripts/lifecycle.mjs')
+  const { sessionOrientation } = await import('../plugin/scripts/session-orientation.mjs')
   const blog = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-blog-')))
   try {
     mkdirSync(join(blog, 'content', 'archive'), { recursive: true })

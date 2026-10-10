@@ -1,0 +1,134 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-094 T3: a declaration matching the config is accepted",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "  if (specCouldNameConfig(spec)) return `${JSON.stringify(spec)} could name .quality-harness.json, which holds the check`",
+      "to": "  if (false) return null",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
+    },
+    {
+      "label": "ADR-094 T3: a dot or parent segment passes the declaration",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "if (spec.split('/').some(part => part === '.' || part === '..')) return",
+      "to": "if (false) return",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
+    },
+    {
+      "label": "ADR-094 T3: a wildcard-only spec passes the grammar",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "const PROSE_EXTENSION = /^(?:\\*\\*\\/)?\\*\\.[A-Za-z0-9]+$/",
+      "to": "const PROSE_EXTENSION = /^[\\w.*]+$/",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
+    },
+    {
+      "label": "ADR-094 T3: a *.json spec is not taken for the config",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "return lower === CONFIG_NAME || (PROSE_EXTENSION.test(spec) && lower.endsWith('.json'))",
+      "to": "return lower === CONFIG_NAME",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
+    },
+    {
+      "label": "ADR-094 T3: the config is compared in one letter case",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "  const lower = spec.toLowerCase()",
+      "to": "  const lower = spec",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
+    },
+    {
+      "label": "ADR-094 T3: a leading dash passes the grammar",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "const PROSE_LITERAL = /^[\\w.@+][\\w.@+/-]*$/",
+      "to": "const PROSE_LITERAL = /^[\\w.@+-][\\w.@+/-]*$/",
+      "only": "^a pathspec is judged by its grammar before git is asked$"
+    },
+    {
+      "label": "config problem: a config that cannot be read is absent",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "    if (error?.code !== 'ENOENT') return `.quality-harness.json could not be read (${error?.code ?? 'unknown error'})`",
+      "to": "    if (error) return null",
+      "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
+    },
+    {
+      "label": "config problem: an absent config is a problem",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "    if (error?.code !== 'ENOENT') return `.quality-harness.json could not be read (${error?.code ?? 'unknown error'})`",
+      "to": "    if (error) return `.quality-harness.json could not be read (${error?.code ?? 'unknown error'})`",
+      "only": "^twins: no config, a config with no check, and a check of the wrong type still run the inferred check$"
+    },
+    {
+      "label": "config problem: an array is a declaration",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "typeof config === 'object' && !Array.isArray(config) ? null",
+      "to": "typeof config === 'object' ? null",
+      "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
+    },
+    {
+      "label": "config problem: a JSON null is a declaration",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "return config !== null && typeof config === 'object'",
+      "to": "return typeof config === 'object'",
+      "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
+    },
+    {
+      "label": "config problem: a link to nothing is an absent config",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "    try { lstatSync(path.join(root, '.quality-harness.json')) } catch { return null }\n    return '.quality-harness.json could not be read (a link to nothing)'",
+      "to": "    return null",
+      "only": "^a dangling link where the config should be is unreadable, not absent$"
+    },
+    {
+      "label": "config problem: a scalar config is a declaration",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "&& typeof config === 'object' &&",
+      "to": "&&",
+      "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
+    },
+    {
+      "label": "config problem: a byte-order mark is an invisible character in a JSON error",
+      "file": "plugin/scripts/project-config.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "  if (text.charCodeAt(0) === 0xFEFF) return",
+      "to": "  if (false) return",
+      "only": "^a config that starts with a byte-order mark is refused and says so \\(a Windows run of 3.8.18\\)$"
+    }
+  ]
+}

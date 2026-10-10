@@ -8,7 +8,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { sessionOrientation, spawnGate } from '../plugin/scripts/lifecycle.mjs'
+import { sessionOrientation } from '../plugin/scripts/session-orientation.mjs'
+import { spawnGate } from '../plugin/scripts/ready-lines.mjs'
 
 const repoRoot = path.join(path.dirname(fileURLToPath(import.meta.url)), '..')
 const retireCheck = path.join(repoRoot, 'plugin', 'bin', 'adr-retire-check')

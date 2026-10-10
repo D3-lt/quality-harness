@@ -1,0 +1,114 @@
+{
+  "mutations": [
+    {
+      "label": "lifecycle: the marker sweep removes what is stale, not nothing (§146)",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (!stale(file)) { report.kept += 1; continue }",
+      "to": "      if (true) { report.kept += 1; continue }",
+      "only": "^(?:stale said-markers are swept once a day; live ones and everything else are kept|only a finite guard stamp inside the window holds the sweep)$"
+    },
+    {
+      "label": "lifecycle: the marker directory sweep unlinks marker-shaped names only (Codex, §146)",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  sweep(directory, name => MARKER_NAME.test(name))",
+      "to": "  sweep(directory, name => name !== '.swept')",
+      "only": "^(?:stale said-markers are swept once a day; live ones and everything else are kept)$"
+    },
+    {
+      "label": "lifecycle: a generation file is session state and is never age-swept (Codex, §146)",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const LEGACY_MARKER = /^quality-harness-(?:said|note)-[0-9a-f]{32}$/",
+      "to": "const LEGACY_MARKER = /^quality-harness-(?:said|gen|note)-[0-9a-f]{32}$/",
+      "only": "^(?:stale said-markers are swept once a day; live ones and everything else are kept)$"
+    },
+    {
+      "label": "lifecycle: only a finite guard stamp inside the window holds the sweep (Codex, §146)",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (Number.isFinite(last) && last <= now && now - last < SAID_SWEEP_INTERVAL_MS) return false",
+      "to": "  if (now - last < SAID_SWEEP_INTERVAL_MS) return false",
+      "only": "^(?:only a finite guard stamp inside the window holds the sweep)$"
+    },
+    {
+      "label": "lifecycle: a guard that cannot be written stops the sweep (Codex, §146)",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    report.unreadable.push(`guard: ${error?.code ?? error}`)\n    return false\n  }",
+      "to": "    report.unreadable.push(`guard: ${error?.code ?? error}`)\n  }",
+      "only": "^(?:a guard that cannot be written stops the sweep instead of running unbounded)$"
+    },
+    {
+      "label": "2026-10-09: a session log holding a write git could not see is kept at any age",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (now - statSync(file).mtimeMs <= SAID_MARKER_MAX_AGE_MS || UNSEEN_WRITE_LINE.test(readFileSync(file, 'utf8'))) {",
+      "to": "      if (now - statSync(file).mtimeMs <= SAID_MARKER_MAX_AGE_MS) {",
+      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
+    },
+    {
+      "label": "2026-10-09: the running session's own log is never swept",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (!name.endsWith('.jsonl') || name === own) continue",
+      "to": "    if (!name.endsWith('.jsonl')) continue",
+      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
+    },
+    {
+      "label": "2026-10-09: only session logs are swept",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (!name.endsWith('.jsonl') || name === own) continue",
+      "to": "    if (name === own) continue",
+      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
+    },
+    {
+      "label": "2026-10-09: a recent session log is kept",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "now - statSync(file).mtimeMs <= SAID_MARKER_MAX_AGE_MS ||",
+      "to": "now - statSync(file).mtimeMs <= -1 ||",
+      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
+    },
+    {
+      "label": "2026-10-09: the session-log sweep runs once a day",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!claimDailySweep(guard, now, report)) return report\n  report.swept = true\n  const own",
+      "to": "  claimDailySweep(guard, now, report)\n  report.swept = true\n  const own",
+      "only": "^a week-old session log is swept, unless it holds a write git could not see$"
+    },
+    {
+      "label": "2026-10-09: a session-log directory that cannot be listed is named",
+      "file": "plugin/scripts/housekeeping.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (error?.code !== 'ENOENT') report.unreadable.push(`${directory}: ${error?.code ?? error}`)",
+      "to": "    if (error?.code !== 'ENOENT') report.unreadable.push('')",
+      "only": "^a session-log sweep that cannot look says where, and never throws$"
+    }
+  ]
+}

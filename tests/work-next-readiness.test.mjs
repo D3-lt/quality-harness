@@ -13,7 +13,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { main, observe, readinessFrom } from '../plugin/scripts/work-next.mjs'
-import { readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
+import { readyTaskLines } from '../plugin/scripts/ready-lines.mjs'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(testDir, '..')

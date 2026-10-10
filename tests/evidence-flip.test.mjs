@@ -32,7 +32,7 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { hookSaid } from './hook-env.mjs'
 import { fileURLToPath } from 'node:url'
-import { sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { sessionStateNote } from '../plugin/scripts/session-notes.mjs'
 import { latestCheckFor } from '../plugin/scripts/check-ledger.mjs'
 import { observedFacts } from '../plugin/scripts/completion-rules.mjs'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
@@ -259,6 +259,7 @@ test('every reader of the session log is driven above, or says why a lost line c
   const FILES = {
     'event-log.mjs': 'defines it',
     'lifecycle.mjs': 'by function, above',
+    'hook-record.mjs': 'by function, above',
     'artifact-pass.mjs': 'by function, above',
     'check-ledger.mjs': 'by function, above',
     'completion-rules.mjs': 'by function, above',

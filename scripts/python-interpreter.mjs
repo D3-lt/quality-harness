@@ -19,7 +19,7 @@
 // §88's fix needed an injectable seam and the reason this helper has one too.
 import { spawnSync } from 'node:child_process'
 
-import { resolvePython } from '../plugin/scripts/lifecycle.mjs'
+import { resolvePython } from '../plugin/scripts/ready-lines.mjs'
 
 // Resolved once per process. `readyTaskLines` learned the same lesson in the
 // plugin: re-probing three interpreters per call costs more than the work, and

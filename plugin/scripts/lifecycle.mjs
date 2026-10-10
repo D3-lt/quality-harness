@@ -17,7 +17,7 @@ import { onTurnEnd } from './on-turn-end.mjs'
 
 // ADR-060's event log is shared with run-shell-hook.mjs's per-edit gate, so it
 // lives in a leaf module both can import (T6).
-export { readEvents, sessionLogFile, stateDir } from './event-log.mjs'
+export { readEvents, sessionLogFile } from './event-log.mjs'
 
 // ONE JSON object per run is what Claude Code parses from a hook's stdout, so
 // output is held in hook-queue.mjs and written once by main() — which is also where the

@@ -10,7 +10,7 @@ import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, realpa
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { stateDir } from '../plugin/scripts/lifecycle.mjs'
+import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { proseSpecProblem, proseSpecs } from '../plugin/scripts/project-config.mjs'
 import { checkEventName, passedAlready } from '../plugin/scripts/check-ledger.mjs'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'

@@ -9,7 +9,7 @@ import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, 
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
-import { stateDir } from '../plugin/scripts/lifecycle.mjs'
+import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { runCheck } from '../plugin/scripts/qh-check.mjs'
 
 const scratch = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-config-')))

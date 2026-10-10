@@ -13,7 +13,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { stateDir } from '../plugin/scripts/lifecycle.mjs'
+import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { checkLaunch, runCheck } from '../plugin/scripts/qh-check.mjs'
 
 const repoRoot = path.dirname(path.dirname(fileURLToPath(import.meta.url)))

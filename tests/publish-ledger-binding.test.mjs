@@ -15,7 +15,8 @@ import * as lifecycleOwn from '../plugin/scripts/lifecycle.mjs'
 import * as treeFacts from '../plugin/scripts/tree-facts.mjs'
 import * as checkLedger from '../plugin/scripts/check-ledger.mjs'
 import * as publishVerdict from '../plugin/scripts/publish-verdict.mjs'
-const lifecycle = { ...lifecycleOwn, ...treeFacts, ...checkLedger, ...publishVerdict }
+import { stateDir } from '../plugin/scripts/event-log.mjs'
+const lifecycle = { ...lifecycleOwn, ...treeFacts, ...checkLedger, ...publishVerdict, stateDir }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')

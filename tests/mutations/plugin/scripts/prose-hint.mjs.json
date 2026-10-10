@@ -1,0 +1,44 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-094 T3: a renamed code file reads as a document change",
+      "file": "plugin/scripts/prose-hint.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "['diff', '--no-renames', '--raw'",
+      "to": "['diff', '--raw'",
+      "only": "^the hint is said after a passing prose-only run and never after a failed one$"
+    },
+    {
+      "label": "ADR-094 T3: a pass over uncommitted code is placed by HEAD",
+      "file": "plugin/scripts/prose-hint.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "&& tree.stdout.trim() === latest.after.tree ? latest.after.head : null",
+      "to": "? latest.after.head : null",
+      "only": "^the hint is said after a passing prose-only run and never after a failed one$"
+    },
+    {
+      "label": "ADR-094 T3: a link or an executable named like a document passes the hint",
+      "file": "plugin/scripts/prose-hint.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "    if (!regular(before) || !regular(after)) return false",
+      "to": "    if (false) return false",
+      "only": "^the hint is said after a passing prose-only run and never after a failed one$"
+    },
+    {
+      "label": "ADR-094 T3: an untracked link named like a document passes the hint",
+      "file": "plugin/scripts/prose-hint.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "    try { if (!lstatSync(path.join(root, file)).isFile()) return false } catch { return false }",
+      "to": "    void file",
+      "only": "^the hint is said after a passing prose-only run and never after a failed one$"
+    }
+  ]
+}

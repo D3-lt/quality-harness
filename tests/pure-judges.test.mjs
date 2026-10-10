@@ -102,6 +102,7 @@ const JUDGES = [
   'plugin/scripts/completion-rules.mjs::completionJudgement',
   'plugin/scripts/publish-command.mjs::publishCommandIn',
   'plugin/scripts/check-command.mjs::publishSettingNote',
+  'plugin/scripts/qh-check.mjs::checkPlan',
 ]
 
 test('the judges reach no file, process, clock or environment', () => {

@@ -5852,8 +5852,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "    if (typeof record?.id !== 'string') return null\n    seq += 1",
-      "to": "    if (false) return null\n    seq += 1",
+      "from": "    if (typeof record?.id !== 'string') return null\n    byId.set(record.id, record)\n    seq += 1",
+      "to": "    if (false) return null\n    byId.set(record.id, record)\n    seq += 1",
       "only": "^a row that is not a record proves nothing, in either ledger$"
     },
     {
@@ -5912,8 +5912,8 @@
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null\n  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)\n  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, rows: seq, viaProse",
-      "to": "  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)\n  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, rows: seq, viaProse",
+      "from": "  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null\n  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)",
+      "to": "  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)",
       "only": "^an unseen write after the original pass vetoes a reuse$"
     },
     {
@@ -6005,6 +6005,66 @@
       "from": "    && (typeof entry.lexical !== 'string' || !path.isAbsolute(entry.lexical) || outsideRoot(root, entry.lexical))",
       "to": "    && true",
       "only": "^a write through a directory link is counted when the hook records it$"
+    },
+    {
+      "label": "config problem: a config that cannot be read is absent",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "    return error?.code === 'ENOENT' ? null : `.quality-harness.json could not be read",
+      "to": "    return true ? null : `.quality-harness.json could not be read",
+      "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
+    },
+    {
+      "label": "config problem: an absent config is a problem",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "    return error?.code === 'ENOENT' ? null : `.quality-harness.json could not be read",
+      "to": "    return false ? null : `.quality-harness.json could not be read",
+      "only": "^twins: no config, a config with no check, and a check of the wrong type still run the inferred check$"
+    },
+    {
+      "label": "config problem: an array is a declaration",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "typeof config === 'object' && !Array.isArray(config) ? null",
+      "to": "typeof config === 'object' ? null",
+      "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
+    },
+    {
+      "label": "config problem: a JSON null is a declaration",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "return config !== null && typeof config === 'object'",
+      "to": "return typeof config === 'object'",
+      "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
+    },
+    {
+      "label": "reuse: a tree identical to the pass is called a prose change",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse-attribution.test.mjs"
+      ],
+      "from": "viaProse: latest.after.tree !== now.tree && !sameAsPass }",
+      "to": "viaProse: latest.after.tree !== now.tree }",
+      "only": "^a tree identical to one that passed is \"already passed\", not \"only prose changed\", and writes no reuse row$"
+    },
+    {
+      "label": "reuse: a skip row names the reuse row, not the pass that ran",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/prose-reuse-attribution.test.mjs"
+      ],
+      "from": "passOf: original?.id ?? latest.id,",
+      "to": "passOf: latest.id,",
+      "only": "^a skip row names the pass that ran, not the reuse row that stood for it$"
     }
   ]
 }

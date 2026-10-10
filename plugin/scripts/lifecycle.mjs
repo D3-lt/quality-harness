@@ -565,6 +565,25 @@ function declaredCheckCommand(directory) {
 }
 
 /**
+ * Why `.quality-harness.json` cannot be taken as this project's declaration, or null when it is absent or an
+ * object. A trailing comma used to read as "declares nothing": `declaredCheckCommand`, `fastCheckCommand` and
+ * `proseSpecs` each swallow the parse error, so `qh-check` ran the inferred check in place of the declared one
+ * and recorded a pass the publish refusal then trusted. Absent is no declaration; unreadable is UNKNOWN, and a
+ * gate that records a pass must not guess what it declared (CLAUDE.md §3, ADR-005).
+ */
+export function projectConfigProblem(root) {
+  let text
+  try { text = readFileSync(path.join(root, '.quality-harness.json'), 'utf8') } catch (error) {
+    return error?.code === 'ENOENT' ? null : `.quality-harness.json could not be read (${error?.code ?? 'unknown error'})`
+  }
+  let config
+  try { config = JSON.parse(text) } catch (error) {
+    return `.quality-harness.json is not valid JSON (${String(error?.message).split('\n')[0]})`
+  }
+  return config !== null && typeof config === 'object' && !Array.isArray(config) ? null : '.quality-harness.json is not a JSON object'
+}
+
+/**
  * Whether a project turned ADR-061's refusal back into its warning, with
  * `"publish": "warn"` in `.quality-harness.json` (the owner's decision,
  * 2026-09-22). Only that exact value counts. Anything else present is reported
@@ -904,6 +923,7 @@ export function passedAlready({ root, git, command, env = process.env, observeTr
   let text
   try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
   let latest = null
+  const byId = new Map()
   let seq = 0
   let latestSeq = 0
   // ⚠ qh-check ends every record with a newline, so a last line without one was not written
@@ -916,6 +936,7 @@ export function passedAlready({ root, git, command, env = process.env, observeTr
     try { record = JSON.parse(line) } catch { return null }
     // A row that is not a record proves nothing, as the importer reads it.
     if (typeof record?.id !== 'string') return null
+    byId.set(record.id, record)
     seq += 1
     const sameTree = record?.after?.tree === now.tree
     const sameCode = !sameTree && prose.length > 0 && typeof now.codeTree === 'string' && record?.after?.codeTree === now.codeTree
@@ -926,7 +947,11 @@ export function passedAlready({ root, git, command, env = process.env, observeTr
   if (!latest || checkEventName(latest) !== 'check.passed') return null
   if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
   const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)
-  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, tree: now.tree, record: latest, now, rows: seq, viaProse: latest.after.tree !== now.tree }
+  // The pass that actually ran: a reuse row names it (`reusedFrom`), so a chain of reuses never stands in for it. A tree
+  // identical to the one that pass was taken on is not "prose changed" - nothing changed (a Windows run of 3.8.17).
+  const original = typeof latest.reusedFrom === 'string' ? byId.get(latest.reusedFrom) : latest
+  const sameAsPass = original?.after?.tree === now.tree
+  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, passOf: original?.id ?? latest.id, tree: now.tree, record: latest, now, rows: seq, viaProse: latest.after.tree !== now.tree && !sameAsPass }
 }
 
 /**

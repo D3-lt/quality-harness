@@ -389,6 +389,26 @@
       "from": "  const shared = evidence.shared\n    ? `, sharing ${evidence.shared} line(s) with it`\n    : ''",
       "to": "  const shared = ''",
       "only": "^(?:a citation says what matched, and never claims to be the last release)$"
+    },
+    {
+      "label": "replaceable: a path that could not be looked at is absent",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-replaceable-unreadable.test.mjs"
+      ],
+      "from": "return error?.code === 'ENOENT' ? { ok: true, why: 'absent' } : {",
+      "to": "return true ? { ok: true, why: 'absent' } : {",
+      "only": "^a path that cannot be looked at is not free to overwrite$"
+    },
+    {
+      "label": "replaceable: a path that is absent could not be looked at",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-replaceable-unreadable.test.mjs"
+      ],
+      "from": "return error?.code === 'ENOENT' ? { ok: true, why: 'absent' } : {",
+      "to": "return false ? { ok: true, why: 'absent' } : {",
+      "only": "^twin: a path that is not there is still free to write$"
     }
   ]
 }

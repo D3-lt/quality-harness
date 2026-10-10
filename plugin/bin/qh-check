@@ -16,7 +16,8 @@ every other: a Python entry with a `.cmd` shim, forwarded by `sync-standalone.mj
 --link`.
 
 Exit: 0 the check passed · otherwise the check's own exit code · 1 when a signal
-ended the check · 2 = the project has no check, or a usage error such as an
+ended the check · 2 = the project has no check, its `.quality-harness.json` cannot be
+read as JSON (UNRUN: no replacement check is run), or a usage error such as an
 argument this gate does not take · 4 = could not run: `node` is not on PATH or
 plugin/scripts/qh-check.mjs is not beside this gate's bin/.
 

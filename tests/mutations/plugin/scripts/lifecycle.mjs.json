@@ -6065,6 +6065,36 @@
       "from": "passOf: original?.id ?? latest.id,",
       "to": "passOf: latest.id,",
       "only": "^a skip row names the pass that ran, not the reuse row that stood for it$"
+    },
+    {
+      "label": "quoted corpus text: a » inside the text closes the quote",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/quoted-text-closes.test.mjs"
+      ],
+      "from": ".replaceAll('»', '›')",
+      "to": "",
+      "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
+    },
+    {
+      "label": "quoted corpus text: a « inside the text opens a second quote",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/quoted-text-closes.test.mjs"
+      ],
+      "from": "cut.replaceAll('«', '‹')",
+      "to": "cut",
+      "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
+    },
+    {
+      "label": "quoted corpus text: an angle bracket inside the text survives",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/quoted-text-closes.test.mjs"
+      ],
+      "from": ".replaceAll('<', '‹').replaceAll('>', '›')",
+      "to": "",
+      "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
     }
   ]
 }

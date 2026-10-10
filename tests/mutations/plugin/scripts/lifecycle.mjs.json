@@ -6012,8 +6012,8 @@
       "tests": [
         "tests/qh-check-config-unreadable.test.mjs"
       ],
-      "from": "    return error?.code === 'ENOENT' ? null : `.quality-harness.json could not be read",
-      "to": "    return true ? null : `.quality-harness.json could not be read",
+      "from": "    if (error?.code !== 'ENOENT') return `.quality-harness.json could not be read (${error?.code ?? 'unknown error'})`",
+      "to": "    if (error) return null",
       "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
     },
     {
@@ -6022,8 +6022,8 @@
       "tests": [
         "tests/qh-check-config-unreadable.test.mjs"
       ],
-      "from": "    return error?.code === 'ENOENT' ? null : `.quality-harness.json could not be read",
-      "to": "    return false ? null : `.quality-harness.json could not be read",
+      "from": "    if (error?.code !== 'ENOENT') return `.quality-harness.json could not be read (${error?.code ?? 'unknown error'})`",
+      "to": "    if (error) return `.quality-harness.json could not be read (${error?.code ?? 'unknown error'})`",
       "only": "^twins: no config, a config with no check, and a check of the wrong type still run the inferred check$"
     },
     {
@@ -6095,6 +6095,26 @@
       "from": ".replaceAll('<', '‹').replaceAll('>', '›')",
       "to": "",
       "only": "^corpus text cannot close the quote that holds it, nor open a tag inside it$"
+    },
+    {
+      "label": "config problem: a link to nothing is an absent config",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "    try { lstatSync(path.join(root, '.quality-harness.json')) } catch { return null }\n    return '.quality-harness.json could not be read (a link to nothing)'",
+      "to": "    return null",
+      "only": "^a dangling link where the config should be is unreadable, not absent$"
+    },
+    {
+      "label": "config problem: a scalar config is a declaration",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "&& typeof config === 'object' &&",
+      "to": "&&",
+      "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
     }
   ]
 }

@@ -92,23 +92,31 @@ function shippedTreeAt(rev) {
     encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000,
   }).split('\n').filter(Boolean).filter(SHIPPED)
   const files = {}
+  const unreadable = []
   for (const path of names) {
     try {
       files[path] = execFileSync('git', ['show', `${rev}:${path}`], {
         encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000,
       })
-    } catch { /* a path git lists but cannot show is not a reachability fact. */ }
+    } catch { unreadable.push(path) }
   }
-  return files
+  return { files, unreadable }
 }
 
 function main(argv) {
   const rev = argv[0] || 'HEAD'
   let files
+  let unreadable
   try {
-    files = shippedTreeAt(rev)
+    ;({ files, unreadable } = shippedTreeAt(rev))
   } catch (error) {
     console.error(`orphan-sweep: could not read ${rev} — ${error.message.split('\n')[0]}`)
+    return 2
+  }
+  // A listed file git cannot show is a file the sweep did not read: its definitions are unchecked and the calls it
+  // makes are unseen, so a clean answer over the rest would be a claim about files nobody looked at (CLAUDE.md §3).
+  if (unreadable.length) {
+    console.error(`orphan-sweep: ${rev} lists files git could not show — could not read ${unreadable.length} listed file(s), first ${unreadable[0]} — could not look`)
     return 2
   }
   // An empty universe is not a clean one (CLAUDE.md §3). Without this the sweep
@@ -120,7 +128,7 @@ function main(argv) {
   const { orphans, defined } = orphanDefinitions(files)
   // Files with no definition in them are as empty a universe as no files: "0 of 0" is not a clean sweep.
   if (defined === 0) {
-    console.error(`orphan-sweep: ${rev} has shipped files but they hold no definitions — could not look`)
+    console.error(`orphan-sweep: ${rev} has shipped files but none holds a definition this sweep can see (functions, Python classes, const/let/var bindings) — could not look`)
     return 2
   }
   for (const { path, name } of orphans) console.log(`  ${path}: ${name}`)

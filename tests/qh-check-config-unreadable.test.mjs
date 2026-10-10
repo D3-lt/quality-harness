@@ -5,7 +5,7 @@
 // Absent, valid-without-a-check, and a wrongly typed `check` keep their documented behaviour.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
@@ -75,6 +75,22 @@ test('a config that cannot be read at all, and one that is not an object, are th
   const third = await run(nothing)
   assert.equal(third.code, 2, third.err)
   assert.equal(ranInferred(nothing), false)
+  for (const scalar of ['7', 'true', '"text"']) {
+    const dir = project(scalar)
+    const answer = await run(dir)
+    assert.equal(answer.code, 2, `${scalar}: ${answer.err}`)
+    assert.match(answer.err, /is not a JSON object/, answer.err)
+    assert.equal(ranInferred(dir), false, scalar)
+  }
+})
+
+test('a dangling link where the config should be is unreadable, not absent', { skip: process.platform === 'win32' && 'creating a symlink needs a privilege a Windows runner may not hold' }, async () => {
+  const dir = project(null)
+  symlinkSync('no-such-target.json', path.join(dir, '.quality-harness.json'))
+  const { code, err } = await run(dir)
+  assert.equal(code, 2, err)
+  assert.match(err, /\.quality-harness\.json could not be read/, err)
+  assert.equal(ranInferred(dir), false)
 })
 
 test('twins: no config, a config with no check, and a check of the wrong type still run the inferred check', async () => {
@@ -92,5 +108,15 @@ test('a valid declared check still runs, and a fixed config runs again', async (
   const { code, err } = await run(dir)
   assert.equal(code, 0, err)
   assert.equal(existsSync(path.join(dir, 'declared-ran.txt')), true)
+  assert.equal(ranInferred(dir), false)
+})
+
+test('a refused config that is then repaired runs the declared check on the next run', async () => {
+  const dir = project('{"check": "exit 1",}')
+  assert.equal((await run(dir)).code, 2)
+  writeFileSync(path.join(dir, '.quality-harness.json'), '{"check": "node -e \\"require(\'fs\').writeFileSync(\'repaired-ran.txt\',\'x\')\\""}')
+  const { code, err } = await run(dir)
+  assert.equal(code, 0, err)
+  assert.equal(existsSync(path.join(dir, 'repaired-ran.txt')), true)
   assert.equal(ranInferred(dir), false)
 })

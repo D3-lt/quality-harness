@@ -409,6 +409,16 @@
       "from": "return error?.code === 'ENOENT' ? { ok: true, why: 'absent' } : {",
       "to": "return false ? { ok: true, why: 'absent' } : {",
       "only": "^twin: a path that is not there is still free to write$"
+    },
+    {
+      "label": "sameLineage: two copies that read as empty are the same file",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-replaceable-unreadable.test.mjs"
+      ],
+      "from": "  return mine !== '' && mine === firstMeaningfulLine(readOrEmpty(source))",
+      "to": "  return mine === firstMeaningfulLine(readOrEmpty(source))",
+      "only": "^a copy and a source that both read as empty are not the same file \\(Codex review of f9c639a2\\)$"
     }
   ]
 }

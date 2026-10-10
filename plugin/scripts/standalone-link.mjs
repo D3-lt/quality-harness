@@ -748,7 +748,9 @@ export function sameLineage(target, source, kind) {
     // the gate they run.
     return text.includes(FORWARDER_MARK) || /%~dp0[\w-]+/.test(text)
   }
-  return firstMeaningfulLine(text) === firstMeaningfulLine(readOrEmpty(source))
+  // Two files that read as empty are not the same file: a source that could not be read must not match a blank copy.
+  const mine = firstMeaningfulLine(text)
+  return mine !== '' && mine === firstMeaningfulLine(readOrEmpty(source))
 }
 
 /**

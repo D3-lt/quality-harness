@@ -574,7 +574,10 @@ function declaredCheckCommand(directory) {
 export function projectConfigProblem(root) {
   let text
   try { text = readFileSync(path.join(root, '.quality-harness.json'), 'utf8') } catch (error) {
-    return error?.code === 'ENOENT' ? null : `.quality-harness.json could not be read (${error?.code ?? 'unknown error'})`
+    if (error?.code !== 'ENOENT') return `.quality-harness.json could not be read (${error?.code ?? 'unknown error'})`
+    // ENOENT is also what a link to nothing says: a dangling link is a declaration nobody can read, not an absent one.
+    try { lstatSync(path.join(root, '.quality-harness.json')) } catch { return null }
+    return '.quality-harness.json could not be read (a link to nothing)'
   }
   let config
   try { config = JSON.parse(text) } catch (error) {

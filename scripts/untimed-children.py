@@ -117,8 +117,14 @@ def main(argv):
     findings = []
     scanned = 0
     unparsed = []
+    unreadable = []
     for path in paths:
-        if path.suffix == ".cmd" or not path.is_file():
+        if path.suffix == ".cmd":
+            continue
+        if not path.is_file():
+            # A path the caller NAMED that is not there was not scanned; the default listing holds only what exists.
+            if argv:
+                unreadable.append(str(path))
             continue
         try:
             findings.extend(check(path.read_text(encoding="utf-8"), str(path)))
@@ -130,10 +136,12 @@ def main(argv):
     # A gate that did not parse, or no gate at all, is not a clean scan (CLAUDE.md §3).
     for path in unparsed:
         print(f"{path}: could not parse")
+    for path in unreadable:
+        print(f"{path}: could not read")
     if findings:
         return 1
-    if unparsed:
-        print(f"UNRUN: {len(unparsed)} gate(s) did not parse, so what they hold was not scanned.")
+    if unparsed or unreadable:
+        print(f"UNRUN: {len(unparsed) + len(unreadable)} input(s) did not parse or could not be read, so what they hold was not scanned.")
         return 2
     if not scanned:
         print("UNRUN: no gate to scan, so nothing here has been checked, which is not the same as clean.")

@@ -59,6 +59,16 @@
       "from": "    return shown.length ? 1 : unparsed.length ? 2 : 0",
       "to": "    return shown.length ? 1 : 0",
       "only": "^untimed-spawns: a file that does not parse is UNRUN, and a file that parses with no spawn is still clean$"
+    },
+    {
+      "label": "zero: one file that parsed hides another that did not",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/scanned-zero.test.mjs"
+      ],
+      "from": "  const unparsed = results.filter(result => result.unparsed)\n  if (unparsed.length) stderr.write(",
+      "to": "  const unparsed = results.every(result => result.unparsed) ? results : []\n  if (unparsed.length) stderr.write(",
+      "only": "^a good input beside one that cannot be read or parsed is still UNRUN \\(Codex review of 52cd9a66\\)$"
     }
   ]
 }

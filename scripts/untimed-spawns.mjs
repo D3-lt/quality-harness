@@ -198,7 +198,7 @@ export function report(results, { json = false } = {}) {
   return lines.join('\n')
 }
 
-export function main(argv = process.argv.slice(2), { acorn = loadAcorn(), stdout = process.stdout, stderr = process.stderr } = {}) {
+export function main(argv = process.argv.slice(2), { acorn = loadAcorn(), stdout = process.stdout, stderr = process.stderr, trackedFiles = trackedJavaScript } = {}) {
   if (acorn.unavailable) {
     stderr.write(`UNRUN: the parser this tool needs (Node's internal acorn, via --expose-internals) is not available — ${acorn.unavailable}. Nothing here has been checked, which is not the same as clean.\n`)
     return 2
@@ -206,25 +206,34 @@ export function main(argv = process.argv.slice(2), { acorn = loadAcorn(), stdout
   const json = argv.includes('--json')
   const hiddenMode = argv.includes('--hidden')
   const named = argv.filter(arg => arg !== '--json' && arg !== '--hidden')
-  const tracked = named.length ? null : trackedJavaScript()
+  const tracked = named.length ? null : trackedFiles()
   const files = named.length ? named.map(file => path.resolve(file))
     : tracked && (hiddenMode ? tracked.filter(file => path.relative(ROOT, file).split(path.sep)[0] === 'plugin') : tracked)
   if (files === null) {
     stderr.write('UNRUN: git ls-files did not answer, so the set of files to check is unknown.\n')
     return 2
   }
+  // An empty set is not a clean one (CLAUDE.md §3): "0 untimed" over nothing would read as a pass.
+  if (files.length === 0) {
+    stderr.write('UNRUN: no file to scan, so nothing here has been checked, which is not the same as clean.\n')
+    return 2
+  }
   const results = files.map(file => scanSource(acorn, readFileSync(file, 'utf8'), file))
+  // A file that did not parse was not scanned. It is counted in the report, and it is not a pass.
+  const unparsed = results.filter(result => result.unparsed)
+  if (unparsed.length) stderr.write(`UNRUN: ${unparsed.length} file(s) did not parse, so what they hold was not scanned.\n`)
   if (hiddenMode) {
     const all = results.flatMap(result => result.findings)
     const shown = all.filter(finding => finding.hidden === 'shown')
     for (const finding of shown) stdout.write(`${path.relative(ROOT, finding.file)}:${finding.line}: ${finding.call}() passes no windowsHide, so on Windows it opens a console window\n`)
     for (const finding of all.filter(f => f.hidden === 'unknown')) stdout.write(`${path.relative(ROOT, finding.file)}:${finding.line}: ${finding.call}() options could not be read here — UNKNOWN, a place to look\n`)
     stdout.write(`${all.filter(f => f.hidden === 'hidden').length} hidden · ${shown.length} shown · ${all.filter(f => f.hidden === 'unknown').length} unknown\n`)
-    return shown.length ? 1 : 0
+    for (const result of unparsed) stdout.write(`${path.relative(ROOT, result.file)}: could not parse — ${result.unparsed}\n`)
+    return shown.length ? 1 : unparsed.length ? 2 : 0
   }
   stdout.write(`${report(results, { json })}\n`)
   const untimed = results.some(result => result.findings.some(finding => finding.verdict === 'untimed'))
-  return untimed ? 1 : 0
+  return untimed ? 1 : unparsed.length ? 2 : 0
 }
 
 if (isMainModule(import.meta.url)) {

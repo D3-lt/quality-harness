@@ -19,6 +19,16 @@
       "from": "      if ((uses.get(name) ?? 0) <= 1) found.push({ path, name })",
       "to": "      if ((uses.get(name) ?? 0) <= 0) found.push({ path, name })",
       "only": "^(?:\\.\\.\\.and it finds the two orphans this repository actually shipped|a binding is a definition, and plugin/lib is shipped|tests and records do not make a function reachable)$"
+    },
+    {
+      "label": "orphan: files with no definitions are a clean sweep",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": [
+        "tests/scanned-zero.test.mjs"
+      ],
+      "from": "  if (defined === 0) {",
+      "to": "  if (false) {",
+      "only": "^orphan-sweep: a shipped tree with files and no definitions is could-not-look, not 0 orphans$"
     }
   ]
 }

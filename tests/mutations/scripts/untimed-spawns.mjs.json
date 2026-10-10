@@ -29,6 +29,36 @@
       "from": "    && aliases.some(alias => alias.name === node.callee.name && alias.start <= node.start && node.end <= alias.end)",
       "to": "    && aliases.some(alias => alias.name === node.callee.name)",
       "only": "passes windowsHide"
+    },
+    {
+      "label": "zero: an empty set of files is a clean count",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/scanned-zero.test.mjs"
+      ],
+      "from": "  if (files.length === 0) {",
+      "to": "  if (false) {",
+      "only": "^untimed-spawns: an empty set of files is UNRUN, not a clean count$"
+    },
+    {
+      "label": "zero: a file that did not parse is a clean count",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/scanned-zero.test.mjs"
+      ],
+      "from": "  return untimed ? 1 : unparsed.length ? 2 : 0",
+      "to": "  return untimed ? 1 : 0",
+      "only": "^untimed-spawns: a file that does not parse is UNRUN, and a file that parses with no spawn is still clean$"
+    },
+    {
+      "label": "zero: a file that did not parse is clean in the Windows-console mode",
+      "file": "scripts/untimed-spawns.mjs",
+      "tests": [
+        "tests/scanned-zero.test.mjs"
+      ],
+      "from": "    return shown.length ? 1 : unparsed.length ? 2 : 0",
+      "to": "    return shown.length ? 1 : 0",
+      "only": "^untimed-spawns: a file that does not parse is UNRUN, and a file that parses with no spawn is still clean$"
     }
   ]
 }

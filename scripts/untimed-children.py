@@ -115,16 +115,30 @@ def main(argv):
     paths = [pathlib.Path(p) for p in argv] or sorted(pathlib.Path("plugin/bin").iterdir()) + sorted(pathlib.Path("plugin/lib").glob("*.py"))
     check = unhidden if hidden_mode else untimed
     findings = []
+    scanned = 0
+    unparsed = []
     for path in paths:
         if path.suffix == ".cmd" or not path.is_file():
             continue
         try:
             findings.extend(check(path.read_text(encoding="utf-8"), str(path)))
+            scanned += 1
         except SyntaxError:
-            continue
+            unparsed.append(str(path))
     for label, line, call, where, why in findings:
         print(f"{label}:{line}: subprocess.{call} in {where}() {why}")
-    return 1 if findings else 0
+    # A gate that did not parse, or no gate at all, is not a clean scan (CLAUDE.md §3).
+    for path in unparsed:
+        print(f"{path}: could not parse")
+    if findings:
+        return 1
+    if unparsed:
+        print(f"UNRUN: {len(unparsed)} gate(s) did not parse, so what they hold was not scanned.")
+        return 2
+    if not scanned:
+        print("UNRUN: no gate to scan, so nothing here has been checked, which is not the same as clean.")
+        return 2
+    return 0
 
 
 if __name__ == "__main__":

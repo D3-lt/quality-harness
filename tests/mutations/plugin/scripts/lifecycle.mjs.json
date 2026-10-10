@@ -6115,6 +6115,16 @@
       "from": "&& typeof config === 'object' &&",
       "to": "&&",
       "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
+    },
+    {
+      "label": "config problem: a byte-order mark is an invisible character in a JSON error",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/qh-check-config-unreadable.test.mjs"
+      ],
+      "from": "  if (text.charCodeAt(0) === 0xFEFF) return",
+      "to": "  if (false) return",
+      "only": "^a config that starts with a byte-order mark is refused and says so \\(a Windows run of 3.8.18\\)$"
     }
   ]
 }

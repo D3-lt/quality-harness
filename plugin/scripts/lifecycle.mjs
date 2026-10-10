@@ -579,6 +579,9 @@ export function projectConfigProblem(root) {
     try { lstatSync(path.join(root, '.quality-harness.json')) } catch { return null }
     return '.quality-harness.json could not be read (a link to nothing)'
   }
+  // Windows PowerShell 5.1 and some editors write one. JSON.parse refuses it with an invisible character in the message, so say
+  // what it is. It is refused, not stripped: every other reader of this file would have to strip it the same way (a Windows run of 3.8.18).
+  if (text.charCodeAt(0) === 0xFEFF) return '.quality-harness.json starts with a byte-order mark (U+FEFF), which JSON does not allow: save it as UTF-8 without a BOM'
   let config
   try { config = JSON.parse(text) } catch (error) {
     return `.quality-harness.json is not valid JSON (${String(error?.message).split('\n')[0]})`

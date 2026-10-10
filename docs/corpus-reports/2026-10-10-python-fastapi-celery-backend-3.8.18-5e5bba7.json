@@ -1,0 +1,29 @@
+{
+  "date": "2026-10-10",
+  "at": "5e5bba7c701d73ec66b5d12af596672a79f12ffe",
+  "plugin": "3.8.18",
+  "kind": "probe",
+  "probeSha256": "f27398fad58db53e3d880e593b0fce0f4b309a9fc3f5dbe6254e70a8e74a1566",
+  "readers": "d5b805341e65d8440526122229213fea6e433a1b4b6cc5934234cc4f65a58fb0",
+  "platform": "Windows_NT 10.0.26200",
+  "node": "24.20.0",
+  "python": "3.14.7",
+  "corpus": {
+    "records": 72,
+    "undecided": 5,
+    "tasks": 209,
+    "taskDirectories": 19
+  },
+  "couldNotRun": 0,
+  "disagreements": 0,
+  "readinessUnproven": 0,
+  "look": "ok",
+  "notCompared": 0,
+  "verdictChanges": {
+    "compared": 77,
+    "passToFail": 0,
+    "failToPass": 0
+  },
+  "runner": "python-fastapi-celery-backend",
+  "found": ""
+}

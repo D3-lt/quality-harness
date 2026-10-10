@@ -11,7 +11,7 @@ import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 
-import { adrCorpus, decisionsGoverning, trackedPaths } from './lifecycle.mjs'
+import { adrCorpus, decisionsGoverning, trackedPaths } from './decision-corpus.mjs'
 
 // The CLI is behind an import guard (BACKLOG §27). It used to run at module
 // scope, so importing this file — to test it, or from any tool that walks the

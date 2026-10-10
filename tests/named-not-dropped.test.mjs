@@ -9,7 +9,9 @@ import { after, test } from 'node:test'
 import { diffReports, probe } from '../plugin/scripts/corpus-probe.mjs'
 import { recordCount } from '../plugin/scripts/corpus-report.mjs'
 import { fileURLToPath } from 'node:url'
-import { adrCorpus, readyTaskLines, scrubber } from '../plugin/scripts/lifecycle.mjs'
+import { readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus } from '../plugin/scripts/decision-corpus.mjs'
+import { scrubber } from '../plugin/scripts/corpus-text.mjs'
 import { main, observe } from '../plugin/scripts/work-next.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')

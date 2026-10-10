@@ -574,7 +574,7 @@ test('a link and its target are read once, as the target, and the link is the al
 test('a path through a linked parent directory is the alias of the path with no link in it', { skip: process.platform === 'win32' && 'a symlink needs privileges on Windows' }, async () => {
   // The same review: only a path's last component was asked, so a link to the DIRECTORY, listed first,
   // kept the linked path. Git does not list through a linked directory, so the listing is the seam.
-  const { adrCorpus } = await import('../plugin/scripts/lifecycle.mjs')
+  const { adrCorpus } = await import('../plugin/scripts/decision-corpus.mjs')
   const target = 'docs/decisions/001-rule.md'
   const repo = corpus({ [target]: frontmatter(['status: active'], 'rule') })
   symlinkSync(join('docs', 'decisions'), join(repo, 'Alt'))

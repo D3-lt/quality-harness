@@ -20,7 +20,9 @@ import { accessSync, closeSync, constants, openSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
-import { adrCorpus, aliasReason, corpusEligible, danglingCorpusLinks, frozenArchiveOf, listedUnderUninterestingDirectory, onceByRealPath, pathInCode, readRegularText, RECORD_DIRECTORY, recordId, recordStatus, spawnGate, terminalText, trackedPaths, undecidedReason, visiblePath } from './lifecycle.mjs'
+import { danglingCorpusLinks, listedUnderUninterestingDirectory, spawnGate } from './lifecycle.mjs'
+import { adrCorpus, aliasReason, corpusEligible, frozenArchiveOf, onceByRealPath, readRegularText, RECORD_DIRECTORY, recordId, recordStatus, trackedPaths, undecidedReason } from './decision-corpus.mjs'
+import { pathInCode, terminalText, visiblePath } from './corpus-text.mjs'
 
 const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
 

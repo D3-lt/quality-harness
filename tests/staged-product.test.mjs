@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { adrCorpus, decisionsGoverning } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, decisionsGoverning } from '../plugin/scripts/decision-corpus.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')

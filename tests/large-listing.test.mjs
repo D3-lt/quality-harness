@@ -8,7 +8,7 @@ import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { trackedPaths } from '../plugin/scripts/lifecycle.mjs'
+import { trackedPaths } from '../plugin/scripts/decision-corpus.mjs'
 
 const temps = []
 test.after(() => { for (const dir of temps) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) })

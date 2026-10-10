@@ -11,9 +11,10 @@ import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
+// The reader of the decision corpus, once part of lifecycle.mjs (BACKLOG section 375, stage B2): the local name stays, so no test body changes.
+import * as lifecycle from '../plugin/scripts/decision-corpus.mjs'
 
-const lifecycleUrl = new URL('../plugin/scripts/lifecycle.mjs', import.meta.url).href
+const lifecycleUrl = new URL('../plugin/scripts/decision-corpus.mjs', import.meta.url).href
 const temps = []
 test.after(() => { for (const dir of temps) rmSync(dir, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) })
 

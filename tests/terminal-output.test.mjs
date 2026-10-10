@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { quotedCorpusText } from '../plugin/scripts/lifecycle.mjs'
+import { quotedCorpusText } from '../plugin/scripts/corpus-text.mjs'
 
 const scripts = resolve(dirname(fileURLToPath(import.meta.url)), '..', 'plugin', 'scripts')
 const ESC = '\x1b'

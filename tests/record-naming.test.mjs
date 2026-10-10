@@ -9,7 +9,7 @@ import path, { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { adrCorpus } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus } from '../plugin/scripts/decision-corpus.mjs'
 import { observe } from '../plugin/scripts/work-next.mjs'
 import { verdictMoves } from '../plugin/scripts/corpus-probe.mjs'
 

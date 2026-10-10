@@ -9,7 +9,8 @@ import { tmpdir } from 'node:os'
 import { join, relative } from 'node:path'
 import test from 'node:test'
 
-import { hasDecisionCorpus, taskDirectories } from '../plugin/scripts/lifecycle.mjs'
+import { hasDecisionCorpus } from '../plugin/scripts/lifecycle.mjs'
+import { taskDirectories } from '../plugin/scripts/decision-corpus.mjs'
 
 const onWindows = process.platform === 'win32'
 const temps = []

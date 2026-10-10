@@ -18,7 +18,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { adrCorpus, decisionContext, decisionsGoverning, listedReadme, readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
+import { readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, decisionContext, decisionsGoverning, listedReadme } from '../plugin/scripts/decision-corpus.mjs'
 
 test('session orientation asks adr-next about the active corpus and never about a frozen archive', () => {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-flight-')))
@@ -423,7 +424,7 @@ test('work-next does not offer a record in the frozen archive for retirement', a
     const init = spawnSync('git', ['init', '-q', '-b', 'main'], { cwd: root, encoding: 'utf8', timeout: 15_000 })
     assert.equal(init.status ?? 0, 0, init.stderr)
     const state = observe(root)
-    const { adrCorpus: corpus } = await import('../plugin/scripts/lifecycle.mjs')
+    const { adrCorpus: corpus } = await import('../plugin/scripts/decision-corpus.mjs')
     const archived = corpus(root).find(record => /ADR-001-retired/.test(record.file))
     assert.equal(archived?.kind, 'graveyard', 'the archived record must be classified, or the check under test is never reached')
     const named = state.retirable.map(record => record.file.slice(root.length + 1).split('\\').join('/'))

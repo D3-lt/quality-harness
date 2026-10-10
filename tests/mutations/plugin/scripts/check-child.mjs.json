@@ -1,0 +1,40 @@
+{
+  "mutations": [
+    {
+      "label": "376: the bound a check runs under is the one asked for",
+      "file": "plugin/scripts/check-child.mjs",
+      "tests": [
+        "tests/qh-check-timeout.test.mjs"
+      ],
+      "from": "return (Number.isFinite(seconds) && seconds > 0 ? seconds : CHECK_TIMEOUT_SECONDS) * 1_000",
+      "to": "return CHECK_TIMEOUT_SECONDS * 1_000"
+    },
+    {
+      "label": "376: a bound of zero seconds is the default, never an instant kill",
+      "file": "plugin/scripts/check-child.mjs",
+      "tests": [
+        "tests/qh-check-timeout.test.mjs"
+      ],
+      "from": "seconds > 0 ?",
+      "to": "seconds >= 0 ?"
+    },
+    {
+      "label": "376: a check past its bound is sent SIGTERM",
+      "file": "plugin/scripts/check-child.mjs",
+      "tests": [
+        "tests/qh-check-timeout.test.mjs"
+      ],
+      "from": "const timer = setTimeout(() => forward('SIGTERM'), timeoutMs)",
+      "to": "const timer = setTimeout(() => {}, timeoutMs)"
+    },
+    {
+      "label": "376: a SIGTERM to qh-check reaches the check",
+      "file": "plugin/scripts/check-child.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "process.on('SIGTERM', forward)",
+      "to": "void forward"
+    }
+  ]
+}

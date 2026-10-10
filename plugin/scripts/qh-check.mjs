@@ -7,12 +7,12 @@
 // and exits with the check's own code. SIGINT and SIGTERM are forwarded to the
 // check's process group and recorded; a SIGKILL leaves no record, and the finding
 // it would have cleared stays open.
-import { spawn, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, lstatSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
+import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
-import { stateDir } from './lifecycle.mjs'
+import { stateDir } from './event-log.mjs'
 import { firstMentionHere } from './session-notes.mjs'
 import { projectConfigProblem, proseSpecs } from './project-config.mjs'
 import { checkCommandOrigin, fastCheckCommand } from './check-command.mjs'
@@ -22,70 +22,16 @@ import { validationVerdict } from './completion-rules.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
+import { PROSE_HINT, onlyTextChangedSince, previousPassHead, proseHintMs } from './prose-hint.mjs'
+import { checkTimeoutMs, runLaunched } from './check-child.mjs'
+import { once } from './lazily.mjs'
 
 const KEEP_BYTES = 64 * 1024
-// A check that never returns would hold the session's Bash call for ever; past
-// this bound its process group gets SIGTERM and the record says so.
-const CHECK_TIMEOUT_SECONDS = 3_600
-
-function checkTimeoutMs(env) {
-  const seconds = Number(env.QUALITY_HARNESS_CHECK_TIMEOUT)
-  return (Number.isFinite(seconds) && seconds > 0 ? seconds : CHECK_TIMEOUT_SECONDS) * 1_000
-}
 
 const inSeconds = ms => `${(ms / 1000).toFixed(1)}s`
 // A neighbour as the record keeps it: what its lease says, or that it could not be read.
 const recorded = seen => (seen ? [...seen.live, ...seen.unknown].map(({ file: _file, ...entry }) => entry) : null)
 
-// ADR-094 T3. A hint, once per repository, after a passing full run that took a while and followed a change to
-// nothing but text documents: the project may declare them as `prose`, which is its owner's call. Judged from
-// the previous full pass's HEAD (the tree hashes' objects are gone), so a change it cannot place says nothing.
-const PROSE_HINT = 'this run followed a change to nothing but text documents since the last full pass. If this project\'s check does not '
-  + 'read them, a "prose": [...] list in .quality-harness.json lets a later change to them alone reuse this pass (a check that does '
-  + 'read them makes that reuse wrong, so the declaration is the project owner\'s to approve); a "fastCheck" is the other lever (ADR-081).'
-const TEXT_DOCUMENT = /\.(?:md|mdx|txt|rst)$/i
-function proseHintMs(env) {
-  const configured = Number(env.QUALITY_HARNESS_PROSE_HINT_MS)
-  return Number.isSafeInteger(configured) && configured >= 0 ? configured : 60_000
-}
-function previousPassHead(root, command) {
-  let text
-  try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
-  let latest = null
-  for (const line of text.split('\n')) {
-    let record
-    try { record = JSON.parse(line) } catch { continue }
-    if (record?.command === command && checkEventName(record) === 'check.passed' && typeof record.after?.head === 'string') latest = record
-  }
-  if (!latest) return null
-  // The pass is placed by its HEAD only when it was taken on that commit's own tree: a pass over uncommitted code
-  // says nothing about what differs from HEAD later (found by a Codex review of ADR-094).
-  const tree = spawnSync('git', ['-C', root, 'rev-parse', '--verify', '-q', `${latest.after.head}^{tree}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
-  return !tree.error && tree.status === 0 && tree.stdout.trim() === latest.after.tree ? latest.after.head : null
-}
-function onlyTextChangedSince(root, head) {
-  const git = args => spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
-  const changed = git(['diff', '--no-renames', '--raw', '-z', head, '--'])
-  const untracked = git(['ls-files', '-z', '--others', '--exclude-standard'])
-  if (changed.error || changed.status !== 0 || untracked.error || untracked.status !== 0) return false
-  // A suffix says nothing about what a path IS: a link, a gitlink or an executable named `*.md` is not a document, and
-  // a retargeted link between code files would pass the suffix test (a Codex review of ADR-094). Only a regular file,
-  // on both sides of the diff, counts; a path added or removed has mode 000000 on the other side.
-  const regular = mode => mode === '000000' || mode === '100644'
-  const paths = []
-  const fields = changed.stdout.split('\0')
-  for (let at = 0; at + 1 < fields.length; at += 2) {
-    if (!fields[at].startsWith(':')) return false
-    const [before, after] = fields[at].slice(1).split(' ')
-    if (!regular(before) || !regular(after)) return false
-    paths.push(fields[at + 1])
-  }
-  for (const file of untracked.stdout.split('\0').filter(Boolean)) {
-    try { if (!lstatSync(path.join(root, file)).isFile()) return false } catch { return false }
-    paths.push(file)
-  }
-  return paths.length > 0 && paths.every(file => TEXT_DOCUMENT.test(file))
-}
 // A spawn error or a missing status is not "this directory is not a repository".
 // That reading is the non-git exemption, and a pass then skips the tree comparison.
 export function repositoryDiscovery(spawnResult) {
@@ -120,74 +66,53 @@ export function checkLaunch(command, platform = process.platform, env = process.
   return bash ? { file: bash, args: ['-c', command], shell: false } : null
 }
 
-// Runs a launched check to its end, forwarding SIGINT/SIGTERM and enforcing the
-// timeout. `received` is the signal this process forwarded, if any.
-async function runLaunched({ file, args, shell }, { root, env, platform, timeoutMs, stdout, stderr, keep }) {
-  // Its own process group on POSIX, so a forwarded signal reaches the whole check,
-  // not only the shell that started it.
-  const group = platform !== 'win32'
-  const child = spawn(file, args, { cwd: root, shell, env, stdio: ['ignore', 'pipe', 'pipe'], detached: group, timeout: timeoutMs, windowsHide: true })
-  let received = null
-  const forward = signal => {
-    received = signal
-    try { if (group) process.kill(-child.pid, signal); else child.kill(signal) } catch { /* already gone */ }
-  }
-  process.on('SIGINT', forward)
-  process.on('SIGTERM', forward)
-  const timer = setTimeout(() => forward('SIGTERM'), timeoutMs)
-  timer.unref()
-  child.stdout.on('data', chunk => { stdout.write(chunk); keep(chunk) })
-  child.stderr.on('data', chunk => { stderr.write(chunk); keep(chunk) })
-  const ended = await new Promise(resolve => {
-    child.once('error', error => resolve({ code: null, signal: null, error }))
-    child.once('close', (code, signal) => resolve({ code, signal, error: null }))
-  })
-  process.off('SIGINT', forward)
-  process.off('SIGTERM', forward)
-  clearTimeout(timer)
-  return { ended, received }
-}
 
-export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false, again = false, fast = false, lease = leaseModule, beforeReuse = () => {} } = {}) {
+// What the plan reads, each read lazily and once and in the order the plan asks for it, so a refusal reads no more than it
+// did before (BACKLOG section 376): the repository and its declared config, the command and how it came to be named, the
+// prose the project declared, and what the ledger says of this tree.
+function checkFacts({ cwd, env, fast }) {
   const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
   const git = repositoryDiscovery(top)
   const root = git === true ? top.stdout.trim() : realpathSync(cwd)
-  // A declaration that cannot be read is UNKNOWN, not empty: the inferred check below would be recorded as this
-  // project's pass in place of the one it declared (a trailing comma was enough).
-  const configProblem = projectConfigProblem(root)
+  const facts = {
+    root, git,
+    configProblem: once(() => projectConfigProblem(root)),
+    fastCommand: once(() => (fast ? fastCheckCommand(root) : null)),
+    named: once(() => (fast ? { command: facts.fastCommand(), origin: 'fast' } : checkCommandOrigin(root))),
+    prose: once(() => (git === true && !fast ? proseSpecs(root) : { specs: [], problem: null })),
+    passed: once(() => passedAlready({ root, git, command: facts.named().command, env, prose: facts.prose().specs })),
+  }
+  return facts
+}
+
+// The decision, as a function of the facts it is handed (BACKLOG section 376): refuse with a reason and an exit, or name the
+// command, how it came to be named, the prose that may stand in for a run, and the pass that already covers this tree.
+// `scripts/effect-classes.mjs` holds it to reading nothing but them.
+export function checkPlan(facts, { fast, again, env }) {
+  const configProblem = facts.configProblem()
   if (configProblem) {
-    stderr.write(`qh-check: UNRUN — ${configProblem}, so the declared check, fastCheck and prose are UNKNOWN. A replacement would certify something the project did not name; fix the file and run again.\n`)
-    return 2
+    return { code: 2, said: `qh-check: UNRUN — ${configProblem}, so the declared check, fastCheck and prose are UNKNOWN. A replacement would certify something the project did not name; fix the file and run again.\n` }
   }
   // ADR-081: `--fast` runs the declared `fastCheck`, records it apart and never skips.
-  const fastCommand = fast ? fastCheckCommand(root) : null
-  if (fast && !fastCommand) {
-    stderr.write('qh-check: no `fastCheck` that can fail is declared in .quality-harness.json, so `--fast` has nothing to run.\n')
-    return 2
+  if (fast && !facts.fastCommand()) {
+    return { code: 2, said: 'qh-check: no `fastCheck` that can fail is declared in .quality-harness.json, so `--fast` has nothing to run.\n' }
   }
-  if (fast) again = true
-  const { command, origin } = fast ? { command: fastCommand, origin: 'fast' } : checkCommandOrigin(root)
-  if (origin === 'refused') {
-    stderr.write('qh-check: the check declared in .quality-harness.json is a constant success and was refused.\n')
-    return 2
-  }
-  if (origin === 'unproven') {
-    stderr.write('qh-check: the repository root could not be read, so no check is named.\n')
-    return 2
-  }
-  if (!command) {
-    stderr.write('qh-check: this project has no check to run. Declare one as `check` in .quality-harness.json.\n')
-    return 2
-  }
+  const { command, origin } = facts.named()
+  if (origin === 'refused') return { code: 2, said: 'qh-check: the check declared in .quality-harness.json is a constant success and was refused.\n' }
+  if (origin === 'unproven') return { code: 2, said: 'qh-check: the repository root could not be read, so no check is named.\n' }
+  if (!command) return { code: 2, said: 'qh-check: this project has no check to run. Declare one as `check` in .quality-harness.json.\n' }
   // ADR-094 T3: the paths the project declared as prose, validated; a declaration that could hide code is said and ignored.
-  const prose = git === true && !fast ? proseSpecs(root) : { specs: [], problem: null }
-  if (prose.problem) stderr.write(`qh-check: ${prose.problem}\n`)
-  const observeNow = () => (prose.specs.length ? observe(root, observeBudgetMs(env), { without: prose.specs }) : observe(root))
-  // ADR-081: the ledger answers before the lease is taken, so a skip never waits its
-  // turn. A run that misses observes the tree again after its wait, below.
-  // QUALITY_HARNESS_CHECK_AGAIN=1 is `--again` for every run: a project, or a test,
-  // whose check depends on something outside the tree opts out of the skip.
-  let already = again || env.QUALITY_HARNESS_CHECK_AGAIN === '1' ? null : passedAlready({ root, git, command, env, prose: prose.specs })
+  const prose = facts.prose()
+  // ADR-081: the ledger answers before the lease is taken, so a skip never waits its turn. A run that misses observes the
+  // tree again after its wait. QUALITY_HARNESS_CHECK_AGAIN=1 is `--again` for every run: a project, or a test, whose check
+  // depends on something outside the tree opts out of the skip.
+  const rerun = fast || again || env.QUALITY_HARNESS_CHECK_AGAIN === '1'
+  return { command, origin, prose, notes: prose.problem ? [`qh-check: ${prose.problem}\n`] : [], already: rerun ? null : facts.passed() }
+}
+
+// A prose reuse is a pass row for THIS tree (see below); the record it appends can veto the reuse, which is why this is a
+// step of the run and not a part of the plan. Returns the pass that stands for this tree, or null when the check must run.
+function reuseByProse({ already, prose, git, command, root, stderr, beforeReuse }) {
   // A prose reuse is a pass row for THIS tree, so the publish verdict reads it as it reads any pass: its times are the
   // original's (it claims no more), its marker is `reusedFrom`, and one that cannot be written runs the check instead.
   if (already?.viaProse) {
@@ -225,27 +150,34 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     }
     if (already) already.reuse = row
   }
-  if (already) {
-    const took = already.ms === null ? '' : `, in ${inSeconds(already.ms)}`
-    stderr.write(already.viaProse
-      ? `qh-check: only prose changed (${prose.specs.join(', ')}), so the pass at ${already.at}${took} (\`${command}\`) stands for this tree — not run again; `
-        + `recorded as a reuse of ${already.reuse.reusedFrom}. The tree without the prose covers no ignored file, environment or service; \`qh-check --again\` runs it.\n`
-      : `qh-check: already passed on this tree at ${already.at}${took} (\`${command}\`) — not run again. `
-        + 'A tree hash covers no ignored file, environment or service; `qh-check --again` runs it.\n')
-    // The owner, 2026-10-02: a skip left no trace, so how often it saves a run could not be
-    // counted (ADR-081's follow-up). It goes to `skips.jsonl`, where no reader of a pass looks —
-    // a row in checks.jsonl would become the tree's latest record and undo the next skip. A
-    // ledger that cannot be written is said; the skip and its exit stand (CLAUDE.md §3).
-    try {
-      mkdirSync(stateDir(root), { recursive: true })
-      appendFileSync(path.join(stateDir(root), 'skips.jsonl'), `${JSON.stringify({ id: randomUUID(), at: new Date().toISOString(),
-        command, tree: already.tree, passId: already.passOf ?? already.id, passedAt: already.at, savedMs: already.ms,
-        ...(already.viaProse ? { viaProse: true } : {}) })}\n`, 'utf8')
-    } catch (failure) {
-      stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\n`)
-    }
-    return 0
+  return already
+}
+
+// The owner, 2026-10-02: a skip left no trace, so how often it saves a run could not be counted (ADR-081's follow-up).
+function recordSkip({ already, command, prose, root, stderr }) {
+  const took = already.ms === null ? '' : `, in ${inSeconds(already.ms)}`
+  stderr.write(already.viaProse
+    ? `qh-check: only prose changed (${prose.specs.join(', ')}), so the pass at ${already.at}${took} (\`${command}\`) stands for this tree — not run again; `
+      + `recorded as a reuse of ${already.reuse.reusedFrom}. The tree without the prose covers no ignored file, environment or service; \`qh-check --again\` runs it.\n`
+    : `qh-check: already passed on this tree at ${already.at}${took} (\`${command}\`) — not run again. `
+      + 'A tree hash covers no ignored file, environment or service; `qh-check --again` runs it.\n')
+  // The owner, 2026-10-02: a skip left no trace, so how often it saves a run could not be
+  // counted (ADR-081's follow-up). It goes to `skips.jsonl`, where no reader of a pass looks —
+  // a row in checks.jsonl would become the tree's latest record and undo the next skip. A
+  // ledger that cannot be written is said; the skip and its exit stand (CLAUDE.md §3).
+  try {
+    mkdirSync(stateDir(root), { recursive: true })
+    appendFileSync(path.join(stateDir(root), 'skips.jsonl'), `${JSON.stringify({ id: randomUUID(), at: new Date().toISOString(),
+      command, tree: already.tree, passId: already.passOf ?? already.id, passedAt: already.at, savedMs: already.ms,
+      ...(already.viaProse ? { viaProse: true } : {}) })}\n`, 'utf8')
+  } catch (failure) {
+    stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\n`)
   }
+}
+
+// ADR-077: waiting for a turn, taken before the load is sampled. Returns the held lease and what the run needs of it, or the
+// exit of a run a signal stopped while it waited.
+async function takeTurn({ lease, env, wait, command, root, stderr }) {
   // ADR-077: a lease for the whole run, taken before the load is sampled, so the check's own
   // numbers are taken after any wait. It names the heavy runs beside it and never changes the
   // check's exit or verdict (CLAUDE.md §3); a directory it cannot use is said, and it runs unleased.
@@ -297,7 +229,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     if (turn.stopped) {
       leaseStep('release', () => lease.release(held))
       stderr.write(`qh-check: stopped by ${turn.stopped} while waiting its turn; the check did not run.\n`)
-      return turn.stopped === 'SIGINT' ? 130 : 143
+      return { code: turn.stopped === 'SIGINT' ? 130 : 143 }
     }
     if (!turn.failed) {
       stderr.write(turn.admitted
@@ -307,6 +239,49 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
     // An admitted lease is marked running under the admission lock; one that stopped waiting is not.
     if (!turn.admitted) leaseStep('mark', () => lease.mark(held, { state: 'running' }))
   }
+  return { held, look, leaseStep, waitedMs }
+}
+
+// Said on STDERR, once, after the record exists; the record is the check's and the sentence is for whoever ran it.
+function recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr }) {
+  try {
+    const directory = stateDir(root)
+    mkdirSync(directory, { recursive: true })
+    // A fast record goes where no reader of a full pass looks, in any version (ADR-081).
+    const file = path.join(directory, fast ? 'fast-checks.jsonl' : 'checks.jsonl')
+    appendFileSync(file, `${JSON.stringify(record)}\n`, 'utf8')
+    // Said on STDERR, once, after the record exists: a check run by hand showed only
+    // its own output, so nobody could tell what ran, whether it was declared or
+    // inferred, or that a record was written (BACKLOG §280 item 1). Stdout stays
+    // the check's own.
+    const shown = path.relative(root, file)
+    const took = inSeconds(Date.parse(after.at) - Date.parse(startedAt))
+    const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : `${verdict} in ${took}`
+    stderr.write(`qh-check: ran \`${command}\` (${origin}) — ${said}; recorded in ${shown.startsWith('..') || path.isAbsolute(shown) ? file : shown}\n`)
+  } catch (failure) {
+    stderr.write(`qh-check: the check ran, but its record could not be written (${failure.code ?? failure.message}).\n`)
+  }
+}
+
+export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false, again = false, fast = false, lease = leaseModule, beforeReuse = () => {} } = {}) {
+  const facts = checkFacts({ cwd, env, fast })
+  const plan = checkPlan(facts, { fast, again, env })
+  if (plan.code !== undefined) {
+    stderr.write(plan.said)
+    return plan.code
+  }
+  const { root, git } = facts
+  const { command, origin, prose } = plan
+  for (const note of plan.notes) stderr.write(note)
+  const observeNow = () => (prose.specs.length ? observe(root, observeBudgetMs(env), { without: prose.specs }) : observe(root))
+  const already = reuseByProse({ already: plan.already, prose, git, command, root, stderr, beforeReuse })
+  if (already) {
+    recordSkip({ already, command, prose, root, stderr })
+    return 0
+  }
+  const admission = await takeTurn({ lease, env, wait, command, root, stderr })
+  if (admission.code !== undefined) return admission.code
+  const { held, look, leaseStep, waitedMs } = admission
   const beside = look()
   for (const line of beside ? lease.besideLines(beside) : []) stderr.write(`qh-check: ${line}\n`)
   const startedAt = new Date().toISOString()
@@ -350,23 +325,7 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const contended = contention(before.load, after.load, loadAtStart.cores)
   const record = { id: randomUUID(), at: after.at, git, command, origin, before, after, exit, signal, verdict, cores: loadAtStart.cores, contended,
     beside: recorded(beside), besideAtEnd: recorded(besideAtEnd), waitedMs, ...(prose.specs.length ? { prose: prose.specs } : {}) }
-  try {
-    const directory = stateDir(root)
-    mkdirSync(directory, { recursive: true })
-    // A fast record goes where no reader of a full pass looks, in any version (ADR-081).
-    const file = path.join(directory, fast ? 'fast-checks.jsonl' : 'checks.jsonl')
-    appendFileSync(file, `${JSON.stringify(record)}\n`, 'utf8')
-    // Said on STDERR, once, after the record exists: a check run by hand showed only
-    // its own output, so nobody could tell what ran, whether it was declared or
-    // inferred, or that a record was written (BACKLOG §280 item 1). Stdout stays
-    // the check's own.
-    const shown = path.relative(root, file)
-    const took = inSeconds(Date.parse(after.at) - Date.parse(startedAt))
-    const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : `${verdict} in ${took}`
-    stderr.write(`qh-check: ran \`${command}\` (${origin}) — ${said}; recorded in ${shown.startsWith('..') || path.isAbsolute(shown) ? file : shown}\n`)
-  } catch (failure) {
-    stderr.write(`qh-check: the check ran, but its record could not be written (${failure.code ?? failure.message}).\n`)
-  }
+  recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr })
   if (previousHead && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)
     && onlyTextChangedSince(root, previousHead) && firstMentionHere(root, PROSE_HINT)) {
     stderr.write(`qh-check: ${PROSE_HINT}\n`)

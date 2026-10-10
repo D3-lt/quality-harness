@@ -529,11 +529,11 @@ test('an index that could not be checked says unknown even when the tree passed'
 test('R2 over several commits says at least one could not be established', () => {
   const commits = [{ sha: 'a'.repeat(40), subject: 'one' }, { sha: 'b'.repeat(40), subject: 'two' }]
   for (const flags of [{ couldNotLook: true }, { orderUnknown: true }]) {
-    const text = lifecycle.uncheckedCommitsReason(testTmp, commits, flags)
+    const text = lifecycle.uncheckedCommitsReason('RUN-SENTENCE', commits, flags)
     assert.match(text, /at least one of 2 newly reachable commits/, JSON.stringify(flags))
     assert.match(text, /not known to be checked/)
   }
-  assert.doesNotMatch(lifecycle.uncheckedCommitsReason(testTmp, commits.slice(0, 1), { couldNotLook: true }), /at least one/)
+  assert.doesNotMatch(lifecycle.uncheckedCommitsReason('RUN-SENTENCE', commits.slice(0, 1), { couldNotLook: true }), /at least one/)
 })
 
 // A Windows chaos round (2.111.0-rc, P1): Claude Code on Windows ships a PowerShell

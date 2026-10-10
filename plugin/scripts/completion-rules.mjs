@@ -9,6 +9,7 @@ import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
 import { checkRevision, checkStanding, emittedFor, latestCheckFor, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, treeChecked, unobservableWrites } from './check-ledger.mjs'
 import { gitRepositoryLookup, mark, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
+import { once } from './lazily.mjs'
 
 // ---- Notes that sat above these functions in lifecycle.mjs; stage B of BACKLOG section 375 moved the code and they stayed behind.
 // ⚠ THE VALIDATION PATTERN TABLE WENT WITH THE CLASSIFIERS (ADR-060 T7), and two
@@ -608,7 +609,7 @@ export function completionFacts(input, ended) {
     : sessionCommits(log, root, observation.head)
   return {
     log, observation, check, root, baseline, writes, status, commits,
-    sentence: () => runTheCheckSentence(input.cwd),
+    sentence: once(() => runTheCheckSentence(input.cwd)),
     locationKey: () => canonical(root ?? path.resolve(input.cwd ?? process.cwd())),
     nudge: changed => evidenceNudge(input.cwd, changed),
   }

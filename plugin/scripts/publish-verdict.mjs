@@ -12,6 +12,7 @@ import { gitLines, gitRepositoryLookup, sameObservation, sessionBaseline } from 
 import { checkCommandOrigin, inferredCheckCaveat, publishSetting, publishSettingNote } from './check-command.mjs'
 import { checkRevision, checkStanding, lateBaselineAllowed, latestFastPass, ledgerBoundLog, logIncomplete, tornRecord } from './check-ledger.mjs'
 import { queueAction } from './hook-queue.mjs'
+import { once } from './lazily.mjs'
 
 // The roles that say "never edits". Read from the agent type the hook payload
 // carries inside a subagent, with or without the plugin namespace. A test holds
@@ -168,14 +169,6 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
  * shape and needs no repository.
  */
 export function publishFacts({ cwd, session, observation }) {
-  const once = read => {
-    let done = false
-    let value
-    return () => {
-      if (!done) { value = read(); done = true }
-      return value
-    }
-  }
   // ONE root lookup for this decision: the check and the opt-out are read from
   // the same answer, so they cannot disagree about which project this is.
   const found = once(() => {

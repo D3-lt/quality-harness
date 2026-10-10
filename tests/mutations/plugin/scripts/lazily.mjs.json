@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "C: a lazy read is not marked done, so every ask reads again",
+      "file": "plugin/scripts/lazily.mjs",
+      "tests": [
+        "tests/lazily.test.mjs"
+      ],
+      "from": "      value = read()\n      done = true",
+      "to": "      value = read()",
+      "only": "^once: a read happens when first asked for, once, and every ask gets that answer$"
+    },
+    {
+      "label": "C: a lazy read that answered nothing or zero is read again",
+      "file": "plugin/scripts/lazily.mjs",
+      "tests": [
+        "tests/lazily.test.mjs"
+      ],
+      "from": "    if (!done) {",
+      "to": "    if (!done || !value) {",
+      "only": "^once: an answer that is undefined or falsy is still the answer, not a reason to read again$"
+    }
+  ]
+}

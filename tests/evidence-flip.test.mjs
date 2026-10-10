@@ -194,11 +194,11 @@ const READERS = {
   // lost line can only make the note appear. NOT executed: no fixture tears the log under a SessionStart.
   onSessionEnd: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
   onSessionStart: { unexecuted: 'BACKLOG 375 stage D — needs a fixture that tears the log at a compact SessionStart' },
-  completionRules: { executed: 'Stop (completionRules)' },
+  completionFacts: { executed: 'Stop (completionRules)' },
   publishUnchecked: { executed: 'PreToolUse naming commit (publishUnchecked)' },
   // ADR-066 T1: rule P's decision, extracted so git's hook shares it. PreToolUse
   // still reaches it through publishUnchecked, so that boundary's tears run it.
-  publishVerdict: { executed: 'PreToolUse naming commit (publishUnchecked)' },
+  publishFacts: { executed: 'PreToolUse naming commit (publishUnchecked)' },
   // NOT executed: no fixture tears the log under a git hook. What holds is that a
   // torn log reaches publishVerdict, whose logIncomplete arm warns and never denies,
   // so the hook exits 0 — the could-not-look ADR-061 already takes, never a pass

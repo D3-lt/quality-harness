@@ -158,12 +158,54 @@ export function offerPublishHook({ cwd, session, env = process.env, run = spawnS
  * is nothing to say, else `{ deny, key, detail, text }`.
  */
 export function publishVerdict({ cwd, session, observation, invoked, commitOnly = false }) {
+  return publishJudgement(publishFacts({ cwd, session, observation }), { invoked, commitOnly })
+}
+
+/**
+ * What the verdict reads from the world (BACKLOG section 375, stage C). Each field is read when the judgement first asks for
+ * it and at most once, in the order the judgement asks, so a decision that stops early (a project with no check, a tree that
+ * could not be observed) reads no more than it did before the split. A test hands the judgement a plain object of the same
+ * shape and needs no repository.
+ */
+export function publishFacts({ cwd, session, observation }) {
+  const once = read => {
+    let done = false
+    let value
+    return () => {
+      if (!done) { value = read(); done = true }
+      return value
+    }
+  }
   // ONE root lookup for this decision: the check and the opt-out are read from
   // the same answer, so they cannot disagree about which project this is.
-  const place = nearestExistingDirectory(path.resolve(cwd))
-  const found = place ? gitRepositoryLookup(place) : { ok: false, root: null, reason: 'the working directory does not exist' }
-  const origin = checkCommandOrigin(cwd, found)
+  const found = once(() => {
+    const place = nearestExistingDirectory(path.resolve(cwd))
+    return place ? gitRepositoryLookup(place) : { ok: false, root: null, reason: 'the working directory does not exist' }
+  })
+  const fastPasses = new Map()
+  return {
+    observation,
+    origin: once(() => checkCommandOrigin(cwd, found())),
+    setting: once(() => publishSetting(cwd, found())),
+    ledger: once(() => ledgerBoundLog(cwd, readEvents(cwd, session))),
+    caveat: once(() => inferredCheckCaveat(cwd)),
+    lateBaselineAllowed: (log, now) => lateBaselineAllowed(log, cwd, now),
+    fastPass: tree => {
+      if (!fastPasses.has(tree)) fastPasses.set(tree, latestFastPass(cwd, tree, found().root ?? cwd))
+      return fastPasses.get(tree)
+    },
+  }
+}
+
+/**
+ * Rule P's decision as a function of its facts and of what the caller proved about the command. It reaches no file, process,
+ * clock or environment of its own (tests/pure-judges.test.mjs holds that), so what it may refuse is a table over facts and
+ * tests/publish-judgement.test.mjs walks that table.
+ */
+export function publishJudgement(facts, { invoked, commitOnly = false }) {
+  const origin = facts.origin()
   if (!origin.command && origin.origin !== 'refused' && origin.origin !== 'unproven') return null
+  const observation = facts.observation
   // ⚠ A TREE THAT COULD NOT BE OBSERVED IS SAID, NEVER PASSED IN SILENCE. This
   // returned null before anything was said, so where git outran observe()'s budget an
   // unchecked commit met neither a refusal nor a word, from PreToolUse or from git's
@@ -177,20 +219,20 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
         + (invoked !== null
           ? `about to run names commit or push (\`${invoked}\`). Nothing is refused on a state that could not be read. Run \`qh-check\` before publishing; on a slow host, QUALITY_HARNESS_OBSERVE_BUDGET_MS raises the 5s budget.`
           : 'about to run only mentions commit or push. Advisory; nothing is refused.')
-        + inferredCheckCaveat(cwd),
+        + facts.caveat(),
     }
   }
   const now = observation
   // ADR-088 T2: only check events `checks.jsonl` holds can clear the refusal. A ledger not read
   // whole is could-not-look here whoever imported it, as a `check.source-unreadable` would say.
-  const bound = ledgerBoundLog(cwd, readEvents(cwd, session))
+  const bound = facts.ledger()
   const { dropped } = bound
   const log = bound.torn ? Object.assign([...bound.log, { event: 'check.source-unreadable' }], { complete: bound.log.complete }) : bound.log
   // A start that could not look, judged by git's own hook, which prepares no late baseline:
   // the rule recordHookEvent adopts by, applied without writing. Only where this log holds
   // that start, so a linked worktree's empty log is not handed one (ADR-068).
   const baseline = sessionBaseline(log)?.observation
-    ?? (log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now) ? now : undefined)
+    ?? (log.some(entry => entry.event === 'session.started') && facts.lateBaselineAllowed(log, now) ? now : undefined)
   const treeStanding = checkStanding(log, now.tree)
   const indexStanding = checkStanding(log, now.index)
   const treeUnchecked = treeStanding !== 'passed' && (baseline?.ok !== true || now.tree !== baseline.tree)
@@ -225,7 +267,7 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
   // 2026-09-22). The index still warns: its exact bytes were never checked.
   // A project may opt out with `"publish": "warn"` (ADR-061 revision 3); the
   // warning below is then all it gets, on every attempt the dedupe allows.
-  const setting = publishSetting(cwd, found)
+  const setting = facts.setting()
   // Only a PROVEN invocation may be refused (CLAUDE.md §16: a block needs stronger
   // evidence than advice). A command that merely mentions the words is warned.
   const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null
@@ -234,7 +276,7 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
   // commit refused before the fast pass is told after it. Anything that pushes, and
   // any form not proven, still needs the full check.
   if (deny && commitOnly) {
-    const fastPass = latestFastPass(cwd, now.tree, found.root ?? cwd)
+    const fastPass = facts.fastPass(now.tree)
     if (fastPass) {
       // The fast check ran on the working tree; the commit records the index. A partial
       // stage is a different tree, and the full path says so at the same point.
@@ -248,7 +290,7 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
   }
   // A fast pass this command cannot use (it is not proven to be one commit, or it pushes) is still a
   // pass: the sentence below said "no `qh-check` has passed" over it, which was untrue (2026-10-08).
-  const fastSeen = treeUnchecked ? latestFastPass(cwd, now.tree, found.root ?? cwd) : null
+  const fastSeen = treeUnchecked ? facts.fastPass(now.tree) : null
   return {
     deny, key, detail: { tree: now.tree, revision },
     // A record that could not be read whole is could-not-look, which git's hook says at the event
@@ -282,7 +324,7 @@ export function publishVerdict({ cwd, session, observation, invoked, commitOnly 
         ? `about to run names commit or push (\`${invoked}\`). Run \`qh-check\` first — it runs the declared check and records the pass this hook reads. This says what state the repository is in, not what the command publishes.`
         : 'about to run only mentions commit or push — a grep, an echo, a file name, or a form this hook does not parse. Advisory; nothing is refused. If it does publish, run `qh-check` first.')
       + (dropped > 0 ? ` ${dropped} check event(s) in this session's log name no \`qh-check\` record and were not counted.` : '')
-      + `${inferredCheckCaveat(cwd)}${publishSettingNote(setting)}`,
+      + `${facts.caveat()}${publishSettingNote(setting)}`,
   }
 }
 

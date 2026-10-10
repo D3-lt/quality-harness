@@ -26,8 +26,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (!check) return\n\n  const changed",
-      "to": "  if (false) return\n\n  const changed",
+      "from": "  if (!check) return { claim, actions }\n\n  const changed",
+      "to": "  if (false) return { claim, actions }\n\n  const changed",
       "only": "^(?:reported: a project that names no check hears nothing from the evidence gates)$"
     },
     {
@@ -296,8 +296,8 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),",
-      "to": "      text: uncheckedCommitsReason(input.cwd, unchecked),",
+      "from": "      text: uncheckedCommitsText(facts.sentence(), unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),",
+      "to": "      text: uncheckedCommitsText(facts.sentence(), unchecked),",
       "only": "^(?:over a torn log a newly reachable commit is \"not known to be checked\", never \"unchecked\")$"
     },
     {
@@ -389,6 +389,46 @@
       "from": "'this turn ends with work no `qh-check` has passed on.'",
       "to": "'this turn ended with work no `qh-check` has passed on.'",
       "only": "^writes and turn ends: what was written, where, and what the turn says about it$"
+    },
+    {
+      "label": "C: a cut log over a committed unchecked tree says it cannot be shown, not that no check passed",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/completion-judgement.test.mjs"
+      ],
+      "from": "      ? (logTorn\n",
+      "to": "      ? (false",
+      "only": "^turn end: no combination of facts breaks a property an answer must have$"
+    },
+    {
+      "label": "C: a project with no check gets no finding",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/completion-judgement.test.mjs"
+      ],
+      "from": "  if (!check) return { claim, actions }",
+      "to": "  if (false) return { claim, actions }",
+      "only": "^turn end: no combination of facts breaks a property an answer must have$"
+    },
+    {
+      "label": "C: a log not read whole is said as could-not-look",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/completion-judgement.test.mjs"
+      ],
+      "from": "    || logIncomplete(log)) {\n    // Once per session and cwd",
+      "to": "    || false) {\n    // Once per session and cwd",
+      "only": "^turn end: no combination of facts breaks a property an answer must have$"
+    },
+    {
+      "label": "C: a tree that could not be observed is could-not-look evidence",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/completion-judgement.test.mjs"
+      ],
+      "from": "  if (observation?.ok !== true) return 'could-not-look'",
+      "to": "  if (false) return 'could-not-look'",
+      "only": "^turn end: no combination of facts breaks a property an answer must have$"
     }
   ]
 }

@@ -306,7 +306,7 @@
       "tests": [
         "tests/chaos-e016066.test.mjs"
       ],
-      "from": "    ?? (log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now) ? now : undefined)",
+      "from": "    ?? (log.some(entry => entry.event === 'session.started') && facts.lateBaselineAllowed(log, now) ? now : undefined)",
       "to": "    ?? undefined",
       "only": "git's own hook gives a failed start"
     },
@@ -316,8 +316,8 @@
       "tests": [
         "tests/chaos-e016066.test.mjs"
       ],
-      "from": "log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now)",
-      "to": "lateBaselineAllowed(log, cwd, now)",
+      "from": "log.some(entry => entry.event === 'session.started') && facts.lateBaselineAllowed(log, now)",
+      "to": "facts.lateBaselineAllowed(log, now)",
       "only": "git's own hook gives a failed start"
     },
     {
@@ -386,8 +386,8 @@
       "tests": [
         "tests/publish-ledger-binding.test.mjs"
       ],
-      "from": "  const bound = ledgerBoundLog(cwd, readEvents(cwd, session))",
-      "to": "  const bound = { log: readEvents(cwd, session), dropped: 0 }",
+      "from": "    ledger: once(() => ledgerBoundLog(cwd, readEvents(cwd, session))),",
+      "to": "    ledger: once(() => ({ log: readEvents(cwd, session), dropped: 0 })),",
       "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
     },
     {
@@ -446,7 +446,7 @@
       "tests": [
         "tests/publish-fast-wording.test.mjs"
       ],
-      "from": "  const fastSeen = treeUnchecked ? latestFastPass(cwd, now.tree, found.root ?? cwd) : null",
+      "from": "  const fastSeen = treeUnchecked ? facts.fastPass(now.tree) : null",
       "to": "  const fastSeen = null",
       "only": "^a refusal after a fast pass says the fast check passed and why it does not count here$"
     },
@@ -459,6 +459,66 @@
       "from": "This says what state the repository is in",
       "to": "This says what state the repo is in",
       "only": "^publish: every form of a publish command gets the answer it got when the transcript was recorded$"
+    },
+    {
+      "label": "C: a refusal needs a proven invocation, not a mention",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-judgement.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
+      "only": "^rule P: no combination of facts breaks a property a refusal must have$"
+    },
+    {
+      "label": "C: a log not read whole never refuses",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-judgement.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "to": "  const deny = treeUnchecked && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "only": "^rule P: no combination of facts breaks a property a refusal must have$"
+    },
+    {
+      "label": "C: a check that could not look never refuses",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-judgement.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "only": "^rule P: no combination of facts breaks a property a refusal must have$"
+    },
+    {
+      "label": "C: an order that could not be established never refuses",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-judgement.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "only": "^rule P: no combination of facts breaks a property a refusal must have$"
+    },
+    {
+      "label": "C: a project that asked for a warning is not refused",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-judgement.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && invoked !== null",
+      "only": "^rule P: no combination of facts breaks a property a refusal must have$"
+    },
+    {
+      "label": "C: a repository whose root could not be read is not refused",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-judgement.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && !setting.warn && invoked !== null",
+      "only": "^rule P: no combination of facts breaks a property a refusal must have$"
     }
   ]
 }

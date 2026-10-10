@@ -11,7 +11,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { shellWords } from '../plugin/scripts/shell-words.mjs'
-import { publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
+import { publishCommandIn } from '../plugin/scripts/publish-command.mjs'
 
 const POSIX = process.platform !== 'win32'
 const SHELLS = ['/bin/bash', '/bin/zsh'].filter(shell => POSIX && existsSync(shell))

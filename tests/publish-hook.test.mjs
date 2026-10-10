@@ -193,7 +193,7 @@ function startSessionWithEnvFile(dir, session, envFile) {
 }
 
 test('sessionstart offers the hook only where git runs config hooks', { skip: needsConfigHooks }, async () => {
-  const { offerPublishHook } = await import('../plugin/scripts/lifecycle.mjs')
+  const { offerPublishHook } = await import('../plugin/scripts/publish-verdict.mjs')
   // Through SessionStart itself, so what SELECTS the offer is what is tested.
   const dir = repository('offer-')
   const envFile = path.join(testTmp, `env-${process.pid}-a`)
@@ -216,7 +216,7 @@ test('sessionstart offers the hook only where git runs config hooks', { skip: ne
 })
 
 test('an existing GIT_CONFIG_COUNT keeps its entries', { skip: needsConfigHooks }, async () => {
-  const { offerPublishHook } = await import('../plugin/scripts/lifecycle.mjs')
+  const { offerPublishHook } = await import('../plugin/scripts/publish-verdict.mjs')
   const dir = repository('count-')
   const session = `count-${process.pid}`
   startSession(dir, session)
@@ -235,7 +235,7 @@ test('an existing GIT_CONFIG_COUNT keeps its entries', { skip: needsConfigHooks 
 })
 
 test('the sourced env file makes git run the hook over a repo-local disable', { skip: needsConfigHooks }, async () => {
-  const { offerPublishHook } = await import('../plugin/scripts/lifecycle.mjs')
+  const { offerPublishHook } = await import('../plugin/scripts/publish-verdict.mjs')
   const dir = repository('override-')
   const session = `override-${process.pid}`
   startSession(dir, session)
@@ -260,7 +260,7 @@ test('an installation path with shell characters survives the exports', { skip: 
   // Codex review of 3.0.0: the stored command double-quoted its paths, and git runs
   // it through sh, so a `$` in the installation path was expanded away. The paths are
   // single-quoted now; this one holds a `$`, a backtick and a single quote.
-  const { publishHookExports } = await import('../plugin/scripts/lifecycle.mjs')
+  const { publishHookExports } = await import('../plugin/scripts/publish-verdict.mjs')
   const odd = mkdtempSync(path.join(testTmp, 'ins$tall `q` it\'s-'))
   const script = path.join(odd, 'report.mjs')
   writeFileSync(script, "process.stdout.write('ran ' + process.argv[2])\n")
@@ -364,7 +364,7 @@ test("git's hook in a linked worktree records that it ran in the session's own l
 // node's versioned path, and once `brew upgrade node` removed it git refused every commit
 // and push in every repository, because git refuses when a hook command cannot start.
 test('a hook whose node moved still runs, and one whose script is gone refuses nothing', { skip: needsConfigHooks }, async () => {
-  const { publishHookExports } = await import('../plugin/scripts/lifecycle.mjs')
+  const { publishHookExports } = await import('../plugin/scripts/publish-verdict.mjs')
   const script = path.join(testTmp, 'refuse.mjs')
   writeFileSync(script, "process.stderr.write('ran ' + process.argv[2] + ' ' + process.argv.length); process.exit(1)\n")
   const commitWith = (prefix, exports) => {

@@ -1,0 +1,464 @@
+{
+  "mutations": [
+    {
+      "label": "publish-hook: the stored command single-quotes its paths",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "shell characters survive",
+      "from": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" ${single(script)} ${event}`",
+      "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
+    },
+    {
+      "label": "publish armed: only a session whose git hook ran is armed",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "an armed session leaves a plain invocation",
+      "from": "entry => entry.event === 'publish.hook-ran')) {",
+      "to": "entry => entry.event === 'publish.offered')) {"
+    },
+    {
+      "label": "publish armed: a PowerShell call keeps the refusal",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "only": "PowerShell, an offered-only session",
+      "from": "  if (verdict.deny && input.tool_name === 'Bash' && leavesHookInPlace(",
+      "to": "  if (verdict.deny && leavesHookInPlace("
+    },
+    {
+      "label": "publish-hook: only a git that runs config hooks is offered them",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "sessionstart offers the hook",
+      "from": "  if (probe.error || probe.status !== 0 || !/\\bqhprobe\\b/.test(probe.stdout ?? '')) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "publish-hook: the offer is indexed after GIT_CONFIG_* already in force",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an existing GIT_CONFIG_COUNT",
+      "from": "    '__qh_n=${GIT_CONFIG_COUNT:-0}',",
+      "to": "    '__qh_n=0',"
+    },
+    {
+      "label": "publish-hook: a repository's own disable does not switch the offered hook off",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "over a repo-local disable",
+      "from": "    ['hook.qh-publish-commit.enabled', 'true'],",
+      "to": "    ['hook.qh-publish-commit.unused', 'true'],"
+    },
+    {
+      "label": "publish-hook: the hook is offered once per env file",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "an existing GIT_CONFIG_COUNT",
+      "from": "  if (existing.includes('hook.qh-publish-')) return null",
+      "to": "  if (false) return null"
+    },
+    {
+      "label": "reviewer-guard: a publish is refused inside a read-only role",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs"
+      ],
+      "from": "  if (!containsCommitOrPush(command)) return null",
+      "to": "  if (true) return null",
+      "only": "^(?:the guard refuses a command that names commit or push, wrapped or not)$"
+    },
+    {
+      "label": "reviewer-guard: an editing tool is refused inside a read-only role",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs"
+      ],
+      "from": "  if (READ_ONLY_EDITING_TOOLS.has(tool)) {",
+      "to": "  if (false) {",
+      "only": "^(?:the guard refuses an editing tool, and says why)$"
+    },
+    {
+      "label": "fail-open: a passed tree does not make an unknown index read as unchecked",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "            : !treeUnchecked && indexUnknown && treeStanding === 'passed'",
+      "to": "            : false",
+      "only": "^(?:an index that could not be checked says unknown even when the tree passed)$"
+    },
+    {
+      "label": "fail-open: \"publish\": \"warn\" turns the refusal into a warning",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
+      "only": "^(?:a project can turn the publish refusal back into a warning, and only on purpose)$"
+    },
+    {
+      "label": "fail-open: only the tree's could-not-look exempts a refusal",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const couldNotLook = treeStanding === 'could-not-look'",
+      "to": "  const couldNotLook = treeStanding === 'could-not-look' || indexStanding === 'could-not-look'",
+      "only": "^(?:an index that could not be checked does not rescue a failed working tree|an index that could not be checked says unknown even when the tree passed)$"
+    },
+    {
+      "label": "fail-open: an unchecked index warning does not invent a passing check",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "            : !treeUnchecked && treeStanding === 'passed'",
+      "to": "            : !treeUnchecked",
+      "only": "^(?:an unchecked index warning does not invent a passing check)$"
+    },
+    {
+      "label": "fail-open: only an unchecked tree refuses a publish",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
+      "to": "  const deny = !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
+      "only": "^(?:a passing check on the tree is not refused because the index differs from it|an unchecked index warning does not invent a passing check|an index that could not be checked says unknown even when the tree passed)$"
+    },
+    {
+      "label": "R3: an index-only change during a read-only run is reported",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (sameObservation(before, after)) return",
+      "to": "  if (before.tree === after.tree) return",
+      "only": "^(?:a read-only role cannot commit or push and its other changes are reported)$"
+    },
+    {
+      "label": "evidence-flip: a review whose opening bracket tore is not a review where nothing changed",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "        ? (log?.complete !== true\n          ? 'this session\\'s event log could not be read whole",
+      "to": "        ? (false\n          ? 'this session\\'s event log could not be read whole",
+      "only": "^(?:a review whose start or end could not be observed says so, instead of saying nothing)$"
+    },
+    {
+      "label": "evidence-flip: the publish warning does not accuse from a torn log",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    text: (logIncomplete(log)",
+      "to": "    text: (false",
+      "only": "^(?:at every hook boundary a torn log is never quieter than a whole one, however it tore)$"
+    },
+    {
+      "label": "R3: a bracket that could not be observed is said, not dropped",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (before?.ok !== true || after?.ok !== true) {",
+      "to": "  if (before?.ok !== true || after?.ok !== true) { return }\n  if (false) {",
+      "only": "^(?:a review whose start or end could not be observed says so, instead of saying nothing)$"
+    },
+    {
+      "label": "R3: told-already is read from the action detail, not from the shape of a key",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    const told = entry => entry.detail?.kind === 'unobserved' && entry.detail.agent === input.agent_id",
+      "to": "    const told = entry => entry.key === unobservedKey || entry.key === `${input.agent_id}:unknown`",
+      "only": "^(?:a review whose start or end could not be observed says so, instead of saying nothing)$"
+    },
+    {
+      "label": "ADR-061: the refusal matches an invocation of git commit or git push, never the bare words (§269)",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  return publishCommandIn(command) !== null",
+      "to": "  return typeof command === 'string' && /(?<![A-Za-z0-9_-])(?:commit|push)(?![A-Za-z0-9_-])/.test(command)",
+      "only": "^(?:a read-only role cannot commit or push and its other changes are reported)$"
+    },
+    {
+      "label": "ADR-061: only a proven invocation is refused; a mention is warned about (§16, §269)",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
+      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
+      "only": "^(?:the publish warning advises, never blocks, while this repository is unchecked)$"
+    },
+    {
+      "label": "2.111.0-rc P1: the PowerShell tool is a shell",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "only": "PowerShell tool",
+      "from": "const SHELL_TOOLS = new Set(['Bash', 'PowerShell'])",
+      "to": "const SHELL_TOOLS = new Set(['Bash'])"
+    },
+    {
+      "label": "ADR-068 T2: the arming line stops once the hook has run",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "only": "the armed line is silent",
+      "from": "  return offered >= 0 && !events.slice(offered + 1).some(entry => entry.event === 'publish.hook-ran')",
+      "to": "  return offered >= 0"
+    },
+    {
+      "label": "chaos 626934a: the advisory arm reads a PowerShell backtick escape",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(",
+      "to": "  return [command, ...decoded].some(",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 626934a: the advisory arm reads an encoded PowerShell script",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(",
+      "to": "  return [command, command.replace(/`(.)/gs, '$1')].some(",
+      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
+    },
+    {
+      "label": "chaos 916b515 F7: the advisory arm splits, never matches, a huge word",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  const decoded = command.split(/[^A-Za-z0-9+/]+/).filter(word => word.length >= 8).map(decodedPowerShell)",
+      "to": "  const decoded = [...command.matchAll(/[A-Za-z0-9+/]{8,}={0,2}/g)].map(match => decodedPowerShell(match[0]))",
+      "only": "an oversized command is still read"
+    },
+    {
+      "label": "chaos 916b515 LEAD 1: a moved node falls back to the node on PATH",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "  const run = event => `n=${single(node)}; [ -x \"$n\" ] || n=$(command -v node) || n=; `",
+      "to": "  const run = event => `n=${single(node)}; `",
+      "only": "node moved still runs"
+    },
+    {
+      "label": "chaos 916b515 LEAD 1: a hook that cannot start refuses nothing",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "from": "    + `[ -n \"$n\" ] && [ -f ${single(script)} ] || { echo \"quality-harness: git's publish hook could not start `",
+      "to": "    + `true || { echo \"quality-harness: git's publish hook could not start `",
+      "only": "node moved still runs"
+    },
+    {
+      "label": "§314: a tree that could not be observed is said at a publish",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (observation?.ok !== true) {\n    const reason = observation?.reason ?? 'no observation was made'",
+      "to": "  if (false) {\n    const reason = observation?.reason ?? 'no observation was made'",
+      "only": "could not be observed"
+    },
+    {
+      "label": "BACKLOG §319 H: the publish decision reads a start that could not look",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  const baseline = sessionBaseline(log)?.observation\n    ?? (log.some(entry => entry.event === 'session.started')",
+      "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n    ?? (log.some(entry => entry.event === 'session.started')",
+      "only": "a session whose first look failed"
+    },
+    {
+      "label": "BACKLOG §319 H: git's hook gets no late baseline",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "    ?? (log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now) ? now : undefined)",
+      "to": "    ?? undefined",
+      "only": "git's own hook gives a failed start"
+    },
+    {
+      "label": "BACKLOG §319 H: git's hook hands a worktree a late baseline",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now)",
+      "to": "lateBaselineAllowed(log, cwd, now)",
+      "only": "git's own hook gives a failed start"
+    },
+    {
+      "label": "§319 D4: the publish warning names the session log whatever tore",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "unknown — ${tornRecord(log, 'the session log')} could not be read whole, so whether",
+      "to": "unknown — the session log could not be read whole, so whether",
+      "only": "a torn checks.jsonl is named as checks.jsonl"
+    },
+    {
+      "label": "ADR-081 T2: the fast advisory reuses the refused key",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "key: `${key}:fast${fastPass.count}`",
+      "to": "key",
+      "only": "^a commit refused before a fast pass is told after it$"
+    },
+    {
+      "label": "§343: a partial stage is never said on the fast path",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "const staged = now.index === now.tree ? ''",
+      "to": "const staged = true ? ''",
+      "only": "^a commit told through on a fast pass says when the staged index is not the tree it checked$"
+    },
+    {
+      "label": "§343: a whole stage is warned as partial on the fast path",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "const staged = now.index === now.tree ? ''",
+      "to": "const staged = false ? ''",
+      "only": "^a commit told through on a fast pass says when the staged index is not the tree it checked$"
+    },
+    {
+      "label": "ADR-086 T2: an unarmed fresh-repository commit is advised, not refused",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "  if (verdict.deny && input.tool_name === 'Bash' && freshRepositoryCommit(input.tool_input?.command, env)) {",
+      "to": "  if (false && freshRepositoryCommit(input.tool_input?.command, env)) {",
+      "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
+    },
+    {
+      "label": "ADR-086 T2: the fresh-repository advice carries its own key",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-command.test.mjs"
+      ],
+      "from": "      ...verdict, deny: false, key: `${verdict.key}:fresh`,",
+      "to": "      ...verdict, deny: false, key: verdict.key,",
+      "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
+    },
+    {
+      "label": "ADR-088 T2: the publish verdict judges the ledger-bound log, not the bare session log",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "  const bound = ledgerBoundLog(cwd, readEvents(cwd, session))",
+      "to": "  const bound = { log: readEvents(cwd, session), dropped: 0 }",
+      "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
+    },
+    {
+      "label": "ADR-088 review: a torn ledger is could-not-look to the publish verdict, whoever imported it",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "  const log = bound.torn ? Object.assign(",
+      "to": "  const log = false ? Object.assign(",
+      "only": "^(?:a torn ledger is could-not-look to git's hook as well)$"
+    },
+    {
+      "label": "ADR-088 review 2: the verdict marks could-not-look for git's hook",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "    unknown: !deny && logIncomplete(log),",
+      "to": "    unknown: false,",
+      "only": "^(?:git's own hook says a torn ledger is unknown, at commit and at push)$"
+    },
+    {
+      "label": "ADR-088 review 3: a newly torn ledger has its own advice key",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "${revision}${logIncomplete(log) ? ':unknown' : ''}`",
+      "to": "${revision}`",
+      "only": "^(?:a ledger torn after the advice was given is said once)$"
+    },
+    {
+      "label": "ADR-088 follow-up: a baseline-equal publish says a record not read whole",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "    if (!logIncomplete(log)) return null",
+      "to": "    return null",
+      "only": "^(?:a baseline-equal publish beside a torn ledger is said once, and never refused)$"
+    },
+    {
+      "label": "ADR-088 follow-up: the baseline-equal advice is marked unknown for git's hook",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-ledger-binding.test.mjs"
+      ],
+      "from": "      deny: false, unknown: true, key, detail: { tree: now.tree, revision },",
+      "to": "      deny: false, unknown: false, key, detail: { tree: now.tree, revision },",
+      "only": "^(?:git's own hook says a torn ledger at a baseline-equal commit and push)$"
+    },
+    {
+      "label": "2026-10-08: a refusal after a fast pass says no qh-check has passed",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/publish-fast-wording.test.mjs"
+      ],
+      "from": "  const fastSeen = treeUnchecked ? latestFastPass(cwd, now.tree, found.root ?? cwd) : null",
+      "to": "  const fastSeen = null",
+      "only": "^a refusal after a fast pass says the fast check passed and why it does not count here$"
+    },
+    {
+      "label": "golden: the publish refusal's closing sentence changes",
+      "file": "plugin/scripts/publish-verdict.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "This says what state the repository is in",
+      "to": "This says what state the repo is in",
+      "only": "^publish: every form of a publish command gets the answer it got when the transcript was recorded$"
+    }
+  ]
+}

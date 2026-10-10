@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "B3: an action a rule queued reaches the turn's answer",
+      "file": "plugin/scripts/hook-queue.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "  pendingActions.push(action)",
+      "to": "  void action",
+      "only": "^writes and turn ends: what was written, where, and what the turn says about it$"
+    }
+  ]
+}

@@ -20,7 +20,9 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { hookSaid } from './hook-env.mjs'
 import { fileURLToPath } from 'node:url'
-import { checkEventName, observedFacts, readSessionNote, replaceSessionNote, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { readSessionNote, replaceSessionNote, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { checkEventName } from '../plugin/scripts/check-ledger.mjs'
+import { observedFacts } from '../plugin/scripts/completion-rules.mjs'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
 
 const lifecycleScript = join(resolve(dirname(fileURLToPath(import.meta.url)), '..'), 'plugin', 'scripts', 'lifecycle.mjs')

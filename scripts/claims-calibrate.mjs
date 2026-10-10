@@ -36,7 +36,7 @@ import { readdirSync, statSync } from 'node:fs'
 import { createInterface } from 'node:readline'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
-import { completionClaim } from '../plugin/scripts/lifecycle.mjs'
+import { completionClaim } from '../plugin/scripts/completion-rules.mjs'
 
 // The transcripts directory is assembled at runtime and never written down:
 // it names a person, and this repository publishes its own corpus (CLAUDE.md §6).

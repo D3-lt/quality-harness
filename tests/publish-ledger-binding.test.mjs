@@ -10,7 +10,12 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
-import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
+// The judges and readers once held in lifecycle.mjs now live in modules of their own (BACKLOG section 375, stage B3): the local name stays, so no test body changes.
+import * as lifecycleOwn from '../plugin/scripts/lifecycle.mjs'
+import * as treeFacts from '../plugin/scripts/tree-facts.mjs'
+import * as checkLedger from '../plugin/scripts/check-ledger.mjs'
+import * as publishVerdict from '../plugin/scripts/publish-verdict.mjs'
+const lifecycle = { ...lifecycleOwn, ...treeFacts, ...checkLedger, ...publishVerdict }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')

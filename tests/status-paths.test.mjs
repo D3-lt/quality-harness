@@ -17,7 +17,7 @@ import { existsSync, mkdtempSync, realpathSync, renameSync, rmSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { observedFacts } from '../plugin/scripts/lifecycle.mjs'
+import { observedFacts } from '../plugin/scripts/completion-rules.mjs'
 import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 

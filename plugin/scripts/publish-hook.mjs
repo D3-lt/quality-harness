@@ -19,7 +19,9 @@ import { existsSync } from 'node:fs'
 import path from 'node:path'
 
 import { appendEvent, readEvents } from './event-log.mjs'
-import { importCheckRecords, observe, observeBudgetMs, publishVerdict } from './lifecycle.mjs'
+import { importCheckRecords } from './check-ledger.mjs'
+import { observe, observeBudgetMs } from './tree-facts.mjs'
+import { publishVerdict } from './publish-verdict.mjs'
 import { isMainModule } from './main-module.mjs'
 
 // What each event stands for, in the words rule P's refusal already uses.

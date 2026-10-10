@@ -32,7 +32,9 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { hookSaid } from './hook-env.mjs'
 import { fileURLToPath } from 'node:url'
-import { latestCheckFor, observedFacts, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { latestCheckFor } from '../plugin/scripts/check-ledger.mjs'
+import { observedFacts } from '../plugin/scripts/completion-rules.mjs'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -257,6 +259,10 @@ test('every reader of the session log is driven above, or says why a lost line c
   const FILES = {
     'event-log.mjs': 'defines it',
     'lifecycle.mjs': 'by function, above',
+    'artifact-pass.mjs': 'by function, above',
+    'check-ledger.mjs': 'by function, above',
+    'completion-rules.mjs': 'by function, above',
+    'publish-verdict.mjs': 'by function, above',
     'statusline.mjs': { driven: 'statusline reading -> render' },
     'publish-hook.mjs': 'by function, above',
     'ledger-report.mjs': 'by function, above (ledgerReport)',
@@ -269,6 +275,15 @@ test('every reader of the session log is driven above, or says why a lost line c
     sessionBaseline: 'the first start that looked; a lost line can only remove it, which every caller reads as unchecked, because a late baseline is adopted only from a log read whole',
     tornRecord: 'names which record tore, asked only once logIncomplete is true; a lost session-log line makes it name the session log, and it answers nothing positive',
     answeredBlobs: 'reads only complete artifact.gated rows; a lost line removes an answer, so the path is gated again, which is the safe direction (ADR-005)',
+    lateBaselineAllowed: 'its first condition is logIncomplete; a log not read whole never lets a late baseline be adopted',
+    treeChecked: 'asks latestCheckFor, which is driven above, and nothing else',
+    checkStanding: 'its first line is logIncomplete, answered \'unknown\'; a log not read whole certifies nothing',
+    checkRevision: 'a count of the tree\'s check events; a lost line can only lower it, and it certifies nothing',
+    revisionFor: 'a count of check events (checkRevision, or every check event where nothing can be observed); it certifies nothing',
+    emittedFor: 'asks whether a finding was already said; a lost line makes the finding speak again, which is the safe direction',
+    namedByReview: 'the same question for R2, with the same direction: a lost line makes a commit be named again',
+    namedByPublish: 'the same question for rule P, with the same direction: a lost line makes the tree be named again',
+    sessionCommits: 'lists the commits since the session baseline, and with no baseline lists none; completionRules says R4 (could not look) whenever logIncomplete, so a torn log is never read as "no new commits"',
   }
   const naming = []
   const taking = []

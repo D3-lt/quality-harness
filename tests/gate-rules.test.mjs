@@ -346,7 +346,7 @@ test('the cleanup bounds fit inside every outer margin that waits on the runner'
   // the host\'s `timeout` beyond DEFAULT_TIMEOUT_MS. Either margin smaller than
   // the sum means the outer kill lands first and the tree is never reported.
   const { TASKKILL_TIMEOUT_MS, CLEANUP_GRACE_MS, shellHookTimeoutMs } = await import('../plugin/scripts/run-shell-hook.mjs')
-  const { ARTIFACT_GATE_KILL_MARGIN_MS } = await import('../plugin/scripts/lifecycle.mjs')
+  const { ARTIFACT_GATE_KILL_MARGIN_MS } = await import('../plugin/scripts/artifact-pass.mjs')
   const cleanup = TASKKILL_TIMEOUT_MS + CLEANUP_GRACE_MS
   assert.ok(cleanup < ARTIFACT_GATE_KILL_MARGIN_MS,
     `taskkill ${TASKKILL_TIMEOUT_MS} + grace ${CLEANUP_GRACE_MS} must fit lifecycle's ${ARTIFACT_GATE_KILL_MARGIN_MS}ms kill margin`)

@@ -1,16 +1,6 @@
 {
   "mutations": [
     {
-      "label": "publish-hook: the stored command single-quotes its paths",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "only": "shell characters survive",
-      "from": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" ${single(script)} ${event}`",
-      "to": "    + `(node or its script is gone), so this ${event} was not judged\" >&2; exit 0; }; exec \"$n\" \"${String(script).replace(/\\\\/g, '/')}\" ${event}`"
-    },
-    {
       "label": "§355: a hook payload holding NUL bytes names UTF-16 as the likely cause",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -28,66 +18,6 @@
       ],
       "from": "    } else if (report.done?.length && report.owner_unreadable) {",
       "to": "    } else if (false) {"
-    },
-    {
-      "label": "publish armed: only a session whose git hook ran is armed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "an armed session leaves a plain invocation",
-      "from": "entry => entry.event === 'publish.hook-ran')) {",
-      "to": "entry => entry.event === 'publish.offered')) {"
-    },
-    {
-      "label": "publish armed: a PowerShell call keeps the refusal",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "only": "PowerShell, an offered-only session",
-      "from": "  if (verdict.deny && input.tool_name === 'Bash' && leavesHookInPlace(",
-      "to": "  if (verdict.deny && leavesHookInPlace("
-    },
-    {
-      "label": "publish-hook: only a git that runs config hooks is offered them",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "only": "sessionstart offers the hook",
-      "from": "  if (probe.error || probe.status !== 0 || !/\\bqhprobe\\b/.test(probe.stdout ?? '')) {",
-      "to": "  if (false) {"
-    },
-    {
-      "label": "publish-hook: the offer is indexed after GIT_CONFIG_* already in force",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "only": "an existing GIT_CONFIG_COUNT",
-      "from": "    '__qh_n=${GIT_CONFIG_COUNT:-0}',",
-      "to": "    '__qh_n=0',"
-    },
-    {
-      "label": "publish-hook: a repository's own disable does not switch the offered hook off",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "only": "over a repo-local disable",
-      "from": "    ['hook.qh-publish-commit.enabled', 'true'],",
-      "to": "    ['hook.qh-publish-commit.unused', 'true'],"
-    },
-    {
-      "label": "publish-hook: the hook is offered once per env file",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "only": "an existing GIT_CONFIG_COUNT",
-      "from": "  if (existing.includes('hook.qh-publish-')) return null",
-      "to": "  if (false) return null"
     },
     {
       "label": "publish-hook: SessionStart offers the hook",
@@ -130,16 +60,6 @@
       "only": "^(?:a bin/ gate is spawned in a way Windows can actually run|SessionStart always surfaces an UNPROVEN ready line and still caps ordinary ones|SessionStart says how many task directories it did not read)$"
     },
     {
-      "label": "hooks: EVIDENCE-LIMITED needs a stated reason",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "/\\bEVIDENCE-LIMITED:\\s+\\S.{15,}/i",
-      "to": "/\\bEVIDENCE-LIMITED:\\s*/i",
-      "only": "^(?:EVIDENCE-LIMITED opens the completion gate only with a stated reason, and only over docs)$"
-    },
-    {
       "label": "hooks: SubagentStart names its own event",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -150,26 +70,6 @@
       "only": "^(?:SubagentStart states the leaf-role contract, and never blocks)$"
     },
     {
-      "label": "hooks: a read-only role is told it is read-only",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "/(explore|plan|research|review|audit|scout|memory)/",
-      "to": "/(explore|plan|research|audit|scout|memory)/",
-      "only": "^(?:a read-only role is told it is read-only, and an editing role is not)$"
-    },
-    {
-      "label": "hooks: both ways the budget runs out say so",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  return /timed out after \\d+ms/.test(detail) || error?.code === 'ETIMEDOUT'",
-      "to": "  return /timed out after \\d+ms/.test(detail)",
-      "only": "^(?:both ways the artifact gate can run out of budget reach the same guidance)$"
-    },
-    {
       "label": "advisory: a finding is never hidden — it is on stderr as well as in the hook's JSON",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -178,26 +78,6 @@
       "from": "      for (const text of texts) process.stderr.write(`${text}\\n`)",
       "to": "      void texts",
       "only": "^(?:the headline a person sees at a publish warning names the finding)$"
-    },
-    {
-      "label": "advisory: a project that names no check hears nothing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (!check) return\n\n  const changed",
-      "to": "  if (false) return\n\n  const changed",
-      "only": "^(?:reported: a project that names no check hears nothing from the evidence gates)$"
-    },
-    {
-      "label": "advisory: a verify script is the project's named check",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  { file: 'verify.sh', command: 'bash verify.sh' },",
-      "to": "",
-      "only": "^(?:a project that declares its check is asked for that check|reported: a project that ships a verify script is asked for that script)$"
     },
     {
       "label": "advisory: the harness has no opinion about branches",
@@ -230,15 +110,6 @@
       "only": "^(?:listing-null still names a stale shadow install, not no corpus|reported: a stale standalone copy answering instead of the plugin is named|every directory the plugin ships is a directory the scanners look in|what the drift notice reports is what the repair tool can act on)$"
     },
     {
-      "label": "context: scratch corpora are not the project's records",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (underTempRoot(filePath) && !underTempRoot(cwd)) continue",
-      "to": "    if (false) continue"
-    },
-    {
       "label": "sync: a cached newer version outranks the running one",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -247,66 +118,6 @@
       "from": "  if (!newest || order(newest) <= order(running)) return ''",
       "to": "  if (!newest) return ''",
       "only": "^(?:reported: a session running a cached older plugin is told so)$"
-    },
-    {
-      "label": "verdict: a command that never started is not a failure",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'",
-      "to": "  if (false) return 'unstarted'",
-      "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
-    },
-    {
-      "label": "verdict: a killed run is not a failure either",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "  if (exitCode === 124) return 'timeout'",
-      "to": "  if (false) return 'timeout'",
-      "only": "^(?:a timeout and a plain failure keep their own names)$"
-    },
-    {
-      "label": "verdict: the environment is checked before the exit code",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
-      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'",
-      "only": "^(?:a suite that ran and failed is `failed`, whatever its assertions happen to say|a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`|a timeout and a plain failure keep their own names)$"
-    },
-    {
-      "label": "verdict: Windows says none of what POSIX says",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "  'the system cannot find the file specified', 'the system cannot find the path specified',",
-      "to": "",
-      "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
-    },
-    {
-      "label": "verdict: cmd.exe reports 9009, not 127",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "const NEVER_STARTED_EXITS = new Set([126, 127, 9009])",
-      "to": "const NEVER_STARTED_EXITS = new Set([126, 127])",
-      "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
-    },
-    {
-      "label": "verdict: an explicit exit 0 is authoritative",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "  if (exitCode === 0) {\n    return (anyCommand || testCommand(command)) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'\n  }",
-      "to": "",
-      "only": "^(?:an explicit zero is a pass even when the output quotes an error)$"
     },
     {
       "label": "notice: the drift notice says the plugin itself is current",
@@ -339,35 +150,6 @@
       "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named|what the drift notice reports is what the repair tool can act on)$"
     },
     {
-      "label": "checks: a build is not a project's check",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  for (const name of ['test', 'check', 'lint', 'typecheck']) {",
-      "to": "  for (const name of ['test', 'check', 'lint', 'typecheck', 'build']) {",
-      "only": "^(?:reported: a PHP repository is not evidenced by a vite build)$"
-    },
-    {
-      "label": "checks: a declared check answers before any guess",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const declared = declaredCheckCommand(root)",
-      "to": "  const declared = null && declaredCheckCommand(root)"
-    },
-    {
-      "label": "checks: a malformed declared check does not silence the rungs below",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  return typeof check === 'string' && check.trim() ? check.trim() : null",
-      "to": "  return check ?? null",
-      "only": "^(?:a project that declares its check is asked for that check)$"
-    },
-    {
       "label": "windows: a python3 that is not Python is refused",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -396,56 +178,6 @@
       "from": "  const retired = found.filter(row => row.state === 'ours-orphan')",
       "to": "  const retired = found.filter(row => row.state !== 'ours-shipped')",
       "only": "^(?:reported: a stale standalone copy answering instead of the plugin is named|unidentified files are counted, never listed)$"
-    },
-    {
-      "label": "role: a spawn with nothing declared is told nothing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (!model && !effort) return null",
-      "to": "  if (false) return null",
-      "only": "^(?:a spawn with nothing declared is told nothing)$"
-    },
-    {
-      "label": "role: the spawn is told what its delegation asked for",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const asked = [model && `model ${model}`, effort && `effort ${effort}`].filter(Boolean).join(', ')",
-      "to": "  const asked = ''",
-      "only": "^(?:a spawn is told which role it was asked to be)$"
-    },
-    {
-      "label": "stop: a negative final message is never read as an assertion",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (interimResponse(message) || unverifiedDisclosure(message)) return { kind: 'hedged', phrase: null }",
-      "to": "  if (false) return { kind: 'hedged', phrase: null }",
-      "only": "^(?:completionClaim reads negation before assertion|the asserted arm is retired and says so)$"
-    },
-    {
-      "label": "stop: every completion event is written to the ledger",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    appendFileSync(path.join(home, 'claims.jsonl'), `${JSON.stringify({",
-      "to": "    if (evidence) return\n    appendFileSync(path.join(home, 'claims.jsonl'), `${JSON.stringify({",
-      "only": "^(?:the claims ledger gets one row per completion event, classified)$"
-    },
-    {
-      "label": "stop: a session with nowhere to record says so instead of skipping",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '",
-      "to": "    if (home === undefined) return\n    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '",
-      "only": "^(?:the claims ledger is not written without CLAUDE_PLUGIN_DATA, and says so)$"
     },
     {
       "label": "lifecycle: a PreToolUse advisory reaches the agent as additionalContext, not only the person",
@@ -568,26 +300,6 @@
       "only": "^(?:a session note that cannot be replaced is removed, never left to be handed back as current)$"
     },
     {
-      "label": "reviewer-guard: a publish is refused inside a read-only role",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs"
-      ],
-      "from": "  if (!containsCommitOrPush(command)) return null",
-      "to": "  if (true) return null",
-      "only": "^(?:the guard refuses a command that names commit or push, wrapped or not)$"
-    },
-    {
-      "label": "reviewer-guard: an editing tool is refused inside a read-only role",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs"
-      ],
-      "from": "  if (READ_ONLY_EDITING_TOOLS.has(tool)) {",
-      "to": "  if (false) {",
-      "only": "^(?:the guard refuses an editing tool, and says why)$"
-    },
-    {
       "label": "lifecycle: inside a read-only role the plugin-level hook denies a write",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -596,26 +308,6 @@
       "from": "    if (readOnlyRole(input.agent_type) && (SHELL_TOOLS.has(input.tool_name) || MUTATION_TOOLS.has(input.tool_name))) {",
       "to": "    if (false) {",
       "only": "^(?:a reviewer is denied only a command naming commit or push \\(ADR-060\\)|inside a read-only role, the plugin-level PreToolUse hook denies a write; elsewhere it does not \\(BACKLOG §135\\))$"
-    },
-    {
-      "label": "lifecycle: an honest disclosure of what was not run is hedged, not none",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  return /\\b(?:have ?n[o']t|has ?n[o']t|did ?n[o']t|not yet)\\s+(?:\\w+\\s+){0,2}(?:run|ran|verified|verify|tested|checked)\\b/i.test(message)",
-      "to": "  return false",
-      "only": "^(?:completionClaim reads negation before assertion|the asserted arm is retired and says so)$"
-    },
-    {
-      "label": "lifecycle: widening the negation classifier does not swallow an ordinary completion message",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    || /\\b(?:can ?n[o']t|cannot|could ?n[o']t|unable to)\\s+(?:\\w+\\s+){0,2}(?:verify|confirm|check|run|test)\\b/i.test(message)",
-      "to": "    || /\\b(?:verify|confirm|check|run|test|ran|verified)\\b/i.test(message)",
-      "only": "^(?:completionClaim reads negation before assertion)$"
     },
     {
       "label": "lifecycle: the marker sweep removes what is stale, not nothing (§146)",
@@ -678,16 +370,6 @@
       "to": "  if (false) return ''"
     },
     {
-      "label": "hook-work: a pre-start deadline identifies every unchecked artifact",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "only": "artifact batch input",
-      "from": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + uniqueTargets.join('\\n')",
-      "to": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + uniqueTargets[0]",
-      "tests": [
-        "tests/hook-work.test.mjs"
-      ]
-    },
-    {
       "label": "lifecycle: listing-null still opens the shadow-install notice",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -718,16 +400,6 @@
       "to": "    if (ordinary < cap) {\n      shown.push(line)\n      ordinary += 1\n    }"
     },
     {
-      "label": "observe: a write behind an in-tree link to an outside file is not observable",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative) && !escapes) {",
-      "to": "    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {",
-      "only": "in-repository link to an outside file"
-    },
-    {
       "label": "orientation: an inferred check may be narrower than the project's own gate",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -738,97 +410,6 @@
       "only": "may be narrower than the project gate"
     },
     {
-      "label": "fail-open: a failed root lookup makes the publish opt-out unknown",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  if (!found.ok) return { warn: false, ignored: false, unknown: true }",
-      "to": "  if (false) return { warn: false, ignored: false, unknown: true }",
-      "only": "^(?:the publish opt-out is read from the root the decision used, or is unknown)$"
-    },
-    {
-      "label": "fail-open: a passed tree does not make an unknown index read as unchecked",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "            : !treeUnchecked && indexUnknown && treeStanding === 'passed'",
-      "to": "            : false",
-      "only": "^(?:an index that could not be checked says unknown even when the tree passed)$"
-    },
-    {
-      "label": "R2: several commits say at least one could not be established",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "`at least one of ${commits.length} newly reachable commits`} could not observe it:`",
-      "to": "`${commits.length} newly reachable commits`} could not observe it:`",
-      "only": "^(?:R2 over several commits says at least one could not be established)$"
-    },
-    {
-      "label": "fail-open: \"publish\": \"warn\" turns the refusal into a warning",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
-      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
-      "only": "^(?:a project can turn the publish refusal back into a warning, and only on purpose)$"
-    },
-    {
-      "label": "fail-open: only the exact \"warn\" value opts out of the refusal",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  return config.publish === 'warn' ? { warn: true, ignored: false, unknown: false } : { warn: false, ignored: true, unknown: false }",
-      "to": "  return { warn: true, ignored: false, unknown: false }",
-      "only": "^(?:a project can turn the publish refusal back into a warning, and only on purpose)$"
-    },
-    {
-      "label": "fail-open: a check that could not look does not refuse",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  if (COULD_NOT_LOOK.has(descriptive.event)) return 'could-not-look'",
-      "to": "  if (false) return 'could-not-look'",
-      "only": "^(?:a check that could not look is not reported as no check passing|a check that could not look after a pass warns and does not refuse|an index that could not be checked says unknown even when the tree passed)$"
-    },
-    {
-      "label": "fail-open: a pass recorded before an unobservable write does not cover it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "    || (Number.isInteger(write.checksSeen) && Number.isInteger(pass.seq) && pass.seq > write.checksSeen)",
-      "to": "    || true",
-      "only": "^(?:a write whose check count failed stays outstanding)$"
-    },
-    {
-      "label": "fail-open: a pass that started before an unobservable write does not cover it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs",
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "    || pass.startedAt > write.at",
-      "to": "    || true",
-      "only": "^(?:a write stays outstanding by log order, not by its timestamp|writes the tree cannot see re-open the finding)$"
-    },
-    {
-      "label": "fail-open: only the tree's could-not-look exempts a refusal",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  const couldNotLook = treeStanding === 'could-not-look'",
-      "to": "  const couldNotLook = treeStanding === 'could-not-look' || indexStanding === 'could-not-look'",
-      "only": "^(?:an index that could not be checked does not rescue a failed working tree|an index that could not be checked says unknown even when the tree passed)$"
-    },
-    {
       "label": "fail-open: a check that could not look is not worded as no check passing",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -837,106 +418,6 @@
       "from": "  const unobserved = facts?.treeOrder === 'could-not-look'",
       "to": "  const unobserved = false",
       "only": "^(?:a check that could not look is not reported as no check passing)$"
-    },
-    {
-      "label": "fail-open: an unchecked index warning does not invent a passing check",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "            : !treeUnchecked && treeStanding === 'passed'",
-      "to": "            : !treeUnchecked",
-      "only": "^(?:an unchecked index warning does not invent a passing check)$"
-    },
-    {
-      "label": "fail-open: only an unchecked tree refuses a publish",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
-      "to": "  const deny = !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven'",
-      "only": "^(?:a passing check on the tree is not refused because the index differs from it|an unchecked index warning does not invent a passing check|an index that could not be checked says unknown even when the tree passed)$"
-    },
-    {
-      "label": "R3: an index-only change during a read-only run is reported",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "  if (sameObservation(before, after)) return",
-      "to": "  if (before.tree === after.tree) return",
-      "only": "^(?:a read-only role cannot commit or push and its other changes are reported)$"
-    },
-    {
-      "label": "advisory: R1 speaks only about an unchecked tree or an unseen write",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "  if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {",
-      "to": "  if (!quiet) {",
-      "only": "^(?:the scripted session advises as its step table lists|a tree the publish warning named still records unverified|writes the tree cannot see re-open the finding|a check that finishes in a later turn clears the finding then|a log that could not be read whole cannot supply a passing verdict|a torn checks\\.jsonl cannot leave an older pass standing as the verdict)$"
-    },
-    {
-      "label": "advisory: R1's key carries the evidence revision, so a later check re-opens it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`",
-      "to": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${writes.length}`",
-      "only": "^(?:writes the tree cannot see re-open the finding)$"
-    },
-    {
-      "label": "advisory: R4 is said once per session and cwd",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "    if (!emittedFor(log, 'R4', key)) {",
-      "to": "    if (true) {",
-      "only": "^(?:writes the tree cannot see re-open the finding)$"
-    },
-    {
-      "label": "ledger: an unchecked tree is unverified, whatever the rules said",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "  if (treeUnchecked || writes.length > 0) return 'unverified'",
-      "to": "  if (writes.length > 0) return 'unverified'",
-      "only": "^(?:the scripted session advises as its step table lists|a tree the publish warning named still records unverified)$"
-    },
-    {
-      "label": "evidence-flip: a pass that survived a torn log certifies nothing, for any caller",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/evidence-flip.test.mjs"
-      ],
-      "from": "  return latest?.event === 'check.passed' && logIncomplete(log) ? LOG_INCOMPLETE : latest",
-      "to": "  return latest",
-      "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
-    },
-    {
-      "label": "evidence-flip: a torn log is not a session where nothing happened",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/evidence-flip.test.mjs"
-      ],
-      "from": "      : logIncomplete(log) ? `${tornRecord(log, 'the session log')} could not be read whole`",
-      "to": "      : false ? `${tornRecord(log, 'the session log')} could not be read whole`",
-      "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
-    },
-    {
-      "label": "evidence-flip: a git status that failed is not an empty working tree",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/evidence-flip.test.mjs"
-      ],
-      "from": "    : status.ok === false ? 'git could not list the working tree'",
-      "to": "    : false ? 'git could not list the working tree'",
-      "only": "^(?:a git status that FAILED is not a working tree where nothing changed \\(audit B4\\))$"
     },
     {
       "label": "evidence-flip: a committed turn with an unchecked tree is not neutral",
@@ -959,46 +440,6 @@
       "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
     },
     {
-      "label": "evidence-flip: a torn log persists no last verdict",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/evidence-flip.test.mjs"
-      ],
-      "from": "    lastCheck: check && !logIncomplete(log)",
-      "to": "    lastCheck: check",
-      "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one|a really torn log, read by the real hooks, does not persist a verified row)$"
-    },
-    {
-      "label": "evidence-flip: a review whose opening bracket tore is not a review where nothing changed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "        ? (log?.complete !== true\n          ? 'this session\\'s event log could not be read whole",
-      "to": "        ? (false\n          ? 'this session\\'s event log could not be read whole",
-      "only": "^(?:a review whose start or end could not be observed says so, instead of saying nothing)$"
-    },
-    {
-      "label": "evidence-flip: the completion rule does not accuse from a torn log",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/evidence-flip.test.mjs"
-      ],
-      "from": "  const opening = logTorn",
-      "to": "  const opening = false",
-      "only": "^(?:at every hook boundary a torn log is never quieter than a whole one, however it tore)$"
-    },
-    {
-      "label": "evidence-flip: the publish warning does not accuse from a torn log",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/evidence-flip.test.mjs"
-      ],
-      "from": "    text: (logIncomplete(log)",
-      "to": "    text: (false",
-      "only": "^(?:at every hook boundary a torn log is never quieter than a whole one, however it tore)$"
-    },
-    {
       "label": "advisory: the headline a person sees names the finding, not the prefix",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1007,36 +448,6 @@
       "from": "  const sentence = first.trim().replace(/^quality-harness:\\s*/i, '').split(/(?<=\\.)\\s/)[0]",
       "to": "  const sentence = first.trim().split(/(?<=[.:])\\s/)[0]",
       "only": "^(?:the headline a person sees at a publish warning names the finding)$"
-    },
-    {
-      "label": "paths: a changed path is read NUL-terminated, never unquoted by hand",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/status-paths.test.mjs"
-      ],
-      "from": "  if (nul) return mark(run.stdout.split('\\0').filter(Boolean), true)",
-      "to": "  if (false) return mark(run.stdout.split('\\0').filter(Boolean), true)",
-      "only": "^(?:no hook names, or tries to gate, a path spelled in octal escapes)$"
-    },
-    {
-      "label": "verdict: a suite that ran is not `unstarted` because an assertion quoted an error",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "  if (saidLittle(text) && (NEVER_STARTED.test(text)",
-      "to": "  if ((NEVER_STARTED.test(text)",
-      "only": "^(?:a suite that ran and failed is `failed`, whatever its assertions happen to say)$"
-    },
-    {
-      "label": "verdict: an interpreter that could not open its script did not run the tests",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "  'could not open input file',",
-      "to": "  'qh-no-such-phrase',",
-      "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
     },
     {
       "label": "baseline: a session watched from late does not accuse a tree nothing changed",
@@ -1049,56 +460,6 @@
       "only": "^(?:a first Stop with no SessionStart does not accuse a tree nothing changed|a first mention with no SessionStart adopts the late baseline instead of accusing a pristine tree)$"
     },
     {
-      "label": "baseline: a dirty tree is never adopted as a late baseline",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/late-baseline.test.mjs"
-      ],
-      "from": "    && observedClean(cwd, observation)",
-      "to": "    && true",
-      "only": "^(?:a DIRTY tree with no SessionStart is still unchecked work, and gets no late baseline)$"
-    },
-    {
-      "label": "inferred: a pass of a guessed check says so in the session note",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/inferred-pass.test.mjs"
-      ],
-      "from": "    checkOrigin: latestCheckFor(log, observation?.tree)?.origin ?? null,",
-      "to": "    checkOrigin: null,",
-      "only": "^(?:a pass of an INFERRED check says so in the note a session is handed)$"
-    },
-    {
-      "label": "checks: the DECLARED arm of the run-the-check sentence says whose word the command is",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (origin === 'declared') {",
-      "to": "  if (origin === 'never') {",
-      "only": "^(?:a project that declares its check is asked for that check|every command this harness OFFERS, it also accepts as evidence)$"
-    },
-    {
-      "label": "checks: a composer `test` script is not offered as the project's own check",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (declared) return { command: declared, origin: 'declared' }",
-      "to": "  if (declared) return { command: declared, origin: 'declared' }\n  if (existsSync(path.join(root, 'composer.json')) && readFileSync(path.join(root, 'composer.json'), 'utf8').includes('\"test\"')) return { command: 'composer test', origin: 'declared' }",
-      "only": "^(?:reported: a PHP repository is not evidenced by a vite build|every command this harness OFFERS, it also accepts as evidence)$"
-    },
-    {
-      "label": "evidence-flip: whole is something a log must SAY, so a copy that lost the flag cannot certify",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/evidence-flip.test.mjs"
-      ],
-      "from": "  return log?.complete !== true\n    || (Array.isArray(log)",
-      "to": "  return log?.complete === false\n    || (Array.isArray(log)",
-      "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
-    },
-    {
       "label": "note: a late baseline is never neutral",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1109,26 +470,6 @@
       "only": "^(?:a baseline adopted partway through a session does not speak for the whole of it|the next session is not told of edits nobody observed)$"
     },
     {
-      "label": "late baseline: not adopted over a write already on record",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "  return !logIncomplete(log) && !log.some(event => event.observation?.ok === true)\n    && !log.some(event => event.event === 'file.written' && event.observable !== false)",
-      "to": "  return !logIncomplete(log) && !log.some(event => event.observation?.ok === true)",
-      "only": "^(?:a write already on record is not forgiven by a baseline adopted after it was committed|a compact SessionStart does not hand a fresh baseline to a session with outstanding work)$"
-    },
-    {
-      "label": "note: Last check is ordered by when it ran",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), { unresolved: 'say-so' })",
-      "to": "  const check = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).at(-1)",
-      "only": "^(?:\"Last check\" is the check that RAN last, not the one appended last|an order that cannot be established is said so, not reported as \"the failure ran last\")$"
-    },
-    {
       "label": "note: an unlink that failed is not a note removed",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1137,26 +478,6 @@
       "from": "catch (failure) { cleared = failure?.code === 'ENOENT' }",
       "to": "catch (failure) { cleared = true }",
       "only": "^(?:a state note that could not be removed is not reported as removed)$"
-    },
-    {
-      "label": "R3: a bracket that could not be observed is said, not dropped",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "  if (before?.ok !== true || after?.ok !== true) {",
-      "to": "  if (before?.ok !== true || after?.ok !== true) { return }\n  if (false) {",
-      "only": "^(?:a review whose start or end could not be observed says so, instead of saying nothing)$"
-    },
-    {
-      "label": "R2: over a torn log a commit is not known to be checked",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),",
-      "to": "      text: uncheckedCommitsReason(input.cwd, unchecked),",
-      "only": "^(?:over a torn log a newly reachable commit is \"not known to be checked\", never \"unchecked\")$"
     },
     {
       "label": "note: one older than its compaction is not served",
@@ -1178,26 +499,6 @@
       "only": "^(?:the next session is not told of edits nobody observed|an UNKNOWN previous session still says what was independently known to be outstanding)$"
     },
     {
-      "label": "verdict: a phrase alone is unproven, not unstarted",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "KILLED_ON_TIME.test(text))) return 'unproven'",
-      "to": "KILLED_ON_TIME.test(text))) return 'unstarted'",
-      "only": "^(?:a suite that ran and failed is `failed`, whatever its assertions happen to say|a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
-    },
-    {
-      "label": "verdict: an unproven verdict never becomes check.passed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "  if (record?.verdict === 'unproven') return 'check.unproven'",
-      "to": "  void 0",
-      "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
-    },
-    {
       "label": "baseline: a SessionStart in the middle of a session is not its beginning",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1206,16 +507,6 @@
       "from": "    if (existing.length > 0 || existing.complete !== true) return null",
       "to": "    if (existing.some(entry => entry.event === 'session.started')) return null",
       "only": "^(?:a compact SessionStart does not hand a fresh baseline to a session with outstanding work)$"
-    },
-    {
-      "label": "late baseline: a write git cannot see does not block it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "event => event.event === 'file.written' && event.observable !== false)",
-      "to": "event => event.event === 'file.written')",
-      "only": "^(?:a write OUTSIDE the repository does not stop a clean repository getting its late baseline)$"
     },
     {
       "label": "ledger: an UNKNOWN row still names the writes known to be outstanding",
@@ -1228,16 +519,6 @@
       "only": "^(?:an UNKNOWN previous session still says what was independently known to be outstanding)$"
     },
     {
-      "label": "verdict: a recorded signal outranks a phrase-derived unproven",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "  if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'",
-      "to": "  if (record?.verdict === 'unproven') return 'check.unproven'\n  if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'",
-      "only": "^(?:a recorded signal outranks a verdict read from a phrase)$"
-    },
-    {
       "label": "note: a note is served only when it is tied to its compaction by id",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1247,16 +528,6 @@
       "to": "      const tied = true"
     },
     {
-      "label": "note: an order that cannot be established is said so",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "  if (unresolved === 'say-so' && new Set(",
-      "to": "  if (false && new Set(",
-      "only": "^(?:an order that cannot be established is said so, not reported as \"the failure ran last\")$"
-    },
-    {
       "label": "note: a log that could not be read whole cannot say which compaction was last",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1264,16 +535,6 @@
       ],
       "from": "      const tied = !logIncomplete(events) && typeof owner === 'string'",
       "to": "      const tied = typeof owner === 'string'"
-    },
-    {
-      "label": "R3: told-already is read from the action detail, not from the shape of a key",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "    const told = entry => entry.detail?.kind === 'unobserved' && entry.detail.agent === input.agent_id",
-      "to": "    const told = entry => entry.key === unobservedKey || entry.key === `${input.agent_id}:unknown`",
-      "only": "^(?:a review whose start or end could not be observed says so, instead of saying nothing)$"
     },
     {
       "label": "note: a note is served once",
@@ -1315,26 +576,6 @@
       "only": "^(?:SessionStart says how many task directories it did not read)$"
     },
     {
-      "label": "ADR-061: the refusal matches an invocation of git commit or git push, never the bare words (§269)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "  return publishCommandIn(command) !== null",
-      "to": "  return typeof command === 'string' && /(?<![A-Za-z0-9_-])(?:commit|push)(?![A-Za-z0-9_-])/.test(command)",
-      "only": "^(?:a read-only role cannot commit or push and its other changes are reported)$"
-    },
-    {
-      "label": "ADR-061: only a proven invocation is refused; a mention is warned about (§16, §269)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn && invoked !== null",
-      "to": "  const deny = treeUnchecked && !logIncomplete(log) && !unordered && !couldNotLook && origin.origin !== 'unproven' && !setting.warn",
-      "only": "^(?:the publish warning advises, never blocks, while this repository is unchecked)$"
-    },
-    {
       "label": "2.111.0-rc2 (Codex): the unmarked-archive ready line names the owner",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1343,16 +584,6 @@
       "only": "owning record is unreadable or not Accepted",
       "from": "if it is not, ${ownerCaveat(report)}${next.id} is ready",
       "to": "if it is not, ${next.id} is ready"
-    },
-    {
-      "label": "2.111.0-rc P1: the PowerShell tool is a shell",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "only": "PowerShell tool",
-      "from": "const SHELL_TOOLS = new Set(['Bash', 'PowerShell'])",
-      "to": "const SHELL_TOOLS = new Set(['Bash'])"
     },
     {
       "label": "2.111.0-rc P3: a Proposed owner is named on the ready line",
@@ -1405,36 +636,6 @@
       "only": "^(?:a read-only reviewer is decided by the guard alone: no warning, no log write)$"
     },
     {
-      "label": "qh-check: a green go test with one testless package is work, not zero work (§273)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "      if (/^ok\\s+\\S/.test(line)) return !/\\[no tests to run\\]/.test(line)",
-      "to": "      if (/^ok\\s+\\S/.test(line)) return false",
-      "only": "^(?:a green `go test \\./\\.\\.\\.` with one testless package is `passed`; all testless is `no-work`)$"
-    },
-    {
-      "label": "qh-check: under go test -json a test-level pass or an ok Output line is work (§273 round 2)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "      if (!line.startsWith('{')) return false",
-      "to": "      if (!line.startsWith('{')) return false\n      return false",
-      "only": "^(?:the same Go shapes under `go test -json` \\(real event lines\\) read the same)$"
-    },
-    {
-      "label": "qh-check: a split go test -json summary fragment is not a summary (§273 round 3)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/validation-verdict.test.mjs"
-      ],
-      "from": "      return output !== undefined && /^ok\\s/.test(output) && output.endsWith('\\\\n') && !output.includes('[no tests to run]')",
-      "to": "      return output !== undefined && /^ok\\s/.test(output) && !output.includes('[no tests to run]')",
-      "only": "^(?:the same Go shapes under `go test -json` \\(real event lines\\) read the same)$"
-    },
-    {
       "label": "archive: SessionStart names an unmarked archive",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1485,76 +686,6 @@
       "to": "    if (awaitingArming(readEvents(input.cwd, input.session_id))"
     },
     {
-      "label": "ADR-068 T2: the arming line stops once the hook has run",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "only": "the armed line is silent",
-      "from": "  return offered >= 0 && !events.slice(offered + 1).some(entry => entry.event === 'publish.hook-ran')",
-      "to": "  return offered >= 0"
-    },
-    {
-      "label": "chaos 626934a: the advisory arm reads a PowerShell backtick escape",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "  return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(",
-      "to": "  return [command, ...decoded].some(",
-      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
-    },
-    {
-      "label": "chaos 626934a: the advisory arm reads an encoded PowerShell script",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "  return [command, command.replace(/`(.)/gs, '$1'), ...decoded].some(",
-      "to": "  return [command, command.replace(/`(.)/gs, '$1')].some(",
-      "only": "the chaos round of 626934a: what the shell ran is what the classifier reads"
-    },
-    {
-      "label": "chaos 626934a: the constant check: || takes the next status only after a failure",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "    else if (joiner === '||') status = status === 'nonzero' ? own.status : status === 'zero' ? 'zero' : merge(own.status, 'zero')",
-      "to": "    else if (joiner === '||') status = own.status",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "chaos 626934a: the constant check: true, echo and exit are known statuses",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "  if (name in KNOWN_STATUS) return { status: KNOWN_STATUS[name] }",
-      "to": "  if (false) return { status: KNOWN_STATUS[name] }",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "chaos 626934a: the constant check: test with one literal operand is fixed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "    if (operands.length === 1 && !operands[0].startsWith('-')) return",
-      "to": "    if (false) return",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "chaos 626934a: the constant check: a bare [ is the test builtin, not a glob",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "(c.dynamic.includes(0) && c.argv[0] !== '['))",
-      "to": "(c.dynamic.includes(0)))",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
       "label": "chaos 626934a: SessionStart says a directory with an unreadable task is UNPROVEN",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1595,96 +726,6 @@
       "only": "a JSON payload that is not the object the host sends is named"
     },
     {
-      "label": "chaos 626934a (Codex round): the constant check: a redirection can fail on its own",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "c => c.redirects > 0 || c.ended",
-      "to": "c => c.ended",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "chaos 626934a (Codex round): the constant check: a subshell is not the list",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "c.ended === '(' || c.ended === ')' || LIST_CONTROL",
-      "to": "c.ended === '(' || LIST_CONTROL",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "chaos 626934a (Codex round): the constant check: set -e and friends change how the list runs",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "|| LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'",
-      "to": ")) return 'either'",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "chaos 626934a (Codex round): the constant check: a background command is 0",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "const own = commands[i].ended === '&' ? { status: 'zero' } : commandStatus(commands[i], depth)",
-      "to": "const own = commandStatus(commands[i], depth)",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "chaos 626934a (Codex round): the constant check: exit as the last command is the list's status",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "    if (own.exits && i < commands.length - 1) {",
-      "to": "    if (own.exits) {",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "chaos 626934a (Codex round): the constant check: only a bare -c string is read",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/fail-open.test.mjs"
-      ],
-      "from": "args[0] === '-c' && args[1] !== undefined) return",
-      "to": "/^-[A-Za-z]*c$/.test(args[0] ?? '') && args[1] !== undefined) return",
-      "only": "a check whose exit status the text fixes is refused"
-    },
-    {
-      "label": "chaos 916b515 F7: the advisory arm splits, never matches, a huge word",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "  const decoded = command.split(/[^A-Za-z0-9+/]+/).filter(word => word.length >= 8).map(decodedPowerShell)",
-      "to": "  const decoded = [...command.matchAll(/[A-Za-z0-9+/]{8,}={0,2}/g)].map(match => decodedPowerShell(match[0]))",
-      "only": "an oversized command is still read"
-    },
-    {
-      "label": "chaos 916b515 LEAD 1: a moved node falls back to the node on PATH",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "from": "  const run = event => `n=${single(node)}; [ -x \"$n\" ] || n=$(command -v node) || n=; `",
-      "to": "  const run = event => `n=${single(node)}; `",
-      "only": "node moved still runs"
-    },
-    {
-      "label": "chaos 916b515 LEAD 1: a hook that cannot start refuses nothing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "from": "    + `[ -n \"$n\" ] && [ -f ${single(script)} ] || { echo \"quality-harness: git's publish hook could not start `",
-      "to": "    + `true || { echo \"quality-harness: git's publish hook could not start `",
-      "only": "node moved still runs"
-    },
-    {
       "label": "chaos 916b515 G2: an UNPROVEN task directory offers no ready task",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1715,117 +756,6 @@
       "only": "passes windowsHide"
     },
     {
-      "label": "§314: a tree that could not be observed is said at a publish",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (observation?.ok !== true) {\n    const reason = observation?.reason ?? 'no observation was made'",
-      "to": "  if (false) {\n    const reason = observation?.reason ?? 'no observation was made'",
-      "only": "could not be observed"
-    },
-    {
-      "label": "§314: observe()'s budget is read from the environment",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  return Number.isSafeInteger(configured) && configured > 0 ? configured : OBSERVE_BUDGET_MS",
-      "to": "  return OBSERVE_BUDGET_MS",
-      "only": "budget is read|could not be observed"
-    },
-    {
-      "label": "BACKLOG §319 D: a check record's exit is graded whatever its type",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "  if (typeof record?.exit !== 'number') return 'check.unproven'",
-      "to": "  if (record?.exit === undefined) return 'check.unproven'",
-      "only": "a check record whose exit is not a number"
-    },
-    {
-      "label": "BACKLOG §319 D: a check record's git is graded whatever its type",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "  if (typeof record.git !== 'boolean') return 'check.unproven'",
-      "to": "  if (record.git == null) return 'check.unproven'",
-      "only": "a check record whose exit is not a number"
-    },
-    {
-      "label": "BACKLOG §319 H: a start that could not look is a baseline",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "  return log.find(entry => entry.event === 'session.started' && entry.observation?.ok === true)",
-      "to": "  return log.find(entry => entry.event === 'session.started')",
-      "only": "a session whose first look failed"
-    },
-    {
-      "label": "BACKLOG §319 H: a late baseline is taken after the tree was already seen",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/late-baseline.test.mjs",
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "!log.some(event => event.observation?.ok === true)",
-      "to": "true",
-      "only": "a session that did start normally gets no late baseline|a tree seen before a commit is not forgiven"
-    },
-    {
-      "label": "BACKLOG §319 H: the publish decision reads a start that could not look",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "  const baseline = sessionBaseline(log)?.observation\n    ?? (log.some(entry => entry.event === 'session.started')",
-      "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n    ?? (log.some(entry => entry.event === 'session.started')",
-      "only": "a session whose first look failed"
-    },
-    {
-      "label": "BACKLOG §319 H: the session note reads a start that could not look",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true ? statusPaths(root) : []",
-      "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n  const status = observation?.ok === true ? statusPaths(root) : []",
-      "only": "the session note reads the late baseline"
-    },
-    {
-      "label": "BACKLOG §319 H: the session note's late flag reads a start that could not look",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "    late: sessionBaseline(log)?.late === true,",
-      "to": "    late: log.find(entry => entry.event === 'session.started')?.late === true,",
-      "only": "the session note reads the late baseline"
-    },
-    {
-      "label": "BACKLOG §319 H: git's hook gets no late baseline",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "    ?? (log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now) ? now : undefined)",
-      "to": "    ?? undefined",
-      "only": "git's own hook gives a failed start"
-    },
-    {
-      "label": "BACKLOG §319 H: git's hook hands a worktree a late baseline",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "log.some(entry => entry.event === 'session.started') && lateBaselineAllowed(log, cwd, now)",
-      "to": "lateBaselineAllowed(log, cwd, now)",
-      "only": "git's own hook gives a failed start"
-    },
-    {
       "label": "§319 H1: SessionStart's Verification line prints the declared check raw",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -1833,16 +763,6 @@
       ],
       "from": "? `this project's own check is ${checkInCode(check)}`",
       "to": "? `this project's own check is \\`${check}\\``",
-      "only": "a declared check cannot forge a line"
-    },
-    {
-      "label": "§319 H1: runTheCheckSentence prints the declared check raw",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "it runs ${checkInCode(command)} (this project's own check)",
-      "to": "it runs \\`${command}\\` (this project's own check)",
       "only": "a declared check cannot forge a line"
     },
     {
@@ -1874,36 +794,6 @@
       "from": "  return corpusText(scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out))\n",
       "to": "  return scrubber({ root: null, pluginRoot: PLUGIN_ROOT })(out)\n",
       "only": "SessionStart says adr-next's failure relative to the repository"
-    },
-    {
-      "label": "§319 D4: a torn checks.jsonl is named as the session log",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "  return log?.complete !== true ? sessionWords : '`checks.jsonl`",
-      "to": "  return true ? sessionWords : '`checks.jsonl`",
-      "only": "a torn checks.jsonl is named as checks.jsonl"
-    },
-    {
-      "label": "§319 D4: the publish warning names the session log whatever tore",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "unknown — ${tornRecord(log, 'the session log')} could not be read whole, so whether",
-      "to": "unknown — the session log could not be read whole, so whether",
-      "only": "a torn checks.jsonl is named as checks.jsonl"
-    },
-    {
-      "label": "§319 D4: the turn-end could-not-look names the session log whatever tore",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "${tornRecord(log, 'this session’s event log')} could not be read whole",
-      "to": "this session’s event log could not be read whole",
-      "only": "a torn checks.jsonl is named as checks.jsonl"
     },
     {
       "label": "§321 codex render: a ready line's diagnostic prefix prints a tag raw",
@@ -2016,46 +906,6 @@
       "only": "the compaction note shows"
     },
     {
-      "label": "ADR-080 T1: every artifact pass is forced in-process, so the boundary waits on it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/artifact-pass-behind.test.mjs"
-      ],
-      "from": "if (setting === 'inline') {",
-      "to": "if (setting === 'inline' || true) {",
-      "only": "^no boundary waits for the artifact pass$"
-    },
-    {
-      "label": "ADR-080 T1: a held pass lock is reclaimed before its deadline",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/artifact-pass-behind.test.mjs"
-      ],
-      "from": "if (now <= heldDeadline) return null",
-      "to": "if (false) return null",
-      "only": "^one artifact pass runs per session at a time$"
-    },
-    {
-      "label": "ADR-080 T1: a pass's verdict line drops its findings",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/artifact-pass-behind.test.mjs"
-      ],
-      "from": "findings: said.get(file) ?? null })",
-      "to": "findings: null })",
-      "only": "^the pass writes only its own ledger$"
-    },
-    {
-      "label": "ADR-080 T1: a pass whose runner is missing is released in silence",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/artifact-pass-behind.test.mjs"
-      ],
-      "from": "return unrun(`its runner ${path.basename(runner)} does not exist`)",
-      "to": "return (`its runner ${path.basename(runner)} does not exist`)",
-      "only": "^a pass that cannot start is said, not silent$"
-    },
-    {
       "label": "ADR-080 T2: no hook but a boundary imports the pass ledger",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2074,156 +924,6 @@
       "from": "if (!guardAlone && typeof input.session_id === 'string' && input.session_id) {",
       "to": "if (typeof input.session_id === 'string' && input.session_id) {",
       "only": "^a read-only reviewer neither imports nor delivers a pass finding$"
-    },
-    {
-      "label": "ADR-080 review: a finding's key ignores whether the verdict was complete and what it said",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/artifact-pass-behind.test.mjs"
-      ],
-      "from": "? `${entry.path}:${entry.blob ?? `unknown-${entry.pass}`}:${entry.complete === true ? 'complete' : 'incomplete'}:${said}`",
-      "to": "? `${entry.path}:${entry.blob ?? `unknown-${entry.pass}`}`",
-      "only": "^a timeout said first does not silence a later finding about the same bytes$"
-    },
-    {
-      "label": "ADR-080 review: a stale lock's successor replaces a lock another claimant already holds",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/artifact-pass-behind.test.mjs"
-      ],
-      "from": "if (held ? current?.token !== held.token : current !== null) {",
-      "to": "if (false) {",
-      "only": "^two claimants of one stale lock: exactly one holds it$"
-    },
-    {
-      "label": "ADR-080 review: a pass releases its lock after its deadline",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/artifact-pass-behind.test.mjs"
-      ],
-      "from": "if (held.token === token && now <= Number(held.deadline)) rmSync(lock, { force: true })",
-      "to": "if (held.token === token) rmSync(lock, { force: true })",
-      "only": "^a pass releases its lock before its deadline, and never after$"
-    },
-    {
-      "label": "ADR-080 review: a pass gates its next chunk after a batch stopped on unconfirmed cleanup",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/artifact-pass-behind.test.mjs"
-      ],
-      "from": "    if (stopped.stopped) {",
-      "to": "    if (false) {",
-      "only": "^a batch that stopped on unconfirmed cleanup stops the whole pass$"
-    },
-    {
-      "label": "ADR-080 review: a pass with no end in its ledger is never said",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/artifact-pass-behind.test.mjs"
-      ],
-      "from": "    if (ended.has(pass.token)) continue",
-      "to": "    continue",
-      "only": "^a pass that leaves no end in its ledger is said UNRUN$"
-    },
-    {
-      "label": "ADR-081 T1: a write git cannot see is ignored by the skip",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "if (!(recordedBefore && Date.parse(entry.at) < started)) return true",
-      "to": "if (false) return true",
-      "only": "^a write git cannot see, after the pass, checks again$"
-    },
-    {
-      "label": "ADR-081 T2: a failed fast record exempts the commit",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "    if (record?.after?.tree === tree) { latest = record; latestSeq = count }\n  }\n  if (!latest || checkEventName(latest) !== 'check.passed') return null",
-      "to": "    if (record?.after?.tree === tree) { latest = record; latestSeq = count }\n  }\n  if (!latest) return null",
-      "only": "^a commit with no fast pass, or a failed one, is still refused$"
-    },
-    {
-      "label": "ADR-081 T2: the fast advisory reuses the refused key",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "key: `${key}:fast${fastPass.count}`",
-      "to": "key",
-      "only": "^a commit refused before a fast pass is told after it$"
-    },
-    {
-      "label": "ADR-081 review: an unseen write is judged by its clock alone",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "const recordedBefore = counted === undefined || (Number.isInteger(counted) && counted < seq)",
-      "to": "const recordedBefore = true",
-      "only": "^a write the ledger counts after the pass is seen, even when the clock went back$"
-    },
-    {
-      "label": "ADR-081 review: a sessions directory that cannot be listed reads as empty",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "    if (error?.code !== 'ENOENT') return true",
-      "to": "    if (false) return true",
-      "only": "^a sessions directory that cannot be listed runs the check$"
-    },
-    {
-      "label": "§343: a fast pass ignores a write git cannot see",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "  if (unseenWriteSince(root, { seen: 'fastSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null",
-      "to": "  if (false) return null",
-      "only": "^a write git cannot see, after a fast pass, takes the commit back to the full check$"
-    },
-    {
-      "label": "§343: a write logs no fast-ledger count",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "fastSeen: ledgerRecordCount(input.cwd, 'fast-checks.jsonl')",
-      "to": "fastSeen: ledgerRecordCount(input.cwd, 'checks.jsonl')",
-      "only": "^a write git cannot see, after a fast pass, takes the commit back to the full check$"
-    },
-    {
-      "label": "§343: a partial stage is never said on the fast path",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "const staged = now.index === now.tree ? ''",
-      "to": "const staged = true ? ''",
-      "only": "^a commit told through on a fast pass says when the staged index is not the tree it checked$"
-    },
-    {
-      "label": "§343: a whole stage is warned as partial on the fast path",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "const staged = now.index === now.tree ? ''",
-      "to": "const staged = false ? ''",
-      "only": "^a commit told through on a fast pass says when the staged index is not the tree it checked$"
-    },
-    {
-      "label": "§343 review: a write outside the repository vetoes the pass",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "if (typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry)) continue",
-      "to": "if (false) continue",
-      "only": "^a write outside the repository vetoes neither a fast-path commit nor the full skip$"
     },
     {
       "label": "§350 C6: the ready line drops the missing-owner hedge",
@@ -2286,156 +986,6 @@
       "only": "^(?:the Skill hook is registered and records only this plugin's skills)$"
     },
     {
-      "label": "ADR-086 T2: an unarmed fresh-repository commit is advised, not refused",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "  if (verdict.deny && input.tool_name === 'Bash' && freshRepositoryCommit(input.tool_input?.command, env)) {",
-      "to": "  if (false && freshRepositoryCommit(input.tool_input?.command, env)) {",
-      "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
-    },
-    {
-      "label": "ADR-086 T2: the fresh-repository advice carries its own key",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-command.test.mjs"
-      ],
-      "from": "      ...verdict, deny: false, key: `${verdict.key}:fresh`,",
-      "to": "      ...verdict, deny: false, key: verdict.key,",
-      "only": "^(?:an unarmed commit into a repository the command creates is advised, not refused)$"
-    },
-    {
-      "label": "ADR-088 T2: the publish verdict judges the ledger-bound log, not the bare session log",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "  const bound = ledgerBoundLog(cwd, readEvents(cwd, session))",
-      "to": "  const bound = { log: readEvents(cwd, session), dropped: 0 }",
-      "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
-    },
-    {
-      "label": "ADR-088 T2: a ledger record binds an event only on the event's own tree",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": " && record.after?.tree === entry.after?.tree",
-      "to": "",
-      "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
-    },
-    {
-      "label": "ADR-088 T2: a check event the ledger holds is kept and still clears the refusal",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "    return record !== undefined && checkEventName(record)",
-      "to": "    return false && checkEventName(record)",
-      "only": "^(?:a check event the ledger does not hold does not clear the refusal)$"
-    },
-    {
-      "label": "ADR-088 T2: a torn ledger binds nothing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "    try { record = JSON.parse(line) } catch { return torn }",
-      "to": "    try { record = JSON.parse(line) } catch { continue }",
-      "only": "^(?:a torn ledger is could-not-look to git's hook as well)$"
-    },
-    {
-      "label": "ADR-088 review: a torn ledger is could-not-look to the publish verdict, whoever imported it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "  const log = bound.torn ? Object.assign(",
-      "to": "  const log = false ? Object.assign(",
-      "only": "^(?:a torn ledger is could-not-look to git's hook as well)$"
-    },
-    {
-      "label": "ADR-088 review: ledgerBoundLog reads an unterminated last line as torn",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "  if (lines.pop().trim()) return torn",
-      "to": "  lines.pop()",
-      "only": "^(?:an unterminated last ledger line is torn)$"
-    },
-    {
-      "label": "ADR-088 review: the importer reads an unterminated last line as torn",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "  if (lines.pop().trim()) whole = false",
-      "to": "  lines.pop()",
-      "only": "^(?:an unterminated last ledger line is torn)$"
-    },
-    {
-      "label": "ADR-088 review 2: the verdict marks could-not-look for git's hook",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "    unknown: !deny && logIncomplete(log),",
-      "to": "    unknown: false,",
-      "only": "^(?:git's own hook says a torn ledger is unknown, at commit and at push)$"
-    },
-    {
-      "label": "ADR-088 review 3: a newly torn ledger has its own advice key",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "${revision}${logIncomplete(log) ? ':unknown' : ''}`",
-      "to": "${revision}`",
-      "only": "^(?:a ledger torn after the advice was given is said once)$"
-    },
-    {
-      "label": "ADR-088 follow-up: a baseline-equal publish says a record not read whole",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "    if (!logIncomplete(log)) return null",
-      "to": "    return null",
-      "only": "^(?:a baseline-equal publish beside a torn ledger is said once, and never refused)$"
-    },
-    {
-      "label": "ADR-088 follow-up: the baseline-equal advice is marked unknown for git's hook",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-ledger-binding.test.mjs"
-      ],
-      "from": "      deny: false, unknown: true, key, detail: { tree: now.tree, revision },",
-      "to": "      deny: false, unknown: false, key, detail: { tree: now.tree, revision },",
-      "only": "^(?:git's own hook says a torn ledger at a baseline-equal commit and push)$"
-    },
-    {
-      "label": "ADR-088 follow-up: the fast exemption reads an unterminated last line as torn",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "read as the importer reads `checks.jsonl`.\n  const lines = text.split('\\n')\n  if (lines.pop().trim()) return null",
-      "to": "read as the importer reads `checks.jsonl`.\n  const lines = text.split('\\n')\n  ;",
-      "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
-    },
-    {
-      "label": "ADR-088 follow-up: a write's ledger count skips an unterminated last line",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "  for (const line of text.split('\\n').slice(0, -1)) {",
-      "to": "  for (const line of text.split('\\n')) {",
-      "only": "^(?:a write counts only the ledger records written whole)$"
-    },
-    {
       "label": "ADR-089 T5: SessionStart says --adopt adopts it",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2454,16 +1004,6 @@
       "from": "export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = process.platform) {",
       "to": "export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = 'win32') {",
       "only": "^a backslash in a listed corpus path is one name on POSIX and a separator on Windows$"
-    },
-    {
-      "label": "2026-10-08: a refusal after a fast pass says no qh-check has passed",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-fast-wording.test.mjs"
-      ],
-      "from": "  const fastSeen = treeUnchecked ? latestFastPass(cwd, now.tree, found.root ?? cwd) : null",
-      "to": "  const fastSeen = null",
-      "only": "^a refusal after a fast pass says the fast check passed and why it does not count here$"
     },
     {
       "label": "2026-10-09: a session log holding a write git could not see is kept at any age",
@@ -2526,66 +1066,6 @@
       "only": "^a session-log sweep that cannot look says where, and never throws$"
     },
     {
-      "label": "2026-10-09: content back on a blob already gated complete is that answer again",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "  if (recorded instanceof Set) return recorded.has(identity)",
-      "to": "  if (recorded instanceof Set) return [...recorded].at(-1) === identity",
-      "only": "^content that returns to a blob already gated complete is that answer again$"
-    },
-    {
-      "label": "2026-10-09: an incomplete gate is not an answer",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "entry.complete === true) {\n      const blobs",
-      "to": "true) {\n      const blobs",
-      "only": "^content that returns to a blob already gated complete is that answer again$"
-    },
-    {
-      "label": "2026-10-09: an unreadable identity matches nothing, a set of blobs included",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "from": "  if (identity === null || identity === undefined) return false",
-      "to": "  if (identity === undefined) return false",
-      "only": "^content that returns to a blob already gated complete is that answer again$"
-    },
-    {
-      "label": "ADR-094 T4: an absolute write outside the root is counted as unseen again",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry))",
-      "to": "    && true",
-      "only": "^an absolute write outside the repository is not counted as unseen$"
-    },
-    {
-      "label": "ADR-094 T4: an unplaceable write path is skipped as if it were outside",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "    && !(root && typeof entry.path === 'string' && path.isAbsolute(entry.path) && writtenOutside(root, entry))",
-      "to": "    && !(root && (typeof entry.path !== 'string' || (path.isAbsolute(entry.path) && writtenOutside(root, entry))))",
-      "only": "^a relative or unplaceable write path is still counted as unseen$"
-    },
-    {
-      "label": "ADR-094 T4: the previous-session count is taken without the root",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "  const writes = unobservableWrites(log, root)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
-      "to": "  const writes = unobservableWrites(log)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
-      "only": "^an absolute write outside the repository is not counted as unseen$"
-    },
-    {
       "label": "ADR-094 T2: a standing paragraph is keyed without its text",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2646,56 +1126,6 @@
       "only": "^a tree with no pass keeps the previous-session notice, clean or dirty$"
     },
     {
-      "label": "ADR-081 T1: the first record on the tree decides instead of the latest",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "    if (record?.command === command && (sameTree || sameCode)) latest = record",
-      "to": "    if (!latest && record?.command === command && (sameTree || sameCode)) latest = record",
-      "only": "^a pass followed by a failure on the same tree checks again$"
-    },
-    {
-      "label": "ADR-081 review: a row that is not a record is read as one by the skip",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "    if (typeof record?.id !== 'string') return null\n    byId.set(record.id, record)\n    seq += 1",
-      "to": "    if (false) return null\n    byId.set(record.id, record)\n    seq += 1",
-      "only": "^a row that is not a record proves nothing, in either ledger$"
-    },
-    {
-      "label": "ADR-088 follow-up: qh-check's skip reads an unterminated last line as torn",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "reads it (ADR-088).\n  const lines = text.split('\\n')\n  if (lines.pop().trim()) return null",
-      "to": "reads it (ADR-088).\n  const lines = text.split('\\n')\n  ;",
-      "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
-    },
-    {
-      "label": "ADR-094 T3: a project that declares nothing gets a codeTree anyway",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/prose-reuse.test.mjs"
-      ],
-      "from": "    if (without.length) {",
-      "to": "    if (true) {",
-      "only": "^a project that declares nothing is unchanged$"
-    },
-    {
-      "label": "ADR-094 T3: a pass is reused whatever the code tree is",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/prose-reuse.test.mjs"
-      ],
-      "from": "typeof now.codeTree === 'string' && record?.after?.codeTree === now.codeTree",
-      "to": "typeof now.codeTree === 'string'",
-      "only": "^a change outside the declared paths runs the check, whatever else is reused$"
-    },
-    {
       "label": "ADR-094 T3: a declaration matching the config is accepted",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2714,26 +1144,6 @@
       "from": "if (spec.split('/').some(part => part === '.' || part === '..')) return",
       "to": "if (false) return",
       "only": "^a pathspec is judged by its grammar before git is asked$"
-    },
-    {
-      "label": "ADR-094 T3: the unseen-write veto does not run for a reuse",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/prose-reuse.test.mjs"
-      ],
-      "from": "  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null\n  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)",
-      "to": "  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)",
-      "only": "^an unseen write after the original pass vetoes a reuse$"
-    },
-    {
-      "label": "ADR-094 T3: the observed index copy takes the time of the copy",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/observe-racy.test.mjs"
-      ],
-      "from": "utimesSync(index, original.atime, original.mtime)",
-      "to": "void original",
-      "only": "^observe sees a file rewritten in the same second at the same size$"
     },
     {
       "label": "ADR-094 T3: a wildcard-only spec passes the grammar",
@@ -2776,26 +1186,6 @@
       "only": "^a pathspec is judged by its grammar before git is asked$"
     },
     {
-      "label": "ADR-094 T4: the recorder drops the spelling the tool was given",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "if (lexical !== absolute) entry.lexical = lexical",
-      "to": "void lexical",
-      "only": "^a write through a directory link is counted when the hook records it$"
-    },
-    {
-      "label": "ADR-094 T4: a recorded write is outside by its canonical spelling alone",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/outside-root-writes.test.mjs"
-      ],
-      "from": "    && (typeof entry.lexical !== 'string' || !path.isAbsolute(entry.lexical) || outsideRoot(root, entry.lexical))",
-      "to": "    && true",
-      "only": "^a write through a directory link is counted when the hook records it$"
-    },
-    {
       "label": "config problem: a config that cannot be read is absent",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2836,26 +1226,6 @@
       "only": "^a config that cannot be read at all, and one that is not an object, are the same refusal$"
     },
     {
-      "label": "reuse: a tree identical to the pass is called a prose change",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/prose-reuse-attribution.test.mjs"
-      ],
-      "from": "viaProse: latest.after.tree !== now.tree && !sameAsPass }",
-      "to": "viaProse: latest.after.tree !== now.tree }",
-      "only": "^a tree identical to one that passed is \"already passed\", not \"only prose changed\", and writes no reuse row$"
-    },
-    {
-      "label": "reuse: a skip row names the reuse row, not the pass that ran",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/prose-reuse-attribution.test.mjs"
-      ],
-      "from": "passOf: original?.id ?? latest.id,",
-      "to": "passOf: latest.id,",
-      "only": "^a skip row names the pass that ran, not the reuse row that stood for it$"
-    },
-    {
       "label": "config problem: a link to nothing is an absent config",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2886,26 +1256,6 @@
       "only": "^a config that starts with a byte-order mark is refused and says so \\(a Windows run of 3.8.18\\)$"
     },
     {
-      "label": "golden: the publish refusal's closing sentence changes",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/hook-goldens.test.mjs"
-      ],
-      "from": "This says what state the repository is in",
-      "to": "This says what state the repo is in",
-      "only": "^publish: every form of a publish command gets the answer it got when the transcript was recorded$"
-    },
-    {
-      "label": "golden: the turn-end advice changes its first sentence",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/hook-goldens.test.mjs"
-      ],
-      "from": "'this turn ends with work no `qh-check` has passed on.'",
-      "to": "'this turn ended with work no `qh-check` has passed on.'",
-      "only": "^writes and turn ends: what was written, where, and what the turn says about it$"
-    },
-    {
       "label": "golden: the orientation's check sentence changes",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -2924,16 +1274,6 @@
       "from": "so this is a plan, not a work order",
       "to": "so this is a plan, not an order",
       "only": "^readiness: an accepted record with a ready task, an evidenced one and a proposed record are said as they were$"
-    },
-    {
-      "label": "golden: the artifact pass's failure header changes",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/hook-goldens.test.mjs"
-      ],
-      "from": "text: first ? `Artifact validation failed:",
-      "to": "text: first ? `Artifact validation failure:",
-      "only": "^artifacts: a record written badly and a record written well are gated at the write and at the turn end$"
     }
   ]
 }

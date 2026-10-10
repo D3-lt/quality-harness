@@ -1,0 +1,54 @@
+{
+  "mutations": [
+    {
+      "label": "paths: a changed path is read NUL-terminated, never unquoted by hand",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/status-paths.test.mjs"
+      ],
+      "from": "  if (nul) return mark(run.stdout.split('\\0').filter(Boolean), true)",
+      "to": "  if (false) return mark(run.stdout.split('\\0').filter(Boolean), true)",
+      "only": "^(?:no hook names, or tries to gate, a path spelled in octal escapes)$"
+    },
+    {
+      "label": "§314: observe()'s budget is read from the environment",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return Number.isSafeInteger(configured) && configured > 0 ? configured : OBSERVE_BUDGET_MS",
+      "to": "  return OBSERVE_BUDGET_MS",
+      "only": "budget is read|could not be observed"
+    },
+    {
+      "label": "BACKLOG §319 H: a start that could not look is a baseline",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  return log.find(entry => entry.event === 'session.started' && entry.observation?.ok === true)",
+      "to": "  return log.find(entry => entry.event === 'session.started')",
+      "only": "a session whose first look failed"
+    },
+    {
+      "label": "ADR-094 T3: a project that declares nothing gets a codeTree anyway",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "    if (without.length) {",
+      "to": "    if (true) {",
+      "only": "^a project that declares nothing is unchanged$"
+    },
+    {
+      "label": "ADR-094 T3: the observed index copy takes the time of the copy",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/observe-racy.test.mjs"
+      ],
+      "from": "utimesSync(index, original.atime, original.mtime)",
+      "to": "void original",
+      "only": "^observe sees a file rewritten in the same second at the same size$"
+    }
+  ]
+}

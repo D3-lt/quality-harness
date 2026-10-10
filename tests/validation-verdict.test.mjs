@@ -23,7 +23,8 @@
 // next reader, and an accusation is the expensive way to be wrong (CLAUDE.md §16).
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { checkEventName, validationVerdict } from '../plugin/scripts/lifecycle.mjs'
+import { checkEventName } from '../plugin/scripts/check-ledger.mjs'
+import { validationVerdict } from '../plugin/scripts/completion-rules.mjs'
 import { repositoryDiscovery } from '../plugin/scripts/qh-check.mjs'
 
 const verdict = (exit_code, stdout, command = 'sh check.sh') =>

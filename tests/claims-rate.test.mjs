@@ -148,7 +148,7 @@ test('a retired arm is named in the rate with what replaces it, and a live one i
 // `assertionArm: "live"`, and the structural zero is back with nothing saying so.
 test('the withdrawn label matches the classifier that actually exists', async () => {
   const { ASSERTION_ARM_WITHDRAWN } = await import('../plugin/scripts/claim-status.mjs')
-  const { completionClaim } = await import('../plugin/scripts/lifecycle.mjs')
+  const { completionClaim } = await import('../plugin/scripts/completion-rules.mjs')
 
   const confident = [
     '✅ All tests pass. Task complete.',

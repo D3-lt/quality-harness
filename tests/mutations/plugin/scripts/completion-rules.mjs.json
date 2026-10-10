@@ -1,0 +1,394 @@
+{
+  "mutations": [
+    {
+      "label": "hooks: EVIDENCE-LIMITED needs a stated reason",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "/\\bEVIDENCE-LIMITED:\\s+\\S.{15,}/i",
+      "to": "/\\bEVIDENCE-LIMITED:\\s*/i",
+      "only": "^(?:EVIDENCE-LIMITED opens the completion gate only with a stated reason, and only over docs)$"
+    },
+    {
+      "label": "hooks: a read-only role is told it is read-only",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "/(explore|plan|research|review|audit|scout|memory)/",
+      "to": "/(explore|plan|research|audit|scout|memory)/",
+      "only": "^(?:a read-only role is told it is read-only, and an editing role is not)$"
+    },
+    {
+      "label": "advisory: a project that names no check hears nothing",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!check) return\n\n  const changed",
+      "to": "  if (false) return\n\n  const changed",
+      "only": "^(?:reported: a project that names no check hears nothing from the evidence gates)$"
+    },
+    {
+      "label": "verdict: a command that never started is not a failure",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'",
+      "to": "  if (false) return 'unstarted'",
+      "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
+    },
+    {
+      "label": "verdict: a killed run is not a failure either",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (exitCode === 124) return 'timeout'",
+      "to": "  if (false) return 'timeout'",
+      "only": "^(?:a timeout and a plain failure keep their own names)$"
+    },
+    {
+      "label": "verdict: the environment is checked before the exit code",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
+      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'",
+      "only": "^(?:a suite that ran and failed is `failed`, whatever its assertions happen to say|a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`|a timeout and a plain failure keep their own names)$"
+    },
+    {
+      "label": "verdict: Windows says none of what POSIX says",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  'the system cannot find the file specified', 'the system cannot find the path specified',",
+      "to": "",
+      "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
+    },
+    {
+      "label": "verdict: cmd.exe reports 9009, not 127",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "const NEVER_STARTED_EXITS = new Set([126, 127, 9009])",
+      "to": "const NEVER_STARTED_EXITS = new Set([126, 127])",
+      "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
+    },
+    {
+      "label": "verdict: an explicit exit 0 is authoritative",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (exitCode === 0) {\n    return (anyCommand || testCommand(command)) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'\n  }",
+      "to": "",
+      "only": "^(?:an explicit zero is a pass even when the output quotes an error)$"
+    },
+    {
+      "label": "role: a spawn with nothing declared is told nothing",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!model && !effort) return null",
+      "to": "  if (false) return null",
+      "only": "^(?:a spawn with nothing declared is told nothing)$"
+    },
+    {
+      "label": "role: the spawn is told what its delegation asked for",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const asked = [model && `model ${model}`, effort && `effort ${effort}`].filter(Boolean).join(', ')",
+      "to": "  const asked = ''",
+      "only": "^(?:a spawn is told which role it was asked to be)$"
+    },
+    {
+      "label": "stop: a negative final message is never read as an assertion",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (interimResponse(message) || unverifiedDisclosure(message)) return { kind: 'hedged', phrase: null }",
+      "to": "  if (false) return { kind: 'hedged', phrase: null }",
+      "only": "^(?:completionClaim reads negation before assertion|the asserted arm is retired and says so)$"
+    },
+    {
+      "label": "stop: every completion event is written to the ledger",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    appendFileSync(path.join(home, 'claims.jsonl'), `${JSON.stringify({",
+      "to": "    if (evidence) return\n    appendFileSync(path.join(home, 'claims.jsonl'), `${JSON.stringify({",
+      "only": "^(?:the claims ledger gets one row per completion event, classified)$"
+    },
+    {
+      "label": "stop: a session with nowhere to record says so instead of skipping",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '",
+      "to": "    if (home === undefined) return\n    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '",
+      "only": "^(?:the claims ledger is not written without CLAUDE_PLUGIN_DATA, and says so)$"
+    },
+    {
+      "label": "lifecycle: an honest disclosure of what was not run is hedged, not none",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return /\\b(?:have ?n[o']t|has ?n[o']t|did ?n[o']t|not yet)\\s+(?:\\w+\\s+){0,2}(?:run|ran|verified|verify|tested|checked)\\b/i.test(message)",
+      "to": "  return false",
+      "only": "^(?:completionClaim reads negation before assertion|the asserted arm is retired and says so)$"
+    },
+    {
+      "label": "lifecycle: widening the negation classifier does not swallow an ordinary completion message",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    || /\\b(?:can ?n[o']t|cannot|could ?n[o']t|unable to)\\s+(?:\\w+\\s+){0,2}(?:verify|confirm|check|run|test)\\b/i.test(message)",
+      "to": "    || /\\b(?:verify|confirm|check|run|test|ran|verified)\\b/i.test(message)",
+      "only": "^(?:completionClaim reads negation before assertion)$"
+    },
+    {
+      "label": "R2: several commits say at least one could not be established",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "`at least one of ${commits.length} newly reachable commits`} could not observe it:`",
+      "to": "`${commits.length} newly reachable commits`} could not observe it:`",
+      "only": "^(?:R2 over several commits says at least one could not be established)$"
+    },
+    {
+      "label": "advisory: R1 speaks only about an unchecked tree or an unseen write",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {",
+      "to": "  if (!quiet) {",
+      "only": "^(?:the scripted session advises as its step table lists|a tree the publish warning named still records unverified|writes the tree cannot see re-open the finding|a check that finishes in a later turn clears the finding then|a log that could not be read whole cannot supply a passing verdict|a torn checks\\.jsonl cannot leave an older pass standing as the verdict)$"
+    },
+    {
+      "label": "advisory: R1's key carries the evidence revision, so a later check re-opens it",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`",
+      "to": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${writes.length}`",
+      "only": "^(?:writes the tree cannot see re-open the finding)$"
+    },
+    {
+      "label": "advisory: R4 is said once per session and cwd",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    if (!emittedFor(log, 'R4', key)) {",
+      "to": "    if (true) {",
+      "only": "^(?:writes the tree cannot see re-open the finding)$"
+    },
+    {
+      "label": "ledger: an unchecked tree is unverified, whatever the rules said",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (treeUnchecked || writes.length > 0) return 'unverified'",
+      "to": "  if (writes.length > 0) return 'unverified'",
+      "only": "^(?:the scripted session advises as its step table lists|a tree the publish warning named still records unverified)$"
+    },
+    {
+      "label": "evidence-flip: a torn log is not a session where nothing happened",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "      : logIncomplete(log) ? `${tornRecord(log, 'the session log')} could not be read whole`",
+      "to": "      : false ? `${tornRecord(log, 'the session log')} could not be read whole`",
+      "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one)$"
+    },
+    {
+      "label": "evidence-flip: a git status that failed is not an empty working tree",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    : status.ok === false ? 'git could not list the working tree'",
+      "to": "    : false ? 'git could not list the working tree'",
+      "only": "^(?:a git status that FAILED is not a working tree where nothing changed \\(audit B4\\))$"
+    },
+    {
+      "label": "evidence-flip: a torn log persists no last verdict",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    lastCheck: check && !logIncomplete(log)",
+      "to": "    lastCheck: check",
+      "only": "^(?:degrading the evidence changes the answer, at every surface that can give a positive one|a really torn log, read by the real hooks, does not persist a verified row)$"
+    },
+    {
+      "label": "evidence-flip: the completion rule does not accuse from a torn log",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  const opening = logTorn",
+      "to": "  const opening = false",
+      "only": "^(?:at every hook boundary a torn log is never quieter than a whole one, however it tore)$"
+    },
+    {
+      "label": "verdict: a suite that ran is not `unstarted` because an assertion quoted an error",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (saidLittle(text) && (NEVER_STARTED.test(text)",
+      "to": "  if ((NEVER_STARTED.test(text)",
+      "only": "^(?:a suite that ran and failed is `failed`, whatever its assertions happen to say)$"
+    },
+    {
+      "label": "verdict: an interpreter that could not open its script did not run the tests",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  'could not open input file',",
+      "to": "  'qh-no-such-phrase',",
+      "only": "^(?:a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
+    },
+    {
+      "label": "inferred: a pass of a guessed check says so in the session note",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/inferred-pass.test.mjs"
+      ],
+      "from": "    checkOrigin: latestCheckFor(log, observation?.tree)?.origin ?? null,",
+      "to": "    checkOrigin: null,",
+      "only": "^(?:a pass of an INFERRED check says so in the note a session is handed)$"
+    },
+    {
+      "label": "note: Last check is ordered by when it ran",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), { unresolved: 'say-so' })",
+      "to": "  const check = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).at(-1)",
+      "only": "^(?:\"Last check\" is the check that RAN last, not the one appended last|an order that cannot be established is said so, not reported as \"the failure ran last\")$"
+    },
+    {
+      "label": "R2: over a torn log a commit is not known to be checked",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),",
+      "to": "      text: uncheckedCommitsReason(input.cwd, unchecked),",
+      "only": "^(?:over a torn log a newly reachable commit is \"not known to be checked\", never \"unchecked\")$"
+    },
+    {
+      "label": "verdict: a phrase alone is unproven, not unstarted",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "KILLED_ON_TIME.test(text))) return 'unproven'",
+      "to": "KILLED_ON_TIME.test(text))) return 'unstarted'",
+      "only": "^(?:a suite that ran and failed is `failed`, whatever its assertions happen to say|a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`)$"
+    },
+    {
+      "label": "qh-check: a green go test with one testless package is work, not zero work (§273)",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "      if (/^ok\\s+\\S/.test(line)) return !/\\[no tests to run\\]/.test(line)",
+      "to": "      if (/^ok\\s+\\S/.test(line)) return false",
+      "only": "^(?:a green `go test \\./\\.\\.\\.` with one testless package is `passed`; all testless is `no-work`)$"
+    },
+    {
+      "label": "qh-check: under go test -json a test-level pass or an ok Output line is work (§273 round 2)",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "      if (!line.startsWith('{')) return false",
+      "to": "      if (!line.startsWith('{')) return false\n      return false",
+      "only": "^(?:the same Go shapes under `go test -json` \\(real event lines\\) read the same)$"
+    },
+    {
+      "label": "qh-check: a split go test -json summary fragment is not a summary (§273 round 3)",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "      return output !== undefined && /^ok\\s/.test(output) && output.endsWith('\\\\n') && !output.includes('[no tests to run]')",
+      "to": "      return output !== undefined && /^ok\\s/.test(output) && !output.includes('[no tests to run]')",
+      "only": "^(?:the same Go shapes under `go test -json` \\(real event lines\\) read the same)$"
+    },
+    {
+      "label": "BACKLOG §319 H: the session note reads a start that could not look",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true ? statusPaths(root) : []",
+      "to": "  const baseline = log.find(entry => entry.event === 'session.started')?.observation\n  const status = observation?.ok === true ? statusPaths(root) : []",
+      "only": "the session note reads the late baseline"
+    },
+    {
+      "label": "BACKLOG §319 H: the session note's late flag reads a start that could not look",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "    late: sessionBaseline(log)?.late === true,",
+      "to": "    late: log.find(entry => entry.event === 'session.started')?.late === true,",
+      "only": "the session note reads the late baseline"
+    },
+    {
+      "label": "§319 D4: the turn-end could-not-look names the session log whatever tore",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "${tornRecord(log, 'this session’s event log')} could not be read whole",
+      "to": "this session’s event log could not be read whole",
+      "only": "a torn checks.jsonl is named as checks.jsonl"
+    },
+    {
+      "label": "ADR-094 T4: the previous-session count is taken without the root",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/outside-root-writes.test.mjs"
+      ],
+      "from": "  const writes = unobservableWrites(log, root)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
+      "to": "  const writes = unobservableWrites(log)\n  const baseline = sessionBaseline(log)?.observation\n  const status = observation?.ok === true",
+      "only": "^an absolute write outside the repository is not counted as unseen$"
+    },
+    {
+      "label": "golden: the turn-end advice changes its first sentence",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "'this turn ends with work no `qh-check` has passed on.'",
+      "to": "'this turn ended with work no `qh-check` has passed on.'",
+      "only": "^writes and turn ends: what was written, where, and what the turn says about it$"
+    }
+  ]
+}

@@ -1,0 +1,193 @@
+{
+  "mutations": [
+    {
+      "label": "advisory: a verify script is the project's named check",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { file: 'verify.sh', command: 'bash verify.sh' },",
+      "to": "",
+      "only": "^(?:a project that declares its check is asked for that check|reported: a project that ships a verify script is asked for that script)$"
+    },
+    {
+      "label": "checks: a build is not a project's check",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  for (const name of ['test', 'check', 'lint', 'typecheck']) {",
+      "to": "  for (const name of ['test', 'check', 'lint', 'typecheck', 'build']) {",
+      "only": "^(?:reported: a PHP repository is not evidenced by a vite build)$"
+    },
+    {
+      "label": "checks: a declared check answers before any guess",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const declared = declaredCheckCommand(root)",
+      "to": "  const declared = null && declaredCheckCommand(root)"
+    },
+    {
+      "label": "checks: a malformed declared check does not silence the rungs below",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return typeof check === 'string' && check.trim() ? check.trim() : null",
+      "to": "  return check ?? null",
+      "only": "^(?:a project that declares its check is asked for that check)$"
+    },
+    {
+      "label": "fail-open: a failed root lookup makes the publish opt-out unknown",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  if (!found.ok) return { warn: false, ignored: false, unknown: true }",
+      "to": "  if (false) return { warn: false, ignored: false, unknown: true }",
+      "only": "^(?:the publish opt-out is read from the root the decision used, or is unknown)$"
+    },
+    {
+      "label": "fail-open: only the exact \"warn\" value opts out of the refusal",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  return config.publish === 'warn' ? { warn: true, ignored: false, unknown: false } : { warn: false, ignored: true, unknown: false }",
+      "to": "  return { warn: true, ignored: false, unknown: false }",
+      "only": "^(?:a project can turn the publish refusal back into a warning, and only on purpose)$"
+    },
+    {
+      "label": "checks: the DECLARED arm of the run-the-check sentence says whose word the command is",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (origin === 'declared') {",
+      "to": "  if (origin === 'never') {",
+      "only": "^(?:a project that declares its check is asked for that check|every command this harness OFFERS, it also accepts as evidence)$"
+    },
+    {
+      "label": "checks: a composer `test` script is not offered as the project's own check",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (declared) return { command: declared, origin: 'declared' }",
+      "to": "  if (declared) return { command: declared, origin: 'declared' }\n  if (existsSync(path.join(root, 'composer.json')) && readFileSync(path.join(root, 'composer.json'), 'utf8').includes('\"test\"')) return { command: 'composer test', origin: 'declared' }",
+      "only": "^(?:reported: a PHP repository is not evidenced by a vite build|every command this harness OFFERS, it also accepts as evidence)$"
+    },
+    {
+      "label": "chaos 626934a: the constant check: || takes the next status only after a failure",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    else if (joiner === '||') status = status === 'nonzero' ? own.status : status === 'zero' ? 'zero' : merge(own.status, 'zero')",
+      "to": "    else if (joiner === '||') status = own.status",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a: the constant check: true, echo and exit are known statuses",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "  if (name in KNOWN_STATUS) return { status: KNOWN_STATUS[name] }",
+      "to": "  if (false) return { status: KNOWN_STATUS[name] }",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a: the constant check: test with one literal operand is fixed",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    if (operands.length === 1 && !operands[0].startsWith('-')) return",
+      "to": "    if (false) return",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a: the constant check: a bare [ is the test builtin, not a glob",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "(c.dynamic.includes(0) && c.argv[0] !== '['))",
+      "to": "(c.dynamic.includes(0)))",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: a redirection can fail on its own",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "c => c.redirects > 0 || c.ended",
+      "to": "c => c.ended",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: a subshell is not the list",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "c.ended === '(' || c.ended === ')' || LIST_CONTROL",
+      "to": "c.ended === '(' || LIST_CONTROL",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: set -e and friends change how the list runs",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "|| LIST_CONTROL.has(programName(c.argv[0] ?? '')))) return 'either'",
+      "to": ")) return 'either'",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: a background command is 0",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "const own = commands[i].ended === '&' ? { status: 'zero' } : commandStatus(commands[i], depth)",
+      "to": "const own = commandStatus(commands[i], depth)",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: exit as the last command is the list's status",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "    if (own.exits && i < commands.length - 1) {",
+      "to": "    if (own.exits) {",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "chaos 626934a (Codex round): the constant check: only a bare -c string is read",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/fail-open.test.mjs"
+      ],
+      "from": "args[0] === '-c' && args[1] !== undefined) return",
+      "to": "/^-[A-Za-z]*c$/.test(args[0] ?? '') && args[1] !== undefined) return",
+      "only": "a check whose exit status the text fixes is refused"
+    },
+    {
+      "label": "§319 H1: runTheCheckSentence prints the declared check raw",
+      "file": "plugin/scripts/check-command.mjs",
+      "tests": [
+        "tests/chaos-e016066.test.mjs"
+      ],
+      "from": "it runs ${checkInCode(command)} (this project's own check)",
+      "to": "it runs \\`${command}\\` (this project's own check)",
+      "only": "a declared check cannot forge a line"
+    }
+  ]
+}

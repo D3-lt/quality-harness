@@ -1,0 +1,173 @@
+{
+  "mutations": [
+    {
+      "label": "hooks: both ways the budget runs out say so",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return /timed out after \\d+ms/.test(detail) || error?.code === 'ETIMEDOUT'",
+      "to": "  return /timed out after \\d+ms/.test(detail)",
+      "only": "^(?:both ways the artifact gate can run out of budget reach the same guidance)$"
+    },
+    {
+      "label": "context: scratch corpora are not the project's records",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (underTempRoot(filePath) && !underTempRoot(cwd)) continue",
+      "to": "    if (false) continue"
+    },
+    {
+      "label": "hook-work: a pre-start deadline identifies every unchecked artifact",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "only": "artifact batch input",
+      "from": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + uniqueTargets.join('\\n')",
+      "to": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + uniqueTargets[0]",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "ADR-080 T1: every artifact pass is forced in-process, so the boundary waits on it",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (setting === 'inline') {",
+      "to": "if (setting === 'inline' || true) {",
+      "only": "^no boundary waits for the artifact pass$"
+    },
+    {
+      "label": "ADR-080 T1: a held pass lock is reclaimed before its deadline",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (now <= heldDeadline) return null",
+      "to": "if (false) return null",
+      "only": "^one artifact pass runs per session at a time$"
+    },
+    {
+      "label": "ADR-080 T1: a pass's verdict line drops its findings",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "findings: said.get(file) ?? null })",
+      "to": "findings: null })",
+      "only": "^the pass writes only its own ledger$"
+    },
+    {
+      "label": "ADR-080 T1: a pass whose runner is missing is released in silence",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "return unrun(`its runner ${path.basename(runner)} does not exist`)",
+      "to": "return (`its runner ${path.basename(runner)} does not exist`)",
+      "only": "^a pass that cannot start is said, not silent$"
+    },
+    {
+      "label": "ADR-080 review: a finding's key ignores whether the verdict was complete and what it said",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "? `${entry.path}:${entry.blob ?? `unknown-${entry.pass}`}:${entry.complete === true ? 'complete' : 'incomplete'}:${said}`",
+      "to": "? `${entry.path}:${entry.blob ?? `unknown-${entry.pass}`}`",
+      "only": "^a timeout said first does not silence a later finding about the same bytes$"
+    },
+    {
+      "label": "ADR-080 review: a stale lock's successor replaces a lock another claimant already holds",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (held ? current?.token !== held.token : current !== null) {",
+      "to": "if (false) {",
+      "only": "^two claimants of one stale lock: exactly one holds it$"
+    },
+    {
+      "label": "ADR-080 review: a pass releases its lock after its deadline",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (held.token === token && now <= Number(held.deadline)) rmSync(lock, { force: true })",
+      "to": "if (held.token === token) rmSync(lock, { force: true })",
+      "only": "^a pass releases its lock before its deadline, and never after$"
+    },
+    {
+      "label": "ADR-080 review: a pass gates its next chunk after a batch stopped on unconfirmed cleanup",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "    if (stopped.stopped) {",
+      "to": "    if (false) {",
+      "only": "^a batch that stopped on unconfirmed cleanup stops the whole pass$"
+    },
+    {
+      "label": "ADR-080 review: a pass with no end in its ledger is never said",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "    if (ended.has(pass.token)) continue",
+      "to": "    continue",
+      "only": "^a pass that leaves no end in its ledger is said UNRUN$"
+    },
+    {
+      "label": "2026-10-09: content back on a blob already gated complete is that answer again",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (recorded instanceof Set) return recorded.has(identity)",
+      "to": "  if (recorded instanceof Set) return [...recorded].at(-1) === identity",
+      "only": "^content that returns to a blob already gated complete is that answer again$"
+    },
+    {
+      "label": "2026-10-09: an incomplete gate is not an answer",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "entry.complete === true) {\n      const blobs",
+      "to": "true) {\n      const blobs",
+      "only": "^content that returns to a blob already gated complete is that answer again$"
+    },
+    {
+      "label": "2026-10-09: an unreadable identity matches nothing, a set of blobs included",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (identity === null || identity === undefined) return false",
+      "to": "  if (identity === undefined) return false",
+      "only": "^content that returns to a blob already gated complete is that answer again$"
+    },
+    {
+      "label": "golden: the artifact pass's failure header changes",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "text: first ? `Artifact validation failed:",
+      "to": "text: first ? `Artifact validation failure:",
+      "only": "^artifacts: a record written badly and a record written well are gated at the write and at the turn end$"
+    },
+    {
+      "label": "B3: the detached pass is started from the lifecycle entry script, not from the module that holds it",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "new URL('./lifecycle.mjs', import.meta.url)",
+      "to": "new URL('./artifact-pass.mjs', import.meta.url)",
+      "only": "^the pass writes only its own ledger$"
+    }
+  ]
+}

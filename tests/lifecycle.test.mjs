@@ -8,7 +8,12 @@ import path from 'node:path'
 import test, { after, afterEach, beforeEach } from 'node:test'
 import { hookSaid, SLOW_HOOK_NOTE, stripPauseLines } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import { artifactGateTimeoutMs, checkCommandOrigin, projectCheckCommand, runTheCheckSentence, budgetExhausted, sessionOrientation, sessionStateNote, hasDecisionCorpus, spawnGate, resolvePython, shadowInstallNotice, staleVersionNotice, readOnlyVerdict, readyTaskLines, runArtifactGates, observe, surfaceReadyLines, completionClaim, saidMarkerDirectory, sweepStaleMarkers, sweepStaleSessionLogs, stateDir, observeBudgetMs } from '../plugin/scripts/lifecycle.mjs'
+import { sessionOrientation, sessionStateNote, hasDecisionCorpus, spawnGate, resolvePython, shadowInstallNotice, staleVersionNotice, readyTaskLines, surfaceReadyLines, saidMarkerDirectory, sweepStaleMarkers, sweepStaleSessionLogs, stateDir } from '../plugin/scripts/lifecycle.mjs'
+import { artifactGateTimeoutMs, budgetExhausted, runArtifactGates } from '../plugin/scripts/artifact-pass.mjs'
+import { checkCommandOrigin, projectCheckCommand, runTheCheckSentence } from '../plugin/scripts/check-command.mjs'
+import { readOnlyVerdict } from '../plugin/scripts/publish-verdict.mjs'
+import { observe, observeBudgetMs } from '../plugin/scripts/tree-facts.mjs'
+import { completionClaim } from '../plugin/scripts/completion-rules.mjs'
 import { adrCorpus, decisionContext, decisionsGoverning, pathMatchesDeclaration, posixListed } from '../plugin/scripts/decision-corpus.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
@@ -1161,7 +1166,7 @@ test('SessionEnd records what was left unverified, and the next startup here say
 })
 
 test('a location key is the realpath of the repository root, case-folded where the filesystem is', async () => {
-  const { locationKey } = await import('../plugin/scripts/lifecycle.mjs')
+  const { locationKey } = await import('../plugin/scripts/tree-facts.mjs')
   const dir = await mkdtemp(path.join(testTmp, 'quality-location-'))
   const mixed = path.join(dir, 'MixedCase')
   await mkdir(mixed)
@@ -1636,7 +1641,7 @@ test("SessionStart says UNPROVEN, with the gate's reason, when adr-next could no
 
 function artifactGatesThrough(pluginRoot, paths, cwd) {
   const code = 'const {runArtifactGates}=await import(' +
-    JSON.stringify(pathToFileURL(path.join(pluginRoot, 'scripts', 'lifecycle.mjs')).href) +
+    JSON.stringify(pathToFileURL(path.join(pluginRoot, 'scripts', 'artifact-pass.mjs')).href) +
     '); process.stdout.write(JSON.stringify(runArtifactGates(' +
     JSON.stringify(paths) + ',' + JSON.stringify(cwd) + ')));'
   const run = spawnSync(process.execPath, ['--input-type=module', '-e', code], {

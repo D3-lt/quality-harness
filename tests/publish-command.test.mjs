@@ -17,7 +17,8 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
-import { containsCommitOrPush, freshRepositoryCommit, leavesHookInPlace, mentionsCommitOrPush, publishCommandIn } from '../plugin/scripts/lifecycle.mjs'
+import { containsCommitOrPush, mentionsCommitOrPush } from '../plugin/scripts/lifecycle.mjs'
+import { freshRepositoryCommit, leavesHookInPlace, publishCommandIn } from '../plugin/scripts/publish-command.mjs'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
 
 // Invocations a session could publish with. Each must be refused on an

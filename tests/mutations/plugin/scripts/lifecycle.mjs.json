@@ -6125,6 +6125,56 @@
       "from": "  if (text.charCodeAt(0) === 0xFEFF) return",
       "to": "  if (false) return",
       "only": "^a config that starts with a byte-order mark is refused and says so \\(a Windows run of 3.8.18\\)$"
+    },
+    {
+      "label": "golden: the publish refusal's closing sentence changes",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "This says what state the repository is in",
+      "to": "This says what state the repo is in",
+      "only": "^publish: every form of a publish command gets the answer it got when the transcript was recorded$"
+    },
+    {
+      "label": "golden: the turn-end advice changes its first sentence",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "'this turn ends with work no `qh-check` has passed on.'",
+      "to": "'this turn ended with work no `qh-check` has passed on.'",
+      "only": "^writes and turn ends: what was written, where, and what the turn says about it$"
+    },
+    {
+      "label": "golden: the orientation's check sentence changes",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "`this project's own check is ${checkInCode(check)}`",
+      "to": "`this project's check is ${checkInCode(check)}`",
+      "only": "^orientation: startup, resume, compact and clear say their standing paragraphs as designed$"
+    },
+    {
+      "label": "golden: a commit proven alone stops being advised on a fast pass",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "  return only.argv[index] === 'commit'\n}",
+      "to": "  return false\n}",
+      "only": "^publish: a full pass, a fast pass and a change after each say what they said when recorded$"
+    },
+    {
+      "label": "golden: the dynamic-argument guard of the verb reader no longer sees a push",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "if ((verb !== 'commit' && verb !== 'push') || dynamic.includes(k)) return null",
+      "to": "if (verb !== 'commit' || dynamic.includes(k)) return null",
+      "only": "^publish: every form of a publish command gets the answer it got when the transcript was recorded$"
     }
   ]
 }

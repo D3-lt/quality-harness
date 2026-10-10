@@ -1,0 +1,149 @@
+{
+  "steps": [
+    {
+      "name": "start",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "subagent start",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SubagentStart",
+          "additionalContext": "QUALITY CONTRACT — you are a leaf role, not the lifecycle coordinator. Do not invoke /quality-harness:work, /quality-harness:consensus, /quality-harness:review-ring, /quality-harness:quality-cycle, or spawn another agent unless your delegation explicitly assigns coordination. Preserve the supplied scope and non-goals; invent no features, configuration, fallbacks, dependencies, or speculative abstractions. DRY duplicated knowledge, not similar syntax; use SOLID only where a demonstrated boundary needs it. Treat this role as read-only unless the delegation explicitly authorizes edits. Before returning after edits, run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result. Return touched files, exact executed evidence, and remaining risk or uncertainty."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "subagent stop",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "task completed",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "skill call",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "edit a record",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "pre-compact",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "session end",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "ledgers": {
+    "sessions/events-1.jsonl": [
+      {
+        "at": "<time>",
+        "event": "session.started",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "subagent.started",
+        "agentId": "a1",
+        "agentType": "qh-correctness-reviewer",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "subagent.ended",
+        "agentId": "a1",
+        "agentType": "qh-correctness-reviewer",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "task.completed",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "skill.invoked",
+        "skill": "quality-harness:review"
+      },
+      {
+        "at": "<time>",
+        "event": "context.compacting",
+        "compactionId": "<id>",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "session.ending",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      }
+    ]
+  }
+}

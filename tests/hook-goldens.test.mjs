@@ -125,3 +125,71 @@ test('other events: subagents, tasks, compaction, a skill call and an edit to a 
   ])
   expectGolden(assert, 'other-events', finish(box, [repo], { steps, ledgers: ledgers(repo) }))
 })
+
+// What the machine said about itself is not the hook's: load, contention and the processes standing beside a check.
+const quiet = text => text.split('\n').filter(line => !/load|beside|contend|unattributable/.test(line)).join('\n')
+
+test('checks: a red check, a same-tree skip, a reuse for prose and an unreadable config say what they said when recorded', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'checks', { ...BASE, '.quality-harness.json': '{"check":"sh check.sh","fastCheck":"sh check.sh","prose":["README.md"]}\n', 'README.md': 'one\n', 'check.sh': 'exit 1\n' })
+  const session = 'checks-1'
+  const out = []
+  const check = (name, args) => { const run = runQhCheck(box, repo, args); out.push({ name, exit: run.exit, stdout: quiet(run.stdout), stderr: quiet(run.stderr) }) }
+  out.push({ name: 'start', ...runHook(box, repo, session, { hook_event_name: 'SessionStart', source: 'startup' }) })
+  writeFileSync(path.join(repo, 'src', 'b.js'), 'export const b = 2\n')
+  check('a red full check', [])
+  out.push({ name: 'commit after a red check', ...runHook(box, repo, session, bash('git commit -m x')) })
+  check('a red fast check', ['--fast'])
+  writeFileSync(path.join(repo, 'check.sh'), 'exit 0\n')
+  check('a green full check', [])
+  check('the same tree again', [])
+  writeFileSync(path.join(repo, 'README.md'), 'two\n')
+  check('after a change to a prose file alone', [])
+  out.push({ name: 'commit after the prose reuse', ...runHook(box, repo, session, bash('git commit -m x')) })
+  writeFileSync(path.join(repo, '.quality-harness.json'), '{"check": \n')
+  check('an unreadable config', [])
+  out.push({ name: 'turn end', ...runHook(box, repo, session, { hook_event_name: 'Stop', last_assistant_message: 'All tests pass.' }) })
+  expectGolden(assert, 'checks', finish(box, [repo], { steps: out, checks: checks(repo), ledgers: ledgers(repo) }))
+})
+
+test('readiness: an accepted record with a ready task, an evidenced one and a proposed record are said as they were', { skip }, t => {
+  const box = sandbox(t)
+  const record = (n, status) => `# ADR-${n}: decision ${n}\n\n**Status:** ${status}\n\n## Context\n\nx\n`
+  const task = id => `# Task ADR-${id}\n\n**Depends-on:** none\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n## Verification Log\n\n`
+  const evidenced = '# Task ADR-001-T9\n\n## Acceptance\n\n```bash\ntrue\n```\n\n## Verification Log\n\n- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:b5bea41b6c623f7c09f1bf24dcae58ebab3c0cdd90ad966bc43a45b44867e12b\n'
+  const repo = fixtureRepo(box, 'ready', {
+    ...BASE,
+    'docs/adr/ADR-001-accepted.md': record('001', 'Accepted'), 'docs/adr/ADR-002-proposed.md': record('002', 'Proposed'),
+    'docs/adr/ADR-001-accepted/tasks/T1.md': task('001-T1'), 'docs/adr/ADR-001-accepted/tasks/T9.md': evidenced,
+    'docs/adr/ADR-002-proposed/tasks/T1.md': task('002-T1'),
+  })
+  const session = 'ready-1'
+  const steps = play(box, repo, session, [
+    ['startup', { hook_event_name: 'SessionStart', source: 'startup' }],
+    ['startup again', { hook_event_name: 'SessionStart', source: 'startup' }],
+    ['compact', { hook_event_name: 'SessionStart', source: 'compact' }],
+    ['a prompt', { hook_event_name: 'UserPromptSubmit', prompt: 'continue' }],
+    ['edit a task of the accepted record', { hook_event_name: 'PreToolUse', tool_name: 'Edit', tool_input: { file_path: path.join(repo, 'docs', 'adr', 'ADR-001-accepted', 'tasks', 'T1.md'), old_string: 'true', new_string: 'false' } }],
+  ])
+  writeFileSync(path.join(repo, 'docs', 'adr', 'ADR-001-accepted', 'tasks', 'T1.md'), task('001-T1').replace('true', 'false'))
+  steps.push(...play(box, repo, session, [
+    ['wrote the task', wrote(path.join(repo, 'docs', 'adr', 'ADR-001-accepted', 'tasks', 'T1.md'))],
+    ['turn end after a task edit', { hook_event_name: 'Stop', last_assistant_message: 'Updated the task.' }],
+  ]))
+  expectGolden(assert, 'readiness', finish(box, [repo], { steps, ledgers: ledgers(repo) }))
+})
+
+test('artifacts: a record written badly and a record written well are gated at the write and at the turn end', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'artifacts', BASE)
+  const session = 'artifacts-1'
+  const bad = path.join(repo, 'docs', 'adr', 'ADR-001-bad.md')
+  const good = path.join(repo, 'docs', 'adr', 'ADR-002-good.md')
+  mkdirSync(path.dirname(bad), { recursive: true })
+  const steps = play(box, repo, session, [['start', { hook_event_name: 'SessionStart', source: 'startup' }]])
+  writeFileSync(bad, '# ADR-001: bad\n\nno status here\n')
+  steps.push(...play(box, repo, session, [['write a malformed record', wrote(bad)], ['turn end, one bad record', { hook_event_name: 'Stop', last_assistant_message: 'Wrote the record.' }]]))
+  writeFileSync(good, '# ADR-002: good\n\n**Status:** Proposed\n\n## Context\n\nx\n')
+  steps.push(...play(box, repo, session, [['write a fuller record', wrote(good)], ['turn end, two records', { hook_event_name: 'Stop', last_assistant_message: 'Wrote another.' }], ['a prompt', { hook_event_name: 'UserPromptSubmit', prompt: 'next' }]]))
+  expectGolden(assert, 'artifacts', finish(box, [repo], { steps, ledgers: ledgers(repo) }))
+})

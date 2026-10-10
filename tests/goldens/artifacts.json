@@ -1,0 +1,214 @@
+{
+  "steps": [
+    {
+      "name": "start",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "write a malformed record",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "turn end, one bad record",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: docs/adr/ADR-001-bad.md. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nArtifact validation failed:\nadr-lint is not satisfied for <repo>/docs/adr/ADR-001-bad.md:\n\n[FAIL] <repo>/docs/adr/ADR-001-bad.md (no tasks dir — ADR-level checks only; its Status is not checked against evidence here) · adr-lint 3.8.18 (<plugin>)\n  ADR-001-bad.md: Alternatives Considered has no entries: the record has no `## Alternatives Considered` section\n  ADR-001-bad.md: Wiring & Contract Changes empty (write 'None — implementation-internal only' if true)\n  unproven: ADR-001-bad.md: no **Status:** line or `## Status` section (a `### Status` heading, or one inside a code fence, is not read)\n  advice: ADR-001-bad.md: no **Spec:** header (use 'None — no spec stage')\n  advice: ADR-001-bad.md: no **Served-path change:** header — say in one sentence what a user or agent experiences differently once this ships, or write 'None — this ADR changes only measurement or tooling'. An ADR that improves the measurement reads identically to one that improves the thing.\n\nFix the artifact, not the gate."
+      },
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: docs/adr/ADR-001-bad.md. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\nArtifact validation failed:\nadr-lint is not satisfied for <repo>/docs/adr/ADR-001-bad.md:\n\n[FAIL] <repo>/docs/adr/ADR-001-bad.md (no tasks dir — ADR-level checks only; its Status is not checked against evidence here) · adr-lint 3.8.18 (<plugin>)\n  ADR-001-bad.md: Alternatives Considered has no entries: the record has no `## Alternatives Considered` section\n  ADR-001-bad.md: Wiring & Contract Changes empty (write 'None — implementation-internal only' if true)\n  unproven: ADR-001-bad.md: no **Status:** line or `## Status` section (a `### Status` heading, or one inside a code fence, is not read)\n  advice: ADR-001-bad.md: no **Spec:** header (use 'None — no spec stage')\n  advice: ADR-001-bad.md: no **Served-path change:** header — say in one sentence what a user or agent experiences differently once this ships, or write 'None — this ADR changes only measurement or tooling'. An ADR that improves the measurement reads identically to one that improves the thing.\n\nFix the artifact, not the gate."
+    },
+    {
+      "name": "write a fuller record",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "turn end, two records",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: docs/adr/ADR-001-bad.md, docs/adr/ADR-002-good.md. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nArtifact validation failed:\nadr-lint is not satisfied for <repo>/docs/adr/ADR-002-good.md:\n\n[FAIL] <repo>/docs/adr/ADR-002-good.md (no tasks dir — ADR-level checks only; its Status is not checked against evidence here) · adr-lint 3.8.18 (<plugin>)\n  ADR-002-good.md: Alternatives Considered has no entries: the record has no `## Alternatives Considered` section\n  ADR-002-good.md: Wiring & Contract Changes empty (write 'None — implementation-internal only' if true)\n  advice: ADR-002-good.md: no **Spec:** header (use 'None — no spec stage')\n  advice: ADR-002-good.md: no **Served-path change:** header — say in one sentence what a user or agent experiences differently once this ships, or write 'None — this ADR changes only measurement or tooling'. An ADR that improves the measurement reads identically to one that improves the thing.\n\nFix the artifact, not the gate."
+      },
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: docs/adr/ADR-001-bad.md, docs/adr/ADR-002-good.md. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\nArtifact validation failed:\nadr-lint is not satisfied for <repo>/docs/adr/ADR-002-good.md:\n\n[FAIL] <repo>/docs/adr/ADR-002-good.md (no tasks dir — ADR-level checks only; its Status is not checked against evidence here) · adr-lint 3.8.18 (<plugin>)\n  ADR-002-good.md: Alternatives Considered has no entries: the record has no `## Alternatives Considered` section\n  ADR-002-good.md: Wiring & Contract Changes empty (write 'None — implementation-internal only' if true)\n  advice: ADR-002-good.md: no **Spec:** header (use 'None — no spec stage')\n  advice: ADR-002-good.md: no **Served-path change:** header — say in one sentence what a user or agent experiences differently once this ships, or write 'None — this ADR changes only measurement or tooling'. An ADR that improves the measurement reads identically to one that improves the thing.\n\nFix the artifact, not the gate."
+    },
+    {
+      "name": "a prompt",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "ledgers": {
+    "passes/artifacts-1.jsonl": [
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.started",
+        "pid": "<n>",
+        "targets": [
+          "<repo>/docs/adr/ADR-001-bad.md"
+        ]
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.gated",
+        "path": "<repo>/docs/adr/ADR-001-bad.md",
+        "blob": "01f9f6eca4aea317f8863e14dc5a436db4f5cd75a754c9cc261841aa187944fd",
+        "complete": true,
+        "findings": "adr-lint is not satisfied for <repo>/docs/adr/ADR-001-bad.md:\n\n[FAIL] <repo>/docs/adr/ADR-001-bad.md (no tasks dir — ADR-level checks only; its Status is not checked against evidence here) · adr-lint 3.8.18 (<plugin>)\n  ADR-001-bad.md: Alternatives Considered has no entries: the record has no `## Alternatives Considered` section\n  ADR-001-bad.md: Wiring & Contract Changes empty (write 'None — implementation-internal only' if true)\n  unproven: ADR-001-bad.md: no **Status:** line or `## Status` section (a `### Status` heading, or one inside a code fence, is not read)\n  advice: ADR-001-bad.md: no **Spec:** header (use 'None — no spec stage')\n  advice: ADR-001-bad.md: no **Served-path change:** header — say in one sentence what a user or agent experiences differently once this ships, or write 'None — this ADR changes only measurement or tooling'. An ADR that improves the measurement reads identically to one that improves the thing.\n\nFix the artifact, not the gate.\n"
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.ended",
+        "reason": "done"
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.started",
+        "pid": "<n>",
+        "targets": [
+          "<repo>/docs/adr/ADR-002-good.md"
+        ]
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.gated",
+        "path": "<repo>/docs/adr/ADR-002-good.md",
+        "blob": "28c4b32f6fb496193ab0f463a03bf0c0d25c91963def2fae08349158aa7980b0",
+        "complete": true,
+        "findings": "adr-lint is not satisfied for <repo>/docs/adr/ADR-002-good.md:\n\n[FAIL] <repo>/docs/adr/ADR-002-good.md (no tasks dir — ADR-level checks only; its Status is not checked against evidence here) · adr-lint 3.8.18 (<plugin>)\n  ADR-002-good.md: Alternatives Considered has no entries: the record has no `## Alternatives Considered` section\n  ADR-002-good.md: Wiring & Contract Changes empty (write 'None — implementation-internal only' if true)\n  advice: ADR-002-good.md: no **Spec:** header (use 'None — no spec stage')\n  advice: ADR-002-good.md: no **Served-path change:** header — say in one sentence what a user or agent experiences differently once this ships, or write 'None — this ADR changes only measurement or tooling'. An ADR that improves the measurement reads identically to one that improves the thing.\n\nFix the artifact, not the gate.\n"
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.ended",
+        "reason": "done"
+      }
+    ],
+    "sessions/artifacts-1.jsonl": [
+      {
+        "at": "<time>",
+        "event": "session.started",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "file.written",
+        "path": "<repo>/docs/adr/ADR-001-bad.md",
+        "observable": true,
+        "checksSeen": 0,
+        "fastSeen": 0,
+        "blob": "<sha>"
+      },
+      {
+        "at": "<time>",
+        "event": "turn.ended",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.pass",
+        "token": "<id>",
+        "targets": 1
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.gated",
+        "path": "<repo>/docs/adr/ADR-001-bad.md",
+        "blob": "01f9f6eca4aea317f8863e14dc5a436db4f5cd75a754c9cc261841aa187944fd",
+        "complete": true,
+        "pass": "<id>"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "R1",
+        "key": "<sha>:0:0"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "A",
+        "key": "<repo>/docs/adr/ADR-001-bad.md:01f9f6eca4aea317f8863e14dc5a436db4f5cd75a754c9cc261841aa187944fd:complete:<hash>"
+      },
+      {
+        "at": "<time>",
+        "event": "file.written",
+        "path": "<repo>/docs/adr/ADR-002-good.md",
+        "observable": true,
+        "checksSeen": 0,
+        "fastSeen": 0,
+        "blob": "<sha>"
+      },
+      {
+        "at": "<time>",
+        "event": "turn.ended",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.pass",
+        "token": "<id>",
+        "targets": 1
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.gated",
+        "path": "<repo>/docs/adr/ADR-002-good.md",
+        "blob": "28c4b32f6fb496193ab0f463a03bf0c0d25c91963def2fae08349158aa7980b0",
+        "complete": true,
+        "pass": "<id>"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "R1",
+        "key": "<sha>:0:0"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "A",
+        "key": "<repo>/docs/adr/ADR-002-good.md:28c4b32f6fb496193ab0f463a03bf0c0d25c91963def2fae08349158aa7980b0:complete:<hash>"
+      }
+    ]
+  }
+}

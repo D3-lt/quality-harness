@@ -289,6 +289,16 @@
       "from": "  if (configProblem) {",
       "to": "  if (false) {",
       "only": "^(?:a config that is not valid JSON runs no replacement check and records no pass|--fast says the config could not be read, not that nothing is declared|a config that cannot be read at all, and one that is not an object, are the same refusal)$"
+    },
+    {
+      "label": "golden: the same-tree skip says it was not run again in other words",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "(\\`${command}\\`) — not run again. `",
+      "to": "(\\`${command}\\`) — skipped. `",
+      "only": "^checks: a red check, a same-tree skip, a reuse for prose and an unreadable config say what they said when recorded$"
     }
   ]
 }

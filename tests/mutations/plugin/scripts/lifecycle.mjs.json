@@ -2914,6 +2914,26 @@
       "from": "`this project's own check is ${checkInCode(check)}`",
       "to": "`this project's check is ${checkInCode(check)}`",
       "only": "^orientation: startup, resume, compact and clear say their standing paragraphs as designed$"
+    },
+    {
+      "label": "golden: a proposed record's ready task says what kind of thing it is",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "so this is a plan, not a work order",
+      "to": "so this is a plan, not an order",
+      "only": "^readiness: an accepted record with a ready task, an evidenced one and a proposed record are said as they were$"
+    },
+    {
+      "label": "golden: the artifact pass's failure header changes",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "text: first ? `Artifact validation failed:",
+      "to": "text: first ? `Artifact validation failure:",
+      "only": "^artifacts: a record written badly and a record written well are gated at the write and at the turn end$"
     }
   ]
 }

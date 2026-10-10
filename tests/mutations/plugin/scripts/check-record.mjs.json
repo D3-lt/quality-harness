@@ -1,0 +1,177 @@
+{
+  "mutations": [
+    {
+      "label": "§295.24: a check a signal ended records no verdict",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "only": "a check a signal ended records no verdict",
+      "from": "    : signal\n      ? 'interrupted'\n",
+      "to": "    : false\n      ? 'interrupted'\n"
+    },
+    {
+      "label": "§295.24: the summary of a signalled check says there is no verdict",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "only": "a check a signal ended records no verdict",
+      "from": "    const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : `${verdict} in ${took}`",
+      "to": "    const said = `${verdict} in ${took}`"
+    },
+    {
+      "label": "qh-check: a run says what it ran and where the record went",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/qh-check-shell.test.mjs"
+      ],
+      "from": "    stderr.write(`qh-check: ran",
+      "to": "    String(`qh-check: ran",
+      "only": "says what it ran"
+    },
+    {
+      "label": "ADR-081 T2: a fast record is written to checks.jsonl",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "const file = path.join(directory, fast ? 'fast-checks.jsonl' : 'checks.jsonl')",
+      "to": "const file = path.join(directory, 'checks.jsonl')",
+      "only": "^a fast check is recorded apart, where no full-check reader looks$"
+    },
+    {
+      "label": "skip ledger: a skip leaves no trace",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "appendFileSync(path.join(stateDir(root), 'skips.jsonl'),",
+      "to": "void (path.join(stateDir(root), 'skips.jsonl'),",
+      "only": "^a skip is recorded in its own ledger, naming the pass it reused$"
+    },
+    {
+      "label": "skip ledger: a skip does not name the pass it reused",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "passId: already.passOf ?? already.id,",
+      "to": "passId: null,",
+      "only": "^a skip is recorded in its own ledger, naming the pass it reused$"
+    },
+    {
+      "label": "skip ledger: a ledger that cannot be written fails the skip",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/qh-check-reads-the-ledger.test.mjs"
+      ],
+      "from": "stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\\n`)",
+      "to": "throw failure",
+      "only": "^a skip whose ledger cannot be written is said, and still skips$"
+    },
+    {
+      "label": "ADR-094 T3: the prose reuse row is not written",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "      appendFileSync(ledgerFile, `${JSON.stringify(row)}\\n`, 'utf8')",
+      "to": "      void row",
+      "only": "^a declared prose-only change reuses the last pass, from a subdirectory too$"
+    },
+    {
+      "label": "ADR-094 T3: a reuse is appended after the ledger moved",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "      if (ids.indexOf(row.id) !== already.rows) throw",
+      "to": "      if (false) throw",
+      "only": "^a ledger row appended since the reuse was decided stops the reuse$"
+    },
+    {
+      "label": "ADR-094 T3: a stale reuse row is not retracted",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/prose-reuse.test.mjs"
+      ],
+      "from": "      if (appended) {",
+      "to": "      if (false) {",
+      "only": "^a ledger row appended since the reuse was decided stops the reuse$"
+    },
+    {
+      "label": "golden: the same-tree skip says it was not run again in other words",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "(\\`${command}\\`) — not run again. `",
+      "to": "(\\`${command}\\`) — skipped. `",
+      "only": "^checks: a red check, a same-tree skip, a reuse for prose and an unreadable config say what they said when recorded$"
+    },
+    {
+      "label": "376: the signal this process forwarded is the one a run is recorded with",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-record.test.mjs"
+      ],
+      "from": "const signal = received ?? ended.signal ?? null",
+      "to": "const signal = ended.signal ?? null"
+    },
+    {
+      "label": "376: a check that could not start is unstarted, not failed",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-record.test.mjs"
+      ],
+      "from": "    ? 'unstarted'",
+      "to": "    ? 'failed'"
+    },
+    {
+      "label": "376: a run a signal ended has no verdict",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-record.test.mjs"
+      ],
+      "from": "      ? 'interrupted'",
+      "to": "      ? 'failed'"
+    },
+    {
+      "label": "376: a neighbour is recorded without the path of its lease file",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-record.test.mjs"
+      ],
+      "from": "({ file: _file, ...entry }) => entry",
+      "to": "entry => entry"
+    },
+    {
+      "label": "376: prose is recorded only when declared",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-record.test.mjs"
+      ],
+      "from": "...(prose.specs.length ? { prose: prose.specs } : {})",
+      "to": "prose: prose.specs"
+    },
+    {
+      "label": "376: a reuse of a reuse points at the pass that ran",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-record.test.mjs"
+      ],
+      "from": "reusedFrom: original.reusedFrom ?? original.id",
+      "to": "reusedFrom: original.id"
+    },
+    {
+      "label": "376: a prose reuse claims the original's times, not the moment it was made",
+      "file": "plugin/scripts/check-record.mjs",
+      "tests": [
+        "tests/check-record.test.mjs"
+      ],
+      "from": "after: { ...already.now, at: original.after.at }",
+      "to": "after: { ...already.now, at }"
+    }
+  ]
+}

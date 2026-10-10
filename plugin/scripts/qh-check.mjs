@@ -6,31 +6,27 @@
 // 64 KiB of output for the verdict (a test runner prints its summary at the end),
 // and exits with the check's own code. SIGINT and SIGTERM are forwarded to the
 // check's process group and recorded; a SIGKILL leaves no record, and the finding
-// it would have cleared stays open.
+// it would have cleared stays open. The decision is checkPlan; the rows and the sentences are check-record.mjs;
+// the lease and the child are check-lease.mjs and check-child.mjs (BACKLOG section 376).
 import { spawnSync } from 'node:child_process'
 import { randomUUID } from 'node:crypto'
-import { appendFileSync, mkdirSync, readFileSync, realpathSync } from 'node:fs'
-import path from 'node:path'
+import { realpathSync } from 'node:fs'
 import { isMainModule } from './main-module.mjs'
-import { stateDir } from './event-log.mjs'
 import { firstMentionHere } from './session-notes.mjs'
 import { projectConfigProblem, proseSpecs } from './project-config.mjs'
 import { checkCommandOrigin, fastCheckCommand } from './check-command.mjs'
 import { checkEventName, passedAlready } from './check-ledger.mjs'
 import { observe, observeBudgetMs } from './tree-facts.mjs'
-import { validationVerdict } from './completion-rules.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
 import { resolveBashExecutable } from './run-shell-hook.mjs'
 import { PROSE_HINT, onlyTextChangedSince, previousPassHead, proseHintMs } from './prose-hint.mjs'
 import { checkTimeoutMs, runLaunched } from './check-child.mjs'
+import { takeTurn } from './check-lease.mjs'
+import { classifyRun, recordRun, recordSkip, reuseByProse, runRecord } from './check-record.mjs'
 import { once } from './lazily.mjs'
 
 const KEEP_BYTES = 64 * 1024
-
-const inSeconds = ms => `${(ms / 1000).toFixed(1)}s`
-// A neighbour as the record keeps it: what its lease says, or that it could not be read.
-const recorded = seen => (seen ? [...seen.live, ...seen.unknown].map(({ file: _file, ...entry }) => entry) : null)
 
 // A spawn error or a missing status is not "this directory is not a repository".
 // That reading is the non-git exemption, and a pass then skips the tree comparison.
@@ -110,159 +106,6 @@ export function checkPlan(facts, { fast, again, env }) {
   return { command, origin, prose, notes: prose.problem ? [`qh-check: ${prose.problem}\n`] : [], already: rerun ? null : facts.passed() }
 }
 
-// A prose reuse is a pass row for THIS tree (see below); the record it appends can veto the reuse, which is why this is a
-// step of the run and not a part of the plan. Returns the pass that stands for this tree, or null when the check must run.
-function reuseByProse({ already, prose, git, command, root, stderr, beforeReuse }) {
-  // A prose reuse is a pass row for THIS tree, so the publish verdict reads it as it reads any pass: its times are the
-  // original's (it claims no more), its marker is `reusedFrom`, and one that cannot be written runs the check instead.
-  if (already?.viaProse) {
-    const original = already.record
-    const row = { id: randomUUID(), at: new Date().toISOString(), git, command, origin: original.origin,
-      before: { ...already.now, at: original.before.at }, after: { ...already.now, at: original.after.at },
-      exit: 0, signal: null, verdict: original.verdict, cores: original.cores, contended: original.contended,
-      beside: null, besideAtEnd: null, waitedMs: 0, prose: prose.specs, reusedFrom: original.reusedFrom ?? original.id }
-    // The reuse row must land where the decision left the ledger: a record appended in between (a concurrent `--again`
-    // that failed, say) would be followed by this pass and read as superseded (Codex reviews of ADR-094). The append is
-    // atomic and a count read before it is not, so the position is checked AFTER: ours must be the next row. If it is
-    // not, the check runs, and its own row follows ours and decides. `beforeReuse` is the seam a test uses to be that
-    // concurrent writer.
-    beforeReuse()
-    const ledgerFile = path.join(stateDir(root), 'checks.jsonl')
-    let appended = false
-    try {
-      mkdirSync(stateDir(root), { recursive: true })
-      appendFileSync(ledgerFile, `${JSON.stringify(row)}\n`, 'utf8')
-      appended = true
-      const ids = readFileSync(ledgerFile, 'utf8').split('\n').filter(line => line.trim()).map(line => { try { return JSON.parse(line).id } catch { return null } })
-      if (ids.indexOf(row.id) !== already.rows) throw Object.assign(new Error('the ledger gained a record between the decision and the append'), { code: 'ELEDGER' })
-    } catch (failure) {
-      // An append cannot be undone, and a reuse row left as the tree's latest would pass a tree nobody checked if the
-      // run that follows is interrupted: it is retracted by a row that grades as unproven (a Codex review of ADR-094).
-      if (appended) {
-        try {
-          appendFileSync(ledgerFile, `${JSON.stringify({ ...row, id: randomUUID(), at: new Date().toISOString(), exit: null, verdict: 'unproven', reusedFrom: undefined, retracts: row.id })}\n`, 'utf8')
-        } catch (retraction) {
-          stderr.write(`qh-check: the prose reuse could not be retracted either (${retraction.code ?? retraction.message}); \`qh-check --again\` writes the row that decides.\n`)
-        }
-      }
-      stderr.write(`qh-check: the prose reuse could not be relied on (${failure.code ?? failure.message}), so the check runs.\n`)
-      already = null
-    }
-    if (already) already.reuse = row
-  }
-  return already
-}
-
-// The owner, 2026-10-02: a skip left no trace, so how often it saves a run could not be counted (ADR-081's follow-up).
-function recordSkip({ already, command, prose, root, stderr }) {
-  const took = already.ms === null ? '' : `, in ${inSeconds(already.ms)}`
-  stderr.write(already.viaProse
-    ? `qh-check: only prose changed (${prose.specs.join(', ')}), so the pass at ${already.at}${took} (\`${command}\`) stands for this tree — not run again; `
-      + `recorded as a reuse of ${already.reuse.reusedFrom}. The tree without the prose covers no ignored file, environment or service; \`qh-check --again\` runs it.\n`
-    : `qh-check: already passed on this tree at ${already.at}${took} (\`${command}\`) — not run again. `
-      + 'A tree hash covers no ignored file, environment or service; `qh-check --again` runs it.\n')
-  // The owner, 2026-10-02: a skip left no trace, so how often it saves a run could not be
-  // counted (ADR-081's follow-up). It goes to `skips.jsonl`, where no reader of a pass looks —
-  // a row in checks.jsonl would become the tree's latest record and undo the next skip. A
-  // ledger that cannot be written is said; the skip and its exit stand (CLAUDE.md §3).
-  try {
-    mkdirSync(stateDir(root), { recursive: true })
-    appendFileSync(path.join(stateDir(root), 'skips.jsonl'), `${JSON.stringify({ id: randomUUID(), at: new Date().toISOString(),
-      command, tree: already.tree, passId: already.passOf ?? already.id, passedAt: already.at, savedMs: already.ms,
-      ...(already.viaProse ? { viaProse: true } : {}) })}\n`, 'utf8')
-  } catch (failure) {
-    stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\n`)
-  }
-}
-
-// ADR-077: waiting for a turn, taken before the load is sampled. Returns the held lease and what the run needs of it, or the
-// exit of a run a signal stopped while it waited.
-async function takeTurn({ lease, env, wait, command, root, stderr }) {
-  // ADR-077: a lease for the whole run, taken before the load is sampled, so the check's own
-  // numbers are taken after any wait. It names the heavy runs beside it and never changes the
-  // check's exit or verdict (CLAUDE.md §3); a directory it cannot use is said, and it runs unleased.
-  // `lease` is the module, and a test's seam.
-  const waiting = wait || env.QUALITY_HARNESS_WAIT === '1'
-  const leases = lease.leaseDir(env)
-  // A lease step that fails is said, and the check's own run and record stand (Codex review of the
-  // 3.3.0 candidate): the lease is advice about the machine, never a condition of the check.
-  const leaseStep = (what, step) => {
-    try {
-      return step()
-    } catch (failure) {
-      stderr.write(`qh-check: could not ${what} the lease (${failure.code ?? failure.message}); the check's own result stands.\n`)
-      return undefined
-    }
-  }
-  let held = lease.take(leases, { command: `qh-check: ${command}`, root, state: waiting ? 'waiting' : 'running' })
-  if (held.error) {
-    stderr.write(`qh-check: could not use the lease: ${held.error}; running without one.\n`)
-    held = null
-  }
-  const look = () => {
-    if (!held) return null
-    try {
-      return lease.observe(leases, held)
-    } catch (failure) {
-      stderr.write(`qh-check: could not read the leases (${failure.code ?? failure.message}), so no neighbour is named.\n`)
-      return null
-    }
-  }
-  let waitedMs = 0
-  if (held && waiting) {
-    // A signal while waiting ends the wait, releases the lease and runs nothing.
-    let stopped = null
-    const stop = signal => { stopped = signal }
-    process.on('SIGINT', stop)
-    process.on('SIGTERM', stop)
-    let turn
-    try {
-      turn = await lease.admit(leases, held, { maxMs: lease.waitMaxMs(env), stopped: () => stopped })
-    } catch (failure) {
-      stderr.write(`qh-check: could not wait for its turn (${failure.code ?? failure.message}), so it runs now.\n`)
-      turn = { admitted: false, waitedMs: 0, stopped: null, failed: true }
-    } finally {
-      process.off('SIGINT', stop)
-      process.off('SIGTERM', stop)
-    }
-    waitedMs = turn.waitedMs
-    if (turn.stopped) {
-      leaseStep('release', () => lease.release(held))
-      stderr.write(`qh-check: stopped by ${turn.stopped} while waiting its turn; the check did not run.\n`)
-      return { code: turn.stopped === 'SIGINT' ? 130 : 143 }
-    }
-    if (!turn.failed) {
-      stderr.write(turn.admitted
-        ? `qh-check: waited ${inSeconds(waitedMs)} for its turn.\n`
-        : `qh-check: stopped waiting after ${inSeconds(waitedMs)} (QUALITY_HARNESS_WAIT_MAX_S), and runs beside the rest.\n`)
-    }
-    // An admitted lease is marked running under the admission lock; one that stopped waiting is not.
-    if (!turn.admitted) leaseStep('mark', () => lease.mark(held, { state: 'running' }))
-  }
-  return { held, look, leaseStep, waitedMs }
-}
-
-// Said on STDERR, once, after the record exists; the record is the check's and the sentence is for whoever ran it.
-function recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr }) {
-  try {
-    const directory = stateDir(root)
-    mkdirSync(directory, { recursive: true })
-    // A fast record goes where no reader of a full pass looks, in any version (ADR-081).
-    const file = path.join(directory, fast ? 'fast-checks.jsonl' : 'checks.jsonl')
-    appendFileSync(file, `${JSON.stringify(record)}\n`, 'utf8')
-    // Said on STDERR, once, after the record exists: a check run by hand showed only
-    // its own output, so nobody could tell what ran, whether it was declared or
-    // inferred, or that a record was written (BACKLOG §280 item 1). Stdout stays
-    // the check's own.
-    const shown = path.relative(root, file)
-    const took = inSeconds(Date.parse(after.at) - Date.parse(startedAt))
-    const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : `${verdict} in ${took}`
-    stderr.write(`qh-check: ran \`${command}\` (${origin}) — ${said}; recorded in ${shown.startsWith('..') || path.isAbsolute(shown) ? file : shown}\n`)
-  } catch (failure) {
-    stderr.write(`qh-check: the check ran, but its record could not be written (${failure.code ?? failure.message}).\n`)
-  }
-}
-
 export async function runCheck({ cwd = process.cwd(), env = process.env, platform = process.platform, stdout = process.stdout, stderr = process.stderr, loadavg, cores, wait = false, again = false, fast = false, lease = leaseModule, beforeReuse = () => {} } = {}) {
   const facts = checkFacts({ cwd, env, fast })
   const plan = checkPlan(facts, { fast, again, env })
@@ -313,18 +156,10 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   const { ended, received } = ran
   for (const line of besideAtEnd ? lease.besideLines(besideAtEnd) : []) stderr.write(`qh-check: at its end, ${line}\n`)
   const after = { ...observeNow(), at: new Date().toISOString(), load: sampleLoad(load).load }
-  const signal = received ?? ended.signal ?? null
-  const exit = ended.error ? null : ended.code
-  // A check a signal ended did not finish, so it has no verdict: "failed" said it had
-  // one, five times over a run that was SIGKILLed (BACKLOG §295 item 24, ADR-005).
-  const verdict = ended.error
-    ? 'unstarted'
-    : signal
-      ? 'interrupted'
-      : validationVerdict({ exit_code: exit ?? 1, stdout: kept.toString('utf8') }, command, { anyCommand: true })
+  const { signal, exit, verdict } = classifyRun({ ended, received, kept, command })
   const contended = contention(before.load, after.load, loadAtStart.cores)
-  const record = { id: randomUUID(), at: after.at, git, command, origin, before, after, exit, signal, verdict, cores: loadAtStart.cores, contended,
-    beside: recorded(beside), besideAtEnd: recorded(besideAtEnd), waitedMs, ...(prose.specs.length ? { prose: prose.specs } : {}) }
+  const record = runRecord({ id: randomUUID(), git, command, origin, before, after, run: { exit, signal, verdict }, cores: loadAtStart.cores,
+    contended, beside, besideAtEnd, waitedMs, prose })
   recordRun({ record, fast, root, startedAt, after, signal, verdict, command, origin, stderr })
   if (previousHead && checkEventName(record) === 'check.passed' && Date.parse(after.at) - Date.parse(startedAt) >= proseHintMs(env)
     && onlyTextChangedSince(root, previousHead) && firstMentionHere(root, PROSE_HINT)) {

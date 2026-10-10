@@ -18671,10 +18671,10 @@ Baseline, measured at `52cd9a66` on 2026-10-10 (re-measure after every wave and 
 | test files reached by a change here (selector replay, section 374) | about 99% of 193 |
 | fast-lane selector median share over the last 100 commits | 100% |
 | commits touching the file | 244 of 1,735 (14%) |
-| golden transcripts | 0 |
+| golden transcripts | 0 at the baseline; 5 scenarios, 68 hook calls after stage A's first slice (`tests/hook-goldens.test.mjs`, `tests/goldens/`; 5.6 s; in the repository's fast list) |
 | scripts importing from it | 9 |
 
-- [ ] A. Golden transcripts: a scripted payload sequence per event through the real hooks against a fixture repository; stdout, stderr and ledger rows stored; synthetic only. Also: the whole event catalogue (this file's part is in the seam map; qh-check and the gates write the rest).
+- [x] A (first slice, 2026-10-10). Golden transcripts: scripted payloads through the real `node lifecycle.mjs` against fixture repositories in a hermetic environment (own home, temp, plugin data, git config; time, ids, paths and load normalised), stdout, stderr, exit and the session, pass and check ledgers stored. Scenarios: orientation (startup, again, resume, compact, clear), the publish classifier (34 command forms, deny / advise / silent), full and fast passes with a change after each, writes and turn ends, subagents, tasks, compaction, a skill call and an edit to a record. Five mutants (wording and logic) all killed. Replayed four times byte-identical. Recorded on POSIX; Windows skips with the reason named. **Left in A:** the whole event catalogue (events written by `qh-check` and the gates, not only this file's), a Windows run of the goldens, and scenarios for the artifact gates and the ADR-task readiness lines (the orientation fixture holds one record and no tasks).
 - [ ] B1. Extract the shell-and-git literal reader and the command classifier internals (clusters 5, 6), the test-work reader (9), the prose and config readers (11, 12). Facade keeps every name the nine consumers import. Catalogue entries and `Governs:` headers move with the source.
 - [ ] B2. Corpus text and quoting (3); the ADR record reader (0: 71 functions, 49 pure, 27 exported).
 - [ ] B3. The entangled publish, pass and session clusters (2, 1, 4, 7), where the strongest cross calls are (4 to 1: 12, 2 to 1: 8).

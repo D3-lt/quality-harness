@@ -84,9 +84,22 @@ test('a config that cannot be read at all, and one that is not an object, are th
   }
 })
 
-test('a dangling link where the config should be is unreadable, not absent', { skip: process.platform === 'win32' && 'creating a symlink needs a privilege a Windows runner may not hold' }, async () => {
+test('a config that starts with a byte-order mark is refused and says so (a Windows run of 3.8.18)', async () => {
+  const dir = project('﻿{"check": "exit 0"}')
+  const { code, err } = await run(dir)
+  assert.equal(code, 2, err)
+  assert.match(err, /starts with a byte-order mark/, err)
+  assert.equal(ranInferred(dir), false)
+})
+
+test('a dangling link where the config should be is unreadable, not absent', async t => {
   const dir = project(null)
-  symlinkSync('no-such-target.json', path.join(dir, '.quality-harness.json'))
+  // A junction needs no privilege on Windows and reaches the same "link to nothing" path (a Windows run of 3.8.18).
+  const windows = process.platform === 'win32'
+  try { symlinkSync(windows ? path.join(dir, 'missing-dir') : 'no-such-target.json', path.join(dir, '.quality-harness.json'), windows ? 'junction' : undefined) } catch (error) {
+    t.skip(`this account cannot create a link here (${error.code})`)
+    return
+  }
   const { code, err } = await run(dir)
   assert.equal(code, 2, err)
   assert.match(err, /\.quality-harness\.json could not be read/, err)

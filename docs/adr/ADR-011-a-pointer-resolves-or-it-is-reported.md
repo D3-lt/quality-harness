@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-009-a-decision-names-what-enforces-it.md, docs/adr/ADR-008-the-plugin-is-not-the-repository.md, docs/BACKLOG.md §44, §45
-**Governs:** `plugin/bin/adr-lint`, `plugin/scripts/lifecycle.mjs`
+**Governs:** `plugin/bin/adr-lint`, `plugin/scripts/lifecycle.mjs`, `plugin/scripts/session-orientation.mjs`, `plugin/scripts/decision-corpus.mjs`
 **Enforced-by:** `lint: a Governs path that matches nothing tracked is reported`
 **Invalidates:** none — checked. ADR-009 added `Enforced-by:` and resolved it; this resolves the three headers ADR-009 deliberately left, using the machinery ADR-009 built. ADR-007 owns `Depends-on:` resolution and is untouched. ADR-003 requires a gate to assert behaviour, and this record's own gate is asserted behaviourally in both directions.
 **Served-path change:** `adr-lint` and `adr-state` tell an author that a record cites an ADR, invalidates a record, or governs a path that does not exist — so a corpus whose paths were re-anchored by a move learns it has been un-governed instead of passing in silence.

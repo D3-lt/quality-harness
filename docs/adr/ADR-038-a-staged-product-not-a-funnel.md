@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-09-a-staged-product-not-a-funnel.md`
 **Cross-references:** ADR-005, ADR-008, ADR-012, ADR-027, `docs/ONBOARDING.md`, `docs/INSTALL.md`
-**Governs:** `plugin/scripts/work-next.mjs`, `plugin/scripts/facts-gate-dispatch.sh`, `plugin/scripts/lifecycle.mjs`, `plugin/scripts/run-shell-hook.mjs`, `plugin/README.md`, `plugin/hooks/hooks.json`, `plugin/bin/adr-lint`, `plugin/scripts/post-edit-check.sh`, `plugin/bin/qh-mcp`, `docs/INSTALL.md`
+**Governs:** `plugin/scripts/work-next.mjs`, `plugin/scripts/facts-gate-dispatch.sh`, `plugin/scripts/lifecycle.mjs`, `plugin/scripts/run-shell-hook.mjs`, `plugin/README.md`, `plugin/hooks/hooks.json`, `plugin/bin/adr-lint`, `plugin/scripts/post-edit-check.sh`, `plugin/bin/qh-mcp`, `docs/INSTALL.md`, `plugin/scripts/on-session-start.mjs`, `plugin/scripts/session-orientation.mjs`, `plugin/scripts/ready-lines.mjs`
 
 Enumerated 2026-09-09 with `git ls-files -- plugin/scripts/work-next.mjs plugin/scripts/facts-gate-dispatch.sh plugin/scripts/lifecycle.mjs plugin/scripts/run-shell-hook.mjs plugin/README.md plugin/hooks/hooks.json plugin/bin/adr-lint plugin/scripts/post-edit-check.sh plugin/bin/qh-mcp docs/INSTALL.md`:
 

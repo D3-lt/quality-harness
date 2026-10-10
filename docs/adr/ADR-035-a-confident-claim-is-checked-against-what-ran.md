@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage; the requirement is the measured finding in `docs/research/2026-08-28-verification-is-the-bottleneck.md` §2 and §11
 **Cross-references:** `docs/research/2026-08-28-verification-is-the-bottleneck.md`, ADR-005, ADR-006, ADR-010, ADR-012, `docs/BACKLOG.md`
-**Governs:** `plugin/scripts/lifecycle.mjs`
+**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/completion-rules.mjs`
 **Enforced-by:** `stop: a confident claim over unverified edits is named as a false success`
 **Invalidates:** none — checked
 **Served-path change:** At `Stop`, a final message that asserts completion over edits nothing has verified is told *which words* made the claim and *which check* did not run, instead of the same advisory an honest "I did not run the tests" gets — and every completion event is written to a machine-local ledger so a false-success rate exists.

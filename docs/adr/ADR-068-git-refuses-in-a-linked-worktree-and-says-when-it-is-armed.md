@@ -5,7 +5,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage; ADR-066's Follow-ups and BACKLOG §304 items 3 and 4, the second record the owner chose on 2026-09-27
 **Cross-references:** docs/adr/ADR-066-git-refuses-an-unchecked-publish.md, docs/adr/ADR-061-an-unchecked-publish-is-refused.md, docs/adr/ADR-067-the-publish-classifier-reads-the-command-as-the-shell-splits-it.md, docs/BACKLOG.md
-**Governs:** plugin/scripts/publish-hook.mjs, plugin/scripts/lifecycle.mjs
+**Governs:** plugin/scripts/publish-hook.mjs, plugin/scripts/lifecycle.mjs, plugin/scripts/publish-verdict.mjs, plugin/scripts/tree-facts.mjs
 **Enforced-by:** `tests/publish-hook.test.mjs::an unchecked commit in a linked worktree of the session's repository is refused`
 **Invalidates:** none — checked. ADR-066 Decision 2's "a repository holding no log for that session is not this session's project" is narrowed, not reversed: a linked worktree of a repository that holds the log is the session's project.
 **Served-path change:** an unchecked `git commit` or `git push` in a linked worktree of the session's repository is refused by git's hook, as it is in the main checkout; and after a compaction or resume, SessionStart says that git's refusal arms only from the next prompt.

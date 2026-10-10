@@ -5,7 +5,7 @@
 **Owner:** Zy
 **Spec:** docs/specs/2026-10-01-no-hook-waits-on-the-artifact-pass.md
 **Cross-references:** docs/adr/ADR-060-advisories-react-to-observed-events.md, docs/adr/ADR-061-an-unchecked-publish-is-refused.md, docs/adr/ADR-077-a-heavy-run-holds-a-lease-and-names-its-neighbours.md
-**Governs:** plugin/scripts/lifecycle.mjs, plugin/scripts/run-shell-hook.mjs
+**Governs:** plugin/scripts/lifecycle.mjs, plugin/scripts/run-shell-hook.mjs, plugin/scripts/artifact-pass.mjs
 **Enforced-by:** `tests/artifact-pass-behind.test.mjs::no boundary waits for the artifact pass`
 **Invalidates:** ADR-060 — rule A's gating moves from in line to behind the boundary, and its verdicts reach the session log by import; what it gates, what it says and how severe a finding is are unchanged.
 **Served-path change:** the lifecycle hook (shipped) no longer gates artifacts in line at a publish request, Stop, SubagentStop, TaskCompleted or PreCompact; it starts one detached pass per session, which writes its own ledger, and the session's hooks import from it and say its findings.

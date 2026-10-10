@@ -28,8 +28,14 @@ const root = path.join(repoRoot, 'plugin')
 // the symlink cases too would have been a guess that quietly dropped coverage on
 // the platform this project keeps getting wrong.
 
+// What a test makes in the temp directory goes when the file is done: the run's own directory removes the rest, but a leak is
+// only seen when the file owns its cleanup (BACKLOG 377).
+const made = []
+const tracked = prefix => { const directory = mkdtempSync(prefix); made.push(directory); return directory }
+test.after(() => { for (const directory of made) rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) })
+
 function home(files = {}) {
-  const directory = mkdtempSync(path.join(tmpdir(), 'link-'))
+  const directory = tracked(path.join(tmpdir(), 'link-'))
   for (const [relative, contents] of Object.entries(files)) {
     const full = path.join(directory, relative)
     mkdirSync(path.dirname(full), { recursive: true })
@@ -1093,7 +1099,7 @@ test('neither write mode touches a file it named as an orphan', () => {
 // "was this really mine?" diffs against 2.0.0, finds nothing in common, and
 // concludes the tool is wrong when its verdict is right.
 test('an orphan cites the release it best matches, not the first one found', () => {
-  const home = mkdtempSync(path.join(tmpdir(), 'link-cite-'))
+  const home = tracked(path.join(tmpdir(), 'link-cite-'))
   const cache = cacheDirectory(home)
   const mine = '#!/bin/sh\nhave adr-lint\nhave adr-verify\nhave spec-verify\nhave arch-lint\n'
   const write = (version, relative, body) => {
@@ -1125,7 +1131,7 @@ test('a cached version list is ordered numerically, not lexically', () => {
   // and this cache holds both" — and the first version of formerlyShipped used a
   // bare .sort() anyway. With a lexical order even "the first release found" is
   // not reliably the first.
-  const home = mkdtempSync(path.join(tmpdir(), 'link-order-'))
+  const home = tracked(path.join(tmpdir(), 'link-order-'))
   const cache = cacheDirectory(home)
   for (const version of ['2.0.4', '2.0.10', '2.1.0']) {
     const full = path.join(cache, version, 'bin', 'probe')

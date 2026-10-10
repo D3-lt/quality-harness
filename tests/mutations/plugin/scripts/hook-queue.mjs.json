@@ -9,6 +9,16 @@
       "from": "  pendingActions.push(action)",
       "to": "  void action",
       "only": "^writes and turn ends: what was written, where, and what the turn says about it$"
+    },
+    {
+      "label": "D: a rule that emits output has it held for the one answer",
+      "file": "plugin/scripts/hook-queue.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "  pendingOutput = value",
+      "to": "  void value",
+      "only": "^orientation: startup, resume, compact and clear say their standing paragraphs as designed$"
     }
   ]
 }

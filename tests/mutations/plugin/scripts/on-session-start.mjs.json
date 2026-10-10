@@ -1,0 +1,100 @@
+{
+  "mutations": [
+    {
+      "label": "publish-hook: SessionStart offers the hook",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/publish-hook.test.mjs"
+      ],
+      "only": "sessionstart offers the hook",
+      "from": "  try { offerPublishHook({ cwd: input.cwd, session: input.session_id }) } catch (failure) {",
+      "to": "  try { null } catch (failure) {"
+    },
+    {
+      "label": "lifecycle: compaction bumps the session generation; a resume does not",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/said-once.test.mjs"
+      ],
+      "from": "  if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
+      "to": "  if (input.source === 'clear') bumpSessionGeneration(input.session_id)",
+      "only": "^(?:a finding is first once per session, and a compaction or /clear makes the session new)$"
+    },
+    {
+      "label": "lifecycle: /clear bumps the session generation too",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/said-once.test.mjs"
+      ],
+      "from": "  if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
+      "to": "  if (input.source === 'compact') bumpSessionGeneration(input.session_id)",
+      "only": "^(?:a finding is first once per session, and a compaction or /clear makes the session new)$"
+    },
+    {
+      "label": "lifecycle: the compact SessionStart hands the note back",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (served && note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
+      "to": "    if (false && note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
+      "only": "^(?:PreCompact records what the gates measured, and the compact SessionStart hands it back)$"
+    },
+    {
+      "label": "note: one older than its compaction is not served",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    else if (!tied && note) sections.push(",
+      "to": "    else if (false && note) sections.push("
+    },
+    {
+      "label": "note: a note is served only when it is tied to its compaction by id",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    const tied = !logIncomplete(events) && typeof owner === 'string' && note?.compaction === owner",
+      "to": "    const tied = true"
+    },
+    {
+      "label": "note: a log that could not be read whole cannot say which compaction was last",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    const tied = !logIncomplete(events) && typeof owner === 'string'",
+      "to": "    const tied = typeof owner === 'string'"
+    },
+    {
+      "label": "note: a note is served once",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      && !events.some(entry => entry.event === 'note.served' && entry.compactionId === owner)",
+      "to": "      && true"
+    },
+    {
+      "label": "ADR-068 T2: the arming line is only for a compaction or a resume",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "only": "the armed line is silent",
+      "from": "  if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))",
+      "to": "  if (awaitingArming(readEvents(input.cwd, input.session_id))"
+    },
+    {
+      "label": "ADR-094 T2: compaction and clear are gated like a start",
+      "file": "plugin/scripts/on-session-start.mjs",
+      "tests": [
+        "tests/standing-facts.test.mjs"
+      ],
+      "from": "{ once: input.source === 'startup' || input.source === 'resume' || input.source === undefined }",
+      "to": "{ once: true }",
+      "only": "^compaction and clear say every paragraph again$"
+    }
+  ]
+}

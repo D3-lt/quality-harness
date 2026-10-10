@@ -188,7 +188,12 @@ test('a turn that committed its work is not a session where nothing is outstandi
 // and the completeness guard answers. The outcome was right and the reason was
 // not, which is exactly what executing a claim is for.
 const READERS = {
-  handleHook: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
+  // Stage D split handleHook by event; the one entry it had was driven through PreCompact and SessionEnd, so it goes to
+  // onSessionEnd. SessionStart's two reads were under the same entry without being what it drove: the compaction note is
+  // served only from a log read whole (`tied` asks logIncomplete first), and the arming note reads awaitingArming, where a
+  // lost line can only make the note appear. NOT executed: no fixture tears the log under a SessionStart.
+  onSessionEnd: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
+  onSessionStart: { unexecuted: 'BACKLOG 375 stage D — needs a fixture that tears the log at a compact SessionStart' },
   completionRules: { executed: 'Stop (completionRules)' },
   publishUnchecked: { executed: 'PreToolUse naming commit (publishUnchecked)' },
   // ADR-066 T1: rule P's decision, extracted so git's hook shares it. PreToolUse
@@ -260,6 +265,8 @@ test('every reader of the session log is driven above, or says why a lost line c
     'event-log.mjs': 'defines it',
     'lifecycle.mjs': 'by function, above',
     'hook-record.mjs': 'by function, above',
+    'on-session-start.mjs': 'by function, above',
+    'on-session-end.mjs': 'by function, above',
     'artifact-pass.mjs': 'by function, above',
     'check-ledger.mjs': 'by function, above',
     'completion-rules.mjs': 'by function, above',

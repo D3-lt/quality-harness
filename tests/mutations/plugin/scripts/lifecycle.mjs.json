@@ -11,26 +11,6 @@
       "to": "    const utf16 = ''"
     },
     {
-      "label": "publish-hook: SessionStart offers the hook",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/publish-hook.test.mjs"
-      ],
-      "only": "sessionstart offers the hook",
-      "from": "    try { offerPublishHook({ cwd: input.cwd, session: input.session_id }) } catch (failure) {",
-      "to": "    try { null } catch (failure) {"
-    },
-    {
-      "label": "hooks: SubagentStart names its own event",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        hookEventName: 'SubagentStart',",
-      "to": "        hookEventName: 'SubagentStarted',",
-      "only": "^(?:SubagentStart states the leaf-role contract, and never blocks)$"
-    },
-    {
       "label": "advisory: a finding is never hidden — it is on stderr as well as in the hook's JSON",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -39,16 +19,6 @@
       "from": "      for (const text of texts) process.stderr.write(`${text}\\n`)",
       "to": "      void texts",
       "only": "^(?:the headline a person sees at a publish warning names the finding)$"
-    },
-    {
-      "label": "advisory: the harness has no opinion about branches",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (MUTATION_TOOLS.has(input.tool_name)) {",
-      "to": "    if (MUTATION_TOOLS.has(input.tool_name)) {\n      advise(\"you are on protected 'main'; create a task branch first\")",
-      "only": "^(?:reported: no advisory claims to have blocked anything|the harness has no opinion about git branches|the decision context is delivered once per path per session, and never as a finding|the corpus reader handles the spellings real repositories use)$"
     },
     {
       "label": "lifecycle: a PreToolUse advisory reaches the agent as additionalContext, not only the person",
@@ -71,26 +41,6 @@
       "only": "^(?:the headline a person sees at a publish warning names the finding)$"
     },
     {
-      "label": "lifecycle: compaction bumps the session generation; a resume does not",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/said-once.test.mjs"
-      ],
-      "from": "    if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
-      "to": "    if (input.source === 'clear') bumpSessionGeneration(input.session_id)",
-      "only": "^(?:a finding is first once per session, and a compaction or /clear makes the session new)$"
-    },
-    {
-      "label": "lifecycle: /clear bumps the session generation too",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/said-once.test.mjs"
-      ],
-      "from": "    if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
-      "to": "    if (input.source === 'compact') bumpSessionGeneration(input.session_id)",
-      "only": "^(?:a finding is first once per session, and a compaction or /clear makes the session new)$"
-    },
-    {
       "label": "lifecycle: a slow hook names itself",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -99,72 +49,6 @@
       "from": "  if (elapsed >= slowHookThresholdMs(env)) {",
       "to": "  if (false) {",
       "only": "^(?:a slow hook names itself; a fast one says nothing about its time)$"
-    },
-    {
-      "label": "lifecycle: the compact SessionStart hands the note back",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (served && note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
-      "to": "      if (false && note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
-      "only": "^(?:PreCompact records what the gates measured, and the compact SessionStart hands it back)$"
-    },
-    {
-      "label": "lifecycle: SessionEnd writes the sessions ledger row",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      appendFileSync(path.join(home, 'sessions.jsonl'), `${JSON.stringify({",
-      "to": "      void (path.join(home, 'sessions.jsonl'), `${JSON.stringify({",
-      "only": "^(?:SessionEnd records what was left unverified, and the next startup here says so)$"
-    },
-    {
-      "label": "lifecycle: inside a read-only role the plugin-level hook denies a write",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (readOnlyRole(input.agent_type) && (SHELL_TOOLS.has(input.tool_name) || MUTATION_TOOLS.has(input.tool_name))) {",
-      "to": "    if (false) {",
-      "only": "^(?:a reviewer is denied only a command naming commit or push \\(ADR-060\\)|inside a read-only role, the plugin-level PreToolUse hook denies a write; elsewhere it does not \\(BACKLOG §135\\))$"
-    },
-    {
-      "label": "note: one older than its compaction is not served",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "      else if (!tied && note) sections.push(",
-      "to": "      else if (false && note) sections.push("
-    },
-    {
-      "label": "note: a note is served only when it is tied to its compaction by id",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "      const tied = !logIncomplete(events) && typeof owner === 'string' && note?.compaction === owner",
-      "to": "      const tied = true"
-    },
-    {
-      "label": "note: a log that could not be read whole cannot say which compaction was last",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "      const tied = !logIncomplete(events) && typeof owner === 'string'",
-      "to": "      const tied = typeof owner === 'string'"
-    },
-    {
-      "label": "note: a note is served once",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/review-2026-09-19.test.mjs"
-      ],
-      "from": "        && !events.some(entry => entry.event === 'note.served' && entry.compactionId === owner)",
-      "to": "        && true"
     },
     {
       "label": "lifecycle: a hook payload that is not JSON is said on stderr, never swallowed",
@@ -177,16 +61,6 @@
       "only": "^(?:a hook payload with a BOM is read, and one that is not JSON is said, not swallowed)$"
     },
     {
-      "label": "ADR-061: the artifact gate runs on a publish request only, never on a mention (§269 round 4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/late-baseline.test.mjs"
-      ],
-      "from": "    if (recorded?.event === 'publish.requested') await artifactRule(input, recorded)",
-      "to": "    await artifactRule(input, recorded)",
-      "only": "^(?:a mention runs no artifact gate; a publish request does|a read-only reviewer is decided by the guard alone: no warning, no log write)$"
-    },
-    {
       "label": "ADR-060/061: a read-only role's PreToolUse is the guard's alone — never observed, recorded or warned about (§269 round 6)",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -195,16 +69,6 @@
       "from": "  const guardAlone = event === 'PreToolUse' && readOnlyRole(input.agent_type) !== null",
       "to": "  const guardAlone = false",
       "only": "^(?:a read-only reviewer is decided by the guard alone: no warning, no log write)$"
-    },
-    {
-      "label": "ADR-068 T2: the arming line is only for a compaction or a resume",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "only": "the armed line is silent",
-      "from": "    if ((input.source === 'compact' || input.source === 'resume') && awaitingArming(readEvents(input.cwd, input.session_id))",
-      "to": "    if (awaitingArming(readEvents(input.cwd, input.session_id))"
     },
     {
       "label": "chaos 626934a: a payload that is not an object is named",
@@ -267,14 +131,14 @@
       "only": "^(?:the Skill hook is registered and records only this plugin's skills)$"
     },
     {
-      "label": "ADR-094 T2: compaction and clear are gated like a start",
+      "label": "D: a turn-end event is routed to the turn-end rule",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/standing-facts.test.mjs"
+        "tests/hook-goldens.test.mjs"
       ],
-      "from": "{ once: input.source === 'startup' || input.source === 'resume' || input.source === undefined }",
-      "to": "{ once: true }",
-      "only": "^compaction and clear say every paragraph again$"
+      "from": "  ['Stop', onTurnEnd],",
+      "to": "",
+      "only": "^writes and turn ends: what was written, where, and what the turn says about it$"
     }
   ]
 }

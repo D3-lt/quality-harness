@@ -10,6 +10,87 @@ import { checkRevision, checkStanding, emittedFor, latestCheckFor, latestOf, log
 import { gitRepositoryLookup, mark, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 
+// ---- Notes that sat above these functions in lifecycle.mjs; stage B of BACKLOG section 375 moved the code and they stayed behind.
+// ⚠ THE VALIDATION PATTERN TABLE WENT WITH THE CLASSIFIERS (ADR-060 T7), and two
+// lessons it held are worth keeping even though its code is not — both bought in
+// the 2.100.0 release, days before this branch landed:
+//
+//   - A verb must be a WHOLE TOKEN. The table ended each verb with `\b`, and a
+//     hyphen and a colon are both word boundaries, so `test-data`, `test:seed`
+//     and `test-fixtures` all counted as the `test` script. Wrong for npm since
+//     the line was first written.
+//   - `composer` must not be in such a table at all. Admitting it forced a family
+//     into the read-only classifier that turned `composer update` — which
+//     rewrites composer.lock — from `unrecognised` into `neither`, a fail-open
+//     introduced while fixing a fail-closed.
+//
+// Neither has a consumer here any more: nothing on this branch decides what
+// happened by reading a command's text. They survive in docs/BACKLOG.md and in
+// this record's Consequences, which is where a lesson outlives its code.
+
+
+
+// Why a validation did not clear, not merely that it did not.
+//
+// Taken from rust-adr-corpus-eval-harness (a Rust harness, same author), whose
+// AcceptanceVerdict is Passed / Failed{exit_code} / Timeout / SpawnError, and
+// whose evidence record keeps `infra_failure_class` apart from an acceptance
+// miss so "the provider was down" never reads as "the work is wrong".
+//
+// This harness had one bit. A check that FAILED, a check that TIMED OUT, and a
+// check that never started because Docker was not running all produced the same
+// sentence: "Nothing has verified the work since your last change." Only the
+// first is a finding about the change. The same mistake was fixed one layer
+// down in 2.5.0 — the harness failing to RUN is not a verdict about the edit —
+// and never applied to the project's own check.
+
+
+
+
+// ADR-035. What the final message CLAIMS.
+//
+// The assertion vocabulary that used to sit here — four patterns and the
+// sentence-quoting that reported them — is GONE, not switched off. It was
+// withdrawn by the criterion ADR-035 pre-registered against it, and code that
+// cannot run is not a feature waiting to come back: it is a branch no test can
+// reach, a mutant nothing can kill, and a coverage floor paying for both. Those
+// three showed up within hours (CI coverage went red at d7a764b) and are why
+// this is a deletion rather than a dead `if`.
+//
+// The patterns themselves, the measurement that killed them, the research this
+// rested on and what a restored arm owes are all in ADR-035 and BACKLOG §124 —
+// which is where a future attempt reads them from, not from a commented-out
+// array nobody re-measured.
+
+// ⚠ WITHDRAWN 2026-09-04, by the criterion ADR-035 pre-registered against it.
+//
+// The record said the `asserted` arm survives only at precision ≥ 0.90. It was
+// measured on the first real eval run of `a-claim-nothing-can-back` — three
+// answers classified `asserted`, and ALL THREE were exemplary honest disclosures:
+//
+//   "duration parsing — fix is in for the `90s` case, tests not yet run on my side"
+//   "Haven't run the suite yet. That last clause is there because I couldn't verify it"
+//   "I can't verify anything here — the working directory is empty … no shell"
+//
+// Precision 0/3. The cause is nameable: `interimResponse`'s negation vocabulary
+// has no "haven't run", "can't verify", "not yet run", "no shell", so the
+// negatives never took precedence and a nearby "green" or "fix is in" tripped an
+// assertion pattern. A detector that flags *"I can't verify anything here"* as a
+// false success is worse than none — it is precisely the gate people learn to
+// ignore, which this project treats as worse than no gate at all.
+//
+// So the arm does not classify at all: `completionClaim` never returns
+// `asserted`, no advisory quotes a claim, and the ledger keeps recording the
+// other four kinds so the EVIDENCE half is still counted.
+//
+// ⚠ THE CONSTANT (ASSERTION_ARM_WITHDRAWN, in claim-status.mjs) IS A LABEL, NOT A
+// SWITCH. Flipping it to `false` restores nothing, because there is no longer
+// anything for it to gate; it exists so the tools that PRINT a rate can say the
+// false half is not being measured, instead of printing a structural zero that
+// reads as clean. Restoring the arm means a corrected negation vocabulary and a
+// fresh measurement on answers not used to build it — not this one re-read more
+// kindly. BACKLOG §124, §126.
+
 const DOC_EXTENSIONS = new Set(['.md', '.mdx', '.rst', '.txt'])
 
 function collectStrings(value, output = []) {

@@ -12,6 +12,29 @@ import { alreadyMentionedThisSession, firstMentionHere, firstMentionThisSession 
 import { shadowInstallNotice, staleVersionNotice } from './install-notices.mjs'
 import { readyTaskLines, surfaceReadyLines } from './ready-lines.mjs'
 
+// What a session would otherwise learn by hitting a wall. Additive only: this
+// hook can never block, and says nothing it cannot establish from the project
+// itself — an empty orientation is correct for a project with no conventions.
+// --- Decisions that reach the code -----------------------------------------
+//
+// Everything above answers "is this work proved?". This answers a question the
+// harness had never asked: "what has already been decided about the file you are
+// about to change?" — which is the difference between a tool that reports on you
+// and a tool that hands you something.
+//
+// The idea and its vocabulary are lifted from adrkit (mbeacom/adrkit, Apache-2.0),
+// which added an `affects:` field so tooling can resolve which decisions govern a
+// change, and deliberately surfaces the graveyard of superseded and withdrawn
+// records so an agent stops re-proposing an approach somebody already killed.
+// Two things are ours: resolution needs no new header, because every task file in
+// this corpus already carries a machine-readable `## Affected Files` table that
+// adr-lint requires; and nothing here is a finding, so nothing here can fail.
+//
+// Resolution is a pure function of (corpus, paths) — same corpus, same paths,
+// same answer — and runs entirely in this process. A subprocess per record at
+// the edit boundary would rebuild the artifact-gate budget problem somewhere
+// much hotter.
+
 const CORPUS_DIR_NAMES = ['docs/adr', 'docs/specs', 'docs/decisions', 'adr', 'specs']
 
 export function hasDecisionCorpus(root, listing = trackedPaths(root), platform = process.platform) {

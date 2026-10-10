@@ -57,7 +57,7 @@ test('a payload the guard cannot read passes: a guard broken on its own bug must
 })
 
 test('the plugin-level role list is the agents that say read-only, no more and no fewer', async () => {
-  const { READ_ONLY_ROLES, readOnlyRole } = await import('../plugin/scripts/lifecycle.mjs')
+  const { READ_ONLY_ROLES, readOnlyRole } = await import('../plugin/scripts/publish-verdict.mjs')
   const agents = readdirSync(join(root, 'agents')).filter(name => name.endsWith('.md'))
   const readOnly = agents.filter(name => /never edits|Read-only|read-only/i.test(readFileSync(join(root, 'agents', name), 'utf8').split('\n---')[0]))
     .map(name => name.replace(/\.md$/, '')).sort()

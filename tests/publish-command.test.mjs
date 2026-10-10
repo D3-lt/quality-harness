@@ -17,7 +17,7 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { hookSaid } from './hook-env.mjs'
-import { containsCommitOrPush, mentionsCommitOrPush } from '../plugin/scripts/lifecycle.mjs'
+import { containsCommitOrPush, mentionsCommitOrPush } from '../plugin/scripts/publish-verdict.mjs'
 import { freshRepositoryCommit, leavesHookInPlace, publishCommandIn } from '../plugin/scripts/publish-command.mjs'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
 
@@ -767,7 +767,7 @@ test('the classifier stays linear on a long interpreter script', () => {
 })
 
 // ADR-067 T3: the armed grammar reads the same lexer the publish classifier does.
-const LIFECYCLE_SOURCE = new URL('../plugin/scripts/lifecycle.mjs', import.meta.url)
+const LIFECYCLE_SOURCE = new URL('../plugin/scripts/publish-command.mjs', import.meta.url)
 const BRACE_BYPASS = 'git {-c,hook.qh-publish-commit.enabled=false} commit -m x'
 
 test('one lexer reads shell text for rule P', () => {

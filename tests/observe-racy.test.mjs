@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { observe } from '../plugin/scripts/lifecycle.mjs'
+import { observe } from '../plugin/scripts/tree-facts.mjs'
 
 test('observe sees a file rewritten in the same second at the same size', t => {
   const top = realpathSync.native(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-racy-')))

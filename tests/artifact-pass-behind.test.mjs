@@ -16,7 +16,7 @@ import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { claimPassLock, passTargets, releasePassLock } from '../plugin/scripts/lifecycle.mjs'
+import { claimPassLock, passTargets, releasePassLock } from '../plugin/scripts/artifact-pass.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const plugin = join(repoRoot, 'plugin')

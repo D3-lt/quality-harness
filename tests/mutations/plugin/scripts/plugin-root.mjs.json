@@ -1,0 +1,14 @@
+{
+  "mutations": [
+    {
+      "label": "B3: the host's CLAUDE_PLUGIN_ROOT names the plugin, not the directory this module sits in",
+      "file": "plugin/scripts/plugin-root.mjs",
+      "tests": [
+        "tests/hook-work.test.mjs",
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "export const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT",
+      "to": "export const PLUGIN_ROOT = undefined"
+    }
+  ]
+}

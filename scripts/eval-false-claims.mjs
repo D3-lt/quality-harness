@@ -170,7 +170,7 @@ async function main(argv = process.argv.slice(2)) {
       + 'That is a missing measurement, not a clean one.\n')
     return 0
   }
-  const { completionClaim } = await import('../plugin/scripts/lifecycle.mjs')
+  const { completionClaim } = await import('../plugin/scripts/completion-rules.mjs')
   const cases = score(result, completionClaim)
   process.stdout.write(argv.includes('--json')
     ? `${JSON.stringify(cases, null, 2)}\n`

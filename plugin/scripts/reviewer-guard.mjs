@@ -13,7 +13,7 @@
 // A payload this hook cannot read passes: a guard that fails closed on its own
 // bug would stop a reviewer from reading, which is the one thing it exists to do.
 import { isMainModule } from './main-module.mjs'
-import { readOnlyVerdict } from './lifecycle.mjs'
+import { readOnlyVerdict } from './publish-verdict.mjs'
 
 // The verdict is lifecycle.mjs's (readOnlyVerdict); this file is the CLI the
 // agents' frontmatter names, kept so a frontmatter hook that DOES fire on some

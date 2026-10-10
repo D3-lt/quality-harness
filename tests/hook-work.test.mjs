@@ -84,7 +84,7 @@ test('artifact passes check equivalent ADR inputs once and check fresh changes o
   const check = paths => {
     writeFileSync(log, '')
     const code = 'const {runArtifactGates}=await import(' +
-      JSON.stringify(pathToFileURL(path.join(pluginRoot, 'scripts', 'lifecycle.mjs')).href) +
+      JSON.stringify(pathToFileURL(path.join(pluginRoot, 'scripts', 'artifact-pass.mjs')).href) +
       '); process.stdout.write(JSON.stringify(runArtifactGates(' +
       JSON.stringify(paths) + ',' + JSON.stringify(project) + ')));'
     const got = run([process.execPath, '--input-type=module', '-e', code], project, env)
@@ -287,7 +287,7 @@ test('artifact batches use one runner and keep findings on both sides of a timed
       : { finding, runners }))
   }
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
-    pathToFileURL(path.join(pluginRoot, 'scripts', 'lifecycle.mjs')).href, files, root,
+    pathToFileURL(path.join(pluginRoot, 'scripts', 'artifact-pass.mjs')).href, files, root,
   ]) + ')'
   const performanceTrace = path.join(root, 'performance.jsonl')
   const result = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root, {
@@ -427,7 +427,7 @@ test('artifact batch input and exhausted deadlines report unchecked work', async
   assert.equal(await runArtifactBatch(JSON.stringify(valid)), 0)
   assert.match(stderr, /window was exhausted before .*unchecked\.md was gated/)
   assert.match(stderr, /also-unchecked\.md/, 'every artifact skipped by the deadline is identified')
-  const { runArtifactGates } = await import('../plugin/scripts/lifecycle.mjs')
+  const { runArtifactGates } = await import('../plugin/scripts/artifact-pass.mjs')
   assert.match(runArtifactGates(valid.paths, os.tmpdir(), 500), /also-unchecked\.md/,
     'a deadline exhausted before runner startup also identifies every unchecked artifact')
 })

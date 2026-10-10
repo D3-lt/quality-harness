@@ -12,11 +12,18 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { hookSaid } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
-import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
+// The judges and readers once held in lifecycle.mjs now live in modules of their own (BACKLOG section 375, stage B3): the local name stays, so no test body changes.
+import * as lifecycleOwn from '../plugin/scripts/lifecycle.mjs'
+import * as treeFacts from '../plugin/scripts/tree-facts.mjs'
+import * as completionRules from '../plugin/scripts/completion-rules.mjs'
+import * as publishVerdict from '../plugin/scripts/publish-verdict.mjs'
+import * as checkCommand from '../plugin/scripts/check-command.mjs'
+import * as artifactPass from '../plugin/scripts/artifact-pass.mjs'
 import * as statusline from '../plugin/scripts/statusline.mjs'
 import { tally } from '../plugin/scripts/claims-rate.mjs'
 import { ABSENT } from '../plugin/scripts/event-log.mjs'
 import { persistedEventPath } from '../plugin/scripts/run-shell-hook.mjs'
+const lifecycle = { ...lifecycleOwn, ...treeFacts, ...completionRules, ...publishVerdict, ...checkCommand, ...artifactPass }
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
@@ -1054,7 +1061,7 @@ test('the command classifiers are gone', () => {
   }
   assert.deepEqual(offenders, [], offenders.join('\n'))
   // And the word rule is still there, or this test would pass on an empty plugin.
-  const lifecycleText = readFileSync(path.join(pluginRoot, 'scripts', 'lifecycle.mjs'), 'utf8')
+  const lifecycleText = readFileSync(path.join(pluginRoot, 'scripts', 'publish-verdict.mjs'), 'utf8')
   for (const symbol of KEPT_SYMBOLS) {
     assert.ok(new RegExp(`function ${symbol}\\b`).test(lifecycleText), symbol)
   }

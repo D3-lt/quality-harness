@@ -8,6 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
 import { canonical, readEvents } from '../plugin/scripts/event-log.mjs'
 
@@ -85,7 +86,7 @@ test('a write through a directory link is counted when the hook records it', t =
   mkdirSync(outwards)
   symlinkSync(outwards, path.join(root, 'link'), 'dir')
   const state = path.join(base, 'state')
-  const run = spawnSync(process.execPath, [new URL('../plugin/scripts/lifecycle.mjs', import.meta.url).pathname], {
+  const run = spawnSync(process.execPath, [fileURLToPath(new URL('../plugin/scripts/lifecycle.mjs', import.meta.url))], {
     encoding: 'utf8', timeout: 60_000, windowsHide: true,
     env: { ...process.env, QUALITY_HARNESS_STATE_DIR: state, CLAUDE_PLUGIN_DATA: path.join(base, 'data'), TMPDIR: base, TMP: base, TEMP: base },
     input: JSON.stringify({ hook_event_name: 'PostToolUse', session_id: 'dirlink', cwd: root, tool_name: 'Write',

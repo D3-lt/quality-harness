@@ -4,7 +4,7 @@
 // shells say different words for the same state, and its coverage is the rest of the suite until a Windows run of
 // these is asked for. QH_GOLDEN_UPDATE=1 rewrites them; read the diff before committing it.
 import assert from 'node:assert/strict'
-import { mkdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, readdirSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import test from 'node:test'
 import { expectGolden, fixtureRepo, ledgers, normaliser, runHook, runQhCheck, sandbox } from './hook-golden.mjs'
@@ -164,6 +164,13 @@ test('readiness: an accepted record with a ready task, an evidenced one and a pr
     'docs/adr/ADR-002-proposed/tasks/T1.md': task('002-T1'),
   })
   const session = 'ready-1'
+  // Which task directory SessionStart reads first follows how recently its files changed. A fixture written in one instant
+  // leaves that to the filesystem (macOS ordered by the nanosecond, Linux tied and fell back to the listing), so the
+  // instants are set: the proposed record's tasks are the newer.
+  for (const [directory, seconds] of [['ADR-001-accepted', 1_767_225_600], ['ADR-002-proposed', 1_767_312_000]]) {
+    const tasks = path.join(repo, 'docs', 'adr', directory, 'tasks')
+    for (const name of readdirSync(tasks)) utimesSync(path.join(tasks, name), seconds, seconds)
+  }
   const steps = play(box, repo, session, [
     ['startup', { hook_event_name: 'SessionStart', source: 'startup' }],
     ['startup again', { hook_event_name: 'SessionStart', source: 'startup' }],

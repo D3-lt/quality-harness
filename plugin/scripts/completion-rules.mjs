@@ -476,17 +476,19 @@ function unseenPathNote(count) {
 // as the old commit-loop shape surviving in a quieter form. R2 is silent for
 // that commit on purpose (its tree is the observed tree, which is R1's to speak
 // for), so R1 is the one that has to say the commit.
-function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
+function uncheckedWorkReason(sentence, paths, outside, commits = [], { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = paths.slice(0, 8)
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   const listed = paths.length
     ? `Changed paths: ${shown.join(', ')}${paths.length > shown.length ? `, and ${paths.length - shown.length} more` : ''}.`
     : held
-      ? (orderUnknown
-        ? `Nothing is uncommitted: which check ran last on the tree at HEAD could not be established; it was committed as ${held}.`
-        : couldNotLook
-          ? `Nothing is uncommitted: the latest \`qh-check\` on the tree at HEAD could not observe it; it was committed as ${held}.`
-          : `Nothing is uncommitted: what no \`qh-check\` has passed on is the tree at HEAD, committed as ${held}.`)
+      ? (logTorn
+        ? `Nothing is uncommitted: whether a \`qh-check\` passed on the tree at HEAD cannot be shown; it was committed as ${held}.`
+        : orderUnknown
+          ? `Nothing is uncommitted: which check ran last on the tree at HEAD could not be established; it was committed as ${held}.`
+          : couldNotLook
+            ? `Nothing is uncommitted: the latest \`qh-check\` on the tree at HEAD could not observe it; it was committed as ${held}.`
+            : `Nothing is uncommitted: what no \`qh-check\` has passed on is the tree at HEAD, committed as ${held}.`)
       : 'Git reports no changed path in the working tree.'
   // ⚠ A TORN LOG CANNOT SUPPORT "NO CHECK HAS", ONLY "NONE CAN BE SHOWN". Since a
   // surviving record no longer certifies (`latestCheckFor`), this rule fires on a
@@ -505,7 +507,7 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
         ? 'this turn ends with work no `qh-check` has passed on.'
         : 'this turn ends on an unchecked tree.'
   return `quality-harness: ${opening} ${listed}`
-    + `${unseenPathNote(outside)} ${runTheCheckSentence(cwd)}`
+    + `${unseenPathNote(outside)} ${sentence}`
 }
 
 // ONE finding per boundary, however many commits it names. A fetch, a merge or a
@@ -516,7 +518,11 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
 const NAMED_COMMIT_LIMIT = 5
 
 // Exported so its wording is tested without building newly reachable commits.
-export function uncheckedCommitsReason(cwd, commits, { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
+export function uncheckedCommitsReason(cwd, commits, options = {}) {
+  return uncheckedCommitsText(runTheCheckSentence(cwd), commits, options)
+}
+
+function uncheckedCommitsText(sentence, commits, { logTorn = false, tornWords = null, orderUnknown = false, couldNotLook = false } = {}) {
   const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
   const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
   const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
@@ -536,14 +542,14 @@ export function uncheckedCommitsReason(cwd, commits, { logTorn = false, tornWord
         ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
         : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`
   return `quality-harness: ${head}\n${listed}${rest}\nThis says they are reachable from HEAD and `
-    + `${logTorn || orderUnknown || couldNotLook ? 'not known to be checked' : 'unchecked'}, not that this session authored them. ${runTheCheckSentence(cwd)}`
+    + `${logTorn || orderUnknown || couldNotLook ? 'not known to be checked' : 'unchecked'}, not that this session authored them. ${sentence}`
 }
 
-function couldNotLookReason(cwd, reason) {
+function couldNotLookReason(sentence, reason) {
   return `quality-harness: this repository could not be observed (${reason}), so its tree, index `
     + 'and HEAD are unknown to this hook. That is a statement about what could be looked at, not '
     + 'about your work (ADR-005). Edit and Write paths are still tracked, and `qh-check` still '
-    + `records what it observed. ${runTheCheckSentence(cwd)}`
+    + `records what it observed. ${sentence}`
 }
 
 // The ledger's evidence, computed from the tree, the commits and the writes
@@ -573,7 +579,21 @@ function ledgerEvidence(log, observation, baseline, commits, writes, check, stat
 }
 
 export function completionRules(input, ended) {
-  if (!ended || typeof input.session_id !== 'string' || !input.session_id) return
+  const facts = completionFacts(input, ended)
+  if (!facts) return
+  const { claim, actions } = completionJudgement(facts, input)
+  recordClaim(input, claim.claim, claim.evidence, claim.mutations)
+  for (const action of actions) queueAction(action)
+}
+
+/**
+ * What the turn-end rules read from the world (BACKLOG section 375, stage C): the session log, the project's check, the
+ * repository root, the writes git could not see, the paths git lists, the commits made since the session began. The reads
+ * that depend on a verdict (the sentence that names the check, the key of the could-not-look finding, the task-file nudge)
+ * are functions the judgement calls only if it gets that far. Returns null for a turn the rules do not judge.
+ */
+export function completionFacts(input, ended) {
+  if (!ended || typeof input.session_id !== 'string' || !input.session_id) return null
   const log = readEvents(input.cwd, input.session_id)
   const observation = ended.observation
   const origin = checkCommandOrigin(input.cwd)
@@ -589,12 +609,32 @@ export function completionRules(input, ended) {
   const commits = observation?.ok !== true ? []
     : !found.ok ? mark([], false, found.reason)
     : sessionCommits(log, root, observation.head)
-  recordClaim(input, completionClaim(input.last_assistant_message),
-    ledgerEvidence(log, observation, baseline, commits, writes, check, status), status.length + writes.length)
+  return {
+    log, observation, check, root, baseline, writes, status, commits,
+    sentence: () => runTheCheckSentence(input.cwd),
+    locationKey: () => canonical(root ?? path.resolve(input.cwd ?? process.cwd())),
+    nudge: changed => evidenceNudge(input.cwd, changed),
+  }
+}
+
+/**
+ * The turn-end rules as a function of their facts and of the turn's own payload (its message and its event): the completion
+ * claim and the evidence it is set against, and the findings R1, R2 and R4 say, in the order they are said. It reaches no file,
+ * process, clock or environment (tests/pure-judges.test.mjs), so a finding is a table over facts and
+ * tests/completion-judgement.test.mjs walks it. Returns `{ claim, actions }`; the caller records the claim and queues the actions.
+ */
+export function completionJudgement(facts, input) {
+  const { log, observation, check, root, baseline, writes, status, commits } = facts
+  const claim = {
+    claim: completionClaim(input.last_assistant_message),
+    evidence: ledgerEvidence(log, observation, baseline, commits, writes, check, status),
+    mutations: status.length + writes.length,
+  }
+  const actions = []
   // The opt-in today's advice already requires: a project that named no check
   // cannot be asked to run one (reported from redash-api, 2026-08-26). A refused
   // declaration is a check that does not count, not a project that named none.
-  if (!check) return
+  if (!check) return { claim, actions }
 
   const changed = [...status.map(relative => path.join(root ?? path.resolve(input.cwd), relative)),
     ...writes.map(entry => entry.path).filter(candidate => typeof candidate === 'string')]
@@ -608,7 +648,7 @@ export function completionRules(input, ended) {
     if (!emittedFor(log, 'R1', key)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
-      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look' }) })
+      actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look' }) })
     }
   }
   const unchecked = commits.filter(commit => {
@@ -622,16 +662,16 @@ export function completionRules(input, ended) {
   })
   if (unchecked.length) {
     const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
-    queueAction({
+    actions.push({
       rule: 'R2', key: keys.join(' '), detail: { commits: keys },
-      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),
+      text: uncheckedCommitsText(facts.sentence(), unchecked, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: unchecked.some(commit => checkStanding(log, commit.tree) === 'unresolved'), couldNotLook: unchecked.some(commit => checkStanding(log, commit.tree) === 'could-not-look') }),
     })
   }
   if (observation?.ok !== true || status?.ok === false || commits?.ok === false
     || logIncomplete(log)) {
     // Once per session and cwd, read from the log rather than from a marker file
     // under os.tmpdir() (ADR-060 replaces sessionGenerationPath here).
-    const key = canonical(root ?? path.resolve(input.cwd ?? process.cwd()))
+    const key = facts.locationKey()
     if (!emittedFor(log, 'R4', key)) {
       // NAME what could not be looked at. A failed enumeration has a reason of its
       // own — the observation may have succeeded and the follow-up query failed —
@@ -641,13 +681,14 @@ export function completionRules(input, ended) {
         : logIncomplete(log)
           ? `${tornRecord(log, 'this session’s event log')} could not be read whole — at least one record is torn or unreadable`
           : (status?.why || commits?.why || 'a git query failed without saying why')
-      queueAction({ rule: 'R4', key, text: couldNotLookReason(input.cwd, why) })
+      actions.push({ rule: 'R4', key, text: couldNotLookReason(facts.sentence(), why) })
     }
   }
   // The check passed and a task file changed: the corpus wants that recorded,
   // not asserted. Not a rule — it repeats while the state it is about holds.
   if (observation?.ok === true && treeChecked(log, observation.tree)) {
-    const nudge = evidenceNudge(input.cwd, changed)
-    if (nudge) queueAction({ text: nudge })
+    const nudge = facts.nudge(changed)
+    if (nudge) actions.push({ text: nudge })
   }
+  return { claim, actions }
 }

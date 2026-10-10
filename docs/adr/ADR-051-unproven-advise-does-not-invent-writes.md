@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-12-unproven-advise-does-not-invent-writes.md`
 **Cross-references:** ADR-005, ADR-041, ADR-042, ADR-047, ADR-048, ADR-049, `CLAUDE.md`, `plugin/scripts/lifecycle.mjs` (`provenMutationPaths`, `missingEvidenceReason`, `docsOnly`, `sessionStateNote`, `record`), `plugin/scripts/statusline.mjs` (`reading`)
-**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/statusline.mjs`, `tests/lifecycle.test.mjs`, `tests/statusline.test.mjs`, `tests/mutations/**`
+**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/statusline.mjs`, `tests/lifecycle.test.mjs`, `tests/statusline.test.mjs`, `tests/mutations/**`, `plugin/scripts/completion-rules.mjs`, `plugin/scripts/check-ledger.mjs`
 
 Class: every surface that presents `mutationPaths` as a path list, a count, or a file predicate — not "Stop only", not "`node --version`". Enumerated 2026-09-12 with `rg -n "mutationPaths|docsOnly\\(|provenMutationPaths|missingEvidenceReason" plugin/scripts/lifecycle.mjs plugin/scripts/statusline.mjs` and `git ls-files -- plugin/scripts/lifecycle.mjs plugin/scripts/statusline.mjs tests/lifecycle.test.mjs tests/statusline.test.mjs tests/mutations.json`. Named members (working tree after `3ebc868`):
 

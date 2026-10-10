@@ -5,7 +5,7 @@
 **Owner:** Zy
 **Spec:** docs/specs/2026-10-01-qh-check-reads-its-own-ledger.md
 **Cross-references:** docs/adr/ADR-060-advisories-react-to-observed-events.md, docs/adr/ADR-061-an-unchecked-publish-is-refused.md, docs/adr/ADR-077-a-heavy-run-holds-a-lease-and-names-its-neighbours.md, docs/adr/ADR-080-no-hook-waits-on-the-artifact-pass.md
-**Governs:** plugin/scripts/qh-check.mjs, plugin/scripts/lifecycle.mjs, plugin/scripts/publish-hook.mjs, plugin/bin/qh-check
+**Governs:** plugin/scripts/qh-check.mjs, plugin/scripts/lifecycle.mjs, plugin/scripts/publish-hook.mjs, plugin/bin/qh-check, plugin/scripts/check-ledger.mjs, plugin/scripts/check-command.mjs
 **Enforced-by:** `tests/qh-check-reads-the-ledger.test.mjs::a tree whose latest check passed is not checked again, and says when and how long`
 **Invalidates:** ADR-061 — a command proven to be one commit, on a tree whose latest fast check passed, is advised rather than refused; a push, any other form, and every reader of a full pass are unchanged.
 **Served-path change:** `qh-check` (shipped) skips a tree whose latest check passed and says when; `qh-check --fast` runs a declared fast check, which lets a commit through with a warning and never a push.

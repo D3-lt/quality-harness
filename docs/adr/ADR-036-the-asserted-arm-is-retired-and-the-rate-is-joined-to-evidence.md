@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — the requirement is the measured finding in `docs/research/2026-08-28-verification-is-the-bottleneck.md` §2 and §11, and the outside result cited under Context
 **Cross-references:** ADR-005, ADR-010, ADR-035, `docs/research/2026-08-28-verification-is-the-bottleneck.md`, `docs/BACKLOG.md`
-**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/claims-rate.mjs`
+**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/claims-rate.mjs`, `plugin/scripts/completion-rules.mjs`
 **Enforced-by:** None — Proposed. The check is named in Implementation and lands with the task that retires the arm.
 **Invalidates:** none — ADR-035 stands; this retires one arm of its vocabulary and keeps the rest
 **Served-path change:** The harness stops trying to decide from a sentence whether an agent claimed completion, and reports the false-success rate from what the ledger already knows about whether a check ran. No message is told it claimed something.

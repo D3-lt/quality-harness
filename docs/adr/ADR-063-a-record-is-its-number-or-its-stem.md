@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage. On 2026-09-22 the owner decided to accept an adopter's record naming instead of requiring it to be converted, with no configuration option, and scoped this to the retire family and its readers. After the cold review the owner decided the identity rule: only a date-shaped name is identified by its stem; an `NNN-slug` name keeps its number.
 **Cross-references:** ADR-005, ADR-011, ADR-024, ADR-045
-**Governs:** `plugin/bin/adr-retire-check`, `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/scripts/lifecycle.mjs`, `plugin/scripts/adr-state.mjs`, `plugin/bin/adr-verify`, `plugin/templates/adr-archive-readme-template.md`, `plugin/skills/adr-retire/SKILL.md`
+**Governs:** `plugin/bin/adr-retire-check`, `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/scripts/lifecycle.mjs`, `plugin/scripts/adr-state.mjs`, `plugin/bin/adr-verify`, `plugin/templates/adr-archive-readme-template.md`, `plugin/skills/adr-retire/SKILL.md`, `plugin/scripts/decision-corpus.mjs`
 **Enforced-by:** `tests/record-identity.test.mjs::a date-slug archive passes adr-retire-check with each record named by its stem`
 **Invalidates:** none — checked
 **Served-path change:** An archive whose records are named `YYYY-MM-DD-slug.md` passes `adr-retire-check`, and the lifecycle's corpus reader lists those records, active and archived, where both answered "no ADR id" or nothing before. Records named `ADR-NNN-slug.md` read exactly as they do now. Records named `NNN-slug.md` keep their numbers, and become visible to `adr-retire-check`, which today enumerates only `ADR-*.md` and so fails an `NNN-slug` archive.

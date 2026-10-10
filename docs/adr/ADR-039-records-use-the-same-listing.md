@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-10-records-use-the-same-listing.md`
 **Cross-references:** ADR-005, ADR-008, ADR-011, ADR-038, `docs/specs/2026-09-09-a-staged-product-not-a-funnel.md`
-**Governs:** `plugin/scripts/work-next.mjs`, `plugin/scripts/lifecycle.mjs`, `plugin/scripts/adr-state.mjs`, `plugin/scripts/adr-context.mjs`
+**Governs:** `plugin/scripts/work-next.mjs`, `plugin/scripts/lifecycle.mjs`, `plugin/scripts/adr-state.mjs`, `plugin/scripts/adr-context.mjs`, `plugin/scripts/decision-corpus.mjs`
 
 Class: every product caller that inventories decision records through `adrCorpus`. Enumerated 2026-09-10 with `rg -n 'adrCorpus\(|readRecordFiles\(' plugin --glob '!**/node_modules/**'` and `git ls-files -- plugin/scripts/work-next.mjs plugin/scripts/lifecycle.mjs plugin/scripts/adr-state.mjs plugin/scripts/adr-context.mjs`:
 

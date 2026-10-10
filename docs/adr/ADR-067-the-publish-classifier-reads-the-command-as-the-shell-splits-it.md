@@ -5,7 +5,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage; BACKLOG §301 Stage 3, scoped by the owner on 2026-09-27 to what git's hook does not decide
 **Cross-references:** docs/adr/ADR-061-an-unchecked-publish-is-refused.md, docs/adr/ADR-066-git-refuses-an-unchecked-publish.md, docs/adr-archive/ADR-056-a-quoted-separator-is-not-a-joiner.md, docs/BACKLOG.md, docs/research/2026-09-26-model-out-of-the-loop.md, CLAUDE.md
-**Governs:** plugin/scripts/lifecycle.mjs, plugin/scripts/shell-words.mjs
+**Governs:** plugin/scripts/lifecycle.mjs, plugin/scripts/shell-words.mjs, plugin/scripts/publish-command.mjs
 **Enforced-by:** `tests/shell-words.test.mjs::the lexer's argv is the argv the shell hands git`
 **Invalidates:** ADR-066 — its Alternatives line "A zero-dependency shell lexer (BACKLOG §301 Stage 3 as first planned). Rejected." That rejection stands as a replacement for git's hook; this record adopts the lexer only as the reader for the text refusal that ADR-066 keeps (every unarmed session, every PowerShell call, and every armed command its grammar cannot prove plain). ADR-066's own decision is unchanged.
 **Served-path change:** PreToolUse rule P stops refusing a command whose `git commit` / `git push` is only data (quoted text, a heredoc body, `eval`'s joined `--help`), and starts refusing a brace-built invocation (`git {-c,x=y} push`) it never matched.

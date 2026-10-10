@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-10-sessionstart-ready-uses-the-listing.md`
 **Cross-references:** ADR-005, ADR-008, ADR-038, ADR-039, `docs/specs/2026-09-10-records-use-the-same-listing.md`
-**Governs:** `plugin/scripts/lifecycle.mjs`
+**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/ready-lines.mjs`, `plugin/scripts/on-session-start.mjs`
 
 Class: SessionStart surfaces that inventory ready task directories or corpus existence. Enumerated 2026-09-10 with `rg -n 'function taskDirectories\(|function readyTaskLines\(|function hasDecisionCorpus|sessionOrientation\(|sessionStateNote\(' plugin/scripts/lifecycle.mjs` and `git ls-files -- plugin/scripts/lifecycle.mjs`:
 

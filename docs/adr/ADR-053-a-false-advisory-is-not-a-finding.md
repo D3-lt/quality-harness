@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** ADR-005, ADR-038, ADR-047, ADR-048, ADR-050, ADR-052, `docs/BACKLOG.md` §207
-**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/facts-gate-dispatch.sh`, `plugin/bin/adr-lint`, `tests/unread-advice.test.mjs`, `tests/swift-expect.test.mjs`, `tests/staged-product.test.mjs`
+**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/facts-gate-dispatch.sh`, `plugin/bin/adr-lint`, `tests/unread-advice.test.mjs`, `tests/swift-expect.test.mjs`, `tests/staged-product.test.mjs`, `plugin/scripts/completion-rules.mjs`, `plugin/scripts/artifact-pass.mjs`
 
 Class: every Advise surface that accuses a session of publishing unverified work, or names a PostToolUse miss, on a file or command the gate did not observe as unpublished authorship; plus the failure-call / comment-stripper that decides a Swift test can fail. Enumerated 2026-09-14 with `rg -n "unverifiedSince|unprovenWritePending|not-recognised|FAIL_CALLS|scan_code_only" plugin/scripts/lifecycle.mjs plugin/scripts/facts-gate-dispatch.sh plugin/bin/adr-lint tests/unread-advice.test.mjs tests/swift-expect.test.mjs tests/staged-product.test.mjs` and `git ls-files -- plugin/scripts/lifecycle.mjs plugin/scripts/facts-gate-dispatch.sh plugin/bin/adr-lint tests/staged-product.test.mjs` (new test files are `--others --exclude-standard` at authoring). Named members:
 

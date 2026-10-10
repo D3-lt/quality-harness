@@ -5,7 +5,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage; ADR-061's open follow-up and BACKLOG §301
 **Cross-references:** docs/adr/ADR-060-advisories-react-to-observed-events.md, docs/adr/ADR-061-an-unchecked-publish-is-refused.md, docs/BACKLOG.md, docs/research/2026-09-26-model-out-of-the-loop.md, CLAUDE.md
-**Governs:** plugin/scripts/lifecycle.mjs, plugin/scripts/publish-hook.mjs
+**Governs:** plugin/scripts/lifecycle.mjs, plugin/scripts/publish-hook.mjs, plugin/scripts/publish-verdict.mjs, plugin/scripts/publish-command.mjs
 **Enforced-by:** `publish-hook: an unchecked commit is refused by git in the repository it runs in`
 **Invalidates:** ADR-061 — its Out of Scope line "Refusing a publish whose text contains neither `commit` nor `push` (permanent: boundary: recognizing it before it runs is the parser ADR-060 retired)": git now recognises a commit or push at the event, so a script file's publish is refused; and CLAUDE.md §3's wording of the sanctioned refusal as "a command naming commit or push" is amended to include that event
 **Served-path change:** in a Bash session whose git runs config-based hooks, an unchecked `git commit` or `git push` is refused by git at the event in the repository it runs in, including from a script file and under `git commit --no-verify`; a plain invocation, or a mere mention of one, is no longer refused on its text.

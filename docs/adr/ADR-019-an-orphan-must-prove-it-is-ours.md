@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-001-skills-are-never-linked.md, docs/adr/ADR-004-templates-are-not-linked.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/BACKLOG.md §95
-**Governs:** `plugin/scripts/standalone-link.mjs`, `plugin/scripts/sync-standalone.mjs`, `plugin/scripts/lifecycle.mjs`, `tests/standalone-link.test.mjs`, `tests/lifecycle.test.mjs`
+**Governs:** `plugin/scripts/standalone-link.mjs`, `plugin/scripts/sync-standalone.mjs`, `plugin/scripts/lifecycle.mjs`, `tests/standalone-link.test.mjs`, `tests/lifecycle.test.mjs`, `plugin/scripts/install-notices.mjs`
 **Enforced-by:** `orphan: a file this plugin cannot prove it wrote is never named`
 
 <This mutation label does not resolve yet: T1 creates it. Named here rather than left as

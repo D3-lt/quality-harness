@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage. The owner chose, on 2026-09-22, to close the fail-open holes and to refuse an unchecked publish rather than only warn.
 **Cross-references:** ADR-005, ADR-060
-**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/qh-check.mjs`
+**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/qh-check.mjs`, `plugin/scripts/publish-verdict.mjs`, `plugin/scripts/publish-command.mjs`, `plugin/scripts/check-ledger.mjs`, `plugin/scripts/check-command.mjs`, `plugin/scripts/tree-facts.mjs`
 **Enforced-by:** `tests/fail-open.test.mjs::a constant success is not a check and an unchecked publish is refused`
 **Invalidates:** none — checked
 **Served-path change:** A command that names commit or push is refused, not merely warned, when the session log was read whole and the tree or index has no passing check.

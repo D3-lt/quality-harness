@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -10,6 +10,11 @@ import { main, neverReachedAnAnswer, observations, ranOutOfTurns, resultFiles, v
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
 
+// What a test makes in the temp directory goes when the file is done (BACKLOG 377).
+const made = []
+const tracked = prefix => { const directory = mkdtempSync(prefix); made.push(directory); return directory }
+test.after(() => { for (const directory of made) rmSync(directory, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) })
+
 /**
  * A results tree in a temp directory, never the live one.
  *
@@ -18,7 +23,7 @@ const repoRoot = resolve(testDir, '..')
  * (CLAUDE.md §8). Every assertion below is against a fixture this test wrote.
  */
 function resultsTree(invocations) {
-  const root = mkdtempSync(join(os.tmpdir(), 'eval-deltas-'))
+  const root = tracked(join(os.tmpdir(), 'eval-deltas-'))
   for (const [name, cases] of Object.entries(invocations)) {
     const dir = join(root, name)
     mkdirSync(dir, { recursive: true })
@@ -43,7 +48,7 @@ test('both results trees are read, not just the one named results', () => {
   // five of them PAIRED invocations of one case — so the corpus looked smaller
   // and nothing said anything was missing. Found by a review comparing the
   // tool's count against the ad-hoc glob it replaced.
-  const root = mkdtempSync(join(os.tmpdir(), 'eval-deltas-trees-'))
+  const root = tracked(join(os.tmpdir(), 'eval-deltas-trees-'))
   for (const under of ['results/one', 'generated/cases/results/two']) {
     const dir = join(root, under)
     mkdirSync(dir, { recursive: true })
@@ -128,7 +133,7 @@ test('no results on this machine is could-not-look, never no-effect', () => {
   // ABSENCE reads as a finding is the failure ADR-005 is about, and it is the
   // likeliest way this tool would be misread: an empty run looks like a suite
   // that measured nothing rather than a suite that was never run here.
-  const empty = mkdtempSync(join(os.tmpdir(), 'eval-deltas-none-'))
+  const empty = tracked(join(os.tmpdir(), 'eval-deltas-none-'))
   let cap = say()
   let code
   try { code = main([join(empty, 'nowhere')]) } finally { var out = cap.done() }

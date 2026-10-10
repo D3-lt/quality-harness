@@ -18648,3 +18648,34 @@ Re-measured against this repository before building anything (three read-only su
 - **Declined: a randomised per-wrap delimiter for untrusted text.** `corpusText` already rewrites `«` `»` `<` `>` inside the text (`lifecycle.mjs`, `corpusText`) and `codeSpan` adapts its fence; the "compare with ADR-090" premise was wrong (ADR-090 is about quoted commit messages). `tests/quoted-text-closes.test.mjs` now proves a hostile `»`, `«` or tag cannot close the mark; the backtick breakout was already tested. Re-open when: a quoted corpus string is shown to end its own mark.
 - **Declined with numbers: a read-set selector for `qh-check --fast`.** Replayed over the last 100 commits (a scratch script, not kept): 193 test files; 86 commits widen to the full suite (68 are docs-only: BACKLOG, ADR records, corpus reports; 9 touch the mutation catalogue; 9 touch the config, hooks or rules), 14 are selective and bimodal at about 1% or about 99% of the suite, because nearly every test reaches `lifecycle.mjs`. Median 100%, so a file-level selector saves nothing where the time goes. Re-open when: a per-test read-set exists (coverage per test) or `lifecycle.mjs` is split so its reach is not the whole suite. The measured lever is the other one: 68 of 100 commits are docs-only, and this repository's `selftest` reads docs, so `prose` (ADR-094 T3) is not declared here; a docs lane (the tests that read `docs/`) is the candidate, and it also answers §373 finding 1 for them.
 - **Filed, not taken. Re-open when** is on each. (a) The listing budget covers skills only (`tests/skill-metadata.test.mjs`): the 4 agent descriptions (1,008 characters) are in no budget, and `.claude/rules/19-adopter-footprint.md` states 7,422 where 7,372 is measured. Re-open when an agent description grows past the skills' 700-byte cap. (b) 34 `DECLINED` headings in this file are free prose and `adr-context` reads ADRs only, so a declined idea is invisible to it. Re-open when a declined idea is re-proposed. (c) No stale-entry check for `scripts/vulture-allowlist.py` (3 names), `SYNTHETIC` in `tests/package.test.mjs`, or the `// untimed-spawn:` acknowledgements; the matcher at `scripts/untimed-spawns.mjs:97` also accepts the text inside a string literal, which wants its "this is code again" twin (`trivial` already has a ratchet: `tests/classify.test.mjs`). Re-open when a stale entry hides a finding. (d) A swallowed-read lint with a shrink-only baseline: 83 sites swallow today; most are hooks that must exit 0. Re-open when the triage's class recurs. (e) A gate-control table (each gate driven to its failing verdict on a dirty fixture): `tests/package.test.mjs` already requires a mutation per gate. Re-open when a gate is found that no test can make fail. Also: `scripts/dead-code-scan.sh` runs vulture over its allowlist alone on a repository with no Python; unreachable here, and untestable without fake `uvx`/`npx`.
+
+Update 2026-10-10, owner: the candidates filed above (a), (c), (d), (e), the dead-code-scan note and the declined selector do not make sense while `lifecycle.mjs` has its current shape; they are parked behind section 375 and re-opened per wave there, not on their own conditions.
+
+## 375. OPEN 2026-10-10 — `lifecycle.mjs` is one 7,591-line bag of small functions: dumb recorders, pure judges, a replay harness
+
+Owner, 2026-10-10: the file is one big chunk that could be rules maintained bit by bit, it is heavy and probably not the right shape, and it may become a project of its own later. Diagnosis: `docs/research/2026-10-10-lifecycle-shape.md`; seam map (effect-classified call graph, 17 clusters): `docs/research/2026-10-10-lifecycle-seams.md`. The finding that decides the direction: 84% of calls already stay inside a cluster, and 41% of function lines can reach a git or process spawn, so the missing pieces are the file boundary and the split of judging from gathering facts. Direction chosen: stage A golden transcripts at the hook boundary, B extract the pure clusters behind a facade, C `facts` at the entangled judges, D rules as files. No behaviour change in A or B; a golden that changes is a finding.
+
+Baseline, measured at `52cd9a66` on 2026-10-10 (re-measure after every wave and add a column):
+
+| measure | baseline |
+|---|---|
+| lines in `lifecycle.mjs` | 7,591 |
+| top-level functions / exported | 275 / 112 |
+| pure share of function lines (no file, process, clock or event effect reachable) | 28% (151 functions, 1,532 of 5,384 lines) |
+| function lines that can reach a spawn | 41% (45 functions, 2,205 lines) |
+| calls that stay inside a cluster | 84% (399 of 474) |
+| test files reached by a change here (selector replay, section 374) | about 99% of 193 |
+| fast-lane selector median share over the last 100 commits | 100% |
+| commits touching the file | 244 of 1,735 (14%) |
+| golden transcripts | 0 |
+| scripts importing from it | 9 |
+
+- [ ] A. Golden transcripts: a scripted payload sequence per event through the real hooks against a fixture repository; stdout, stderr and ledger rows stored; synthetic only. Also: the whole event catalogue (this file's part is in the seam map; qh-check and the gates write the rest).
+- [ ] B1. Extract the shell-and-git literal reader and the command classifier internals (clusters 5, 6), the test-work reader (9), the prose and config readers (11, 12). Facade keeps every name the nine consumers import. Catalogue entries and `Governs:` headers move with the source.
+- [ ] B2. Corpus text and quoting (3); the ADR record reader (0: 71 functions, 49 pure, 27 exported).
+- [ ] B3. The entangled publish, pass and session clusters (2, 1, 4, 7), where the strongest cross calls are (4 to 1: 12, 2 to 1: 8).
+- [ ] C. `facts` at the entangled judges: a judge takes `{ payload, ledger rows, tree observation, config, clock }` and returns `{ say, refuse, advise, rows }`.
+- [ ] D. Rules as files, `lifecycle.mjs` a dispatcher.
+- [ ] Re-open the section 374 candidates, wave by wave, once their unit exists.
+
+Left out on purpose: the evidence ledger as an agent-neutral protocol and the shell-intent classifier as a library with a differential suite against real shells (the two candidates for a separate project); a resident process; retiring the text classifier for git's own hooks (ADR-066). Unknown until measured: how much of the 41% is an injected seam the effect pass counted as a spawn; Windows behaviour of any moved path-handling function (CI only).

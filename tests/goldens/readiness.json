@@ -1,0 +1,165 @@
+{
+  "steps": [
+    {
+      "name": "startup",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see.\n\nADR tasks in flight:\n  `docs/adr/ADR-002-proposed/tasks`: its record's Status is «Proposed», not Accepted, so this is a plan, not a work order — T1 is ready — the task file calls it «Task ADR-002-T1», and its Acceptance fence reads «true». Prove it with `adr-verify docs/adr/ADR-002-proposed/tasks/T1.md`, which runs that fence as written: read the fence in the task file first.\n  `docs/adr/ADR-001-accepted/tasks`: T1 is ready — the task file calls it «Task ADR-001-T1», and its Acceptance fence reads «true». Prove it with `adr-verify docs/adr/ADR-001-accepted/tasks/T1.md`, which runs that fence as written: read the fence in the task file first."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "startup again",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "compact",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see.\n\nADR tasks in flight:\n  `docs/adr/ADR-002-proposed/tasks`: its record's Status is «Proposed», not Accepted, so this is a plan, not a work order — T1 is ready — the task file calls it «Task ADR-002-T1», and its Acceptance fence reads «true». Prove it with `adr-verify docs/adr/ADR-002-proposed/tasks/T1.md`, which runs that fence as written: read the fence in the task file first.\n  `docs/adr/ADR-001-accepted/tasks`: T1 is ready — the task file calls it «Task ADR-001-T1», and its Acceptance fence reads «true». Prove it with `adr-verify docs/adr/ADR-001-accepted/tasks/T1.md`, which runs that fence as written: read the fence in the task file first."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "a prompt",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "edit a task of the accepted record",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "wrote the task",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "turn end after a task edit",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: docs/adr/ADR-001-accepted/tasks/T1.md. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nArtifact validation failed:\nfacts-first gate FAILED (ADR ownership) for <repo>/docs/adr/ADR-001-accepted/tasks/T1.md: expected exactly one owning ADR (ADR-001-T1), found 0."
+      },
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: docs/adr/ADR-001-accepted/tasks/T1.md. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\nArtifact validation failed:\nfacts-first gate FAILED (ADR ownership) for <repo>/docs/adr/ADR-001-accepted/tasks/T1.md: expected exactly one owning ADR (ADR-001-T1), found 0."
+    }
+  ],
+  "ledgers": {
+    "passes/ready-1.jsonl": [
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.started",
+        "pid": "<n>",
+        "targets": [
+          "<repo>/docs/adr/ADR-001-accepted/tasks/T1.md"
+        ]
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.gated",
+        "path": "<repo>/docs/adr/ADR-001-accepted/tasks/T1.md",
+        "blob": "771fce11659d0e9cf37e6a7b76b8ec941b236edd2a1bdb2626f1589e0d7231b7",
+        "complete": true,
+        "findings": "facts-first gate FAILED (ADR ownership) for <repo>/docs/adr/ADR-001-accepted/tasks/T1.md: expected exactly one owning ADR (ADR-001-T1), found 0.\n"
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.ended",
+        "reason": "done"
+      }
+    ],
+    "sessions/ready-1.jsonl": [
+      {
+        "at": "<time>",
+        "event": "session.started",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "file.written",
+        "path": "<repo>/docs/adr/ADR-001-accepted/tasks/T1.md",
+        "observable": true,
+        "checksSeen": 0,
+        "fastSeen": 0,
+        "blob": "<sha>"
+      },
+      {
+        "at": "<time>",
+        "event": "turn.ended",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.pass",
+        "token": "<id>",
+        "targets": 1
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.gated",
+        "path": "<repo>/docs/adr/ADR-001-accepted/tasks/T1.md",
+        "blob": "771fce11659d0e9cf37e6a7b76b8ec941b236edd2a1bdb2626f1589e0d7231b7",
+        "complete": true,
+        "pass": "<id>"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "R1",
+        "key": "<sha>:0:0"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "A",
+        "key": "<repo>/docs/adr/ADR-001-accepted/tasks/T1.md:771fce11659d0e9cf37e6a7b76b8ec941b236edd2a1bdb2626f1589e0d7231b7:complete:<hash>"
+      }
+    ]
+  }
+}

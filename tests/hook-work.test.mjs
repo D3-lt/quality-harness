@@ -221,7 +221,7 @@ test('corpus scans read shared inputs once and see fresh changes on the next sca
     process.stdout.write(JSON.stringify({ before, after }))
   }
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
-    pathToFileURL(path.join(pluginRoot, 'scripts', 'lifecycle.mjs')).href,
+    pathToFileURL(path.join(pluginRoot, 'scripts', 'decision-corpus.mjs')).href,
     project, first, second,
     task('ADR-001-T1', 'src/changed.js'), task('ADR-002-T3', 'src/added.js'),
     listed, listedAfter,

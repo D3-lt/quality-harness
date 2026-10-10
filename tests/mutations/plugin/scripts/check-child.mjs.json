@@ -35,6 +35,24 @@
       ],
       "from": "process.on('SIGTERM', forward)",
       "to": "void forward"
+    },
+    {
+      "label": "376: on Windows the check's whole tree is taken, not only the shell",
+      "file": "plugin/scripts/check-child.mjs",
+      "tests": [
+        "tests/qh-check-timeout.test.mjs"
+      ],
+      "from": "['/pid', String(pid), '/T', '/F']",
+      "to": "['/pid', String(pid), '/F']"
+    },
+    {
+      "label": "376: a taskkill that failed is not a kill",
+      "file": "plugin/scripts/check-child.mjs",
+      "tests": [
+        "tests/qh-check-timeout.test.mjs"
+      ],
+      "from": "return !killed.error && killed.status === 0",
+      "to": "return true"
     }
   ]
 }

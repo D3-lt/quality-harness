@@ -7,7 +7,7 @@ import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSy
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
-import { checkTimeoutMs } from '../plugin/scripts/check-child.mjs'
+import { checkTimeoutMs, killTree } from '../plugin/scripts/check-child.mjs'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { runCheck } from '../plugin/scripts/qh-check.mjs'
 
@@ -19,6 +19,17 @@ test('the bound is the number of seconds asked for, and a value that is not a po
   assert.equal(checkTimeoutMs({ QUALITY_HARNESS_CHECK_TIMEOUT: '2' }), 2_000)
   assert.equal(checkTimeoutMs({ QUALITY_HARNESS_CHECK_TIMEOUT: '0.5' }), 500)
   for (const bad of [undefined, '', '0', '-5', 'soon', 'NaN', 'Infinity']) assert.equal(checkTimeoutMs({ QUALITY_HARNESS_CHECK_TIMEOUT: bad }), 3_600_000, String(bad))
+})
+
+test('on Windows the whole tree is taken, because killing the shell leaves the check holding the pipes', () => {
+  const calls = []
+  assert.equal(killTree(4242, (...call) => { calls.push(call); return { status: 0 } }), true)
+  assert.equal(calls[0][0], 'taskkill')
+  assert.deepEqual(calls[0][1], ['/pid', '4242', '/T', '/F'])
+  assert.equal(calls[0][2].windowsHide, true)
+  // A taskkill that failed or could not start is not a kill, so the caller falls back to killing the shell.
+  assert.equal(killTree(1, () => ({ status: 128 })), false)
+  assert.equal(killTree(1, () => ({ status: null, error: new Error('ENOENT') })), false)
 })
 
 test('a check that outlives its bound is stopped and recorded as having no verdict', async () => {

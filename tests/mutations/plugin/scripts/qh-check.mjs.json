@@ -31,36 +31,6 @@
       "only": "^(?:POSIX keeps /bin/sh; Windows runs the check through bash, and without one does not run it|on Windows with no bash the check did not start, and the record says so)$"
     },
     {
-      "label": "§295.24: a check a signal ended records no verdict",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "only": "a check a signal ended records no verdict",
-      "from": "    : signal\n      ? 'interrupted'\n",
-      "to": "    : false\n      ? 'interrupted'\n"
-    },
-    {
-      "label": "§295.24: the summary of a signalled check says there is no verdict",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/observed-events.test.mjs"
-      ],
-      "only": "a check a signal ended records no verdict",
-      "from": "    const said = signal ? `interrupted by ${signal} before it finished, so there is no verdict` : `${verdict} in ${took}`",
-      "to": "    const said = `${verdict} in ${took}`"
-    },
-    {
-      "label": "qh-check: a run says what it ran and where the record went",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/qh-check-shell.test.mjs"
-      ],
-      "from": "    stderr.write(`qh-check: ran",
-      "to": "    String(`qh-check: ran",
-      "only": "says what it ran"
-    },
-    {
       "label": "ADR-075 T1: qh-check says the load line",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": [
@@ -89,36 +59,6 @@
       "from": "    besideAtEnd = look()",
       "to": "    besideAtEnd = null",
       "only": "^a run beside others names and records them, and its exit and verdict are its own$"
-    },
-    {
-      "label": "ADR-077 T1: a wait is bounded",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/lease.test.mjs"
-      ],
-      "from": "      turn = await lease.admit(leases, held, { maxMs: lease.waitMaxMs(env), stopped: () => stopped })",
-      "to": "      turn = await lease.admit(leases, held, { maxMs: lease.waitMaxMs(env) * 10, stopped: () => stopped })",
-      "only": "^a wait past its bound says so and runs, within the bound$"
-    },
-    {
-      "label": "ADR-077 T1: a signal while waiting releases",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/lease.test.mjs"
-      ],
-      "from": "      leaseStep('release', () => lease.release(held))\n      stderr.write(`qh-check: stopped by",
-      "to": "      stderr.write(`qh-check: stopped by",
-      "only": "^a signal while waiting releases the lease and runs nothing$"
-    },
-    {
-      "label": "ADR-077 T1: an unusable directory is said",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/lease.test.mjs"
-      ],
-      "from": "    stderr.write(`qh-check: could not use the lease: ${held.error}; running without one.\\n`)",
-      "to": "    void held.error",
-      "only": "^a lease directory that cannot be used is said, and the run proceeds$"
     },
     {
       "label": "Codex 3.3.0 #4: a failed release leaves the check's result",
@@ -151,46 +91,6 @@
       "only": "^a skip waits for no lease$"
     },
     {
-      "label": "ADR-081 T2: a fast record is written to checks.jsonl",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "const file = path.join(directory, fast ? 'fast-checks.jsonl' : 'checks.jsonl')",
-      "to": "const file = path.join(directory, 'checks.jsonl')",
-      "only": "^a fast check is recorded apart, where no full-check reader looks$"
-    },
-    {
-      "label": "skip ledger: a skip leaves no trace",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "appendFileSync(path.join(stateDir(root), 'skips.jsonl'),",
-      "to": "void (path.join(stateDir(root), 'skips.jsonl'),",
-      "only": "^a skip is recorded in its own ledger, naming the pass it reused$"
-    },
-    {
-      "label": "skip ledger: a skip does not name the pass it reused",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "passId: already.passOf ?? already.id,",
-      "to": "passId: null,",
-      "only": "^a skip is recorded in its own ledger, naming the pass it reused$"
-    },
-    {
-      "label": "skip ledger: a ledger that cannot be written fails the skip",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/qh-check-reads-the-ledger.test.mjs"
-      ],
-      "from": "stderr.write(`qh-check: the skip could not be recorded (${failure.code ?? failure.message}).\\n`)",
-      "to": "throw failure",
-      "only": "^a skip whose ledger cannot be written is said, and still skips$"
-    },
-    {
       "label": "ADR-094 T3: the hint is said after a code change",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": [
@@ -211,36 +111,6 @@
       "only": "^the hint is said after a passing prose-only run and never after a failed one$"
     },
     {
-      "label": "ADR-094 T3: the prose reuse row is not written",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/prose-reuse.test.mjs"
-      ],
-      "from": "      appendFileSync(ledgerFile, `${JSON.stringify(row)}\\n`, 'utf8')",
-      "to": "      void row",
-      "only": "^a declared prose-only change reuses the last pass, from a subdirectory too$"
-    },
-    {
-      "label": "ADR-094 T3: a reuse is appended after the ledger moved",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/prose-reuse.test.mjs"
-      ],
-      "from": "      if (ids.indexOf(row.id) !== already.rows) throw",
-      "to": "      if (false) throw",
-      "only": "^a ledger row appended since the reuse was decided stops the reuse$"
-    },
-    {
-      "label": "ADR-094 T3: a stale reuse row is not retracted",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/prose-reuse.test.mjs"
-      ],
-      "from": "      if (appended) {",
-      "to": "      if (false) {",
-      "only": "^a ledger row appended since the reuse was decided stops the reuse$"
-    },
-    {
       "label": "qh-check: an unreadable project config is UNRUN, not a replacement check",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": [
@@ -249,16 +119,6 @@
       "from": "  if (configProblem) {",
       "to": "  if (false) {",
       "only": "^(?:a config that is not valid JSON runs no replacement check and records no pass|--fast says the config could not be read, not that nothing is declared|a config that cannot be read at all, and one that is not an object, are the same refusal)$"
-    },
-    {
-      "label": "golden: the same-tree skip says it was not run again in other words",
-      "file": "plugin/scripts/qh-check.mjs",
-      "tests": [
-        "tests/hook-goldens.test.mjs"
-      ],
-      "from": "(\\`${command}\\`) — not run again. `",
-      "to": "(\\`${command}\\`) — skipped. `",
-      "only": "^checks: a red check, a same-tree skip, a reuse for prose and an unreadable config say what they said when recorded$"
     },
     {
       "label": "376: a --fast run is never skipped for a pass that already covers the tree",

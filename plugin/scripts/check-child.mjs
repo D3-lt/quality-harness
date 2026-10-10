@@ -12,6 +12,9 @@ export function checkTimeoutMs(env) {
   return (Number.isFinite(seconds) && seconds > 0 ? seconds : CHECK_TIMEOUT_SECONDS) * 1_000
 }
 
+
+// How long a check took, said (also by the lease and the record).
+export const inSeconds = ms => `${(ms / 1000).toFixed(1)}s`
 // Windows has no process groups. Killing the shell that started the check leaves the check itself running with the pipes open,
 // so the run would wait for it to end by itself; `taskkill /T` takes the whole tree. True when it did.
 export function killTree(pid, run = spawnSync) {

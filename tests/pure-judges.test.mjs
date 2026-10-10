@@ -103,6 +103,9 @@ const JUDGES = [
   'plugin/scripts/publish-command.mjs::publishCommandIn',
   'plugin/scripts/check-command.mjs::publishSettingNote',
   'plugin/scripts/qh-check.mjs::checkPlan',
+  'plugin/scripts/check-record.mjs::classifyRun',
+  'plugin/scripts/check-record.mjs::runRecord',
+  'plugin/scripts/check-record.mjs::proseReuseRow',
 ]
 
 test('the judges reach no file, process, clock or environment', () => {

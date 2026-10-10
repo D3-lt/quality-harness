@@ -1,0 +1,34 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-077 T1: a wait is bounded",
+      "file": "plugin/scripts/check-lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "      turn = await lease.admit(leases, held, { maxMs: lease.waitMaxMs(env), stopped: () => stopped })",
+      "to": "      turn = await lease.admit(leases, held, { maxMs: lease.waitMaxMs(env) * 10, stopped: () => stopped })",
+      "only": "^a wait past its bound says so and runs, within the bound$"
+    },
+    {
+      "label": "ADR-077 T1: a signal while waiting releases",
+      "file": "plugin/scripts/check-lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "      leaseStep('release', () => lease.release(held))\n      stderr.write(`qh-check: stopped by",
+      "to": "      stderr.write(`qh-check: stopped by",
+      "only": "^a signal while waiting releases the lease and runs nothing$"
+    },
+    {
+      "label": "ADR-077 T1: an unusable directory is said",
+      "file": "plugin/scripts/check-lease.mjs",
+      "tests": [
+        "tests/lease.test.mjs"
+      ],
+      "from": "    stderr.write(`qh-check: could not use the lease: ${held.error}; running without one.\\n`)",
+      "to": "    void held.error",
+      "only": "^a lease directory that cannot be used is said, and the run proceeds$"
+    }
+  ]
+}

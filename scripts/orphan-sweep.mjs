@@ -118,6 +118,11 @@ function main(argv) {
     return 2
   }
   const { orphans, defined } = orphanDefinitions(files)
+  // Files with no definition in them are as empty a universe as no files: "0 of 0" is not a clean sweep.
+  if (defined === 0) {
+    console.error(`orphan-sweep: ${rev} has shipped files but they hold no definitions — could not look`)
+    return 2
+  }
   for (const { path, name } of orphans) console.log(`  ${path}: ${name}`)
   console.log(`${rev}: ${orphans.length} orphan(s) of ${defined} definitions`)
   if (orphans.length) {

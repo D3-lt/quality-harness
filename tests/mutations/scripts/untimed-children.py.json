@@ -29,6 +29,26 @@
       "from": "                aliases.setdefault(fn.name, {})[arg.arg] = default.attr",
       "to": "                pass",
       "only": "no window"
+    },
+    {
+      "label": "zero: a gate that did not parse beside one that did is a clean scan",
+      "file": "scripts/untimed-children.py",
+      "tests": [
+        "tests/scanned-zero.test.mjs"
+      ],
+      "from": "    if unparsed:\n        print(f\"UNRUN:",
+      "to": "    if False:\n        print(f\"UNRUN:",
+      "only": "^untimed-children: a gate that does not parse, and nothing to scan, are UNRUN; a clean and a dirty gate keep their answers$"
+    },
+    {
+      "label": "zero: no gate to scan is a clean scan",
+      "file": "scripts/untimed-children.py",
+      "tests": [
+        "tests/scanned-zero.test.mjs"
+      ],
+      "from": "    if not scanned:",
+      "to": "    if False:",
+      "only": "^untimed-children: a gate that does not parse, and nothing to scan, are UNRUN; a clean and a dirty gate keep their answers$"
     }
   ]
 }

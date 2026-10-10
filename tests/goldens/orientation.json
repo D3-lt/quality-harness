@@ -1,0 +1,110 @@
+{
+  "steps": [
+    {
+      "name": "startup",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "startup again",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "resume",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "compact",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "clear",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "session end",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    }
+  ],
+  "ledgers": {
+    "sessions/orient-1.jsonl": [
+      {
+        "at": "<time>",
+        "event": "session.started",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "session.ending",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      }
+    ]
+  }
+}

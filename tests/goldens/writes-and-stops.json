@@ -1,0 +1,265 @@
+{
+  "steps": [
+    {
+      "name": "start",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "hookSpecificOutput": {
+          "hookEventName": "SessionStart",
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
+        }
+      },
+      "stderr": ""
+    },
+    {
+      "name": "write inside the tree",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "write an ignored file",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "write outside the tree",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "turn end, no claim",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
+      },
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: src/b.js. 1 path written outside this repository is not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result."
+    },
+    {
+      "name": "turn end, tests claimed",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "turn end, question",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "write through a directory link",
+      "exit": 0,
+      "signal": null,
+      "stdout": "",
+      "stderr": ""
+    },
+    {
+      "name": "turn end after the link",
+      "exit": 0,
+      "signal": null,
+      "stdout": {
+        "systemMessage": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: out, src/b.js. 2 paths written outside this repository are not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\n\nArtifact validation failed:\nUNPROVEN: could not classify <repo>/out"
+      },
+      "stderr": "quality-harness: this turn ends with work no `qh-check` has passed on. Changed paths: out, src/b.js. 2 paths written outside this repository are not named here. Run `qh-check` — it runs `sh check.sh` (this project's own check) and records what it observed — after the final edit and report the exact command and result.\nArtifact validation failed:\nUNPROVEN: could not classify <repo>/out"
+    }
+  ],
+  "ledgers": {
+    "passes/writes-1.jsonl": [
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.started",
+        "pid": "<n>",
+        "targets": [
+          "<repo>/src/b.js"
+        ]
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.gated",
+        "path": "<repo>/src/b.js",
+        "blob": "70e328b58e3b0eb4a9d1ba67a5b22a0ada841e8797eb22732e10b5b10878f38b",
+        "complete": true,
+        "findings": null
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.ended",
+        "reason": "done"
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.started",
+        "pid": "<n>",
+        "targets": [
+          "<repo>/out"
+        ]
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.gated",
+        "path": "<repo>/out",
+        "blob": null,
+        "complete": false,
+        "findings": "UNPROVEN: could not classify <repo>/out\n"
+      },
+      {
+        "at": "<time>",
+        "pass": "<id>",
+        "event": "pass.ended",
+        "reason": "done"
+      }
+    ],
+    "sessions/writes-1.jsonl": [
+      {
+        "at": "<time>",
+        "event": "session.started",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "publish.unarmed",
+        "reason": "CLAUDE_ENV_FILE is not set"
+      },
+      {
+        "at": "<time>",
+        "event": "file.written",
+        "path": "<repo>/src/b.js",
+        "observable": true,
+        "checksSeen": 0,
+        "fastSeen": 0,
+        "blob": "<sha>"
+      },
+      {
+        "at": "<time>",
+        "event": "file.written",
+        "path": "<repo>/ignored.txt",
+        "observable": false,
+        "checksSeen": 0,
+        "fastSeen": 0
+      },
+      {
+        "at": "<time>",
+        "event": "file.written",
+        "path": "<box>/tmp/scratch.txt",
+        "observable": false,
+        "checksSeen": 0,
+        "fastSeen": 0
+      },
+      {
+        "at": "<time>",
+        "event": "turn.ended",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.pass",
+        "token": "<id>",
+        "targets": 1
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.gated",
+        "path": "<repo>/src/b.js",
+        "blob": "70e328b58e3b0eb4a9d1ba67a5b22a0ada841e8797eb22732e10b5b10878f38b",
+        "complete": true,
+        "pass": "<id>"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "R1",
+        "key": "<sha>:0:1"
+      },
+      {
+        "at": "<time>",
+        "event": "turn.ended",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "turn.ended",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "file.written",
+        "path": "<box>/tmp/linked/f.txt",
+        "observable": false,
+        "checksSeen": 0,
+        "fastSeen": 0,
+        "lexical": "<repo>/out/f.txt"
+      },
+      {
+        "at": "<time>",
+        "event": "turn.ended",
+        "observation": {
+          "ok": true,
+          "tree": "<sha>",
+          "index": "<sha>",
+          "head": "<sha>"
+        }
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.pass",
+        "token": "<id>",
+        "targets": 1
+      },
+      {
+        "at": "<time>",
+        "event": "artifact.gated",
+        "path": "<repo>/out",
+        "blob": null,
+        "complete": false,
+        "pass": "<id>"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "R1",
+        "key": "<sha>:0:2"
+      },
+      {
+        "at": "<time>",
+        "event": "action.emitted",
+        "rule": "A",
+        "key": "<repo>/out:unknown-<id>:incomplete:<hash>"
+      }
+    ]
+  }
+}

@@ -136,8 +136,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "if (result.status !== 0 && result.status !== 3) return runGate(gate, [directory, '--json'], options)",
-      "to": "if (result.status !== 0 && result.status !== 3) return result",
+      "from": "return existsSync(manifestFile) ? result : runGate(gate, [directory, '--json'], options)",
+      "to": "return result",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     },
     {

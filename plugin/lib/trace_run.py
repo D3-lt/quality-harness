@@ -99,14 +99,22 @@ def _recorded(original):
             try:
                 shell = named.get("shell", rest[7] if len(rest) > 7 else False)
                 cwd = named.get("cwd", rest[8] if len(rest) > 8 else None)
+                env = named.get("env", rest[9] if len(rest) > 9 else None)
                 executable = named.get("executable", rest[1] if len(rest) > 1 else None)
+                stdin = named.get("stdin", rest[2] if len(rest) > 2 else None)
                 where = _text(cwd) if cwd else os.getcwd()
-                if executable is None and not shell and isinstance(args, (list, tuple)):
+                if env is not None or executable is not None or stdin not in (None, subprocess.DEVNULL):
+                    # Its environment, its program or its input is not kept, so it cannot be run again as it was asked for: recorded
+                    # as such, and the answer is not kept.
+                    RAN.append({"argv": None, "line": None, "cwd": where})
+                elif isinstance(args, (list, tuple)) and not shell:
                     RAN.append({"argv": [os.fsdecode(part) for part in args], "line": None, "cwd": where})
-                elif executable is None and isinstance(args, (str, bytes)):
+                elif isinstance(args, (str, bytes)) and (shell or os.name == "nt"):
                     RAN.append({"argv": None, "line": os.fsdecode(args), "cwd": where})
+                elif isinstance(args, (str, bytes)):
+                    # POSIX without a shell: a string is the name of the program and nothing else.
+                    RAN.append({"argv": [os.fsdecode(args)], "line": None, "cwd": where})
                 else:
-                    # A shape that cannot be run again as it was asked for: recorded as such, so the answer is not kept.
                     RAN.append({"argv": None, "line": None, "cwd": where})
             except Exception:
                 RAN.append({"argv": None, "line": None, "cwd": os.getcwd()})

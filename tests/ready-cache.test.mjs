@@ -187,15 +187,19 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
   const unrunnable = askGate()
   assert.equal(unrunnable.runs, 1, 'a recorded command that cannot be started is a miss')
   assert.match(unrunnable.problem ?? '', /could not be run again/, 'and it is said')
-  // A gate that fails under the recorder is answered by a plain run of it, never by the traced one.
+  // A gate that exits with a status of its own is answered with that status, run once; a recorder that died (no manifest left) is
+  // answered by a plain run of the gate, never by the traced one.
   const failing = path.join(where, 'fails.py')
   writeFileSync(failing, "#!/usr/bin/env python3\nimport sys\nsys.stderr.write('boom')\nsys.exit(1)\n")
   chmodSync(failing, 0o755)
-  let failedRuns = 0
-  const failedAnswer = readyCache(root, trackedPaths(root), { now: new Date(2026, 9, 11, 12), env: writing })
-    .answer(path.join(where, 'tasks'), (...args) => { failedRuns++; return spawnGate(...args) }, failing, { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: writing })
-  assert.equal(failedAnswer.status, 1, 'the gate\'s own status')
-  assert.equal(failedRuns, 2, 'after a traced run and a plain one')
+  const failedAsk = recorderDies => {
+    let runs = 0
+    const answer = readyCache(root, trackedPaths(root), { now: new Date(2026, 9, 11, 12), env: writing })
+      .answer(path.join(where, 'tasks'), (...args) => { runs++; const result = spawnGate(...args); if (recorderDies && args[0].endsWith('trace_run.py')) rmSync(args[1][0], { force: true }); return result }, failing, { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: writing })
+    return { runs, status: answer.status }
+  }
+  assert.deepEqual(failedAsk(false), { runs: 1, status: 1 }, 'the gate\'s own status, from one run')
+  assert.deepEqual(failedAsk(true), { runs: 2, status: 1 }, 'a recorder that left no manifest is followed by a plain run')
   // A variable the gate read is a dependency: another value is a miss.
   assert.equal(askGate({ ...writing, QH_PROBE_VAR: 'a' }).runs, 1, 'a variable the gate read, first value')
   assert.equal(askGate({ ...writing, QH_PROBE_VAR: 'a' }).runs, 0, 'the same value is a hit')
@@ -308,6 +312,9 @@ test('the recorder records what the gate read and leaves the standard library ou
     "subprocess.run('git --version', shell=True, capture_output=True)",
     "subprocess.run(['git', '--version'], shell=True, capture_output=True)",
     "os.system('git version > ' + os.devnull)",
+    `subprocess.run(['git', '--version'], env={'PATH': os.environ['PATH']}, cwd=${JSON.stringify(path.join(dir, 'listed'))}, capture_output=True)`,
+    `subprocess.run(['git', '--version'], input=b'', cwd=${JSON.stringify(dir)}, capture_output=True)`,
+    `subprocess.run('git', cwd=${JSON.stringify(path.dirname(dir))}, capture_output=True)`,
     "print(json.dumps({'ok': True}))",
   ].join('\n'))
   const manifest = path.join(dir, 'manifest.json')
@@ -325,6 +332,11 @@ test('the recorder records what the gate read and leaves the standard library ou
   assert.ok(seen.ran.some(item => item.argv === null && item.line === 'git --version'), 'a command it ran as one line, kept as the line')
   assert.ok(seen.ran.some(item => item.argv === null && item.line === null), 'a shape that cannot be run again is recorded as such')
   assert.ok(seen.ran.some(item => item.argv === null && item.line?.startsWith('git version')), 'a command passed to os.system, kept as the line')
+  // A command given its own environment or its own input cannot be run again as it was asked for; a bare name is a program on POSIX.
+  const ranIn = where => seen.ran.filter(item => item.cwd === where)
+  assert.deepEqual(ranIn(path.join(dir, 'listed')).map(item => [item.argv, item.line]), [[null, null]], 'a command with an environment of its own')
+  assert.deepEqual(ranIn(dir).map(item => [item.argv, item.line]), [[null, null]], 'a command with input of its own')
+  assert.deepEqual(ranIn(path.dirname(dir)).map(item => [item.argv, item.line]), [process.platform === 'win32' ? [null, 'git'] : [['git'], null]], 'a bare name: a program on POSIX, a command line on Windows')
   // The manifest is the recorder's own: when it cannot be written the gate still returns what it returned.
   const failsAt = path.join(dir, 'missing', 'manifest.json')
   const unwritable = spawnGate(path.join(repoRoot, 'plugin', 'lib', 'trace_run.py'), [failsAt, gate], { encoding: 'utf8', timeout: 30_000, windowsHide: true })

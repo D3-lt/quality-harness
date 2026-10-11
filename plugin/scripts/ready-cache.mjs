@@ -17,8 +17,8 @@ const VERSION = 'ready-cache-v2'
 const KEEP_ENTRIES = 100
 const MAX_ENTRIES = 200
 const ENTRY = /^[0-9a-f]{64}\.json$/
-// What the gate or the commands it runs can see of the environment and that a user changes on purpose. PATH is left out: it picks a
-// binary, and the output of the binary is what is checked.
+// What the gate or the commands it runs can see of the environment and that a user changes on purpose. A variable the gate reads that is
+// not named here (PATH is read when it looks for git) is recorded with its value as a dependency of its own.
 const ENVIRONMENT = /^(HOME|USERPROFILE|LANG|LC_[A-Z_]+|TZ|PYTHON[A-Z_]*|GIT_[A-Z_]+|QUALITY_HARNESS_[A-Z_]+)$/
 // Windows names its variables without regard to case (the interpreter reads `ComSpec` where the process lists `COMSPEC`), and a copy of
 // the environment made with a spread is a plain object that no longer does: there a name matches whatever its spelling.
@@ -131,8 +131,9 @@ export function readyCache(root, listingOfTree, { now = new Date(), pluginRoot =
     try { mkdirSync(folder(), { recursive: true }) } catch (error) { fail(`the cache could not be written (${error.code ?? error.message})`); return runGate(gate, [directory, '--json'], options) }
     const result = runGate(trace, [manifestFile, gate, directory, '--json'], options)
     try {
-      // The recorder or the gate failed: the answer is a plain run's, never the traced one's.
-      if (result.status !== 0 && result.status !== 3) return runGate(gate, [directory, '--json'], options)
+      // A status the gate does not use. The recorder leaves a manifest when it ran to its end, and then the gate exited so itself and
+      // that is its answer; with none the recorder died, and the answer is a plain run's, never the traced one's.
+      if (result.status !== 0 && result.status !== 3) return existsSync(manifestFile) ? result : runGate(gate, [directory, '--json'], options)
       let manifest
       try { manifest = JSON.parse(readFileSync(manifestFile, 'utf8')) } catch (error) { fail(`the recorder wrote no manifest (${error.code ?? error.message})`); return result }
       if (manifest.env_all === true) { fail('the gate read the whole environment, which is not a dependency that can be checked'); return result }

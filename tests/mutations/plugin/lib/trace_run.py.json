@@ -119,6 +119,36 @@
       "from": "        except OSError:\n            pass\n    return code",
       "to": "        except OSError:\n            raise\n    return code",
       "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: a command given an environment of its own is not repeatable",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "if env is not None or executable is not None or stdin not in (None, subprocess.DEVNULL):",
+      "to": "if executable is not None or stdin not in (None, subprocess.DEVNULL):",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: a command given input of its own is not repeatable",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "if env is not None or executable is not None or stdin not in (None, subprocess.DEVNULL):",
+      "to": "if env is not None or executable is not None:",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: a bare name without a shell is a program on POSIX",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "elif isinstance(args, (str, bytes)) and (shell or os.name == \"nt\"):",
+      "to": "elif isinstance(args, (str, bytes)):",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
     }
   ]
 }

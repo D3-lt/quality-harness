@@ -116,7 +116,8 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
   // ordinary Windows account, so there the gate reads the file itself.
   const linked = path.join(where, 'link.txt')
   writeFileSync(path.join(where, 'target.txt'), 'a')
-  try { symlinkSync(path.join(where, 'target.txt'), linked) } catch { writeFileSync(linked, 'a') }
+  let linkIsReal = true
+  try { symlinkSync(path.join(where, 'target.txt'), linked) } catch { linkIsReal = false; writeFileSync(linked, 'a') }
   const gate = path.join(where, 'gate.py')
   writeFileSync(gate, [
     'import json, os, subprocess, sys',
@@ -151,7 +152,7 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
   assert.equal(askGate().runs, 0, 'and the second does not')
   const gateEdits = {
     'a file outside the corpus': () => writeFileSync(path.join(where, 'outside.txt'), '2'),
-    'the file a link leads to': () => writeFileSync(path.join(where, 'target.txt'), 'b'),
+    'the file a link leads to': () => writeFileSync(path.join(where, linkIsReal ? 'target.txt' : 'link.txt'), 'b'),
     'a directory the gate listed': () => writeFileSync(path.join(where, 'listed', 'b.txt'), 'b'),
     'a path the gate asked about that was absent': () => writeFileSync(path.join(where, 'quiet', 'absent.txt'), 'x'),
     'a path the gate stat-ed directly that was absent': () => writeFileSync(path.join(where, 'quiet', 'direct.txt'), 'x'),

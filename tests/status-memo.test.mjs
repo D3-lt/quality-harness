@@ -95,5 +95,7 @@ test('a path with a ".." component is asked of git every time, and an invalid on
   const dir = repository()
   assert.equal(statusPaths(dir).ok, true, 'the repository itself is answered')
   const odd = `${dir}${path.sep}__absent__${path.sep}..`
-  assert.equal(statusPaths(odd).ok, false, 'a path through a missing directory is not the clean tree it resolves to')
+  // Whatever git says about the path as spelled (POSIX: not a repository; Windows collapses `x\..` first and finds the repository).
+  const direct = spawnSync('git', ['-C', odd, 'status', '--porcelain'], { encoding: 'utf8', timeout: 20_000, windowsHide: true })
+  assert.equal(statusPaths(odd).ok, direct.status === 0, 'a path through a missing directory is answered as git answers it, not as the tree it resolves to')
 })

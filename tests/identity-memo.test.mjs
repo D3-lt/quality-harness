@@ -108,7 +108,11 @@ test('a path git is given that does not resolve is asked about, never answered f
   const { gitRepositoryLookup } = await import(treeFacts)
   const here = gitRepositoryLookup(dir)
   assert.equal(here.root, realpathSync.native(dir))
-  const odd = gitRepositoryLookup(`${dir}${path.sep}__absent__${path.sep}..`) // path.join would drop the missing component, which is the point
-  assert.equal(odd.root, null, 'git is asked about the path as spelled')
+  const spelled = `${dir}${path.sep}__absent__${path.sep}..`
+  const odd = gitRepositoryLookup(spelled) // path.join would drop the missing component, which is the point
+  // What git says about the path as spelled is the answer, whatever the platform does with a missing component: POSIX says it is not
+  // a repository, and Windows collapses `x\..` before it looks.
+  const direct = spawnSync('git', ['-C', spelled, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 20_000, windowsHide: true })
+  assert.equal(odd.root === null, direct.status !== 0, 'git is asked about the path as spelled')
   assert.equal(gitRepositoryLookup(dir).root, here.root, 'and the ordinary answer is still the ordinary answer')
 })

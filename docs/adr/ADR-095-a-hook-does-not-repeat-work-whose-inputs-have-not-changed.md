@@ -39,6 +39,8 @@
 
 **4. A gate sizes itself to the machine it finds, or says it did not (T4).** The repository's own gate chooses its test concurrency from the cores and the load it samples, within bounds, and says what it chose; T4 first measures wall time against concurrency on this machine at two loads and ships the rule only if it beats the default by the margin it states.
 
+**5. A hook process reads the working tree's status once (T5, added 2026-10-11 after three outside runs).** `statusPaths` is asked three times in one turn-end event (the late-baseline check, the completion rules, the artifact rule): 125 to 400 ms on three corpora, the largest repeat left after T3. The answer is reused for at most two seconds within one process, per repository, only when git answered, and only when the hook's entry point switched the memo on; a test run, another process or a later event asks again. The turn has already ended when the hook runs and the advice it feeds is advisory (CLAUDE.md §3); the publish verdict reads its own observation, not this.
+
 **This fails if** a start in an unchanged corpus starts an `adr-next`; a changed task file, record header, `adr-next` or `record.py` is answered from the old entry; the text of the lines differs from an uncached run; an unreadable or unwritable cache is reported as a hit or as "nothing in flight"; a hook memoises a tree question; or a gate reports a concurrency it did not use.
 
 ## Alternatives Considered
@@ -47,7 +49,7 @@
 - **(b) Run the six `adr-next` concurrently.** Measured as not worth building: the slowest of the six is 1,104 ms of the 1,370 ms total, so the wall time falls by about 0.3 s, and only on a cache miss, which is the rare case once (c) exists. Deferred with the number.
 - **(c) One `adr-next` over the corpus root.** Rejected: ADR-034 allows it, but the hook shows six directories chosen by recency, and the corpus-root form reads all of them (about 85 task directories here).
 - **(d) A cache keyed on file modification times.** Rejected: a checkout, a rebase or a copy changes times and not content, and a restored file with an old time but new content is a stale hit. A content digest is an equality, not a guess (CLAUDE.md §16).
-- **(e) Memoise `git status` and `diff` for a hook's life.** Rejected: the tree can change inside a hook (the hook itself stages a temporary index), and a stale tree answer is a false completion claim.
+- **(e) Memoise `git status` and `diff` for a hook's life.** Rejected as asked (unbounded): the tree can change inside a hook, and a stale tree answer would be a false completion claim. **Narrowed 2026-10-11, with the owner's yes, after outside runs measured the cost:** `git status` only, for at most two seconds, per process and per repository, off unless the entry point switches it on (Decision 5, T5). `diff`, `write-tree` and `add` are still asked every time.
 - **(f) A resident process that holds the answers.** Rejected for now: it is the design the owner parked under BACKLOG §375 ("left out on purpose"); a file cache gets the measured gain without a lifecycle to manage.
 - **(g) Node's V8 compile cache.** Measured and dropped: no difference at 30 modules.
 
@@ -64,6 +66,7 @@ None — internal to `ready-lines.mjs`, `tree-facts.mjs` and `scripts/`. A new d
 | `readyTaskLines(root, …)` | consults the cache before `spawnGate` | T2 | `surfaceReadyLines`, SessionStart |
 | `gitRepositoryRoot`, `gitRepositoryLookup`, `gitDirectoryOf` | memoised per process for identity questions | T3 | the Stop, PreToolUse and SessionStart rules |
 | `scripts/selftest.sh` | passes a test concurrency it chose, and says so | T4 | the gate |
+| `statusPaths(root)` | reuses one answer per repository for two seconds inside a hook process, off elsewhere | T5 | the late-baseline check, the completion rules, the artifact rule |
 
 ## Inter-task Contracts
 

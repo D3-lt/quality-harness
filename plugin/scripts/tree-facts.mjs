@@ -247,8 +247,18 @@ function harnessPathspecs(root) {
 // directory to `name/`, which the artifact dispatcher cannot classify — it
 // answers UNPROVEN, which is not a verdict, so the path is retried at every
 // boundary for ever (same peer test).
+// ADR-095 T5. Off unless the entry point switches it on (a hook process does, a test or a library caller does not): one answer per
+// repository, reused for at most `lifetimeMs`, kept only when git gave it. The answer is handed out as a copy.
+let statusMemo = null
+export function rememberStatus(lifetimeMs = 2_000, now = Date.now) {
+  statusMemo = { lifetimeMs, now, answers: new Map() }
+}
+
 export function statusPaths(root) {
   if (!root) return mark([], true)
+  const key = statusMemo ? path.resolve(root) : null
+  const kept = key ? statusMemo.answers.get(key) : undefined
+  if (kept && statusMemo.now() - kept.at < statusMemo.lifetimeMs) return mark(kept.paths, true)
   // ⚠ `-z`, NOT A QUOTE STRIP. Porcelain v1 quotes an unusual name and escapes its
   // bytes as octal; stripping the quotes left `na\303\257ve.md`, a path that is
   // not on disk — shown to the user, persisted to `sessions.jsonl`, and gated by
@@ -270,7 +280,9 @@ export function statusPaths(root) {
     paths.push(entry.slice(3))
     if (entry[0] === 'R' || entry[0] === 'C' || entry[1] === 'R' || entry[1] === 'C') index++
   }
-  return mark(paths, true)
+  const answer = mark(paths, true)
+  if (key) statusMemo.answers.set(key, { at: statusMemo.now(), paths: answer })
+  return answer
 }
 
 // Commits reachable now that were not reachable when the session started. NOT

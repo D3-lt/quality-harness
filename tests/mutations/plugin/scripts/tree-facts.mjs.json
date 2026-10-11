@@ -76,6 +76,33 @@
       ],
       "from": "const tree = git(['write-tree'], env).out",
       "to": "const tree = identity(['write-tree']).out"
+    },
+    {
+      "label": "ADR-095 T5: a status answer is reused for its lifetime",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/status-memo.test.mjs"
+      ],
+      "from": "if (kept && statusMemo.now() - kept.at < statusMemo.lifetimeMs) return mark(kept.paths, true)",
+      "to": "if (false) return mark(kept.paths, true)"
+    },
+    {
+      "label": "ADR-095 T5: an older answer is asked again",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/status-memo.test.mjs"
+      ],
+      "from": "if (kept && statusMemo.now() - kept.at < statusMemo.lifetimeMs) return",
+      "to": "if (kept) return"
+    },
+    {
+      "label": "ADR-095 T5: the memo is off unless switched on",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/status-memo.test.mjs"
+      ],
+      "from": "let statusMemo = null",
+      "to": "let statusMemo = { lifetimeMs: 2_000, now: Date.now, answers: new Map() }"
     }
   ]
 }

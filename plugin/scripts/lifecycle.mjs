@@ -2,6 +2,7 @@
 
 import { isMainModule } from './main-module.mjs'
 import { appendEvent } from './event-log.mjs'
+import { rememberStatus } from './tree-facts.mjs'
 import { emitJson, peekOutput, pendingActions, queueAction, takeOutput } from './hook-queue.mjs'
 import { projectCheckCommand } from './check-command.mjs'
 import { importPassVerdicts, runArtifactPass } from './artifact-pass.mjs'
@@ -189,6 +190,8 @@ async function main() {
     process.exitCode = firstMentionThisSession(argv[1], argv[2]) ? 0 : 1
     return
   }
+  // ADR-095 T5: one hook process is one event, and its rules ask for the working tree's status up to three times within a second.
+  rememberStatus()
   const startedAt = Date.now()
   let input
   let raw = ''

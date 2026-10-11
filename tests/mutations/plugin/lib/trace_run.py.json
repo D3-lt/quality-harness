@@ -97,7 +97,7 @@
         "tests/ready-cache.test.mjs"
       ],
       "from": "            ENV_ALL.append(True)\n        return real_iter(self)",
-      "to": "        return real_iter(self)",
+      "to": "            pass\n        return real_iter(self)",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     },
     {
@@ -177,7 +177,7 @@
         "tests/ready-cache.test.mjs"
       ],
       "from": "            ENV_ALL.append(True)\n        return real_len(self)",
-      "to": "        return real_len(self)",
+      "to": "            pass\n        return real_len(self)",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     },
     {
@@ -188,6 +188,26 @@
       ],
       "from": "            os.replace(partial, manifest)\n        except OSError:\n            try:",
       "to": "            pass\n        except OSError:\n            try:",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: CREATE_NO_WINDOW keeps a command repeatable",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "        return value in (0, 0x08000000)",
+      "to": "        return value == 0",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: a line passed to os.system that is not text is not kept",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "\"line\": line if _clean(line) else None",
+      "to": "\"line\": line",
       "only": "^the recorder records what the gate read and leaves the standard library out$"
     }
   ]

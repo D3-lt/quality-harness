@@ -306,7 +306,7 @@ test('a run during which a dependency changed is not stored', () => {
 test('the recorder records what the gate read and leaves the standard library out', () => {
   const dir = path.join(scratch, 'recorder')
   mkdirSync(path.join(dir, 'listed'), { recursive: true })
-  for (const name of ['c-merged', 'c-bytes', 'c-pre']) mkdirSync(path.join(dir, name), { recursive: true })
+  for (const name of ['c-merged', 'c-bytes', 'c-pre', 'c-ordinary']) mkdirSync(path.join(dir, name), { recursive: true })
   writeFileSync(path.join(dir, 'listed', 'a.txt'), 'a')
   writeFileSync(path.join(dir, 'read.txt'), 'read')
   const gate = path.join(dir, 'gate.py')
@@ -326,6 +326,8 @@ test('the recorder records what the gate read and leaves the standard library ou
     `subprocess.run(['git', '--version'], stderr=subprocess.STDOUT, cwd=${JSON.stringify(path.join(dir, 'c-merged'))}, capture_output=False, stdout=subprocess.PIPE)`,
     `subprocess.run(['git', b'\\xff'], cwd=${JSON.stringify(path.join(dir, 'c-bytes'))}, capture_output=True)`,
     `if os.name != 'nt':\n    subprocess.run(['git', '--version'], preexec_fn=lambda: None, cwd=${JSON.stringify(path.join(dir, 'c-pre'))}, capture_output=True)`,
+    `subprocess.run(['git', '--version'], pass_fds=[], cwd=${JSON.stringify(path.join(dir, 'c-ordinary'))}, capture_output=True)`,
+    "if os.name != 'nt':\n    os.system(b'true \\xff')",
     "print(json.dumps({'ok': True}))",
   ].join('\n'))
   const manifest = path.join(dir, 'manifest.json')
@@ -353,6 +355,12 @@ test('the recorder records what the gate read and leaves the standard library ou
   assert.deepEqual(ranIn(path.join(dir, 'c-bytes')).map(item => [item.argv, item.line]), [[null, null]], 'an argument that is not text')
   if (process.platform !== 'win32') assert.deepEqual(ranIn(path.join(dir, 'c-pre')).map(item => [item.argv, item.line]), [[null, null]], 'a pre-exec function')
   assert.equal(existsSync(`${manifest}.part`), false, 'and the manifest is written whole or not at all')
+  // A setting that is its default in another spelling is still repeatable, and CREATE_NO_WINDOW (which every Windows child of the
+  // gates carries) changes nothing a replay compares.
+  assert.deepEqual(ranIn(path.join(dir, 'c-ordinary')).map(item => item.argv), [['git', '--version']], 'pass_fds=[] is the default')
+  const ordinary = spawnSync('python3', ['-c', 'import sys; sys.path.insert(0, sys.argv[1]); import trace_run as t; print([t._ordinary("creationflags", 0x08000000, 0), t._ordinary("creationflags", 0x10, 0), t._ordinary("pipesize", None, -1), t._ordinary("process_group", -1, None), t._ordinary("pass_fds", [3], ())])', path.join(repoRoot, 'plugin', 'lib')], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  if (ordinary.status === 0) assert.equal(ordinary.stdout.trim(), '[True, False, True, True, False]', 'the settings that change nothing are told from the ones that do')
+  assert.equal(seen.ran.some(item => (item.line ?? '').includes('\udcff')), false, 'a line that is not text is never kept as one')
   // The manifest is the recorder's own: when it cannot be written the gate still returns what it returned.
   const failsAt = path.join(dir, 'missing', 'manifest.json')
   const unwritable = spawnGate(path.join(repoRoot, 'plugin', 'lib', 'trace_run.py'), [failsAt, gate], { encoding: 'utf8', timeout: 30_000, windowsHide: true })

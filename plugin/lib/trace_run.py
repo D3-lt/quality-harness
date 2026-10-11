@@ -86,7 +86,8 @@ def _audit(event, args):
             finally:
                 ACTIVE = True
     elif event == "os.system":
-        RAN.append({"argv": None, "line": os.fsdecode(args[0]), "cwd": os.getcwd()})
+        line = os.fsdecode(args[0])
+        RAN.append({"argv": None, "line": line if _clean(line) else None, "cwd": os.getcwd()})
     elif event in ("os.exec", "os.spawn", "os.fork", "os.forkpty"):
         # A child whose command is not visible here: recorded as one that cannot be run again, so the answer is not kept.
         RAN.append({"argv": None, "line": None, "cwd": os.getcwd()})
@@ -101,6 +102,20 @@ def _audit(event, args):
 _REPLAYED = {"self", "args", "bufsize", "shell", "cwd", "universal_newlines", "text", "encoding", "errors", "close_fds", "restore_signals"}
 _STREAMS = {"stdin", "stdout", "stderr"}
 _OUTPUTS = (None, subprocess.PIPE, subprocess.DEVNULL)
+
+
+def _ordinary(name, value, default):
+    # A setting that is its default in another spelling, or that changes nothing a replay compares: CREATE_NO_WINDOW only hides a
+    # console, and the gates here pass it on every Windows child (lib/record.py); -1 and None both mean "not set" to CPython.
+    if value == default:
+        return True
+    if name == "creationflags":
+        return value in (0, 0x08000000)
+    if name in ("pipesize", "process_group"):
+        return value in (-1, None)
+    if name == "pass_fds":
+        return not value
+    return False
 
 
 def _clean(value):
@@ -123,7 +138,7 @@ def _recorded(original):
                 if given.get("cwd"):
                     entry["cwd"] = _text(given["cwd"]) or entry["cwd"]
                 shell = bool(given.get("shell"))
-                other = any(name not in _REPLAYED and name not in _STREAMS and value != signature.parameters[name].default
+                other = any(name not in _REPLAYED and name not in _STREAMS and not _ordinary(name, value, signature.parameters[name].default)
                             for name, value in given.items())
                 streams = given.get("stdin") in (None, subprocess.DEVNULL) and given.get("stdout") in _OUTPUTS and given.get("stderr") in _OUTPUTS
                 if not other and streams:

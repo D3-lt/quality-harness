@@ -109,6 +109,8 @@ export function normaliser(box, repos = []) {
     for (const [place, label] of places) text = text.split(JSON.stringify(place).slice(1, -1)).join(label)
     text = text
       .replace(/\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z/g, '<time>')
+      // The plugin's own version is not what a transcript records: a release changes it and no hook's behaviour with it.
+      .replace(/\badr-lint \d+\.\d+\.\d+\b/g, 'adr-lint <version>')
       .replace(/[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/g, '<id>')
       .replace(/\b[0-9a-f]{40}\b/g, '<sha>')
       .replace(/\b[0-9a-f]{16}\b/g, '<hash>')

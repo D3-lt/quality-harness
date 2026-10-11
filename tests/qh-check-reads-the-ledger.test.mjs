@@ -47,7 +47,8 @@ const fastPassed = fixture => {
   assert.equal(run.status, 0, `the fast check passed: ${run.stderr}`)
   assert.ok(jsonl(join(state(fixture), 'fast-checks.jsonl')).length > 0, 'and was recorded')
 }
-const done = fixture => rmSync(fixture.top, { recursive: true, force: true })
+// A fixture's child (a detached pass) may still be writing when the test ends: removal retries rather than racing it.
+const done = fixture => rmSync(fixture.top, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 })
 
 test('a tree whose latest check passed is not checked again, and says when and how long', () => {
   const fixture = repository()

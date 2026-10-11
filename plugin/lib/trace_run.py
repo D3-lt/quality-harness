@@ -13,6 +13,7 @@ machinery trusts a compiled copy after a stat of its own that nothing here can s
 What this does NOT see is named in the manifest's `blind` list rather than left to be assumed: a read through a file descriptor
 passed in, and a stat made below Python. A cache that reuses an answer is only as sound as this list is short.
 """
+import inspect
 import json
 import subprocess
 import os
@@ -93,31 +94,56 @@ def _audit(event, args):
     # already joined into one string, which cannot be run again as the list the gate passed.
 
 
+# What a replay reproduces of a Popen call: what it runs, where, through which shell, and how its output is decoded. Any other setting
+# that is not its default (a pre-exec function, a user, a umask, merged streams, inherited descriptors, an environment, an input, a
+# program of its own, a process group, a creation flag) changes what the child does or sees and is not reproduced, so the command is
+# recorded as one that cannot be run again and the answer is not kept.
+_REPLAYED = {"self", "args", "bufsize", "shell", "cwd", "universal_newlines", "text", "encoding", "errors", "close_fds", "restore_signals"}
+_STREAMS = {"stdin", "stdout", "stderr"}
+_OUTPUTS = (None, subprocess.PIPE, subprocess.DEVNULL)
+
+
+def _clean(value):
+    # Node passes an argument as UTF-8; bytes that are not text (decoded here with surrogates) would be passed as other bytes.
+    try:
+        value.encode("utf-8")
+        return True
+    except UnicodeEncodeError:
+        return False
+
+
 def _recorded(original):
+    signature = inspect.signature(original)
+
     def init(self, args, *rest, **named):
         if ACTIVE:
+            entry = {"argv": None, "line": None, "cwd": os.getcwd()}
             try:
-                shell = named.get("shell", rest[7] if len(rest) > 7 else False)
-                cwd = named.get("cwd", rest[8] if len(rest) > 8 else None)
-                env = named.get("env", rest[9] if len(rest) > 9 else None)
-                executable = named.get("executable", rest[1] if len(rest) > 1 else None)
-                stdin = named.get("stdin", rest[2] if len(rest) > 2 else None)
-                where = _text(cwd) if cwd else os.getcwd()
-                if env is not None or executable is not None or stdin not in (None, subprocess.DEVNULL):
-                    # Its environment, its program or its input is not kept, so it cannot be run again as it was asked for: recorded
-                    # as such, and the answer is not kept.
-                    RAN.append({"argv": None, "line": None, "cwd": where})
-                elif isinstance(args, (list, tuple)) and not shell:
-                    RAN.append({"argv": [os.fsdecode(part) for part in args], "line": None, "cwd": where})
-                elif isinstance(args, (str, bytes)) and (shell or os.name == "nt"):
-                    RAN.append({"argv": None, "line": os.fsdecode(args), "cwd": where})
-                elif isinstance(args, (str, bytes)):
-                    # POSIX without a shell: a string is the name of the program and nothing else.
-                    RAN.append({"argv": [os.fsdecode(args)], "line": None, "cwd": where})
-                else:
-                    RAN.append({"argv": None, "line": None, "cwd": where})
+                given = signature.bind(self, args, *rest, **named).arguments
+                if given.get("cwd"):
+                    entry["cwd"] = _text(given["cwd"]) or entry["cwd"]
+                shell = bool(given.get("shell"))
+                other = any(name not in _REPLAYED and name not in _STREAMS and value != signature.parameters[name].default
+                            for name, value in given.items())
+                streams = given.get("stdin") in (None, subprocess.DEVNULL) and given.get("stdout") in _OUTPUTS and given.get("stderr") in _OUTPUTS
+                if not other and streams:
+                    if isinstance(args, (list, tuple)) and not shell:
+                        argv = [os.fsdecode(part) for part in args]
+                        if all(_clean(part) for part in argv):
+                            entry["argv"] = argv
+                    elif isinstance(args, (str, bytes)) and shell:
+                        line = os.fsdecode(args)
+                        if _clean(line):
+                            entry["line"] = line
+                    elif isinstance(args, (str, bytes)) and os.name != "nt":
+                        # POSIX without a shell: a string is the name of the program and nothing else (on Windows it is a command
+                        # line with its own rules, which a shell would read differently).
+                        name = os.fsdecode(args)
+                        if _clean(name):
+                            entry["argv"] = [name]
             except Exception:
-                RAN.append({"argv": None, "line": None, "cwd": os.getcwd()})
+                entry["argv"], entry["line"] = None, None
+            RAN.append(entry)
         return original(self, args, *rest, **named)
     return init
 
@@ -164,7 +190,7 @@ def _modules():
 
 def _watched(environ):
     cls = type(environ)
-    real_getitem, real_iter = cls.__getitem__, cls.__iter__
+    real_getitem, real_iter, real_len = cls.__getitem__, cls.__iter__, cls.__len__
 
     def getitem(self, key):
         try:
@@ -182,7 +208,12 @@ def _watched(environ):
             ENV_ALL.append(True)
         return real_iter(self)
 
-    cls.__getitem__, cls.__iter__ = getitem, iterate
+    def length(self):
+        if ACTIVE and self is environ:
+            ENV_ALL.append(True)
+        return real_len(self)
+
+    cls.__getitem__, cls.__iter__, cls.__len__ = getitem, iterate, length
 
 
 def main(argv):
@@ -229,11 +260,16 @@ def main(argv):
             "blind": ["a read through a file descriptor passed in", "a stat made below Python"],
         }
         # A manifest that cannot be written must not change what the gate returned: its exit status and output are the gate's.
+        partial = manifest + ".part"
         try:
-            with open(manifest, "w", encoding="utf-8") as handle:
+            with open(partial, "w", encoding="utf-8") as handle:
                 json.dump(record, handle)
+            os.replace(partial, manifest)
         except OSError:
-            pass
+            try:
+                os.unlink(partial)
+            except OSError:
+                pass
     return code
 
 

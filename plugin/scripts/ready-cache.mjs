@@ -19,7 +19,7 @@ const MAX_ENTRIES = 200
 const ENTRY = /^[0-9a-f]{64}\.json$/
 // What the gate or the commands it runs can see of the environment and that a user changes on purpose. A variable the gate reads that is
 // not named here (PATH is read when it looks for git) is recorded with its value as a dependency of its own.
-const ENVIRONMENT = /^(HOME|USERPROFILE|LANG|LC_[A-Z_]+|TZ|PYTHON[A-Z_]*|GIT_[A-Z_]+|QUALITY_HARNESS_[A-Z_]+)$/
+const ENVIRONMENT = /^(HOME|USERPROFILE|LANG|LC_[A-Z0-9_]+|TZ|PYTHON[A-Z0-9_]*|GIT_[A-Z0-9_]+|QUALITY_HARNESS_[A-Z0-9_]+)$/
 // Windows names its variables without regard to case (the interpreter reads `ComSpec` where the process lists `COMSPEC`), and a copy of
 // the environment made with a spread is a plain object that no longer does: there a name matches whatever its spelling.
 const ENVIRONMENT_ANYCASE = new RegExp(ENVIRONMENT.source, 'i')
@@ -167,6 +167,7 @@ export function readyCache(root, listingOfTree, { now = new Date(), pluginRoot =
       prune(folder())
     } catch (error) { fail(`the cache could not be written (${error.code ?? error.message})`) } finally {
       rmSync(manifestFile, { force: true })
+      rmSync(`${manifestFile}.part`, { force: true })
     }
     return result
   }

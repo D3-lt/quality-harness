@@ -26,8 +26,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "                    RAN.append({\"argv\": [os.fsdecode(part) for part in args], \"line\": None, \"cwd\": where})",
-      "to": "                    pass",
+      "from": "                            entry[\"argv\"] = argv",
+      "to": "                            pass",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     },
     {
@@ -66,8 +66,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "RAN.append({\"argv\": None, \"line\": os.fsdecode(args), \"cwd\": where})",
-      "to": "pass",
+      "from": "                            entry[\"line\"] = line",
+      "to": "                            pass",
       "only": "^the recorder records what the gate read and leaves the standard library out$"
     },
     {
@@ -96,8 +96,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "            ENV_ALL.append(True)",
-      "to": "            pass",
+      "from": "            ENV_ALL.append(True)\n        return real_iter(self)",
+      "to": "        return real_iter(self)",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     },
     {
@@ -116,8 +116,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "        except OSError:\n            pass\n    return code",
-      "to": "        except OSError:\n            raise\n    return code",
+      "from": "            os.replace(partial, manifest)\n        except OSError:",
+      "to": "            os.replace(partial, manifest)\n        except ZeroDivisionError:",
       "only": "^the recorder records what the gate read and leaves the standard library out$"
     },
     {
@@ -126,8 +126,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "if env is not None or executable is not None or stdin not in (None, subprocess.DEVNULL):",
-      "to": "if executable is not None or stdin not in (None, subprocess.DEVNULL):",
+      "from": "                other = any(name not in _REPLAYED",
+      "to": "                other = any(False and name not in _REPLAYED",
       "only": "^the recorder records what the gate read and leaves the standard library out$"
     },
     {
@@ -136,8 +136,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "if env is not None or executable is not None or stdin not in (None, subprocess.DEVNULL):",
-      "to": "if env is not None or executable is not None:",
+      "from": "given.get(\"stdin\") in (None, subprocess.DEVNULL) and ",
+      "to": "",
       "only": "^the recorder records what the gate read and leaves the standard library out$"
     },
     {
@@ -146,8 +146,48 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "elif isinstance(args, (str, bytes)) and (shell or os.name == \"nt\"):",
-      "to": "elif isinstance(args, (str, bytes)):",
+      "from": "                    elif isinstance(args, (str, bytes)) and os.name != \"nt\":",
+      "to": "                    elif False:",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: a command with its stderr merged is not repeatable",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "and given.get(\"stderr\") in _OUTPUTS",
+      "to": "and True",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: an argument that is not text makes a command not repeatable",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "                        if all(_clean(part) for part in argv):",
+      "to": "                        if True:",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: the length of the environment is a read of all of it",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "            ENV_ALL.append(True)\n        return real_len(self)",
+      "to": "        return real_len(self)",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: the manifest is written whole or not at all",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "            os.replace(partial, manifest)\n        except OSError:\n            try:",
+      "to": "            pass\n        except OSError:\n            try:",
       "only": "^the recorder records what the gate read and leaves the standard library out$"
     }
   ]

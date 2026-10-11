@@ -3,7 +3,7 @@
 // cannot be used runs the gate and says so, never answering "nothing in flight".
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, chmodSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { appendFileSync, chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, symlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
@@ -205,14 +205,21 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
   assert.equal(askGate({ ...writing, QH_PROBE_VAR: 'a' }).runs, 0, 'the same value is a hit')
   assert.equal(askGate({ ...writing, QH_PROBE_VAR: 'b' }).runs, 1, 'another value is a miss')
   // A gate that reads the whole environment depends on every variable: its answer is given and not kept, and that is said.
-  const everything = path.join(where, 'everything.py')
-  writeFileSync(everything, '#!/usr/bin/env python3\nimport os\nprint(len(dict(os.environ)) > 0)\n')
-  chmodSync(everything, 0o755)
-  let everythingRuns = 0
-  const whole = readyCache(root, trackedPaths(root), { now: new Date(2026, 9, 11, 12), env: writing })
-  for (let again = 0; again < 2; again++) whole.answer(path.join(where, 'tasks'), (...args) => { everythingRuns++; return spawnGate(...args) }, everything, { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: writing })
-  assert.equal(everythingRuns, 2, 'a gate that read the whole environment runs each time')
-  assert.match(whole.problem() ?? '', /whole environment/, 'and the cache says why')
+  // Every way of reading it: a copy, a length, its names.
+  for (const [index, view] of ['len(dict(os.environ)) > 0', 'len(os.environ) > 0', 'len(list(os.environ.keys())) > 0'].entries()) {
+    const everything = path.join(where, `everything-${index}.py`)
+    writeFileSync(everything, `#!/usr/bin/env python3\nimport os\nprint(${view})\n`)
+    chmodSync(everything, 0o755)
+    let everythingRuns = 0
+    const whole = readyCache(root, trackedPaths(root), { now: new Date(2026, 9, 11, 12), env: writing })
+    for (let again = 0; again < 2; again++) whole.answer(path.join(where, 'tasks'), (...args) => { everythingRuns++; return spawnGate(...args) }, everything, { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: writing })
+    assert.equal(everythingRuns, 2, `a gate that read the whole environment (${view}) runs each time`)
+    assert.match(whole.problem() ?? '', /whole environment/, 'and the cache says why')
+  }
+  // A variable whose name carries a digit is in the key like the others: Python decodes names differently under PYTHONUTF8.
+  assert.equal(askGate({ ...writing, PYTHONUTF8: '1' }).runs, 1, 'a variable with a digit in its name, first value')
+  assert.equal(askGate({ ...writing, PYTHONUTF8: '1' }).runs, 0, 'the same value is a hit')
+  assert.equal(askGate({ ...writing, PYTHONUTF8: '0' }).runs, 1, 'another value is another key')
   // Windows names variables without regard to case, and a spread copy of the environment does not: an entry recorded under `ComSpec`
   // holds for `COMSPEC` there, and nowhere else.
   // Only names written in capitals, so that the key is the same under either rule (a runner that has `Python_ROOT_DIR` in its
@@ -299,6 +306,7 @@ test('a run during which a dependency changed is not stored', () => {
 test('the recorder records what the gate read and leaves the standard library out', () => {
   const dir = path.join(scratch, 'recorder')
   mkdirSync(path.join(dir, 'listed'), { recursive: true })
+  for (const name of ['c-merged', 'c-bytes', 'c-pre']) mkdirSync(path.join(dir, name), { recursive: true })
   writeFileSync(path.join(dir, 'listed', 'a.txt'), 'a')
   writeFileSync(path.join(dir, 'read.txt'), 'read')
   const gate = path.join(dir, 'gate.py')
@@ -315,6 +323,9 @@ test('the recorder records what the gate read and leaves the standard library ou
     `subprocess.run(['git', '--version'], env={'PATH': os.environ['PATH']}, cwd=${JSON.stringify(path.join(dir, 'listed'))}, capture_output=True)`,
     `subprocess.run(['git', '--version'], input=b'', cwd=${JSON.stringify(dir)}, capture_output=True)`,
     `subprocess.run('git', cwd=${JSON.stringify(path.dirname(dir))}, capture_output=True)`,
+    `subprocess.run(['git', '--version'], stderr=subprocess.STDOUT, cwd=${JSON.stringify(path.join(dir, 'c-merged'))}, capture_output=False, stdout=subprocess.PIPE)`,
+    `subprocess.run(['git', b'\\xff'], cwd=${JSON.stringify(path.join(dir, 'c-bytes'))}, capture_output=True)`,
+    `if os.name != 'nt':\n    subprocess.run(['git', '--version'], preexec_fn=lambda: None, cwd=${JSON.stringify(path.join(dir, 'c-pre'))}, capture_output=True)`,
     "print(json.dumps({'ok': True}))",
   ].join('\n'))
   const manifest = path.join(dir, 'manifest.json')
@@ -336,7 +347,12 @@ test('the recorder records what the gate read and leaves the standard library ou
   const ranIn = where => seen.ran.filter(item => item.cwd === where)
   assert.deepEqual(ranIn(path.join(dir, 'listed')).map(item => [item.argv, item.line]), [[null, null]], 'a command with an environment of its own')
   assert.deepEqual(ranIn(dir).map(item => [item.argv, item.line]), [[null, null]], 'a command with input of its own')
-  assert.deepEqual(ranIn(path.dirname(dir)).map(item => [item.argv, item.line]), [process.platform === 'win32' ? [null, 'git'] : [['git'], null]], 'a bare name: a program on POSIX, a command line on Windows')
+  assert.deepEqual(ranIn(path.dirname(dir)).map(item => [item.argv, item.line]), [process.platform === 'win32' ? [null, null] : [['git'], null]], 'a bare name: a program on POSIX, and on Windows a command line a shell would read differently')
+  // Settings that change what a child does or sees are not reproduced by a replay: the command is not repeatable.
+  assert.deepEqual(ranIn(path.join(dir, 'c-merged')).map(item => [item.argv, item.line]), [[null, null]], 'stderr merged into stdout')
+  assert.deepEqual(ranIn(path.join(dir, 'c-bytes')).map(item => [item.argv, item.line]), [[null, null]], 'an argument that is not text')
+  if (process.platform !== 'win32') assert.deepEqual(ranIn(path.join(dir, 'c-pre')).map(item => [item.argv, item.line]), [[null, null]], 'a pre-exec function')
+  assert.equal(existsSync(`${manifest}.part`), false, 'and the manifest is written whole or not at all')
   // The manifest is the recorder's own: when it cannot be written the gate still returns what it returned.
   const failsAt = path.join(dir, 'missing', 'manifest.json')
   const unwritable = spawnGate(path.join(repoRoot, 'plugin', 'lib', 'trace_run.py'), [failsAt, gate], { encoding: 'utf8', timeout: 30_000, windowsHide: true })

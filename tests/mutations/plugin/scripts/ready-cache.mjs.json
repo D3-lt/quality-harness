@@ -169,6 +169,16 @@
       "from": "if (env[name] !== undefined || platform !== 'win32') return env[name] ?? null",
       "to": "return env[name] ?? null",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a variable with a digit in its name is in the key",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "PYTHON[A-Z0-9_]*",
+      "to": "PYTHON[A-Z_]*",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     }
   ]
 }

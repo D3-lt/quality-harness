@@ -141,9 +141,9 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
   // The gate's bytecode is written, as it is in a user's session; the mutation runner switches that off for its own children, and the
   // compiled copy of an imported module is exactly what one of these tests is about.
   const writing = { ...process.env, PYTHONDONTWRITEBYTECODE: '' }
-  const askGate = (env = writing) => {
+  const askGate = (env = writing, platform = process.platform) => {
     let runs = 0
-    const cache = readyCache(root, trackedPaths(root), { now: new Date(2026, 9, 11, 12), env })
+    const cache = readyCache(root, trackedPaths(root), { now: new Date(2026, 9, 11, 12), env, platform })
     cache.answer(path.join(where, 'tasks'), (...args) => { runs++; return spawnGate(...args) }, gate, { encoding: 'utf8', timeout: 30_000, windowsHide: true, env })
     return { runs, problem: cache.problem() }
   }
@@ -208,6 +208,17 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
   for (let again = 0; again < 2; again++) whole.answer(path.join(where, 'tasks'), (...args) => { everythingRuns++; return spawnGate(...args) }, everything, { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: writing })
   assert.equal(everythingRuns, 2, 'a gate that read the whole environment runs each time')
   assert.match(whole.problem() ?? '', /whole environment/, 'and the cache says why')
+  // Windows names variables without regard to case, and a spread copy of the environment does not: an entry recorded under `ComSpec`
+  // holds for `COMSPEC` there, and nowhere else.
+  const caseEnv = { ...writing, QH_CASE_PROBE: 'v' }
+  askGate(caseEnv)
+  for (const name of readdirSync(kept).filter(file => file.endsWith('.json'))) {
+    const entry = JSON.parse(readFileSync(path.join(kept, name), 'utf8'))
+    entry.env = { Qh_Case_Probe: 'v' }
+    writeFileSync(path.join(kept, name), JSON.stringify(entry))
+  }
+  assert.equal(askGate(caseEnv, 'win32').runs, 0, 'on Windows the spelling of a name does not matter')
+  assert.equal(askGate(caseEnv, 'linux').runs, 1, 'and anywhere else it does')
   // A project that moves Python's bytecode out of __pycache__ (PYTHONPYCACHEPREFIX; the mutation runner does) still gets a kept
   // answer: the bytecode a run writes is not something the gate read.
   const moved = { ...writing, PYTHONPYCACHEPREFIX: path.join(scratch, 'pyc-prefix') }

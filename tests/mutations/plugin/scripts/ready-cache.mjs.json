@@ -146,7 +146,7 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "if ((env[name] ?? null) !== value) return false",
+      "from": "if (variable(name) !== value) return false",
       "to": "void value",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     },
@@ -158,6 +158,16 @@
       ],
       "from": "if (manifest.env_all === true) {",
       "to": "if (false) {",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: on Windows a variable is found whatever its spelling",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "if (env[name] !== undefined || platform !== 'win32') return env[name] ?? null",
+      "to": "return env[name] ?? null",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     }
   ]

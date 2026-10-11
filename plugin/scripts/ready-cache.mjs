@@ -20,6 +20,9 @@ const ENTRY = /^[0-9a-f]{64}\.json$/
 // What the gate or the commands it runs can see of the environment and that a user changes on purpose. PATH is left out: it picks a
 // binary, and the output of the binary is what is checked.
 const ENVIRONMENT = /^(HOME|USERPROFILE|LANG|LC_[A-Z_]+|TZ|PYTHON[A-Z_]*|GIT_[A-Z_]+|QUALITY_HARNESS_[A-Z_]+)$/
+// Windows names its variables without regard to case (the interpreter reads `ComSpec` where the process lists `COMSPEC`), and a copy of
+// the environment made with a spread is a plain object that no longer does: there a name matches whatever its spelling.
+const ENVIRONMENT_ANYCASE = new RegExp(ENVIRONMENT.source, 'i')
 
 const sha = bytes => createHash('sha256').update(bytes).digest('hex')
 const localDate = now => `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`
@@ -62,10 +65,16 @@ function commandOutput(item) {
   return `${run.status}:${sha(run.stdout ?? Buffer.alloc(0))}`
 }
 
-export function readyCache(root, listingOfTree, { now = new Date(), pluginRoot = PLUGIN_ROOT, env = process.env } = {}) {
+export function readyCache(root, listingOfTree, { now = new Date(), pluginRoot = PLUGIN_ROOT, env = process.env, platform = process.platform } = {}) {
   if (!Array.isArray(listingOfTree)) return null
   let problem = null
   const fail = reason => { problem ??= reason; return null }
+  const variable = name => {
+    if (env[name] !== undefined || platform !== 'win32') return env[name] ?? null
+    const upper = name.toUpperCase()
+    const spelled = Object.keys(env).find(candidate => candidate.toUpperCase() === upper)
+    return spelled === undefined ? null : env[spelled] ?? null
+  }
   const trace = path.join(pluginRoot, 'lib', 'trace_run.py')
   const memo = { files: new Map(), lists: new Map(), kinds: new Map(), commands: new Map() }
   const remembered = (map, key, make) => { if (!map.has(key)) map.set(key, make()); return map.get(key) }
@@ -73,14 +82,14 @@ export function readyCache(root, listingOfTree, { now = new Date(), pluginRoot =
 
   const keyFor = (gate, directory) => lookupKey({
     gate, directory, cwd: process.cwd(), date: localDate(now),
-    environment: Object.fromEntries(Object.keys(env).filter(name => ENVIRONMENT.test(name)).map(name => [name, env[name]])),
+    environment: Object.fromEntries(Object.keys(env).filter(name => (platform === 'win32' ? ENVIRONMENT_ANYCASE : ENVIRONMENT).test(name)).map(name => [name, env[name]])),
   })
 
   // Every entry of the manifest must still hold; the first that does not ends the check.
   const holds = entry => {
     if (!entry.python || signature(entry.python.executable)?.join() !== entry.python.signature?.join()) return false
     // An environment variable the gate read is a dependency like a file: its value now is its value then.
-    for (const [name, value] of Object.entries(entry.env ?? {})) if ((env[name] ?? null) !== value) return false
+    for (const [name, value] of Object.entries(entry.env ?? {})) if (variable(name) !== value) return false
     for (const item of entry.opened) if (remembered(memo.files, item.path, () => fileHash(item.path)) !== item.sha256) return false
     for (const item of entry.listed) if (JSON.stringify(remembered(memo.lists, item.path, () => listing(item.path))) !== JSON.stringify(item.names)) return false
     for (const item of entry.statted) if (remembered(memo.kinds, item.path, () => kindOf(item.path)) !== item.kind) return false

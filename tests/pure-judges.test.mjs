@@ -106,6 +106,7 @@ const JUDGES = [
   'plugin/scripts/check-record.mjs::classifyRun',
   'plugin/scripts/check-record.mjs::runRecord',
   'plugin/scripts/check-record.mjs::proseReuseRow',
+  'plugin/scripts/ready-cache.mjs::readyKey',
 ]
 
 test('the judges reach no file, process, clock or environment', () => {

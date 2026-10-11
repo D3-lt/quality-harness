@@ -203,7 +203,7 @@ function missingOwnerCaveat(report) {
   return ''
 }
 
-export function readyTaskLines(root, insideRepository, listing, spawn = spawnGate) {
+export function readyTaskLines(root, insideRepository, listing, spawn = spawnGate, cache = null) {
   // Without a repository there is no "this project". Git-fail (listing null
   // while inside a repo) is UNPROVEN, not an empty ready list.
   if (!insideRepository) return { look: 'ok', lines: [] }
@@ -232,7 +232,10 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
         + 'Ready tasks there are not known.')
       continue
     }
-    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    // ADR-095 T2: an answer kept by the content that produced it. A miss, and a cache that cannot be used, run the gate as before.
+    const kept = cache?.lookup(directory) ?? null
+    const run = kept ?? spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+    if (!kept) cache?.store(directory, run)
     // posixListed: path.relative is native separators; SessionStart text and
     // the Windows CI structural-path rule need a listed form (ADR-046 T5).
     const listed = posixListed(path.relative(root, directory) || directory)
@@ -330,5 +333,5 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
       ? `  ${first}: UNPROVEN — listed by git, not on disk. Ready tasks there are not known.`
       : `  ${first} and ${absent.length - 1} more task director${absent.length === 2 ? 'y' : 'ies'}: UNPROVEN — listed by git, not on disk. Ready tasks there are not known.`)
   }
-  return { look: 'ok', lines }
+  return { look: 'ok', lines, cacheProblem: cache?.problem() ?? null }
 }

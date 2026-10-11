@@ -35,8 +35,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })",
-      "to": "    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })",
+      "from": "    const run = kept ?? spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })",
+      "to": "    const run = kept ?? spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000, windowsHide: true })",
       "only": "^(?:a bin/ gate is spawned in a way Windows can actually run|SessionStart always surfaces an UNPROVEN ready line and still caps ordinary ones|SessionStart says how many task directories it did not read)$"
     },
     {
@@ -318,6 +318,15 @@
       "from": "so this is a plan, not a work order",
       "to": "so this is a plan, not an order",
       "only": "^readiness: an accepted record with a ready task, an evidenced one and a proposed record are said as they were$"
+    },
+    {
+      "label": "ADR-095 T2: the cache is consulted before the gate is run",
+      "file": "plugin/scripts/ready-lines.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "const kept = cache?.lookup(directory) ?? null",
+      "to": "const kept = null"
     }
   ]
 }

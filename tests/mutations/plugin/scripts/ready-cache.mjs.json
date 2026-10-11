@@ -1,0 +1,114 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-095 T6: a file the gate read is re-hashed",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "for (const item of entry.opened) if (remembered(memo.files, item.path, () => fileHash(item.path)) !== item.sha256) return false",
+      "to": "for (const item of entry.opened) void item",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a directory the gate listed is re-listed",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "for (const item of entry.listed) if (JSON.stringify(remembered(memo.lists, item.path, () => listing(item.path))) !== JSON.stringify(item.names)) return false",
+      "to": "for (const item of entry.listed) void item",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a path the gate asked about is re-stat-ed",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "if (remembered(memo.kinds, item.path, () => kindOf(item.path)) !== item.kind) return false",
+      "to": "void item",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a command the gate ran is run again",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "remembered(memo.commands, `${item.cwd}\\0${item.argv.join('\\0')}`, () => commandOutput(item)) !== item.output",
+      "to": "void item",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: the interpreter that ran the gate is checked",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "if (!entry.python || signature(entry.python.executable)?.join() !== entry.python.signature?.join()) return false",
+      "to": "if (!entry.python) return false",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: the local date is in the key",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "[VERSION, gate, directory, cwd, date, Object",
+      "to": "[VERSION, gate, directory, cwd, Object",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: the environment is in the key",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "Object.entries(environment).sort()]",
+      "to": "[]]",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a file the gate tried to open that was absent is a dependency",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": ".map(([file]) => ({ path: file, kind: null }))",
+      "to": ".map(() => null).filter(Boolean)",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: an answer made while a dependency changed is not stored",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "const unchanged = stable.every(Boolean)",
+      "to": "const unchanged = true",
+      "only": "^a run during which a dependency changed is not stored$"
+    },
+    {
+      "label": "ADR-095 T6: a corrupt entry is a miss, not an empty answer",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "catch { return fail('a cache entry was not JSON') }",
+      "to": "catch { return { status: 0, stdout: '' } }",
+      "only": "^a cache that cannot be read, written or parsed is a miss, said once, and never an empty answer$"
+    },
+    {
+      "label": "ADR-095 T6: bytecode moved by PYTHONPYCACHEPREFIX is not a dependency",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": " || (typeof manifest.pycache === 'string' && within(file, [manifest.pycache]))",
+      "to": "",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    }
+  ]
+}

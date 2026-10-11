@@ -1,0 +1,64 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-095 T6: the files the gate opens are recorded",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "                    OPENED[path] = _signature(path)",
+      "to": "                    pass",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: the directories the gate lists are recorded",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "elif event in (\"os.listdir\", \"os.scandir\"):",
+      "to": "elif event in (\"os.listdir.never\",):",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: the commands the gate starts are recorded",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "        RAN.append({\"argv\": command, \"cwd\": _text(args[2]) if args[2] else os.getcwd()})",
+      "to": "        pass",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: os.stat and os.lstat are wrapped",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "    os.stat = _traced(os.stat)\n    os.lstat = _traced(os.lstat)\n",
+      "to": "",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: the modules the gate imported are recorded by their source",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "        for source in _modules():",
+      "to": "        for source in ():",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: the interpreter's own files are not dependencies",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "\"prefixes\": _prefixes(),",
+      "to": "\"prefixes\": [],",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    }
+  ]
+}

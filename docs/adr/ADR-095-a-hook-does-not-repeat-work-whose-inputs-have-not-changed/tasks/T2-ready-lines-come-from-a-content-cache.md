@@ -19,13 +19,13 @@ A SessionStart in a corpus whose task directories have not changed starts no `ad
 
 | File | Change | Why |
 |------|--------|-----|
-| `plugin/scripts/ready-cache.mjs` | add | `readyKey` (pure over the bytes it is handed), the gatherer of the corpus directory, and `readyCache`: lookup, store, and the first reason it could not be used; the directory keeps at most 200 entries, oldest first out |
+| `plugin/scripts/ready-cache.mjs` | delete | (withdrawn before release; T6 builds the module again on a sound key) `readyKey`, the gatherer of the corpus directory and the lookup keyed by it |
 | `plugin/scripts/ready-lines.mjs` | edit | `readyTaskLines` takes the cache as an optional argument, looks before `spawnGate` and stores a decisive answer after it; the result carries `cacheProblem` |
 | `plugin/scripts/session-orientation.mjs` | edit | passes `readyCache(root, listing)` and says `cacheProblem` once, as a standing paragraph |
 | `plugin/scripts/session-notes.mjs` | edit | the PreCompact note passes the same cache |
-| `tests/ready-cache.test.mjs` | add | four tests |
+| `tests/ready-cache.test.mjs` | delete | (withdrawn before release; T6 writes the test again) four tests |
 | `tests/pure-judges.test.mjs` | edit | `readyKey` joins the list held to "reads nothing but what it is handed" |
-| `tests/mutations/plugin/scripts/ready-cache.mjs.json` | add | one entry per `Rests-on` name and per input in the key |
+| `tests/mutations/plugin/scripts/ready-cache.mjs.json` | delete | (withdrawn before release; T6 writes the catalogue again) one entry per `Rests-on` name |
 | `tests/mutations/plugin/scripts/ready-lines.mjs.json` | edit | one entry: the lookup before `spawnGate` |
 
 ## Ordered Steps
@@ -49,9 +49,9 @@ out=$(node --test --test-reporter=tap tests/ready-cache.test.mjs 2>&1) \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `a second start in an unchanged corpus starts no adr-next and says the same lines` | `tests/ready-cache.test.mjs` | two SessionStart runs against a fixture corpus: the second has zero `adr-next` children and its ready lines equal the first's, byte for byte | none | S1, S3 |
-| `a change to a task file, the owning record, another record, an untracked file or the date is a miss, and each is answered fresh` | `tests/ready-cache.test.mjs` | the dirty twins: an edit to a task file, the owning record, another record's task, or a file git does not list each gives a spawn and is then kept; the lines reflect the change; the date and the gate's bytes change the key | none | S1, S3 |
+| `a change to a task file, the owning record, another record, an untracked file or the date is a miss, and each is answered fresh` | `deleted at the withdrawal` | the dirty twins: an edit to a task file, the owning record, another record's task, or a file git does not list each gives a spawn and is then kept; the lines reflect the change; the date and the gate's bytes change the key | none | S1, S3 |
 | `a cache that cannot be read, written or parsed is a miss, said once, and never an empty answer` | `tests/ready-cache.test.mjs` | an unreadable directory, a read-only state directory and a corrupt entry each run `adr-next` and print its lines; the could-not-use note appears once | none | S1, S3, S4 |
-| `readyKey is a function of the bytes it is handed` | `tests/ready-cache.test.mjs` | `scripts/effect-classes.mjs` finds it pure; equal inputs give equal keys, any one different byte gives a different key | none | S1, S3 |
+| `readyKey is a function of the bytes it is handed` | `deleted at the withdrawal` | `scripts/effect-classes.mjs` finds it pure; equal inputs give equal keys, any one different byte gives a different key | none | S1, S3 |
 
 ## Reachability
 

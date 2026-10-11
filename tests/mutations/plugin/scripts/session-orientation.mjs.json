@@ -109,6 +109,16 @@
       "from": "`this project's own check is ${checkInCode(check)}`",
       "to": "`this project's check is ${checkInCode(check)}`",
       "only": "^orientation: startup, resume, compact and clear say their standing paragraphs as designed$"
+    },
+    {
+      "label": "ADR-095 T6: SessionStart passes the ready-task cache to the ready lines",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "readyTaskLines(root, inside, listing, undefined, readyCache(root, listing))",
+      "to": "readyTaskLines(root, inside, listing)",
+      "only": "^a second start in an unchanged corpus starts no adr-next and says the same lines$"
     }
   ]
 }

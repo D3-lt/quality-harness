@@ -8,13 +8,11 @@ README must be regenerated.
 
 ## Execution Order
 
-| Order | Task | Depends-on |
-|-------|------|------------|
+| Wave | Tasks | Depends-on |
+|------|-------|------------|
 | 1 | T1 | none |
-| 2 | T2 | T1 |
-| 3 | T3 | T1 |
-| 4 | T4 | T1 |
-| 5 | T5 | T3 |
+| 2 | T2, T3, T4, T6 | T1 |
+| 3 | T5 | T3 |
 
 ## Task Index
 
@@ -25,6 +23,7 @@ README must be regenerated.
 | T3 | a hook process asks git for the repository's identity once | done | none — no spec | `node --test tests/identity-memo.test.mjs` (three named tests pass) |
 | T4 | the gate says the concurrency and the load it ran under, and takes an override | done | none — no spec | `node --test tests/gate-concurrency.test.mjs` (three named tests pass) |
 | T5 | a hook event reads the working tree status once | done | none — no spec | `node --test tests/status-memo.test.mjs` (three named tests pass) |
+| T6 | the ready-task lines come from a cache whose key is what the gate actually read | done | none — no spec | `node --test tests/ready-cache.test.mjs` (five named tests pass) |
 
 ## Contract Coupling
 

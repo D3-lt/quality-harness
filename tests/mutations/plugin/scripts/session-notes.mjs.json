@@ -229,6 +229,16 @@
       "from": "if (repository && declared && passedAlready({ root: repository, git: true, command: declared })) return ''",
       "to": "if (repository && declared && (passedAlready({ root: repository, git: true, command: declared }) || statusPaths(repository).length === 0)) return ''",
       "only": "^a tree with no pass keeps the previous-session notice, clean or dirty$"
+    },
+    {
+      "label": "ADR-095 T6: the PreCompact note passes the ready-task cache to the ready lines",
+      "file": "plugin/scripts/session-notes.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "readyTaskLines(root, insideRepository, listing, undefined, readyCache(root, listing))",
+      "to": "readyTaskLines(root, insideRepository, listing)",
+      "only": "^a second start in an unchanged corpus starts no adr-next and says the same lines$"
     }
   ]
 }

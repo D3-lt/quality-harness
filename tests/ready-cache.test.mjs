@@ -324,7 +324,8 @@ test('the recorder records what the gate read and leaves the standard library ou
     `subprocess.run(['git', '--version'], input=b'', cwd=${JSON.stringify(dir)}, capture_output=True)`,
     `subprocess.run('git', cwd=${JSON.stringify(path.dirname(dir))}, capture_output=True)`,
     `subprocess.run(['git', '--version'], stderr=subprocess.STDOUT, cwd=${JSON.stringify(path.join(dir, 'c-merged'))}, capture_output=False, stdout=subprocess.PIPE)`,
-    `subprocess.run(['git', b'\\xff'], cwd=${JSON.stringify(path.join(dir, 'c-bytes'))}, capture_output=True)`,
+    // On Windows CPython cannot build a command line from bytes that are not text, so the call raises before anything starts.
+    `if os.name != 'nt':\n    subprocess.run(['git', b'\\xff'], cwd=${JSON.stringify(path.join(dir, 'c-bytes'))}, capture_output=True)`,
     `if os.name != 'nt':\n    subprocess.run(['git', '--version'], preexec_fn=lambda: None, cwd=${JSON.stringify(path.join(dir, 'c-pre'))}, capture_output=True)`,
     `subprocess.run(['git', '--version'], pass_fds=[], cwd=${JSON.stringify(path.join(dir, 'c-ordinary'))}, capture_output=True)`,
     "if os.name != 'nt':\n    os.system(b'true \\xff')",
@@ -352,7 +353,7 @@ test('the recorder records what the gate read and leaves the standard library ou
   assert.deepEqual(ranIn(path.dirname(dir)).map(item => [item.argv, item.line]), [process.platform === 'win32' ? [null, null] : [['git'], null]], 'a bare name: a program on POSIX, and on Windows a command line a shell would read differently')
   // Settings that change what a child does or sees are not reproduced by a replay: the command is not repeatable.
   assert.deepEqual(ranIn(path.join(dir, 'c-merged')).map(item => [item.argv, item.line]), [[null, null]], 'stderr merged into stdout')
-  assert.deepEqual(ranIn(path.join(dir, 'c-bytes')).map(item => [item.argv, item.line]), [[null, null]], 'an argument that is not text')
+  if (process.platform !== 'win32') assert.deepEqual(ranIn(path.join(dir, 'c-bytes')).map(item => [item.argv, item.line]), [[null, null]], 'an argument that is not text')
   if (process.platform !== 'win32') assert.deepEqual(ranIn(path.join(dir, 'c-pre')).map(item => [item.argv, item.line]), [[null, null]], 'a pre-exec function')
   assert.equal(existsSync(`${manifest}.part`), false, 'and the manifest is written whole or not at all')
   // A setting that is its default in another spelling is still repeatable, and CREATE_NO_WINDOW (which every Windows child of the

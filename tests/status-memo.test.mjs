@@ -76,3 +76,14 @@ test('a clock that goes backwards does not keep an answer alive', () => {
   assert.deepEqual(seen.first, [])
   assert.deepEqual(seen.back, ['c.txt'], 'a clock that moved backwards is asked again')
 })
+
+test('a caller that empties the array it was handed does not empty the memo', () => {
+  // Found by the verification review of the release candidate (ADR-095): the array stored was the array returned.
+  const dir = repository()
+  const out = path.join(scratch, 'own.json')
+  const program = fixture('own.mjs', `import { rmSync } from 'node:fs'\nrmSync(${JSON.stringify(path.join(dir, 'd.txt'))}, { force: true })\nappendFileSync(${JSON.stringify(path.join(dir, 'd.txt'))}, 'new\\n')\nrememberStatus(2000, () => 1)\nconst first = statusPaths(${JSON.stringify(dir)})\nconst seenFirst = [...first]\nfirst.length = 0\nconst second = [...statusPaths(${JSON.stringify(dir)})]\nwriteFileSync(out, JSON.stringify({ seenFirst, second }))`)
+  measure('Stop', dir, { program, out })
+  const seen = JSON.parse(readFileSync(out, 'utf8'))
+  assert.deepEqual(seen.seenFirst, ['d.txt'])
+  assert.deepEqual(seen.second, ['d.txt'], 'the second answer still has the path')
+})

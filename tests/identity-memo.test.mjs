@@ -100,3 +100,15 @@ test('a link repointed at another repository between two asks is another directo
   assert.equal(first.root, realpathSync.native(a))
   assert.equal(second.root, realpathSync.native(b), 'the second ask reads the repository the link now points at')
 })
+
+test('a path git is given that does not resolve is asked about, never answered from a directory it was spelled near', async () => {
+  // Found by the verification review of the release candidate (ADR-095): a key built after path.resolve() had dropped the missing
+  // component answered x/.. with the root of the directory it was written beside, where git itself says "not a repository".
+  const dir = repository()
+  const { gitRepositoryLookup } = await import(treeFacts)
+  const here = gitRepositoryLookup(dir)
+  assert.equal(here.root, realpathSync.native(dir))
+  const odd = gitRepositoryLookup(`${dir}${path.sep}__absent__${path.sep}..`) // path.join would drop the missing component, which is the point
+  assert.equal(odd.root, null, 'git is asked about the path as spelled')
+  assert.equal(gitRepositoryLookup(dir).root, here.root, 'and the ordinary answer is still the ordinary answer')
+})

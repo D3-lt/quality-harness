@@ -45,9 +45,16 @@ export function underTempRoot(candidate, depth = 0) {
 // change under the hook's own feet, and an answer that failed is asked again (a directory may become a repository).
 const identityAnswers = new Map()
 function remembered(directory, args, ask) {
-  // The key is the directory as the file system resolves it (a link repointed at another repository between two asks is another
-  // directory), not as it was spelled: a memo that answered for the old target would be a stale root (a Codex review, ADR-095).
-  const key = `${canonical(path.resolve(directory))}\0${args.join('\0')}`
+  // The key is the directory as the file system resolves it, from the spelling git is given (the same resolution an OS chdir makes,
+  // so `x/..` is what it is for a link or a missing x, and a relative path is read against the working directory): a link repointed
+  // at another repository between two asks is another directory. A directory that cannot be resolved is not remembered at all:
+  // git is asked, and says what it says (a Codex review of ADR-095, twice).
+  // A `..` is not resolved the way the OS resolves it by any call available here (realpath answers a missing x in x/.. on some
+  // systems and not on others), so a path with one is simply asked about, every time.
+  if (String(directory).split(/[\\/]/).includes('..')) return ask()
+  let resolved
+  try { resolved = realpathSync.native(String(directory)) } catch { return ask() }
+  const key = `${resolved}\0${args.join('\0')}`
   if (identityAnswers.has(key)) return identityAnswers.get(key)
   const answer = ask()
   if (answer && !answer.error && answer.status === 0) identityAnswers.set(key, answer)
@@ -285,7 +292,8 @@ export function statusPaths(root) {
     if (entry[0] === 'R' || entry[0] === 'C' || entry[1] === 'R' || entry[1] === 'C') index++
   }
   const answer = mark(paths, true)
-  if (key) statusMemo.answers.set(key, { at: statusMemo.now(), paths: answer })
+  // What is kept is a copy: the array handed to the caller is the caller's, and a caller that empties it must not empty the memo.
+  if (key) statusMemo.answers.set(key, { at: statusMemo.now(), paths: mark(paths, true) })
   return answer
 }
 

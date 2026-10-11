@@ -265,7 +265,8 @@ export function rememberStatus(lifetimeMs = 2_000, now = () => performance.now()
 
 export function statusPaths(root) {
   if (!root) return mark([], true)
-  const key = statusMemo ? path.resolve(root) : null
+  // A path with a `..` component can name a directory that is not there once a link or a missing component is resolved: git is asked.
+  const key = statusMemo && !String(root).split(/[\\/]/).includes('..') ? path.resolve(root) : null
   const kept = key ? statusMemo.answers.get(key) : undefined
   // A clock that went backwards would make an old answer look new: elapsed time below zero is not within the lifetime.
   const elapsed = kept ? statusMemo.now() - kept.at : -1

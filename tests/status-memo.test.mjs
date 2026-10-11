@@ -87,3 +87,13 @@ test('a caller that empties the array it was handed does not empty the memo', ()
   assert.deepEqual(seen.seenFirst, ['d.txt'])
   assert.deepEqual(seen.second, ['d.txt'], 'the second answer still has the path')
 })
+
+// Found by the release review: a path that climbs out of a missing component is not the repository it resolves to on paper.
+test('a path with a ".." component is asked of git every time, and an invalid one is not reported as a clean tree', async () => {
+  const { statusPaths, rememberStatus } = await import(treeFacts)
+  rememberStatus()
+  const dir = repository()
+  assert.equal(statusPaths(dir).ok, true, 'the repository itself is answered')
+  const odd = `${dir}${path.sep}__absent__${path.sep}..`
+  assert.equal(statusPaths(odd).ok, false, 'a path through a missing directory is not the clean tree it resolves to')
+})

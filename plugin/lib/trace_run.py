@@ -14,12 +14,15 @@ What this does NOT see is named in the manifest's `blind` list rather than left 
 passed in, and a stat made below Python. A cache that reuses an answer is only as sound as this list is short.
 """
 import json
+import subprocess
 import os
 import runpy
 import sys
 
 ACTIVE = True
 OPENED, LISTED, STATTED, RAN = {}, {}, {}, []
+# The environment variables the gate read (name -> value, or None when unset), and whether it read the whole environment.
+ENVREAD, ENV_ALL = {}, []
 _REAL_STAT = os.stat
 _REAL_LSTAT = os.lstat
 _REAL_LISTDIR = os.listdir
@@ -34,11 +37,15 @@ def _text(path):
 
 def _kind(path, follow=True):
     try:
-        mode = (_REAL_STAT if follow else _REAL_LSTAT)(path).st_mode
+        info = (_REAL_STAT if follow else _REAL_LSTAT)(path)
     except OSError:
         return None
-    top = mode & 0o170000
-    return "dir" if top == 0o040000 else "link" if top == 0o120000 else "file" if top == 0o100000 else "other"
+    top = info.st_mode & 0o170000
+    # A file is recorded with the size and modification time it had: a gate that stats a file reads them, and "it is a file" was not
+    # all it saw. A directory's own modification time moves with every entry written in it, so it is a kind and nothing more.
+    if top == 0o100000:
+        return "file:%d:%d" % (info.st_size, info.st_mtime_ns)
+    return "dir" if top == 0o040000 else "link" if top == 0o120000 else "other"
 
 
 def _signature(path):
@@ -69,14 +76,42 @@ def _audit(event, args):
             ACTIVE = False
             try:
                 LISTED[path] = sorted(os.fsdecode(name) for name in _REAL_LISTDIR(path))
+                # scandir hands out entries that answer is_dir() and stat() without another call from the gate.
+                if event == "os.scandir":
+                    for name in LISTED[path]:
+                        STATTED.setdefault(os.path.join(path, name), _kind(os.path.join(path, name)))
             except OSError:
                 LISTED[path] = None
             finally:
                 ACTIVE = True
-    elif event == "subprocess.Popen":
-        # (executable, args, cwd, env)
-        command = [os.fsdecode(part) for part in (args[1] or [args[0]])]
-        RAN.append({"argv": command, "cwd": _text(args[2]) if args[2] else os.getcwd()})
+    elif event == "os.system":
+        RAN.append({"argv": None, "line": os.fsdecode(args[0]), "cwd": os.getcwd()})
+    elif event in ("os.exec", "os.spawn", "os.fork", "os.forkpty"):
+        # A child whose command is not visible here: recorded as one that cannot be run again, so the answer is not kept.
+        RAN.append({"argv": None, "line": None, "cwd": os.getcwd()})
+    # A subprocess is recorded where it is asked for (see _recorded), not from this event: on Windows the event carries the command
+    # already joined into one string, which cannot be run again as the list the gate passed.
+
+
+def _recorded(original):
+    def init(self, args, *rest, **named):
+        if ACTIVE:
+            try:
+                shell = named.get("shell", rest[7] if len(rest) > 7 else False)
+                cwd = named.get("cwd", rest[8] if len(rest) > 8 else None)
+                executable = named.get("executable", rest[1] if len(rest) > 1 else None)
+                where = _text(cwd) if cwd else os.getcwd()
+                if executable is None and not shell and isinstance(args, (list, tuple)):
+                    RAN.append({"argv": [os.fsdecode(part) for part in args], "line": None, "cwd": where})
+                elif executable is None and isinstance(args, (str, bytes)):
+                    RAN.append({"argv": None, "line": os.fsdecode(args), "cwd": where})
+                else:
+                    # A shape that cannot be run again as it was asked for: recorded as such, so the answer is not kept.
+                    RAN.append({"argv": None, "line": None, "cwd": where})
+            except Exception:
+                RAN.append({"argv": None, "line": None, "cwd": os.getcwd()})
+        return original(self, args, *rest, **named)
+    return init
 
 
 def _noted(path):
@@ -119,6 +154,29 @@ def _modules():
     return sources
 
 
+def _watched(environ):
+    cls = type(environ)
+    real_getitem, real_iter = cls.__getitem__, cls.__iter__
+
+    def getitem(self, key):
+        try:
+            value = real_getitem(self, key)
+        except KeyError:
+            if ACTIVE and self is environ and isinstance(key, str):
+                ENVREAD.setdefault(key, None)
+            raise
+        if ACTIVE and self is environ and isinstance(key, str):
+            ENVREAD.setdefault(key, value)
+        return value
+
+    def iterate(self):
+        if ACTIVE and self is environ:
+            ENV_ALL.append(True)
+        return real_iter(self)
+
+    cls.__getitem__, cls.__iter__ = getitem, iterate
+
+
 def main(argv):
     global ACTIVE
     if len(argv) < 3:
@@ -126,6 +184,8 @@ def main(argv):
         return 2
     manifest, gate, rest = argv[1], os.path.abspath(argv[2]), argv[3:]
     sys.addaudithook(_audit)
+    _watched(os.environ)
+    subprocess.Popen.__init__ = _recorded(subprocess.Popen.__init__)
     os.stat = _traced(os.stat)
     os.lstat = _traced(os.lstat)
     # On POSIX os.path.exists and the other predicates go through os.stat, so the wrapper above already sees them; these are wrapped
@@ -156,10 +216,16 @@ def main(argv):
             "listed": LISTED,
             "statted": STATTED,
             "ran": RAN,
+            "env": ENVREAD,
+            "env_all": bool(ENV_ALL),
             "blind": ["a read through a file descriptor passed in", "a stat made below Python"],
         }
-        with open(manifest, "w", encoding="utf-8") as handle:
-            json.dump(record, handle)
+        # A manifest that cannot be written must not change what the gate returned: its exit status and output are the gate's.
+        try:
+            with open(manifest, "w", encoding="utf-8") as handle:
+                json.dump(record, handle)
+        except OSError:
+            pass
     return code
 
 

@@ -26,8 +26,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "        RAN.append({\"argv\": command, \"cwd\": _text(args[2]) if args[2] else os.getcwd()})",
-      "to": "        pass",
+      "from": "                    RAN.append({\"argv\": [os.fsdecode(part) for part in args], \"line\": None, \"cwd\": where})",
+      "to": "                    pass",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     },
     {
@@ -58,6 +58,66 @@
       ],
       "from": "\"prefixes\": _prefixes(),",
       "to": "\"prefixes\": [],",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: a command passed as one line is recorded as that line",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "RAN.append({\"argv\": None, \"line\": os.fsdecode(args), \"cwd\": where})",
+      "to": "pass",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: the entries of a scanned directory are recorded",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "                if event == \"os.scandir\":",
+      "to": "                if False:",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: an environment variable the gate read is recorded",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "            ENVREAD.setdefault(key, value)",
+      "to": "            pass",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a gate that reads the whole environment is marked",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "            ENV_ALL.append(True)",
+      "to": "            pass",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a command passed to os.system is recorded",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "    elif event == \"os.system\":",
+      "to": "    elif event == \"os.system.never\":",
+      "only": "^the recorder records what the gate read and leaves the standard library out$"
+    },
+    {
+      "label": "ADR-095 T6: a manifest that cannot be written does not change the gate's result",
+      "file": "plugin/lib/trace_run.py",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "        except OSError:\n            pass\n    return code",
+      "to": "        except OSError:\n            raise\n    return code",
       "only": "^the recorder records what the gate read and leaves the standard library out$"
     }
   ]

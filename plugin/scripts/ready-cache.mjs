@@ -31,10 +31,11 @@ export function lookupKey({ gate, directory, cwd, date, environment }) {
   return sha(JSON.stringify([VERSION, gate, directory, cwd, date, Object.entries(environment).sort()]))
 }
 
+// What a stat said: a file by its size and modification time (the recorder writes the same text), a directory by its kind alone.
 function kindOf(file) {
   try {
-    const info = statSync(file)
-    return info.isDirectory() ? 'dir' : info.isFile() ? 'file' : 'other'
+    const info = statSync(file, { bigint: true })
+    return info.isDirectory() ? 'dir' : info.isFile() ? `file:${info.size}:${info.mtimeNs}` : 'other'
   } catch { return null }
 }
 
@@ -50,9 +51,14 @@ function fileHash(file) {
   try { return sha(readFileSync(file)) } catch { return null }
 }
 
+// A command is run again as the gate asked for it: the list it passed, or the line it passed (through the shell, as a line is). A
+// shape the recorder could not keep (no list and no line) is not run, and its answer is not kept.
 function commandOutput(item) {
-  const [program, ...args] = item.argv
-  const run = spawnSync(program, args, { cwd: item.cwd, timeout: 10_000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 })
+  const options = { cwd: item.cwd, timeout: 10_000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 }
+  let run
+  if (Array.isArray(item.argv) && item.argv.length) run = spawnSync(item.argv[0], item.argv.slice(1), options)
+  else if (typeof item.line === 'string') run = spawnSync(item.line, { ...options, shell: true })
+  else return null
   if (run.error) return null
   return `${run.status}:${sha(run.stdout ?? Buffer.alloc(0))}`
 }
@@ -74,10 +80,16 @@ export function readyCache(root, listingOfTree, { now = new Date(), pluginRoot =
   // Every entry of the manifest must still hold; the first that does not ends the check.
   const holds = entry => {
     if (!entry.python || signature(entry.python.executable)?.join() !== entry.python.signature?.join()) return false
+    // An environment variable the gate read is a dependency like a file: its value now is its value then.
+    for (const [name, value] of Object.entries(entry.env ?? {})) if ((env[name] ?? null) !== value) return false
     for (const item of entry.opened) if (remembered(memo.files, item.path, () => fileHash(item.path)) !== item.sha256) return false
     for (const item of entry.listed) if (JSON.stringify(remembered(memo.lists, item.path, () => listing(item.path))) !== JSON.stringify(item.names)) return false
     for (const item of entry.statted) if (remembered(memo.kinds, item.path, () => kindOf(item.path)) !== item.kind) return false
-    for (const item of entry.ran) if (remembered(memo.commands, `${item.cwd}\0${item.argv.join('\0')}`, () => commandOutput(item)) !== item.output) return false
+    for (const item of entry.ran) {
+      const output = remembered(memo.commands, `${item.cwd}\0${Array.isArray(item.argv) ? item.argv.join('\0') : item.line}`, () => commandOutput(item))
+      if (output === null) { fail('a command the gate ran could not be run again'); return false }
+      if (output !== item.output) return false
+    }
     return true
   }
 
@@ -111,9 +123,11 @@ export function readyCache(root, listingOfTree, { now = new Date(), pluginRoot =
     try { mkdirSync(folder(), { recursive: true }) } catch (error) { fail(`the cache could not be written (${error.code ?? error.message})`); return runGate(gate, [directory, '--json'], options) }
     const result = runGate(trace, [manifestFile, gate, directory, '--json'], options)
     try {
-      if (result.status !== 0 && result.status !== 3) return result
+      // The recorder or the gate failed: the answer is a plain run's, never the traced one's.
+      if (result.status !== 0 && result.status !== 3) return runGate(gate, [directory, '--json'], options)
       let manifest
       try { manifest = JSON.parse(readFileSync(manifestFile, 'utf8')) } catch (error) { fail(`the recorder wrote no manifest (${error.code ?? error.message})`); return result }
+      if (manifest.env_all === true) { fail('the gate read the whole environment, which is not a dependency that can be checked'); return result }
       const prefixes = manifest.prefixes ?? []
       // Python's own bytecode cache is not something the gate read: it is written by the run, and it changes the directory it sits in.
       // It sits in a __pycache__ directory, or under the prefix PYTHONPYCACHEPREFIX moved it to.
@@ -135,7 +149,7 @@ export function readyCache(root, listingOfTree, { now = new Date(), pluginRoot =
         version: VERSION, key, answer: { status: result.status, stdout: result.stdout },
         python: { executable: manifest.python.executable, signature: signature(manifest.python.executable) },
         opened: opened.map(([file]) => ({ path: file, sha256: fileHash(file) })),
-        listed, statted, ran,
+        listed, statted, ran, env: manifest.env ?? {},
       }
       if (entry.opened.some(item => item.sha256 === null) || !entry.python.signature) return result
       const temporary = path.join(folder(), `${key}.${randomUUID()}.tmp`)

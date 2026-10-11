@@ -107,6 +107,10 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
   // Absent paths live in a directory nothing lists: python's import system lists the directory it imports from, which would
   // otherwise answer for them and hide a check that never looked at the path itself.
   mkdirSync(path.join(where, 'quiet'), { recursive: true })
+  // A file the gate stats (it reads the size), a directory it scans (its entries answer is_dir() without another call), a variable.
+  writeFileSync(path.join(where, 'quiet', 'sized.txt'), 'a')
+  mkdirSync(path.join(where, 'quiet', 'scanned'), { recursive: true })
+  writeFileSync(path.join(where, 'quiet', 'scanned', 'swap'), 'a')
   writeFileSync(path.join(where, 'outside.txt'), '1')
   // A file link is followed and what it leads to is a dependency like any other file; the privilege to make one is not held by an
   // ordinary Windows account, so there the gate reads the file itself.
@@ -125,7 +129,12 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
     `os.path.exists(${JSON.stringify(path.join(where, 'quiet', 'absent.txt'))})`,
     `try:\n    os.stat(${JSON.stringify(path.join(where, 'quiet', 'direct.txt'))})\nexcept OSError:\n    pass`,
     `import pathlib\npathlib.Path(${JSON.stringify(path.join(where, 'quiet', 'viapath.txt'))}).is_file()`,
+    `os.stat(${JSON.stringify(path.join(where, 'quiet', 'sized.txt'))}).st_size`,
+    `[entry.is_dir() for entry in os.scandir(${JSON.stringify(path.join(where, 'quiet', 'scanned'))})]`,
+    "os.environ.get('QH_PROBE_VAR')",
     `subprocess.run(['git', '-C', ${JSON.stringify(root)}, 'ls-files'], capture_output=True)`,
+    // A command passed as one line (through the shell) is run again as a line: on Windows the audit event gives every command that way.
+    "subprocess.run('git --version', shell=True, capture_output=True)",
     "print(json.dumps({'tasks_dir': 'x', 'ready': [], 'done': [], 'blocked': [], 'stopped': [], 'status': 'ok'}))",
   ].join('\n'))
   writeFileSync(path.join(where, 'helper.py'), 'VALUE = 1\n')
@@ -146,6 +155,8 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
     'a directory the gate listed': () => writeFileSync(path.join(where, 'listed', 'b.txt'), 'b'),
     'a path the gate asked about that was absent': () => writeFileSync(path.join(where, 'quiet', 'absent.txt'), 'x'),
     'a path the gate stat-ed directly that was absent': () => writeFileSync(path.join(where, 'quiet', 'direct.txt'), 'x'),
+    'a file the gate stat-ed whose size changed': () => writeFileSync(path.join(where, 'quiet', 'sized.txt'), 'aa'),
+    'an entry the gate scanned that became a directory with the same name': () => { rmSync(path.join(where, 'quiet', 'scanned', 'swap')); mkdirSync(path.join(where, 'quiet', 'scanned', 'swap')) },
     'a path the gate asked about through pathlib that was absent': () => writeFileSync(path.join(where, 'quiet', 'viapath.txt'), 'x'),
     'the output of a command the gate ran': () => { writeFileSync(path.join(root, 'listed-by-git.txt'), 'x'); git(root, 'add', '-A') },
     'a file the gate tried to open that was not there': () => writeFileSync(path.join(where, 'quiet', 'missing.txt'), 'x'),
@@ -166,6 +177,37 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
     writeFileSync(path.join(kept, name), JSON.stringify(entry))
   }
   assert.equal(askGate().runs, 1, 'a different interpreter is a miss')
+  // A command the gate ran that cannot be started now is a miss that says so, never a silent one (it was, on Windows, for every start).
+  for (const name of readdirSync(kept).filter(file => file.endsWith('.json'))) {
+    const entry = JSON.parse(readFileSync(path.join(kept, name), 'utf8'))
+    entry.ran = [{ argv: ['qh-no-such-program'], line: null, cwd: root, output: '0:x' }]
+    writeFileSync(path.join(kept, name), JSON.stringify(entry))
+  }
+  const unrunnable = askGate()
+  assert.equal(unrunnable.runs, 1, 'a recorded command that cannot be started is a miss')
+  assert.match(unrunnable.problem ?? '', /could not be run again/, 'and it is said')
+  // A gate that fails under the recorder is answered by a plain run of it, never by the traced one.
+  const failing = path.join(where, 'fails.py')
+  writeFileSync(failing, "#!/usr/bin/env python3\nimport sys\nsys.stderr.write('boom')\nsys.exit(1)\n")
+  chmodSync(failing, 0o755)
+  let failedRuns = 0
+  const failedAnswer = readyCache(root, trackedPaths(root), { now: new Date(2026, 9, 11, 12), env: writing })
+    .answer(path.join(where, 'tasks'), (...args) => { failedRuns++; return spawnGate(...args) }, failing, { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: writing })
+  assert.equal(failedAnswer.status, 1, 'the gate\'s own status')
+  assert.equal(failedRuns, 2, 'after a traced run and a plain one')
+  // A variable the gate read is a dependency: another value is a miss.
+  assert.equal(askGate({ ...writing, QH_PROBE_VAR: 'a' }).runs, 1, 'a variable the gate read, first value')
+  assert.equal(askGate({ ...writing, QH_PROBE_VAR: 'a' }).runs, 0, 'the same value is a hit')
+  assert.equal(askGate({ ...writing, QH_PROBE_VAR: 'b' }).runs, 1, 'another value is a miss')
+  // A gate that reads the whole environment depends on every variable: its answer is given and not kept, and that is said.
+  const everything = path.join(where, 'everything.py')
+  writeFileSync(everything, '#!/usr/bin/env python3\nimport os\nprint(len(dict(os.environ)) > 0)\n')
+  chmodSync(everything, 0o755)
+  let everythingRuns = 0
+  const whole = readyCache(root, trackedPaths(root), { now: new Date(2026, 9, 11, 12), env: writing })
+  for (let again = 0; again < 2; again++) whole.answer(path.join(where, 'tasks'), (...args) => { everythingRuns++; return spawnGate(...args) }, everything, { encoding: 'utf8', timeout: 30_000, windowsHide: true, env: writing })
+  assert.equal(everythingRuns, 2, 'a gate that read the whole environment runs each time')
+  assert.match(whole.problem() ?? '', /whole environment/, 'and the cache says why')
   // A project that moves Python's bytecode out of __pycache__ (PYTHONPYCACHEPREFIX; the mutation runner does) still gets a kept
   // answer: the bytecode a run writes is not something the gate read.
   const moved = { ...writing, PYTHONPYCACHEPREFIX: path.join(scratch, 'pyc-prefix') }
@@ -218,6 +260,22 @@ test('a run during which a dependency changed is not stored', () => {
   const later = start(root)
   assert.ok(later.runs >= 1, 'an answer made from the old record is not kept for the new one')
   assert.ok(later.lines.some(line => line.includes('not Accepted')), 'and the later start reflects the edit')
+  // The stability check on its own: a file that is opened and never stat-ed, rewritten while the gate's run is still being answered.
+  const solo = path.join(scratch, `solo-${repos++}`)
+  mkdirSync(solo, { recursive: true })
+  const soloInput = path.join(solo, 'input.txt')
+  writeFileSync(soloInput, '1')
+  const soloGate = path.join(solo, 'gate.py')
+  writeFileSync(soloGate, `#!/usr/bin/env python3\nopen(${JSON.stringify(soloInput)}).read()\nprint('x')\n`)
+  chmodSync(soloGate, 0o755)
+  const soloAsk = rewrite => {
+    let runs = 0
+    readyCache(root, trackedPaths(root), { now: new Date(2026, 9, 11, 12) }).answer(solo, (...args) => { runs++; const result = spawnGate(...args); if (rewrite) rewrite(); return result }, soloGate, { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+    return runs
+  }
+  assert.equal(soloAsk(() => writeFileSync(soloInput, '22')), 1, 'the first ask runs the gate, and the file changes under it')
+  assert.equal(soloAsk(), 1, 'the answer made while the file changed was not kept')
+  assert.equal(soloAsk(), 0, 'and the next one is')
 })
 
 test('the recorder records what the gate read and leaves the standard library out', () => {
@@ -233,6 +291,9 @@ test('the recorder records what the gate read and leaves the standard library ou
     `os.path.exists(${JSON.stringify(path.join(dir, 'absent'))})`,
     `pathlib.Path(${JSON.stringify(path.join(dir, 'listed'))}).is_dir()`,
     "subprocess.run(['git', '--version'], capture_output=True)",
+    "subprocess.run('git --version', shell=True, capture_output=True)",
+    "subprocess.run(['git', '--version'], shell=True, capture_output=True)",
+    "os.system('git version > ' + os.devnull)",
     "print(json.dumps({'ok': True}))",
   ].join('\n'))
   const manifest = path.join(dir, 'manifest.json')
@@ -246,6 +307,19 @@ test('the recorder records what the gate read and leaves the standard library ou
   assert.deepEqual(seen.listed[path.join(dir, 'listed')], ['a.txt'], 'a directory it listed, with the names')
   assert.equal(seen.statted[path.join(dir, 'absent')], null, 'a path it asked about that was not there')
   assert.equal(seen.statted[path.join(dir, 'listed')], 'dir', 'and one that was')
-  assert.ok(seen.ran.some(item => item.argv.join(' ') === 'git --version'), 'a command it ran')
+  assert.ok(seen.ran.some(item => item.argv?.join(' ') === 'git --version'), 'a command it ran, as the list it was given')
+  assert.ok(seen.ran.some(item => item.argv === null && item.line === 'git --version'), 'a command it ran as one line, kept as the line')
+  assert.ok(seen.ran.some(item => item.argv === null && item.line === null), 'a shape that cannot be run again is recorded as such')
+  assert.ok(seen.ran.some(item => item.argv === null && item.line?.startsWith('git version')), 'a command passed to os.system, kept as the line')
+  // The manifest is the recorder's own: when it cannot be written the gate still returns what it returned.
+  const failsAt = path.join(dir, 'missing', 'manifest.json')
+  const unwritable = spawnGate(path.join(repoRoot, 'plugin', 'lib', 'trace_run.py'), [failsAt, gate], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  assert.equal(unwritable.status, 0, unwritable.stderr)
+  assert.deepEqual(JSON.parse(unwritable.stdout), { ok: true })
+  assert.equal(unwritable.stderr, '', 'and nothing is said on its stderr')
+  const exits = path.join(dir, 'exits.py')
+  writeFileSync(exits, "import sys\nsys.exit(3)\n")
+  assert.equal(spawnGate(path.join(repoRoot, 'plugin', 'lib', 'trace_run.py'), [failsAt, exits], { encoding: 'utf8', timeout: 30_000, windowsHide: true }).status, 3, 'its exit status too')
+  assert.equal(seen.ran.some(item => item.argv?.some(part => part.length === 1 && part !== 'C')), false, 'and no command is recorded as single characters')
   assert.equal(outside.some(file => /[\\/]lib[\\/]python3?\.?\d*[\\/]/.test(file)), false, 'no standard-library file is a dependency')
 })

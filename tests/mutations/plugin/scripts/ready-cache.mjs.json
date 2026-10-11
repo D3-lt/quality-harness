@@ -36,8 +36,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "remembered(memo.commands, `${item.cwd}\\0${item.argv.join('\\0')}`, () => commandOutput(item)) !== item.output",
-      "to": "void item",
+      "from": "if (output !== item.output) return false",
+      "to": "void output",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     },
     {
@@ -108,6 +108,56 @@
       ],
       "from": " || (typeof manifest.pycache === 'string' && within(file, [manifest.pycache]))",
       "to": "",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a command the gate passed as a line is run again as a line",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "else if (typeof item.line === 'string') run = spawnSync(item.line, { ...options, shell: true })",
+      "to": "else if (false) run = spawnSync(item.line, { ...options, shell: true })",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a recorded command that cannot be started is said",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "if (output === null) { fail('a command the gate ran could not be run again'); return false }",
+      "to": "if (output === null) { return false }",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: a gate that fails under the recorder is answered by a plain run",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "if (result.status !== 0 && result.status !== 3) return runGate(gate, [directory, '--json'], options)",
+      "to": "if (result.status !== 0 && result.status !== 3) return result",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: an environment variable the gate read is checked",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "if ((env[name] ?? null) !== value) return false",
+      "to": "void value",
+      "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
+    },
+    {
+      "label": "ADR-095 T6: an answer from a gate that read the whole environment is not kept",
+      "file": "plugin/scripts/ready-cache.mjs",
+      "tests": [
+        "tests/ready-cache.test.mjs"
+      ],
+      "from": "if (manifest.env_all === true) {",
+      "to": "if (false) {",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     }
   ]

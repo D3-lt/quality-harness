@@ -116,8 +116,8 @@
       "tests": [
         "tests/ready-cache.test.mjs"
       ],
-      "from": "else if (typeof item.line === 'string') run = spawnSync(item.line, { ...options, shell: true })",
-      "to": "else if (false) run = spawnSync(item.line, { ...options, shell: true })",
+      "from": "else if (typeof item.line === 'string') run = spawnSync(item.line, { cwd: item.cwd, timeout: 10_000, windowsHide: true, maxBuffer: 16 * 1024 * 1024, shell: true })",
+      "to": "else if (false) run = spawnSync(item.line, { cwd: item.cwd, timeout: 10_000, windowsHide: true, maxBuffer: 16 * 1024 * 1024, shell: true })",
       "only": "^a manifest holds every kind of dependency the gate read, and each changes the answer when it changes$"
     },
     {

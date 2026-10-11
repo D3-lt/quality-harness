@@ -54,10 +54,9 @@ function fileHash(file) {
 // A command is run again as the gate asked for it: the list it passed, or the line it passed (through the shell, as a line is). A
 // shape the recorder could not keep (no list and no line) is not run, and its answer is not kept.
 function commandOutput(item) {
-  const options = { cwd: item.cwd, timeout: 10_000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 }
   let run
-  if (Array.isArray(item.argv) && item.argv.length) run = spawnSync(item.argv[0], item.argv.slice(1), options)
-  else if (typeof item.line === 'string') run = spawnSync(item.line, { ...options, shell: true })
+  if (Array.isArray(item.argv) && item.argv.length) run = spawnSync(item.argv[0], item.argv.slice(1), { cwd: item.cwd, timeout: 10_000, windowsHide: true, maxBuffer: 16 * 1024 * 1024 })
+  else if (typeof item.line === 'string') run = spawnSync(item.line, { cwd: item.cwd, timeout: 10_000, windowsHide: true, maxBuffer: 16 * 1024 * 1024, shell: true })
   else return null
   if (run.error) return null
   return `${run.status}:${sha(run.stdout ?? Buffer.alloc(0))}`

@@ -44,6 +44,7 @@ out=$(node --test --test-reporter=tap tests/identity-memo.test.mjs 2>&1) \
 | `a Stop event asks git for the repository toplevel once` | `tests/identity-memo.test.mjs` | the real hook program against a fixture repository: exactly one `rev-parse --show-toplevel` child | none | S1, S3 |
 | `the memo is per directory: two directories in one process are two answers` | `tests/identity-memo.test.mjs` | two repositories asked in one process give their own toplevels (the dirty twin of a global memo) | none | S1, S3 |
 | `no question about the tree is memoised: a status asked twice around a write sees the write` | `tests/identity-memo.test.mjs` | `status`, `diff`, `write-tree`, `add` and `ls-files` are spawned every time they are asked | none | S1, S3 |
+| `an answer one caller kept reads the same to the other: observe then lookup, and lookup then observe` | `tests/identity-memo.test.mjs` | supplementary, NOT in the Acceptance fence: found at execution — the lookup and the observation keep one entry for the toplevel, and the first version stored two shapes under one key, so the lookup read observe's entry as "git printed no root" and every publish check read the root as unknown | none | — |
 
 ## Reachability
 
@@ -55,6 +56,9 @@ out=$(node --test --test-reporter=tap tests/identity-memo.test.mjs 2>&1) \
 | 4 — it is used | the Stop measurement of S4 |
 
 ## Mutation Log
+- 2026-10-11 · d45c491e* · mutant killed · exit 1 · `plugin/scripts/tree-facts.mjs` · never reuses an identity answer, so the toplevel is asked again at every call · acceptance-sha256:371291e4a1a546347494f09fb170a11a89407f52604014d86c3455ae7c634e8f · covers:an identity question is asked once per process
+- 2026-10-11 · d45c491e* · mutant killed · exit 1 · `plugin/scripts/tree-facts.mjs` · keys the memo without the directory, so a second repository is handed the first one's answer · acceptance-sha256:371291e4a1a546347494f09fb170a11a89407f52604014d86c3455ae7c634e8f · covers:the memo is per directory
+- 2026-10-11 · d45c491e* · mutant killed · exit 1 · `plugin/scripts/tree-facts.mjs` · remembers the tree after the add, so a later observation sees the old tree · acceptance-sha256:371291e4a1a546347494f09fb170a11a89407f52604014d86c3455ae7c634e8f · covers:no question about the tree is memoised
 
 ## Invariants
 
@@ -73,3 +77,10 @@ Stop and ask if any caller passes a relative directory (then the key must be the
 - The two `write-tree` calls and `git status`/`diff` (permanent: boundary: tree questions; the observation is the point)
 
 ## Verification Log
+- 2026-10-11 · d45c491e* · exit 1 · `out=$(node --test --test-reporter=tap tests/identity-memo.test.mjs 2>&1) \ …` · acceptance-sha256:371291e4a1a546347494f09fb170a11a89407f52604014d86c3455ae7c634e8f · ms:2553 · test-lock-sha256:296f83e9544b3160aa05602ea7b7bec013f1cbc7a36a2a83a57ca07361a57c24 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvaWRlbnRpdHktbWVtby50ZXN0Lm1qcwlhIFN0b3AgZXZlbnQgYXNrcyBnaXQgZm9yIHRoZSByZXBvc2l0b3J5IHRvcGxldmVsIG9uY2UJYTY1OWQ2NzUwZjJjYTVkYTdiZjcxZGEwMjc0ZDdmNDdiMDhkZTE1ZjkwOGUzMTg3OTE0OTYyMGMzZjc5NmRhYgpib2R5CXRlc3RzL2lkZW50aXR5LW1lbW8udGVzdC5tanMJbm8gcXVlc3Rpb24gYWJvdXQgdGhlIHRyZWUgaXMgbWVtb2lzZWQ6IGEgc3RhdHVzIGFza2VkIHR3aWNlIGFyb3VuZCBhIHdyaXRlIHNlZXMgdGhlIHdyaXRlCWRiZjQwNTkzMGVhNGMwNDY2NjkyMzY0NTY4NzYxNGE5MmI5YjNiNjE1NzhiYjMzODY1ODIwMmM2NGU0ZGQ3ZTAKYm9keQl0ZXN0cy9pZGVudGl0eS1tZW1vLnRlc3QubWpzCXRoZSBtZW1vIGlzIHBlciBkaXJlY3Rvcnk6IHR3byBkaXJlY3RvcmllcyBpbiBvbmUgcHJvY2VzcyBhcmUgdHdvIGFuc3dlcnMJOGZkOGYxOWM1MDEyYzY1MzU5MWNkNDM4YjM4MjA0NmVmYWZkZDgyYzNmNjBiM2U2OTczNjdhM2ZlY2M5YTc5Yw
+  ```
+  ```
+- 2026-10-11 · d45c491e* · exit 0 · `out=$(node --test --test-reporter=tap tests/identity-memo.test.mjs 2>&1) \ …` · acceptance-sha256:371291e4a1a546347494f09fb170a11a89407f52604014d86c3455ae7c634e8f · ms:3645
+- 2026-10-11 · d45c491e* · exit 0 · `out=$(node --test --test-reporter=tap tests/identity-memo.test.mjs 2>&1) \ …` · acceptance-sha256:371291e4a1a546347494f09fb170a11a89407f52604014d86c3455ae7c634e8f · ms:3165
+- 2026-10-11 · d45c491e* · exit 0 · `out=$(node --test --test-reporter=tap tests/identity-memo.test.mjs 2>&1) \ …` · acceptance-sha256:371291e4a1a546347494f09fb170a11a89407f52604014d86c3455ae7c634e8f · ms:2957
+- 2026-10-11 · human-observed · observed by the executing session on macOS, 2026-10-11, scripts/hook-cost.mjs on a clone of this repository: baseline (S2) the turn-end event 16 children with rev-parse --show-toplevel x6, 2 write-tree, 3 status; after (S4) 11 children with the toplevel asked once, the two git-path questions once each, and status x3 and write-tree x2 unchanged, since tree questions are deliberately not remembered; SessionStart cold event 17 children before, 15 after (the toplevel x3 became x1); found at execution and fixed: the first version kept two result shapes under one key (the lookup and observe), so the lookup read observe's entry as an empty root and the publish check said the root was unknown in nine tests, caught by the regression run, now one shape and a supplementary test for both orders; approved

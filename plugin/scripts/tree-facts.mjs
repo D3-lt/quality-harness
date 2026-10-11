@@ -39,12 +39,28 @@ export function underTempRoot(candidate, depth = 0) {
   return tempRoots().some(root => resolved === root || resolved.startsWith(root + path.sep))
 }
 
+// ADR-095 T3. The identity of a repository (its toplevel, where its index and its objects are) cannot change inside one hook
+// process, and a Stop event asked for the toplevel six times. A successful answer is kept for the life of the process, by
+// directory and argument list. Nothing else about git is kept: what the tree holds, what the index holds and what HEAD is can
+// change under the hook's own feet, and an answer that failed is asked again (a directory may become a repository).
+const identityAnswers = new Map()
+function remembered(directory, args, ask) {
+  const key = `${path.resolve(directory)}\0${args.join('\0')}`
+  if (identityAnswers.has(key)) return identityAnswers.get(key)
+  const answer = ask()
+  if (answer && !answer.error && answer.status === 0) identityAnswers.set(key, answer)
+  return answer
+}
+
 // A spawn error or a timeout is not "this directory is not a repository".
 // `gitRepositoryRoot` stays null for both, for callers that only need a path.
 // Callers that would certify or go silent on that null use `gitRepositoryLookup`.
 export function gitRepositoryLookup(directory, spawnResult) {
-  const run = spawnResult !== undefined ? spawnResult : spawnSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], {
-    encoding: 'utf8', timeout: 5_000, windowsHide: true,
+  // One shape for every holder of this answer (`stdout` as git printed it, `out` trimmed): observe() asks the same question and
+  // keeps the same entry, and an entry one of them wrote must read the same to the other.
+  const run = spawnResult !== undefined ? spawnResult : remembered(directory, ['rev-parse', '--show-toplevel'], () => {
+    const asked = spawnSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+    return asked.error ? asked : { ...asked, out: String(asked.stdout ?? '').trim() }
   })
   if (!run || run.error || run.status == null) {
     return { ok: false, root: null, reason: run?.error?.message ?? 'git produced no status' }
@@ -105,12 +121,13 @@ export function observe(cwd, budgetMs = observeBudgetMs(), { without = [] } = {}
     if (run.error?.code === 'ETIMEDOUT') throw new Error(`git took more than ${budgetMs} ms`)
     if (run.error) throw new Error(`git could not run (${run.error.code ?? run.error.message})`)
     if (!allowed.includes(run.status)) throw new Error(`git ${args[0]} exited ${run.status}`)
-    return { status: run.status, out: run.stdout.trim() }
+    return { status: run.status, stdout: run.stdout, out: run.stdout.trim() }
   }
+  const identity = args => remembered(directory, args, () => git(args))
   try {
-    const root = git(['rev-parse', '--show-toplevel']).out
-    const indexPath = path.resolve(directory, git(['rev-parse', '--git-path', 'index']).out)
-    const objects = path.resolve(directory, git(['rev-parse', '--git-path', 'objects']).out)
+    const root = identity(['rev-parse', '--show-toplevel']).out
+    const indexPath = path.resolve(directory, identity(['rev-parse', '--git-path', 'index']).out)
+    const objects = path.resolve(directory, identity(['rev-parse', '--git-path', 'objects']).out)
     const head = git(['rev-parse', '--verify', '-q', 'HEAD'], null, [0, 1])
     scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-observe-'))
     const index = path.join(scratch, 'index')

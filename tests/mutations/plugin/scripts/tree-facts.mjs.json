@@ -49,6 +49,33 @@
       "from": "utimesSync(index, original.atime, original.mtime)",
       "to": "void original",
       "only": "^observe sees a file rewritten in the same second at the same size$"
+    },
+    {
+      "label": "ADR-095 T3: an identity answer is reused within a process",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/identity-memo.test.mjs"
+      ],
+      "from": "if (identityAnswers.has(key)) return identityAnswers.get(key)",
+      "to": "if (false) return identityAnswers.get(key)"
+    },
+    {
+      "label": "ADR-095 T3: the memo is per directory",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/identity-memo.test.mjs"
+      ],
+      "from": "const key = `${path.resolve(directory)}\\0${args.join('\\0')}`",
+      "to": "const key = `${args.join('\\0')}`"
+    },
+    {
+      "label": "ADR-095 T3: the tree is asked every time",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/identity-memo.test.mjs"
+      ],
+      "from": "const tree = git(['write-tree'], env).out",
+      "to": "const tree = identity(['write-tree']).out"
     }
   ]
 }

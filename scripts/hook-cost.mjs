@@ -74,15 +74,18 @@ export function measure({ event, repository, timeoutSeconds = 60, inPlace = fals
     const readLog = () => summarise(readFileSync(log, 'utf8').split('\n').filter(Boolean))
     const first = run(true)
     const summary = readLog()
-    const bareWarm = run(false)
+    // The second traced event comes right after the first, so it is the very next start (a cache the first one filled is what it
+    // reads); the untraced one is only there to say what the preload adds.
     const second = run(true)
     const secondSummary = readLog()
+    const bareWarm = run(false)
     const scrub = text => String(text).split(repo).join('<repo>').split(scratch).join('<scratch>').split(pluginDir).join('<plugin>')
     const timedOut = first.result.error?.code === 'ETIMEDOUT'
     return { event, program: scrub(hook), exit: timedOut ? null : first.result.status, timedOut, wallMs: first.wallMs,
       children: summary.children.map(child => ({ ...child, cmd: scrub(child.cmd), cwd: scrub(child.cwd) })),
       repeats: summary.repeats.map(repeat => ({ ...repeat, cmd: scrub(repeat.cmd), cwd: scrub(repeat.cwd) })), reads: summary.reads,
-      second: { wallMs: second.wallMs, wallWithoutPreloadMs: bareWarm.wallMs, children: secondSummary.children.length, repeats: secondSummary.repeats.length } }
+      second: { wallMs: second.wallMs, wallWithoutPreloadMs: bareWarm.wallMs, children: secondSummary.children.length, repeats: secondSummary.repeats.length,
+        childList: secondSummary.children.map(child => ({ cmd: scrub(child.cmd), ms: child.ms })) } }
   } finally {
     rmSync(scratch, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
   }
@@ -93,6 +96,8 @@ export function render(report) {
   const lines = [`${report.event}: first event ${report.timedOut ? 'TIMED OUT' : `exit ${report.exit}`}, ${report.wallMs} ms, ${report.children.length} children, ${report.reads.count} reads, ${(report.reads.bytes / 1024).toFixed(0)} KiB; second event ${report.second.wallMs} ms, ${report.second.children} children (${report.second.wallWithoutPreloadMs} ms without the preload)`]
   for (const child of report.children) lines.push(`  ${String(child.ms).padStart(7)} ms  ${child.cmd}`)
   for (const repeat of report.repeats) lines.push(`  REPEAT x${repeat.count} (${repeat.ms} ms)  ${repeat.cmd}`)
+  if (report.second.childList.length) lines.push('  second event:')
+  for (const child of report.second.childList) lines.push(`  ${String(child.ms).padStart(7)} ms  ${child.cmd}`)
   return `${lines.join('\n')}\n`
 }
 

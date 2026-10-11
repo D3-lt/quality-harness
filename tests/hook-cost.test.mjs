@@ -58,3 +58,11 @@ test('a hook that fails to run is reported as such, never as zero children', () 
   assert.equal(missing.children, null)
   assert.match(missing.error, /could not|not found|exit/i)
 })
+
+test('the second event names its children too, so a start that ran nothing can be told from one that ran something', () => {
+  const out = run(program('named.mjs', "spawnSync('git', ['--version'], { cwd })\nspawnSync('git', ['rev-parse', '--show-toplevel'], { cwd })"))
+  assert.equal(out.second.children, 2)
+  assert.deepEqual(out.second.childList.map(child => child.cmd), ['git --version', 'git rev-parse --show-toplevel'])
+  const none = run(program('quiet.mjs', 'process.exitCode = 0'))
+  assert.deepEqual(none.second.childList, [])
+})

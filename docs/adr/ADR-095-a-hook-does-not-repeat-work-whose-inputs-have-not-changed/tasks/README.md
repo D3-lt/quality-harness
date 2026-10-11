@@ -21,7 +21,7 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | a tool counts the children, repeats and reads of one hook event | done | none — no spec | `node --test tests/hook-cost.test.mjs` (three named tests pass) |
 | T2 | the ready-task lines come from a cache keyed by content | done | none — no spec | `node --test tests/ready-cache.test.mjs` (four named tests pass) |
-| T3 | a hook process asks git for the repository's identity once | pending | none — no spec | `node --test tests/identity-memo.test.mjs` (three named tests pass) |
+| T3 | a hook process asks git for the repository's identity once | done | none — no spec | `node --test tests/identity-memo.test.mjs` (three named tests pass) |
 | T4 | the gate sizes its test concurrency to the machine, or says it did not | pending | none — no spec | `node --test tests/gate-concurrency.test.mjs` (three named tests pass) |
 
 ## Contract Coupling

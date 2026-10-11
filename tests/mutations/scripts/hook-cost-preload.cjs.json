@@ -1,0 +1,13 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-095 T1: a child started with execFileSync is listed",
+      "file": "scripts/hook-cost-preload.cjs",
+      "tests": [
+        "tests/hook-cost.test.mjs"
+      ],
+      "from": "['spawnSync', 'execFileSync']",
+      "to": "['spawnSync']"
+    }
+  ]
+}

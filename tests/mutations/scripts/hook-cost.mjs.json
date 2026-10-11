@@ -1,0 +1,22 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-095 T1: a repeat is the same program, arguments and directory",
+      "file": "scripts/hook-cost.mjs",
+      "tests": [
+        "tests/hook-cost.test.mjs"
+      ],
+      "from": "const key = `${child.cwd}\\0${child.cmd}`",
+      "to": "const key = `${child.cmd}`"
+    },
+    {
+      "label": "ADR-095 T1: a hook that could not be started has no child count, not an empty one",
+      "file": "scripts/hook-cost.mjs",
+      "tests": [
+        "tests/hook-cost.test.mjs"
+      ],
+      "from": "exit: null, children: null }",
+      "to": "exit: null, children: [] }"
+    }
+  ]
+}

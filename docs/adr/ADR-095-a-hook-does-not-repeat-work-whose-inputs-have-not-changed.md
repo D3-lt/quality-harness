@@ -27,7 +27,7 @@
 - **`stateDir`, `saidMarkerDirectory`, `sweepStaleMarkers`** (`event-log.mjs`, `housekeeping.mjs`): reused. The cache is one more directory under the state directory with the same daily sweep; a new store with its own sweep is not created (CLAUDE.md §5).
 - **`gitRepositoryRoot`, `gitRepositoryLookup`** (`tree-facts.mjs`): the identity calls T3 memoises; `lazily.mjs::once` is the memo.
 - **`scripts/effect-classes.mjs`:** holds the key function of T2 to "reads nothing but what it is handed".
-- **`lease.mjs`, `load.mjs`** (`sampleLoad`, `contention`): reused by T4 for the load a gate finds.
+- **`load.mjs`** (`sampleLoad`): the way a load average is read and said unknown where the platform has none; T4 prints the same figure.
 
 ## Decision
 
@@ -37,7 +37,7 @@
 
 **3. A hook process asks git for the repository's identity once (T3).** `rev-parse --show-toplevel`, `--git-path <name>` and `--show-object-format` are memoised by (argument list, directory) for the life of one process; no question about the tree (`status`, `diff`, `write-tree`, `add`, `ls-files`) is memoised.
 
-**4. A gate sizes itself to the machine it finds, or says it did not (T4).** The repository's own gate chooses its test concurrency from the cores and the load it samples, within bounds, and says what it chose; T4 first measures wall time against concurrency on this machine at two loads and ships the rule only if it beats the default by the margin it states.
+**4. A gate says what it ran with, and the measurement decides whether it sizes itself (T4).** `scripts/selftest.sh` prints, before anything heavy, `selftest: concurrency N (cores C, load L)` (a load that cannot be read is `unknown`, never 0), takes `QH_SELFTEST_CONCURRENCY` as an override and says so. T4 measured the whole gate at nine, five and three test files at once (268, 282 and 392 s, under a load of 8 to 14 from other sessions): five costs about 5% and three costs about 46%, so no setting was faster than the default and no automatic rule is shipped; the numbers and the neighbour-friendly reading (five leaves about four cores free for the other sessions) are recorded for the owner.
 
 **5. A hook process reads the working tree's status once (T5, added 2026-10-11 after three outside runs).** `statusPaths` is asked three times in one turn-end event (the late-baseline check, the completion rules, the artifact rule): 125 to 400 ms on three corpora, the largest repeat left after T3. The answer is reused for at most two seconds within one process, per repository, only when git answered, and only when the hook's entry point switched the memo on; a test run, another process or a later event asks again. The turn has already ended when the hook runs and the advice it feeds is advisory (CLAUDE.md §3); the publish verdict reads its own observation, not this.
 
@@ -65,7 +65,7 @@ None — internal to `ready-lines.mjs`, `tree-facts.mjs` and `scripts/`. A new d
 | `<state dir>/ready-cache/<key>.json` | new: `adr-next`'s stdout and exit for a content key | T2 | `readyTaskLines` |
 | `readyTaskLines(root, …)` | consults the cache before `spawnGate` | T2 | `surfaceReadyLines`, SessionStart |
 | `gitRepositoryRoot`, `gitRepositoryLookup`, `gitDirectoryOf` | memoised per process for identity questions | T3 | the Stop, PreToolUse and SessionStart rules |
-| `scripts/selftest.sh` | passes a test concurrency it chose, and says so | T4 | the gate |
+| `scripts/selftest.sh` | prints its test concurrency and the load it found; takes an override | T4 | the gate, the owner |
 | `statusPaths(root)` | reuses one answer per repository for two seconds inside a hook process, off elsewhere | T5 | the late-baseline check, the completion rules, the artifact rule |
 
 ## Inter-task Contracts
@@ -102,7 +102,7 @@ See `docs/adr/ADR-095-a-hook-does-not-repeat-work-whose-inputs-have-not-changed/
 | A cache that cannot be read or written is reported as a hit | Low | High | every failure is a miss, said once; tested with an unreadable, an unwritable and a corrupt entry |
 | A concurrent session writes the same entry | Medium | Low | write to a temporary name and rename; a torn entry fails to parse and is a miss |
 | An identity memo outlives a `cd` or a worktree switch inside one process | Low | Medium | the key includes the directory; the memo is per process only |
-| T4's concurrency rule is slower on a quiet machine | Medium | Low | the rule ships only if it is not slower at the quiet load in the measurement |
+| One run per concurrency on a machine other sessions share is noisy | High | Low | the sign-off says so; no automatic rule is shipped on a difference inside the noise |
 
 ## Rollback
 

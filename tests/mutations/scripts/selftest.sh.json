@@ -19,6 +19,42 @@
       "from": "export QUALITY_HARNESS_LEASE_DIR=\"$QH_LEASES\"",
       "to": "export QH_UNUSED=\"$QH_LEASES\"",
       "only": "^a campaign's tests and the selftest use a private lease directory$"
+    },
+    {
+      "label": "ADR-095 T4: the gate says what it ran with and the load it found",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/gate-concurrency.test.mjs"
+      ],
+      "from": "printf 'selftest: concurrency %s (cores %s, load %s%s)\\n' \"$concurrency\" \"$cores\" \"$load\" \"$concurrency_how\"",
+      "to": "true"
+    },
+    {
+      "label": "ADR-095 T4: an override is said as such",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/gate-concurrency.test.mjs"
+      ],
+      "from": "concurrency_how='; set by QH_SELFTEST_CONCURRENCY'",
+      "to": "concurrency_how=''"
+    },
+    {
+      "label": "ADR-095 T4: a zero concurrency is not accepted",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/gate-concurrency.test.mjs"
+      ],
+      "from": "*[!0-9]*|0|0[0-9]*) printf 'selftest: QH_SELFTEST_CONCURRENCY=%s is not a positive whole number; ignored.\\n' \"$QH_SELFTEST_CONCURRENCY\" ;;",
+      "to": "*[!0-9]*|0[0-9]*) printf 'selftest: QH_SELFTEST_CONCURRENCY=%s is not a positive whole number; ignored.\\n' \"$QH_SELFTEST_CONCURRENCY\" ;;"
+    },
+    {
+      "label": "ADR-095 T4: an unreadable load is said as unknown",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/gate-concurrency.test.mjs"
+      ],
+      "from": "if [ \"${QH_SELFTEST_LOAD:-}\" = \"unreadable\" ]; then",
+      "to": "if false; then"
     }
   ]
 }

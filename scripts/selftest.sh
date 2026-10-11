@@ -44,6 +44,34 @@ REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # from disagreeing.
 ROOT="$REPO/plugin"
 
+# ADR-095 T4: say, before anything heavy, how many test files run at once and the load this run found, so a timing read later can
+# be attributed (a run on a busy machine is not comparable with one on a quiet one). QH_SELFTEST_CONCURRENCY overrides node's own
+# default (one fewer than the cores) and is said; a value that is not a positive whole number is said and ignored. A load that
+# cannot be read is "unknown", never 0: Windows has no load average, and os.loadavg() answers zeros there. QH_SELFTEST_DRY=1
+# prints the line and stops, and QH_SELFTEST_LOAD=unreadable forces the unreadable case; both exist for tests/gate-concurrency.test.mjs.
+cores=$(getconf _NPROCESSORS_ONLN 2>/dev/null || nproc 2>/dev/null || sysctl -n hw.ncpu 2>/dev/null || echo unknown)
+if [ "${QH_SELFTEST_LOAD:-}" = "unreadable" ]; then
+  load=unknown
+else
+  load=$(node -e 'const os = require("node:os"); process.stdout.write(process.platform === "win32" ? "unknown" : os.loadavg()[0].toFixed(2))' 2>/dev/null || true)
+  [ -n "$load" ] || load=unknown
+fi
+concurrency=default
+concurrency_how=''
+concurrency_args=()
+if [ -n "${QH_SELFTEST_CONCURRENCY:-}" ]; then
+  case "$QH_SELFTEST_CONCURRENCY" in
+    *[!0-9]*|0|0[0-9]*) printf 'selftest: QH_SELFTEST_CONCURRENCY=%s is not a positive whole number; ignored.\n' "$QH_SELFTEST_CONCURRENCY" ;;
+    *)
+      concurrency=$QH_SELFTEST_CONCURRENCY
+      concurrency_how='; set by QH_SELFTEST_CONCURRENCY'
+      concurrency_args=("--test-concurrency=$concurrency")
+      ;;
+  esac
+fi
+printf 'selftest: concurrency %s (cores %s, load %s%s)\n' "$concurrency" "$cores" "$load" "$concurrency_how"
+if [ "${QH_SELFTEST_DRY:-0}" = 1 ]; then exit 0; fi
+
 # The manifest/skill validation needs the Claude Code CLI. Where it is absent
 # the run says so and the final line downgrades to PARTIAL — a check that
 # silently vanishes is the failure mode this project exists to prevent. CI sets
@@ -104,12 +132,12 @@ fi
 # failing assertion to report. Off by default: it is a diagnostic, not a gate,
 # and nothing reads the file here.
 if [ -n "${QUALITY_HARNESS_TAP:-}" ]; then
-  node --test \
+  node --test ${concurrency_args[@]+"${concurrency_args[@]}"} \
     --test-reporter=spec --test-reporter-destination=stdout \
     --test-reporter=tap --test-reporter-destination="$QUALITY_HARNESS_TAP" \
     "$REPO"/tests/*.test.mjs
 else
-  node --test "$REPO"/tests/*.test.mjs
+  node --test ${concurrency_args[@]+"${concurrency_args[@]}"} "$REPO"/tests/*.test.mjs
 fi
 
 # The gates are the extensionless files; bin/*.cmd are Windows shims.

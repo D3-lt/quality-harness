@@ -211,7 +211,9 @@ test('a manifest holds every kind of dependency the gate read, and each changes 
   assert.match(whole.problem() ?? '', /whole environment/, 'and the cache says why')
   // Windows names variables without regard to case, and a spread copy of the environment does not: an entry recorded under `ComSpec`
   // holds for `COMSPEC` there, and nowhere else.
-  const caseEnv = { ...writing, QH_CASE_PROBE: 'v' }
+  // Only names written in capitals, so that the key is the same under either rule (a runner that has `Python_ROOT_DIR` in its
+  // environment would otherwise make the two platforms two keys, and the tampered entry would be for one of them).
+  const caseEnv = { ...Object.fromEntries(Object.entries(writing).filter(([name]) => name === name.toUpperCase())), QH_CASE_PROBE: 'v' }
   askGate(caseEnv)
   for (const name of readdirSync(kept).filter(file => file.endsWith('.json'))) {
     const entry = JSON.parse(readFileSync(path.join(kept, name), 'utf8'))

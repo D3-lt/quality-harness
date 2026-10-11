@@ -65,7 +65,7 @@
       "tests": [
         "tests/identity-memo.test.mjs"
       ],
-      "from": "const key = `${path.resolve(directory)}\\0${args.join('\\0')}`",
+      "from": "const key = `${canonical(path.resolve(directory))}\\0${args.join('\\0')}`",
       "to": "const key = `${args.join('\\0')}`"
     },
     {
@@ -83,7 +83,7 @@
       "tests": [
         "tests/status-memo.test.mjs"
       ],
-      "from": "if (kept && statusMemo.now() - kept.at < statusMemo.lifetimeMs) return mark(kept.paths, true)",
+      "from": "if (kept && elapsed >= 0 && elapsed < statusMemo.lifetimeMs) return mark(kept.paths, true)",
       "to": "if (false) return mark(kept.paths, true)"
     },
     {
@@ -92,7 +92,7 @@
       "tests": [
         "tests/status-memo.test.mjs"
       ],
-      "from": "if (kept && statusMemo.now() - kept.at < statusMemo.lifetimeMs) return",
+      "from": "if (kept && elapsed >= 0 && elapsed < statusMemo.lifetimeMs) return",
       "to": "if (kept) return"
     },
     {
@@ -103,6 +103,24 @@
       ],
       "from": "let statusMemo = null",
       "to": "let statusMemo = { lifetimeMs: 2_000, now: Date.now, answers: new Map() }"
+    },
+    {
+      "label": "ADR-095 review: the identity memo is keyed by the resolved directory",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/identity-memo.test.mjs"
+      ],
+      "from": "const key = `${canonical(path.resolve(directory))}\\0${args.join('\\0')}`",
+      "to": "const key = `${path.resolve(directory)}\\0${args.join('\\0')}`"
+    },
+    {
+      "label": "ADR-095 review: a backwards clock does not keep a status answer alive",
+      "file": "plugin/scripts/tree-facts.mjs",
+      "tests": [
+        "tests/status-memo.test.mjs"
+      ],
+      "from": "if (kept && elapsed >= 0 && elapsed < statusMemo.lifetimeMs) return mark(kept.paths, true)",
+      "to": "if (kept && elapsed < statusMemo.lifetimeMs) return mark(kept.paths, true)"
     }
   ]
 }

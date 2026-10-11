@@ -4,7 +4,7 @@
 // and on a fixture program that calls the same functions.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
@@ -83,4 +83,20 @@ test('an answer one caller kept reads the same to the other: observe then lookup
   measure('Stop', dir, { program: reverse, out })
   const back = JSON.parse(readFileSync(out, 'utf8'))
   assert.deepEqual([back.observed, back.lookup.ok, back.tree], [true, true, 'string'], 'observe is not handed the lookup\'s shape and read as an empty answer')
+})
+
+test('a link repointed at another repository between two asks is another directory, not the old answer', async () => {
+  // Found by a Codex review of the release candidate (ADR-095): a memo keyed by the spelling of the directory answered for the old
+  // target and a publish check read the wrong repository. A directory link needs no privilege on Windows (a junction).
+  const a = repository()
+  const b = repository()
+  const link = path.join(scratch, `link-${repos}`)
+  try { symlinkSync(a, link, process.platform === 'win32' ? 'junction' : 'dir') } catch { return }
+  const { gitRepositoryLookup } = await import(treeFacts)
+  const first = gitRepositoryLookup(link)
+  rmSync(link, { recursive: true, force: true })
+  symlinkSync(b, link, process.platform === 'win32' ? 'junction' : 'dir')
+  const second = gitRepositoryLookup(link)
+  assert.equal(first.root, realpathSync.native(a))
+  assert.equal(second.root, realpathSync.native(b), 'the second ask reads the repository the link now points at')
 })

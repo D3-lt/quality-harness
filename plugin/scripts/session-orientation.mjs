@@ -11,7 +11,6 @@ import { checkInCode, pathInCode } from './corpus-text.mjs'
 import { alreadyMentionedThisSession, firstMentionHere, firstMentionThisSession } from './session-notes.mjs'
 import { shadowInstallNotice, staleVersionNotice } from './install-notices.mjs'
 import { readyTaskLines, surfaceReadyLines } from './ready-lines.mjs'
-import { readyCache } from './ready-cache.mjs'
 
 // What a session would otherwise learn by hitting a wall. Additive only: this
 // hook can never block, and says nothing it cannot establish from the project
@@ -102,9 +101,7 @@ export function sessionOrientation(cwd, { once = false } = {}) {
 
   const inside = repositoryRoot !== null
   const listing = inside ? trackedPaths(root) : null
-  const ready = readyTaskLines(root, inside, listing, undefined, readyCache(root, listing))
-  // Said once per repository per three days like any standing paragraph: a state directory that cannot be used costs a start its speed, not its answer.
-  if (ready.cacheProblem) standing(`ADR task lines were read without the ready-task cache (${ready.cacheProblem}); adr-next ran for each task directory.`)
+  const ready = readyTaskLines(root, inside, listing)
   if (inside && ready.look === 'UNPROVEN') {
     lines.push('could-not-look: git could not list the tree (UNPROVEN). Ready tasks and corpus existence are not known.')
   }

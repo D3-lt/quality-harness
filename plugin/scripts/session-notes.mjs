@@ -12,7 +12,6 @@ import { gitRepositoryRoot, locationKey } from './tree-facts.mjs'
 import { checkCommandOrigin, projectCheckCommand } from './check-command.mjs'
 import { passedAlready } from './check-ledger.mjs'
 import { readyTaskLines } from './ready-lines.mjs'
-import { readyCache } from './ready-cache.mjs'
 import { SAID_MARKER_MAX_AGE_MS, saidMarkerDirectory, sweepStaleMarkers } from './housekeeping.mjs'
 
 // Said once per path per session. New context at every Edit would repeat the
@@ -108,7 +107,7 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
         : 'No check has run this session.')
   if (tasks) {
     const listing = insideRepository ? trackedPaths(root) : null
-    const ready = readyTaskLines(root, insideRepository, listing, undefined, readyCache(root, listing))
+    const ready = readyTaskLines(root, insideRepository, listing)
     if (ready.look === 'UNPROVEN') {
       parts.push('ADR tasks in flight: UNPROVEN (git could not list the tree).')
     } else if (ready.lines.length) {

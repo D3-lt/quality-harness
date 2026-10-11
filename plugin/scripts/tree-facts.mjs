@@ -45,7 +45,9 @@ export function underTempRoot(candidate, depth = 0) {
 // change under the hook's own feet, and an answer that failed is asked again (a directory may become a repository).
 const identityAnswers = new Map()
 function remembered(directory, args, ask) {
-  const key = `${path.resolve(directory)}\0${args.join('\0')}`
+  // The key is the directory as the file system resolves it (a link repointed at another repository between two asks is another
+  // directory), not as it was spelled: a memo that answered for the old target would be a stale root (a Codex review, ADR-095).
+  const key = `${canonical(path.resolve(directory))}\0${args.join('\0')}`
   if (identityAnswers.has(key)) return identityAnswers.get(key)
   const answer = ask()
   if (answer && !answer.error && answer.status === 0) identityAnswers.set(key, answer)
@@ -250,7 +252,7 @@ function harnessPathspecs(root) {
 // ADR-095 T5. Off unless the entry point switches it on (a hook process does, a test or a library caller does not): one answer per
 // repository, reused for at most `lifetimeMs`, kept only when git gave it. The answer is handed out as a copy.
 let statusMemo = null
-export function rememberStatus(lifetimeMs = 2_000, now = Date.now) {
+export function rememberStatus(lifetimeMs = 2_000, now = () => performance.now()) {
   statusMemo = { lifetimeMs, now, answers: new Map() }
 }
 
@@ -258,7 +260,9 @@ export function statusPaths(root) {
   if (!root) return mark([], true)
   const key = statusMemo ? path.resolve(root) : null
   const kept = key ? statusMemo.answers.get(key) : undefined
-  if (kept && statusMemo.now() - kept.at < statusMemo.lifetimeMs) return mark(kept.paths, true)
+  // A clock that went backwards would make an old answer look new: elapsed time below zero is not within the lifetime.
+  const elapsed = kept ? statusMemo.now() - kept.at : -1
+  if (kept && elapsed >= 0 && elapsed < statusMemo.lifetimeMs) return mark(kept.paths, true)
   // ⚠ `-z`, NOT A QUOTE STRIP. Porcelain v1 quotes an unusual name and escapes its
   // bytes as octal; stripping the quotes left `na\303\257ve.md`, a path that is
   // not on disk — shown to the user, persisted to `sessions.jsonl`, and gated by

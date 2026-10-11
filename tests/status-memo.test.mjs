@@ -65,3 +65,14 @@ test('the memo is off unless the entry point switches it on, and it is per repos
   const on = measure('Stop', a, { program: fixture('on.mjs', `rememberStatus(2000)\nstatusPaths(${JSON.stringify(a)})\nstatusPaths(${JSON.stringify(a)})\nstatusPaths(${JSON.stringify(b)})\nstatusPaths(${JSON.stringify(b)})`) })
   assert.equal(asked(on, 'status --porcelain'), 2, 'with it, once per repository')
 })
+
+test('a clock that goes backwards does not keep an answer alive', () => {
+  // Found by a Codex review of the release candidate (ADR-095): an elapsed time below zero satisfied "less than the lifetime".
+  const dir = repository()
+  const out = path.join(scratch, 'back.json')
+  const program = fixture('back.mjs', `import { rmSync } from 'node:fs'\nrmSync(${JSON.stringify(path.join(dir, 'c.txt'))}, { force: true })\nlet now = 100000\nrememberStatus(2000, () => now)\nconst first = [...statusPaths(${JSON.stringify(dir)})]\nappendFileSync(${JSON.stringify(path.join(dir, 'c.txt'))}, 'new\\n')\nnow = 1000\nconst back = [...statusPaths(${JSON.stringify(dir)})]\nwriteFileSync(out, JSON.stringify({ first, back }))`)
+  measure('Stop', dir, { program, out })
+  const seen = JSON.parse(readFileSync(out, 'utf8'))
+  assert.deepEqual(seen.first, [])
+  assert.deepEqual(seen.back, ['c.txt'], 'a clock that moved backwards is asked again')
+})

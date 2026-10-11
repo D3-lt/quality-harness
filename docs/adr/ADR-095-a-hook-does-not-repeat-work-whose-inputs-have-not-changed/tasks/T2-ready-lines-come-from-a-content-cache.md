@@ -1,5 +1,6 @@
 # Task ADR-095-T2: the ready-task lines come from a cache keyed by content
 
+**Status:** withdrawn — a review of the release candidate found the key unsound (six fail-open blockers); the module, its test and its catalogue were removed before release. See the parent record.
 **Depends-on:** T1
 **Covers:** none — no spec
 **Estimated scope:** M (one new module, two callers, tests)

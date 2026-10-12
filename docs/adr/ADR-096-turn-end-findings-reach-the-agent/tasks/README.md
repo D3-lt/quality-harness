@@ -18,7 +18,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | the host continues a turn on Stop context, and §3 names it | pending | none — no spec | `node --test tests/turn-end-delivery.test.mjs` (one named test passes) |
+| T1 | the host continues a turn on Stop context, and §3 names it | done | none — no spec | `node --test tests/turn-end-delivery.test.mjs` (one named test passes) |
 | T2 | Stop delivers findings to the agent, each with an identity, once per tree | pending | none — no spec | `node --test tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs` (six named tests pass) |
 | T3 | a project can keep turn-end findings user-only, and the skill says how | pending | none — no spec | `node --test tests/turn-end-delivery.test.mjs` (two named tests pass) |
 

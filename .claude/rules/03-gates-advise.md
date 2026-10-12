@@ -65,3 +65,11 @@ The other sanctioned refusal predates this one: ADR-060's reviewer guard denies 
 read-only any edit, commit or push. It has no off switch because it fences a role the caller
 chose to make read-only, never the caller's own work. A third-round review caught the docs calling
 ADR-061's refusal "the one", which the guard made false.
+
+**Where advice goes (ADR-096, 2026-10-12).** A synchronous hook's `systemMessage` is shown to the user only; the agent sees
+`additionalContext`, or at Stop a `decision: "block"` reason. Until ADR-096 every turn-end advisory went out as `systemMessage`: in
+this repository's 12 session logs R1–R4 fired 612 times and rule A 89, none of it to the agent, while the publish verdict (764,
+PreToolUse context or a deny) was the one rule the agent saw. A live probe on Claude Code 2.1.296 (a Stop hook in a scratch project
+returning a marker as `additionalContext`) showed the agent quoting the marker after exactly one continuation, the second Stop
+carrying `stop_hook_active: true`. So a turn-end finding now reaches the agent, and continuing a turn is named in section 3 as an
+act that is not a refusal.

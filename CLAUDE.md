@@ -73,6 +73,9 @@ Why: `.claude/rules/02-running-the-checks.md`
   (ADR-081); a push still needs the full check. And
   ADR-060's reviewer guard: a role spawned read-only may not edit, commit or push. A new refusal
   needs an Accepted record, and an opt-out unless it only fences a role the caller made read-only.
+- **A hook may continue a turn to hand the agent a finding** (ADR-096). At Stop a finding meant for the agent goes into its
+  context, and the turn continues once so it can act; that is an act, not a third refusal, and it never stops a command. A
+  `systemMessage` reaches the user only, never the agent.
 - **A gate never reports an observation it did not make.** Could-not-look is `UNRUN`, `PARTIAL`,
   `UNPROVEN` — never the vocabulary of a verdict. (ADR-005)
 - **Unread always-on output is work we action.** Classify each advise line, unchanged branch-state brief, and host recalled-memory block this turn: act, or name it dangling only when the action needs a human decision (Accept a Proposed record; push a release). Treating a class as noise after one look, then never reading it again, is how a finding the gate did emit goes unnoticed across commits.

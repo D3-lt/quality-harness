@@ -86,3 +86,18 @@ test('both Codex skills launch through host-review and keep their recursion mark
   }
   assert.match('"<absolute-codex>" exec -C x', ownLaunch, 'the pattern finds a skill-built launch')
 })
+
+// The codex-review skill shows what the launcher runs; this keeps that block equal to `codexInvocation`, flag for flag.
+const flagsOf = words => words.filter(word => word.startsWith('-'))
+const shownFlags = text => {
+  const block = text.split('What the launcher runs')[1]?.match(/```text\n([\s\S]*?)```/)?.[1] ?? ''
+  return flagsOf(block.replace(/<optional-ignore-user-config>/, '').split(/\s+/).filter(word => word !== '\\'))
+}
+test('the invocation the codex-review skill shows is the one the launcher builds', () => {
+  const built = flagsOf(codexInvocation({ bin: 'codex', repo: 'r', effort: 'high', prompt: 'p', output: 'o' }).argv)
+  const skill = readFileSync(path.join(repoRoot, 'plugin', 'skills', 'codex-review', 'SKILL.md'), 'utf8')
+  assert.deepEqual(shownFlags(skill), built)
+  assert.match(skill, new RegExp(`-m ${CODEX_MODEL.replaceAll('.', '\\.')} `))
+  // Dirty: a block that dropped a flag the launcher passes is told apart.
+  assert.notDeepEqual(shownFlags(skill.replace(' --ephemeral', '')), built)
+})

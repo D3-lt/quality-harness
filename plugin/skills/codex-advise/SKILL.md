@@ -10,6 +10,11 @@ description: >-
 
 # Codex Advise
 
+**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it. If it reaches you as
+literal text rather than a directory, this skill was loaded under its bare name
+from a personal skills directory — which is not a plugin, so the placeholder is
+never substituted there. Run `qh-root` and use what it prints in place of it.
+
 Prefer the minimum sufficient solution. Treat SOLID and DRY as diagnostics for demonstrated
 boundaries and duplicated knowledge, not reasons to add speculative layers or future scope.
 

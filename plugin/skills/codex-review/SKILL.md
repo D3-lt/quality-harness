@@ -10,6 +10,11 @@ description: >-
 
 # Codex Review
 
+**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it. If it reaches you as
+literal text rather than a directory, this skill was loaded under its bare name
+from a personal skills directory — which is not a plugin, so the placeholder is
+never substituted there. Run `qh-root` and use what it prints in place of it.
+
 Prefer the minimum sufficient solution. Do not demand speculative abstractions, configuration,
 fallbacks, future scope, or cleanup unrelated to a material finding.
 
@@ -127,8 +132,20 @@ Codex's final message. Exit 2: Codex was unavailable, killed at the budget, or r
 says which; report it as a failed review and do not substitute another reviewer under Codex's name. For an explicit
 non-Git artifact review add `--skip-git-repo-check`. Remove the contract's directory after the result is reported.
 
-Use plain `codex exec` semantics (the launcher's) rather than `codex review`: CLI builds can advertise
-`review [OPTIONS] [PROMPT]` yet reject a selector-plus-prompt launch because `--uncommitted`, `--commit` and `--base`
+What the launcher runs, built in one place (`codexInvocation` in `host-review.mjs`), shown so a reader can check a
+run against it; do not type it yourself:
+
+```text
+<codex> exec <optional-ignore-user-config> \
+  -C "<repo-root>" -s read-only \
+  -m gpt-6.1-sol -c 'model_reasoning_effort="<high|xhigh|max|ultra>"' \
+  -c 'sandbox_mode="read-only"' --ephemeral \
+  -o "<absolute-unique-output>" \
+  "CODEX-REVIEW-LEAF: <the contract file's text>"
+```
+
+Use plain `codex exec` semantics (the launcher's) rather than `codex review`: CLI builds can advertise `review [OPTIONS] [PROMPT]`
+in `--help` yet reject an actual selector-plus-prompt launch because `--uncommitted`, `--commit` and `--base`
 conflict with `[PROMPT]`. Put the resolved Git target and its read-only inspection commands in the contract instead.
 
 ## Write the contract for a Git diff

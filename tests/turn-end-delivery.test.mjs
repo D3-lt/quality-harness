@@ -81,9 +81,9 @@ test('an artifact finding imported on an event that cannot reach the agent stays
   // hand it to the agent, once.
   hook(wrote(bad))
   const atSubagent = hook({ hook_event_name: 'SubagentStop', agent_type: 'general-purpose', last_assistant_message: 'Wrote it.' })
-  assert.match(atSubagent.stdout?.systemMessage ?? '', /ADR-001-bad/, 'the finding was first said to the user')
+  assert.match(atSubagent.stdout?.systemMessage ?? '', /Artifact validation failed[\s\S]*ADR-001-bad/, 'the finding was first said to the user')
   assert.equal(context(atSubagent), '', 'and not to an agent')
-  assert.match(context(hook(stop())), /ADR-001-bad/, 'the finding said only to the user is handed to the agent at Stop')
+  assert.match(context(hook(stop())), /Artifact validation failed[\s\S]*ADR-001-bad/, 'the finding said only to the user is handed to the agent at Stop')
 })
 
 test('the task-evidence nudge has an identity and is said once per tree', { skip }, t => {
@@ -130,5 +130,42 @@ test('an unreadable project configuration means the default, said as such', { sk
   mkdirSync(path.dirname(bad), { recursive: true })
   writeFileSync(bad, '# ADR-001: bad\n\nno status here\n')
   hook(wrote(bad))
-  assert.match(context(hook(stop())), /ADR-001-bad/, 'an unreadable file declares nothing: the finding still reaches the agent')
+  assert.match(context(hook(stop())), /Artifact validation failed[\s\S]*ADR-001-bad/, 'an unreadable file declares nothing: the finding still reaches the agent')
+})
+
+// Found by the different-lineage review of the T2/T3 code (2026-10-12).
+function badRecordGated(t, name) {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, name, BASE)
+  const session = `${name}-1`
+  const hook = payload => runHook(box, repo, session, payload)
+  hook({ hook_event_name: 'SessionStart', source: 'startup' })
+  const bad = path.join(repo, 'docs', 'adr', 'ADR-001-bad.md')
+  mkdirSync(path.dirname(bad), { recursive: true })
+  writeFileSync(bad, '# ADR-001: bad\n\nno status here\n')
+  hook(wrote(bad))
+  // A subagent's turn end runs the pass; its finding is said where only the user sees it.
+  assert.match(hook({ hook_event_name: 'SubagentStop', agent_type: 'general-purpose', last_assistant_message: 'Wrote it.' }).stdout?.systemMessage ?? '', /Artifact validation failed[\s\S]*ADR-001-bad/)
+  return hook
+}
+
+test('a Stop that has already continued its turn adds nothing, even for a finding that arrived since', { skip }, t => {
+  const hook = badRecordGated(t, 'continued-once')
+  assert.equal(context(hook(stop({ stop_hook_active: true }))), '', 'a turn continued once is not continued again')
+  assert.match(context(hook(stop())), /Artifact validation failed[\s\S]*ADR-001-bad/, 'the finding waits for the next turn end')
+})
+
+test('a finding handed to a subagent is still the main agent\'s to hear', { skip }, t => {
+  const hook = badRecordGated(t, 'subagent-heard')
+  const subagent = hook({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'ls' }, agent_id: 'sub-1', agent_type: 'general-purpose' })
+  assert.match(context(subagent), /Artifact validation failed[\s\S]*ADR-001-bad/, 'the subagent was handed it')
+  assert.match(context(hook(stop())), /Artifact validation failed[\s\S]*ADR-001-bad/, 'and the main agent still hears it at its Stop')
+})
+
+test('turnEnd notify holds when the working directory has been deleted', { skip }, t => {
+  const config = '{"check":"sh check.sh","fastCheck":"sh check.sh","turnEnd":"notify"}\n'
+  const { box, repo, session } = unchecked(t, 'notify-deleted-cwd', { '.quality-harness.json': config })
+  const gone = path.join(repo, 'src', 'gone')
+  const said = runHook(box, repo, session, { ...stop(), cwd: gone })
+  assert.equal(context(said), '', 'a deleted subdirectory still reads the repository root\'s turnEnd')
 })

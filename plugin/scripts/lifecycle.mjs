@@ -1,19 +1,13 @@
 #!/usr/bin/env node
 
 import { isMainModule } from './main-module.mjs'
-import { appendEvent } from './event-log.mjs'
+import path from 'node:path'
+import { appendEvent, nearestExistingDirectory } from './event-log.mjs'
 import { gitRepositoryRoot, rememberStatus } from './tree-facts.mjs'
 import { emitJson, peekOutput, pendingActions, queueAction, takeOutput } from './hook-queue.mjs'
 import { projectCheckCommand } from './check-command.mjs'
 import { channelOf, deliveredTo } from './check-ledger.mjs'
 import { turnEndSetting } from './project-config.mjs'
-
-// What the project says a turn-end finding is for (ADR-096 T3); only Stop asks.
-function turnEndFor(input) {
-  if (input?.hook_event_name !== 'Stop') return 'agent'
-  const cwd = input.cwd ?? process.cwd()
-  return turnEndSetting(gitRepositoryRoot(cwd) ?? cwd)
-}
 import { importPassVerdicts, runArtifactPass } from './artifact-pass.mjs'
 import { readOnlyRole, reviewChangedState } from './publish-verdict.mjs'
 import { advisoryHeadline } from './ready-lines.mjs'
@@ -24,6 +18,24 @@ import { onSessionEnd } from './on-session-end.mjs'
 import { onSubagentStart } from './on-subagent-start.mjs'
 import { onPreToolUse } from './on-pre-tool-use.mjs'
 import { onTurnEnd } from './on-turn-end.mjs'
+
+// What the project says a turn-end finding is for (ADR-096 T3), read from the repository the session is in; only Stop asks. A
+// working directory that has been deleted is read from its nearest existing parent, as the turn-end rules read it.
+function turnEndFor(input) {
+  if (input?.hook_event_name !== 'Stop') return 'agent'
+  const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
+  if (!directory) return 'agent'
+  return turnEndSetting(gitRepositoryRoot(directory) ?? directory)
+}
+// Whether this delivery reaches the main agent's context: a Stop that has not already continued its turn, in a project that has
+// not kept turn-end findings user-only. A Stop that has continued once is user-only, so nothing continues the turn again (ADR-096).
+function stopReachesAgent(input) {
+  return input?.hook_event_name === 'Stop' && input.stop_hook_active !== true && turnEndFor(input) !== 'notify'
+}
+// Who a delivery reached (recorded on its row), and who a finding is checked against before it is said.
+const reachedBy = input => input?.hook_event_name === 'Stop' ? (stopReachesAgent(input) ? 'both' : 'user') : deliveredTo(input?.hook_event_name)
+const audienceOf = input => input?.hook_event_name === 'Stop' ? (stopReachesAgent(input) ? 'agent' : 'user') : channelOf(input?.hook_event_name)
+const recipientOf = input => input?.agent_id ? 'subagent' : 'main'
 
 // ADR-060's event log is shared with run-shell-hook.mjs's per-edit gate, so it
 // lives in a leaf module both can import (T6).
@@ -96,7 +108,7 @@ export function deliver(actions, input, { legacy = null } = {}) {
         output.hookSpecificOutput = specific
         const headline = `quality-harness advised the agent: ${advisoryHeadline(texts[0])} (full text in the transcript)`
         output.systemMessage = output.systemMessage ? `${output.systemMessage}\n${headline}` : headline
-      } else if (event === 'Stop' && turnEndFor(input) !== 'notify') {
+      } else if (stopReachesAgent(input)) {
         // ADR-096: a turn-end finding is the main agent's to act on. additionalContext reaches it and continues its turn once
         // (the next Stop carries stop_hook_active, and onTurnEnd says nothing then); the user is shown the same text as before.
         const specific = output.hookSpecificOutput ?? { hookEventName: 'Stop' }
@@ -113,7 +125,7 @@ export function deliver(actions, input, { legacy = null } = {}) {
     if (action.rule) {
       appendEvent(input.cwd, input.session_id, {
         event: 'action.emitted', rule: action.rule, key: action.key ?? null, ...(action.detail ? { detail: action.detail } : {}),
-        channel: deliveredTo(event, turnEndFor(input)), recipient: input.agent_id ? 'subagent' : 'main',
+        channel: reachedBy(input), recipient: recipientOf(input),
       })
     }
   }
@@ -168,7 +180,7 @@ export async function handleHook(input) {
   // the parent's (ADR-061's sixth amendment). A finding said where only the user
   // sees it is said again at the next hook that reaches the agent (ADR-096).
   if (!guardAlone && typeof input.session_id === 'string' && input.session_id) {
-    try { importPassVerdicts(input.cwd ?? process.cwd(), input.session_id, channelOf(input.hook_event_name, turnEndFor(input))) } catch (failure) {
+    try { importPassVerdicts(input.cwd ?? process.cwd(), input.session_id, audienceOf(input), recipientOf(input)) } catch (failure) {
       process.stderr.write(`[quality-harness] the artifact pass's ledger was not read (${failure?.message ?? failure}).\n`)
     }
   }

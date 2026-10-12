@@ -482,18 +482,21 @@ export function deliveredTo(event, turnEnd = 'agent') {
 }
 // A row counts for an audience when its delivery reached it. A row written before ADR-096 carries no channel and counts for every
 // audience, so nothing said before the upgrade is said again; with no audience asked for, every row counts.
-export function reachedChannel(entry, channel) {
-  return channel === null || entry.channel === undefined || entry.channel === 'both' || entry.channel === channel
+export function reachedChannel(entry, channel, recipient = null) {
+  if (channel === null || entry.channel === undefined) return true
+  // A subagent's context is not the main agent's: a finding handed to a subagent has not been heard by the main agent.
+  if (channel === 'agent' && recipient === 'main' && entry.recipient === 'subagent') return false
+  return entry.channel === 'both' || entry.channel === channel
 }
 
-export function emittedFor(log, rule, key, channel = null) {
-  return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key && reachedChannel(entry, channel))
+export function emittedFor(log, rule, key, channel = null, recipient = null) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key && reachedChannel(entry, channel, recipient))
 }
 
 // R2's own dedupe: one delivered action carries several commit keys in its
 // detail, and a commit named in any of them has been said.
-export function namedByReview(log, key, channel = null) {
-  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R2' && reachedChannel(entry, channel)
+export function namedByReview(log, key, channel = null, recipient = null) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R2' && reachedChannel(entry, channel, recipient)
     && (entry.key === key || entry.detail?.commits?.includes(key)))
 }
 

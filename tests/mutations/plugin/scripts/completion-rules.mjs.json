@@ -196,7 +196,7 @@
       "tests": [
         "tests/observed-events.test.mjs"
       ],
-      "from": "    if (!emittedFor(log, 'R4', key, channel)) {",
+      "from": "    if (!emittedFor(log, 'R4', key, channel, recipient)) {",
       "to": "    if (true) {",
       "only": "^(?:writes the tree cannot see re-open the finding)$"
     },
@@ -436,7 +436,7 @@
       "tests": [
         "tests/turn-end-delivery.test.mjs"
       ],
-      "from": "if (!emittedFor(log, 'R1', key, channel)) {",
+      "from": "if (!emittedFor(log, 'R1', key, channel, recipient)) {",
       "to": "if (true) {",
       "only": "^a\\ finding\\ delivered\\ to\\ the\\ agent\\ for\\ this\\ tree\\ is\\ not\\ delivered\\ again,\\ and\\ a\\ changed\\ tree\\ is\\ said\\ again$"
     },
@@ -446,7 +446,7 @@
       "tests": [
         "tests/turn-end-delivery.test.mjs"
       ],
-      "from": "if (nudge && !emittedFor(log, 'N', observation.tree, channel))",
+      "from": "if (nudge && !emittedFor(log, 'N', observation.tree, channel, recipient))",
       "to": "if (nudge)",
       "only": "^the\\ task\\-evidence\\ nudge\\ has\\ an\\ identity\\ and\\ is\\ said\\ once\\ per\\ tree$"
     }

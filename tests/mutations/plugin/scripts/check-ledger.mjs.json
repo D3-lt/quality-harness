@@ -418,9 +418,19 @@
       "tests": [
         "tests/turn-end-delivery.test.mjs"
       ],
-      "from": "return channel === null || entry.channel === undefined || entry.channel === 'both' || entry.channel === channel",
-      "to": "return true",
+      "from": "  return entry.channel === 'both' || entry.channel === channel",
+      "to": "  return true",
       "only": "^an\\ artifact\\ finding\\ imported\\ on\\ an\\ event\\ that\\ cannot\\ reach\\ the\\ agent\\ stays\\ pending\\ for\\ the\\ next\\ Stop$"
+    },
+    {
+      "label": "ADR-096 review: a finding handed to a subagent is not heard by the main agent",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": [
+        "tests/turn-end-delivery.test.mjs"
+      ],
+      "from": "  if (channel === 'agent' && recipient === 'main' && entry.recipient === 'subagent') return false\n",
+      "to": "",
+      "only": "^a\\ finding\\ handed\\ to\\ a\\ subagent\\ is\\ still\\ the\\ main\\ agent's\\ to\\ hear$"
     }
   ]
 }

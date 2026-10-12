@@ -146,9 +146,29 @@
       "tests": [
         "tests/turn-end-delivery.test.mjs"
       ],
-      "from": "} else if (event === 'Stop' && turnEndFor(input) !== 'notify') {",
+      "from": "} else if (stopReachesAgent(input)) {",
       "to": "} else if (false) {",
       "only": "^a\\ Stop\\ with\\ unchecked\\ work\\ gives\\ the\\ agent\\ the\\ finding\\ and\\ the\\ user\\ a\\ headline$"
+    },
+    {
+      "label": "ADR-096 review: a Stop that has continued once reaches only the user",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/turn-end-delivery.test.mjs"
+      ],
+      "from": "input.stop_hook_active !== true && ",
+      "to": "",
+      "only": "^a\\ Stop\\ that\\ has\\ already\\ continued\\ its\\ turn\\ adds\\ nothing,\\ even\\ for\\ a\\ finding\\ that\\ arrived\\ since$"
+    },
+    {
+      "label": "ADR-096 review: turnEnd is read from the nearest existing directory",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/turn-end-delivery.test.mjs"
+      ],
+      "from": "const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))",
+      "to": "const directory = path.resolve(input.cwd ?? process.cwd())",
+      "only": "^turnEnd\\ notify\\ holds\\ when\\ the\\ working\\ directory\\ has\\ been\\ deleted$"
     }
   ]
 }

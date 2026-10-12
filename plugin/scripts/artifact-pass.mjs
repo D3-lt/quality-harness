@@ -14,7 +14,7 @@ import * as leaseModule from './lease.mjs'
 import { PLUGIN_ROOT } from './plugin-root.mjs'
 import { gitLines, gitRepositoryRoot, sessionBaseline, statusPaths, underTempRoot } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
-import { reachedChannel } from './check-ledger.mjs'
+import { channelOf, reachedChannel } from './check-ledger.mjs'
 
 // Rule A `artifact-invalid` (ADR-060): the artifact gates over everything this
 // session changed — committed since its first HEAD, uncommitted, and written by
@@ -398,7 +398,7 @@ function passKey(entry, words) {
 // has already queued are remembered here.
 const passFindingsQueued = new Set()
 
-export function importPassVerdicts(cwd, session, channel = null) {
+export function importPassVerdicts(cwd, session, channel = null, recipient = null) {
   const { ledger, lock } = passFiles(cwd, session)
   let text = ''
   try { text = readFileSync(ledger, 'utf8') } catch { /* no pass has written yet */ }
@@ -408,7 +408,7 @@ export function importPassVerdicts(cwd, session, channel = null) {
   const imported = new Set(log.filter(entry => entry.event === 'artifact.gated' && typeof entry.pass === 'string')
     .map(entry => `${entry.pass}\0${entry.path}`))
   // Said already on this channel (ADR-096): a finding shown only to the user is still the agent's to hear at its next hook.
-  const said = new Set(log.filter(entry => entry.event === 'action.emitted' && entry.rule === 'A' && reachedChannel(entry, channel)).map(entry => entry.key))
+  const said = new Set(log.filter(entry => entry.event === 'action.emitted' && entry.rule === 'A' && reachedChannel(entry, channel, recipient)).map(entry => entry.key))
   const findings = []
   const ended = new Set()
   for (const line of text.split('\n')) {
@@ -465,7 +465,8 @@ export function importPassVerdicts(cwd, session, channel = null) {
 async function startArtifactPass(input, targets, identities, bases) {
   const unrun = why => {
     const key = `unrun:${why}`
-    if (readEvents(input.cwd, input.session_id).some(entry => entry.event === 'action.emitted' && entry.rule === 'A' && entry.key === key)) return
+    if (readEvents(input.cwd, input.session_id).some(entry => entry.event === 'action.emitted' && entry.rule === 'A' && entry.key === key
+      && reachedChannel(entry, channelOf(input.hook_event_name), input.agent_id ? 'subagent' : 'main'))) return
     queueAction({
       rule: 'A', key,
       text: `Artifact validation UNRUN: the pass over ${targets.length} changed artifact(s) could not be started (${why}). Nothing was checked; the next boundary tries again.`,

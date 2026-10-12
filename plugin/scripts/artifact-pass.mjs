@@ -14,6 +14,7 @@ import * as leaseModule from './lease.mjs'
 import { PLUGIN_ROOT } from './plugin-root.mjs'
 import { gitLines, gitRepositoryRoot, sessionBaseline, statusPaths, underTempRoot } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
+import { reachedChannel } from './check-ledger.mjs'
 
 // Rule A `artifact-invalid` (ADR-060): the artifact gates over everything this
 // session changed — committed since its first HEAD, uncommitted, and written by
@@ -397,7 +398,7 @@ function passKey(entry, words) {
 // has already queued are remembered here.
 const passFindingsQueued = new Set()
 
-export function importPassVerdicts(cwd, session) {
+export function importPassVerdicts(cwd, session, channel = null) {
   const { ledger, lock } = passFiles(cwd, session)
   let text = ''
   try { text = readFileSync(ledger, 'utf8') } catch { /* no pass has written yet */ }
@@ -406,7 +407,8 @@ export function importPassVerdicts(cwd, session) {
   if (!text && !started.length) return
   const imported = new Set(log.filter(entry => entry.event === 'artifact.gated' && typeof entry.pass === 'string')
     .map(entry => `${entry.pass}\0${entry.path}`))
-  const said = new Set(log.filter(entry => entry.event === 'action.emitted' && entry.rule === 'A').map(entry => entry.key))
+  // Said already on this channel (ADR-096): a finding shown only to the user is still the agent's to hear at its next hook.
+  const said = new Set(log.filter(entry => entry.event === 'action.emitted' && entry.rule === 'A' && reachedChannel(entry, channel)).map(entry => entry.key))
   const findings = []
   const ended = new Set()
   for (const line of text.split('\n')) {

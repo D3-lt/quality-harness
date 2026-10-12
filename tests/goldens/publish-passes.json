@@ -287,7 +287,9 @@
         "detail": {
           "tree": "<sha>",
           "revision": 0
-        }
+        },
+        "channel": "both",
+        "recipient": "main"
       },
       {
         "at": "<time>",
@@ -307,7 +309,9 @@
         "detail": {
           "tree": "<sha>",
           "revision": 0
-        }
+        },
+        "channel": "both",
+        "recipient": "main"
       },
       {
         "at": "<time>",
@@ -327,7 +331,9 @@
         "detail": {
           "tree": "<sha>",
           "revision": 0
-        }
+        },
+        "channel": "both",
+        "recipient": "main"
       },
       {
         "at": "<time>",
@@ -406,7 +412,9 @@
         "detail": {
           "tree": "<sha>",
           "revision": 0
-        }
+        },
+        "channel": "both",
+        "recipient": "main"
       }
     ],
     "skips.jsonl": [

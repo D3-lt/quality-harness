@@ -373,7 +373,9 @@
         "detail": {
           "tree": "<sha>",
           "revision": 1
-        }
+        },
+        "channel": "both",
+        "recipient": "main"
       },
       {
         "at": "<time>",

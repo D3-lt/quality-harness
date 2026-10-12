@@ -411,6 +411,16 @@
       "from": "passOf: original?.id ?? latest.id,",
       "to": "passOf: latest.id,",
       "only": "^a skip row names the pass that ran, not the reuse row that stood for it$"
+    },
+    {
+      "label": "ADR-096 T2: a finding said only to the user is still the agent's to hear",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": [
+        "tests/turn-end-delivery.test.mjs"
+      ],
+      "from": "return channel === null || entry.channel === undefined || entry.channel === 'both' || entry.channel === channel",
+      "to": "return true",
+      "only": "^an\\ artifact\\ finding\\ imported\\ on\\ an\\ event\\ that\\ cannot\\ reach\\ the\\ agent\\ stays\\ pending\\ for\\ the\\ next\\ Stop$"
     }
   ]
 }

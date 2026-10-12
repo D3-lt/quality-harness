@@ -26,8 +26,8 @@
       "tests": [
         "tests/advisory-headline.test.mjs"
       ],
-      "from": "        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\\n\\n${joined}` : joined",
-      "to": "        void joined",
+      "from": "        const specific = output.hookSpecificOutput ?? { hookEventName: 'PreToolUse' }\n        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\\n\\n${joined}` : joined",
+      "to": "        const specific = output.hookSpecificOutput ?? { hookEventName: 'PreToolUse' }\n        void joined",
       "only": "^(?:the headline a person sees at a publish warning names the finding)$"
     },
     {
@@ -139,6 +139,16 @@
       "from": "  ['Stop', onTurnEnd],",
       "to": "",
       "only": "^writes and turn ends: what was written, where, and what the turn says about it$"
+    },
+    {
+      "label": "ADR-096 T2: a Stop hands the finding to the agent",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/turn-end-delivery.test.mjs"
+      ],
+      "from": "} else if (event === 'Stop') {",
+      "to": "} else if (false) {",
+      "only": "^a\\ Stop\\ with\\ unchecked\\ work\\ gives\\ the\\ agent\\ the\\ finding\\ and\\ the\\ user\\ a\\ headline$"
     }
   ]
 }

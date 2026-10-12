@@ -6,7 +6,7 @@ import path from 'node:path'
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { canonical, nearestExistingDirectory, readEvents } from './event-log.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
-import { checkRevision, checkStanding, emittedFor, latestCheckFor, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, treeChecked, unobservableWrites } from './check-ledger.mjs'
+import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, treeChecked, unobservableWrites } from './check-ledger.mjs'
 import { gitRepositoryLookup, mark, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { once } from './lazily.mjs'
@@ -629,6 +629,8 @@ export function completionJudgement(facts, input) {
     mutations: status.length + writes.length,
   }
   const actions = []
+  // A finding said only to the user has not been said to the agent: each audience is counted on its own (ADR-096).
+  const channel = channelOf(input.hook_event_name)
   // The opt-in today's advice already requires: a project that named no check
   // cannot be asked to run one (reported from redash-api, 2026-08-26). A refused
   // declaration is a check that does not count, not a project that named none.
@@ -643,7 +645,7 @@ export function completionJudgement(facts, input) {
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
   if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {
     const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`
-    if (!emittedFor(log, 'R1', key)) {
+    if (!emittedFor(log, 'R1', key, channel)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
       actions.push({ rule: 'R1', key, text: uncheckedWorkReason(facts.sentence(), status, writes.length, speaksFor, { logTorn: logIncomplete(log), tornWords: tornRecord(log), orderUnknown: observation?.ok === true && checkStanding(log, observation.tree) === 'unresolved', couldNotLook: observation?.ok === true && checkStanding(log, observation.tree) === 'could-not-look' }) })
@@ -656,7 +658,7 @@ export function completionJudgement(facts, input) {
     if (observation?.ok === true && commit.tree === observation.tree) return false
     const commitRevision = checkRevision(log, commit.tree)
     if (namedByPublish(log, commit.tree, commitRevision)) return false
-    return !namedByReview(log, `${commit.sha}:${commitRevision}`)
+    return !namedByReview(log, `${commit.sha}:${commitRevision}`, channel)
   })
   if (unchecked.length) {
     const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
@@ -670,7 +672,7 @@ export function completionJudgement(facts, input) {
     // Once per session and cwd, read from the log rather than from a marker file
     // under os.tmpdir() (ADR-060 replaces sessionGenerationPath here).
     const key = facts.locationKey()
-    if (!emittedFor(log, 'R4', key)) {
+    if (!emittedFor(log, 'R4', key, channel)) {
       // NAME what could not be looked at. A failed enumeration has a reason of its
       // own — the observation may have succeeded and the follow-up query failed —
       // and "no reason was recorded" would report the wrong could-not-look.
@@ -686,7 +688,8 @@ export function completionJudgement(facts, input) {
   // not asserted. Not a rule — it repeats while the state it is about holds.
   if (observation?.ok === true && treeChecked(log, observation.tree)) {
     const nudge = facts.nudge(changed)
-    if (nudge) actions.push({ text: nudge })
+    // An identity like the rules' (ADR-096): said once per tree to each audience, so a turn is never continued twice for it.
+    if (nudge && !emittedFor(log, 'N', observation.tree, channel)) actions.push({ rule: 'N', key: observation.tree, text: nudge })
   }
   return { claim, actions }
 }

@@ -4,7 +4,7 @@
 **Covers:** none — no spec
 **Estimated scope:** M (the Stop branch of `deliver`, identity on every finding, the pending state, goldens, tests)
 **Owner:** unassigned
-**Produces:** `deliver` emitting `hookSpecificOutput.additionalContext` on Stop; `action.emitted` rows with `tree`, `channel`, `recipient`
+**Produces:** `deliver` emitting `hookSpecificOutput.additionalContext` on Stop; `action.emitted` rows with `channel` and `recipient`; `channelOf`, `deliveredTo` and `reachedChannel` in `check-ledger.mjs`
 **Consumes:** a live observation that Stop `additionalContext` reaches the main agent (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
@@ -19,7 +19,7 @@ agent once per tree; a finding imported on an event with no channel to the agent
 
 | File | Change | Why |
 |------|--------|-----|
-| `plugin/scripts/lifecycle.mjs` | edit | `deliver`: on Stop, `additionalContext` plus a one-line `systemMessage`; nothing when `stop_hook_active`; `action.emitted` gains `tree`, `channel` (`agent`/`user`), `recipient` (`main`/`subagent`); the guard reads agent rows only |
+| `plugin/scripts/lifecycle.mjs` | edit | `deliver`: on Stop, `additionalContext` beside the unchanged `systemMessage`; `action.emitted` gains `channel` (`both`/`user`) and `recipient` (`main`/`subagent`); the artifact import is told which audience the event reaches (the parent record's amendment) |
 | `plugin/scripts/completion-rules.mjs` | edit | the task-evidence nudge (`:689`) gets a rule and a key |
 | `plugin/scripts/artifact-pass.mjs` | read | which findings `importPassVerdicts` hands over, so a user-only delivery leaves them pending |
 | `tests/turn-end-delivery.test.mjs` | edit | the six tests below |
@@ -62,6 +62,19 @@ out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hoo
 | 4 — it is used | T1's probe shows the host honours it; the follow-up count in the parent record |
 
 ## Mutation Log
+- 2026-10-12 · 4d426c9d* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the Stop branch never hands the finding to the agent · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · covers:a finding reaches the agent
+- 2026-10-12 · 4d426c9d* · mutant survived · exit 0 · `plugin/scripts/on-turn-end.mjs` · a Stop that has already continued its turn is judged again · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · covers:a turn continues at most once
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-12 · 4d426c9d* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · R1 is said on every Stop of the same tree · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · covers:a finding is said to the agent once per tree
+- 2026-10-12 · 4d426c9d* · mutant survived · exit 0 · `plugin/scripts/check-ledger.mjs` · a finding shown only to the user counts as heard by the agent · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · covers:a finding said only to the user stays pending
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-10-12 · 4d426c9d* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · the task-evidence nudge continues every turn on the same tree · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · covers:a finding is said to the agent once per tree
+- 2026-10-12 · 4d426c9d* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · a Stop delivery is not counted as heard by the user, so the next event repeats it · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · covers:a finding is said to the agent once per tree
+- 2026-10-12 · 4d426c9d* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · a finding shown only to the user counts as heard by the agent · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · covers:a finding said only to the user stays pending
 
 ## Invariants
 
@@ -82,3 +95,16 @@ Stop and ask if a finding can reach Stop without a rule and a key after S3, or i
 - SubagentStop and TaskCompleted (deferred: `docs/BACKLOG.md` §378)
 
 ## Verification Log
+- 2026-10-12 · 4d426c9d* · exit 1 · `out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs 2>&1) \ …` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:19085 · test-lock-sha256:4087f4f728eba1bcee2f926a4ba753714bab84ccd22163911f7ca88472eba9ba · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvdHVybi1lbmQtZGVsaXZlcnkudGVzdC5tanMJQ0xBVURFLm1kIHNlY3Rpb24gMyBuYW1lcyBhIHR1cm4gdGhhdCBjb250aW51ZXMgYXMgYW4gYWN0LCBub3QgYSByZWZ1c2FsCTk4MjkxOGI0NTFlOThhMWFiMmM2Njg0MTYxOWViZDlkN2RmZWJjN2ZjN2E0MWExOGM1YTZhZDY2OGEwNGQ1MGIKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwlTdWJhZ2VudFN0b3Agb3V0cHV0IGlzIHVuY2hhbmdlZAkwN2ZmOTM4NGEzZmE5YTI0NzZlZjJkMTYwMmRmMWMyZGNjYWI1NWE0NzJiMDBhZTJhMmFkOWQwZTNmNzRiNmI3CmJvZHkJdGVzdHMvdHVybi1lbmQtZGVsaXZlcnkudGVzdC5tanMJYSBTdG9wIHdpdGggdW5jaGVja2VkIHdvcmsgZ2l2ZXMgdGhlIGFnZW50IHRoZSBmaW5kaW5nIGFuZCB0aGUgdXNlciBhIGhlYWRsaW5lCTZiOTliODAzYWNjNDU4ZmRkY2Y3ZGFmMWY5Y2MyZTQxY2E4NDgzNjJkNjI0N2Q3ZGI3ZTM1ZjM0Nzc0MzIxYWUKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwlhIGZpbmRpbmcgZGVsaXZlcmVkIHRvIHRoZSBhZ2VudCBmb3IgdGhpcyB0cmVlIGlzIG5vdCBkZWxpdmVyZWQgYWdhaW4sIGFuZCBhIGNoYW5nZWQgdHJlZSBpcyBzYWlkIGFnYWluCTkwMjAwYmQ4YzAwZDAwOTIwMTc0MjRiNDIwYTFjYTU2ZDI3MTgyZmY1NWViYTM0ZWI0NDY4MTNkMWE1M2QxZWMKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwlhIHNlY29uZCBTdG9wIGluIHRoZSBzYW1lIHR1cm4gYWRkcyBub3RoaW5nCWQzZjc5MmIwYjBmMWQ4Yzk0NjhhM2Q3MDM0MTU4ZTQ5M2FmYWE5MjMzY2I5NWQ0OTFmMTRhODgyYTgyZmZjMzAKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwlhbiBhcnRpZmFjdCBmaW5kaW5nIGltcG9ydGVkIG9uIGFuIGV2ZW50IHRoYXQgY2Fubm90IHJlYWNoIHRoZSBhZ2VudCBzdGF5cyBwZW5kaW5nIGZvciB0aGUgbmV4dCBTdG9wCWQzYjEwNmU3ZmUzZWU3N2JlY2QyYzNlMDQ2MGY3YzRhMTljODg0YjA4YzQ1Mzk2ZGQxMjRmOTdiYThjY2UwNGIKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwl0aGUgdGFzay1ldmlkZW5jZSBudWRnZSBoYXMgYW4gaWRlbnRpdHkgYW5kIGlzIHNhaWQgb25jZSBwZXIgdHJlZQljODlhMGIyNzZhYmU2ZTY5NWJjMTYyZjkyOWI4NmJiNDhjNzhmOTk4MWE1ZWJjYmIyNGZiMzAzMWYyZTU3YTFh
+  ```
+  ```
+- 2026-10-12 · 4d426c9d* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs 2>&1) \ …` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:15846
+- 2026-10-12 · 4d426c9d* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs 2>&1) \ …` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:15567
+- 2026-10-12 · 4d426c9d* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs 2>&1) \ …` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:15246
+- 2026-10-12 · 4d426c9d* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs 2>&1) \ …` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:15898
+- 2026-10-12 · 4d426c9d* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs 2>&1) \ …` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:14900
+- 2026-10-12 · 4d426c9d* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs 2>&1) \ …` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:15256
+- 2026-10-12 · 4d426c9d* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs 2>&1) \ …` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:14669
+- 2026-10-12 · human-observed · observed: S3 git grep -nE over plugin/scripts for queueAction and actions.push calls, 3 literal sites each carry a rule (A, R2, R4) and the one call with a variable queues the turn-end judgement's actions, which now all carry a rule and a key (R1, R2, R4, N); the paired guards on the continuation flag in hook-record.mjs and on-turn-end.mjs are each redundant with the other, so removing one alone is equivalent, recorded as such
+- 2026-10-12 · 4d426c9d* · exit 0 · `out=$(node --test --test-reporter=tap tests/turn-end-delivery.test.mjs tests/hook-goldens.test.mjs 2>&1) \ …` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:15922
+- 2026-10-12 · 4d426c9d* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:89524cf255bbef7749c0f0c371e9c0b7be639a4d070860169eb9faf858d54d8d · ms:0 · test-lock-sha256:d519cdbeb4251f0aea51cbe35e084e3a5d48080af40424b36c91664a26bcbcaa · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvdHVybi1lbmQtZGVsaXZlcnkudGVzdC5tanMJQ0xBVURFLm1kIHNlY3Rpb24gMyBuYW1lcyBhIHR1cm4gdGhhdCBjb250aW51ZXMgYXMgYW4gYWN0LCBub3QgYSByZWZ1c2FsCTk4MjkxOGI0NTFlOThhMWFiMmM2Njg0MTYxOWViZDlkN2RmZWJjN2ZjN2E0MWExOGM1YTZhZDY2OGEwNGQ1MGIKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwlTdWJhZ2VudFN0b3Agb3V0cHV0IGlzIHVuY2hhbmdlZAkwN2ZmOTM4NGEzZmE5YTI0NzZlZjJkMTYwMmRmMWMyZGNjYWI1NWE0NzJiMDBhZTJhMmFkOWQwZTNmNzRiNmI3CmJvZHkJdGVzdHMvdHVybi1lbmQtZGVsaXZlcnkudGVzdC5tanMJYSBTdG9wIHdpdGggdW5jaGVja2VkIHdvcmsgZ2l2ZXMgdGhlIGFnZW50IHRoZSBmaW5kaW5nIGFuZCB0aGUgdXNlciBhIGhlYWRsaW5lCTJkNTJlMTc5NDZjYTJjNjc4NjMyYTJkNjNkZjAzMmU3MjRkMWQwMzU3ZmM2MzliNmU2YmM1MGIxZWE5OWI4ODYKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwlhIGZpbmRpbmcgZGVsaXZlcmVkIHRvIHRoZSBhZ2VudCBmb3IgdGhpcyB0cmVlIGlzIG5vdCBkZWxpdmVyZWQgYWdhaW4sIGFuZCBhIGNoYW5nZWQgdHJlZSBpcyBzYWlkIGFnYWluCTkwMjAwYmQ4YzAwZDAwOTIwMTc0MjRiNDIwYTFjYTU2ZDI3MTgyZmY1NWViYTM0ZWI0NDY4MTNkMWE1M2QxZWMKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwlhIHNlY29uZCBTdG9wIGluIHRoZSBzYW1lIHR1cm4gYWRkcyBub3RoaW5nCWQzZjc5MmIwYjBmMWQ4Yzk0NjhhM2Q3MDM0MTU4ZTQ5M2FmYWE5MjMzY2I5NWQ0OTFmMTRhODgyYTgyZmZjMzAKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwlhbiBhcnRpZmFjdCBmaW5kaW5nIGltcG9ydGVkIG9uIGFuIGV2ZW50IHRoYXQgY2Fubm90IHJlYWNoIHRoZSBhZ2VudCBzdGF5cyBwZW5kaW5nIGZvciB0aGUgbmV4dCBTdG9wCTdlNWZiNDIzYTY1NzdkZTdkMTJmYzdmMGM1NzU2ZDRhZWVlYWI1MWZkMzQxODE4YjY0NTBhOGQ4YjgwODFkMDIKYm9keQl0ZXN0cy90dXJuLWVuZC1kZWxpdmVyeS50ZXN0Lm1qcwl0aGUgdGFzay1ldmlkZW5jZSBudWRnZSBoYXMgYW4gaWRlbnRpdHkgYW5kIGlzIHNhaWQgb25jZSBwZXIgdHJlZQljODlhMGIyNzZhYmU2ZTY5NWJjMTYyZjkyOWI4NmJiNDhjNzhmOTk4MWE1ZWJjYmIyNGZiMzAzMWYyZTU3YTFh · test-lock-kind:replace

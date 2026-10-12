@@ -196,7 +196,7 @@
       "tests": [
         "tests/observed-events.test.mjs"
       ],
-      "from": "    if (!emittedFor(log, 'R4', key)) {",
+      "from": "    if (!emittedFor(log, 'R4', key, channel)) {",
       "to": "    if (true) {",
       "only": "^(?:writes the tree cannot see re-open the finding)$"
     },
@@ -429,6 +429,26 @@
       "from": "  if (observation?.ok !== true) return 'could-not-look'",
       "to": "  if (false) return 'could-not-look'",
       "only": "^turn end: no combination of facts breaks a property an answer must have$"
+    },
+    {
+      "label": "ADR-096 T2: R1 is said to the agent once per tree",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/turn-end-delivery.test.mjs"
+      ],
+      "from": "if (!emittedFor(log, 'R1', key, channel)) {",
+      "to": "if (true) {",
+      "only": "^a\\ finding\\ delivered\\ to\\ the\\ agent\\ for\\ this\\ tree\\ is\\ not\\ delivered\\ again,\\ and\\ a\\ changed\\ tree\\ is\\ said\\ again$"
+    },
+    {
+      "label": "ADR-096 T2: the task-evidence nudge is said once per tree",
+      "file": "plugin/scripts/completion-rules.mjs",
+      "tests": [
+        "tests/turn-end-delivery.test.mjs"
+      ],
+      "from": "if (nudge && !emittedFor(log, 'N', observation.tree, channel))",
+      "to": "if (nudge)",
+      "only": "^the\\ task\\-evidence\\ nudge\\ has\\ an\\ identity\\ and\\ is\\ said\\ once\\ per\\ tree$"
     }
   ]
 }

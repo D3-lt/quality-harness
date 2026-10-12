@@ -469,14 +469,30 @@ export function checkRevision(log, tree) {
 // whose tree nothing checked, R4 is an observation that could not be made. Each
 // speaks once per rule and evidence state, so a finding does not repeat while
 // nothing has moved.
-export function emittedFor(log, rule, key) {
-  return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key)
+// Who a finding is for (ADR-096): on Stop and PreToolUse the agent, whose context those events reach; on every other event only
+// the user. A finding a rule decides whether to say is checked against what that audience has already heard.
+export function channelOf(event) {
+  return event === 'Stop' || event === 'PreToolUse' ? 'agent' : 'user'
+}
+// Who a delivery reached: Stop and PreToolUse reach the agent's context and the user's screen together, so a finding said there
+// is not said again to either; every other event reaches the user alone.
+export function deliveredTo(event) {
+  return channelOf(event) === 'agent' ? 'both' : 'user'
+}
+// A row counts for an audience when its delivery reached it. A row written before ADR-096 carries no channel and counts for every
+// audience, so nothing said before the upgrade is said again; with no audience asked for, every row counts.
+export function reachedChannel(entry, channel) {
+  return channel === null || entry.channel === undefined || entry.channel === 'both' || entry.channel === channel
+}
+
+export function emittedFor(log, rule, key, channel = null) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key && reachedChannel(entry, channel))
 }
 
 // R2's own dedupe: one delivered action carries several commit keys in its
 // detail, and a commit named in any of them has been said.
-export function namedByReview(log, key) {
-  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R2'
+export function namedByReview(log, key, channel = null) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R2' && reachedChannel(entry, channel)
     && (entry.key === key || entry.detail?.commits?.includes(key)))
 }
 

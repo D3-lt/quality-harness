@@ -65,6 +65,15 @@ SubagentStop is unchanged: its context would continue the subagent, and what the
 It fails if a Stop with unchecked work produces no `additionalContext`, if a second Stop in the same turn adds context again, if a
 finding first imported on a user-only event never reaches the agent, or if the opt-out is ignored.
 
+**Amended during T2 (2026-10-12), where two locked tests of accepted records disagreed with the first shape.** ADR-060's
+`one hook delivers every action it records` asserts that the user's Stop message carries the finding's full text, so the user's
+`systemMessage` is unchanged and the agent gets the same text as `additionalContext`; there is no one-line headline. ADR-080's
+`a pass's findings reach the next hook once` asserts that artifact findings are said by whichever hook comes next, so the import
+stays on every event; a finding said where only the user sees it is said again at the next Stop or PreToolUse, which reach both. A
+delivery row records who it reached as `channel`: `both` (Stop, PreToolUse) or `user` (every other event), plus `recipient`
+(`main` or `subagent`); the tree is carried in each rule's key, as it already was for R1. A row written before this record has no
+channel and counts as heard by everyone, so nothing said before the upgrade is said again.
+
 ## Alternatives Considered
 
 - **Delete the turn-end rules.** The publish refusal already judges an unchecked tree at commit and push. Rejected by the owner on
@@ -84,8 +93,8 @@ finding first imported on a user-only event never reaches the agent, or if the o
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| Stop hook stdout | advisory moves to `hookSpecificOutput.additionalContext`; `systemMessage` keeps a one-line headline | `lifecycle.mjs` `deliver` (T2) | the model (new), the user (headline) |
-| `action.emitted` session-log row | gains `tree`, `channel` and `recipient` | `lifecycle.mjs` (T2) | the guard in `deliver` (T2), `ledger-report.mjs` |
+| Stop hook stdout | the advisory is also emitted as `hookSpecificOutput.additionalContext`; `systemMessage` is unchanged | `lifecycle.mjs` `deliver` (T2) | the model (new), the user (as before) |
+| `action.emitted` session-log row | gains `channel` (`both` or `user`) and `recipient` | `lifecycle.mjs` (T2) | the rules' dedupe through `emittedFor`, `namedByReview` and the artifact import (T2), `ledger-report.mjs` |
 | `.quality-harness.json` `turnEnd` | new optional key, `"agent"` (default) or `"notify"` | the adopter | `deliver` (T3) |
 | CLAUDE.md §3 | a hook that continues a turn is named as an allowed act, not a refusal | T1 | every session in this repository |
 
@@ -106,7 +115,7 @@ See `tasks/README.md`: T1 (confirm the host and name the act in §3), T2 (delive
   cheapest place to act on unchecked work, before a commit is refused.
 - **Negative:** a turn that ends on unchecked work runs one more step; an adopter on a Claude Code version without Stop
   `additionalContext` gets only the headline.
-- **Neutral:** the user still sees a one-line headline; what each rule judges does not change; subagents are unchanged.
+- **Neutral:** the user's message is unchanged; what each rule judges does not change; subagents are unchanged.
 
 ## Out of Scope
 

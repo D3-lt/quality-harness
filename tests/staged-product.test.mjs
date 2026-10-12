@@ -82,21 +82,6 @@ function nextLine(text) {
   return match ? match[1] : ''
 }
 
-function toolTranscript(uses) {
-  const lines = []
-  for (const use of uses) {
-    lines.push(JSON.stringify({
-      type: 'assistant',
-      message: { content: [{ type: 'tool_use', id: use.id, name: use.name, input: use.input ?? {} }] },
-    }))
-    lines.push(JSON.stringify({
-      type: 'user',
-      message: { content: [{ type: 'tool_result', tool_use_id: use.id, content: 'ok' }] },
-    }))
-  }
-  return lines.join('\n')
-}
-
 const acceptedRecord = (id, title = 'Thing') =>
   `# ADR-${id}: ${title}\n\n**Status:** Accepted\n\n## Context\n\nx\n`
 const readyTask = id =>

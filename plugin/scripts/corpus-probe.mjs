@@ -286,7 +286,6 @@ export function probe(root, { sweep = false, timeoutMs = DEFAULT_TIMEOUT_MS, swe
     file: rel(entry.file), status: entry.status == null ? null : scrub(entry.status), reason: entry.reason ?? undecidedReason(entry),
   }))
   const corpusDirs = [...new Set(corpus.map(record => path.dirname(record.file)))]
-  const taskDirs = [...new Set(corpus.flatMap(record => (record.taskFiles ?? []).map(file => path.dirname(file))))]
 
   // adr-lint per record: the gate's own verdict on each file the readers counted.
   // ADR-038 makes a MADR or Nygard record `not-recognised` while the corpus

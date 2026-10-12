@@ -7,9 +7,8 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { lstatSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, join, relative } from 'node:path'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
 
 // The reader of the decision corpus, once part of lifecycle.mjs (BACKLOG section 375, stage B2): the local name stays, so no test body changes.
 import * as lifecycle from '../plugin/scripts/decision-corpus.mjs'

@@ -85,7 +85,9 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402
+# TEST_HASH_REQUIRED_FROM is re-exported, not used here: tests/test-lock.test.mjs asserts that adr-lint, adr-next and record
+# answer the same cutover (a test ten tasks lock), so this line waives ruff's F401.
+from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM, lock_findings, tests_table_rows  # noqa: E402,F401
 from record import git_root, os_reason  # noqa: E402
 from record import vlog_row_is_lock_snapshot, conflict_markers, NO_WINDOW  # noqa: E402
 from record import row_date_problem  # noqa: E402

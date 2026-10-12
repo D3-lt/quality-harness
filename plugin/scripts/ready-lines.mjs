@@ -1,7 +1,7 @@
 // The ready-task lines a session is oriented with: adr-next run over the repository, its first line said on its behalf,
 // and what the record that owns a task says first. Moved out of lifecycle.mjs unchanged (BACKLOG section 375, stage B4).
 // The interpreter probe is cached for the life of the process, here and nowhere else.
-import { spawn, spawnSync } from 'node:child_process'
+import { spawnSync } from 'node:child_process'
 import os from 'node:os'
 import { codeSpan, commandInCode, corpusText, pathInCode, quotedCorpusText, scrubber, shownPath } from './corpus-text.mjs'
 import { PLUGIN_ROOT } from './plugin-root.mjs'

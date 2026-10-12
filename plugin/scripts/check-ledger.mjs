@@ -4,7 +4,7 @@
 import { readFileSync, readdirSync, realpathSync } from 'node:fs'
 import path from 'node:path'
 import { appendEvent, canonical, canonicalFile, nearestExistingDirectory, readEvents, stateDir } from './event-log.mjs'
-import { inside, outsideRoot } from './decision-corpus.mjs'
+import { outsideRoot } from './decision-corpus.mjs'
 import { spawnSync } from 'node:child_process'
 import { gitRepositoryRoot, observe, observeBudgetMs, observedClean, sameObservation } from './tree-facts.mjs'
 

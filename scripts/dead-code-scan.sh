@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # dead-code-scan.sh — the pre-release dead-code scan (CLAUDE.md §13), with local tools.
 #
-# Three scanners, each reporting its version, its command and its count:
+# Four scanners, each reporting its version, its command and its count:
 #   1. scripts/orphan-sweep.mjs — this repository's own: a definition in plugin/ that
 #      nothing shipped reaches.
 #   2. vulture, for the Python (plugin/bin, plugin/lib, scripts, tests), run through
@@ -16,6 +16,8 @@
 #      scripts (`plugin/workflows/*.js`) are scanned too; their `meta` is read by the
 #      Workflow host rather than imported, so knip's export check is off there and any
 #      other export is named here instead.
+#   4. scripts/unused-names.sh: an import or a local nothing in its own file reads, which
+#      none of the three above can see (ruff and biome, pinned). The gate runs it too.
 #
 # Not scanned: the shell scripts. No standard dead-code tool reads bash; say so rather
 # than count them as clean.
@@ -84,6 +86,10 @@ else
   echo "UNRUN: knip needs npx (Node.js)."
   unrun=1
 fi
+
+echo "== unused names, per file (ruff and biome)"
+bash scripts/unused-names.sh .
+case $? in 0) ;; 3) unrun=1 ;; *) findings=1 ;; esac
 
 if [ "$findings" -ne 0 ]; then echo "dead-code-scan: findings above"; exit 1; fi
 if [ "$unrun" -ne 0 ]; then echo "dead-code-scan: UNPROVEN — a scanner could not run"; exit 3; fi

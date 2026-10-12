@@ -4,7 +4,6 @@
 // file, process, event or clock: `scrubber` takes the home and temp directories it should hide as arguments, and its
 // defaults are the only environment it touches. Its answers are held by tests/goldens/ and the tests that name these functions.
 import os from 'node:os'
-import { ABSOLUTE } from './publish-command.mjs'
 
 // ⚠ CORPUS TEXT IS QUOTED, NEVER SPOKEN IN THE TOOL'S VOICE. A task's title and
 // Acceptance fence reach a session's context at startup, and a chaos round planted

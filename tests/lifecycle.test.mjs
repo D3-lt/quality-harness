@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { linkDirectory } from './symlink-support.mjs'
-import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after, afterEach, beforeEach } from 'node:test'
@@ -25,7 +25,6 @@ import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
 import { appendEvent } from '../plugin/scripts/event-log.mjs'
 import { ASSERTION_ARM_WITHDRAWN } from '../plugin/scripts/claim-status.mjs'
-import { reading } from '../plugin/scripts/statusline.mjs'
 import {
   HOOK_SCRIPTS,
   hookArguments,
@@ -154,24 +153,6 @@ after(() => {
   }
 })
 
-// A symlink needs a privilege Windows grants only to Developer Mode or an
-// elevated shell; without it symlink() is EPERM for the account, every time
-// (measured on a real Windows 11 box, 2026-09-05, BACKLOG §49). That is a
-// fixture this platform cannot build, so the test says so rather than failing
-// (CLAUDE.md §7) — and says it AFTER the arms that need no symlink have run.
-async function symlinkOrSkip(t, target, link, type) {
-  try {
-    await symlink(target, link, type)
-    return true
-  } catch (error) {
-    if (process.platform === 'win32' && error?.code === 'EPERM') {
-      t.skip(`symlink is EPERM for this account (Windows without Developer Mode or an elevated shell), so the symlink arm cannot be built here: ${error.message}`)
-      return false
-    }
-    throw error
-  }
-}
-
 function transcript(entries) {
   return entries.map(entry => JSON.stringify(entry)).join('\n')
 }
@@ -250,12 +231,6 @@ function toolResult(id, isError = false, content = 'ok') {
 // their interpreter — so naming python3 here is what lets this suite measure the
 // GATE on Windows rather than measuring the shebang. On POSIX the shebang is
 // real and stays under test.
-// A Bash command is a shell string: `\` is an escape there, so interpolating a
-// native Windows path into one produces a command whose operand the gate cannot
-// see, and the artifact is never gated. Git Bash takes forward slashes, and so
-// does every real Bash tool invocation on Windows.
-const bashPath = value => value.replaceAll('\\', '/')
-
 function runGate(gatePath, args, options = {}) {
   const [file, argv] = process.platform === 'win32'
     ? ['python3', [gatePath, ...args]]
@@ -1453,18 +1428,6 @@ test('a read-only role is told it is read-only, and an editing role is not', asy
   // Substring, not equality: `code-reviewer` is a reviewing role.
   assert.match(contract('code-reviewer'), /read-only/)
 })
-
-// A docs-only change with no verification after it — the state both escapes exist
-// to release, and the state they must not release without their condition.
-async function unverifiedDocsChange(name) {
-  const dir = await checkedProject(`quality-escape-${name}-`)
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(path.join(dir, 'notes.md'), '# Notes\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(dir, 'notes.md') }), toolResult('e1'),
-  ]))
-  return { dir, file }
-}
 
 test('EVIDENCE-LIMITED opens the completion gate only with a stated reason, and only over docs', async () => {
   // Both halves of the escape survive ADR-060, because both read the assistant's
@@ -3712,18 +3675,6 @@ test('a spawn with nothing declared is told nothing', async () => {
 //
 // Every test here drives the hook PROCESS with a real transcript and a real
 // payload, because that is the boundary the defect is at (CLAUDE.md §4).
-
-async function unverifiedProject(prefix) {
-  const dir = await checkedProject(prefix)
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1'),
-    toolUse('e1', 'Edit', { file_path: path.join(dir, 'src', 'a.ts') }),
-    toolResult('e1'),
-  ]))
-  return { dir, file }
-}
 
 test('completionClaim reads negation before assertion', () => {
   // Precedence is the whole design: every one of these CONTAINS an assertion

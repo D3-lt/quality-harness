@@ -1,7 +1,7 @@
 // The standing paragraphs a session starts with and the decisions handed over at the moment a file is touched: what verifies
 // this project, which records are in flight, what governs the path about to change. Moved out of lifecycle.mjs unchanged
 // (BACKLOG section 375, stage B4).
-import { decisionContext, inside, listedPath, trackedPaths, unmarkedArchives } from './decision-corpus.mjs'
+import { decisionContext, listedPath, trackedPaths, unmarkedArchives } from './decision-corpus.mjs'
 import path from 'node:path'
 import { lstatSync, statSync } from 'node:fs'
 import { canonical, nearestExistingDirectory } from './event-log.mjs'

@@ -5,7 +5,6 @@ import importlib.machinery
 import importlib.util
 import contextlib
 import io
-import io
 import json
 import os
 import pathlib
@@ -2783,8 +2782,6 @@ def main():
             "    expect(totalsFor('basket')).toEqual(['net'])\n"
             "  })\n"
             "})\n", encoding="utf-8")
-        rows = ("| Test name | File | Verifies | Covers |\n|---|---|---|---|\n"
-                "| `{name}` | `src/wizard.test.ts` | it works | — |\n")
         def exists_findings(name):
             # `evidenced_task_ids` asks the question of a task that is `done` or
             # carries an exit-0 entry, so the fixture must carry one — otherwise

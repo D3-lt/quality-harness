@@ -55,6 +55,16 @@
       ],
       "from": "if [ \"${QH_SELFTEST_LOAD:-}\" = \"unreadable\" ]; then",
       "to": "if false; then"
+    },
+    {
+      "label": "unused names: the gate runs the per-file linter and keeps its exit",
+      "file": "scripts/selftest.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "bash \"$REPO/scripts/unused-names.sh\"",
+      "to": "bash \"$REPO/scripts/unused-names.sh\" || true",
+      "only": "^the gate, the release scan and every CI job that runs the tests are wired to it$"
     }
   ]
 }

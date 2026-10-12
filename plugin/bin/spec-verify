@@ -26,10 +26,8 @@ import argparse
 import ast
 import os
 import re
-import signal
 import subprocess
 import sys
-import time
 from pathlib import Path, PurePosixPath
 
 # The fence — run_bounded and the tree kill — lives in plugin/lib/fence.py and is

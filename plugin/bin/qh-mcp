@@ -53,10 +53,8 @@ for _s in (_sys.stdout, _sys.stderr):
 import json
 import os
 import shutil
-import signal
 import subprocess
 import sys
-import time
 
 # The fence — run_bounded and the tree kill — lives in plugin/lib/fence.py and is
 # shared by three gates; it was copied into each until 2026-09-06. lib/ is found

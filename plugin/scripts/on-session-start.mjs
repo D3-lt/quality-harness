@@ -14,7 +14,6 @@ const ARMING_NOTE = "quality-harness: git's own refusal of an unchecked commit o
   + 'session: it takes effect from the next prompt, and until then the text refusal applies (ADR-068).'
 
 export function onSessionStart(input, recorded) {
-  const event = input.hook_event_name
   // After compaction the session has none of the context the once-per-session
   // markers gated; a new generation makes every first mention first again.
   if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)

@@ -5,7 +5,7 @@
 // log is NOT read twice, because a status line renders constantly.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { linkDirectory } from './symlink-support.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'

@@ -166,6 +166,11 @@ node --check "$ROOT/scripts/verify.mjs"
 node "$ROOT/scripts/workflow-parse.mjs" "$ROOT"/workflows/*.js
 node --check "$ROOT/scripts/workflow-parse.mjs"
 
+# The owner, 2026-10-12: the linters run on every gate, not by hand before a release. An import
+# or a local nothing in its own file reads is a finding, and a linter that cannot start is UNRUN
+# (exit 3); either one fails this run.
+bash "$REPO/scripts/unused-names.sh"
+
 # §130: a child still attached to this shell at the end is a leak, and a leak is
 # not a pass. Direct children only — a grandchild that reparented is out of
 # reach here, which is what the gates' own tree kill is for. Without pgrep the

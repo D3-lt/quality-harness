@@ -1435,7 +1435,7 @@ test('an unreadable task is marked in the JSON, and the acceptance line is quote
 })
 
 test('a task that depends on itself waits, and an unreadable owner is said', () => {
-  const { dir, tasksDir } = corpus([{ id: 'T1', dependsOn: 'T1' }, { id: 'T2' }])
+  const { tasksDir } = corpus([{ id: 'T1', dependsOn: 'T1' }, { id: 'T2' }])
   const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
   assert.deepEqual((parsed.blocked ?? []).find(t => t.id === 'T1')?.blocked_by, ['T1 (the task itself)'], JSON.stringify(parsed))
   // An owner that is found but cannot be read as a record is said; an Accepted one is not.

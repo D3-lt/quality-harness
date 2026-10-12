@@ -52,7 +52,7 @@
 //   0  always
 import { execFileSync } from 'node:child_process'
 import { readFileSync, writeFileSync, readdirSync, mkdirSync } from 'node:fs'
-import { join, resolve, sep } from 'node:path'
+import { join, resolve } from 'node:path'
 import { tmpdir } from 'node:os'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 

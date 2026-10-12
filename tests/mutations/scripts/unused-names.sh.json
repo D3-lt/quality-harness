@@ -1,0 +1,114 @@
+{
+  "mutations": [
+    {
+      "label": "unused names: a finding in plugin/ or scripts/ fails the run",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "\"${biome[@]}\" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables \"${product[@]}\"",
+      "to": "\"${biome[@]}\" lint --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables \"${product[@]}\"",
+      "only": "^an unused name in product is a finding, named by file$"
+    },
+    {
+      "label": "unused names: an unused import in a test fails the run",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "\"${biome[@]}\" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports \"${tests[@]}\"",
+      "to": "\"${biome[@]}\" lint --max-diagnostics=50 --only=correctness/noUnusedImports \"${tests[@]}\"",
+      "only": "^an unused name in tests is a finding, named by file$"
+    },
+    {
+      "label": "unused names: ruff's own count of findings is a finding",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "lint '^All checks passed!$' '^Found [1-9][0-9]* errors?\\.$'",
+      "to": "lint '^All checks passed!$' '^Found [1-9][0-9]* nothing\\.$'",
+      "only": "^an unused name in python is a finding, named by file$"
+    },
+    {
+      "label": "unused names: in tests/ only imports are read",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "--only=correctness/noUnusedImports \"${tests[@]}\"",
+      "to": "--only=correctness/noUnusedImports --only=correctness/noUnusedVariables \"${tests[@]}\"",
+      "only": "^a local inside a test is not a finding: only its imports are read$"
+    },
+    {
+      "label": "unused names: a linter that cannot start is UNRUN, never clean",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "echo \"unused-names: UNRUN — a linter could not run\"; exit 3",
+      "to": "echo \"unused-names: UNRUN — a linter could not run\"; exit 0",
+      "only": "^with no tools on PATH it is UNRUN, naming each linter, never clean$"
+    },
+    {
+      "label": "unused names: a class with no file is UNRUN",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "echo \"UNRUN: no $class file was listed to read.\"; unrun=1",
+      "to": ":",
+      "only": "^a tree with no file of a class read nothing there, which is UNRUN, not clean$"
+    },
+    {
+      "label": "unused names: a tool with no verdict of its own is UNRUN, not a finding",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "echo \"UNRUN: $1 exited $rc without a verdict of its own.\"",
+      "to": "findings=1",
+      "only": "^a linter that is present but cannot start is UNRUN, never a finding$"
+    },
+    {
+      "label": "unused names: only the pinned ruff is used",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "if [ \"$installed\" = \"ruff $RUFF_VERSION\" ]; then ruff=(python3 -m ruff)",
+      "to": "if [ -n \"$installed\" ]; then ruff=(python3 -m ruff)",
+      "only": "^a ruff that is not the pinned version is not used$"
+    },
+    {
+      "label": "unused names: a path git quotes is named as unread",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "'\"'*) echo \"UNRUN: git quoted a path this cannot read: $f\"; unrun=1; continue ;;",
+      "to": "'\"'*) continue ;;",
+      "only": "^a path git quotes is named as unread, not skipped$"
+    },
+    {
+      "label": "unused names: every .py file is read",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "    *.py) python+=(\"$f\") ;;",
+      "to": "    *.pyx) python+=(\"$f\") ;;",
+      "only": "^an unused name in python is a finding, named by file$"
+    },
+    {
+      "label": "unused names: a verdict is the tool's own summary line",
+      "file": "scripts/unused-names.sh",
+      "tests": [
+        "tests/unused-names.test.mjs"
+      ],
+      "from": "'^Found [1-9][0-9]* (errors?|warnings?)\\.$' \"${biome[@]}\" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables",
+      "to": "'Found [1-9][0-9]* (errors?|warnings?)' \"${biome[@]}\" lint --error-on-warnings --max-diagnostics=50 --only=correctness/noUnusedImports --only=correctness/noUnusedVariables",
+      "only": "^a verdict is the tool's own summary line, not its words anywhere in the output$"
+    }
+  ]
+}

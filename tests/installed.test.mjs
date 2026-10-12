@@ -8,7 +8,6 @@
 // It never writes to the installed copy. A test that repaired what it found would
 // make a green run depend on having damaged something.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'

@@ -130,7 +130,6 @@ import base64
 import datetime
 import hashlib
 import json
-import ntpath
 import os
 import re
 import shutil
@@ -1541,7 +1540,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     # exited 0 over a suite that executed nothing (docs/BACKLOG.md §67).
     #
     # The family is not Go-only: `// +build`, `//go:generate`, `//go:embed`,
-    # `//go:linkname`, `//nolint`, `# type: ignore`, `# noqa`,
+    # `//go:linkname`, `//nolint`, `# type: ignore`, a `noqa` comment,
     # `// eslint-disable`, `/* istanbul ignore */`, a shebang. Several are
     # exactly what a campaign most wants to test, because a coverage-suppression
     # pragma is a mechanism whose whole job is to make something invisible.

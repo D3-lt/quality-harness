@@ -38,7 +38,8 @@ python3 plugin/bin/adr-lint <adr>   # a record's own gate
 node scripts/flag-claim-sweep.mjs     # advisory sweeps: a place to look, never a verdict
 node scripts/backlog-claim-sweep.mjs
 node scripts/orphan-sweep.mjs         # dead code: a definition in plugin/ nothing shipped reaches
-bash scripts/dead-code-scan.sh        # before a release: orphan-sweep, vulture (uvx) and knip (npx), with counts
+bash scripts/dead-code-scan.sh        # before a release: orphan-sweep, vulture (uvx), knip (npx) and unused-names, with counts
+bash scripts/unused-names.sh          # every gate runs it: an import or local unused in its own file (ruff, biome; pinned)
 node scripts/backlog-record-sweep.mjs
 node scripts/chaos-fixture-sweep.mjs
 node --expose-internals scripts/untimed-spawns.mjs   # every JS child carries a timeout; UNKNOWN is a place to look
@@ -203,8 +204,10 @@ CI not finished means not green.
    only by tests or repository tooling — is deleted or wired, never allow-listed. The selftest
    fails on it at HEAD too; the sweep is how you see which, before the commit that would.
    **And a standard tool per language, run locally** (the owner, 2026-09-27): `bash
-   scripts/dead-code-scan.sh` runs orphan-sweep, `vulture` over the Python through `uvx`, and `knip`
-   over the JavaScript through `npx`, and prints each tool's version, command and count. A deliberate
+   scripts/dead-code-scan.sh` runs orphan-sweep, `vulture` over the Python through `uvx`, `knip`
+   over the JavaScript through `npx`, and `scripts/unused-names.sh` (ruff and biome, an import or a
+   local unused in its own file, which the other three cannot see; the selftest runs it on every
+   gate too), and prints each tool's version, command and count. A deliberate
    Python name goes into `scripts/vulture-allowlist.py` with its reason; exit 3 means a scanner could
    not run, which is UNPROVEN, never clean.
 2. Bump `version` in `plugin/.claude-plugin/plugin.json`; push.

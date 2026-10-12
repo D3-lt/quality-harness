@@ -58,6 +58,8 @@ jobs:
       # absence into a failure, so this job has to actually install it — setting
       # the flag without this step is what made both selftest jobs red on
       # b144d22. PARTIAL is for a laptop, not for CI.
+      - name: Install the ruff scripts/unused-names.sh pins
+        run: python3 -m pip install ruff==0.15.6
       - name: Install the Claude Code CLI
         run: npm install -g @anthropic-ai/claude-code
       - name: Run the project's own check
@@ -87,7 +89,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install coverage.py
-        run: python3 -m pip install --upgrade coverage
+        run: python3 -m pip install --upgrade coverage ruff==0.15.6
       # STRICT=1 turns "the gates could not be measured" into a failure. A
       # coverage job that silently measures nothing is worse than no job.
       - name: Hold the coverage floor
@@ -127,6 +129,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Install the ruff scripts/unused-names.sh pins
+        run: python3 -m pip install ruff==0.15.6
       - name: Run the project's own check under Git Bash
         env:
           # BACKLOG §49: a Windows run failed once naming no subtest at all. The
@@ -255,6 +259,8 @@ jobs:
       - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
+      - name: Install the ruff scripts/unused-names.sh pins
+        run: python3 -m pip install ruff==0.15.6
       - name: Take the shard plan from ONE snapshot, not twelve prefix restores
         # ⚠ EVERY SHARD MUST SEE THE SAME TIMINGS OR THE PARTITION IS NOT A
         # PARTITION. `shardByCost` is deterministic for a given input and each

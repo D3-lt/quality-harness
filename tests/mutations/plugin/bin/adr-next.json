@@ -908,14 +908,14 @@
       "only": "^tasks with no owning record are said to have none, apart from an unreadable one$"
     },
     {
-      "label": "§350 C6: an ownerless task directory is offered unhedged to a corpus the matrix probes",
+      "label": "§350 C6: an ownerless task directory is offered unhedged",
       "file": "plugin/bin/adr-next",
       "tests": [
-        "tests/corpus-matrix.test.mjs"
+        "tests/adr-next.test.mjs"
       ],
       "from": "    owner_missing = not owner_found",
       "to": "    owner_missing = False",
-      "only": "^corpus orphan-tasks: every reader answers as reviewed, through a symlink$"
+      "only": "^tasks with no owning record are said to have none, apart from an unreadable one$"
     },
     {
       "label": "§350 C6 review: a slugged folder binds by number to another record",

@@ -838,7 +838,7 @@
       ],
       "from": "  if (!statSync(file).isFile()) throw new Error(`${file} is not a regular file`)\n  const fd = openSync(file, 'r')",
       "to": "  const fd = openSync(file, 'r')",
-      "only": "^(?:a FIFO named like a task is stopped unopened, and the other tasks are read)$"
+      "only": "^(?:a tracked link to a FIFO named like a task is stopped unopened, and the other tasks are read)$"
     },
     {
       "label": "§351: the corpus reader opens a non-regular task entry",

@@ -443,6 +443,66 @@ test('a batch says which deleted paths were files from its one history query, no
   assert.ok(!commands.some(line => / cat-file -t /.test(line)), 'no per-path probe:\n' + commands.join('\n'))
 })
 
+// Codex review, 2026-10-12: the batch read QUALITY_HARNESS_HISTORY_BASES split on commas and whitespace, the
+// dispatcher on whitespace only, so `<unreadable>,HEAD` passed a deleted script in silence in a batch and said
+// UNPROVEN standalone. Both read the one list now; each case runs through both entry points.
+test('the batch and the standalone dispatcher read the same history bases', t => {
+  const root = realpathSync(scratch(t))
+  const project = path.join(root, 'project')
+  run(['git', 'init', '-q', project], root)
+  const scripts = path.join(root, 'plugin', 'scripts')
+  const bin = path.join(root, 'plugin', 'bin')
+  mkdirSync(scripts, { recursive: true })
+  mkdirSync(bin)
+  for (const name of ['facts-gate-dispatch.sh', 'run-shell-hook.mjs', 'performance-trace.mjs', 'event-log.mjs',
+    'git-directory.mjs', 'main-module.mjs', 'uninteresting.mjs']) {
+    cpSync(path.join(pluginRoot, 'scripts', name), path.join(scripts, name))
+  }
+  writeFileSync(path.join(bin, 'adr-retire-check'), '#!/bin/bash\nprintf "CATALOG %s\\n" "$1"\nexit 1\n', { mode: 0o755 })
+  const docs = path.join(project, 'docs')
+  const archive = path.join(docs, 'archive')
+  mkdirSync(archive, { recursive: true })
+  writeFileSync(path.join(docs, 'gone.mjs'), 'export {}\n')
+  writeFileSync(path.join(docs, 'other.mjs'), 'export {}\n')
+  writeFileSync(path.join(archive, 'README.md'), '**Lifecycle:** Frozen historical ADR records\n')
+  writeFileSync(path.join(archive, 'ADR-001-x.md'), '# ADR-001: x\n')
+  run(['git', 'add', '.'], project)
+  run(['git', '-c', 'user.name=Harness Test', '-c', 'user.email=harness@example.invalid',
+    'commit', '-qm', 'two tracked scripts and an archive'], project)
+  rmSync(path.join(docs, 'gone.mjs'))
+  rmSync(path.join(docs, 'other.mjs'))
+  rmSync(archive, { recursive: true })
+  const gone = path.join(docs, 'gone.mjs')
+  const record = path.join(archive, 'ADR-001-x.md')
+  const standalone = (bases, file = gone) => run(['bash', path.join(scripts, 'facts-gate-dispatch.sh').replaceAll('\\', '/'),
+    file.replaceAll('\\', '/')], project, { QUALITY_HARNESS_HISTORY_BASES: bases })
+  const batch = (bases, paths = [gone, path.join(docs, 'other.mjs')]) => run([process.execPath,
+    path.join(scripts, 'run-shell-hook.mjs'), 'facts-gate-dispatch.sh', '--batch'], project,
+    { QUALITY_HARNESS_HISTORY_BASES: bases }, JSON.stringify({
+      paths, deadline: Date.now() + 30_000, windowMs: 30_000, timeoutMs: 10_000,
+    }))
+  const unproven = /UNPROVEN: could not classify .*gone\.mjs/
+  const catalog = /CATALOG .*archive\/README\.md/
+  // CLEAN: a comma list, a newline list and a name the rule drops all still reach HEAD, which held the file, and
+  // a deleted record still reaches the catalog HEAD held.
+  for (const bases of ['no-such-ref,HEAD', 'no-such-ref\nHEAD', '* HEAD', '*']) {
+    for (const [entry, said] of [['standalone', standalone(bases)], ['batch', batch(bases)]]) {
+      assert.doesNotMatch(said.stdout + said.stderr, unproven, `${entry} with ${JSON.stringify(bases)}`)
+    }
+    for (const [entry, said] of [['standalone', standalone(bases, record)], ['batch', batch(bases, [record, gone])]]) {
+      assert.match(said.stdout + said.stderr, catalog, `${entry} with ${JSON.stringify(bases)}`)
+    }
+  }
+  // DIRTY: no readable base held either, so neither entry point may pass the script in silence or find the catalog.
+  for (const [entry, said] of [['standalone', standalone('no-such-ref')], ['batch', batch('no-such-ref')]]) {
+    assert.match(said.stdout + said.stderr, unproven, entry)
+  }
+  for (const [entry, said] of [['standalone', standalone('no-such-ref', record)],
+    ['batch', batch('no-such-ref', [record, gone])]]) {
+    assert.doesNotMatch(said.stdout + said.stderr, catalog, entry)
+  }
+})
+
 test('artifact batch input and exhausted deadlines report unchecked work', async t => {
   const { runArtifactBatch } = await import('../plugin/scripts/run-shell-hook.mjs')
   let stderr = ''

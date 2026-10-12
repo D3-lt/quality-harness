@@ -429,6 +429,37 @@
       "from": "then [ \"$4\" = file ] && exit 0; else",
       "to": "then :; else",
       "only": "^(?:a batch says which deleted paths were files from its one history query, not one probe per path)$"
+    },
+    {
+      "label": "history bases: a comma does not separate two bases (Codex review)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/hook-work.test.mjs"],
+      "from": "  IFS=$' \\t\\n,' read -r -d '' -a list",
+      "to": "  IFS=$' \\t\\n' read -r -d '' -a list",
+      "only": "^(?:the batch and the standalone dispatcher read the same history bases)$"
+    },
+    {
+      "label": "history bases: only the first line is read (Codex review)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/hook-work.test.mjs"],
+      "from": "read -r -d '' -a list <<< \"$raw\" || true",
+      "to": "read -r -a list <<< \"$raw\" || true",
+      "only": "^(?:the batch and the standalone dispatcher read the same history bases)$"
+    },
+    {
+      "label": "history bases: a name outside the rule is still used (Codex review)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/hook-work.test.mjs"],
+      "from": "    [[ \"$base\" =~ ^[A-Za-z0-9._/^~-]{1,200}$ ]] || continue\n",
+      "to": "",
+      "only": "^(?:the batch and the standalone dispatcher read the same history bases)$"
+    },
+    {
+      "label": "history bases: the archive lookup splits on whitespace only (Codex review)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/hook-work.test.mjs", "tests/archive-history-parity.test.mjs"],
+      "from": "  local base\n  for base in $(history_bases); do",
+      "to": "  local base\n  for base in ${QUALITY_HARNESS_HISTORY_BASES:-HEAD}; do"
     }
   ]
 }

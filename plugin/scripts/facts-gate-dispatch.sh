@@ -193,12 +193,27 @@ repo_path_of() {
   in_repo_rel="${target#"$in_repo"/}"
 }
 
+# The history bases, one per line, by `historyBases` in run-shell-hook.mjs: split on commas and whitespace, a name
+# outside that rule dropped, HEAD when none is left. The batch answers from the same list (Codex review, 2026-10-12:
+# `HEAD,<sha>` was two bases there and one unreadable base here, so the two said different things about one path).
+history_bases() {
+  local raw="${QUALITY_HARNESS_HISTORY_BASES-}" base found="" list=()
+  # read -a, not an unquoted expansion: a `*` in the variable must not glob into file names.
+  IFS=$' \t\n,' read -r -d '' -a list <<< "$raw" || true
+  for base in ${list[@]+"${list[@]}"}; do
+    [[ "$base" =~ ^[A-Za-z0-9._/^~-]{1,200}$ ]] || continue
+    printf '%s\n' "$base"
+    found=1
+  done
+  [ -n "$found" ] || printf 'HEAD\n'
+}
+
 # Whether a missing path was a tracked FILE in one of the history bases (BACKLOG §378): its former kind is then
 # established. A directory, a path git never held, or no repository at all is not established.
 git_was_file() {
   local in_repo in_repo_rel base
   repo_path_of "$1" || return 1
-  for base in ${QUALITY_HARNESS_HISTORY_BASES:-HEAD}; do
+  for base in $(history_bases); do
     [ "$(git -C "$in_repo" cat-file -t "$base:$in_repo_rel" 2>/dev/null)" = blob ] && return 0
   done
   return 1
@@ -226,8 +241,8 @@ git_archive_catalog_for() {
   # a record deleted AND COMMITTED this session is gone from HEAD, and only an
   # earlier revision can still say which archive owned it. Unset means HEAD, so
   # every caller that passes nothing keeps the behaviour it had.
-  local bases="${QUALITY_HARNESS_HISTORY_BASES:-HEAD}" base
-  for base in $bases; do
+  local base
+  for base in $(history_bases); do
     while IFS= read -r -d '' match; do
       matches+=("${match#"$base":}")
     done < <(git -C "$repo" --literal-pathspecs grep -l -z -G --threads=1 --no-textconv \

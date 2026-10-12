@@ -122,7 +122,9 @@ test('a deleted file that cannot have been a record is passed in silence, and on
     assert.equal(git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'fixture').status, 0)
     rmSync(join(top, 'docs'), { recursive: true, force: true })
     mkdirSync(join(top, 'docs'))
-    const run = file => spawnSync(bash, [dispatcher, join(top, 'docs', file), ''], { encoding: 'utf8', timeout: 60_000 })
+    // The path as the hook hands it over: on Windows, `C:/…` (`windowsPathForBash`), never `C:\…`, which bash
+    // cannot read as absolute (a CI windows job of 4442eed7 said UNPROVEN for gone.mjs here).
+    const run = file => spawnSync(bash, [dispatcher, join(top, 'docs', file).replaceAll('\\', '/'), ''], { encoding: 'utf8', timeout: 60_000 })
     for (const gone of ['gone.mjs', 'evals.yml']) {
       const said = run(gone)
       assert.equal(said.status, 0)

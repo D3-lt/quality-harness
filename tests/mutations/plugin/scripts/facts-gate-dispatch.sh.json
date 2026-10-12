@@ -187,8 +187,8 @@
         "tests/staged-product.test.mjs"
       ],
       "only": "unreadable file is UNPROVEN",
-      "from": "  if [ ! -f \"$f\" ]; then\n    say_unproven \"$(printf 'UNPROVEN: could not classify %s' \"$f\")\"\n    exit 0\n  fi\n",
-      "to": "  if [ ! -f \"$f\" ]; then\n    exit 0\n  fi\n"
+      "from": "    esac\n    say_unproven \"$(printf 'UNPROVEN: could not classify %s' \"$f\")\"\n    exit 0\n  fi\n",
+      "to": "    esac\n    exit 0\n  fi\n"
     },
     {
       "label": "facts-gate-dispatch: a gate's could-not-run exit is UNPROVEN, never an unsatisfied artifact (ADR-046 T1)",
@@ -379,6 +379,26 @@
       "only": "shown inside a code block is an example",
       "from": "        if (comment) { if (index(line, \"-->\")) comment = 0; print \"\"; next }",
       "to": "        if (comment) { print \"\"; next }"
+    },
+    {
+      "label": "dispatch: a deleted file that cannot have been a record is passed in silence (§378)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "      *.*) exit 0 ;;",
+      "to": "      *.*) ;;",
+      "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
+    },
+    {
+      "label": "dispatch: a deleted Markdown file keeps its could-not-look in any case (§378)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "      *.md) ;;\n      *.*) exit 0 ;;",
+      "to": "      *.*) exit 0 ;;",
+      "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
     }
   ]
 }

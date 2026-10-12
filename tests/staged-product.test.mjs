@@ -568,11 +568,11 @@ test('an unreadable file is UNPROVEN, not a clean skip', () => {
   assert.match(absentSaid, /UNPROVEN/)
   assert.doesNotMatch(absentSaid, /definitely not a record/i)
 
+  // A missing non-Markdown path cannot have been a record (only *.md is classified, and an existing
+  // `x.js` exits 0 unread), so it is passed as an existing one is (BACKLOG §378); the *.md above is the twin.
   const absentOther = factsGate(path.join(root, 'missing.js'))
   assert.equal(absentOther.status, 0)
-  const otherSaid = `${absentOther.stdout}${absentOther.stderr}`
-  assert.ok(otherSaid.trim(), 'a missing unclassified path must name the miss, not skip')
-  assert.match(otherSaid, /UNPROVEN/)
+  assert.equal(`${absentOther.stdout}${absentOther.stderr}`, '', 'a deleted script has nothing to classify')
 
   const present = path.join(root, 'notes.md')
   writeFileSync(present, '# Notes\n\nNot a record.\n')

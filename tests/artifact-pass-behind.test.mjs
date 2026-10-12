@@ -330,3 +330,22 @@ test('a pass that leaves no end in its ledger is said UNRUN', async () => {
     assert.match(hook(dir, prompt(session)).stdout, /left no end/)
   } finally { rmSync(dir, { recursive: true, force: true }) }
 })
+
+// BACKLOG §378: a subagent's mid-edit findings reached the parent's next hook after the record was fixed. A finding about
+// bytes a later pass has gated again as different bytes is about content that no longer exists; the later verdict is the one said.
+test('a finding about bytes a later pass gated as different bytes is not said', () => {
+  for (const [later, said] of [['new', false], [null, true]]) {
+    const { dir, paths } = repository(1)
+    const session = `behind-superseded-${said}`
+    try {
+      mkdirSync(join(state(dir), 'passes'), { recursive: true })
+      const ledgerFile = join(state(dir), 'passes', `${session}.jsonl`)
+      const line = entry => writeFileSync(ledgerFile, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, { flag: 'a' })
+      line({ pass: 'p1', event: 'pass.gated', path: paths[0], blob: 'old', complete: true, findings: 'FAKE-STALE about the old bytes' })
+      line({ pass: 'p2', event: 'pass.gated', path: paths[0], blob: later, complete: true, findings: null })
+      const out = hook(dir, prompt(session)).stdout
+      // Dirty: a later verdict whose bytes are unknown proves nothing changed, so the finding is still said.
+      assert.equal(/FAKE-STALE/.test(out), said, `later blob ${later}: ${out}`)
+    } finally { rmSync(dir, { recursive: true, force: true }) }
+  }
+})

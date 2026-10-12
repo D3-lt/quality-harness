@@ -411,11 +411,19 @@ export function importPassVerdicts(cwd, session, channel = null, recipient = nul
   const said = new Set(log.filter(entry => entry.event === 'action.emitted' && entry.rule === 'A' && reachedChannel(entry, channel, recipient)).map(entry => entry.key))
   const findings = []
   const ended = new Set()
+  const entries = []
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
     let entry
     try { entry = JSON.parse(line) } catch { continue }
-    if (typeof entry?.pass !== 'string') continue
+    if (typeof entry?.pass === 'string') entries.push(entry)
+  }
+  // The bytes each path was last gated on: a finding about other bytes, when both are known, is about content a later
+  // pass replaced, and that pass's verdict is the one said (BACKLOG §378). An unknown blob proves nothing changed.
+  const lastBlob = new Map()
+  for (const entry of entries) if (entry.event === 'pass.gated' && typeof entry.path === 'string') lastBlob.set(entry.path, entry.blob ?? null)
+  const superseded = entry => typeof entry.blob === 'string' && typeof lastBlob.get(entry.path) === 'string' && lastBlob.get(entry.path) !== entry.blob
+  for (const entry of entries) {
     if (entry.event === 'pass.ended') ended.add(entry.pass)
     const words = typeof entry.findings === 'string' ? entry.findings.trim() : ''
     if (entry.event === 'pass.gated' && typeof entry.path === 'string') {
@@ -426,7 +434,7 @@ export function importPassVerdicts(cwd, session, channel = null, recipient = nul
           event: 'artifact.gated', path: entry.path, blob: entry.blob ?? null, complete: entry.complete === true, pass: entry.pass,
         })
       }
-      if (words) findings.push({ key: passKey(entry, words), text: words })
+      if (words && !superseded(entry)) findings.push({ key: passKey(entry, words), text: words })
     } else if (entry.event === 'pass.finding' && words) {
       findings.push({ key: passKey(entry, words), text: words })
     }

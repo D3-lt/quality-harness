@@ -272,6 +272,13 @@ if [ -z "$archive_readme" ]; then
   # existing files still fall through: -f is true, ADR-*.md can match by name,
   # and the UNPROVEN arm below names a file that exists but cannot be read.
   if [ ! -f "$f" ]; then
+    # Only Markdown can be a record, and an existing file of another kind exits 0
+    # below, so a deleted `x.mjs` had nothing to classify (BACKLOG §378). A name
+    # with no extension may have been a directory: it keeps its could-not-look.
+    case "$base_lc" in
+      *.md) ;;
+      *.*) exit 0 ;;
+    esac
     say_unproven "$(printf 'UNPROVEN: could not classify %s' "$f")"
     exit 0
   fi

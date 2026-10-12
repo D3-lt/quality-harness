@@ -168,6 +168,26 @@
       "from": "new URL('./lifecycle.mjs', import.meta.url)",
       "to": "new URL('./artifact-pass.mjs', import.meta.url)",
       "only": "^the pass writes only its own ledger$"
+    },
+    {
+      "label": "pass import: a finding a later pass superseded is not said (§378)",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "if (words && !superseded(entry)) findings.push",
+      "to": "if (words) findings.push",
+      "only": "^(?:a finding about bytes a later pass gated as different bytes is not said)$"
+    },
+    {
+      "label": "pass import: an unknown later blob does not supersede a finding (§378)",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "typeof entry.blob === 'string' && typeof lastBlob.get(entry.path) === 'string' && ",
+      "to": "typeof entry.blob === 'string' && ",
+      "only": "^(?:a finding about bytes a later pass gated as different bytes is not said)$"
     }
   ]
 }

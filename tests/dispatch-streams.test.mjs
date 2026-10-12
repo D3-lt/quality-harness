@@ -104,3 +104,25 @@ test('a tasks README is routed to its owner in any case and from a relative path
     }
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
+
+// BACKLOG §378: every commit that deleted a script or a workflow said "UNPROVEN: could not classify" about it. Only a
+// Markdown file can be a record, and an existing file of any other kind is passed in silence, so a deleted one has
+// nothing anyone could have looked at. A missing path that may still have been a record keeps its could-not-look.
+test('a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-deleted-')))
+  try {
+    const bash = resolveBashExecutable()
+    assert.ok(bash, 'bash is needed to run the dispatcher')
+    mkdirSync(join(top, 'docs'), { recursive: true })
+    const run = file => spawnSync(bash, [dispatcher, join(top, 'docs', file), ''], { encoding: 'utf8', timeout: 60_000 })
+    for (const gone of ['verify.mjs', 'evals.yml', 'notes.md.bak']) {
+      const said = run(gone)
+      assert.equal(said.status, 0)
+      assert.equal(`${said.stdout}${said.stderr}`, '', `${gone}: ${said.stdout}${said.stderr}`)
+    }
+    // Dirty: a Markdown name in any case, and a name with no extension (a directory, or anything), still could-not-look.
+    for (const gone of ['ghost.md', 'GHOST.MD', 'ghost']) {
+      assert.match(run(gone).stderr, /UNPROVEN: could not classify /, gone)
+    }
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})

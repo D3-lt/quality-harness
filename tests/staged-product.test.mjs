@@ -423,6 +423,39 @@ test('a Ready-for-ADR spec with no covering record goes to adr-write', async () 
   assert.match(run.stdout, /no record Covers/i)
 })
 
+// Found 2026-10-12 while binding ADR-099 T2's mutants: covered ids were one corpus-wide set, so a Ready-for-ADR spec
+// whose `F-1` and `UC1-S1` no record of its own covers was called covered because another spec's record covers ids
+// spelled the same, and adr-write was never suggested for it. A record covers the spec its **Spec:** header names,
+// resolved as adr-lint resolves it: against the record's directory, then the repository's root.
+test('a spec is covered only by the records that name it, not by another spec with the same ids', async () => {
+  const { observe } = await import('../plugin/scripts/work-next.mjs')
+  const root = mkdtempSync(path.join(testTmp, 'scoped-cover-'))
+  mkdirSync(path.join(root, 'docs', 'specs'), { recursive: true })
+  for (const name of ['a', 'b']) {
+    writeFileSync(path.join(root, 'docs', 'specs', `2026-09-09-${name}.md`), [
+      `# Spec: ${name}`, '', '> **Date:** 2026-09-09 · **Status:** Ready-for-ADR', '', '## Facts', '',
+      '| ID | Assertion | Test | Tag |', '|----|-----------|------|-----|', '| F-1 | one | `tests/x.test.mjs::x` | @spec |',
+      '', '### UC1-S1 [happy] a scenario', '',
+    ].join('\n'))
+  }
+  const record = (id, spec) => {
+    const dir = path.join(root, 'docs', 'adr', `${id}-selftest`)
+    mkdirSync(path.join(dir, 'tasks'), { recursive: true })
+    writeFileSync(path.join(root, 'docs', 'adr', `${id}-selftest.md`),
+      readFileSync(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'ADR-001-selftest.md'), 'utf8')
+        .replace(/^# ADR-001:/m, `# ${id}:`).replace(/^\*\*Spec:\*\* .*$/m, `**Spec:** ${spec}`))
+    cpSync(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'), path.join(dir, 'tasks', 'T1-fixture.md'))
+  }
+  // b's record names it from the repository's root and covers F-1 and UC1-S1; a has no record.
+  record('ADR-001', 'docs/specs/2026-09-09-b.md')
+  gitInit(root)
+  const names = () => observe(root).uncoveredReadySpecs.map(file => path.basename(file)).sort()
+  assert.deepEqual(names(), ['2026-09-09-a.md'], 'a spec no record names is not covered by ids another spec shares')
+  // CLEAN twin: a record naming a relative to its own directory covers it too.
+  record('ADR-002', '`../specs/2026-09-09-a.md`')
+  assert.deepEqual(names(), [], 'each spec is covered by the record that names it')
+})
+
 test('unreadable spec Status is UNPROVEN, not not-Ready-for-ADR', async () => {
   const { observe, nextStage } = await import('../plugin/scripts/work-next.mjs')
   const root = mkdtempSync(path.join(testTmp, 'unread-spec-'))

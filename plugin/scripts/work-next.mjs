@@ -432,24 +432,34 @@ function specBoundIds(text) {
   return ids
 }
 
-function coveredIds(corpus) {
-  const ids = new Set()
-  const files = []
-  for (const record of corpus) {
-    files.push(record.file)
-    for (const file of record.taskFiles ?? []) files.push(file)
-  }
-  for (const entry of corpus.unreadable ?? []) {
-    files.push(entry.file)
-    for (const file of entry.taskFiles ?? []) files.push(file)
-  }
-  for (const file of files) {
-    const text = read(file)
-    const line = text.match(/\*\*Covers:\*\*\s*([^\n]+)/)
-    if (!line || /\bnone\b/i.test(line[1])) continue
+// The ids a spec's facts and scenarios are covered by, per spec. Ids are not unique across specs (`F-1` and `UC1-S1`
+// are in most of them), so one corpus-wide set called a spec covered whenever ANY record covered the same id, and a
+// spec no record had taken was never sent to adr-write (found 2026-10-12 while binding ADR-099 T2's mutants: renaming
+// a scenario to `UC1-S9` left the spec covered, because another spec's record covers its own `UC1-S9`). A record
+// covers the spec its **Spec:** header names, read as adr-lint reads it (`spec_file` in plugin/bin/adr-lint): the
+// whole value, trimmed of backticks, angle brackets and spaces, tried against the record's directory and then the
+// repository's root. A record nobody could read cannot say which spec it serves, so what it and its tasks cover
+// counts for every spec, as before.
+function coveredIds(corpus, root) {
+  const bySpec = new Map()
+  const everywhere = new Set()
+  const coversIn = (file, ids) => {
+    const line = read(file).match(/\*\*Covers:\*\*\s*([^\n]+)/)
+    if (!line || /\bnone\b/i.test(line[1])) return
     for (const id of line[1].match(/\b(?:F-\d+|UC\d+-S\d+)\b/g) ?? []) ids.add(id)
   }
-  return ids
+  for (const record of corpus) {
+    const value = read(record.file).match(/^\*\*Spec:\*\*([^\n]*)/m)?.[1].replace(/^[`<> \t]+|[`<> \t\r]+$/g, '')
+    if (!value || /^none/i.test(value)) continue
+    for (const spec of new Set([path.resolve(path.dirname(record.file), value), path.resolve(root, value)])) {
+      if (!bySpec.has(spec)) bySpec.set(spec, new Set())
+      for (const file of [record.file, ...(record.taskFiles ?? [])]) coversIn(file, bySpec.get(spec))
+    }
+  }
+  for (const entry of corpus.unreadable ?? []) {
+    for (const file of [entry.file, ...(entry.taskFiles ?? [])]) coversIn(file, everywhere)
+  }
+  return spec => new Set([...everywhere, ...(bySpec.get(path.resolve(spec)) ?? [])])
 }
 
 /** Observations, each carrying the evidence that produced it. */
@@ -640,7 +650,7 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
   // real candidates (BACKLOG §263; Codex review of 870a230, P2).
   const retirable = corpus.filter(record => record.kind === 'graveyard' && !record.frozen)
 
-  const covered = coveredIds(corpus)
+  const coveredFor = coveredIds(corpus, directory)
   const unprovenSpecs = []
   const uncoveredReady = []
   for (const file of specPaths) {
@@ -656,6 +666,7 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
     }
     if (!/^Ready-for-ADR\b/i.test(status)) continue
     const ids = [...specBoundIds(text)]
+    const covered = coveredFor(file)
     if (ids.length === 0 || ids.some(id => !covered.has(id))) uncoveredReady.push(file)
   }
 

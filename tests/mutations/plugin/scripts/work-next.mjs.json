@@ -963,6 +963,30 @@
       "from": " && !countedIds.has(recordId(base))) {",
       "to": ") {",
       "only": "^a numbered file in a format no reader parses is named, and an attachment of a counted record is not$"
+    },
+    {
+      "label": "spec coverage: one corpus-wide set of covered ids again",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/staged-product.test.mjs"],
+      "from": "  return spec => new Set([...everywhere, ...(bySpec.get(path.resolve(spec)) ?? [])])",
+      "to": "  return () => new Set([...everywhere, ...[...bySpec.values()].flatMap(ids => [...ids])])",
+      "only": "^a spec is covered only by the records that name it, not by another spec with the same ids$"
+    },
+    {
+      "label": "spec coverage: a Spec header relative to its record is not resolved",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/staged-product.test.mjs"],
+      "from": "new Set([path.resolve(path.dirname(record.file), value), path.resolve(root, value)])",
+      "to": "new Set([path.resolve(root, value)])",
+      "only": "^a spec is covered only by the records that name it, not by another spec with the same ids$"
+    },
+    {
+      "label": "spec coverage: a Spec header relative to the repository is not resolved",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/staged-product.test.mjs"],
+      "from": "new Set([path.resolve(path.dirname(record.file), value), path.resolve(root, value)])",
+      "to": "new Set([path.resolve(path.dirname(record.file), value)])",
+      "only": "^a spec is covered only by the records that name it, not by another spec with the same ids$"
     }
   ]
 }

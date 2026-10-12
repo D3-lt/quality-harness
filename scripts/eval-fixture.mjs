@@ -27,7 +27,7 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { isMainModule } from './main-module.mjs'
+import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const KNOWN = new Set(['--corpus', '--out', '--template', '--list'])
 
@@ -138,7 +138,8 @@ export function main(argv = process.argv.slice(2), pluginRoot = undefined) {
   // reachable from a test. Without the seam a test can only exercise it by
   // writing into the real `plugin/` tree, which is the shape CLAUDE.md §9
   // warns about — and an unreachable branch is an untested one.
-  const here = pluginRoot ?? path.dirname(path.dirname(fileURLToPath(import.meta.url)))
+  // Repository tooling since ADR-097: the plugin it fills cases for is ../plugin from this file.
+  const here = pluginRoot ?? path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'plugin')
   const templates = path.resolve(value('--template') ?? path.join(here, 'evals', 'templates'))
   if (!existsSync(templates)) {
     process.stderr.write(`eval-fixture: no template directory at ${templates}\n`)

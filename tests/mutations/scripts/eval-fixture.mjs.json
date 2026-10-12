@@ -2,7 +2,7 @@
   "mutations": [
     {
       "label": "fixture: the corpus is copied, not linked to",
-      "file": "plugin/scripts/eval-fixture.mjs",
+      "file": "scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -12,7 +12,7 @@
     },
     {
       "label": "fixture: only the corpus parts are copied, not the source tree",
-      "file": "plugin/scripts/eval-fixture.mjs",
+      "file": "scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -22,7 +22,7 @@
     },
     {
       "label": "fixture: an unresolved placeholder is left visible",
-      "file": "plugin/scripts/eval-fixture.mjs",
+      "file": "scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -32,7 +32,7 @@
     },
     {
       "label": "fixture: an unknown option is named, not ignored",
-      "file": "plugin/scripts/eval-fixture.mjs",
+      "file": "scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -42,7 +42,7 @@
     },
     {
       "label": "fixture: the printed command grants what the cases declare",
-      "file": "plugin/scripts/eval-fixture.mjs",
+      "file": "scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -52,13 +52,22 @@
     },
     {
       "label": "fixture: a Windows path is made YAML-safe",
-      "file": "plugin/scripts/eval-fixture.mjs",
+      "file": "scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
       "from": "  return String(value).split('\\\\').join('/')",
       "to": "  return String(value)",
       "only": "^(?:a Windows path is made safe for a double-quoted YAML scalar)$"
+    },
+    {
+      "label": "ADR-097 T2: the moved eval tool still finds the plugin it fills cases for",
+      "file": "scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "  const here = pluginRoot ?? path.join(path.dirname(path.dirname(fileURLToPath(import.meta.url))), 'plugin')",
+      "to": "  const here = pluginRoot ?? path.dirname(path.dirname(fileURLToPath(import.meta.url)))"
     }
   ]
 }

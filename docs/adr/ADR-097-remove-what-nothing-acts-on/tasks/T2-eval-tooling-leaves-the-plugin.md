@@ -57,6 +57,8 @@ out=$(node --test --test-reporter=tap tests/subtracted.test.mjs tests/eval-fixtu
 | 4 — it is used | nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-12 · dbf53131* · mutant killed · exit 1 · `.github/workflows/selftest.yml` · a workflow that runs the evals again goes unnoticed · acceptance-sha256:7b03d69e4c5ecf016987c6e2c58cc7177b9b0f77ab9360c85298aa1934f7033f · covers:no workflow runs evals
+- 2026-10-12 · dbf53131* · mutant killed · exit 1 · `scripts/eval-fixture.mjs` · the moved tool looks for the plugin at the repository root and nothing notices · acceptance-sha256:7b03d69e4c5ecf016987c6e2c58cc7177b9b0f77ab9360c85298aa1934f7033f · covers:the moved tool still works
 
 ## Invariants
 
@@ -75,3 +77,8 @@ Stop and ask if anything under `plugin/` imports `eval-fixture.mjs`.
 - `plugin/evals/` itself (deferred: docs/BACKLOG.md §30)
 
 ## Verification Log
+- 2026-10-12 · dbf53131* · exit 1 · `out=$(node --test --test-reporter=tap tests/subtracted.test.mjs tests/eval-fixture.test.mjs 2>&1) \ …` · acceptance-sha256:7b03d69e4c5ecf016987c6e2c58cc7177b9b0f77ab9360c85298aa1934f7033f · ms:287 · test-lock-sha256:262be0cfb3f17c4f3b3a2df398ce5ad0e1d5ec20a474cf6f2facd892baefed6d · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvc3VidHJhY3RlZC50ZXN0Lm1qcwlldmFsLWZpeHR1cmUgaXMgcmVwb3NpdG9yeSB0b29saW5nLCBhbmQgbm8gd29ya2Zsb3cgcnVucyB0aGUgZXZhbHMJNTQ3NTE1NGFjYzQwMWYzM2YwNDc4MjYzNTI2OGE2ZTk2NWI4Y2I4ZGZlMTllMGI1MWJlYTliODdkODNiNDQwOApib2R5CXRlc3RzL3N1YnRyYWN0ZWQudGVzdC5tanMJdmVyaWZ5Lm1qcyBpcyBub3Qgc2hpcHBlZCwgYW5kIG5vdGhpbmcgc2hpcHBlZCBvciB0ZXN0ZWQgbmFtZXMgaXQJNWY3Nzg4MTc5ZGMwYjI4OGNhN2ZlMzM0YmZiMjhjNzYwNTAxN2JhNGM4NjQ1MjZiZGE5ZDczODVjZDQzOTVhMw
+  ```
+  ```
+- 2026-10-12 · dbf53131* · exit 0 · `out=$(node --test --test-reporter=tap tests/subtracted.test.mjs tests/eval-fixture.test.mjs 2>&1) \ …` · acceptance-sha256:7b03d69e4c5ecf016987c6e2c58cc7177b9b0f77ab9360c85298aa1934f7033f · ms:290
+- 2026-10-12 · dbf53131* · exit 0 · `out=$(node --test --test-reporter=tap tests/subtracted.test.mjs tests/eval-fixture.test.mjs 2>&1) \ …` · acceptance-sha256:7b03d69e4c5ecf016987c6e2c58cc7177b9b0f77ab9360c85298aa1934f7033f · ms:291

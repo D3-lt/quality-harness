@@ -14,7 +14,7 @@ import path from 'node:path'
 import test from 'node:test'
 
 import { fileURLToPath } from 'node:url'
-import { CORPUS_PARTS, grantsFor, main, measure, render, snapshot, yamlPath } from '../plugin/scripts/eval-fixture.mjs'
+import { CORPUS_PARTS, grantsFor, main, measure, render, snapshot, yamlPath } from '../scripts/eval-fixture.mjs'
 
 // The repository root, not the plugin root — the two are different directories
 // here (CLAUDE.md §1), and a test that injects a fake plugin root still needs

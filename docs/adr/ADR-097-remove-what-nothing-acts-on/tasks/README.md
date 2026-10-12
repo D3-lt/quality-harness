@@ -18,7 +18,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | `verify.mjs` is removed, and nothing shipped sends an agent to it | done | none — no spec | `node --test tests/subtracted.test.mjs` (one named test passes) |
-| T2 | eval tooling leaves the shipped plugin, and the keyless evals workflow goes | pending | none — no spec | `node --test tests/subtracted.test.mjs` (one named test passes) |
+| T2 | eval tooling leaves the shipped plugin, and the keyless evals workflow goes | done | none — no spec | `node --test tests/subtracted.test.mjs` (one named test passes) |
 
 ## Contract Coupling
 

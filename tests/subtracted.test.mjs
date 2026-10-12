@@ -34,3 +34,14 @@ test('verify.mjs is not shipped, and nothing shipped or tested names it', () => 
   // ...and it can say the other thing.
   assert.deepEqual(naming([['a.md', 'run `node scripts/verify.mjs --cwd x -- y`'], ['b.md', 'run spec-verify.mjs']], 'verify.mjs'), ['a.md'])
 })
+
+test('eval-fixture is repository tooling, and no workflow runs the evals', () => {
+  assert.equal(existsSync(path.join(repoRoot, 'scripts', 'eval-fixture.mjs')), true, 'scripts/eval-fixture.mjs is missing')
+  assert.equal(existsSync(path.join(repoRoot, 'plugin', 'scripts', 'eval-fixture.mjs')), false, 'plugin/scripts/eval-fixture.mjs still ships')
+  // A workflow that runs `claude plugin eval` with no key measures nothing and reads as a check.
+  const evalRun = /plugin eval|eval-run|scripts\/eval-|evals\//
+  const running = files(['.github']).filter(([file, text]) => file.startsWith('.github/workflows/') && evalRun.test(text)).map(([file]) => file)
+  assert.deepEqual(running, [])
+  // ...and it can say the other thing.
+  assert.ok(evalRun.test('run: claude plugin eval plugin --runs 3'), 'the pattern finds an eval run')
+})

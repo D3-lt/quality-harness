@@ -97,3 +97,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-093](ADR-093-a-literal-variable-directory-is-left-to-git.md) | An armed session leaves a commit into a literal-variable directory to git | Accepted |
 | [ADR-094](ADR-094-a-standing-fact-is-said-once-and-prose-reuses-the-pass.md) | A standing fact is said once, and a prose-only change reuses the last pass | Accepted |
 | [ADR-095](ADR-095-a-hook-does-not-repeat-work-whose-inputs-have-not-changed.md) | A hook does not repeat work whose inputs have not changed | Accepted |
+| [ADR-096](ADR-096-turn-end-findings-reach-the-agent.md) | Turn-end findings reach the agent | Accepted |

@@ -449,11 +449,16 @@ test('a spec is covered only by the records that name it, not by another spec wi
   // b's record names it from the repository's root and covers F-1 and UC1-S1; a has no record.
   record('ADR-001', 'docs/specs/2026-09-09-b.md')
   gitInit(root)
-  const names = () => observe(root).uncoveredReadySpecs.map(file => path.basename(file)).sort()
-  assert.deepEqual(names(), ['2026-09-09-a.md'], 'a spec no record names is not covered by ids another spec shares')
+  const names = () => observe(root).uncoveredReadySpecs.map(file => path.relative(root, file).replaceAll('\\', '/')).sort()
+  assert.deepEqual(names(), ['docs/specs/2026-09-09-a.md'], 'a spec no record names is not covered by ids another spec shares')
   // CLEAN twin: a record naming a relative to its own directory covers it too.
   record('ADR-002', '`../specs/2026-09-09-a.md`')
   assert.deepEqual(names(), [], 'each spec is covered by the record that names it')
+  // A record's own directory wins, as adr-lint's does: with docs/adr/docs/specs/…-b.md beside it, ADR-001's
+  // `docs/specs/2026-09-09-b.md` names that one, and the root spec of the same name is no longer covered by it.
+  mkdirSync(path.join(root, 'docs', 'adr', 'docs', 'specs'), { recursive: true })
+  cpSync(path.join(root, 'docs', 'specs', '2026-09-09-b.md'), path.join(root, 'docs', 'adr', 'docs', 'specs', '2026-09-09-b.md'))
+  assert.deepEqual(names(), ['docs/specs/2026-09-09-b.md'], 'only the spec the header names first is covered by it')
 })
 
 test('unreadable spec Status is UNPROVEN, not not-Ready-for-ADR', async () => {

@@ -976,16 +976,24 @@
       "label": "spec coverage: a Spec header relative to its record is not resolved",
       "file": "plugin/scripts/work-next.mjs",
       "tests": ["tests/staged-product.test.mjs"],
-      "from": "new Set([path.resolve(path.dirname(record.file), value), path.resolve(root, value)])",
-      "to": "new Set([path.resolve(root, value)])",
+      "from": "[path.resolve(path.dirname(record.file), value), path.resolve(root, value)].find(",
+      "to": "[path.resolve(root, value)].find(",
       "only": "^a spec is covered only by the records that name it, not by another spec with the same ids$"
     },
     {
       "label": "spec coverage: a Spec header relative to the repository is not resolved",
       "file": "plugin/scripts/work-next.mjs",
       "tests": ["tests/staged-product.test.mjs"],
-      "from": "new Set([path.resolve(path.dirname(record.file), value), path.resolve(root, value)])",
-      "to": "new Set([path.resolve(path.dirname(record.file), value)])",
+      "from": "[path.resolve(path.dirname(record.file), value), path.resolve(root, value)].find(",
+      "to": "[path.resolve(path.dirname(record.file), value)].find(",
+      "only": "^a spec is covered only by the records that name it, not by another spec with the same ids$"
+    },
+    {
+      "label": "spec coverage: the repository's spec is preferred to the record's own (Codex review)",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": ["tests/staged-product.test.mjs"],
+      "from": "[path.resolve(path.dirname(record.file), value), path.resolve(root, value)].find(",
+      "to": "[path.resolve(root, value), path.resolve(path.dirname(record.file), value)].find(",
       "only": "^a spec is covered only by the records that name it, not by another spec with the same ids$"
     }
   ]

@@ -199,7 +199,7 @@ repo_path_of() {
 history_bases() {
   local raw="${QUALITY_HARNESS_HISTORY_BASES-}" base found="" list=()
   # read -a, not an unquoted expansion: a `*` in the variable must not glob into file names.
-  IFS=$' \t\n,' read -r -d '' -a list <<< "$raw" || true
+  IFS=$' \t\n\r\v\f,' read -r -d '' -a list <<< "$raw" || true
   for base in ${list[@]+"${list[@]}"}; do
     [[ "$base" =~ ^[A-Za-z0-9._/^~-]{1,200}$ ]] || continue
     printf '%s\n' "$base"

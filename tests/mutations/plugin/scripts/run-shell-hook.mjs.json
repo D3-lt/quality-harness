@@ -209,6 +209,14 @@
       "from": "        if (entry[2] === 'blob' && owns.includes(entry[4])) { heldAsFile.add(entry[4]); continue }",
       "to": "        if (entry[2] === 'blob' && owns.includes(entry[4])) { continue }",
       "only": "^(?:a batch says which deleted paths were files from its one history query, not one probe per path)$"
+    },
+    {
+      "label": "history bases: a CR does not separate two bases in the batch (Codex review)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": ["tests/hook-work.test.mjs"],
+      "from": "  const bases = raw.split(/[ \\t\\n\\r\\v\\f,]+/)",
+      "to": "  const bases = raw.split(/[ \\t\\n\\v\\f,]+/)",
+      "only": "^(?:the batch and the standalone dispatcher read the same history bases)$"
     }
   ]
 }

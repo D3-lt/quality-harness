@@ -484,8 +484,9 @@ test('the batch and the standalone dispatcher read the same history bases', t =>
   const unproven = /UNPROVEN: could not classify .*gone\.mjs/
   const catalog = /CATALOG .*archive\/README\.md/
   // CLEAN: a comma list, a newline list and a name the rule drops all still reach HEAD, which held the file, and
-  // a deleted record still reaches the catalog HEAD held.
-  for (const bases of ['no-such-ref,HEAD', 'no-such-ref\nHEAD', '* HEAD', '*']) {
+  // a deleted record still reaches the catalog HEAD held. CR, VT and FF separate too (Codex review): HEAD comes
+  // first there, so a separator one side did not split would leave only the unreadable base on that side.
+  for (const bases of ['no-such-ref,HEAD', 'no-such-ref\nHEAD', '* HEAD', '*', 'HEAD\r\nno-such-ref', 'HEAD\vno-such-ref', 'HEAD\fno-such-ref']) {
     for (const [entry, said] of [['standalone', standalone(bases)], ['batch', batch(bases)]]) {
       assert.doesNotMatch(said.stdout + said.stderr, unproven, `${entry} with ${JSON.stringify(bases)}`)
     }
@@ -500,6 +501,22 @@ test('the batch and the standalone dispatcher read the same history bases', t =>
   for (const [entry, said] of [['standalone', standalone('no-such-ref', record)],
     ['batch', batch('no-such-ref', [record, gone])]]) {
     assert.doesNotMatch(said.stdout + said.stderr, catalog, entry)
+  }
+  // A script only the older base holds: deleted AND committed, so HEAD lacks it. Each separator must give both
+  // bases on both sides; a side that kept `HEAD~1<sep>HEAD` as one name drops it, reads HEAD alone, and says
+  // UNPROVEN. (A side that is left with no readable base falls back to the dispatcher's own lookup, which the
+  // cases above cannot tell apart; this one can.)
+  writeFileSync(path.join(docs, 'old.mjs'), 'export {}\n')
+  run(['git', 'add', '.'], project)
+  run(['git', '-c', 'user.name=Harness Test', '-c', 'user.email=harness@example.invalid', 'commit', '-qm', 'old'], project)
+  run(['git', 'rm', '-q', path.join('docs', 'old.mjs')], project)
+  run(['git', '-c', 'user.name=Harness Test', '-c', 'user.email=harness@example.invalid', 'commit', '-qm', 'old goes'], project)
+  const old = path.join(docs, 'old.mjs')
+  for (const separator of [',', '\n', '\r\n', '\r', '\v', '\f', ' ', '\t']) {
+    const bases = `HEAD~1${separator}HEAD`
+    for (const [entry, said] of [['standalone', standalone(bases, old)], ['batch', batch(bases, [old, gone])]]) {
+      assert.doesNotMatch(said.stdout + said.stderr, /could not classify .*old\.mjs/, `${entry} with ${JSON.stringify(bases)}`)
+    }
   }
 })
 

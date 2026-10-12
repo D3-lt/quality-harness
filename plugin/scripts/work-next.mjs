@@ -440,7 +440,7 @@ function specBoundIds(text) {
 // whole value, trimmed of backticks, angle brackets and spaces, tried against the record's directory and then the
 // repository's root. A record nobody could read cannot say which spec it serves, so what it and its tasks cover
 // counts for every spec, as before.
-function coveredIds(corpus, root) {
+function coveredIds(corpus, root, specs) {
   const bySpec = new Map()
   const everywhere = new Set()
   const coversIn = (file, ids) => {
@@ -451,10 +451,12 @@ function coveredIds(corpus, root) {
   for (const record of corpus) {
     const value = read(record.file).match(/^\*\*Spec:\*\*([^\n]*)/m)?.[1].replace(/^[`<> \t]+|[`<> \t\r]+$/g, '')
     if (!value || /^none/i.test(value)) continue
-    for (const spec of new Set([path.resolve(path.dirname(record.file), value), path.resolve(root, value)])) {
-      if (!bySpec.has(spec)) bySpec.set(spec, new Set())
-      for (const file of [record.file, ...(record.taskFiles ?? [])]) coversIn(file, bySpec.get(spec))
-    }
+    // The FIRST candidate that is a listed spec, as adr-lint takes the first that exists: crediting both called a
+    // root spec covered by a record whose own directory holds a spec of the same name (Codex review, 2026-10-12).
+    const spec = [path.resolve(path.dirname(record.file), value), path.resolve(root, value)].find(candidate => specs.has(candidate))
+    if (!spec) continue
+    if (!bySpec.has(spec)) bySpec.set(spec, new Set())
+    for (const file of [record.file, ...(record.taskFiles ?? [])]) coversIn(file, bySpec.get(spec))
   }
   for (const entry of corpus.unreadable ?? []) {
     for (const file of [entry.file, ...(entry.taskFiles ?? [])]) coversIn(file, everywhere)
@@ -650,7 +652,7 @@ export function observe(directory, { spawn = spawnGate, listing = trackedPaths(d
   // real candidates (BACKLOG §263; Codex review of 870a230, P2).
   const retirable = corpus.filter(record => record.kind === 'graveyard' && !record.frozen)
 
-  const coveredFor = coveredIds(corpus, directory)
+  const coveredFor = coveredIds(corpus, directory, new Set(specPaths.map(file => path.resolve(file))))
   const unprovenSpecs = []
   const uncoveredReady = []
   for (const file of specPaths) {

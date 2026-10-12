@@ -434,8 +434,16 @@
       "label": "history bases: a comma does not separate two bases (Codex review)",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": ["tests/hook-work.test.mjs"],
-      "from": "  IFS=$' \\t\\n,' read -r -d '' -a list",
-      "to": "  IFS=$' \\t\\n' read -r -d '' -a list",
+      "from": "  IFS=$' \\t\\n\\r\\v\\f,' read -r -d '' -a list",
+      "to": "  IFS=$' \\t\\n\\r\\v\\f' read -r -d '' -a list",
+      "only": "^(?:the batch and the standalone dispatcher read the same history bases)$"
+    },
+    {
+      "label": "history bases: a CR does not separate two bases here (Codex review)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": ["tests/hook-work.test.mjs"],
+      "from": "  IFS=$' \\t\\n\\r\\v\\f,' read -r -d '' -a list",
+      "to": "  IFS=$' \\t\\n\\v\\f,' read -r -d '' -a list",
       "only": "^(?:the batch and the standalone dispatcher read the same history bases)$"
     },
     {

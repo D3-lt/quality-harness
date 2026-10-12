@@ -473,7 +473,9 @@ export async function runShellHook(scriptName, raw, options = {}) {
  */
 export function historyBases(env = process.env) {
   const raw = typeof env.QUALITY_HARNESS_HISTORY_BASES === 'string' ? env.QUALITY_HARNESS_HISTORY_BASES : ''
-  const bases = raw.split(/[\s,]+/).filter(base => /^[A-Za-z0-9._/^~-]{1,200}$/.test(base))
+  // An explicit set, not `\s`: the dispatcher's `history_bases` splits on exactly these, and `\s` also took CR, VT,
+  // FF and Unicode spaces, so `HEAD\r\n<sha>` was two bases here and one dropped name there (Codex review, 2026-10-12).
+  const bases = raw.split(/[ \t\n\r\v\f,]+/).filter(base => /^[A-Za-z0-9._/^~-]{1,200}$/.test(base))
   return bases.length ? bases : ['HEAD']
 }
 

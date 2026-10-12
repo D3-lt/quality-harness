@@ -545,64 +545,9 @@ Archived: [backlog-archive/BACKLOG-001-100.md](backlog-archive/BACKLOG-001-100.m
 
 Archived: [backlog-archive/BACKLOG-001-100.md](backlog-archive/BACKLOG-001-100.md)
 
-## 89. PARTLY CLOSED 2026-08-30 — `.gitattributes` pinned `*.mjs` but not `*.js`, and six more extensions go CRLF
+## 89. CLOSED 2026-10-12 (was PARTLY CLOSED 2026-08-30) — `.gitattributes` pinned `*.mjs` but not `*.js`, and six more extensions go CRLF
 
-Found 2026-08-30 by a peer Claude session on Windows 11 with `core.autocrlf=true`, reading a
-real Windows checkout this repository cannot produce. Confirmed against this tree: our
-`.gitattributes` is byte-identical to the one it measured, so the finding applies here.
-
-The file is seven lines and has **no `* text=auto` catch-all**, so every extension not named
-is left to `core.autocrlf` and lands CRLF on a Windows checkout. `git check-attr text eol`
-reports `unspecified` for all of these, and all of them were CRLF on disk there:
-
-| unpinned | files |
-|---|---|
-| `*.js` | `plugin/workflows/{consensus,quality-cycle,review-ring}.js` |
-| `*.py` | `scripts/neuter.py`, `tests/gate-regressions.py`, `tests/fixtures/ok/test_selftest_fixture.py` |
-| `*.json` | `tests/mutations.json`, `plugin/hooks/hooks.json`, both `plugin.json`/`marketplace.json` |
-| `*.yml` / `*.yaml` | `.github/workflows/selftest.yml`, the eval case template |
-| `*.txt`, no-ext | `tests/fixtures/ok/adr-archive/ADR-001-attachment.txt`, `LICENSE` |
-
-**`*.mjs` is pinned and `*.js` is not.** Same repository, same kind of code, opposite checkout
-behaviour on Windows. That reads as an oversight rather than a decision.
-
-**`*.py` is unpinned** and only survives because `plugin/bin/*` catches the gates by path. Any
-Python that moves out of `plugin/bin`, or any new `.py` gate, silently becomes CRLF there —
-and §1 already records that a file move breaks four things silently.
-
-**Correction, 2026-08-30, same day:** this entry first claimed `tests/mutations.json` being
-CRLF put the campaign at risk because it holds multi-line `from:` strings. That is wrong, and
-it was wrong in the direction that flatters the finding. A `\n` inside a JSON string is the
-two-character escape `\` `n`, not a newline byte, so the file's own line endings never reach
-the parsed value — verified by parsing a deliberately CRLF JSON file and getting `"a\nb"` back
-intact. What §7's second row actually describes is the **target** file being CRLF, and all 23
-files carrying a cross-line mutation are pinned today. `tests/package.test.mjs:592` already
-asserts exactly that, asked of `git check-attr` rather than of the file, and it fires on any
-new cross-line mutation aimed at an unpinned target. The acute risk was already guarded.
-
-**Two fixture files are CRLF**: `test_selftest_fixture.py` and `ADR-001-attachment.txt` — the
-"content matched across a line boundary" shape §7 describes.
-
-**Partly fixed.** `*.js` and `*.py` are now pinned `text eol=lf`, closing the parity gap that
-is the real hazard here: a contributor who sees `*.mjs` pinned will reasonably assume JS is,
-and `plugin/workflows/*.js` ships. `*.py` matters for the same reason §1 gives about file
-moves — the gates are Python and survive only because `plugin/bin/*` catches them by path, so
-any Python that moves out of that directory silently becomes CRLF.
-
-`git add --renormalize` was deliberately NOT run. Adding an attribute changes what git does on
-the next checkout; renormalizing rewrites every affected file in the index, which is a large,
-visible change that deserves its own commit and its own reason.
-
-Still unpinned and left so on purpose: `*.json`, `*.yml`, `*.yaml`, `*.txt` and `LICENSE`.
-Nothing matches their content across a line boundary, `LICENSE` is the fixture
-`package.test.mjs:600` uses to prove its own check can fire, and pinning a file merely because
-it could one day matter is the speculative complexity YAGNI rejects. The `.cmd` files being
-CRLF is correct and deliberate (`*.cmd text eol=crlf` sits last and last-match wins); do not
-"fix" those.
-
-Verified clean by the same probe, so the sweep is not vacuous: every extensionless gate in
-`plugin/bin/` is 0 CR bytes, all of `plugin/scripts/`, `.gitignore` and `.gitattributes` are
-pinned `eol: lf` and clean on disk.
+Archived: [backlog-archive/BACKLOG-001-100.md](backlog-archive/BACKLOG-001-100.md)
 
 ## 90. CLOSED 2026-09-01 — `Path.is_absolute()` was False for a rooted path on Windows, and three sites joined it to cwd
 
@@ -721,166 +666,13 @@ that item's section. Found 2026-09-03 while re-pointing a drifted memory anchor 
 
 Archived: [backlog-archive/BACKLOG-001-100.md](backlog-archive/BACKLOG-001-100.md)
 
-## 95. PARTLY CLOSED 2026-09-01 — an orphan under the home directory is a different mechanism from a drifted copy, and neither scanner has one
+## 95. CLOSED 2026-10-12 (was PARTLY CLOSED 2026-09-01) — an orphan under the home directory is a different mechanism from a drifted copy, and neither scanner has one
 
-**The scanning half is CLOSED, and the entry's premise for it was superseded before the entry was
-worked.** This entry argues `SHADOW_SCOPE` cannot absorb `tests/` because every entry pairs a home
-directory with a `shipped` one and `tests/` never ships. True, and no longer the mechanism:
-`scanSet()` is DERIVED from the union of every cached release's top-level directories plus the
-`SHADOW_SCOPE` home names, precisely so that a directory the current tree no longer has is still
-scanned. Measured here 2026-09-01:
+Archived: [backlog-archive/BACKLOG-001-100.md](backlog-archive/BACKLOG-001-100.md)
 
-    SHADOW_SCOPE home names : bin, hooks, skills, templates, workflows
-    scanSet() derived       : bin, docs, evals, hooks, scripts, skills, templates, tests, workflows
+## 96. CLOSED 2026-10-12 (was PARTLY CLOSED 2026-09-01) — `SHADOW_SCOPE` was hand-listed, and two home workflow files were drifted where nothing looks
 
-`tests` is in the second and not the first — the gap `scanSet`'s own docstring names.
-
-**Verified end to end on the reported file, not inferred.** A fabricated home holding
-`.claude/tests/selftest.sh` with fork-era content, scanned through `orphans(homeDirectory)`:
-
-    {"directory":"tests","name":"selftest.sh","state":"unidentified",
-     "evidence":{"state":"unidentified","route":null,"version":null,"first":null,"shared":null}}
-
-So the file is seen, and it is reported as `unidentified` with no route — exactly what ADR-019
-requires of a check that could not determine something, and never as ours. The "neither scanner has
-one" half of the headline is answered.
-
-**What is left is a DECISION, and ADR-019 has already taken it the other way.** ADR-019 is Accepted
-and says: *"naming it is all that ever happens"*, `--apply` deletes nothing and archives nothing, no
-code path removes a home file, and the user decides. This entry asks for an orphan to be identified
-well enough to advise DELETION, which inverts that posture. The entry says so itself — *"This wants
-a record before code"* — and it is right: it is a trust boundary and costly-to-reverse advice, and
-copy mode does not archive, so a wrong deletion is unrecoverable.
-
-That decision is the owner's and is not backlog work. It would supersede or amend ADR-019's
-never-act clause rather than sit beside it.
-
-**Still true and still unanswered by any of the above:** the reporter's 14 failing presence checks
-are the real user-facing harm, and they are not fixed by scanning or by identification — the orphan
-prints `FAIL — 14 of 39 checks failed` for artifacts this plugin's own guidance told them to delete.
-Nothing this project ships can silence somebody else's script. Only advising its removal would, which
-is the decision above.
-
-### As reported
-
-
-Reported 2026-09-01 on GitHub issue #1, as a follow-up to the scope-sharing fix in `bbd3f87`.
-That commit made `shadowInstallNotice` and `sync-standalone.mjs` read one `SHADOW_SCOPE`, which
-closed the `hooks/` gap the issue was filed about. The follow-up names a second file the shared
-scope still cannot see, and it is not a longer list — it is a state neither tool has.
-
-`~/.claude/tests/selftest.sh`, 113 lines, on the reporter's Windows box. It corresponds to no
-current upstream file: `scripts/selftest.sh` here today is a different, repository-scoped
-70-line script. The orphan asserts the fork-era layout directly —
-
-```sh
-for t in adr-template task-template ... ; do have "templates/$t.md" "$DEST/templates/$t.md"; done
-for s in work spec-write adr-write ... ; do have "skills/$s/SKILL.md" "$DEST/skills/$s/SKILL.md"; done
-have "hooks/facts-gate-dispatch.sh"  "$DEST/hooks/facts-gate-dispatch.sh" -x
-```
-
-— so after the reporter followed this plugin's own session-start guidance, which says a
-bare-name skill *"is better deleted than synced"*, it printed `FAIL — 14 of 39 checks failed. Fix
-these before authoring anything.` All fourteen are presence checks for artifacts the guidance had
-just told them to delete. Every functional check still passed, so it is asserting a LAYOUT rather
-than detecting breakage — but its summary line reads as a broken install and the obvious repair is
-to restore exactly what the guidance said to remove.
-
-**Why `SHADOW_SCOPE` cannot absorb it.** Every entry pairs a home directory with a `shipped` one,
-and per §1 of CLAUDE.md `tests/` stays at the repository root and never ships. `{ home: 'tests',
-shipped: 'tests' }` makes `readdirSync(path.join(source, 'tests'))` throw, `catch { continue }`
-swallows it, and the entry is a green no-op — the same failure the `hooks`→`scripts` pairing was
-shaped to avoid, recurring one field over. An orphan has no `shipped` counterpart by definition.
-
-**Why digest lineage cannot identify it either.** `knownDigests(relative)` recognises a file as
-ours when it matches any cached release's copy at the same relative path. Measured here
-2026-09-01 across 52 cached versions back to 2.0.0:
-
-    ls -d ~/.claude/plugins/cache/.../*/tests        -> 10+ versions have a tests/ directory
-    ls    ~/.claude/plugins/cache/.../*/tests/selftest.sh -> no matches, in any version
-
-Old releases shipped `tests/` (fixtures, gate-regressions.py, five `.test.mjs`) and never a
-`selftest.sh`. So for the exact file this report is about the known-digest set is EMPTY, and the
-lineage machinery that carries `replaceable()` cannot answer. Identification would need a content
-signature.
-
-**Three states, and only the middle one is new.** `replaceable()` already distinguishes
-ours-and-still-shipped (drift → refresh) from not-ours (`'not a file this plugin installed — it
-may be your own'` → leave alone). The gap is ours-and-no-longer-shipped (orphan → delete), and the
-whole risk sits on its boundary with not-ours: advising deletion of a file under someone's home
-that turns out to be theirs is worse than the silence being fixed, and copy mode does not archive,
-so it is unrecoverable.
-
-**This wants a record before code.** The tools' current posture is *never act on a file this
-plugin did not install*; recommending a deletion inverts it. That is a trust boundary and
-costly-to-reverse advice — the `adr-write` criteria — so the ADR comes first and decides how an
-orphan is identified without a digest to match. Not folded into `bbd3f87`, deliberately.
-
-Also open from the same issue, and deliberately unchanged: `--link` is a THIRD, narrower scope
-that installs gates only, via `gateNames()`. It already reports when copy mode has work it cannot
-do, so it is documented rather than merged into `SHADOW_SCOPE`.
-
----
-
-## 96. PARTLY CLOSED 2026-09-01 — `SHADOW_SCOPE` was hand-listed, and two home workflow files were drifted where nothing looks
-
-**The scope half is CLOSED 2026-09-01 (v2.45.0, `7f5394d` and `022f39d`).** Mirroring is now the
-default and `NEVER_MIRRORED` is the exception list; a test asserts that every directory the plugin
-ships is either scanned or excluded on purpose. The rule earned its place on the first run — it
-failed on `hooks` and `.claude-plugin` as well, neither of which anyone had considered. The
-reachability question below was settled before the fix: a live skill listing offers bare `consensus`
-and `review-ring` (the two files in the home) and no bare `quality-cycle` (shipped, not in the home),
-so home workflows become bare names and the drifted pair was live. The `2.0.0` junk-cache note below
-remains open and belongs to ADR-019 T1.
-
-
-
-Deferred out of ADR-019 (`docs/adr/ADR-019-an-orphan-must-prove-it-is-ours.md`, Out of Scope), which
-covers ORPHANS — files this plugin no longer ships. This entry is the other half: a file the plugin
-ships **today**, in a home directory the scanners do not look in.
-
-`SHADOW_SCOPE` (added 2026-09-01, `bbd3f87`) lists four home directories: `bin`, `hooks`,
-`templates`, `skills`. Measured 2026-09-01, the plugin's own releases have shipped nine top-level
-directories between them:
-
-    ls -d ~/.claude/plugins/cache/quality-harness/quality-harness/*/*/ | xargs -n1 basename | sort -u
-    bin docs evals hooks scripts skills templates tests workflows
-
-`workflows` is one of the five outside the scope, and it is not hypothetical here:
-
-    ~/.claude/workflows/consensus.js    home 6115389c22c4  plugin c7299c812b19  DRIFTED
-    ~/.claude/workflows/review-ring.js  home 5f5f40ab0b61  plugin 3206965c71f7  DRIFTED
-
-Both are ours by name and still shipped (`plugin/workflows/` holds `consensus.js`,
-`quality-cycle.js`, `review-ring.js`). Neither scanner reports them, and `grep -n workflows` over
-`standalone-link.mjs`, `sync-standalone.mjs` and `lifecycle.mjs` returns nothing. This is exactly
-GitHub issue #1 — the notice and the repair tool blind to a directory — one directory over, still
-open, four days after that issue was filed.
-
-**The fix is a derivation, not a longer list.** The scope should come from what the plugin currently
-ships (a `readdirSync` over the plugin root, minus what never installs home-side), so the tenth
-directory is not missed the way the fifth through ninth were. That is a different mechanism from
-ADR-019's: derivation can only ever see the CURRENT tree, so it cannot find an orphan, and an orphan
-scan's directory set is a superset. Two mechanisms, deliberately separate records.
-
-**Open first:** whether anything reads `~/.claude/workflows/*.js` at all. ADR-004's general rule
-turns on it — *install a personal copy only where it is both reachable by something and cheaper to
-maintain than the plugin's own copy*. If those two files are live, this is a drift fix. If nothing
-reads them, they are ADR-004's case (an unread home copy that is a standing chore) and the answer is
-that they should not exist, which routes back to ADR-019 rather than here. `~/.claude/skills` holds
-none of ours and `~/.claude/commands` holds `M.md`, `am.md`, `autoresearch.md`, `load-skill.md`, so
-whatever serves the bare `/consensus` in a live skill listing is not a home `SKILL.md` — find what
-loads the `.js` before classifying them.
-
-**Second item, same area.** `~/.claude/plugins/cache/quality-harness/quality-harness/2.0.0/` holds
-`AUTHn`, `CHRn`, `cuda-1.9`, `maximum` and a dozen similar entries alongside `bin`, `hooks` and
-`scripts`. It does not look like a release of this plugin. Any mechanism that walks cached versions
-— `knownDigests()` today, ADR-019's `formerlyShipped()` next — must tolerate it without producing a
-match, and the phrase "52 cached versions" used in GitHub issue #3 and §95 rests on counting it.
-ADR-019 T1 carries a test for a junk directory; this entry is the note that the junk is real and
-sitting in the cache now, not a hypothetical.
-
----
+Archived: [backlog-archive/BACKLOG-001-100.md](backlog-archive/BACKLOG-001-100.md)
 
 ## 97. CLOSED 2026-09-02 — the candidate was measured and its own falsifier fired
 
@@ -3510,61 +3302,9 @@ Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.m
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-## 324. PARTLY FIXED 2026-10-01 — After 3.3.0: the lock hasher's JavaScript scanner, the coverage-only flakes, and the stale brief capped
+## 324. CLOSED 2026-10-12 (was PARTLY FIXED 2026-10-01) — After 3.3.0: the lock hasher's JavaScript scanner, the coverage-only flakes, and the stale brief capped
 
-**1. The test-lock hasher cannot tell a string from code in JavaScript, and a local fix is not safe.**
-Reproduced: `extract_test_names` returns `a negative value is a finding` for
-`tests/unasserted-isolation.test.mjs`, a name that exists only inside the string constant `SUITE`.
-`_iter_bdd_calls` skips a `test(` only when its LINE starts with a comment. The obvious fix — skip a head that
-`_js_like_in_code` says is not in code — was written with a red test and its twin, and then made 12 active
-records fail their own adr-lint (ADR-052, -054, -055, -057, -067, -068, -069, -071, -072, -073, -075, -076):
-their locks name tests the hasher no longer sees. Some of those names are fixture strings (`other`, `f and g`,
-`a`), but others are real tests (`a brace-built publish is refused`, `after a compaction the session is told
-git's refusal is not yet armed`, `declaring a capability does not cost a role its schema`). The cause, measured:
-neither JavaScript scanner in `plugin/lib/record.py` knows a regex literal. In
-`tests/publish-command.test.mjs` the literal `/(["'])(.*?)\1/` flips `_js_like_code_positions` into
-"string" at offset 34425, and every test after it reads as data; `_mask_lock_noncode` blanks the same heads.
-**The same state machine is `_matching_js_brace`**, which decides where a locked test's body ends, so a regex
-literal holding a quote inside a test can already make a lock hash the wrong span — the latent twin of this lead.
-The change was reverted (both files back to their shas). A correct fix is a JavaScript lexer that knows regex
-literals (with the division ambiguity) and template interpolation, and a lock format that records which hasher
-took it, so existing evidence keeps its meaning. That is a decision record's work and the owner's to accept.
-
-**2. `the cached branch CLI reads a fresh answer without starting Git` is not reproduced outside GitHub's
-runner.** It failed the coverage job of both push runs at 35b36fa and eabf6a3 (the second after a 60 s wait, so the
-refresher never wrote) and passed the dispatched run at eabf6a3. In a `node:24` Linux container the test passed
-alone under `--experimental-test-coverage` (0.42 s, twice) and after every file that precedes it in
-`coverage.sh`'s serial order (0.45 s, twice). `waitForSnapshot` now prints, on a timeout, what the git directory
-holds, the snapshot and the refresher's lock with its age, so the next failure carries its own evidence.
-**Addendum 2026-10-02:** it failed again at 6d1178f (coverage floor, run 36971099606), and the diagnostics
-above never reached the log: `coverage.sh` shows only a suite's failing-tests block, and `waitForSnapshot`
-printed to stderr. `waitForSnapshot` now THROWS its diagnostics (and the load average), so they land in that
-block. The next three coverage runs passed (b7e867e, c454442, d866327), so the cause is still unobserved.
-Closed as not reproduced, with the instrument armed: the next failure says what the refresher left.
-
-**2b. The coverage job's Python stage failed differently at c11a507: the tutorial replay's mutant survived.**
-`tests/tutorial.test.mjs:141` expects the page's mutant (`int(text.rstrip("s"))` → `0`) to be killed, and the
-run recorded a survivor: the fence (`… | tee /tmp/t1.out && grep -q "OK" /tmp/t1.out`) said OK with the parser
-broken. The same test passed that job's JavaScript stage, and `coverage.sh` passes here in full. Ruled out:
-stale bytecode (the mutant changes the file's size, which the `.pyc` check compares) and another writer of
-`/tmp/t1.out` (only the tutorial writes it, and its two runs are sequential). `coverage.sh` printed only the last
-20 lines, which cut adr-verify's first line and the fence's output off; it now prints the whole failing-tests
-block, so the next failure says where the run went and what the fence printed.
-
-**3. For the owner:** `branch-state --cached` serves a stored snapshot labelled with its age, and has served one
-hours old naming a branch the checkout no longer holds (§322, §323). Whether a snapshot past some age — or one
-whose branch is not the checkout's — should be shown at all is a product judgement, not a defect.
-  **Decided 2026-10-01: cap the age.** A brief no longer shows a snapshot older than ten minutes: it says how old
-  the last answer is and that a refresh is running, and the refresher still starts (`SHOW_AT_MOST_SECONDS`,
-  `a brief snapshot past the age cap is not shown, and a refresh starts`, catalogue entry RED). The full report
-  and a fresh cache hit are unchanged; a snapshot under the cap is served as before (ADR-065 T2).
-  **Decided 2026-10-01: item 1 goes to ADR-078** (Proposed, spec `docs/specs/2026-10-01-a-lock-reads-javascript-as-javascript.md`).
-  Measured while writing it: hasher 1's body masker also misreads — 14 real tests in `tests/mutate-propose.test.mjs`
-  and `tests/evidence-chain.test.mjs` would be dropped by gating discovery on it, and it hashes a prefix for a test
-  holding `` `${ cond ? `x ${y} }` : '' }` ``. ADR-078 leaves three things here, each deferred from its Out of Scope:
-  `spec-verify`'s check that a bound JavaScript test exists (`plugin/bin/spec-verify:636`) and `adr-lint`'s can-fail
-  check (`plugin/bin/adr-lint:4900`) still read with hasher 1's masker; and the records whose locks hasher 2 reads
-  differently are relocked one by one, as each maintainer chooses.
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
 ## 325. PARTLY CLOSED 2026-10-06 — A session start spends its time starting processes, and reads the six oldest records
 
@@ -3797,80 +3537,13 @@ was cloned or run. Plan of record: `ok-plan-this-properly-flickering-lightning` 
 
 Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-## 354. OPEN 2026-10-06 — A public corpus with YAML-frontmatter records (public/swift-adrs): three reader leads
-From an outside run (a11y-tooling-web, with its user's approval, no `--sweep`) of public/swift-adrs @ b2177fb, v3.8.7 → 944bb37. Its 61 records in `docs/decisions` carry YAML frontmatter (`status`, `supersedes`, `superseded_by`): 32 active, 29 superseded. Readers said the same at both revisions, so none of this is a regression. Attestation filed: 61 compared, passToFail 0. To be confirmed against source, worst direction first:
-1. **Silent "not-recognised".** 32 of 61 records get adr-lint "not-recognised", exit 2, with no reason and no advice. Example: `026-invert-original-codex-prompt.md` is valid frontmatter followed by prose with no `##` sections. Half the corpus is hidden, and only `records: 29` against `compared: 61` shows it. A not-recognised verdict should say what was missing.
-   - **Fixed for 3.8.10.** adr-lint's not-recognised sentence ends "This file: …", naming what THIS file lacks: no Status line; a Status other than `**Status:**` outside a record directory; a Status no reader acts on (a YAML `status: active` IS read, as `active`); or no `## Context`/`## Decision` heading. corpus-probe carries that clause as the row's `reason`. Test `tests/not-recognised-reason.test.mjs`; three mutants RED; three repointed entries RED.
-2. **Frontmatter status is not read, and the advice is wrong.** adr-state reads 29, governing 0. work-next says accepted 0, `next = adr-retire` and retirable 29, although 12 of the 29 say `status: active`. Telling a corpus with 32 active decisions to retire is wrong for this shape. Before any fix, decide whether YAML `status: active` reads as Accepted (ADR-074 Decision 1 defines which Status forms count). That needs a record and a measured shape: MADR 3 also writes a frontmatter `status`.
-3. **An untrue sentence.** All 29 FAILs say "Alternatives Considered has no entries". Record 001 has `## Rejected Alternatives` with two entries: the heading is named differently, not empty. It should say "no `## Alternatives Considered` section (found `## Rejected Alternatives`)".
-   - **Fixed for 3.8.10.** When the section is absent, the sentence adds "the record has no `## Alternatives Considered` section; it has `## Rejected Alternatives`". An empty section keeps the plain sentence, which three tests and a mutant pin. Test `tests/alternatives-heading.test.mjs`; mutant RED.
-A fixture corpus with this shape belongs in `tests/fixtures/corpora/`, following the go-module pattern (§282).
-- **Released as v3.8.9 at 4ff7518 (2026-10-06), Latest.** release-evidence said SUCCESS. Outside runs: laravel-react-monorepo (95 compared; both fixed cases confirmed on its corpus) and python-adr-corpus (77 compared), both passToFail 0.
-- **A third case from the 3.8.9 run, fixed for 3.8.10.** python-adr-corpus's 076/T11 still read as unbacked, for two reasons:
-  - Its last human sign-off pasted "2374 passed / 1 failed", and «failed» read as a verdict. A negative word right after a number is now a count. "it failed 3 times" still stops.
-  - That sign-off was a day OLDER than the task's tool-written exit-0 rows. A stop now takes back only evidence recorded before it. Implemented as one filtered list of sign-offs, which keeps the human-mutant filter testable: a first version recomputed the filter and turned its mutant GREEN.
-  Test `tests/human-stop-3-8-10.test.mjs`, with controls. Two mutants RED; all 18 sign-off mutants re-ran RED.
-- **Codex review of 944bb37..73f930f (gpt-6-astra, high, REQUEST CHANGES): three P1 fail-opens in my 3.8.9 and 3.8.10 rules.** Each rule was wider than its case, and each width turned a stop into done. The review's own inputs are now tests:
-  - **"no + two words" (shipped in 3.8.9):** "observed no progress and stopped the rollout" and "No we must stop" counted done. Now "no" takes at most one modifier and only a gerund ("no visible blocking"). "no change yet blocking the release" pins the width.
-  - **The count rule (3.8.10 RC):** "step 2 failed on Safari" counted done. Only test-summary syntax ("N passed / N failed", "N failed, N passed") is a count now.
-  - **Later evidence (3.8.10 RC):** an exit-0 row for a DIFFERENT fence cleared a real stop. Only a row with the current Acceptance's digest outranks an older stop, never a relock snapshot. A human-only Acceptance has no digest and so nothing to outrank it.
-  - Two guards in my first narrowing were redundant, and their mutants went GREEN; both are removed. Four mutants were added and three repointed; all 21 sign-off mutants re-ran RED.
-  - **Process slip:** 3.8.9 shipped without the §12 review that would have caught the first of these. 3.8.10 fixes it.
-- **Codex re-review of ee82e08 (REQUEST CHANGES): the count rule was still wider than its case, and an order-only check could be gamed.**
-  - "Safari 17 passed; 18 failed the manual check", "Safari 18 failed, 17 passed" and "step 1 passed; 2 cannot proceed" counted done. Text cannot tell a test summary from a version or a step number, so **the count rule is removed.** A pasted summary that is the LAST sign-off is a stop again, the conservative reading. T11's case is covered by the older-stop rule, because its summary predates its exit-0 rows.
-  - An exit-0 row DATED before a refusal, but placed below it, cleared the refusal. Now a clearing row must be dated on or after the sign-off; same-day rows keep their append order.
-  - **Left open, the safe direction:** "approved; no tests failed" and "approved; no failed tests" are false stops. This predates 3.8.9, and a bounded absence form is a later decision.
-  - Two count entries were deleted with their rule and one date mutant added; all 20 sign-off mutants re-ran RED.
+## 354. CLOSED 2026-10-12 (was OPEN 2026-10-06) — A public corpus with YAML-frontmatter records (public/swift-adrs): three reader leads
 
-## 355. PARTLY CLOSED 2026-10-06 — Five Windows corpus-chaos runs of v3.8.9: one blinding bug, three fail-opens, and leads
-The owner brought five Windows 11 desktops back for testing. Each ran the probe and the chaos catalogue on v3.8.9 (4ff7518) over its own corpus or a public one: go-sdk-adr, php-dated-adr, a 70-record Go CLI corpus (twice), and a 209-task Python backend corpus with CRLF files. Each run diffed against v3.8.8 where it had a baseline. **No CRLF defect was found anywhere.** adr-lint's own stdout is CRLF on Windows, and the probe trims it. Attestations at 4ff7518: 62, 70 and 70 compared, all passToFail 0; one has no baseline. Replies came over the bridge, because none of the sessions has the palace tools.
-**Fixed for 3.8.10:**
-- **The plugin was blind on large repositories (php-dated-adr, 27,289 files).** `trackedPaths` ran `git ls-files -z` under Node's 1 MiB default buffer and hit ENOBUFS at 2.3 MB. Every JS reader then said "git could not list the tree" (UNPROVEN). Class, by `grep -n "spawnSync('git'" plugin/scripts/*.mjs`: the four calls whose output grows with the tree, the listing, the deleted-file diff, `gitLines` and the status read, now share `GIT_LISTING_BUFFER` (256 MiB). The others read one value. Test `tests/large-listing.test.mjs` (skipped on Windows, because MAX_PATH caps the long names); mutant RED. The constant's mutant covers the listing site only; the other three sites have no large-output test.
-- **A pending record lost its git listing** (go-sdk-adr). adr-lint reassigned `tracked` to None for a pending record with no tasks and no ## Implementation paths. It then said "could not be listed from git", and resolved Enforced-by from disk, an ignored file included (§8). The reassignment is removed. Test `tests/adr-lint-pending-tracked.test.mjs`; mutant RED.
-- **False "row removed" advice** (Python corpus). Mutation Log `--human-mutant` rows match VLOG_RE, but were compared only with the Verification Log. On a clean tree they were reported removed, with an instruction to re-run adr-verify, in an order that flipped between runs. Now compared with the whole file, and sorted. Test `tests/mutation-log-row-kept.test.mjs`; mutant RED; one entry repointed.
-- **Impossible dates** (§351 23.4, measured again). A row dated 2026-02-30, 2026-02-31 or 2099-01-01 linted PASS and counted done. The shared `record.row_date_problem` makes such a row off-grammar in adr-lint, and not evidence in adr-next. 1970 is a real date and is still accepted: that limit is named, not guessed. Test `tests/impossible-row-date.test.mjs`; four mutants RED.
-- The probe's could-not-run note for adr-lint exit 2 is trimmed, since a Windows line keeps its CR.
-**Leads, not fixed:**
-- A duplicate record number is counted twice and named by no reader (two runs).
-  - **Fixed 2026-10-08.** adr-state already named the pair (`duplicateIds`, since §309). adr-lint now advises on either record: "another record in this corpus carries number N: <file> — … renumber one of them". It is advice, so the verdict does not change. work-next still counts both, which is correct: they are two records, and it leaves record questions to adr-state. Test `tests/duplicate-record-number.test.mjs`; three mutants RED. This repository's corpus has no duplicate (`adr-state --json`, `duplicateIds: []`).
-- A Status with invalid UTF-8 gets PASS plus advice, while a fullwidth colon gets UNPROVEN (two runs).
-  - **Closed 2026-10-08 as by design, after reproducing both.** A fullwidth colon means no Status label is read at all. Then the check that done tasks need an Accepted record cannot run, so the record is UNPROVEN (§350 C8). Invalid UTF-8 inside a read label gives a value no reader acts on (`Acc�epted`), which every reader treats as undecided: a plan, never a work order. That is the safe direction, and adr-lint's advice already names U+FFFD and what it usually means (the Codex review of ffd4892, #6). Making it UNPROVEN would add nothing a reader acts on.
-- A trailing-DOT task or record name ("T99.md.") is named nowhere: the Windows twin of §321's trailing space.
-  - **Fixed 2026-10-08, and the class was wider.**
-    - **Tasks.** adr-next's two §321 sites, the git listing and the disk scan, now strip dots as well as whitespace after `.md` (`_past_md`). A `T1-a.md.` is stopped and named, as `T1-a.md ` is; whitespace keeps its §321 wording, and a dot is said as a dot.
-    - **Records.** Here the trailing space was never handled either. `ADR-001-a.md.` and `ADR-002-b.md ` were counted nowhere and named nowhere, with look ok. work-next now names each in `partialBecause`, and the look is PARTIAL.
-    - **adr-lint.** Its cross-record enumeration dropped such a record, so a dependency on it was a FAIL, "names no record in this corpus". A first version made the whole enumeration could-not-look, which turned every OTHER missing dependency in the corpus into advice and skipped the cycle check: one stray file demoted a real refusal elsewhere, a fail-open an advisor read caught before review. Now only a pointer whose number belongs to such a name is could-not-look (`unreadable_record_numbers`), and the test's twin row keeps an unrelated missing dependency a FAIL. Both could-not-look sentences now name both causes ("could not be listed from git, or a record in it could not be read"); the second cause was already true of an unreadable record and was never said.
-    - **The gpt-6.1-sol review of this batch (139713e3..5972a472) found two more fail-opens in that narrowing, both fixed.**
-      - A dated stray name (`2026-10-08-notes.md.`) gave its year as a record number, and a missing `ADR-2026-T1` became advice. Only an `ADR-NNN-` or `NNNN-` name, never a dated one, lends a number now.
-      - The citation path returned could-not-look to callers that act only on "not a record", so the warning went silent. Citations are left as they were at 139713e3.
-      - Both inputs are rows in `tests/trailing-dot-task.test.mjs` through the CLI; two mutants RED; all 19 §355 mutants re-ran RED.
-      - **The one scoped verification review found a third, introduced by the first fix**: a task-shaped stray name (`004-T2-note.md.`) lent 4, and a missing `ADR-004-T1` became advice. The number now comes from `record_id`, ADR-063's identity rule, so a dated name is its stem and a task-shaped name is no record. A third row and a third mutant, RED; the moved §355 entry repointed and RED. Its verdict on the SessionStart change: no regression.
-      - The same full gate caught a regression in the SessionStart change: the UNPROVEN line displaced an existing ready line under an unreadable record. It now replaces only the "fully evidenced" count.
-    - Tests `tests/trailing-dot-task.test.mjs`, four cases, each skipped where the filesystem drops the name. Five mutants RED; the moved §321 entry repointed; all 103 §321 and 111 ADR-092 mutants re-ran RED.
-- Two Status lines (Superseded, then Accepted) read silently as the first.
-  - **Fixed 2026-10-08.** The reading is unchanged: every reader still takes the first label, which keeps the two runtimes agreeing. adr-lint now advises when two label lines give different kinds, lists them, and says which one counts. `record.py`'s Status walk is one generator, `_status_lines`, shared by `record_status` (first label) and the new `status_labels` (every label), so the two cannot disagree about which lines are labels. Test `tests/two-status-lines.test.mjs`; three mutants RED; the moved ADR-074 T1 entry repointed and RED; all 98 Status-labelled catalogue mutants re-ran RED. No record here has two disagreeing lines.
-- `records[].status` loses underscores through `recordStatus`.
-  - **Closed 2026-10-08 by the owner's decision: left as ADR-074 Decisions 1-2 define it.** Both runtimes strip every `_` and agree. Keeping intraword underscores, as CommonMark does, would also reclassify: `Accepted_with_conditions` would govern where it is undecided now. Reading it as undecided is the conservative direction, and no outside corpus has shown the shape.
-- The scrubber over-redacts: `https://<host>[/<path>]` and "`a`/`b`".
-  - **Closed 2026-10-08 as by design.** Reproduced: `` `https://<host>[/<path>]` `` becomes `` `https://<host>[<path>` `` and `` "`a`/`b`" `` becomes `` "`a`<path>`b`" ``. The scrubber's own comment records the decision (`lifecycle.mjs` `scrubber`, "THE SAFE DIRECTION IS OVER-SCRUBBING, BY DECISION"): three review rounds found a leak each time its boundary was made cleverer. Each narrowing here reopens one: exempting a `/` after a backtick would print `` `x`/Users/<name>/… `` whole, and exempting one after `[` would print a Markdown link `[/Users/<name>/…](…)` whole. A lost hint costs a question; a shipped home path cannot be recalled (§6).
-- adr-lint cuts quotes at [:70] and [:80] with no "…".
-  - **Fixed 2026-10-08.** `record.clipped(text, width)` cuts to the width and adds `…` only when it cut. The class is every f-string in a `plugin/bin` Python gate that interpolates a `[:N]` slice: 17 sites in adr-lint (8), adr-debt (1), adr-retire-check (2) and arch-lint (6), plus adr-judge's alternative head, which imports nothing from record.py and keeps its own one-line form. Two adr-lint Verification Log sentences had the opposite fault: they appended `…` to a row short enough to print whole. A first grep over `.strip()[:N]` missed two `cells[0][:40]` sites; `tests/clipped-quotes.test.mjs` sweeps every gate for the slice form, shows its pattern matching a sliced line first, and found them. Three mutants RED. Not changed: slices that build keys or values rather than quoted text.
-  - **Found by the 3.8.13 outside runs, fixed after the tag.** A cut that fell just after a space printed the mark one space off the word (`abc …`): 11 of 57 clipped quotes in one corpus. `clipped` now drops trailing whitespace before the mark. A row in `tests/clipped-quotes.test.mjs`, one new mutant RED, two moved entries repointed; all four clip mutants re-ran RED. Cosmetic, so 3.8.13 shipped with it.
-- adr-lint prints a content claim about a task before saying the file holds NUL bytes, so the probe's reason hides the encoding cause.
-  - **Fixed 2026-10-08, in the probe.** Reproduced with invented names, adr-lint itself stops at the NUL finding for a task and for a record. What hid the cause was ordering across files: the record's own content findings print before a task's "holds NUL bytes", and the probe took the first finding as the row's reason. A FAIL row now prefers that finding and otherwise keeps the first. Test `tests/probe-nul-reason.test.mjs`, with its control; mutant RED; all 54 probe-labelled catalogue mutants re-ran RED.
-- SessionStart says nothing about unreadable records, and calls their directories "fully evidenced".
-  - **Fixed 2026-10-08.** Reproduced with invented names: adr-next said `owner_unreadable: true` ("it holds a NUL byte, so it is not text"), and SessionStart counted the directory "fully evidenced". adr-next sets that flag whenever it found the record and read no Status from it, which includes a record read whole with no Status line ("it has no Status line"). So the line says "could not read a Status from the record that owns these tasks", with adr-next's reason, and the directory is UNPROVEN. A record with no Status is UNPROVEN in adr-lint too (§350 C8). Neither this repository nor any fixture corpus produces the line. Test `tests/session-start-unreadable-owner.test.mjs`: both cases, plus the control; mutant RED; all 21 SessionStart catalogue mutants re-ran RED.
-- On a junction loop, work-next's headline says "a listed record could not be read" though every record was read.
-  - **Fixed 2026-10-08.** The loop itself is Windows-only: git tracks a POSIX directory link as a link and walks nothing through it. The untrue sentence is not Windows-only. work-next printed it for every PARTIAL cause: a task alias, a dangling link, a format no reader parses, a name no reader reads. It now says "part of the corpus could not be read", which is true of each. adr-state said the same sentence, but its look is also PARTIAL when an archive catalog cannot establish a record's standing; it now uses adr-context's wording, which names both causes. Two tests (in `tests/trailing-dot-task.test.mjs` and `tests/session-start-unreadable-owner.test.mjs`) and two mutants RED.
-- php-dated-adr's 168 front-matter records are counted nowhere (ADR-087 territory).
-  - **Measured 2026-10-08 at HEAD, and the owner's decision.** Shallow clones of both public corpora, run by this session (not attestations). The php-dated corpus's 173 files carry front matter with no Status anywhere: all are named in `notRead`, and work-next then says "No QH corpus is in use", which is untrue over 173 named record-shaped files. The swift corpus reads correctly now (29 records, 12 accepted, the 17 retirable are Superseded, 32 without `## Context` named). ADR-092 Decision 9 keeps the look ok for a candidate whose read succeeded. **Owner, 2026-10-08: fix the headline only, keep ADR-092's look rule.** Queued after 3.8.14.
-  - **Fixed 2026-10-08, after 3.8.14.** When the stage is "no corpus" and record-shaped files were named as not read, work-next now says "No record this reader recognises is in use: the N record-shaped file(s) named above were not read, so this is not \"no corpus\"", and its "because" clause says the same. The stage, the JSON and the look (ADR-092 Decision 9) are unchanged. Over the public php-dated clone it prints that line with N = 173. Test `tests/work-next-not-read-headline.test.mjs` (invented names, the same shape) with an empty-repository control; two mutants RED.
-- A lone CR cuts a SessionStart title with no marker.
-  - **Closed 2026-10-08 as by design.** A lone CR is a line ending in CommonMark, and both title readers split on it (`record.title_line`, lifecycle's `titleLine`: `/\r\n|\r|\n/`). So `# Task …: first half\rsecond half` has the heading "first half", and SessionStart quotes the heading whole. Nothing was cut, so there is nothing to mark.
-- The UTF-16 hook-payload sentence could say "UTF-16?".
-  - **Fixed 2026-10-08.** A hook payload that is not JSON and holds NUL bytes now adds "It holds NUL bytes: saved as UTF-16?" to the existing sentence, and plain garbage is said as before. Test in `tests/session-start-unreadable-owner.test.mjs`; one mutant RED, one repointed and RED.
-**A doc error, for the owner:** `git -c core.longpaths=true clone` does not persist the setting; `git clone -c core.longpaths=true` does. It is wrong in CLAUDE.md §7 and .claude/rules/07, and it was wrong in my request too.
-- **Closed 2026-10-08.** CLAUDE.md §7 already gives `git clone -c core.longpaths=true` and says why the other form fails. `.claude/rules/07` described the first run's working `git -c … clone` accurately but never said which form to use; it does now.
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
+
+## 355. CLOSED 2026-10-12 (was PARTLY CLOSED 2026-10-06) — Five Windows corpus-chaos runs of v3.8.9: one blinding bug, three fail-opens, and leads
+
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
 ## 356. CLOSED 2026-10-08 — corpus-probe `--diff` reports a transient could-not-look as a changed advice line
 
@@ -4029,30 +3702,13 @@ After C (2026-10-10): two judges are functions of their facts, each split into a
 
 Left out on purpose: the evidence ledger as an agent-neutral protocol and the shell-intent classifier as a library with a differential suite against real shells (the two candidates for a separate project); a resident process; retiring the text classifier for git's own hooks (ADR-066). Unknown until measured: how much of the 41% is an injected seam the effect pass counted as a spawn; Windows behaviour of any moved path-handling function (CI only).
 
-## 376. OPEN 2026-10-10 — `qh-check.mjs`: one 250-line function that decides, runs, times and records
+## 376. CLOSED 2026-10-12 (was OPEN 2026-10-10) — `qh-check.mjs`: one 250-line function that decides, runs, times and records
 
-Owner, 2026-10-10, after stage D: "qh-check is also a next suspect, I do not like it." Measured the way section 375 measured `lifecycle.mjs` (`plugin/scripts/qh-check.mjs`, 391 lines, 10 top-level functions, 3 exported, one cluster, 9 of 9 calls inside it): 293 of 312 function lines can reach a spawn, and nearly all of them are `runCheck`, a single function that resolves the project and its config (refusing on an unreadable one), decides whether the tree was already checked or only prose changed, picks the command and its origin, waits for a quiet machine, launches and bounds the child, observes the tree before and after, classifies the exit, writes the ledger row and prints the sentence. The pieces it calls (`check-command.mjs`, `check-ledger.mjs`, `tree-facts.mjs`, `project-config.mjs`) are the ones section 375 made leaves, so the file is now all that is left of the old shape. 13 files import it or name it, 25 commits touched it. Direction, not decided: the same three-part cut that worked for the publish verdict, `plan` (a function of the project's config, the ledger and the tree observation: skip, reuse for prose, refuse, or run which command and why), `run` (launch, bound and time the child, the only part that spawns), and `record` (the row and the printed sentence), with goldens first: the `checks` scenario of `tests/hook-goldens.test.mjs` already pins the sentences for a red check, a green one, the same tree twice, a prose-only change and an unreadable config. Needs from the owner: a "go".
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
-Delivered 2026-10-10, on the owner's go ("go ahead accepted"; read as the go this section asked for, not as a choice between releasing now and batching, which was asked in the same message and is still open). `qh-check.mjs` 350 lines (from 391), nine top-level functions (from ten), the largest 74 lines (`runCheck`, from about 230). The cut followed the stage-C shape rather than a bare three-way split: `checkFacts` (what the repository, the config, the command, the prose and the ledger say, each read lazily and once, in the order the plan asks) and `checkPlan`, a function of those facts that returns either a refusal (exit 2 and the sentence) or the command, how it came to be named, the prose and the pass that already covers the tree. `scripts/effect-classes.mjs` holds `checkPlan` to pure (`tests/pure-judges.test.mjs`), and `tests/check-plan.test.mjs` walks 1,440 combinations of its facts (config readable or not, `--fast` with and without a `fastCheck`, five ways a command can be named, three prose declarations, a covering pass or none, `--again` flag and environment) against what a refusal, a run and a skip must look like, including that each reason is told in its own words and a refusal reads no more than it needs; each property is shown failing on a plan that breaks it. What is not pure stayed named for what it does: `reuseByProse` (a prose reuse appends a row, and the position check after the append can veto it, so it is a step of the run), `recordSkip`, `takeTurn` (the lease and the wait), `recordRun` and `runCheck`, the orchestrator. Two files left with their code unchanged: `prose-hint.mjs` (the hint after a long pass that followed a text-only change: three functions that read git and the check ledger) and `check-child.mjs` (`runLaunched` and the bound, the only place that starts the project's check). The three exports tests import (`runCheck`, `checkLaunch`, `repositoryDiscovery`) stayed defined in `qh-check.mjs`, so no locked test body changed and no task was re-locked; `stateDir` now comes from `event-log.mjs`. **Found on the way:** the bound a check runs under (`QUALITY_HARNESS_CHECK_TIMEOUT`, one hour by default) was asserted nowhere; `tests/qh-check-timeout.test.mjs` now shows a value that is not a positive number is the default, and a check whose child holds its pipes is stopped through its process group. Three of the new mutants were GREEN at first and each said something: two tests were too weak (the refusal wording was not asserted; the group kill was hidden by the spawn's own timeout) and one mutant was equivalent (the memoising of a fact read once) and was dropped. 10 new mutants and the 30 existing entries (re-targeted to the file that now holds their text; the one about `--again` was rewritten for `checkPlan`) were killed against the moved code with the verdict cache off; `--stale` is clean; the goldens replay unchanged. A plugin behaviour change: none intended; the Codex review of section 12 is still due before a tag. **Release:** the readers hash changed again; the one outside run is asked once, for the whole of sections 375 and 376.
+## 377. CLOSED 2026-10-12 (was OPEN 2026-10-10) — Two leads not yet confirmed, and an advisory nobody acted on
 
-Review (section 12) of that change, 2026-10-10: a different-lineage review (gpt-6.1-sol, high effort, read-only, scoped to the diff of `plugin/` since the stage B to D series closed) compared the moved functions with their old text (identical apart from `export`), the prose-reuse append, position check and retraction, the lease and wait-signal logic and the record-writing body (identical, apart from the returned exit shape), and probed the rerun matrix, the order in which facts are read, and that `stateDir` is the same function the old import re-exported. No finding, no blocker. It ran no signal test and not the suite; the full gate (2,172 passed, 0 failed, 2 skipped, run on a machine above its core count at the end) did.
-
-Second cut, 2026-10-10, on the owner's "dissect qh-check": what was left of `runCheck` after the first cut that was neither the decision nor the child. `qh-check.mjs` is now 186 lines, five functions, the largest `runCheck` at 66 lines (from about 230 at the start of this section). Two files: `check-lease.mjs` (`takeTurn`, the wait for a turn and the lease around it, moved unchanged) and `check-record.mjs`, which holds what a run leaves behind. Three functions of it are pure and held to it by `tests/pure-judges.test.mjs`: `classifyRun` (how a finished child ended: the signal this process forwarded wins, a spawn error is `unstarted` even beside a signal, a signal is no verdict), `runRecord` (the row; the id is handed in, the neighbours are kept without the path of their lease file) and `proseReuseRow` (the row a prose-only reuse stands in as, whose times are the original's). The three writes stay effects by role: `reuseByProse` (with the position check and the retraction, unchanged), `recordSkip`, `recordRun`. `tests/check-record.test.mjs` shows each pure function on its clean case and its dirty twin; 7 new mutants and the 42 existing ones on the five files were killed with the verdict cache off. The goldens replay unchanged and the dead-code scan is clean. What the order of the file now reads as: facts, plan, then the run's steps in the order the comments name them. **Not cut, on purpose:** the load sampling and the observation before and after (they are the run's own measurement and belong inside it), and `checkLaunch` (its Windows arm is the tested seam).
-
-Release review (section 12), 2026-10-11, of the whole candidate: a different-lineage review (gpt-6.1-sol, high effort, read-only) scoped to `git diff 5e5bba7c..HEAD -- plugin/` (the 3.8.18 tag against `13d6d7b5`), covering the lifecycle split, both qh-check cuts, the Windows tree kill and the `stateDir` change. It compared the moved code with its old text, probed the refusals, the signals, the lease and the POSIX timeout, and checked the Windows termination through source and a stubbed `taskkill` only. No finding, no blocker. 3.8.19 is the release this section's work ships in.
-
-Found by the version bump itself: the artifacts golden recorded the plugin version inside an adr-lint line ("adr-lint 3.8.18"), so every release would have failed it with a transcript that had not changed. The normaliser now blanks a version after `adr-lint`; the golden was re-recorded and differs from the old one in that token alone.
-
-Found by the dead-code scan before the tag: with `qh-check.mjs` importing `stateDir` from `event-log.mjs`, the re-export of it from `lifecycle.mjs` had no production reader (knip, production mode: 1 unused export). It is gone; the seven test files that took it from there import it from `event-log.mjs`, and the three that merge modules into a `lifecycle` object add it to the merge, so no test body changed and no task was re-locked. Scan after: orphan-sweep 0 of 1,697, vulture 2.16 over 22 files 0, knip 6.41.0 0.
-
-Found by the Windows run of the new timeout test (CI, 2026-10-10): the bound did not stop the check there. `runLaunched` killed the shell that started the check (`child.kill`) and, on Windows, the check itself is a child of that shell, so it ran on, holding the pipes, until it ended by itself: the test waited its full 120 s. A defect older than this section (the moved code was unchanged), invisible on POSIX where the whole process group is signalled. Fixed: on Windows the tree is taken with `taskkill /pid N /T /F` (`killTree`, falling back to the shell kill if taskkill fails), and the spawn no longer carries node's own `timeout` option, which ended the shell a moment before the timer and left a tree whose root had gone. The POSIX tests show the arguments and the fallback; only the Windows job runs the real thing, and that is the check on this fix. Two mutants on it are killed; one on the removed option is unobservable off Windows and was not kept.
-
-## 377. OPEN 2026-10-10 — Two leads not yet confirmed, and an advisory nobody acted on
-
-- A peer (a memory-service session, 2026-10-10) reports that `adr-next --all` reads a negative word used descriptively in a human-observed sign-off note as a STOP: three tasks in its corpus show `stopped` because a note quotes the failure it observed ("build failed" repro filed, a fence that used to print FAIL, a reranker that was stopped). The `adr-execute` skill documents the rule ("a negative word in the note's own words is a STOP"), so this is either the grammar working as designed or a reading that wants a verb-aware rule; not confirmed against `plugin/bin/adr-next`, not changed. Shape: the cost is a task that displays `stopped` until its owner re-signs in other words.
-- The full gate prints "the tests left 93 entries in their temp directory, removed on exit" (33 `quality-harness-status`, 14 `link`, 8 `qh-mutate-run`, 7 `eval-deltas`, and singletons) on every run. The selftest removes them, so nothing accumulates, but a test that leaves its directory until exit is a test whose cleanup nobody reads; which tests, and whether any should clean up itself, is unmeasured.
-
-Update 2026-10-10, both leads looked at. (1) The sign-off grammar: read against `plugin/bin/adr-next` (`human_outcome`, `stop_reason`). A negative word in the note's own words is a stop by design, programme output after a marker and a negated negative are exempt, and the stop is displayed with the clause that caused it first (an outside run of 3.8.8), so a signer sees which word. A verb-aware rule would have to tell "a fence that used to print FAIL" from "confirmed FAIL" in English, and the wrong answer is a done task that is not: the fail-open direction (CLAUDE.md section 16). **Declined.** The cost stays what it was: a task shows `stopped` until its owner re-signs in other words. Re-open when: a note that states a pass is shown stopped by a word the exemptions should have covered (a quote after a marker, a counter), which is a gap in them and not in the principle. Not reproduced here with the peer's own notes, which stay with the peer. (2) The temp entries: 33 `quality-harness-status` are the product's own per-session status-line cache directories (`statusline.mjs` `cachePath`, one per session id in the temp directory), made by the tests that drive the status line with different ids; that is the cache working, not a test forgetting, and it is the line the advisory exists to show. 14 `link` (`standalone-link.test.mjs`) and 7 `eval-deltas` (`eval-deltas.test.mjs`) were tests that never removed what they made; both now remove it when the file is done, and the two files leave nothing in a temp directory of their own. The rest (`qh-mutate-run`, the singletons) is unmeasured and stays advice.
+Archived: [backlog-archive/BACKLOG-301-400.md](backlog-archive/BACKLOG-301-400.md)
 
 ## 378. OPEN 2026-10-11 — What the hooks and the gate repeat, measured; three items ADR-095 does not take
 

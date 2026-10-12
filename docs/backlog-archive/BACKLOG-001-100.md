@@ -5419,6 +5419,67 @@ whether it does can change under you. So `python3` on Windows is not "a decoy" �
 confidently and wrongly. `resolvePython` asks the only question that survives this: did the
 thing answer as Python?
 
+## 89. CLOSED 2026-10-12 (was PARTLY CLOSED 2026-08-30) — `.gitattributes` pinned `*.mjs` but not `*.js`, and six more extensions go CRLF
+
+**CLOSED 2026-10-12** (re-verified against the code in the backlog sweep): .gitattributes:7-8 pins *.js/*.py (and :15-16 *.yml/*.yaml); the rest is unpinned by recorded decision, and `git ls-files --eol` shows every non-.cmd file stored LF, the two CRLF fixtures included.
+
+Found 2026-08-30 by a peer Claude session on Windows 11 with `core.autocrlf=true`, reading a
+real Windows checkout this repository cannot produce. Confirmed against this tree: our
+`.gitattributes` is byte-identical to the one it measured, so the finding applies here.
+
+The file is seven lines and has **no `* text=auto` catch-all**, so every extension not named
+is left to `core.autocrlf` and lands CRLF on a Windows checkout. `git check-attr text eol`
+reports `unspecified` for all of these, and all of them were CRLF on disk there:
+
+| unpinned | files |
+|---|---|
+| `*.js` | `plugin/workflows/{consensus,quality-cycle,review-ring}.js` |
+| `*.py` | `scripts/neuter.py`, `tests/gate-regressions.py`, `tests/fixtures/ok/test_selftest_fixture.py` |
+| `*.json` | `tests/mutations.json`, `plugin/hooks/hooks.json`, both `plugin.json`/`marketplace.json` |
+| `*.yml` / `*.yaml` | `.github/workflows/selftest.yml`, the eval case template |
+| `*.txt`, no-ext | `tests/fixtures/ok/adr-archive/ADR-001-attachment.txt`, `LICENSE` |
+
+**`*.mjs` is pinned and `*.js` is not.** Same repository, same kind of code, opposite checkout
+behaviour on Windows. That reads as an oversight rather than a decision.
+
+**`*.py` is unpinned** and only survives because `plugin/bin/*` catches the gates by path. Any
+Python that moves out of `plugin/bin`, or any new `.py` gate, silently becomes CRLF there —
+and §1 already records that a file move breaks four things silently.
+
+**Correction, 2026-08-30, same day:** this entry first claimed `tests/mutations.json` being
+CRLF put the campaign at risk because it holds multi-line `from:` strings. That is wrong, and
+it was wrong in the direction that flatters the finding. A `\n` inside a JSON string is the
+two-character escape `\` `n`, not a newline byte, so the file's own line endings never reach
+the parsed value — verified by parsing a deliberately CRLF JSON file and getting `"a\nb"` back
+intact. What §7's second row actually describes is the **target** file being CRLF, and all 23
+files carrying a cross-line mutation are pinned today. `tests/package.test.mjs:592` already
+asserts exactly that, asked of `git check-attr` rather than of the file, and it fires on any
+new cross-line mutation aimed at an unpinned target. The acute risk was already guarded.
+
+**Two fixture files are CRLF**: `test_selftest_fixture.py` and `ADR-001-attachment.txt` — the
+"content matched across a line boundary" shape §7 describes.
+
+**Partly fixed.** `*.js` and `*.py` are now pinned `text eol=lf`, closing the parity gap that
+is the real hazard here: a contributor who sees `*.mjs` pinned will reasonably assume JS is,
+and `plugin/workflows/*.js` ships. `*.py` matters for the same reason §1 gives about file
+moves — the gates are Python and survive only because `plugin/bin/*` catches them by path, so
+any Python that moves out of that directory silently becomes CRLF.
+
+`git add --renormalize` was deliberately NOT run. Adding an attribute changes what git does on
+the next checkout; renormalizing rewrites every affected file in the index, which is a large,
+visible change that deserves its own commit and its own reason.
+
+Still unpinned and left so on purpose: `*.json`, `*.yml`, `*.yaml`, `*.txt` and `LICENSE`.
+Nothing matches their content across a line boundary, `LICENSE` is the fixture
+`package.test.mjs:600` uses to prove its own check can fire, and pinning a file merely because
+it could one day matter is the speculative complexity YAGNI rejects. The `.cmd` files being
+CRLF is correct and deliberate (`*.cmd text eol=crlf` sits last and last-match wins); do not
+"fix" those.
+
+Verified clean by the same probe, so the sweep is not vacuous: every extensionless gate in
+`plugin/bin/` is 0 CR bytes, all of `plugin/scripts/`, `.gitignore` and `.gitattributes` are
+pinned `eol: lf` and clean on disk.
+
 ## 90. CLOSED 2026-09-01 — `Path.is_absolute()` was False for a rooted path on Windows, and three sites joined it to cwd
 
 Found 2026-08-30 by the same peer session, from `Y:\work\rust-records-corpus` — a non-`C:` drive this
@@ -5697,6 +5758,171 @@ belong together.
 **Third name on the list.** §88 established `python3` cannot be trusted by name, §91 the same
 for `bash`. `node` is the third executable a Windows user needs resolvable for the gates to work
 at all, and it is the only one whose absence is currently reported as something else.
+---
+
+## 95. CLOSED 2026-10-12 (was PARTLY CLOSED 2026-09-01) — an orphan under the home directory is a different mechanism from a drifted copy, and neither scanner has one
+
+**CLOSED 2026-10-12** (re-verified against the code in the backlog sweep): scanning is in standalone-link.mjs:618 (scanSet) and :685 (orphans); the deletion-advice question is decided against by Accepted ADR-019:153-155 and :238, so nothing is left here as backlog work.
+
+**The scanning half is CLOSED, and the entry's premise for it was superseded before the entry was
+worked.** This entry argues `SHADOW_SCOPE` cannot absorb `tests/` because every entry pairs a home
+directory with a `shipped` one and `tests/` never ships. True, and no longer the mechanism:
+`scanSet()` is DERIVED from the union of every cached release's top-level directories plus the
+`SHADOW_SCOPE` home names, precisely so that a directory the current tree no longer has is still
+scanned. Measured here 2026-09-01:
+
+    SHADOW_SCOPE home names : bin, hooks, skills, templates, workflows
+    scanSet() derived       : bin, docs, evals, hooks, scripts, skills, templates, tests, workflows
+
+`tests` is in the second and not the first — the gap `scanSet`'s own docstring names.
+
+**Verified end to end on the reported file, not inferred.** A fabricated home holding
+`.claude/tests/selftest.sh` with fork-era content, scanned through `orphans(homeDirectory)`:
+
+    {"directory":"tests","name":"selftest.sh","state":"unidentified",
+     "evidence":{"state":"unidentified","route":null,"version":null,"first":null,"shared":null}}
+
+So the file is seen, and it is reported as `unidentified` with no route — exactly what ADR-019
+requires of a check that could not determine something, and never as ours. The "neither scanner has
+one" half of the headline is answered.
+
+**What is left is a DECISION, and ADR-019 has already taken it the other way.** ADR-019 is Accepted
+and says: *"naming it is all that ever happens"*, `--apply` deletes nothing and archives nothing, no
+code path removes a home file, and the user decides. This entry asks for an orphan to be identified
+well enough to advise DELETION, which inverts that posture. The entry says so itself — *"This wants
+a record before code"* — and it is right: it is a trust boundary and costly-to-reverse advice, and
+copy mode does not archive, so a wrong deletion is unrecoverable.
+
+That decision is the owner's and is not backlog work. It would supersede or amend ADR-019's
+never-act clause rather than sit beside it.
+
+**Still true and still unanswered by any of the above:** the reporter's 14 failing presence checks
+are the real user-facing harm, and they are not fixed by scanning or by identification — the orphan
+prints `FAIL — 14 of 39 checks failed` for artifacts this plugin's own guidance told them to delete.
+Nothing this project ships can silence somebody else's script. Only advising its removal would, which
+is the decision above.
+
+### As reported
+
+
+Reported 2026-09-01 on GitHub issue #1, as a follow-up to the scope-sharing fix in `bbd3f87`.
+That commit made `shadowInstallNotice` and `sync-standalone.mjs` read one `SHADOW_SCOPE`, which
+closed the `hooks/` gap the issue was filed about. The follow-up names a second file the shared
+scope still cannot see, and it is not a longer list — it is a state neither tool has.
+
+`~/.claude/tests/selftest.sh`, 113 lines, on the reporter's Windows box. It corresponds to no
+current upstream file: `scripts/selftest.sh` here today is a different, repository-scoped
+70-line script. The orphan asserts the fork-era layout directly —
+
+```sh
+for t in adr-template task-template ... ; do have "templates/$t.md" "$DEST/templates/$t.md"; done
+for s in work spec-write adr-write ... ; do have "skills/$s/SKILL.md" "$DEST/skills/$s/SKILL.md"; done
+have "hooks/facts-gate-dispatch.sh"  "$DEST/hooks/facts-gate-dispatch.sh" -x
+```
+
+— so after the reporter followed this plugin's own session-start guidance, which says a
+bare-name skill *"is better deleted than synced"*, it printed `FAIL — 14 of 39 checks failed. Fix
+these before authoring anything.` All fourteen are presence checks for artifacts the guidance had
+just told them to delete. Every functional check still passed, so it is asserting a LAYOUT rather
+than detecting breakage — but its summary line reads as a broken install and the obvious repair is
+to restore exactly what the guidance said to remove.
+
+**Why `SHADOW_SCOPE` cannot absorb it.** Every entry pairs a home directory with a `shipped` one,
+and per §1 of CLAUDE.md `tests/` stays at the repository root and never ships. `{ home: 'tests',
+shipped: 'tests' }` makes `readdirSync(path.join(source, 'tests'))` throw, `catch { continue }`
+swallows it, and the entry is a green no-op — the same failure the `hooks`→`scripts` pairing was
+shaped to avoid, recurring one field over. An orphan has no `shipped` counterpart by definition.
+
+**Why digest lineage cannot identify it either.** `knownDigests(relative)` recognises a file as
+ours when it matches any cached release's copy at the same relative path. Measured here
+2026-09-01 across 52 cached versions back to 2.0.0:
+
+    ls -d ~/.claude/plugins/cache/.../*/tests        -> 10+ versions have a tests/ directory
+    ls    ~/.claude/plugins/cache/.../*/tests/selftest.sh -> no matches, in any version
+
+Old releases shipped `tests/` (fixtures, gate-regressions.py, five `.test.mjs`) and never a
+`selftest.sh`. So for the exact file this report is about the known-digest set is EMPTY, and the
+lineage machinery that carries `replaceable()` cannot answer. Identification would need a content
+signature.
+
+**Three states, and only the middle one is new.** `replaceable()` already distinguishes
+ours-and-still-shipped (drift → refresh) from not-ours (`'not a file this plugin installed — it
+may be your own'` → leave alone). The gap is ours-and-no-longer-shipped (orphan → delete), and the
+whole risk sits on its boundary with not-ours: advising deletion of a file under someone's home
+that turns out to be theirs is worse than the silence being fixed, and copy mode does not archive,
+so it is unrecoverable.
+
+**This wants a record before code.** The tools' current posture is *never act on a file this
+plugin did not install*; recommending a deletion inverts it. That is a trust boundary and
+costly-to-reverse advice — the `adr-write` criteria — so the ADR comes first and decides how an
+orphan is identified without a digest to match. Not folded into `bbd3f87`, deliberately.
+
+Also open from the same issue, and deliberately unchanged: `--link` is a THIRD, narrower scope
+that installs gates only, via `gateNames()`. It already reports when copy mode has work it cannot
+do, so it is documented rather than merged into `SHADOW_SCOPE`.
+
+---
+
+## 96. CLOSED 2026-10-12 (was PARTLY CLOSED 2026-09-01) — `SHADOW_SCOPE` was hand-listed, and two home workflow files were drifted where nothing looks
+
+**CLOSED 2026-10-12** (re-verified against the code in the backlog sweep): scope asserted by tests/lifecycle.test.mjs:2312 and the junk 2.0.0 cache by tests/standalone-link.test.mjs:978; ADR-019:239 and :241 still read 'deferred: docs/BACKLOG.md §96' and now point at a closed entry.
+
+**The scope half is CLOSED 2026-09-01 (v2.45.0, `7f5394d` and `022f39d`).** Mirroring is now the
+default and `NEVER_MIRRORED` is the exception list; a test asserts that every directory the plugin
+ships is either scanned or excluded on purpose. The rule earned its place on the first run — it
+failed on `hooks` and `.claude-plugin` as well, neither of which anyone had considered. The
+reachability question below was settled before the fix: a live skill listing offers bare `consensus`
+and `review-ring` (the two files in the home) and no bare `quality-cycle` (shipped, not in the home),
+so home workflows become bare names and the drifted pair was live. The `2.0.0` junk-cache note below
+remains open and belongs to ADR-019 T1.
+
+
+
+Deferred out of ADR-019 (`docs/adr/ADR-019-an-orphan-must-prove-it-is-ours.md`, Out of Scope), which
+covers ORPHANS — files this plugin no longer ships. This entry is the other half: a file the plugin
+ships **today**, in a home directory the scanners do not look in.
+
+`SHADOW_SCOPE` (added 2026-09-01, `bbd3f87`) lists four home directories: `bin`, `hooks`,
+`templates`, `skills`. Measured 2026-09-01, the plugin's own releases have shipped nine top-level
+directories between them:
+
+    ls -d ~/.claude/plugins/cache/quality-harness/quality-harness/*/*/ | xargs -n1 basename | sort -u
+    bin docs evals hooks scripts skills templates tests workflows
+
+`workflows` is one of the five outside the scope, and it is not hypothetical here:
+
+    ~/.claude/workflows/consensus.js    home 6115389c22c4  plugin c7299c812b19  DRIFTED
+    ~/.claude/workflows/review-ring.js  home 5f5f40ab0b61  plugin 3206965c71f7  DRIFTED
+
+Both are ours by name and still shipped (`plugin/workflows/` holds `consensus.js`,
+`quality-cycle.js`, `review-ring.js`). Neither scanner reports them, and `grep -n workflows` over
+`standalone-link.mjs`, `sync-standalone.mjs` and `lifecycle.mjs` returns nothing. This is exactly
+GitHub issue #1 — the notice and the repair tool blind to a directory — one directory over, still
+open, four days after that issue was filed.
+
+**The fix is a derivation, not a longer list.** The scope should come from what the plugin currently
+ships (a `readdirSync` over the plugin root, minus what never installs home-side), so the tenth
+directory is not missed the way the fifth through ninth were. That is a different mechanism from
+ADR-019's: derivation can only ever see the CURRENT tree, so it cannot find an orphan, and an orphan
+scan's directory set is a superset. Two mechanisms, deliberately separate records.
+
+**Open first:** whether anything reads `~/.claude/workflows/*.js` at all. ADR-004's general rule
+turns on it — *install a personal copy only where it is both reachable by something and cheaper to
+maintain than the plugin's own copy*. If those two files are live, this is a drift fix. If nothing
+reads them, they are ADR-004's case (an unread home copy that is a standing chore) and the answer is
+that they should not exist, which routes back to ADR-019 rather than here. `~/.claude/skills` holds
+none of ours and `~/.claude/commands` holds `M.md`, `am.md`, `autoresearch.md`, `load-skill.md`, so
+whatever serves the bare `/consensus` in a live skill listing is not a home `SKILL.md` — find what
+loads the `.js` before classifying them.
+
+**Second item, same area.** `~/.claude/plugins/cache/quality-harness/quality-harness/2.0.0/` holds
+`AUTHn`, `CHRn`, `cuda-1.9`, `maximum` and a dozen similar entries alongside `bin`, `hooks` and
+`scripts`. It does not look like a release of this plugin. Any mechanism that walks cached versions
+— `knownDigests()` today, ADR-019's `formerlyShipped()` next — must tolerate it without producing a
+match, and the phrase "52 cached versions" used in GitHub issue #3 and §95 rests on counting it.
+ADR-019 T1 carries a test for a junk directory; this entry is the note that the junk is real and
+sitting in the cache now, not a hypothetical.
+
 ---
 
 ## 97. CLOSED 2026-09-02 — the candidate was measured and its own falsifier fired

@@ -90,10 +90,10 @@ export function surfaceReadyLines(lines, cap = 3) {
 // found" code, borrowed by the alias, so it cannot separate "the interpreter never
 // ran" from "the gate ran and returned 9009". The only honest question is whether
 // the candidate answered AS PYTHON, which is why this probes for a known answer
-// rather than detecting by name. resolve_bash() reaches for the same idea and
-// only half-arrives: it skips the System32 WSL stub but NOT the WindowsApps
-// launcher its own docstring names, so on a stock PATH it returns a 0-byte Store
-// alias (BACKLOG §91). Probe; do not trust a name or an isfile().
+// rather than detecting by name. resolve_bash() decides by directory name instead:
+// it skips the System32 WSL stub and the WindowsApps Store alias (plugin/lib/fence.py,
+// BACKLOG §91), but still trusts an isfile() of anything else on PATH. Probe; do not
+// trust a name or an isfile().
 // BACKLOG §93. The probe asked for the MAJOR version and threw the rest away, so
 // a box with 3.14 and 3.10 both on PATH — four years and one semantic change
 // apart — answered `3` either way and nothing recorded which one ran. §90 is the

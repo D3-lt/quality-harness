@@ -117,13 +117,13 @@ test('a deleted file that cannot have been a record is passed in silence, and on
     const git = (...args) => spawnSync('git', ['-C', top, ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
     git('init', '-q')
     mkdirSync(join(top, 'docs', 'decisions.v1'), { recursive: true })
-    for (const file of ['verify.mjs', 'evals.yml', 'ghost.md', 'GHOST.MD', 'decisions.v1/ADR-001-x.md']) writeFileSync(join(top, 'docs', file), '# x\n')
+    for (const file of ['gone.mjs', 'evals.yml', 'ghost.md', 'GHOST.MD', 'decisions.v1/ADR-001-x.md']) writeFileSync(join(top, 'docs', file), '# x\n')
     git('add', '-A')
     assert.equal(git('-c', 'user.name=t', '-c', 'user.email=t@example.invalid', 'commit', '-q', '-m', 'fixture').status, 0)
     rmSync(join(top, 'docs'), { recursive: true, force: true })
     mkdirSync(join(top, 'docs'))
     const run = file => spawnSync(bash, [dispatcher, join(top, 'docs', file), ''], { encoding: 'utf8', timeout: 60_000 })
-    for (const gone of ['verify.mjs', 'evals.yml']) {
+    for (const gone of ['gone.mjs', 'evals.yml']) {
       const said = run(gone)
       assert.equal(said.status, 0)
       assert.equal(`${said.stdout}${said.stderr}`, '', `${gone}: ${said.stdout}${said.stderr}`)

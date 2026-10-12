@@ -189,6 +189,26 @@
       "from": "      if (tree === null || (tree.length && tree.at(-1) !== 0)) { valid = false; break }",
       "to": "      if (tree === null || (tree.length && tree.at(-1) !== 0)) continue",
       "only": "^(?:a base that could not be read leaves the bulk answer UNKNOWN, not \"no catalog\")$"
+    },
+    {
+      "label": "§378: the batch never says whether a deleted path was a file, so each path asks git itself",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ],
+      "from": "      if (own) answers.wasFile.set(file, heldAsFile.has(own))",
+      "to": "      if (own) void 0",
+      "only": "^(?:a batch says which deleted paths were files from its one history query, not one probe per path)$"
+    },
+    {
+      "label": "§378: a path's own history row is not read as held-as-file",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ],
+      "from": "        if (entry[2] === 'blob' && owns.includes(entry[4])) { heldAsFile.add(entry[4]); continue }",
+      "to": "        if (entry[2] === 'blob' && owns.includes(entry[4])) { continue }",
+      "only": "^(?:a batch says which deleted paths were files from its one history query, not one probe per path)$"
     }
   ]
 }

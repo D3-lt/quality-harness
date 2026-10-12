@@ -296,9 +296,10 @@ if [ -z "$archive_readme" ]; then
     # below, so a deleted `x.mjs` that history shows was a tracked file had nothing
     # to classify (BACKLOG §378). A Markdown name, a directory (dotted or not) and a
     # path git never held keep their could-not-look: their former kind is unknown.
+    # Batch argument 4 is the same answer, read in the batch's one history query; absent, ask git here.
     case "$base_lc" in
       *.md) ;;
-      *.*) git_was_file "$f" && exit 0 ;;
+      *.*) if [ "${4+x}" = x ]; then [ "$4" = file ] && exit 0; else git_was_file "$f" && exit 0; fi ;;
     esac
     say_unproven "$(printf 'UNPROVEN: could not classify %s' "$f")"
     exit 0

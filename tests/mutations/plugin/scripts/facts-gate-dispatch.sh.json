@@ -386,8 +386,8 @@
       "tests": [
         "tests/dispatch-streams.test.mjs"
       ],
-      "from": "      *.*) git_was_file \"$f\" && exit 0 ;;",
-      "to": "      *.*) ;;",
+      "from": "else git_was_file \"$f\" && exit 0; fi ;;",
+      "to": "else :; fi ;;",
       "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
     },
     {
@@ -396,8 +396,8 @@
       "tests": [
         "tests/dispatch-streams.test.mjs"
       ],
-      "from": "      *.md) ;;\n      *.*) git_was_file",
-      "to": "      *.*) git_was_file",
+      "from": "      *.md) ;;\n      *.*) if",
+      "to": "      *.*) if",
       "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
     },
     {
@@ -406,7 +406,7 @@
       "tests": [
         "tests/dispatch-streams.test.mjs"
       ],
-      "from": "      *.*) git_was_file \"$f\" && exit 0 ;;",
+      "from": "      *.*) if [ \"${4+x}\" = x ]; then [ \"$4\" = file ] && exit 0; else git_was_file \"$f\" && exit 0; fi ;;",
       "to": "      *.*) exit 0 ;;",
       "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
     },
@@ -419,6 +419,16 @@
       "from": "2>/dev/null)\" = blob ] && return 0",
       "to": "2>/dev/null)\" != tree ] && return 0",
       "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
+    },
+    {
+      "label": "§378: batch argument 4 saying the path was a file is ignored",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ],
+      "from": "then [ \"$4\" = file ] && exit 0; else",
+      "to": "then :; else",
+      "only": "^(?:a batch says which deleted paths were files from its one history query, not one probe per path)$"
     }
   ]
 }

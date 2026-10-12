@@ -363,6 +363,8 @@ export async function runShellHook(scriptName, raw, options = {}) {
   // the dispatcher's ordinary lookup; an empty string is an observed absence.
   if (scriptName === 'facts-gate-dispatch.sh' && options.archiveCatalog !== undefined) {
     args.push(process.platform === 'win32' ? windowsPathForBash(options.archiveCatalog) : options.archiveCatalog)
+    // Argument 4, beside 3: whether history held this deleted path as a file. Absent keeps the dispatcher's own probe.
+    if (typeof options.wasFile === 'boolean') args.push(options.wasFile ? 'file' : '')
   }
   const payloadForEnv = parsedHookPayload(raw, process.platform)
   const sessionId = typeof payloadForEnv?.session_id === 'string' ? payloadForEnv.session_id : ''
@@ -478,9 +480,14 @@ export function historyBases(env = process.env) {
 /**
  * archiveHistory reads only the historical README candidates needed by this pass.
  * Missing map entries mean unknown: the dispatcher performs its ordinary lookup.
+ * `answers.wasFile` holds, for a path whose name has an extension other than `.md`,
+ * whether any history base held it as a file: the same answer the dispatcher's
+ * `git_was_file` gives a deleted path, read in the same `ls-tree` rather than one
+ * `cat-file` per path (BACKLOG §378). Missing there is unknown too.
  */
 export function archiveHistory(paths, deadline, run = spawnSync) {
   const answers = new Map()
+  answers.wasFile = new Map()
   if (paths.length < 2) return answers
   const roots = new Map()
   const groups = new Map()
@@ -519,14 +526,17 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
         parent = path.posix.dirname(parent)
       }
       if (!groups.has(root)) groups.set(root, [])
-      groups.get(root).push({ file, candidates })
+      const own = relative.split(path.sep).join('/')
+      const leaf = path.posix.basename(own).toLowerCase()
+      groups.get(root).push({ file, candidates, own: /\.[^.]+$/.test(leaf) && !leaf.endsWith('.md') ? own : null })
     } catch { /* An unreadable path keeps the existing per-file discovery. */ }
   }
   for (const [root, files] of groups) {
     const candidates = [...new Set(files.flatMap(file => file.candidates))]
+    const owns = [...new Set(files.map(file => file.own).filter(Boolean))]
     // Keep the optimization within Windows argv limits; large sets keep the
     // original scoped lookup rather than widening to a repository-wide scan.
-    if (candidates.join(' ').length > 16_000) continue
+    if ([...candidates, ...owns].join(' ').length > 16_000) continue
     // ⚠ PER BASE, NOT MERGED. This kept ONE map, "the first base that knows a
     // candidate owns it" — the first base in which a README EXISTS. The dispatcher's
     // `git_archive_catalog_for` breaks at the first base in which a README IS A
@@ -536,9 +546,10 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
     // batch the SAME record got a different gate at the boundary meant to be
     // authoritative (audit 2026-09-18, B7; tests/archive-history-parity.test.mjs).
     const perBase = []
+    const heldAsFile = new Set()
     let valid = true
     for (const base of historyBases()) {
-      const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', base, '--', ...candidates])
+      const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', base, '--', ...candidates, ...owns])
       // ⚠ A BASE THAT COULD NOT BE READ IS NOT A BASE WITH NO CATALOG. This said
       // `continue`, so a failed or truncated `ls-tree` on the base that HELD the
       // catalog fell through to one that did not, and `''` — "observed: none" —
@@ -550,6 +561,8 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
       for (const row of tree.toString('utf8').split('\0').filter(Boolean)) {
         const entry = /^(\d{6}) (\w+) ([a-f0-9]+)\t([\s\S]+)$/.exec(row)
         if (!entry) { valid = false; break }
+        // A path's own row: `cat-file -t` says blob for it, whatever its mode. A directory lists its contents instead.
+        if (entry[2] === 'blob' && owns.includes(entry[4])) { heldAsFile.add(entry[4]); continue }
         if (entry[2] === 'blob' && /^100/.test(entry[1])) blobs.set(entry[4], entry[3])
       }
       if (!valid) break
@@ -577,7 +590,7 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
       }
       if (!valid || offset !== data.length) continue
     }
-    for (const { file, candidates: nearestFirst } of files) {
+    for (const { file, candidates: nearestFirst, own } of files) {
       // The nearest base in which ANY of this file's candidates is a catalog, and
       // within it the nearest such candidate — the dispatcher's rule, in its order.
       let catalog
@@ -586,6 +599,7 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
         if (catalog) break
       }
       answers.set(file, catalog ? path.join(root, catalog) : '')
+      if (own) answers.wasFile.set(file, heldAsFile.has(own))
     }
   }
   return answers
@@ -642,6 +656,7 @@ export async function runArtifactBatch(raw) {
           timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT,
           windowMs: batch.windowMs,
           archiveCatalog: history.get(filePath),
+          wasFile: history.wasFile?.get(filePath),
           verdict,
         })
     } finally {

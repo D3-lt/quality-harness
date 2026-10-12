@@ -408,6 +408,41 @@ test('historical archive discovery uses one scoped Git query and preserves neare
   assert.ok(batchCommands.length <= 4, 'one history snapshot must replace repeated per-file probes:\n' + batchCommands.join('\n'))
 })
 
+// BACKLOG §378: a deleted file whose name cannot be a record is passed in silence only when history held it as a file.
+// At the boundary that answer comes from the batch's one history query, not from a `cat-file` per path, and a path
+// git never held still says UNPROVEN.
+test('a batch says which deleted paths were files from its one history query, not one probe per path', t => {
+  const root = realpathSync(scratch(t))
+  const project = path.join(root, 'project')
+  run(['git', 'init', '-q', project], root)
+  const scripts = path.join(root, 'plugin', 'scripts')
+  mkdirSync(scripts, { recursive: true })
+  for (const name of ['facts-gate-dispatch.sh', 'run-shell-hook.mjs', 'performance-trace.mjs', 'event-log.mjs',
+    'git-directory.mjs', 'main-module.mjs', 'uninteresting.mjs']) {
+    cpSync(path.join(pluginRoot, 'scripts', name), path.join(scripts, name))
+  }
+  const docs = path.join(project, 'docs')
+  mkdirSync(docs, { recursive: true })
+  writeFileSync(path.join(docs, 'gone.mjs'), 'export {}\n')
+  run(['git', 'add', '.'], project)
+  run(['git', '-c', 'user.name=Harness Test', '-c', 'user.email=harness@example.invalid',
+    'commit', '-qm', 'a tracked script'], project)
+  rmSync(path.join(docs, 'gone.mjs'))
+  const trace = path.join(root, 'git.trace')
+  writeFileSync(trace, '')
+  const batch = run([process.execPath, path.join(scripts, 'run-shell-hook.mjs'),
+    'facts-gate-dispatch.sh', '--batch'], project, { GIT_TRACE: trace }, JSON.stringify({
+    paths: [path.join(docs, 'gone.mjs'), path.join(docs, 'never.mjs')],
+    deadline: Date.now() + 30_000, windowMs: 30_000, timeoutMs: 10_000,
+  }))
+  const said = batch.stdout + batch.stderr
+  assert.doesNotMatch(said, /could not classify .*gone\.mjs/, 'a deleted tracked script is passed in silence:\n' + said)
+  assert.match(said, /UNPROVEN: could not classify .*never\.mjs/, 'a path git never held keeps its could-not-look:\n' + said)
+  const commands = readFileSync(trace, 'utf8').split('\n').filter(line => line.includes('built-in: git'))
+  assert.ok(commands.some(line => line.includes('ls-tree')), 'the batch read history:\n' + commands.join('\n'))
+  assert.ok(!commands.some(line => / cat-file -t /.test(line)), 'no per-path probe:\n' + commands.join('\n'))
+})
+
 test('artifact batch input and exhausted deadlines report unchecked work', async t => {
   const { runArtifactBatch } = await import('../plugin/scripts/run-shell-hook.mjs')
   let stderr = ''

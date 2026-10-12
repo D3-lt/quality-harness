@@ -70,7 +70,7 @@ Read the full diff, the touched functions, and their direct callers. Check invar
 logic, state mutation, auth checks, error paths, rollback. Look for: wrong condition or missing
 branch, invalid input/state assumptions, partial writes, auth bypass, race conditions, silent
 failure, false success reporting.
-Output critical/high only, each with 5-Whys (below): Where / Symptom / Why chain / Root cause /
+Output blocking findings only (`## Blocking findings` above), each with 5-Whys (below): Where / Symptom / Why chain / Root cause /
 Smallest fix. Gate: material findings stop the review; after fixes rerun Pass 1.
 
 ### Pass 2: Integration and Wiring
@@ -122,7 +122,7 @@ escalate and state the design problem explicitly.
 
 ## 5 Whys Root Cause
 
-For every critical/high finding: state the symptom → ask why until a design/assumption/structural
+For every blocking finding: state the symptom → ask why until a design/assumption/structural
 root cause (3–5 levels, don't force 5). Each "why" must cite code evidence. Validate the proposed
 fix targets the root cause; if it only masks the symptom, say so and note the residual. Root cause
 outside the diff → residual risk. Root cause reveals the change solves the wrong problem →

@@ -19,6 +19,16 @@
       "from": "4. It has a minimal in-scope remedy.",
       "to": "4. It has a remedy.",
       "only": "^(?:the canonical blocking block is definition A|the blocking criteria have one definition and every mirror is its text)$"
+    },
+    {
+      "label": "review skill: Pass 1 does not ask for the old severity words (Codex review)",
+      "file": "plugin/skills/review/SKILL.md",
+      "tests": [
+        "tests/review-contract.test.mjs"
+      ],
+      "from": "Output blocking findings only (`## Blocking findings` above), each with 5-Whys",
+      "to": "Output critical/high only, each with 5-Whys",
+      "only": "^(?:no review surface tells a reviewer the old severity words)$"
     }
   ]
 }

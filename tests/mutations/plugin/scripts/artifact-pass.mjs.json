@@ -188,6 +188,16 @@
       "from": "typeof entry.blob === 'string' && typeof lastBlob.get(entry.path) === 'string' && ",
       "to": "typeof entry.blob === 'string' && ",
       "only": "^(?:a finding about bytes a later pass gated as different bytes is not said)$"
+    },
+    {
+      "label": "pass import: a file back on the finding's bytes keeps the finding (§378, Codex review)",
+      "file": "plugin/scripts/artifact-pass.mjs",
+      "tests": [
+        "tests/artifact-pass-behind.test.mjs"
+      ],
+      "from": "lastBlob.get(entry.path) !== entry.blob\n    && contentId(entry.path) !== entry.blob",
+      "to": "lastBlob.get(entry.path) !== entry.blob",
+      "only": "^(?:a finding about bytes a later pass gated as different bytes is not said)$"
     }
   ]
 }

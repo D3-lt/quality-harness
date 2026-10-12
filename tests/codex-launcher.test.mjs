@@ -101,3 +101,34 @@ test('the invocation the codex-review skill shows is the one the launcher builds
   // Dirty: a block that dropped a flag the launcher passes is told apart.
   assert.notDeepEqual(shownFlags(skill.replace(' --ephemeral', '')), built)
 })
+
+// Codex review of v3.8.21..17066d76: only a deadline is the budget; the help probe is killed as hard as the run; and a
+// temporary directory that cannot be made is a reason, never an exception out of the result contract.
+test('a Codex run stopped by a signal before its deadline is unavailable, and not called the budget', () => {
+  const runs = fake({ error: null, signal: 'SIGKILL', status: null, stdout: clean })
+  const result = hostReview({ ...review, run: runs.run })
+  assert.equal(result.status, 'unavailable')
+  assert.doesNotMatch(result.reason, /budget/)
+  assert.match(result.reason, /SIGKILL/)
+})
+test('the help probe is killed hard at its own deadline', () => {
+  const runs = fake({ status: 0, stdout: clean })
+  hostReview({ ...review, run: runs.run })
+  const probe = runs.calls.find(call => call.args[1] === '--help')
+  assert.ok(probe, 'the probe ran')
+  assert.equal(probe.options.killSignal, 'SIGKILL')
+  assert.ok(probe.options.timeout > 0 && probe.options.timeout <= CODEX_TIMEOUT_MS)
+})
+test('a temporary directory that cannot be made is unavailable, not a throw', t => {
+  if (process.platform === 'win32') return t.skip('os.tmpdir() on Windows does not read TMPDIR')
+  const notADirectory = path.join(scratch, 'not-a-directory')
+  writeFileSync(notADirectory, '')
+  const saved = process.env.TMPDIR
+  process.env.TMPDIR = notADirectory
+  let result
+  try { result = hostReview({ ...review, run: fake({ status: 0, stdout: clean }).run }) } finally {
+    if (saved === undefined) delete process.env.TMPDIR; else process.env.TMPDIR = saved
+  }
+  assert.equal(result.status, 'unavailable')
+  assert.match(result.reason, /temporary directory/)
+})

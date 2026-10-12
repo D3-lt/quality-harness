@@ -46,7 +46,7 @@
       "tests": [
         "tests/codex-launcher.test.mjs"
       ],
-      "from": "if (child?.error?.code === 'ETIMEDOUT' || child?.signal === 'SIGKILL') {",
+      "from": "if (child?.error?.code === 'ETIMEDOUT') {",
       "to": "if (false) {",
       "only": "^a Codex run past its budget is unavailable, never clean$"
     },
@@ -59,6 +59,36 @@
       "from": "export const CODEX_MODEL = 'gpt-6.1-sol'",
       "to": "export const CODEX_MODEL = 'gpt-6-astra'",
       "only": "^the Codex command line has one builder and one model$"
+    },
+    {
+      "label": "host-review: a signal before the deadline is not called the budget",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/codex-launcher.test.mjs"
+      ],
+      "from": "if (child?.error?.code === 'ETIMEDOUT') {",
+      "to": "if (child?.error?.code === 'ETIMEDOUT' || child?.signal === 'SIGKILL') {",
+      "only": "^a Codex run stopped by a signal before its deadline is unavailable, and not called the budget$"
+    },
+    {
+      "label": "host-review: the help probe is killed hard",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/codex-launcher.test.mjs"
+      ],
+      "from": "timeout: 30_000, killSignal: 'SIGKILL', stdio",
+      "to": "timeout: 30_000, stdio",
+      "only": "^the help probe is killed hard at its own deadline$"
+    },
+    {
+      "label": "host-review: a temporary directory that cannot be made is a reason",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/codex-launcher.test.mjs"
+      ],
+      "from": "  try { directory = mkdtempSync(path.join(os.tmpdir(), 'qh-codex-')) } catch (error) {",
+      "to": "  { directory = mkdtempSync(path.join(os.tmpdir(), 'qh-codex-')) } if (false) { const error = {}",
+      "only": "^a temporary directory that cannot be made is unavailable, not a throw$"
     }
   ]
 }

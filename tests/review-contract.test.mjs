@@ -151,3 +151,14 @@ test('every editing role keeps an explicit publish prohibition', async () => {
   assert.match(ring.calls[1].prompt, /Do not commit or push\./)
   assert.match(read('skills/execution/SKILL.md'), /Do not commit, push/)
 })
+
+// Codex review of v3.8.21..17066d76: the schemas were unified, but the review skill's prose still told Pass 1 to output
+// "critical/high only". A reviewer handed the skill reads the prose, so the old vocabulary must be gone from it too.
+const OLD_SEVERITY = /\bcritical\s*\/\s*high\b|\b(?:critical|high|medium|low)\s*(?:\/|\|)\s*(?:critical|high|medium|low)\b/i
+test('no review surface tells a reviewer the old severity words', () => {
+  for (const file of ['skills/review/SKILL.md', ...readdirSync(path.join(plugin, 'agents')).map(name => `agents/${name}`),
+    ...readdirSync(path.join(plugin, 'workflows')).map(name => `workflows/${name}`)]) {
+    assert.doesNotMatch(read(file), OLD_SEVERITY, file)
+  }
+  assert.match('Output critical/high only', OLD_SEVERITY, 'the pattern finds the old instruction')
+})

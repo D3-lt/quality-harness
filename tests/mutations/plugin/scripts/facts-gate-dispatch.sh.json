@@ -386,7 +386,7 @@
       "tests": [
         "tests/dispatch-streams.test.mjs"
       ],
-      "from": "      *.*) exit 0 ;;",
+      "from": "      *.*) git_was_file \"$f\" && exit 0 ;;",
       "to": "      *.*) ;;",
       "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
     },
@@ -396,8 +396,28 @@
       "tests": [
         "tests/dispatch-streams.test.mjs"
       ],
-      "from": "      *.md) ;;\n      *.*) exit 0 ;;",
+      "from": "      *.md) ;;\n      *.*) git_was_file",
+      "to": "      *.*) git_was_file",
+      "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
+    },
+    {
+      "label": "dispatch: a deleted path is silent only when history shows a tracked file (§378, Codex review)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "      *.*) git_was_file \"$f\" && exit 0 ;;",
       "to": "      *.*) exit 0 ;;",
+      "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
+    },
+    {
+      "label": "dispatch: a tree or an unknown path in history is not a tracked file (§378, Codex review)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "2>/dev/null)\" = blob ] && return 0",
+      "to": "2>/dev/null)\" != tree ] && return 0",
       "only": "^(?:a deleted file that cannot have been a record is passed in silence, and one that could still says UNPROVEN)$"
     }
   ]

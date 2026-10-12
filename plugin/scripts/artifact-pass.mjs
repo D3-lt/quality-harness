@@ -418,11 +418,13 @@ export function importPassVerdicts(cwd, session, channel = null, recipient = nul
     try { entry = JSON.parse(line) } catch { continue }
     if (typeof entry?.pass === 'string') entries.push(entry)
   }
-  // The bytes each path was last gated on: a finding about other bytes, when both are known, is about content a later
-  // pass replaced, and that pass's verdict is the one said (BACKLOG §378). An unknown blob proves nothing changed.
+  // The bytes each path was last gated on: a finding about other bytes, when both are known and the file no longer holds
+  // the finding's bytes, is about content a later pass replaced, and that pass's verdict is the one said (BACKLOG §378).
+  // An unknown blob proves nothing changed; a file back on the finding's bytes makes the finding current again.
   const lastBlob = new Map()
   for (const entry of entries) if (entry.event === 'pass.gated' && typeof entry.path === 'string') lastBlob.set(entry.path, entry.blob ?? null)
   const superseded = entry => typeof entry.blob === 'string' && typeof lastBlob.get(entry.path) === 'string' && lastBlob.get(entry.path) !== entry.blob
+    && contentId(entry.path) !== entry.blob
   for (const entry of entries) {
     if (entry.event === 'pass.ended') ended.add(entry.pass)
     const words = typeof entry.findings === 'string' ? entry.findings.trim() : ''

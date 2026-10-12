@@ -139,25 +139,32 @@ export function codexInvocation({ bin, repo, effort, prompt, output, ignoreUserC
 
 // `--ignore-user-config` keeps a user's MCP servers and config from changing the run; only builds that list it accept it.
 function acceptsIgnoreUserConfig(bin, run) {
-  const help = run(bin, ['exec', '--help'], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+  const help = run(bin, ['exec', '--help'], { encoding: 'utf8', timeout: 30_000, killSignal: 'SIGKILL', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
   return Boolean(help && !help.error && help.status === 0 && String(help.stdout ?? '').includes('--ignore-user-config'))
 }
 
-// One Codex run through `codexInvocation`: { text } on success, or { reason } — a run past its budget says so.
+// One Codex run through `codexInvocation`: { text } on success, or { reason } — a run past its budget says so, and a run
+// stopped by a signal before it says which signal: only the deadline is the budget.
 export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, run = spawnSync }) {
-  const directory = mkdtempSync(path.join(os.tmpdir(), 'qh-codex-'))
+  let directory
+  try { directory = mkdtempSync(path.join(os.tmpdir(), 'qh-codex-')) } catch (error) {
+    return { reason: `a temporary directory for its final message could not be made (${error.code ?? error.message})` }
+  }
   try {
     const call = codexInvocation({ bin, repo, effort, prompt, output: path.join(directory, 'last-message.txt'), ignoreUserConfig: acceptsIgnoreUserConfig(bin, run), skipGitRepoCheck })
     const child = run(call.bin, call.argv, call.options)
-    if (child?.error?.code === 'ETIMEDOUT' || child?.signal === 'SIGKILL') {
+    if (child?.error?.code === 'ETIMEDOUT') {
       return { reason: `codex was killed at its budget of ${CODEX_TIMEOUT_MS / 1000} s` }
     }
+    if (child?.signal) return { reason: `codex was stopped by ${child.signal} before it finished` }
     if (!child || child.error || child.status !== 0) return { reason: child?.error?.message ?? `codex exited ${child?.status}` }
     let text = ''
     try { text = readFileSync(path.join(directory, 'last-message.txt'), 'utf8') } catch { /* an older build: stdout carries it */ }
     return { text: text.trim() ? text : String(child.stdout ?? '') }
   } finally {
-    rmSync(directory, { recursive: true, force: true })
+    try { rmSync(directory, { recursive: true, force: true }) } catch (error) {
+      process.stderr.write(`host-review: the temporary directory ${directory} was not removed (${error.code ?? error.message})\n`)
+    }
   }
 }
 

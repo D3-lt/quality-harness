@@ -171,11 +171,10 @@ archive_catalog_for() {
   return 1
 }
 
-git_archive_catalog_for() {
-  # A deleted catalog (or a record whose whole archive directory was deleted)
-  # has no live marker to discover. Walk its ancestor paths in the Git preimage
-  # so deletion is checked against the catalog that governed before the edit.
-  local target="$1" dir repo rel_target rel_dir candidate leaf suffix=""
+# Sets in_repo and in_repo_rel to the repository holding $1 and $1's path inside it, through the nearest directory
+# that still exists (the path itself may be deleted). Fails when no repository holds it.
+repo_path_of() {
+  local target="$1" dir leaf suffix=""
   case "$target" in
     /*|[A-Za-z]:/*) ;;
     *) target="$PWD/$target" ;;
@@ -188,10 +187,31 @@ git_archive_catalog_for() {
   done
   dir=$(cd "$dir" 2>/dev/null && pwd -P) || return 1
   target="$dir$suffix/$leaf"
-  repo=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || return 1
-  repo=$(cd "$repo" 2>/dev/null && pwd -P) || return 1
-  case "$target" in "$repo"/*) ;; *) return 1 ;; esac
-  rel_target="${target#"$repo"/}"
+  in_repo=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || return 1
+  in_repo=$(cd "$in_repo" 2>/dev/null && pwd -P) || return 1
+  case "$target" in "$in_repo"/*) ;; *) return 1 ;; esac
+  in_repo_rel="${target#"$in_repo"/}"
+}
+
+# Whether a missing path was a tracked FILE in one of the history bases (BACKLOG §378): its former kind is then
+# established. A directory, a path git never held, or no repository at all is not established.
+git_was_file() {
+  local in_repo in_repo_rel base
+  repo_path_of "$1" || return 1
+  for base in ${QUALITY_HARNESS_HISTORY_BASES:-HEAD}; do
+    [ "$(git -C "$in_repo" cat-file -t "$base:$in_repo_rel" 2>/dev/null)" = blob ] && return 0
+  done
+  return 1
+}
+
+git_archive_catalog_for() {
+  # A deleted catalog (or a record whose whole archive directory was deleted)
+  # has no live marker to discover. Walk its ancestor paths in the Git preimage
+  # so deletion is checked against the catalog that governed before the edit.
+  local repo rel_target rel_dir candidate in_repo in_repo_rel
+  repo_path_of "$1" || return 1
+  repo=$in_repo
+  rel_target=$in_repo_rel
   # The target itself may be a deleted archive directory. Try its historical
   # catalog before walking parents (file targets simply miss this probe).
   local candidates=("$rel_target/README.md") matches=() match
@@ -273,11 +293,12 @@ if [ -z "$archive_readme" ]; then
   # and the UNPROVEN arm below names a file that exists but cannot be read.
   if [ ! -f "$f" ]; then
     # Only Markdown can be a record, and an existing file of another kind exits 0
-    # below, so a deleted `x.mjs` had nothing to classify (BACKLOG §378). A name
-    # with no extension may have been a directory: it keeps its could-not-look.
+    # below, so a deleted `x.mjs` that history shows was a tracked file had nothing
+    # to classify (BACKLOG §378). A Markdown name, a directory (dotted or not) and a
+    # path git never held keep their could-not-look: their former kind is unknown.
     case "$base_lc" in
       *.md) ;;
-      *.*) exit 0 ;;
+      *.*) git_was_file "$f" && exit 0 ;;
     esac
     say_unproven "$(printf 'UNPROVEN: could not classify %s' "$f")"
     exit 0

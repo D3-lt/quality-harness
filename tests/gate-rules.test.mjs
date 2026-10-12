@@ -498,6 +498,54 @@ test('the structural rules around the catalog fire too, not just the row rules',
     `a replacement the catalog does not link must be reported: ${unseen.stdout}`)
 })
 
+// A repository whose backlog sits beside its two sibling roots (`docs/BACKLOG.md` next to `docs/adr/` and
+// `docs/adr-archive/`), not inside the active one. Both entry points read it there when the active root holds
+// none, and the active root's own `BACKLOG.md` wins when both exist; the receipt grammar is unchanged.
+test('adr-retire-check reads the backlog the sibling roots share when the active root has none', () => {
+  const dir = scratch('shared-backlog')
+  const source = join(repoRoot, 'tests', 'fixtures', 'ok')
+  cpSync(join(source, 'adr-archive'), join(dir, 'adr-archive'), { recursive: true })
+  cpSync(join(source, 'adr'), join(dir, 'adr'), { recursive: true })
+  const own = join(dir, 'adr', 'BACKLOG.md')
+  const shared = join(dir, 'BACKLOG.md')
+  const receipts = readFileSync(own, 'utf8')
+  const oneReceipt = receipts.replace(/^- \[ \] Revisit the historical operator sign-off \(from ADR-001\)\.\n/m, '')
+  assert.notEqual(oneReceipt, receipts, 'the receipt to remove is in the fixture')
+  const unrelated = '# Backlog\n\n## Follow-ups\n\n- [ ] something unrelated to any record.\n'
+  const catalog = join(dir, 'adr-archive', 'README.md')
+  const good = readFileSync(catalog, 'utf8')
+  const pointAt = pointer => writeFileSync(catalog, good.replace('`../adr/BACKLOG.md`', pointer))
+  const verdict = () => run('adr-retire-check', ['adr-archive/README.md'], dir)
+  const adoption = () => run('adr-retire-check', ['--adopt', 'adr', 'adr-archive'], dir)
+
+  // Only the shared file, holding the receipts, and the row points at it.
+  rmSync(own)
+  writeFileSync(shared, receipts)
+  pointAt('`../BACKLOG.md`')
+  assert.equal(verdict().status, 0, verdict().stdout)
+  assert.equal(adoption().status, 0, adoption().stdout)
+  // DIRTY: one receipt gone from it.
+  writeFileSync(shared, oneReceipt)
+  assert.match(verdict().stdout, /ADR-001: archive has 2 obligation\(s\), active receipt has 1/, verdict().stdout)
+  assert.match(adoption().stdout, /ADR-001: 2 archived obligation\(s\), 1 active BACKLOG receipt\(s\)/, adoption().stdout)
+
+  // Both files: the active root's own wins. The shared file's receipts do not count, and a row pointing at the
+  // shared file names a file the gate does not read.
+  writeFileSync(shared, receipts)
+  writeFileSync(own, unrelated)
+  pointAt('`../adr/BACKLOG.md`')
+  assert.match(verdict().stdout, /ADR-001: archive has 2 obligation\(s\), active receipt has 0/, verdict().stdout)
+  assert.match(adoption().stdout, /ADR-001: 2 archived obligation\(s\), 0 active BACKLOG receipt\(s\)/, adoption().stdout)
+  pointAt('`../BACKLOG.md`')
+  assert.match(verdict().stdout, /ADR-001: 2 obligation\(s\) need an active backlog receipt or disposition/, verdict().stdout)
+  // CLEAN twin: the receipts in the active root's own file pass, whatever the shared one says.
+  writeFileSync(own, receipts)
+  writeFileSync(shared, unrelated)
+  pointAt('`../adr/BACKLOG.md`')
+  assert.equal(verdict().status, 0, verdict().stdout)
+  assert.equal(adoption().status, 0, adoption().stdout)
+})
+
 
 test('every adr-retire-check row rule has a case that makes it fire', () => {
   const dir = scratch('archive')

@@ -9,7 +9,8 @@ historical evidence: do not rewrite them to satisfy gates introduced after they 
 Decision authority is recorded below because an archived `Accepted` ADR may still govern.
 
 The active corpus `README.md` links every governing ADR, including governing records here. Open
-work lives in the active corpus `BACKLOG.md` under `## Follow-ups`, never only in this archive.
+work lives in the active corpus's `BACKLOG.md` (the active root's own, or, where it has none, the one in
+the directory the two roots share) under `## Follow-ups`, never only in this archive.
 
 ## Retired Records
 
@@ -29,8 +30,9 @@ bytes. `Decision effect` is exactly `governing`, `superseded by ADR-NNN`, or `wi
 `Obligations` is:
 
 - `none` only when the retired decision unit has no meaningful deferred or unchecked item;
-- the path to the active corpus's canonical `BACKLOG.md`, whose `## Follow-ups` unchecked
-  bullets name the source ADR exactly; or
+- the path to the active corpus's `BACKLOG.md` (the active root's own, or, where it has none, the
+  one in the directory the two roots share), whose `## Follow-ups` unchecked bullets name the
+  source ADR exactly; or
 - `disposed: <reason>` when every apparent item is a placeholder, completed, or deliberately
   abandoned.
 

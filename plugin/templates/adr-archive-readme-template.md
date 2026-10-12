@@ -9,7 +9,8 @@ historical evidence: do not rewrite them to satisfy gates introduced after they 
 Decision authority is recorded below because an archived `Accepted` ADR may still govern.
 
 The active corpus `README.md` links every governing ADR, including governing records here. Open
-work lives in the active corpus `BACKLOG.md` under `## Follow-ups`, never only in this archive.
+work lives in the active corpus's `BACKLOG.md` (the active root's own, or, where it has none, the one in
+the directory the two roots share) under `## Follow-ups`, never only in this archive.
 
 Name this file `README.md`, exactly. Under any other spelling (`readme.md`, `Readme.md`) the
 readers cannot decide whether this tree is a frozen archive, and they report readiness for its
@@ -34,8 +35,9 @@ a month and a separator reads as a date, so name such a record with an `# ADR-N`
 `Obligations` is:
 
 - `none` only when the retired decision unit has no meaningful deferred or unchecked item;
-- the path to the active corpus's canonical `BACKLOG.md`, whose `## Follow-ups` unchecked
-  bullets name the source ADR exactly, by its ADR id or, for a dated record, its stem or path; or
+- the path to the active corpus's `BACKLOG.md` (the active root's own, or, where it has none, the
+  one in the directory the two roots share), whose `## Follow-ups` unchecked bullets name the
+  source ADR exactly, by its ADR id or, for a dated record, its stem or path; or
 - `disposed: <reason>` when every apparent item is a placeholder, completed, or deliberately
   abandoned.
 

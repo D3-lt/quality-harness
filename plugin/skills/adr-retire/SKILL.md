@@ -26,9 +26,10 @@ decision effect controls whether a choice still governs. Archive is not a synony
 - The active corpus `README.md` is the compact discovery surface. It links every governing ADR,
   including governing records in the archive, so routine grounding need not load historical tasks
   and verification logs.
-- Every meaningful deferred item or unchecked follow-up leaves a receipt in the active
-  root's canonical `BACKLOG.md` before retirement. Receipts name the source ADR exactly, by ADR id or a dated record's stem or path; archive
-  pointers and unrelated external files are never backlog destinations.
+- Every meaningful deferred item or unchecked follow-up leaves a receipt in the active corpus's
+  `BACKLOG.md` before retirement: the active root's own, or, where it has none, the one in the directory
+  the active and archive roots share. Receipts name the source ADR exactly, by ADR id or a dated record's
+  stem or path; archive pointers and unrelated external files are never backlog destinations.
 
 ## Workflow
 
@@ -48,7 +49,8 @@ decision effect controls whether a choice still governs. Archive is not a synony
    - `superseded by ADR-NNN`: replacement is accepted, governing, and linked to its exact record;
    - `withdrawn`: decision never became authoritative or was explicitly abandoned.
 4. Copy every meaningful archived `(deferred: ...)` and unchecked `## Follow-ups` item into the
-   active root's `BACKLOG.md`, under `## Follow-ups`. Each unchecked bullet names its source ADR.
+   active corpus's `BACKLOG.md` (the active root's own, or the shared parent's where the root has none),
+   under `## Follow-ups`. Each unchecked bullet names its source ADR.
    Explicitly dispose placeholders, completed items, and abandoned work in the archive catalog
    rather than silently ignoring them.
 5. Update the active `README.md`: current-format ADRs keep active links; governing archived ADRs get

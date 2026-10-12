@@ -319,6 +319,36 @@
       "from": "    return unit_order({source} | _flat_units(archive_root, known).get(adr_id, set()))",
       "to": "    return unit_order({source} | (_flat_units.cache_clear(), _flat_units(archive_root, known))[1].get(adr_id, set()))",
       "only": "^a flat archive is attributed once per check, not once per record$"
+    },
+    {
+      "label": "BACKLOG: the catalog verdict reads only the active root's BACKLOG.md",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        backlog = active_backlog(active_root).resolve() if active_root else None",
+      "to": "        backlog = (active_root / \"BACKLOG.md\").resolve() if active_root else None",
+      "only": "^(?:adr-retire-check reads the backlog the sibling roots share when the active root has none)$"
+    },
+    {
+      "label": "BACKLOG: the adoption report reads only the active root's BACKLOG.md",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    backlog = active_backlog(active_root)\n",
+      "to": "    backlog = active_root / \"BACKLOG.md\"\n",
+      "only": "^(?:adr-retire-check reads the backlog the sibling roots share when the active root has none)$"
+    },
+    {
+      "label": "BACKLOG: the shared parent's BACKLOG.md wins over the active root's own",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    return own if _present(own) else active_root.parent / \"BACKLOG.md\"",
+      "to": "    return active_root.parent / \"BACKLOG.md\" if _present(active_root.parent / \"BACKLOG.md\") else own",
+      "only": "^(?:adr-retire-check reads the backlog the sibling roots share when the active root has none)$"
     }
   ]
 }

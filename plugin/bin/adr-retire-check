@@ -341,6 +341,15 @@ def receipt_count(lines, adr_id):
     )
 
 
+def active_backlog(active_root):
+    """The `BACKLOG.md` an archive's obligations are receipted in: the active root's own, or, where it has
+    none, the one in the directory the active and archive roots share. The roots are siblings by contract
+    (both entry points refuse others), so that parent is one directory, and a repository whose backlog sits
+    beside `docs/adr/` and `docs/adr-archive/` is read where it keeps it."""
+    own = active_root / "BACKLOG.md"
+    return own if _present(own) else active_root.parent / "BACKLOG.md"
+
+
 def links_in(readme):
     out = []
     text = _read(readme)
@@ -529,7 +538,7 @@ def adoption_report(active_root, archive_root):
                 errors.append(f"accepted archived {adr_id} has no exact active-catalog link")
 
     obligations = meaningful_obligations(archive_root, frozenset(active_records) | frozenset(archive_records), archive_records)
-    backlog = active_root / "BACKLOG.md"
+    backlog = active_backlog(active_root)
     backlog_text = _read(backlog) if _present(backlog) else ""
     backlog_lines = sections_of(backlog_text).get("Follow-ups", [])
     for adr_id, count in sorted(obligations.items()):
@@ -784,7 +793,7 @@ def main():
             continue
         pointer = path_pointer(receipt)
         destination = (archive_root / pointer).resolve() if pointer else None
-        backlog = (active_root / "BACKLOG.md").resolve() if active_root else None
+        backlog = active_backlog(active_root).resolve() if active_root else None
         if destination is None or backlog is None or destination != backlog or not _present(backlog):
             errors.append(f"{adr_id}: {count} obligation(s) need an active backlog receipt or disposition")
             continue

@@ -1,9 +1,9 @@
 ---
 name: codex-advise
 description: >-
-  Ask a fresh-context, read-only Codex GPT-6 Astra session for grounded advice in any project. Use for
+  Ask a fresh-context, read-only Codex GPT-6.1 Sol session for grounded advice in any project. Use for
   an independent second opinion on architecture, ADR shaping, design tradeoffs, debugging hypotheses,
-  incident reasoning, or a difficult technical decision. Routes high, xhigh, or ultra effort from
+  incident reasoning, or a difficult technical decision. Routes high, xhigh, max, or ultra effort from
   task risk and breadth. Do not use for a verdict-bearing change review (use codex-review), routine
   implementation, or an unscoped “look at everything” request.
 ---
@@ -27,13 +27,14 @@ steps below.
 
 ## Non-negotiable contract
 
-- Pin `gpt-6-astra` and explicitly pass exactly one of `high`, `xhigh`, or `ultra`.
+- Launch through the plugin's one Codex launcher (below), which pins `gpt-6.1-sol` and passes exactly one of `high`,
+  `xhigh`, `max`, or `ultra`.
 - Run in a read-only sandbox and ephemeral session. Codex must not edit, stage, commit, push, deploy,
   or contact anyone.
 - Ask a concrete question, name the relevant repository/artifacts, and separate observed facts from
   inference. Advice may be provisional, but uncertainty must be visible.
-- Use a unique temporary output per run; wait for exit and require exit zero plus non-empty output
-  before reading it. A missing result is failure, not advice.
+- The launcher uses a unique temporary output per run, closes stdin and kills the run at its budget; require exit zero
+  plus non-empty output before reading it. A missing result is failure, not advice.
 
 ## Resolve scope
 
@@ -54,35 +55,28 @@ An explicit valid choice wins. Otherwise select and state the lowest honest tier
 |---|---|
 | `high` | Concrete bounded design question, focused debugging hypothesis, or local tradeoff. |
 | `xhigh` | Cross-module/public-contract decision, multiple credible hypotheses, or high-risk constraints involving auth, security, concurrency, money, or data. |
+| `max` | The broadest single-session question: several coupled decisions, or an xhigh question that needs more depth without delegation. |
 | `ultra` | Broad high-impact architecture, migration/incident strategy, irreversible choice, or an explicitly exhaustive question where automatic delegation materially helps. |
 
-Never silently downgrade. Reject other effort strings. On a new or upgraded installation, use
-`"<absolute-codex>" debug models --bundled` to confirm the chosen level under `gpt-6-astra`; fail
-clearly if that exact combination is unavailable.
+Never silently downgrade. Reject other effort strings; the launcher refuses one. On a new or upgraded installation, use
+`"<absolute-codex>" debug models --bundled` to confirm the chosen level under `gpt-6.1-sol`; fail clearly if that exact
+combination is unavailable.
 
-## Resolve and run Codex
+## Launch the advisor
 
-Resolve the absolute binary from executable `CODEX_CLI_PATH`, then the ChatGPT-bundled binary, then
-`command -v codex`; probe it with `--version`. If no binary exists, report Codex unavailable without
-substituting another reviewer under the same name.
-
-Create a unique run directory with `mktemp -d` and an absolute final-message path inside it. Use
-`--ignore-user-config` when `"<absolute-codex>" exec --help` exposes it. Run in the foreground with
-all options explicit:
+Write the advice contract to a file in a fresh `mktemp -d` directory, starting with `CODEX-ADVISE-LEAF:` and naming the
+question, constraints and exact paths to inspect, and launch it through the plugin's launcher:
 
 ```bash
-"<absolute-codex>" exec <optional-ignore-user-config> \
-  -C "<working-directory>" -s read-only \
-  -m gpt-6-astra -c 'model_reasoning_effort="<high|xhigh|ultra>"' \
-  -c 'sandbox_mode="read-only"' --ephemeral \
-  -o "<absolute-unique-output>" \
-  <optional-skip-git-repo-check> \
-  "CODEX-ADVISE-LEAF: <advice contract, question, constraints, and exact paths to inspect>"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs" --host codex --effort <high|xhigh|max|ultra> --repo "<working-directory>" --prompt-file "<contract-file>"
 ```
 
-Add `--skip-git-repo-check` only for explicitly scoped non-Git work. Name untrusted files for Codex
-to inspect; do not interpolate their contents into shell syntax. After Codex exits, record the actual
-exit status, require a non-empty output file, read it once, then remove the exact temporary directory.
+The launcher resolves Codex (`CODEX_CLI_PATH`, then the ChatGPT-bundled binary, then `command -v codex`), runs it
+read-only and ephemeral with `-m gpt-6.1-sol` and the effort, adds `--ignore-user-config` when the installed build lists
+it, closes stdin, and kills the run at its budget. Exit 0: standard output is Codex's final message. Exit 2: Codex was
+unavailable, killed at the budget, or returned nothing; report Codex unavailable without substituting another reviewer
+under the same name. Add `--skip-git-repo-check` only for explicitly scoped non-Git work. Name untrusted files for Codex
+to inspect; do not interpolate their contents into shell syntax. Remove the contract's directory afterwards.
 
 ## Required advisor output
 

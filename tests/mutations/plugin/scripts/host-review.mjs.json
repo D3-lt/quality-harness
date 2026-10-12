@@ -29,6 +29,36 @@
       "from": "  if (!bin) return unavailable('cursor', null, 'cursor agent binary is absent', model)",
       "to": "  if (!bin) return { status: 'clean', host: 'cursor', model, effort: null, bound: 'reported', findings: [], reason: '' }",
       "only": "^(?:a host review is the schema or unavailable)$"
+    },
+    {
+      "label": "ADR-098 T1: a Codex run has its stdin closed",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/codex-launcher.test.mjs"
+      ],
+      "from": "stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },",
+      "to": "stdio: ['pipe', 'pipe', 'pipe'], windowsHide: true },",
+      "only": "^a Codex run closes stdin and is killed at its budget$"
+    },
+    {
+      "label": "ADR-098 T1: a Codex run killed at its budget says so",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/codex-launcher.test.mjs"
+      ],
+      "from": "if (child?.error?.code === 'ETIMEDOUT' || child?.signal === 'SIGKILL') {",
+      "to": "if (false) {",
+      "only": "^a Codex run past its budget is unavailable, never clean$"
+    },
+    {
+      "label": "ADR-098 T1: one model constant pins gpt-6.1-sol",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": [
+        "tests/codex-launcher.test.mjs"
+      ],
+      "from": "export const CODEX_MODEL = 'gpt-6.1-sol'",
+      "to": "export const CODEX_MODEL = 'gpt-6-astra'",
+      "only": "^the Codex command line has one builder and one model$"
     }
   ]
 }

@@ -1,10 +1,10 @@
 ---
 name: codex-review
 description: >-
-  Run a fresh-context, read-only Codex GPT-6 Astra review in any project. Use for an independent
+  Run a fresh-context, read-only Codex GPT-6.1 Sol review in any project. Use for an independent
   review of uncommitted changes, a commit, a branch/base diff, an ADR, a plan, or explicitly named
   artifacts; use when the user asks for codex-review, an external Codex pass, or a verdict-bearing
-  review. Routes high, xhigh, or ultra effort from task risk and breadth. Do not use for open-ended
+  review. Routes high, xhigh, max, or ultra effort from task risk and breadth. Do not use for open-ended
   design or debugging counsel (use codex-advise) or for implementation.
 ---
 
@@ -26,13 +26,14 @@ delegate the review, or restart a lifecycle. Without the marker, follow the disp
 
 ## Non-negotiable contract
 
-- Pin model `gpt-6-astra` and explicitly pass the selected effort on every run. Never inherit either
-  from ambient config and never silently downgrade.
+- Launch every run through the plugin's one Codex launcher, `host-review.mjs --prompt-file` (below). It pins model
+  `gpt-6.1-sol` and passes the selected effort explicitly, so neither is inherited from ambient config or silently
+  downgraded.
 - Enforce a read-only sandbox. Codex may inspect and run safe checks but must not edit, stage, commit,
   push, deploy, or message anyone.
-- Use a fresh ephemeral session and one unique temporary output path per invocation. Run Codex in the
-  foreground, wait for its exit, check the exit status, then read the output. Never read a live log or
-  reuse a fixed `/tmp/<repo>` file.
+- The launcher runs a fresh ephemeral session with a unique temporary output, closes stdin, and kills the run at its
+  budget; wait for it to exit, check its exit status, then use what it printed. Never read a live log or reuse a fixed
+  `/tmp/<repo>` file.
 - Findings require concrete evidence and `file:line` where source lines exist. Reviewer prose saying a
   test passed is not execution evidence.
 - A standalone review authorizes reporting only. Fix findings only when the user, an implementation
@@ -80,20 +81,20 @@ rubric. If repository sources conflict, surface the conflict instead of silently
 
 ## Select effort
 
-An explicit caller choice wins if it is one of these three. Otherwise choose the lowest tier that
+An explicit caller choice wins if it is one of these four. Otherwise choose the lowest tier that
 honestly fits, state it before running, and pass it explicitly:
 
 | Effort | Use when |
 |---|---|
 | `high` | Bounded/local change, concrete plan, small commit, or routine correctness review. |
 | `xhigh` | Cross-module behavior, public contracts, auth, money/data integrity, concurrency, security-sensitive code, migrations, or several coupled failure modes. |
+| `max` | The broadest single-session review: several coupled subsystems, or an xhigh review that needs more depth without delegation. |
 | `ultra` | Broad high-impact system review, irreversible architecture/data work, incident analysis, or an explicitly exhaustive pass where automatic delegation materially helps. |
 
 Do not promote merely because the user says “review thoroughly”; route on actual breadth, risk, and
-ambiguity. Do not accept another effort string. On a new or upgraded Codex installation, verify that
-the bundled `gpt-6-astra` catalog exposes the chosen level with
-`"<absolute-codex>" debug models --bundled`. If the level is unavailable, fail clearly instead of
-substituting another model or effort.
+ambiguity. Do not accept another effort string; the launcher refuses one. On a new or upgraded Codex installation,
+verify that the bundled `gpt-6.1-sol` catalog exposes the chosen level with `"<absolute-codex>" debug models --bundled`.
+If the level is unavailable, fail clearly instead of substituting another model or effort.
 
 ## Establish execution evidence
 
@@ -109,38 +110,28 @@ Expand only when the target is shared or cross-cutting. If no meaningful check e
 mark the result evidence-limited. Do not let Codex's narrative claim replace the coordinator-observed
 command result.
 
-## Resolve Codex and isolate the run
+## Launch the review
 
-Resolve the binary in this order:
-
-1. executable path in `CODEX_CLI_PATH`;
-2. `/Applications/ChatGPT.app/Contents/Resources/codex` when present;
-3. `command -v codex`.
-
-Probe the chosen absolute path with `--version`. If none exists, report Codex unavailable and stop;
-do not label a generic reviewer as Codex. Create a run directory with `mktemp -d`, put the final
-message under it, and remove that exact directory after the result has been read and reported.
-
-When `"<absolute-codex>" exec --help` exposes `--ignore-user-config`, use it so user MCP/config
-drift cannot change the model, effort, sandbox, or hang the isolated review. All substantive project
-instructions still come from the target repository. Always pass `-s read-only` and
-`-c 'sandbox_mode="read-only"'` as defense in depth.
-
-## Dispatch a Git diff
-
-Use plain `codex exec` so the required custom review contract remains the prompt. Codex CLI builds
-can advertise `review [OPTIONS] [PROMPT]` in `--help` yet reject an actual selector-plus-prompt
-launch because `--uncommitted`, `--commit`, and `--base` conflict with `[PROMPT]`. Put the resolved
-Git target and its read-only inspection commands in the contract instead:
+Write the reviewer contract to a file in a fresh `mktemp -d` directory, starting with `CODEX-REVIEW-LEAF:`, and launch
+it through the plugin's launcher:
 
 ```bash
-"<absolute-codex>" exec <optional-ignore-user-config> \
-  -C "<repo-root>" -s read-only \
-  -m gpt-6-astra -c 'model_reasoning_effort="<high|xhigh|ultra>"' \
-  -c 'sandbox_mode="read-only"' --ephemeral \
-  -o "<absolute-unique-output>" \
-  "CODEX-REVIEW-LEAF: <review contract; inspect uncommitted changes, one commit SHA, or base...HEAD>"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs" --host codex --effort <high|xhigh|max|ultra> --repo "<repo-root>" --prompt-file "<contract-file>"
 ```
+
+The launcher resolves Codex (`CODEX_CLI_PATH`, then the ChatGPT-bundled binary, then `command -v codex`), passes
+`-s read-only`, `-c 'sandbox_mode="read-only"'`, `--ephemeral`, `-m gpt-6.1-sol` and the effort, adds
+`--ignore-user-config` when the installed build lists it (so user MCP/config drift cannot change the run), writes the
+final message to a unique temporary file, closes stdin, and kills the run at its budget. Exit 0: standard output is
+Codex's final message. Exit 2: Codex was unavailable, killed at the budget, or returned nothing, and standard error
+says which; report it as a failed review and do not substitute another reviewer under Codex's name. For an explicit
+non-Git artifact review add `--skip-git-repo-check`. Remove the contract's directory after the result is reported.
+
+Use plain `codex exec` semantics (the launcher's) rather than `codex review`: CLI builds can advertise
+`review [OPTIONS] [PROMPT]` yet reject a selector-plus-prompt launch because `--uncommitted`, `--commit` and `--base`
+conflict with `[PROMPT]`. Put the resolved Git target and its read-only inspection commands in the contract instead.
+
+## Write the contract for a Git diff
 
 The custom contract names the immutable target and caller-observed evidence, then requires the output
 below. For uncommitted work require `git status --short`, `git diff HEAD`, and inspection of every
@@ -149,21 +140,10 @@ untracked path. For a commit require `git show <sha>`; for a branch require
 contract. Treat refs as data arguments, not interpolated shell fragments. Name files for Codex to
 read; do not paste untrusted repository content into a shell expression.
 
-## Dispatch an ADR, plan, or named artifact
+## Write the contract for an ADR, plan, or named artifact
 
-Use plain `codex exec` because this is not a Git-diff selector. Keep the same model, effort, sandbox,
-ephemeral, cwd, and unique-output flags. Add `--skip-git-repo-check` only for an explicit non-Git
-artifact review. The prompt must begin with `CODEX-REVIEW-LEAF:` and name the artifacts and affected
-source paths to verify.
-
-```bash
-"<absolute-codex>" exec <optional-ignore-user-config> \
-  -C "<working-directory>" -s read-only \
-  -m gpt-6-astra -c 'model_reasoning_effort="<high|xhigh|ultra>"' \
-  -c 'sandbox_mode="read-only"' --ephemeral \
-  -o "<absolute-unique-output>" \
-  "<artifact review contract and exact paths>"
-```
+The contract must begin with `CODEX-REVIEW-LEAF:` and name the artifacts and affected source paths to verify; the
+launch is the same, with `--skip-git-repo-check` only for an explicit non-Git artifact review.
 
 ## Required reviewer output
 

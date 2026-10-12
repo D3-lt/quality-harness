@@ -25,7 +25,9 @@ campaign.
 
 - **Redirect stdin.** `codex exec` blocks on an open stdin and hangs indefinitely with no output —
   on 2026-08-28 it printed `Reading additional input from stdin...` and sat idle for well over an
-  hour. Always `< /dev/null`, and wrap it in a hard kill.
+  hour. The plugin's one launcher, `plugin/scripts/host-review.mjs` (ADR-098 T1), closes stdin and kills
+  the run at its budget for every review the skills start; a `codex exec` run by hand still needs
+  `< /dev/null` and a hard kill.
 - **Scope it to the code that changed.** A diff dominated by renames is not reviewable; name the
   files whose semantics changed and ask numbered questions.
 - **Give it a budget it can finish in, and read the exit code.** `gtimeout … codex exec` returning

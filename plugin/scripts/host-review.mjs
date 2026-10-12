@@ -2,14 +2,21 @@
 // One review result for a host other than Claude's agent() (ADR-062).
 // Cursor's `agent --help` (2026-09-22) is "Start the Cursor Agent": -p, --output-format json,
 // --mode ask (read-only). The `cursor` binary opens the editor and is not this runner.
-// Codex uses the invocation codex-review already specifies. Pi stays unavailable
-// until a command that prints its interface has been run; nothing here guesses argv.
+// Every Codex run the plugin starts is built here, by `codexInvocation` (ADR-098 T1): the codex-review and
+// codex-advise skills launch through the `--prompt-file` form below rather than writing their own command.
+// Pi stays unavailable until a command that prints its interface has been run; nothing here guesses argv.
 import { spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 import { isMainModule } from './main-module.mjs'
 
-export const CODEX_MODEL = 'gpt-6-astra'
-export const EFFORTS = new Set(['high', 'xhigh', 'ultra'])
+export const CODEX_MODEL = 'gpt-6.1-sol'
+// The review-grade efforts `gpt-6.1-sol` exposes: `codex debug models --bundled` on codex-cli 0.162.0
+// (2026-10-12) lists low, medium, high, xhigh, max and ultra; low and medium are not a verdict-bearing review.
+export const EFFORTS = new Set(['high', 'xhigh', 'max', 'ultra'])
+// One budget for every Codex run, and the run is killed at it: a review that outlives it is unavailable, never clean.
+export const CODEX_TIMEOUT_MS = 600_000
 export const REVIEW_STATUS = new Set(['clean', 'blocking', 'evidence-limited', 'unavailable'])
 // Measured 2026-09-22: `command -v pi` printed nothing.
 export const PI_UNMEASURED = 'pi invocation was not measured'
@@ -99,27 +106,60 @@ export function reviewPrompt({ repo, scope, requirements = '', evidence = '' }) 
   ].join('\n')
 }
 
+// The one Codex command line: read-only, the pinned model and an explicit effort, a fresh session, the final message
+// written to `output`, stdin closed (an open stdin can hold `codex exec` waiting for input, `.claude/rules/12-reviews.md`),
+// and killed at the budget.
+export function codexInvocation({ bin, repo, effort, prompt, output, ignoreUserConfig = false, skipGitRepoCheck = false }) {
+  const argv = [
+    'exec', ...(ignoreUserConfig ? ['--ignore-user-config'] : []), '-C', repo, '-s', 'read-only',
+    '-m', CODEX_MODEL, '-c', `model_reasoning_effort="${effort}"`,
+    '-c', 'sandbox_mode="read-only"', '--ephemeral', ...(skipGitRepoCheck ? ['--skip-git-repo-check'] : []),
+    '-o', output, prompt,
+  ]
+  return {
+    bin, argv,
+    options: { encoding: 'utf8', timeout: CODEX_TIMEOUT_MS, killSignal: 'SIGKILL', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true },
+  }
+}
+
+// `--ignore-user-config` keeps a user's MCP servers and config from changing the run; only builds that list it accept it.
+function acceptsIgnoreUserConfig(bin, run) {
+  const help = run(bin, ['exec', '--help'], { encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true })
+  return Boolean(help && !help.error && help.status === 0 && String(help.stdout ?? '').includes('--ignore-user-config'))
+}
+
+// One Codex run through `codexInvocation`: { text } on success, or { reason } — a run past its budget says so.
+export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, run = spawnSync }) {
+  const directory = mkdtempSync(path.join(os.tmpdir(), 'qh-codex-'))
+  try {
+    const call = codexInvocation({ bin, repo, effort, prompt, output: path.join(directory, 'last-message.txt'), ignoreUserConfig: acceptsIgnoreUserConfig(bin, run), skipGitRepoCheck })
+    const child = run(call.bin, call.argv, call.options)
+    if (child?.error?.code === 'ETIMEDOUT' || child?.signal === 'SIGKILL') {
+      return { reason: `codex was killed at its budget of ${CODEX_TIMEOUT_MS / 1000} s` }
+    }
+    if (!child || child.error || child.status !== 0) return { reason: child?.error?.message ?? `codex exited ${child?.status}` }
+    let text = ''
+    try { text = readFileSync(path.join(directory, 'last-message.txt'), 'utf8') } catch { /* an older build: stdout carries it */ }
+    return { text: text.trim() ? text : String(child.stdout ?? '') }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+}
+
 export function hostReview({ host, effort = 'high', model = null, repo, scope, requirements, evidence, resolve, run = spawnSync, output } = {}) {
   if (host === 'pi') return unavailable('pi', null, PI_UNMEASURED)
   const target = { repo, scope, requirements, evidence }
   if (host === 'cursor') return runCursor({ model, target, resolve: resolve ?? resolveCursorAgent, run, output })
   if (host !== 'codex') return unavailable(host ?? null, null, 'unknown host')
-  if (!EFFORTS.has(effort)) return unavailable('codex', effort, 'effort is not high, xhigh, or ultra', CODEX_MODEL)
+  if (!EFFORTS.has(effort)) return unavailable('codex', effort, `effort is not one of ${[...EFFORTS].join(', ')}`, CODEX_MODEL)
   if (output !== undefined) return reviewFromOutput(output, { host: 'codex', model: CODEX_MODEL, effort })
   const bin = (resolve ?? resolveCodex)()
   if (!bin) return unavailable('codex', effort, 'codex binary is absent', CODEX_MODEL)
   const missing = missingTarget(target)
   if (missing) return unavailable('codex', effort, missing, CODEX_MODEL)
-  const child = run(bin, [
-    'exec', '-C', repo, '-s', 'read-only',
-    '-m', CODEX_MODEL, '-c', `model_reasoning_effort="${effort}"`,
-    '-c', 'sandbox_mode="read-only"', '--ephemeral',
-    `CODEX-REVIEW-LEAF: ${reviewPrompt(target)}`,
-  ], { encoding: 'utf8', timeout: 600_000, windowsHide: true })
-  if (!child || child.error || child.status !== 0) {
-    return unavailable('codex', effort, child?.error?.message ?? `codex exited ${child?.status}`, CODEX_MODEL)
-  }
-  return reviewFromOutput(child.stdout, { host: 'codex', model: CODEX_MODEL, effort })
+  const result = runCodex({ bin, repo, effort, prompt: `CODEX-REVIEW-LEAF: ${reviewPrompt(target)}`, run })
+  if (result.reason) return unavailable('codex', effort, result.reason, CODEX_MODEL)
+  return reviewFromOutput(result.text, { host: 'codex', model: CODEX_MODEL, effort })
 }
 
 function missingTarget({ repo, scope }) {
@@ -148,7 +188,30 @@ function arg(name) {
   return index >= 0 ? process.argv[index + 1] : undefined
 }
 
+// The `--prompt-file` form is the skills' launcher: the caller's own prompt (codex-review's VERDICT block, codex-advise's
+// advice), run through `runCodex`, and Codex's final message printed as it is. Exit 2 with the reason when it could not run.
+function promptFileMain() {
+  const effort = arg('--effort') ?? 'high'
+  const repo = arg('--repo')
+  const file = arg('--prompt-file')
+  const fail = reason => { process.stderr.write(`host-review: unavailable — ${reason}\n`); process.exit(2) }
+  if (arg('--host') !== 'codex') fail('--prompt-file runs Codex only: pass --host codex')
+  if (!EFFORTS.has(effort)) fail(`effort is not one of ${[...EFFORTS].join(', ')}`)
+  if (typeof repo !== 'string' || !repo) fail('no repository was named (--repo)')
+  let prompt
+  try { prompt = readFileSync(file, 'utf8') } catch (error) { fail(`the prompt file could not be read: ${error.code ?? error.message}`) }
+  if (!prompt.trim()) fail('the prompt file is empty')
+  const bin = resolveCodex()
+  if (!bin) fail('codex binary is absent')
+  const result = runCodex({ bin, repo, effort, prompt, skipGitRepoCheck: process.argv.includes('--skip-git-repo-check') })
+  if (result.reason) fail(result.reason)
+  if (!result.text.trim()) fail('codex returned an empty final message')
+  process.stdout.write(result.text.endsWith('\n') ? result.text : `${result.text}\n`)
+  process.exit(0)
+}
+
 if (isMainModule(import.meta.url)) {
+  if (process.argv.includes('--prompt-file')) promptFileMain()
   const result = hostReview({
     host: arg('--host'), effort: arg('--effort') ?? 'high', model: arg('--model') ?? null, repo: arg('--repo'),
     scope: arg('--scope'), requirements: arg('--requirements') ?? '', evidence: arg('--evidence') ?? '',

@@ -381,7 +381,7 @@ export async function runShellHook(scriptName, raw, options = {}) {
   // Claude Code surfaces exit-0 stdout in transcript view only. Wrapping it as
   // additionalContext is what actually puts the finding in front of the model
   // at the moment of the edit, which is the 'report' half of "reports at the
-  // edit and blocks at the boundary".
+  // edit and again at the boundary".
   const payload = parsedHookPayload(raw, process.platform)
   if (scriptName === 'facts-gate-dispatch.sh'
       && payload?.hook_event_name === 'PostToolUse'

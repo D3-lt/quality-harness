@@ -1,6 +1,6 @@
 #!/bin/bash
 # Plugin-local PostToolUse dispatcher: immediately report a matching facts-first gate failure.
-# The completion hook reruns this same dispatcher and blocks final completion.
+# The completion hook reruns this same dispatcher and reports again; it refuses nothing.
 # Gates: spec-verify --draft (spec files), adr-lint (active ADR + task files),
 # adr-retire-check (opt-in archive catalogs), arch-lint (architecture files),
 # postmortem-verify.
@@ -10,7 +10,7 @@ f=${1-}
 [ -z "$f" ] && exit 0
 # The hook event this run was dispatched from, empty when the completion and
 # commit boundaries rerun the dispatcher themselves. Only an explicit PostToolUse
-# relaxes anything below, so an unknown boundary still blocks.
+# relaxes anything below, so an unknown boundary gets the full finding on stderr.
 boundary=${2-}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
@@ -351,7 +351,7 @@ elif [ "$tasks_index" = 1 ] || [[ "$f" == */tasks/*.md ]] || grep -qE '^# Task A
     # not be written yet, which is the same legitimate incompleteness the
     # boundary rule below exists for.
     if [ "$boundary" = "PostToolUse" ]; then
-      printf 'facts-first gate (ADR ownership) not satisfied yet for %s: expected exactly one owning ADR%s, found %s. It blocks at commit and completion.\n' \
+      printf 'facts-first gate (ADR ownership) not satisfied yet for %s: expected exactly one owning ADR%s, found %s. Nothing is blocked; the artifact pass checks it again at the next publish, turn end or session end.\n' \
         "$f" "${adr_ref:+ ($adr_ref)}" "${#candidates[@]}"
       exit 0
     fi

@@ -66,8 +66,8 @@ export function artifactGateTimeoutMs(env = process.env) {
 // has its own deadline (hooks.json: 60s at PreToolUse, 120s at completion), and
 // a hook that dies on that deadline blocks nothing — so letting per-artifact
 // budgets add up past the window would turn the gate fail-open exactly when the
-// corpus is big enough to matter. Running out of window is itself a blocking
-// failure.
+// corpus is big enough to matter. Running out of window is reported as a budget
+// that ran out, not as a finding about the artifacts (see budgetExhausted below).
 // True when the artifact gate ran out of its budget rather than reaching a verdict.
 //
 // The same budget runs out two ways. Normally run-shell-hook.mjs outlives its

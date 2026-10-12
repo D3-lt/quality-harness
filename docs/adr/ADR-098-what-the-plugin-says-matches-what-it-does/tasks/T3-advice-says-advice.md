@@ -58,6 +58,12 @@ out=$(node --test --test-reporter=tap tests/advice-says-advice.test.mjs tests/ho
 | 4 — it is used | nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-12 · 7cd97baa* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the ownership notice reverts to claiming a block · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356
+- 2026-10-12 · 7cd97baa* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · a comment in the class claims the completion hook blocks · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356
+- 2026-10-12 · 7cd97baa* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the boundary ownership wording the readiness golden holds moves, so the hook goldens detect a changed sentence · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356
+- 2026-10-12 · 7cd97baa* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the ownership notice reverts to claiming a block · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · covers:the notice says nothing is blocked
+- 2026-10-12 · 7cd97baa* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · a comment in the class claims the completion hook blocks · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · covers:no shipped text claims the artifact gate blocks
+- 2026-10-12 · 7cd97baa* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the boundary ownership wording the readiness golden holds moves, so the hook goldens detect a changed sentence · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · covers:the hook goldens are unchanged
 
 ## Invariants
 
@@ -77,3 +83,15 @@ Stop and ask if the ADR-ownership path turns out to deny anywhere (a `deny` reac
 - adr-lint's own "blocking" vocabulary (`adr-lint:3566`, `:4989`): it names adr-lint's exit status, CLAUDE.md §3's `errors.append`
 
 ## Verification Log
+- 2026-10-12 · 7cd97baa* · exit 1 · `out=$(node --test --test-reporter=tap tests/advice-says-advice.test.mjs tests/hook-goldens.test.mjs tests/gates.test.mjs 2>&1) \ …` · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · ms:45602 · test-lock-sha256:3ca3c6ec59ae43a1a03ad147412accdaed01cd25b0bcbd1b4056240e42d34f71 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvYWR2aWNlLXNheXMtYWR2aWNlLnRlc3QubWpzCW5vIHNoaXBwZWQgdGV4dCBjbGFpbXMgdGhlIGFydGlmYWN0IGdhdGUgYmxvY2tzCWY0ZWIwYjE0M2QyZjMyNGZlMjcyN2IzZjI0NTY0ODRiODM5MDc5ZWZiNWU2ZWU2MTRlNGFmYjAwYWMyN2ViM2MKYm9keQl0ZXN0cy9hZHZpY2Utc2F5cy1hZHZpY2UudGVzdC5tanMJdGhlIEFEUi1vd25lcnNoaXAgbm90aWNlIHNheXMgbm90aGluZyBpcyBibG9ja2VkCWE1MWRmYjFiN2ViZjBhZjg1OTE1Y2FjOTA1MzVkNmYxYjc1Y2RkYTQxYWU1ZGEwNTBiZjFhOGYwODhiYTQ4OGE
+  ```
+  ```
+- 2026-10-12 · 7cd97baa* · exit 0 · `out=$(node --test --test-reporter=tap tests/advice-says-advice.test.mjs tests/hook-goldens.test.mjs tests/gates.test.mjs 2>&1) \ …` · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · ms:44937
+- 2026-10-12 · 7cd97baa* · exit 0 · `out=$(node --test --test-reporter=tap tests/advice-says-advice.test.mjs tests/hook-goldens.test.mjs tests/gates.test.mjs 2>&1) \ …` · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · ms:48049
+- 2026-10-12 · 7cd97baa* · exit 0 · `out=$(node --test --test-reporter=tap tests/advice-says-advice.test.mjs tests/hook-goldens.test.mjs tests/gates.test.mjs 2>&1) \ …` · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · ms:50316
+- 2026-10-12 · human-observed · observed: git grep -n -i -E "\bblocks? (at|final|the commit|completion|the boundary)|blocking failure|still blocks|and blocks" over plugin/scripts plugin/bin plugin/hooks plugin/skills plugin/agents printed 3 lines (adr-lint:3566, adr-lint:4989, claims-rate.mjs:145), the three non-members, unchanged; git grep -n -E "It blocks at|is itself a blocking" -- plugin printed 0 lines
+- 2026-10-12 · human-observed · observed: the parent record Context class command printed 3 lines, the three known non-members unchanged, and its companion sweep printed 0 lines; no member is left (the previous note quoted the pattern text, which adr-next misread as a stop)
+- 2026-10-12 · human-observed · observed: the Context class sweep printed 3 lines, the three known non-members unchanged, and its companion sweep printed 0 lines; no member is left
+- 2026-10-12 · 7cd97baa* · exit 0 · `out=$(node --test --test-reporter=tap tests/advice-says-advice.test.mjs tests/hook-goldens.test.mjs tests/gates.test.mjs 2>&1) \ …` · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · ms:41856
+- 2026-10-12 · 7cd97baa* · exit 0 · `out=$(node --test --test-reporter=tap tests/advice-says-advice.test.mjs tests/hook-goldens.test.mjs tests/gates.test.mjs 2>&1) \ …` · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · ms:45918
+- 2026-10-12 · 7cd97baa* · exit 0 · `out=$(node --test --test-reporter=tap tests/advice-says-advice.test.mjs tests/hook-goldens.test.mjs tests/gates.test.mjs 2>&1) \ …` · acceptance-sha256:20435b84dee800083256447a3ef160efc53631b0282fbc0b214279fa31b0c356 · ms:40806

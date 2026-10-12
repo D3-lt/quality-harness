@@ -51,6 +51,26 @@
       "only": "^(?:every record gate advises, at the edit and at the boundary alike)$"
     },
     {
+      "label": "advice: the ADR-ownership notice says nothing is blocked (ADR-098 T3)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/advice-says-advice.test.mjs"
+      ],
+      "from": "Nothing is blocked; the artifact pass checks it again at the next publish, turn end or session end.",
+      "to": "It blocks at commit and completion.",
+      "only": "^(?:the ADR-ownership notice says nothing is blocked)$"
+    },
+    {
+      "label": "advice: no shipped comment claims the completion hook blocks (ADR-098 T3)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/advice-says-advice.test.mjs"
+      ],
+      "from": "reports again; it refuses nothing.",
+      "to": "reports again and blocks final completion.",
+      "only": "^(?:no shipped text claims the artifact gate blocks)$"
+    },
+    {
       "label": "gates: the advice carries the gate's own words",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": [

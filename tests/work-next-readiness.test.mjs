@@ -7,13 +7,12 @@
 // CLI, unread directories rendered as "Nothing in the QH corpus is waiting".
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { main, observe, readinessFrom } from '../plugin/scripts/work-next.mjs'
-import { readyTaskLines } from '../plugin/scripts/ready-lines.mjs'
 
 const testDir = path.dirname(fileURLToPath(import.meta.url))
 const repoRoot = path.resolve(testDir, '..')
@@ -474,14 +473,6 @@ test('a task adr-next could not read leaves its directory UNPROVEN in both reade
     stopped_by: 'could not read it: T2-b.md holds NUL bytes (saved as UTF-16, or binary?), so its state is UNPROVEN' }]
   const signedStop = [{ id: 'T2', path: path.join(dir, 'T2-b.md'), stopped_by: 'sign-off says STOP' }]
 
-  const lines = stopped => readyTaskLines(root, true, listing, reply(stopped)).lines.join('\n')
-  assert.match(lines(unreadable), /ADR-001-a\/tasks: UNPROVEN — adr-next could not read 1 task file\(s\) there/)
-  assert.doesNotMatch(lines(unreadable), /fully evidenced/)
-  // DIRTY twins: a task stopped by its own sign-off is said as stopped, and a directory
-  // with nothing stopped is the evidenced one.
-  assert.match(lines(signedStop), /ADR-001-a\/tasks: nothing ready; 1 task\(s\) stopped\./)
-  assert.match(lines([]), /1 task directory read is fully evidenced/)
-
   const corpus = [{ kind: 'governing', frozen: false, taskFiles: [path.join(dir, 'T1-a.md'), path.join(dir, 'T2-b.md')] }]
   assert.deepEqual(readinessFrom(corpus, root, reply(unreadable)).unproven, [dir])
   assert.deepEqual(readinessFrom(corpus, root, reply(signedStop)).unproven, [])
@@ -504,41 +495,4 @@ test('a done claim is read whatever horizontal space follows its Status', () => 
   }
   assert.deepEqual(unbacked('**Status:** pending'), [], 'no claim, nothing unbacked')
   for (const space of [' ', '\u{2003}', '\u{a0}']) assert.equal(unbacked(`**Status:**${space}done`).length, 1, JSON.stringify(space))
-})
-
-// A Windows chaos round of 916b515 (tender-reef G2): SessionStart said a task directory
-// was UNPROVEN, because one task file could not be read, and then said T1 there was
-// ready. An unreadable task may produce what T1 consumes, so no task there is offered.
-test('a directory with an unreadable task offers none of its tasks as ready', () => {
-  const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-g2-')))
-  temps.push(root)
-  const dir = path.join(root, 'docs', 'adr', 'ADR-002-a', 'tasks')
-  mkdirSync(dir, { recursive: true })
-  writeFileSync(path.join(dir, 'T1-a.md'), '# x\n')
-  const listing = ['docs/adr/ADR-002-a/tasks/T1-a.md', 'docs/adr/ADR-002-a/tasks/T2-b.md']
-  const said = stopped => readyTaskLines(root, true, listing, () => ({ status: 0, stderr: '', stdout: JSON.stringify({
-    ready: [{ id: 'T1', goal: 'Task T1: a', path: path.join(dir, 'T1-a.md') }], blocked: [], done: [], stopped,
-  }) })).lines.join('\n')
-  const unread = said([{ id: 'T2', path: path.join(dir, 'T2-b.md'), unreadable: true, stopped_by: 'could not read it' }])
-  assert.match(unread, /UNPROVEN — adr-next could not read 1 task file/, unread)
-  assert.doesNotMatch(unread, /T1 is ready/, unread)
-  // Clean twin: with every task read, T1 is offered.
-  assert.match(said([]), /T1 is ready/)
-})
-
-// The same round (C-4): SessionStart told the reader to prove a task with adr-verify
-// when it had no fence adr-verify could run, and adr-verify then refused the file.
-test('a ready task with no runnable fence is not sent to adr-verify', () => {
-  const root = realpathSync.native(mkdtempSync(path.join(os.tmpdir(), 'qh-c4-')))
-  temps.push(root)
-  const dir = path.join(root, 'docs', 'adr', 'ADR-002-a', 'tasks')
-  mkdirSync(dir, { recursive: true })
-  writeFileSync(path.join(dir, 'T1-a.md'), '# x\n')
-  const said = acceptance => readyTaskLines(root, true, ['docs/adr/ADR-002-a/tasks/T1-a.md'], () => ({ status: 0, stderr: '', stdout: JSON.stringify({
-    ready: [{ id: 'T1', goal: 'Task T1: a', path: path.join(dir, 'T1-a.md'), acceptance, human_observed: false }], blocked: [], done: [], stopped: [],
-  }) })).lines.join('\n')
-  const none = said(null)
-  assert.match(none, /no runnable Acceptance fence/, none)
-  assert.doesNotMatch(none, /Prove it with/, none)
-  assert.match(said('true'), /Prove it with/)
 })

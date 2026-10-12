@@ -18,7 +18,7 @@
       ],
       "from": "return dirParts.some(part => UNINTERESTING_DIRECTORY.test(part))",
       "to": "return false",
-      "only": "^(?:the predicate names the fixture directories and nothing a record lives in|adrCorpus lists the real record and not its fixture double|work-next offers the real task and never a fixture task|session orientation asks adr-next about the real task set and never a fixture)$"
+      "only": "^(?:the predicate names the fixture directories and nothing a record lives in|adrCorpus lists the real record and not its fixture double|work-next offers the real task and never a fixture task)$"
     },
     {
       "label": "§350 C8: a golden directory is the corpus's own",

@@ -1,16 +1,6 @@
 {
   "mutations": [
     {
-      "label": "lifecycle: a command keeps its real path and names an invisible character beside it (2.110.0-rc round 3 N4)",
-      "file": "plugin/scripts/corpus-text.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  return `${codeSpan(shown)}${note}${tagged}`",
-      "to": "  return pathInCode(command)",
-      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
-    },
-    {
       "label": "lifecycle: a path in the ready line cannot break out of its code span (2.110.0-rc round 2 N4)",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": [
@@ -18,7 +8,7 @@
       ],
       "from": "  const fence = '`'.repeat(longest + 1)",
       "to": "  const fence = '`'",
-      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
+      "only": "^(?:a path in a code span cannot break out of it or hide a character, and quoted words print no control)$"
     },
     {
       "label": "lifecycle: an invisible character in a path is shown as an escape (2.110.0-rc round 2 N4)",
@@ -28,7 +18,7 @@
       ],
       "from": "    char => `\\\\u{${char.codePointAt(0).toString(16)}}`)",
       "to": "    char => char)",
-      "only": "^(?:a path in the ready line cannot break out of its code span or hide a character)$"
+      "only": "^(?:a path in a code span cannot break out of it or hide a character, and quoted words print no control)$"
     },
     {
       "label": "lifecycle: SessionStart quotes a task's title and fence, defanged (2.110.0-rc chaos L7)",
@@ -38,7 +28,7 @@
       ],
       "from": "    .replace(/[\\u{0}-\\u{1f}\\u{7f}-\\u{9f}\\u{200b}-\\u{200f}\\u{202a}-\\u{202e}\\u{2060}-\\u{2069}\\u{feff}]/gu, ' ')\n",
       "to": "",
-      "only": "^(?:a ready task title and fence reach SessionStart quoted, and the fence is named as run)$"
+      "only": "^(?:a path in a code span cannot break out of it or hide a character, and quoted words print no control)$"
     },
     {
       "label": "corpus-probe: a known prefix is redacted in either separator spelling",
@@ -121,16 +111,6 @@
       "only": "a declared check cannot forge a line"
     },
     {
-      "label": "§319: a command in code keeps a control's bytes",
-      "file": "plugin/scripts/corpus-text.mjs",
-      "tests": [
-        "tests/chaos-e016066.test.mjs"
-      ],
-      "from": "/gu, visiblePath)\n  const hidden",
-      "to": "/gu, char => char)\n  const hidden",
-      "only": "a command keeps an invisible character a copy needs"
-    },
-    {
       "label": "§321 codex render: the tag rule reverts to every < before a letter, a redirection too",
       "file": "plugin/scripts/corpus-text.mjs",
       "tests": [
@@ -179,26 +159,6 @@
       "from": "untagged(String(command).split('\\t').map(visiblePath).join('\\t'))",
       "to": "untagged(visiblePath(command))",
       "only": "a check command is shown byte for byte"
-    },
-    {
-      "label": "§321 codex render: the adr-verify command prints a tag raw",
-      "file": "plugin/scripts/corpus-text.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "  return `${codeSpan(shown)}${note}${tagged}`",
-      "to": "  return `${codeSpan(text)}${note}${tagged}`",
-      "only": "a tag in a task directory or file name"
-    },
-    {
-      "label": "§321 codex render: the adr-verify command does not say its shown path is not the real name",
-      "file": "plugin/scripts/corpus-text.mjs",
-      "tests": [
-        "tests/chaos-315-codex-render.test.mjs"
-      ],
-      "from": "const tagged = shown === text ? '' :",
-      "to": "const tagged = true ? '' :",
-      "only": "a tag in a task directory or file name"
     },
     {
       "label": "§321 codex render: a ready line's own path prints a tag raw in its code span",

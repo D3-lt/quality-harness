@@ -54,10 +54,11 @@
   ],
   "disagreements": [],
   "sessionStart": {
-    "mustMatch": [
-      "cross-repo/tasks`: T1 is ready"
-    ],
-    "mustNotMatch": []
+    "mustMatch": [],
+    "mustNotMatch": [
+      "is ready",
+      "ADR tasks in flight"
+    ]
   },
   "neverNamed": [],
   "couldNotRun": []

@@ -11,7 +11,6 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
-import { readyTaskLines } from '../plugin/scripts/ready-lines.mjs'
 import { adrCorpus } from '../plugin/scripts/decision-corpus.mjs'
 import { observe } from '../plugin/scripts/work-next.mjs'
 import { probe } from '../plugin/scripts/corpus-probe.mjs'
@@ -73,22 +72,6 @@ const looped = name => {
     'docs/adr/back/ADR-001-loop.md', 'docs/adr/back/ADR-001-loop/tasks/T1-a.md']
   return { root, listing }
 }
-
-test('SessionStart reads a task directory reached again through a link once, and names the other path', () => {
-  const { root, listing } = looped('ready')
-  const asked = []
-  const spawn = (_tool, [directory]) => {
-    asked.push(directory)
-    return { status: 0, stderr: '', stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'a', path: path.join(directory, 'T1-a.md') }], status: 'Accepted', undecided: false }) }
-  }
-  const { lines } = readyTaskLines(root, true, listing, spawn)
-  assert.equal(asked.length, 1, `adr-next asked once: ${asked.join(' | ')}`)
-  assert.equal(lines.filter(line => /T1 is ready/.test(line)).length, 1, lines.join('\n'))
-  assert.ok(lines.some(line => /1 other listed path reaches a task directory already read \(`docs\/adr\/ADR-001-loop\/tasks`\)/.test(line)), lines.join('\n'))
-  // The control: with no second path, nothing is named.
-  const plain = readyTaskLines(root, true, listing.slice(0, 2), spawn).lines
-  assert.ok(!plain.some(line => /other listed path/.test(line)), plain.join('\n'))
-})
 
 test('work-next counts a task reached again through a link once, and a link copy of a record is not undecided', () => {
   const { root, listing } = looped('work-next')

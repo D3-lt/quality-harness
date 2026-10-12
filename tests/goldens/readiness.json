@@ -7,7 +7,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see.\n\nADR tasks in flight:\n  `docs/adr/ADR-002-proposed/tasks`: its record's Status is «Proposed», not Accepted, so this is a plan, not a work order — T1 is ready — the task file calls it «Task ADR-002-T1», and its Acceptance fence reads «true». Prove it with `adr-verify docs/adr/ADR-002-proposed/tasks/T1.md`, which runs that fence as written: read the fence in the task file first.\n  `docs/adr/ADR-001-accepted/tasks`: T1 is ready — the task file calls it «Task ADR-001-T1», and its Acceptance fence reads «true». Prove it with `adr-verify docs/adr/ADR-001-accepted/tasks/T1.md`, which runs that fence as written: read the fence in the task file first."
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
         }
       },
       "stderr": ""
@@ -26,7 +26,7 @@
       "stdout": {
         "hookSpecificOutput": {
           "hookEventName": "SessionStart",
-          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see.\n\nADR tasks in flight:\n  `docs/adr/ADR-002-proposed/tasks`: its record's Status is «Proposed», not Accepted, so this is a plan, not a work order — T1 is ready — the task file calls it «Task ADR-002-T1», and its Acceptance fence reads «true». Prove it with `adr-verify docs/adr/ADR-002-proposed/tasks/T1.md`, which runs that fence as written: read the fence in the task file first.\n  `docs/adr/ADR-001-accepted/tasks`: T1 is ready — the task file calls it «Task ADR-001-T1», and its Acceptance fence reads «true». Prove it with `adr-verify docs/adr/ADR-001-accepted/tasks/T1.md`, which runs that fence as written: read the fence in the task file first."
+          "additionalContext": "Verification: this project's own check is `sh check.sh`. Run it through `qh-check`: that is what records the result where the completion and commit advisories read it. The same command run any other way still proves the work to you, and leaves them nothing to see."
         }
       },
       "stderr": ""

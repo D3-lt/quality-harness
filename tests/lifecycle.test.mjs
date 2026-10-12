@@ -10,8 +10,7 @@ import { hookSaid, SLOW_HOOK_NOTE, stripPauseLines } from './hook-env.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { sessionOrientation, hasDecisionCorpus } from '../plugin/scripts/session-orientation.mjs'
-import { sessionStateNote } from '../plugin/scripts/session-notes.mjs'
-import { spawnGate, resolvePython, readyTaskLines, surfaceReadyLines } from '../plugin/scripts/ready-lines.mjs'
+import { spawnGate, resolvePython } from '../plugin/scripts/ready-lines.mjs'
 import { shadowInstallNotice, staleVersionNotice } from '../plugin/scripts/install-notices.mjs'
 import { saidMarkerDirectory, sweepStaleMarkers, sweepStaleSessionLogs } from '../plugin/scripts/housekeeping.mjs'
 import { artifactGateTimeoutMs, budgetExhausted, runArtifactGates } from '../plugin/scripts/artifact-pass.mjs'
@@ -19,7 +18,7 @@ import { checkCommandOrigin, projectCheckCommand, runTheCheckSentence } from '..
 import { readOnlyVerdict } from '../plugin/scripts/publish-verdict.mjs'
 import { observe, observeBudgetMs } from '../plugin/scripts/tree-facts.mjs'
 import { completionClaim } from '../plugin/scripts/completion-rules.mjs'
-import { adrCorpus, decisionContext, decisionsGoverning, pathMatchesDeclaration, posixListed } from '../plugin/scripts/decision-corpus.mjs'
+import { adrCorpus, decisionContext, decisionsGoverning, pathMatchesDeclaration } from '../plugin/scripts/decision-corpus.mjs'
 import { runPublishHook } from '../plugin/scripts/publish-hook.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
@@ -1020,7 +1019,7 @@ test('a slow hook names itself; a fast one says nothing about its time', async (
 test('PreCompact records what the gates measured, and the compact SessionStart hands it back', async () => {
   // Compaction keeps the model's summary and drops the state the gates measured.
   // PreCompact OBSERVES, then writes a note — the changed paths, whether a
-  // `qh-check` has passed on them, the last check event, the task in flight —
+  // `qh-check` has passed on them, and the last check event —
   // and the compact-source SessionStart injects it beside the orientation. A
   // resume does not: that context is still there.
   const { dir: repo, session } = await unheldRepository('quality-precompact-', 'service.py')
@@ -1504,19 +1503,6 @@ test('session orientation states this project, and only this project', async () 
   // with a branch policy states it in CLAUDE.md. Told plainly on 2026-08-26.
   assert.doesNotMatch(named, /branch|protected|git switch/i)
 
-  // A directory that is not a repository gets no ADR reading at all: a shared
-  // temp directory once yielded another project's tasks, and work from another
-  // codebase must never be offered to a session that was not opened on it.
-  const loose = await mkdtemp(path.join(testTmp, 'quality-orientation-loose-'))
-  await mkdir(path.join(loose, 'docs', 'tasks'), { recursive: true })
-  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
-    path.join(loose, 'docs', 'tasks', 'T1-fixture.md'))
-  assert.doesNotMatch(sessionOrientation(loose), /ADR tasks in flight/)
-
-  // Inside a repository the same records are read.
-  spawnSync('git', ['init', '-q', '-b', 'task/work', loose], { encoding: 'utf8', timeout: 60_000 })
-  assert.match(sessionOrientation(loose), /ADR tasks in flight/)
-
   // The hook itself is additive: it never blocks and never exits non-zero.
   const run = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: pluginDir })
   assert.equal(run.status, 0, run.stderr)
@@ -1539,68 +1525,6 @@ function quietSessionState() {
 function corruptGitIndex(dir) {
   writeFileSync(path.join(dir, '.git', 'index'), 'not-an-index')
 }
-
-test('SessionStart offers ready tasks the listing named', async () => {
-  const root = await mkdtemp(path.join(testTmp, 'ss-ready-listed-'))
-  await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
-  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
-    path.join(root, 'docs', 'tasks', 'T1-fixture.md'))
-  gitInit(root)
-  assert.match(sessionOrientation(root), /ADR tasks in flight/)
-  const note = sessionStateNote(quietSessionState(), root, root, true)
-  assert.match(note.text, /ADR task in flight/)
-})
-
-test('a disk-only task dir is not in flight', async () => {
-  const root = await mkdtemp(path.join(testTmp, 'ss-ready-hidden-'))
-  await mkdir(path.join(root, 'docs', 'hidden', 'tasks'), { recursive: true })
-  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
-    path.join(root, 'docs', 'hidden', 'tasks', 'T1-fixture.md'))
-  writeFileSync(path.join(root, '.gitignore'), 'hidden/\n')
-  writeFileSync(path.join(root, 'README.md'), 'listed\n')
-  gitInit(root)
-  const text = sessionOrientation(root)
-  assert.doesNotMatch(text, /ADR tasks in flight/)
-  const note = sessionStateNote(quietSessionState(), root, root, true)
-  assert.doesNotMatch(note.text, /ADR task in flight/)
-  assert.doesNotMatch(note.text, /UNPROVEN/)
-})
-
-// ADR-046 T3. readyTaskLines tolerated adr-next's 0 and 3 and `continue`d on
-// anything else — the silence of a directory with no tasks, for a gate whose lib
-// was missing beside a copied bin/ (exit 2, ADR-045 T4). Through the SessionStart
-// hook on stdin, the outermost boundary, with CLAUDE_PLUGIN_ROOT pointing at a
-// plugin copied WITHOUT lib/: the orientation must say UNPROVEN where the ready
-// line would be, with the gate's own sentence; the real plugin on the same
-// repository offers the task.
-test("SessionStart says UNPROVEN, with the gate's reason, when adr-next could not run", async () => {
-  const root = await mkdtemp(path.join(testTmp, 'ss-ready-unrun-'))
-  await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
-  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
-    path.join(root, 'docs', 'tasks', 'T1-fixture.md'))
-  gitInit(root)
-  const nolib = await mkdtemp(path.join(testTmp, 'plugin-nolib-'))
-  await cp(path.join(pluginDir, 'bin'), path.join(nolib, 'bin'), { recursive: true })
-  await cp(path.join(pluginDir, 'scripts'), path.join(nolib, 'scripts'), { recursive: true })
-  const orientation = run => JSON.parse(run.stdout).hookSpecificOutput.additionalContext
-
-  const unrun = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root },
-    { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, CLAUDE_PLUGIN_ROOT: nolib } })
-  assert.equal(unrun.status, 0, unrun.stderr)
-  const said = orientation(unrun)
-  assert.match(said, /ADR tasks in flight:\n {2}docs[/\\]tasks: UNPROVEN — adr-next could not run \(exit 2\): \[adr-next\] could not run: plugin\/lib\/record\.py is not beside/,
-    `could-not-run reaches the session as UNPROVEN, with the gate's sentence: ${said}`)
-  assert.match(said, /docs\/tasks: UNPROVEN/, `production lists the directory in posix form: ${said}`)
-  assert.doesNotMatch(said, /is ready —|all \d+ task\(s\) carry|nothing ready/, `no verdict about tasks nobody read: ${said}`)
-
-  // DIRTY: the same repository through the real plugin offers the task.
-  const ran = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root })
-  assert.equal(ran.status, 0, ran.stderr)
-  // The ready line's path is in a code span since a Windows chaos round (2.110.0-rc round 3).
-  assert.match(orientation(ran), /`docs[/\\]tasks`: T1 is ready —/, orientation(ran))
-  assert.match(orientation(ran), /`docs\/tasks`: T1 is ready —/, `production lists the directory in posix form: ${orientation(ran)}`)
-  assert.doesNotMatch(orientation(ran), /UNPROVEN — adr-next/)
-})
 
 function artifactGatesThrough(pluginRoot, paths, cwd) {
   const code = 'const {runArtifactGates}=await import(' +
@@ -1652,170 +1576,6 @@ test('runArtifactGates returns UNPROVEN when a dispatched gate could not run or 
   try { chmodSync(unread, 0o644) } catch {}
 })
 
-test('SessionStart always surfaces an UNPROVEN ready line and still caps ordinary ones', async () => {
-  assert.equal(posixListed('docs\\tasks'), 'docs/tasks')
-  assert.equal(posixListed('docs/tasks'), 'docs/tasks')
-
-  const ordinary = ['  a/tasks: T1 is ready — a', '  b/tasks: T2 is ready — b',
-    '  c/tasks: T3 is ready — c', '  d/tasks: T4 is ready — d']
-  assert.deepEqual(surfaceReadyLines(ordinary), [
-    '  a/tasks: T1 is ready — a', '  b/tasks: T2 is ready — b',
-    '  c/tasks: T3 is ready — c', '  (+1 more task directory read, not shown above)',
-  ])
-  assert.ok(!surfaceReadyLines(ordinary).some(line => line.includes('UNPROVEN')))
-
-  const mixed = [...ordinary.slice(0, 3), '  d/tasks: UNPROVEN — adr-next could not run (exit 2): missing lib']
-  const shown = surfaceReadyLines(mixed)
-  assert.ok(shown.some(line => line.includes('UNPROVEN')), `UNPROVEN is never hidden behind the cap: ${shown.join('\n')}`)
-  assert.ok(!shown.some(line => /\(\+\d+ more/.test(line)), `an UNPROVEN fourth line is not counted as hidden: ${shown.join('\n')}`)
-
-  const dirs = [
-    ['docs', 'tasks'],
-    ['docs', 'adr', 'A', 'tasks'],
-    ['docs', 'adr', 'B', 'tasks'],
-    ['docs', 'adr', 'C', 'tasks'],
-  ]
-  const root = await mkdtemp(path.join(testTmp, 'ss-ready-cap-'))
-  const fixture = path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md')
-  for (const parts of dirs) {
-    const directory = path.join(root, ...parts)
-    await mkdir(directory, { recursive: true })
-    await cp(fixture, path.join(directory, 'T1-fixture.md'))
-  }
-  gitInit(root)
-  const listing = dirs.map(parts => path.join(...parts, 'T1-fixture.md'))
-
-  const healthy = readyTaskLines(root, true, listing, () => ({
-    status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: path.join(root, 'docs', 'tasks', 'T1-fixture.md') }] }),
-    stderr: '', error: null, signal: null,
-  }))
-  assert.equal(healthy.lines.length, 4)
-  const capped = surfaceReadyLines(healthy.lines)
-  assert.equal(capped.filter(line => !/\(\+\d+ more/.test(line)).length, 3)
-  assert.match(capped.join('\n'), /\(\+1 more task directory read, not shown above\)/)
-  assert.ok(!capped.some(line => line.includes('UNPROVEN')))
-
-  let n = 0
-  const mixedSpawn = readyTaskLines(root, true, listing, () => {
-    n += 1
-    if (n === 4) {
-      return { status: 2, stdout: '', stderr: '[adr-next] could not run: plugin/lib/record.py', error: null, signal: null }
-    }
-    return {
-      status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: path.join(root, 'docs', 'tasks', 'T1-fixture.md') }] }),
-      stderr: '', error: null, signal: null,
-    }
-  })
-  assert.ok(mixedSpawn.lines.some(line => line.includes('UNPROVEN')))
-  assert.ok(surfaceReadyLines(mixedSpawn.lines).some(line => line.includes('UNPROVEN')))
-  assert.match(mixedSpawn.lines.join('\n'), /docs\/(?:adr\/C\/)?tasks/)
-
-  const vanished = readyTaskLines(root, true, listing, () => ({
-    status: null, stdout: '', stderr: '', error: new Error('quality-harness: no Python 3 on PATH answered a version probe'), signal: null,
-  }))
-  assert.ok(vanished.lines.every(line => /UNPROVEN — adr-next did not run/.test(line)),
-    `status null is did-not-run, not silence: ${vanished.lines.join('\n')}`)
-
-  const orientation = run => JSON.parse(run.stdout).hookSpecificOutput.additionalContext
-  const nolib = await mkdtemp(path.join(testTmp, 'plugin-nolib-cap-'))
-  await cp(path.join(pluginDir, 'bin'), path.join(nolib, 'bin'), { recursive: true })
-  await cp(path.join(pluginDir, 'scripts'), path.join(nolib, 'scripts'), { recursive: true })
-  const unrun = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root },
-    { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, CLAUDE_PLUGIN_ROOT: nolib } })
-  assert.equal(unrun.status, 0, unrun.stderr)
-  const said = orientation(unrun)
-  assert.match(said, /UNPROVEN/, said)
-  const unprovenLines = said.split('\n').filter(line => line.includes('UNPROVEN — adr-next'))
-  assert.ok(unprovenLines.length >= 4, `every directory's UNPROVEN surfaces: ${said}`)
-  assert.doesNotMatch(said, /\(\+\d+ more task director(?:y|ies) read, not shown/, `UNPROVEN is not hidden behind the cap: ${said}`)
-
-  const ran = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root })
-  assert.equal(ran.status, 0, ran.stderr)
-  const clean = orientation(ran)
-  assert.match(clean, /\(\+1 more task directory read, not shown above\)/, `four healthy directories still cap ordinary lines: ${clean}`)
-  assert.doesNotMatch(clean, /UNPROVEN — adr-next/)
-  const shownReady = clean.split('\n').filter(line => /is ready —/.test(line))
-  assert.equal(shownReady.length, 3, `cap keeps three ordinary ready lines: ${clean}`)
-})
-
-test('SessionStart says how many task directories it did not read', async () => {
-  // Reported 2026-09-23 from a Windows desktop over a 72-record corpus: the hook
-  // reads six directories, a `break` dropped the rest, and the only READY work sat
-  // in directories it never looked at while the block read as all-done (ADR-005).
-  const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
-  const root = await mkdtemp(path.join(testTmp, 'ss-ready-unread-'))
-  const fixture = path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md')
-  for (const letter of letters) {
-    const directory = path.join(root, 'docs', 'adr', letter, 'tasks')
-    await mkdir(directory, { recursive: true })
-    await cp(fixture, path.join(directory, 'T1-fixture.md'))
-  }
-  gitInit(root)
-  const listing = letters.map(letter => path.join('docs', 'adr', letter, 'tasks', 'T1-fixture.md'))
-  const allDone = () => ({
-    status: 3, stdout: JSON.stringify({ ready: [], blocked: [], done: [{ id: 'T1' }] }), stderr: '', error: null, signal: null,
-  })
-  const seven = readyTaskLines(root, true, listing, allDone)
-  // A directory whose every task carries evidence is not in flight, so it is counted
-  // rather than listed under that heading (BACKLOG §280 item 3, §279 item 6).
-  assert.equal(seven.lines.filter(line => /carry exit-0 evidence/.test(line)).length, 0, seven.lines.join('\n'))
-  assert.equal(seven.lines.filter(line => /^ {2}\(6 task directories read are fully evidenced, not shown\)$/.test(line)).length, 1, seven.lines.join('\n'))
-  const unread = seven.lines.filter(line => /\(\+1 more task directory: UNPROVEN — not read/.test(line))
-  assert.equal(unread.length, 1, `the seventh directory is said, not dropped: ${seven.lines.join('\n')}`)
-  const rendered = surfaceReadyLines(seven.lines)
-  assert.ok(rendered.some(line => /more task directory: UNPROVEN/.test(line)), 'and the render cap never hides it')
-  // The two counts print in the order a reader sums them — read first, then
-  // not-read — each saying what it counts (two Windows sessions read the reverse
-  // order as one overlapping figure, 2026-09-23). The evidenced count is never
-  // capped away: it is the answer to "why is nothing listed".
-  const evidenced = rendered.findIndex(line => /\(6 task directories read are fully evidenced, not shown\)/.test(line))
-  const notRead = rendered.findIndex(line => /more task directory: UNPROVEN — not read/.test(line))
-  assert.ok(evidenced >= 0 && notRead > evidenced, `read before not-read:\n${rendered.join('\n')}`)
-  // A ready directory beside evidenced ones is still listed, first.
-  const mixed = readyTaskLines(root, true, listing.slice(0, 3), (tool, args) => args[0].endsWith(path.join('A', 'tasks'))
-    ? { status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: path.join(args[0], 'T1-fixture.md') }], blocked: [], done: [] }), stderr: '', error: null, signal: null }
-    : allDone())
-  assert.deepEqual(mixed.lines.map(line => line.trim().replace(/ — .*/, '')), ['`docs/adr/A/tasks`: T1 is ready', '(2 task directories read are fully evidenced, not shown)'])
-  const busy = ['A', 'B', 'C', 'D'].map(letter => `  docs/adr/${letter}/tasks: T1 is ready — g.`)
-  assert.ok(surfaceReadyLines([...busy, '  (2 task directories read are fully evidenced, not shown)']).includes('  (2 task directories read are fully evidenced, not shown)'),
-    'the evidenced count survives the render cap')
-  // The two counts in the order a reader sums them — read-but-capped first, then
-  // not-read (two Windows sessions read the reverse order as one figure, 2026-09-23).
-  const capped = surfaceReadyLines([...busy, '  (+1 more task directory: UNPROVEN — not read; this hook reads 6 per session start.)'])
-  const readNotShown = capped.findIndex(line => /\(\+1 more task directory read, not shown above\)/.test(line))
-  const cappedNotRead = capped.findIndex(line => /more task directory: UNPROVEN — not read/.test(line))
-  assert.ok(readNotShown >= 0 && cappedNotRead > readNotShown, `read-but-capped before not-read:\n${capped.join('\n')}`)
-  // CLEAN: six directories are all read, so nothing is said about unread ones.
-  const six = readyTaskLines(root, true, listing.slice(0, 6), allDone)
-  assert.ok(!six.lines.some(line => /more task director/.test(line)), six.lines.join('\n'))
-})
-
-// BACKLOG §325 and the Codex architecture review (2026-10-01): the six read were the
-// first six LISTED, which over a numbered corpus are its oldest, finished records. They
-// are now the six whose task files changed most recently.
-test('SessionStart reads the most recently changed task directories, not the first listed', async () => {
-  const letters = ['A', 'B', 'C', 'D', 'E', 'F', 'G']
-  const root = await mkdtemp(path.join(testTmp, 'ss-ready-recent-'))
-  const fixture = path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md')
-  const old = new Date(Date.now() - 86_400_000)
-  for (const letter of letters) {
-    const directory = path.join(root, 'docs', 'adr', letter, 'tasks')
-    await mkdir(directory, { recursive: true })
-    await cp(fixture, path.join(directory, 'T1-fixture.md'))
-    if (letter !== 'G') utimesSync(path.join(directory, 'T1-fixture.md'), old, old)
-  }
-  gitInit(root)
-  const listing = letters.map(letter => path.join('docs', 'adr', letter, 'tasks', 'T1-fixture.md'))
-  const asked = []
-  const allDone = (tool, args) => {
-    asked.push(path.basename(path.dirname(args[0])))
-    return { status: 3, stdout: JSON.stringify({ ready: [], blocked: [], done: [{ id: 'T1' }] }), stderr: '', error: null, signal: null }
-  }
-  const got = readyTaskLines(root, true, listing, allDone)
-  assert.deepEqual(asked, ['G', 'A', 'B', 'C', 'D', 'E'], 'the newest first, then listing order among equals')
-  assert.ok(got.lines.some(line => /\+1 more task directory: UNPROVEN — not read; this hook reads the 6 most recently changed/.test(line)), got.lines.join('\n'))
-})
-
 test('a hook payload with a BOM is read, and one that is not JSON is said, not swallowed', async () => {
   // Peer-run on Windows, 2026-09-23: `node lifecycle.mjs < payload.json` printed
   // nothing at exit 0 while the same orientation, imported directly, was full. The
@@ -1823,9 +1583,7 @@ test('a hook payload with a BOM is read, and one that is not JSON is said, not s
   // round trip went on "stdin is broken". A BOM — what PowerShell's `>` writes —
   // is the other way a valid-looking payload fails to parse, so it is stripped.
   const root = await mkdtemp(path.join(testTmp, 'ss-bom-'))
-  await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
-  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
-    path.join(root, 'docs', 'tasks', 'T1-fixture.md'))
+  writeFileSync(path.join(root, '.quality-harness.json'), JSON.stringify({ check: 'node --test' }))
   gitInit(root)
   const spawnHook = raw => spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
     cwd: testTmp, input: raw, encoding: 'utf8', timeout: 60_000,
@@ -1834,7 +1592,7 @@ test('a hook payload with a BOM is read, and one that is not JSON is said, not s
   const payload = JSON.stringify({ hook_event_name: 'SessionStart', source: 'startup', cwd: root, session_id: 'bom-probe' })
   const withBom = spawnHook(`\uFEFF${payload}`)
   assert.equal(withBom.status, 0, withBom.stderr)
-  assert.match(JSON.parse(withBom.stdout).hookSpecificOutput.additionalContext, /ADR tasks in flight/,
+  assert.match(JSON.parse(withBom.stdout).hookSpecificOutput.additionalContext, /Verification: this project's own check is/,
     `a BOM-prefixed payload is the payload: ${withBom.stdout}`)
   // DIRTY: a payload that is not JSON at all is named, at exit 0, never a silent nothing.
   const garbage = spawnHook('not json at all')
@@ -1857,21 +1615,6 @@ test('a JSON payload that is not the object the host sends is named, never a cra
     assert.match(run.stderr, /hook payload was not an object with a string cwd; nothing was read/, `${raw}: ${run.stderr}`)
     assert.doesNotMatch(run.stderr, /TypeError|\n\s+at /, `${raw}: no stack trace`)
   }
-})
-
-test('git cannot list is UNPROVEN, not no ready tasks', async () => {
-  const root = await mkdtemp(path.join(testTmp, 'ss-ready-fail-'))
-  await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
-  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
-    path.join(root, 'docs', 'tasks', 'T1-fixture.md'))
-  gitInit(root)
-  corruptGitIndex(root)
-  const text = sessionOrientation(root)
-  assert.match(text, /UNPROVEN/)
-  assert.doesNotMatch(text, /ADR tasks in flight/)
-  const note = sessionStateNote(quietSessionState(), root, root, true)
-  assert.match(note.text, /UNPROVEN/)
-  assert.doesNotMatch(note.text, /is ready/)
 })
 
 test('SessionStart may treat a listing-named corpus dir as a corpus', async () => {

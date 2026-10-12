@@ -575,7 +575,7 @@ test('the dispatcher relays a gate that could not run as UNPROVEN, never as an u
 })
 
 test('ADR-046 names the ADR-012 §2 amendment for a completed could-not-run exit', () => {
-  const text = readFileSync(join(repoRoot, 'docs', 'adr', 'ADR-046-a-caller-relays-could-not-run.md'), 'utf8')
+  const text = readFileSync(join(repoRoot, 'docs', 'adr-archive', 'ADR-046-a-caller-relays-could-not-run.md'), 'utf8')
   assert.match(text, /Amends ADR-012 §2 for the could-not-run case/)
   assert.match(text, /every completed run returns its findings and the gate's exit code as ordinary content/)
   assert.match(text, /Findings of a run that did run stay on the content channel/)

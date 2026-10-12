@@ -47,11 +47,10 @@
   ],
   "disagreements": [],
   "sessionStart": {
-    "mustMatch": [
-      "`docs/adr/0002-dropped/tasks`: T1 is ready — no record owning these tasks was found, so whether they are a work order is UNKNOWN — "
-    ],
+    "mustMatch": [],
     "mustNotMatch": [
-      "T1 is ready — the task file calls it"
+      "is ready",
+      "ADR tasks in flight"
     ]
   },
   "neverNamed": [],

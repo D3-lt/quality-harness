@@ -1,7 +1,7 @@
 # Spec: SessionStart ready uses the listing
 
 > **Date:** 2026-09-10 · **Status:** Ready-for-ADR
-> **Owner:** zy · **Becomes:** ADR-040 (`docs/adr/ADR-040-sessionstart-ready-uses-the-listing.md`)
+> **Owner:** zy · **Becomes:** ADR-040 (`docs/adr-archive/ADR-040-sessionstart-ready-uses-the-listing.md`)
 > **Gate:** Status may become Ready-for-ADR only after `spec-verify --spec docs/specs/2026-09-10-sessionstart-ready-uses-the-listing.md` exits 0.
 > **Cross-references:** docs/specs/2026-09-09-a-staged-product-not-a-funnel.md (ADR-038 F-31), docs/specs/2026-09-10-records-use-the-same-listing.md (observe / adrCorpus; a different goal), docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-008-the-plugin-is-not-the-repository.md, plugin/scripts/lifecycle.mjs
 

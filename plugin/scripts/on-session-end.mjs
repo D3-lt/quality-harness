@@ -33,7 +33,7 @@ export async function onSessionEnd(input, recorded) {
     process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this session\'s end was NOT recorded.\n')
     return
   }
-  const note = sessionStateNote(facts, cwd, root, false, new Date(), { tasks: false })
+  const note = sessionStateNote(facts, cwd, root, false, new Date())
   // Why the row says `unverified` when it is not about unchecked edits: the next
   // session reads this field INSTEAD of the sentence about edits.
   const unknown = facts.observed === false ? (facts.why ?? 'the working tree could not be observed')

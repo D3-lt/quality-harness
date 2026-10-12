@@ -16,7 +16,6 @@ import os from 'node:os'
 import path from 'node:path'
 import { after, test } from 'node:test'
 import { listedUnderUninterestingDirectory } from '../plugin/scripts/lifecycle.mjs'
-import { readyTaskLines } from '../plugin/scripts/ready-lines.mjs'
 import { adrCorpus } from '../plugin/scripts/decision-corpus.mjs'
 import { observe } from '../plugin/scripts/work-next.mjs'
 
@@ -84,17 +83,4 @@ test('work-next offers the real task and never a fixture task', () => {
   assert.deepEqual(ready, [REAL_TASK], `only the real record's task is ready:\n${ready.join('\n')}`)
   assert.equal(state.records, 1, 'the fixture record is not counted either')
   assert.equal(state.tasks, 1, 'nor its task')
-})
-
-test('session orientation asks adr-next about the real task set and never a fixture', () => {
-  const root = repository()
-  const asked = []
-  const spawn = (tool, args) => {
-    asked.push(relative(root, args[0]))
-    return { status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'a task', path: path.join(args[0], 'T1.md') }] }), stderr: '' }
-  }
-  const { look, lines } = readyTaskLines(root, true, LISTING, spawn)
-  assert.equal(look, 'ok')
-  assert.deepEqual(asked, ['docs/adr/ADR-001-real/tasks'], `asked: ${asked}`)
-  assert.deepEqual(lines.filter(line => line.includes('fixtures')), [], lines.join(' | '))
 })

@@ -21,8 +21,8 @@ import { spawnSync } from 'node:child_process'
 
 import { resolvePython } from '../plugin/scripts/ready-lines.mjs'
 
-// Resolved once per process. `readyTaskLines` learned the same lesson in the
-// plugin: re-probing three interpreters per call costs more than the work, and
+// Resolved once per process. The plugin's `spawnGate` learned the same lesson:
+// re-probing three interpreters per call costs more than the work, and
 // `??=` would re-probe forever on a machine with no Python — exactly when
 // probing is most expensive. A sentinel makes "asked, and the answer was none"
 // a cached answer.

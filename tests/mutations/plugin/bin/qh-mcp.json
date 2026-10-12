@@ -139,6 +139,16 @@
       "from": "              \"adr-retire-check\": 2, \"postmortem-verify\": 2, \"adr-judge\": 2}",
       "to": "              \"adr-retire-check\": 2, \"postmortem-verify\": 2}",
       "only": "adr-judge that could not read its named path"
+    },
+    {
+      "label": "ADR-099 T1: qh_orientation's description promises the ready lines again",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    \"treat it, and whether a stale standalone copy would answer instead of the \"",
+      "to": "    \"treat it, ADR tasks in flight, and whether a stale standalone copy would answer instead of the \"",
+      "only": "^(?:qh_orientation's description names what the orientation says, and no ready task)$"
     }
   ]
 }

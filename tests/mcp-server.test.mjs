@@ -227,6 +227,16 @@ test('qh_orientation returns the SessionStart orientation for a directory, and n
   assert.match(JSON.stringify(call('qh_orientation', {})), /requires 'directory'/)
 })
 
+// ADR-099 T1: the orientation names no ready task, so the description an MCP client reads before calling it must not
+// promise one. The control: it still names what the orientation does say.
+test("qh_orientation's description names what the orientation says, and no ready task", () => {
+  const tool = list().find(entry => entry.name === 'qh_orientation')
+  assert.ok(tool, 'qh_orientation is listed')
+  assert.match(tool.description, /the project's own check and how the gates treat it/, tool.description)
+  assert.match(tool.description, /stale standalone copy/, tool.description)
+  assert.doesNotMatch(tool.description, /in flight|ready task/i, tool.description)
+})
+
 test('qh_adr_context answers which decisions govern a path, from the repository the path is in (BACKLOG §135)', () => {
   // The one JavaScript tool: run through node, with the corpus root derived from
   // the path, because the server's cwd is nobody's repository. Compared with the

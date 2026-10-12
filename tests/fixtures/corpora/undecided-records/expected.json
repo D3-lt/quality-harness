@@ -62,8 +62,10 @@
   ],
   "disagreements": [],
   "sessionStart": {
-    "mustMatch": [
-      "ADR-002-a-task-saved-as-utf-16/tasks: UNPROVEN — adr-next could not read 1 task file"
+    "mustMatch": [],
+    "mustNotMatch": [
+      "is ready",
+      "ADR tasks in flight"
     ]
   },
   "couldNotRun": [],

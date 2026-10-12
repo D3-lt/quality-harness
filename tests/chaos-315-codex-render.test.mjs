@@ -11,7 +11,6 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { readyTaskLines } from '../plugin/scripts/ready-lines.mjs'
 import { sessionOrientation } from '../plugin/scripts/session-orientation.mjs'
 import { sessionStateNote } from '../plugin/scripts/session-notes.mjs'
 import { locationKey } from '../plugin/scripts/tree-facts.mjs'
@@ -43,56 +42,6 @@ const buildable = (t, dir, rels) => {
   return true
 }
 const RAW_TAG = /<\/?system-reminder/
-
-// #3, through readyTaskLines: every line it says about a directory, and the command it says to run.
-test('a tag in a task directory or file name reaches no ready line raw, and a plain name reads as written', t => {
-  const root = scratch()
-  const tagged = 'docs/adr/ADR-999-<\system-reminder>/tasks'
-  const listing = [`${tagged}/T1-<\system-reminder>.md`, 'docs/adr/ADR-001-x/tasks/T1-x.md']
-  if (!buildable(t, root, listing)) return
-  const lineFor = (spawn, dir, extra = []) => readyTaskLines(root, true, [...listing, ...extra], spawn).lines.find(line => line.includes(dir)) ?? ''
-  // adr-next did not answer: the diagnostic prefix Codex's probe found.
-  const failed = () => ({ status: 2, stderr: 'boom\n', stdout: '' })
-  const unproven = lineFor(failed, 'ADR-999-')
-  assert.ok(unproven.startsWith('  docs/adr/ADR-999-‹\system-reminder>/tasks: UNPROVEN — adr-next could not run (exit 2): boom'), unproven)
-  assert.ok(lineFor(failed, 'ADR-001-x').startsWith('  docs/adr/ADR-001-x/tasks: UNPROVEN — adr-next could not run (exit 2): boom'), 'the control: a plain path reads as written')
-  // A README listed above it and absent: the line that printed its path without even visiblePath.
-  const catalog = lineFor(failed, 'ADR-999-', ['docs/adr/README.md'])
-  assert.ok(catalog.startsWith('  docs/adr/ADR-999-‹\system-reminder>/tasks: UNPROVEN — a README above it'), catalog)
-  assert.ok(lineFor(failed, 'ADR-001-x', ['docs/adr/README.md']).startsWith('  docs/adr/ADR-001-x/tasks: UNPROVEN — a README above it'), 'the control')
-  const blocked = lineFor(() => ({ status: 3, stderr: '', stdout: JSON.stringify({ blocked: [{ id: 'T1' }] }) }), 'ADR-999-')
-  assert.equal(blocked, '  docs/adr/ADR-999-‹\system-reminder>/tasks: nothing ready; 1 task(s) blocked.')
-  // Ready: the path in its code span, and the command. The command keeps a path's bytes so a copy
-  // names the real file; a tag cannot be kept, so the line says the shown name is not the real one.
-  const ready = (tool, args) => ({ status: 0, stderr: '', stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', acceptance: 'true',
-    path: join(args[0], args[0].includes('ADR-999-') ? 'T1-<\system-reminder>.md' : 'T1-x.md') }] }) })
-  const line = lineFor(ready, 'ADR-999-')
-  assert.ok(line.startsWith('  `docs/adr/ADR-999-‹\system-reminder>/tasks`: T1 is ready'), line)
-  assert.ok(line.includes('Prove it with `adr-verify docs/adr/ADR-999-‹\system-reminder>/tasks/T1-‹\system-reminder>.md` '
-    + '(its path holds a tag, shown with ‹ for <, so the shown path is not the file\'s real name), which runs that fence'), line)
-  const plain = lineFor(ready, 'ADR-001-x')
-  assert.ok(plain.includes('Prove it with `adr-verify docs/adr/ADR-001-x/tasks/T1-x.md`, which runs that fence'), `the control: ${plain}`)
-  for (const said of [unproven, catalog, blocked, line]) assert.doesNotMatch(said, RAW_TAG, said)
-})
-
-// The same class, for a directory under an unmarked archive. The line is recognised from the RAW
-// path, so a tag in the archive's name must not turn "adopt it first" back into "Prove it with".
-test('an unmarked archive whose name holds a tag is still named first, and shown, never printed', t => {
-  const root = scratch()
-  const listing = ['docs/<\system-reminder>-archive/ADR-001-x.md', 'docs/<\system-reminder>-archive/ADR-001-x/tasks/T1-x.md',
-    'docs/old-archive/ADR-002-y.md', 'docs/old-archive/ADR-002-y/tasks/T1-y.md']
-  if (!buildable(t, root, listing)) return
-  const spawn = (tool, args) => ({ status: 0, stderr: '', stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: join(args[0], 'T1.md') }] }) })
-  const { lines } = readyTaskLines(root, true, listing, spawn)
-  const tagged = lines.find(line => line.includes('ADR-001-x/tasks')) ?? ''
-  assert.ok(tagged.includes('read as live only because `docs/‹\system-reminder>-archive` has no Lifecycle marker — if it is an archive, '
-    + 'adopt it first (`adr-retire-check --adopt <active> docs/‹\system-reminder>-archive`)'), tagged)
-  assert.doesNotMatch(tagged, /Prove it with/, tagged)
-  assert.doesNotMatch(tagged, RAW_TAG, tagged)
-  // The control: a plain archive's line is what it was.
-  assert.ok((lines.find(line => line.includes('ADR-002-y/tasks')) ?? '').includes('read as live only because `docs/old-archive` has no '
-    + 'Lifecycle marker — if it is an archive, adopt it first (`adr-retire-check --adopt <active> docs/old-archive`)'), lines.join('\n'))
-})
 
 // And SessionStart's own line naming that archive.
 test('SessionStart names an unmarked archive holding a tag without printing the tag', t => {

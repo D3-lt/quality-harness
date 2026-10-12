@@ -17,8 +17,8 @@
         "tests/lifecycle.test.mjs"
       ],
       "only": "listing-null still names a stale shadow install",
-      "from": "  if (check || ready.lines.length || corpusLook === true || corpusLook === 'UNPROVEN') {",
-      "to": "  if (check || ready.lines.length || corpusLook === true) {"
+      "from": "  if (check || corpusLook === true || corpusLook === 'UNPROVEN') {",
+      "to": "  if (check || corpusLook === true) {"
     },
     {
       "label": "orientation: an inferred check may be narrower than the project's own gate",
@@ -111,14 +111,44 @@
       "only": "^orientation: startup, resume, compact and clear say their standing paragraphs as designed$"
     },
     {
-      "label": "ADR-095 T6: SessionStart passes the ready-task cache to the ready lines",
+      "label": "ADR-099 T1: the hook output names no ready task",
       "file": "plugin/scripts/session-orientation.mjs",
       "tests": [
-        "tests/ready-cache.test.mjs"
+        "tests/ready-is-work-next.test.mjs"
       ],
-      "from": "readyTaskLines(root, inside, listing, undefined, readyCache(root, listing))",
-      "to": "readyTaskLines(root, inside, listing)",
-      "only": "^a second start in an unchanged corpus starts no adr-next and says the same lines$"
+      "from": "return lines.join(",
+      "to": "return [...lines, 'ADR tasks in flight:'].join(",
+      "only": "^(?:SessionStart and the compact note name no ready task and start no adr-next where work-next finds one)$"
+    },
+    {
+      "label": "ADR-099 T1: the could-not-look line names corpus existence",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "(UNPROVEN), so corpus existence is not known.",
+      "to": "(UNPROVEN).",
+      "only": "^(?:git cannot list is UNPROVEN, not no corpus)$"
+    },
+    {
+      "label": "ADR-099 T1: the readiness transcript changes only by the removed paragraph",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/hook-goldens.test.mjs"
+      ],
+      "from": "that is what records the result where the ",
+      "to": "that records the result where the ",
+      "only": "^(?:readiness: an accepted record with a ready task, an evidenced one and a proposed record are said as they were)$"
+    },
+    {
+      "label": "ADR-099 T1: SessionStart starts no adr-next",
+      "file": "plugin/scripts/session-orientation.mjs",
+      "tests": [
+        "tests/ready-is-work-next.test.mjs"
+      ],
+      "from": "const corpusLook = inside ? hasDecisionCorpus(root, listing) : false",
+      "to": "const corpusLook = inside ? (process.getBuiltinModule('node:child_process').spawnSync(path.join(import.meta.dirname, '..', 'bin', 'adr-next'), [root, '--json'], { windowsHide: true, timeout: 10_000 }), hasDecisionCorpus(root, listing)) : false",
+      "only": "^(?:SessionStart and the compact note name no ready task and start no adr-next where work-next finds one)$"
     }
   ]
 }

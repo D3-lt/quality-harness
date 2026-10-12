@@ -58,11 +58,11 @@
   "disagreements": [],
   "sessionStart": {
     "mustMatch": [
-      "inferred `go test \\./\\.\\.\\.` from a manifest",
-      "T2 is ready .*go test \\./internal/cart -run '\\^TestRemove\\$'"
+      "inferred `go test \\./\\.\\.\\.` from a manifest"
     ],
     "mustNotMatch": [
-      "T1 is ready"
+      "is ready",
+      "ADR tasks in flight"
     ]
   },
   "couldNotRun": []

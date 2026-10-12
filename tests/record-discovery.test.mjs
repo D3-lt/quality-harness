@@ -9,7 +9,7 @@ import path, { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { adrCorpus, linksIn, onceByRealPath, screenAdmits, taskDirectories } from '../plugin/scripts/decision-corpus.mjs'
+import { adrCorpus, linksIn, onceByRealPath, screenAdmits } from '../plugin/scripts/decision-corpus.mjs'
 import { observe } from '../plugin/scripts/work-next.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
@@ -191,10 +191,8 @@ test('task directories take the per-hop count and no name preference', t => {
   if (!laid) { t.skip('a symbolic link cannot be made here'); return }
   const { repo } = laid
   const listing = ['p/tasks/T1-a.md', 'r/tasks/T1-a.md']
-  assert.deepStrictEqual(taskDirectories(repo, listing).read.map(entry => rel(repo, entry.directory)), ['r/tasks'])
   const state = observe(repo, { listing: ['docs/adr/ADR-001-x.md', ...listing] })
   assert.deepStrictEqual(state.partialBecause.map(entry => rel(repo, entry.file)), ['p/tasks/T1-a.md'])
-  assert.deepStrictEqual(taskDirectories(repo, ['s/tasks/T1-a.md', 'r/tasks/T1-a.md']).read.map(entry => rel(repo, entry.directory)), ['s/tasks'])
 })
 
 test('a failed read is never dropped by discovery', () => {

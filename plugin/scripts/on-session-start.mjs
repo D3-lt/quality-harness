@@ -37,8 +37,8 @@ export function onSessionStart(input, recorded) {
   }
   if (input.source === 'compact') {
     // The compaction summary is the model's; this is the gates'. Hand back what
-    // PreCompact measured, so the next context knows what is unverified and
-    // what task was in flight without re-deriving either.
+    // PreCompact measured, so the next context knows what is unverified without
+    // re-deriving it.
     const note = readSessionNote(input.session_id)
     // ⚠ A NOTE IS SERVED ONLY WHEN IT CAN BE TIED TO THIS COMPACTION. A replace that
     // fails twice leaves an earlier note behind. Ownership was first a comparison

@@ -21,8 +21,9 @@ const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|cover
  * Whether a listed path's directory components put it somewhere no record of
  * THIS repository lives: a test fixture, a vendored tree, build output.
  *
- * `taskDirectories` applied the pattern above, so SessionStart never mentioned
- * `tests/fixtures/`, while `recordFilesFromListing` and work-next's `taskFiles`
+ * SessionStart's former task-directory inventory (`taskDirectories`, removed by
+ * ADR-099) applied the pattern above and never mentioned `tests/fixtures/`, while
+ * `recordFilesFromListing` and work-next's `taskFiles`
  * did not — so `work-next` on this repository named three fixture tasks as its
  * next work, `adr-state` and `adr-context` counted five fixture records as
  * governing, and the per-edit gate linted fixture records as the repository's

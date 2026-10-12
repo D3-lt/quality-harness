@@ -6,13 +6,10 @@ import path from 'node:path'
 import os from 'node:os'
 import { mkdirSync, readFileSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { checkInCode, shownPath } from './corpus-text.mjs'
-import { trackedPaths } from './decision-corpus.mjs'
 import { nearestExistingDirectory } from './event-log.mjs'
 import { gitRepositoryRoot, locationKey } from './tree-facts.mjs'
 import { checkCommandOrigin, projectCheckCommand } from './check-command.mjs'
 import { passedAlready } from './check-ledger.mjs'
-import { readyTaskLines } from './ready-lines.mjs'
-import { readyCache } from './ready-cache.mjs'
 import { SAID_MARKER_MAX_AGE_MS, saidMarkerDirectory, sweepStaleMarkers } from './housekeeping.mjs'
 
 // Said once per path per session. New context at every Edit would repeat the
@@ -40,7 +37,7 @@ export function bumpSessionGeneration(sessionId) {
   return next
 }
 
-export function sessionStateNote(facts, cwd, root, insideRepository, now = new Date(), { tasks = true } = {}) {
+export function sessionStateNote(facts, cwd, root, insideRepository, now = new Date()) {
   const files = Array.isArray(facts?.files) ? facts.files : []
   const other = Number(facts?.other) || 0
   const shown = files.slice(0, 5).map(file => shownPath(path.relative(cwd, file) || file))
@@ -106,16 +103,6 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
       : facts?.lastCheck
         ? `Last check: ${checkInCode(facts.lastCheck.command ?? 'qh-check')} ${facts.lastCheck.verdict}.`
         : 'No check has run this session.')
-  if (tasks) {
-    const listing = insideRepository ? trackedPaths(root) : null
-    const ready = readyTaskLines(root, insideRepository, listing, undefined, readyCache(root, listing))
-    if (ready.look === 'UNPROVEN') {
-      parts.push('ADR tasks in flight: UNPROVEN (git could not list the tree).')
-    } else if (ready.lines.length) {
-      const unproven = ready.lines.find(line => line.includes('UNPROVEN'))
-      parts.push(`ADR task in flight: ${(unproven ?? ready.lines[0]).trim()}`)
-    }
-  }
   return { at: now.toISOString(), status, unverified: pending, files, other, text: parts.join(' ') }
 }
 

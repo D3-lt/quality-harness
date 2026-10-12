@@ -231,14 +231,14 @@
       "only": "^a tree with no pass keeps the previous-session notice, clean or dirty$"
     },
     {
-      "label": "ADR-095 T6: the PreCompact note passes the ready-task cache to the ready lines",
+      "label": "ADR-099 T1: the hook output names no ready task (the compaction note)",
       "file": "plugin/scripts/session-notes.mjs",
       "tests": [
-        "tests/ready-cache.test.mjs"
+        "tests/ready-is-work-next.test.mjs"
       ],
-      "from": "readyTaskLines(root, insideRepository, listing, undefined, readyCache(root, listing))",
-      "to": "readyTaskLines(root, insideRepository, listing)",
-      "only": "^a second start in an unchanged corpus starts no adr-next and says the same lines$"
+      "from": "text: parts.join(' ')",
+      "to": "text: [...parts, 'ADR task in flight: T1 is ready —'].join(' ')",
+      "only": "^(?:SessionStart and the compact note name no ready task and start no adr-next where work-next finds one)$"
     }
   ]
 }

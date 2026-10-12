@@ -9,7 +9,6 @@ import { after, test } from 'node:test'
 import { diffReports, probe } from '../plugin/scripts/corpus-probe.mjs'
 import { recordCount } from '../plugin/scripts/corpus-report.mjs'
 import { fileURLToPath } from 'node:url'
-import { readyTaskLines } from '../plugin/scripts/ready-lines.mjs'
 import { adrCorpus } from '../plugin/scripts/decision-corpus.mjs'
 import { scrubber } from '../plugin/scripts/corpus-text.mjs'
 import { main, observe } from '../plugin/scripts/work-next.mjs'
@@ -109,19 +108,6 @@ test('a PARTIAL diff names what made it partial and what dropped out', () => {
   assert.deepEqual(diffReports(side(['a.md'], [], []), side(['a.md'], [], [])), ['look: PARTIAL → PARTIAL: counts not compared; adr-lint verdicts compared over the records both runs read'])
 })
 
-test('SessionStart names a task directory git lists and the disk does not hold', () => {
-  const root = tree('absent', { 'docs/adr/ADR-001-a.md': ACCEPTED(1) })
-  const listing = ['docs/adr/ADR-001-a.md', 'docs/adr/ADR-001-a/tasks/T1-x.md']
-  const { lines } = readyTaskLines(root, true, listing, spawn)
-  assert.ok(lines.some(line => /`docs\/adr\/ADR-001-a\/tasks`: UNPROVEN — listed by git, not on disk/.test(line)), lines.join('\n'))
-  assert.ok(!lines.some(line => /more task director/.test(line)), lines.join('\n'))
-  // The control: on disk, it is read.
-  writeFileSync(path.join(root, 'README.md'), 'x')
-  mkdirSync(path.join(root, 'docs', 'adr', 'ADR-001-a', 'tasks'), { recursive: true })
-  writeFileSync(path.join(root, 'docs', 'adr', 'ADR-001-a', 'tasks', 'T1-x.md'), '# Task T1\n')
-  assert.ok(!readyTaskLines(root, true, listing, spawn).lines.some(line => /not on disk/.test(line)))
-})
-
 test('a case twin in the listing is one task, named, where the file system folds case', t => {
   const files = { 'docs/adr/ADR-001-a.md': ACCEPTED(1), 'docs/adr/ADR-001-a/tasks/T1-x.md': '# Task T1\n' }
   const root = tree('twin', files)
@@ -187,26 +173,6 @@ test('every path a reader emits in JSON is written with /', () => {
   const context = spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'adr-context.mjs'), '--json', 'src/a.js'],
     { cwd: root, encoding: 'utf8', timeout: 60_000, windowsHide: true })
   assert.deepEqual(JSON.parse(context.stdout).governing.map(record => record.file), ['docs/adr/ADR-001-a.md'], context.stdout)
-})
-
-// BACKLOG §350 C4/F3: SessionStart's could-not-run line folded only `os.homedir()` as spelled, and a
-// home path in another spelling (an 8.3 short name, a resolved link) reached the session.
-test('SessionStart never repeats an absolute path a gate printed', () => {
-  const root = tree('gate-said', { 'docs/adr/ADR-001-a.md': ACCEPTED(1), 'docs/adr/ADR-001-a/tasks/T1-x.md': '# Task T1\n' })
-  const listing = ['docs/adr/ADR-001-a.md', 'docs/adr/ADR-001-a/tasks/T1-x.md']
-  const failed = () => ({ status: 2, stdout: '', stderr: 'could not run: C:\\Users\\EXAMPL~1\\proj\\T1-x.md — held open\n' })
-  const said = readyTaskLines(root, true, listing, failed).lines.join('\n')
-  assert.match(said, /UNPROVEN — adr-next could not run \(exit 2\): could not run: ‹path› — held open/, said)
-  assert.doesNotMatch(said, /EXAMPL~1/, said)
-  // The control: a path under the repository is still said relative to it.
-  const inside = () => ({ status: 2, stdout: '', stderr: `could not run: ${path.join(root, 'docs', 'x.md')} — held open\n` })
-  assert.match(readyTaskLines(root, true, listing, inside).lines.join('\n'), /could not run: \.[\\/]docs[\\/]x\.md — held open/)
-  // A home path outside the repository names nothing under the home directory: `~‹path›`. The `~/…`
-  // form named the owner's other repositories in an outside run's report (php-react-app, 3.8.7 RC).
-  const home = () => ({ status: 2, stdout: '', stderr: `could not run: ${path.join(os.homedir(), 'elsewhere', 'x.md')} — held open\n` })
-  const homeSaid = readyTaskLines(root, true, listing, home).lines.join('\n')
-  assert.match(homeSaid, /could not run: ~‹path› — held open/, homeSaid)
-  assert.doesNotMatch(homeSaid, /elsewhere/, homeSaid)
 })
 
 // An outside run of the 3.8.7 RC (rust-records-corpus): a record with no Status that FAILs on another rule prints its

@@ -3,7 +3,7 @@
 > **Date:** 2026-09-10 · **Status:** Ready-for-ADR
 > **Owner:** zy · **Becomes:** ADR-043
 > **Gate:** Status may become Ready-for-ADR only after `spec-verify --spec <this file>` exits 0.
-> **Cross-references:** docs/specs/2026-09-10-statusline-layer-unproven-as-advise.md (leftover: layer; Goal is UNPROVEN-write Advise, shipped as ADR-042), docs/specs/2026-09-09-a-staged-product-not-a-funnel.md, docs/adr/ADR-038-a-staged-product-not-a-funnel.md, docs/adr/ADR-039-records-use-the-same-listing.md, docs/adr/ADR-040-sessionstart-ready-uses-the-listing.md, docs/adr/ADR-041-a-probe-prefix-is-not-the-mutation.md, docs/adr/ADR-042-unproven-write-is-advise.md, plugin/scripts/work-next.mjs (`STAGES`, `nextStage`, `--json`), plugin/scripts/statusline.mjs (`render`), plugin/hooks/hooks.json, plugin/README.md (status line)
+> **Cross-references:** docs/specs/2026-09-10-statusline-layer-unproven-as-advise.md (leftover: layer; Goal is UNPROVEN-write Advise, shipped as ADR-042), docs/specs/2026-09-09-a-staged-product-not-a-funnel.md, docs/adr/ADR-038-a-staged-product-not-a-funnel.md, docs/adr/ADR-039-records-use-the-same-listing.md, docs/adr-archive/ADR-040-sessionstart-ready-uses-the-listing.md, docs/adr/ADR-041-a-probe-prefix-is-not-the-mutation.md, docs/adr/ADR-042-unproven-write-is-advise.md, plugin/scripts/work-next.mjs (`STAGES`, `nextStage`, `--json`), plugin/scripts/statusline.mjs (`render`), plugin/hooks/hooks.json, plugin/README.md (status line)
 
 ## Problem
 

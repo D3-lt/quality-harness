@@ -36,9 +36,10 @@ const BIN = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'bin')
  * the two readers disagreed on the first real corpus a probe was run over
  * (2026-09-23: T4 and T5 offered while their `Depends-on: T3` was pending; a
  * stale-digest task called finished here and ready-unproven there; frozen archive
- * tasks offered by one and not the other). SessionStart already asks adr-next
- * per task directory; so does this now, for the task directories of governing,
- * unfrozen records only — a frozen archive is history, never ready work.
+ * tasks offered by one and not the other). This asks adr-next per task directory,
+ * as SessionStart's former ready lines did (removed by ADR-099), for the task
+ * directories of governing, unfrozen records only — a frozen archive is history,
+ * never ready work.
  *
  * A directory adr-next could not answer for is UNPROVEN, named in the state, and
  * never read as "nothing ready" (ADR-005). `spawn` is the seam.
@@ -279,8 +280,8 @@ function taskFiles(directory, listing) {
   const archiveUnknown = new Set()
   for (const rel of listing) {
     const norm = posixRel(rel)
-    // A `.md` DIRECTLY under `tasks/`, the same rule as SessionStart's
-    // taskDirectories: Ansible's `roles/*/tasks/files/notes.md` counted as a task
+    // A `.md` DIRECTLY under `tasks/`, the rule of SessionStart's former inventory
+    // (`taskDirectories`, removed by ADR-099): Ansible's `roles/*/tasks/files/notes.md` counted as a task
     // file here while the orientation reader had already learned to skip it
     // (2026-09-19), so the two disagreed on the task count (BACKLOG §265).
     if (!/(?:^|\/)tasks\/[^/]+$/.test(norm)) continue

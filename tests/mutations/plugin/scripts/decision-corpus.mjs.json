@@ -243,16 +243,6 @@
       "only": "adr-state names a file it could not open"
     },
     {
-      "label": "orientation: a frozen archive's tasks are not work in flight",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "    if (archived === true) continue",
-      "to": "    if (false) continue",
-      "only": "^(?:session orientation asks adr-next about the active corpus and never about a frozen archive|a README git does not list cannot freeze a tracked task directory|an archive catalog at the repository root freezes the task directory beside it)$"
-    },
-    {
       "label": "corpus: a retired record governs only if its archive catalog says so",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": [
@@ -323,17 +313,7 @@
       ],
       "from": "        [...listed].filter(rel => rel.startsWith(prefix) && !rel.slice(prefix.length).includes('/')).map(rel => rel.slice(prefix.length)),",
       "to": "        ['README.md'],",
-      "only": "^(?:session orientation asks adr-next about the active corpus and never about a frozen archive|a README git does not list cannot freeze a tracked task directory|an archive catalog at the repository root freezes the task directory beside it|a task directory that MAY be under a frozen archive gets an UNPROVEN line, not a ready one|work-next reads an unmarked archive as live, as every other reader does|an archive-named directory with no Lifecycle marker is named, with the adopt remedy|an unmarked archive is named only in a decision corpus, and only when it holds records|a ready task under an unmarked archive leads with adopting it, not with adr-verify|a ready task title and fence reach SessionStart quoted, and the fence is named as run|a path in the ready line cannot break out of its code span or hide a character|the ready line says first when the owning record is unreadable or not Accepted)$"
-    },
-    {
-      "label": "orientation: a tasks directory with no Markdown is not an ADR task set",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "    if (parts.length !== index + 2 || !/\\.md$/i.test(parts[index + 1])) continue",
-      "to": "    if (false) continue",
-      "only": "^(?:a directory named tasks that holds no Markdown is not an ADR task directory)$"
+      "only": "^(?:work-next freezes a task directory only under a listed, readable catalog, the repository root included)$"
     },
     {
       "label": "catalog: a fragment is not part of the file a row links to",
@@ -370,7 +350,7 @@
       ],
       "from": "catch { frozen = 'unknown' }",
       "to": "catch { frozen = false }",
-      "only": "^(?:an archive catalog at the repository root freezes the task directory beside it|a task directory that MAY be under a frozen archive gets an UNPROVEN line, not a ready one)$"
+      "only": "^(?:work-next freezes a task directory only under a listed, readable catalog, the repository root included)$"
     },
     {
       "label": "catalog: an ordinary readme.md, with no marker, is not an archive question",
@@ -437,7 +417,7 @@
       ],
       "from": "  for (let depth = 0; depth < dirParts.length; depth++) {",
       "to": "  for (let depth = 1; depth < dirParts.length; depth++) {",
-      "only": "^(?:an archive catalog at the repository root freezes the task directory beside it)$"
+      "only": "^(?:work-next freezes a task directory only under a listed, readable catalog, the repository root included)$"
     },
     {
       "label": "ADR-063: a record under a frozen archive is listed by its content",
@@ -558,16 +538,6 @@
       "only": "emphasis around a numbered supersession",
       "from": "  const plain = classified.replace(/^superseded\\s+by\\s*/i, '')",
       "to": "  const plain = rest"
-    },
-    {
-      "label": "SessionStart: a task directory past the read cap is counted as unread, never dropped",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  return { read: ranked.slice(0, cap), unread: Math.max(0, ranked.length - cap), aliases: once.aliases, absent }",
-      "to": "  return { read: ranked.slice(0, cap), unread: 0, aliases: once.aliases, absent }",
-      "only": "^(?:SessionStart says how many task directories it did not read)$"
     },
     {
       "label": "archive: an unmarked archive-named directory is named",
@@ -781,16 +751,6 @@
       "only": "^the Codex round of 3.1.6: every reader reads these records alike"
     },
     {
-      "label": "3.4.1: SessionStart reads the first listed task directories",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    .sort((a, b) => b.newest - a.newest || a.order - b.order)",
-      "to": "    .sort((a, b) => a.order - b.order)",
-      "only": "^SessionStart reads the most recently changed task directories, not the first listed$"
-    },
-    {
       "label": "§343 review: a sibling of the repository reads as inside it",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": [
@@ -841,16 +801,6 @@
       "only": "^the path a link copy is named against is shown, not printed raw$"
     },
     {
-      "label": "§350 item 3: SessionStart reads a task directory once per path",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/corpus-link-loop.test.mjs"
-      ],
-      "from": "  const ranked = found.filter(entry => kept.has(entry.directory) && !absent.includes(entry.directory))",
-      "to": "  const ranked = found.filter(entry => !absent.includes(entry.directory))",
-      "only": "^SessionStart reads a task directory reached again through a link once, and names the other path$"
-    },
-    {
       "label": "§350 C5: a task under an unreadable record is in no list",
       "file": "plugin/scripts/decision-corpus.mjs",
       "tests": [
@@ -879,16 +829,6 @@
       "from": "      return readFileSync(file, 'utf8').replace(/\\r(?!\\n)/g, '\\n')",
       "to": "      return readFileSync(file, 'utf8')",
       "only": "^(?:a CR-only task file loses none of its Affected Files)$"
-    },
-    {
-      "label": "§350 C5: a task directory missing from disk is one more 'not read'",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/named-not-dropped.test.mjs"
-      ],
-      "from": "  const absent = found.filter(entry => kept.has(entry.directory) && gone(entry)).map(entry => entry.directory)",
-      "to": "  const absent = []",
-      "only": "^(?:SessionStart names a task directory git lists and the disk does not hold)$"
     },
     {
       "label": "§351: work-next reads a non-regular task entry",
@@ -1571,16 +1511,6 @@
       "from": "  return platform === 'win32' ? posixListed(rel) : String(rel)",
       "to": "  return posixListed(rel)",
       "only": "^a (path component holding a line feed or a backslash reads alike in both languages|backslash in a listed (task|corpus) path is one name on POSIX and a separator on Windows)$"
-    },
-    {
-      "label": "ADR-092 review: taskDirectories reads a listing as Windows by default",
-      "file": "plugin/scripts/decision-corpus.mjs",
-      "tests": [
-        "tests/listed-backslash.test.mjs"
-      ],
-      "from": "export function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP, platform = process.platform) {",
-      "to": "export function taskDirectories(root, listing, cap = TASK_DIRECTORY_READ_CAP, platform = 'win32') {",
-      "only": "^a backslash in a listed task path is one name on POSIX and a separator on Windows$"
     },
     {
       "label": "ADR-092 outside probe: a content record outside a record directory needs no recognised Status (JS)",

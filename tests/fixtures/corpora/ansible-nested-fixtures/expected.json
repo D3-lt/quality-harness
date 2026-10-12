@@ -52,12 +52,12 @@
   ],
   "disagreements": [],
   "sessionStart": {
-    "mustMatch": [
-      "one-role-per-host-class/tasks`: T1 is ready"
-    ],
+    "mustMatch": [],
     "mustNotMatch": [
       "roles/",
-      "fixtures"
+      "fixtures",
+      "is ready",
+      "ADR tasks in flight"
     ]
   },
   "neverNamed": [

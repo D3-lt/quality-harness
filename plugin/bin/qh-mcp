@@ -616,8 +616,8 @@ reading_tool(
     "qh_orientation",
     "The session orientation Claude Code gets from this plugin's SessionStart hook, "
     "for a client that runs no hooks: the project's own check and how the gates "
-    "treat it, ADR tasks in flight, and whether a stale standalone copy would "
-    "answer instead of the plugin. Reads the directory named; changes nothing. "
+    "treat it, and whether a stale standalone copy would answer instead of the "
+    "plugin. Reads the directory named; changes nothing. "
     "Exit 0 either way; an empty orientation is said in one line ('Nothing to orient "
     "in <directory>') rather than returned blank.",
     {

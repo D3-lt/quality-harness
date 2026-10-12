@@ -11,7 +11,6 @@ import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { readyTaskLines } from '../plugin/scripts/ready-lines.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const bin = join(repoRoot, 'plugin', 'bin')
@@ -65,18 +64,6 @@ test('adr-state quotes a record title without the residue of an escape sequence'
   assert.equal(run.status, 0, run.stderr)
   assert.ok(run.stdout.includes(`«ADR-001: ${QUOTED}»`), JSON.stringify(run.stdout))
   assert.doesNotMatch(run.stdout, RESIDUE, JSON.stringify(run.stdout))
-})
-
-// SessionStart's line for a tasks directory adr-next could not answer for: adr-next's own first
-// line, said on its behalf through gateSaid.
-test('SessionStart says what adr-next printed without the residue of its colours', () => {
-  const root = scratch()
-  const listing = ['docs/adr/ADR-001-x/tasks/T1-x.md']
-  write(root, listing[0], '# x\n')
-  const said = stderr => readyTaskLines(root, true, listing, () => ({ status: 2, stderr, stdout: '' })).lines[0] ?? ''
-  const coloured = said(`${ESC}[31mboom${ESC}[0m, keep [31m and [x]\n`)
-  assert.ok(coloured.includes('adr-next could not run (exit 2): boom, keep [31m and [x]'), JSON.stringify(coloured))
-  assert.doesNotMatch(coloured, RESIDUE, JSON.stringify(coloured))
 })
 
 function escaped(text) {

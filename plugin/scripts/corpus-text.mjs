@@ -144,23 +144,6 @@ export function pathInCode(value) {
   return codeSpan(shownPath(value))
 }
 
-// A command to RUN keeps the real bytes, or a copied command names a file that does not
-// exist; so the invisible characters are named beside it instead (a Windows chaos
-// round, 2.110.0-rc round 3). A control is the exception: it cannot be copied, and a kept
-// newline in a task's name printed a line in this tool's voice (§319's addendum), so it is
-// shown escaped. So is a tag's `<`, which a task's path spoke raw into SessionStart (Codex
-// review of ffd4892, #3), and the line then says the shown path is not the file's real name.
-export function commandInCode(command) {
-  const text = String(command).replace(/[\u{0}-\u{1f}\u{7f}-\u{9f}]/gu, visiblePath)
-  const hidden = [...new Set([...text].filter(char => visiblePath(char) !== char))]
-  const note = hidden.length
-    ? ` (its path holds ${hidden.map(char => `U+${char.codePointAt(0).toString(16).toUpperCase().padStart(4, '0')}`).join(', ')}, invisible: copy it, do not retype it)`
-    : ''
-  const shown = untagged(text)
-  const tagged = shown === text ? '' : ' (its path holds a tag, shown with ‹ for <, so the shown path is not the file\'s real name)'
-  return `${codeSpan(shown)}${note}${tagged}`
-}
-
 // A check command is the project's text spoken in this tool's voice. A `check` in
 // `.quality-harness.json` put newlines, a closing tag, ESC and a fake SYSTEM line into
 // SessionStart's Verification line verbatim (go-cli-adr-corpus H1, BACKLOG §319's

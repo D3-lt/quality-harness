@@ -56,11 +56,11 @@
   ],
   "disagreements": [],
   "sessionStart": {
-    "mustMatch": [
-      "T1 is ready"
-    ],
+    "mustMatch": [],
     "mustNotMatch": [
-      "BACKLOG"
+      "BACKLOG",
+      "is ready",
+      "ADR tasks in flight"
     ]
   },
   "neverNamed": [

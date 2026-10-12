@@ -1,6 +1,6 @@
 // The standing paragraphs a session starts with and the decisions handed over at the moment a file is touched: what verifies
-// this project, which records are in flight, what governs the path about to change. Moved out of lifecycle.mjs unchanged
-// (BACKLOG section 375, stage B4).
+// this project, and what governs the path about to change. Which ADR task is ready is work-next's to say (ADR-099). Moved out
+// of lifecycle.mjs (BACKLOG section 375, stage B4).
 import { decisionContext, listedPath, trackedPaths, unmarkedArchives } from './decision-corpus.mjs'
 import path from 'node:path'
 import { lstatSync, statSync } from 'node:fs'
@@ -10,8 +10,6 @@ import { checkCommandOrigin } from './check-command.mjs'
 import { checkInCode, pathInCode } from './corpus-text.mjs'
 import { alreadyMentionedThisSession, firstMentionHere, firstMentionThisSession } from './session-notes.mjs'
 import { shadowInstallNotice, staleVersionNotice } from './install-notices.mjs'
-import { readyTaskLines, surfaceReadyLines } from './ready-lines.mjs'
-import { readyCache } from './ready-cache.mjs'
 
 // What a session would otherwise learn by hitting a wall. Additive only: this
 // hook can never block, and says nothing it cannot establish from the project
@@ -102,11 +100,8 @@ export function sessionOrientation(cwd, { once = false } = {}) {
 
   const inside = repositoryRoot !== null
   const listing = inside ? trackedPaths(root) : null
-  const ready = readyTaskLines(root, inside, listing, undefined, readyCache(root, listing))
-  // Said once per repository per three days like any standing paragraph: a state directory that cannot be used costs a start its speed, not its answer.
-  if (ready.cacheProblem) standing(`ADR task lines were read without the ready-task cache (${ready.cacheProblem}); adr-next ran for each task directory.`)
-  if (inside && ready.look === 'UNPROVEN') {
-    lines.push('could-not-look: git could not list the tree (UNPROVEN). Ready tasks and corpus existence are not known.')
+  if (inside && listing == null) {
+    lines.push('could-not-look: git could not list the tree (UNPROVEN), so corpus existence is not known.')
   }
   const corpusLook = inside ? hasDecisionCorpus(root, listing) : false
   // Only where there is a decision corpus: a repository that never opted in was
@@ -125,7 +120,7 @@ export function sessionOrientation(cwd, { once = false } = {}) {
   // that never opted into this lifecycle at all, which is the noise this
   // project was told is worse than not shipping the plugin.
   // Git-fail is UNPROVEN, not "no corpus" — a false would skip this notice.
-  if (check || ready.lines.length || corpusLook === true || corpusLook === 'UNPROVEN') {
+  if (check || corpusLook === true || corpusLook === 'UNPROVEN') {
     const shadow = shadowInstallNotice()
     if (shadow) {
       standing(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports `
@@ -138,11 +133,6 @@ export function sessionOrientation(cwd, { once = false } = {}) {
         + 'plugin already serves as `quality-harness:<name>`, and linking it at the plugin own '
         + 'directory hides the namespaced entrypoint outright.')
     }
-  }
-
-  if (ready.lines.length) {
-    const shown = surfaceReadyLines(ready.lines)
-    standing(['ADR tasks in flight:', ...shown].join('\n'))
   }
 
   return lines.join('\n\n')

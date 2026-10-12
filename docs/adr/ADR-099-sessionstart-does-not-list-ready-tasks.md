@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage; the owner decided on 2026-10-12, and the evidence is in Context. It reverses F-1 of `docs/specs/2026-09-10-sessionstart-ready-uses-the-listing.md` (see Decision 5)
 **Cross-references:** ADR-038, ADR-040, ADR-046, ADR-068, ADR-094, ADR-095, ADR-097, `docs/specs/2026-09-10-sessionstart-ready-uses-the-listing.md`, `docs/BACKLOG.md`
 **Governs:** `plugin/scripts/session-orientation.mjs`, `plugin/scripts/session-notes.mjs`, `plugin/scripts/ready-lines.mjs`, `plugin/scripts/on-session-start.mjs`
-**Enforced-by:** None — the mutation labels arrive with T1's catalogue entries; name one here when T1 is done
+**Enforced-by:** `ADR-099 T1: the hook output names no ready task`
 **Invalidates:** ADR-095 — Decision 6 (T6, the traced ready-task cache) and the clause of its Served-path change reading "SessionStart's 'ADR tasks in flight' lines come from an answer cached by the content of what produced them". Also reversed, by prose here because only the leading token is read: ADR-040 Decision 2 and 3 (`taskDirectories` and `readyTaskLines` as SessionStart's inventory) and its Alternative rejecting `work-next` for SessionStart ready; ADR-046 Decision 4 and the SessionStart half of Decision 5 (the UNPROVEN ready line and the render cap); ADR-094 Decision 2's member "the ADR tasks in flight" among the standing paragraphs. ADR-040 Decision 1 and 4 (the listing and `hasDecisionCorpus`) stand.
 **Served-path change:** A session start, resume, compaction or clear, and the `qh_orientation` MCP tool, no longer say "ADR tasks in flight" or start `adr-next`; the compaction note no longer carries "ADR task in flight"; `work-next` is the one reader that says which task is ready.
 
@@ -128,17 +128,22 @@ gate it and an MCP client still call), and `corpus-probe`'s `adrNext` section (a
    - **One rename before the move.** Archived, ADR-095's `tasks/T2-ready-lines-come-from-a-content-cache.md` is 132 characters, over the
      128 of `tests/path-length.test.mjs:20`, whose over-limit list is closed and whose archived units cannot be renamed (`:9-12`). T2
      shortens that one file name in the active tree, keeping its `T2-` prefix and README link (CLAUDE.md §7), before the unit is sealed.
-6. **Locks.** ADR-068 T2's lock map is retaken with `adr-verify --relock --replace-hashes` after the deletions are in the diff. That
-   command snapshots hashes and runs no fence (`plugin/bin/adr-verify:2743`; its rows record `ms:` of the snapshot only); the deletions are
-   proved by T1's own tests and the full gate. ADR-095 T6 is not relocked: every test its Tests table names is in the deleted file, so a
-   relock would lock a file that is gone; T2 archives it with its record instead. The withdrawn ADR-095 T2 needs nothing: a lock is judged
-   only for a `done` claim (`plugin/lib/record.py:3979-3983`).
+6. **Locks.** ADR-068 T2's lock map is retaken with `adr-verify --relock --replace-hashes` after the deletions are in the diff, and so is
+   ADR-092 T3's: its "task directories take the per-hop count and no name preference" (`tests/record-discovery.test.mjs:181-198`) loses
+   the two `taskDirectories` asserts (`:194`, `:197`) and the import (`:12`), and keeps the `observe` assert (`:195-196`), which holds the
+   same per-hop rule through `work-next`. That command snapshots hashes and runs no fence (`plugin/bin/adr-verify:2743`; its rows record
+   `ms:` of the snapshot only); the deletions are proved by T1's own tests and the full gate. ADR-095 T6 is not relocked: every test its
+   Tests table names is in the deleted file, so a relock would lock a file that is gone; T2 archives it with its record instead. The
+   withdrawn ADR-095 T2 needs nothing: a lock is judged only for a `done` claim (`plugin/lib/record.py:3979-3983`). Widened by the owner
+   on 2026-10-12, before T1's red run: the ADR-092 T3 relock, the `taskDirectories` test of `tests/listed-backslash.test.mjs`, a name
+   scan that matches `taskDirectories` only as a call or an import (the word is also an attestation key, `scripts/attest-import.mjs:24`
+   and `plugin/scripts/corpus-probe.mjs:761-774`, which stays), and the comment at `scripts/python-interpreter.mjs:24`.
 
 **This fails if** a SessionStart (startup, resume, compact or clear) or `qh_orientation` in a corpus where `work-next` lists a ready
 task says "ADR tasks in flight", "ADR task in flight" or "is ready —", or starts `adr-next`; if anything shipped still names
-`readyTaskLines`, `readyCache`, `trace_run`, `taskDirectories` or `commandInCode`; or if a tree git cannot list stops being named
-UNPROVEN with its corpus existence. Data that can produce each failure exists today: the fixture in T1 has a ready Accepted task, and
-the existing `git cannot list is UNPROVEN, not no corpus` test corrupts the index.
+`readyTaskLines`, `readyCache`, `trace_run` or `commandInCode`, or calls or imports `taskDirectories`; or if a tree git cannot list stops
+being named UNPROVEN with its corpus existence. Data that can produce each failure exists today: the fixture in T1 has a ready Accepted
+task, and the existing `git cannot list is UNPROVEN, not no corpus` test corrupts the index.
 
 ## Alternatives Considered
 
@@ -174,6 +179,7 @@ only this used. `work-next` becomes the single owner of "ready" with no change t
 | `<state dir>/ready-cache/` | no longer read or written | T1 | none |
 | `readyTaskLines`, `surfaceReadyLines`, `readyCache`, `taskDirectories`, `TASK_DIRECTORY_READ_CAP`, `commandInCode` | exports removed | T1 | tests only |
 | `docs/adr-archive/README.md`, `docs/adr/README.md` | three `governing` archive rows; the active catalog links ADR-040, ADR-046 and ADR-095 to their archive paths | T2 | `adr-retire-check`, `adr-context`, `adr-state`, every reader of the catalog |
+| `adr-retire-check` obligation receipts | read from the active root's `BACKLOG.md`, or, where it has none, the `BACKLOG.md` the active and archive roots share; a catalog pointer still names that one file and the receipt grammar is unchanged (the owner, 2026-10-12; its own commit, before T1 and T2) | `plugin/bin/adr-retire-check` | T2's ADR-095 row; any archive whose backlog sits beside its roots |
 
 ## Inter-task Contracts
 

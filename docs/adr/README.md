@@ -48,11 +48,11 @@ whose catalog says what each one's decision effect is now.
 | [ADR-037](ADR-037-advice-earns-its-place-by-being-acted-on.md) | Advice earns its place by being acted on, and an advisory nobody acts on is removed rather than rationed | Accepted |
 | [ADR-038](ADR-038-a-staged-product-not-a-funnel.md) | A staged product, not a funnel | Accepted |
 | [ADR-039](ADR-039-records-use-the-same-listing.md) | Records use the same listing | Accepted |
-| [ADR-040](ADR-040-sessionstart-ready-uses-the-listing.md) | SessionStart ready uses the listing | Accepted |
+| [ADR-040](../adr-archive/ADR-040-sessionstart-ready-uses-the-listing.md) | SessionStart ready uses the listing | Accepted |
 | [ADR-043](ADR-043-layer-from-stages-catalog.md) | Name Core and Corpus from the STAGES catalog | Accepted |
 | [ADR-044](ADR-044-statusline-snippet-is-a-segment.md) | Compose the statusline segment; do not replace statusLine | Accepted |
 | [ADR-045](ADR-045-one-record-grammar.md) | One record grammar, loaded, not copied | Accepted |
-| [ADR-046](ADR-046-a-caller-relays-could-not-run.md) | A caller relays could-not-run as could-not-run | Accepted |
+| [ADR-046](../adr-archive/ADR-046-a-caller-relays-could-not-run.md) | A caller relays could-not-run as could-not-run | Accepted |
 | [ADR-049](ADR-049-an-unreadable-file-is-could-not-run.md) | An unreadable file is could-not-run | Accepted |
 | [ADR-050](ADR-050-a-locked-test-body-is-not-rewritten.md) | A locked test body is not rewritten | Accepted |
 | [ADR-051](ADR-051-unproven-advise-does-not-invent-writes.md) | Unproven Advise does not invent writes | Accepted |
@@ -96,7 +96,7 @@ whose catalog says what each one's decision effect is now.
 | [ADR-092](ADR-092-one-definition-of-a-record.md) | One definition of a record, in Python, with lifecycle as its only mirror | Accepted |
 | [ADR-093](ADR-093-a-literal-variable-directory-is-left-to-git.md) | An armed session leaves a commit into a literal-variable directory to git | Accepted |
 | [ADR-094](ADR-094-a-standing-fact-is-said-once-and-prose-reuses-the-pass.md) | A standing fact is said once, and a prose-only change reuses the last pass | Accepted |
-| [ADR-095](ADR-095-a-hook-does-not-repeat-work-whose-inputs-have-not-changed.md) | A hook does not repeat work whose inputs have not changed | Accepted |
+| [ADR-095](../adr-archive/ADR-095-a-hook-does-not-repeat-work-whose-inputs-have-not-changed.md) | A hook does not repeat work whose inputs have not changed | Accepted |
 | [ADR-096](ADR-096-turn-end-findings-reach-the-agent.md) | Turn-end findings reach the agent | Accepted |
 | [ADR-097](ADR-097-remove-what-nothing-acts-on.md) | Remove what nothing acts on | Accepted |
 | [ADR-098](ADR-098-what-the-plugin-says-matches-what-it-does.md) | What the plugin says matches what it does | Accepted |

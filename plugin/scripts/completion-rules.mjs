@@ -397,8 +397,8 @@ export function subagentContract(input) {
 }
 
 // What a session was doing, in the words the NEXT context needs: the paths that
-// changed and whether a `qh-check` has passed on them, the last check event, the
-// ADR task in flight. Written at PreCompact and handed back by the compact
+// changed and whether a `qh-check` has passed on them, and the last check event.
+// Written at PreCompact and handed back by the compact
 // SessionStart — compaction keeps the summary the model wrote and drops the
 // state the gates measured, and the two are not the same thing. Also the row
 // SessionEnd writes, so the next session in the same directory starts knowing

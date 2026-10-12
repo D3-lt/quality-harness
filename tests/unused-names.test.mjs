@@ -29,7 +29,9 @@ function project(name, files) {
 }
 const lint = (dir, env = process.env) => {
   const run = spawnSync(bash, [script, dir], { cwd: dir, env, encoding: 'utf8', timeout: 180_000, windowsHide: true })
-  return { status: run.status, out: `${run.stdout}${run.stderr}` }
+  // Both separators read as one (CLAUDE.md §7): ruff and biome name a file `plugin\bin\gate` on Windows, and an assertion
+  // that a file is NOT named would pass there by never matching.
+  return { status: run.status, out: `${run.stdout}${run.stderr}`.replaceAll('\\', '/') }
 }
 
 // One finding per project, so each linter's exit is proved on its own: a dirty Python tree must not lean on a dirty JS one.

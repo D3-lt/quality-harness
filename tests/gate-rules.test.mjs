@@ -14,7 +14,6 @@ import os from 'node:os'
 import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 
-import { parse } from '../plugin/scripts/verify.mjs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runPython } from '../scripts/python-interpreter.mjs'
 import { campaignFixture } from './campaign-fixture.mjs'
@@ -379,60 +378,6 @@ test('a shell that aborted before judging is a failure, not a clean pass', async
   assert.equal(shellRuntimeCrashed('*** fatal error - no bracket prefix\n'), false)
   assert.equal(shellRuntimeCrashed(''), false)
   assert.equal(shellRuntimeCrashed(undefined), false)
-})
-
-test('the verification wrapper reports what the command it ran actually did', () => {
-  const wrapper = join(root, 'scripts', 'verify.mjs')
-  const call = (...args) => spawnSync(process.execPath, [wrapper, ...args], {
-    cwd: root, env, encoding: 'utf8', timeout: 60_000,
-  })
-
-  // The documented invocation, and the whole point of the wrapper: the child's
-  // exit code is the verdict, so swallowing it would turn a red run green.
-  assert.equal(call('--cwd', root, '--', process.execPath, '-e', 'process.exit(0)').status, 0)
-  assert.equal(call('--cwd', root, '--', process.execPath, '-e', 'process.exit(3)').status, 3)
-
-  // A command that cannot start is not a passing command.
-  const missing = call('--cwd', root, '--', 'definitely-not-on-path-xyzzy')
-  assert.equal(missing.status, 127)
-  assert.match(missing.stderr, /failed to start/)
-
-  // Usage errors exit 2, distinct from any verdict the child could return.
-  assert.equal(call('--cwd', root).status, 2)
-  assert.equal(call('--cwd', 'relative/path', '--', 'true').status, 2)
-  assert.match(call('--cwd', 'relative/path', '--', 'true').stderr, /absolute path/)
-
-  // `--` with nothing after it, and `--cwd` after the separator: two usage
-  // shapes that reach the same guard by different routes, and both would
-  // otherwise spawn `undefined` as a command.
-  assert.equal(call('--cwd', root, '--').status, 2)
-  assert.equal(call('--', 'true', '--cwd', root).status, 2)
-  // The NUL-byte guard used to be untestable: spawnSync refuses an argument
-  // containing one, so no invocation could reach it and a test would only have
-  // proved Node's validation. Guarding the module's CLI behind an import check
-  // (BACKLOG §27) made `parse` importable and pure, so the guard this file has
-  // always carried can finally be exercised for the first time.
-  assert.match(parse(['--cwd', `${root}\0`, '--', 'true']).error, /NUL/)
-  assert.match(parse(['--cwd', 'relative/path', '--', 'true']).error, /absolute/)
-  assert.equal(parse(['--cwd', root, '--', 'true', 'x']).error, undefined)
-
-  // A command KILLED by a signal is not a command that returned a code. Without
-  // this branch the wrapper reports `code ?? 1` for a process that never exited
-  // normally, and a run killed on its time budget would read as an ordinary
-  // failure — the distinction adr-verify's whole verdict taxonomy rests on.
-  //
-  // POSIX only, and skipped rather than adapted: Windows has no signals, Node
-  // emulates a kill with TerminateProcess, and the child reports an exit CODE.
-  // So `signal` is null there and this branch is genuinely unreachable — the
-  // same fact that already skips the SIGTERM case in tests/evidence-chain.test.mjs,
-  // learned the same evening and not carried across until CI said so.
-  if (process.platform !== 'win32') {
-    const killed = call('--cwd', root, '--', process.execPath, '-e',
-      'process.kill(process.pid, "SIGKILL")')
-    assert.equal(killed.status, 1, killed.stderr)
-    assert.match(killed.stderr, /terminated by SIGKILL/,
-      'the signal must be named; "exit 1" alone loses why')
-  }
 })
 
 // --- adr-retire-check: the row rules that guard a frozen record --------------

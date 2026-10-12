@@ -266,15 +266,6 @@ function runLifecycleHook(payload, options = {}) {
   })
 }
 
-test('documented custom-validator wrapper executes through Node', () => {
-  const run = spawnSync(process.execPath, [
-    path.join(pluginDir, 'scripts/verify.mjs'),
-    '--cwd', pluginDir,
-    '--', process.execPath, '--check', path.join(pluginDir, 'scripts/lifecycle.mjs'),
-  ], { encoding: 'utf8', timeout: 60_000 })
-  assert.equal(run.status, 0, run.stderr)
-})
-
 test('shell-hook runner normalizes Windows hook paths without changing prose', () => {
   const payload = JSON.stringify({
     cwd: 'C:\\Users\\dev\\project',

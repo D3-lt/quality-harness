@@ -1258,8 +1258,8 @@ test('no job in the release workflow is conditioned so a dispatched run skips it
 test('importing a script runs its CLI on nobody', async () => {
   // BACKLOG §27. Four scripts ran their whole CLI at module scope, so importing
   // one — to test it, or from any tool walking the directory — executed it.
-  // scripts/verify.mjs was the sharp one: it SPAWNED whatever command the
-  // ambient process.argv named. mutate.mjs was the expensive one: its verdict
+  // A command wrapper (removed by ADR-097) was the sharp one: it SPAWNED whatever
+  // command the ambient process.argv named. mutate.mjs was the expensive one: its verdict
   // logic had no test for its entire life precisely because nothing could import
   // it without starting a campaign.
   //
@@ -1275,7 +1275,7 @@ test('importing a script runs its CLI on nobody', async () => {
     // mutate.mjs stayed at the repository root when ADR-008 moved the product:
     // it reads tests/mutations.json, which does not ship.
     modules = await Promise.all([
-      ...['adr-state', 'adr-context', 'verify'].map(name => join(root, 'scripts', `${name}.mjs`)),
+      ...['adr-state', 'adr-context'].map(name => join(root, 'scripts', `${name}.mjs`)),
       join(repoRoot, 'scripts', 'mutate.mjs'),
     ].map(file => import(pathToFileURL(file).href)))
   } finally {

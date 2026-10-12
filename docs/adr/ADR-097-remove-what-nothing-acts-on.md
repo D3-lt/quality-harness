@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage; the evidence is in Context
 **Cross-references:** ADR-032, ADR-038, ADR-060, ADR-068, ADR-075, ADR-091, ADR-096
 **Governs:** None — declared by its tasks
-**Enforced-by:** None — the mutation labels arrive with T1's catalogue entries; name one here when T1 is done
+**Enforced-by:** ADR-097 T1: no shipped skill sends an agent to the removed wrapper
 **Invalidates:** None — the post-edit hook, which ADR-038's F-33 and its spec keep, is deferred rather than removed (see Out of Scope)
 **Served-path change:** `verify.mjs` and `eval-fixture.mjs` no longer ship, and the quality-policy skill no longer tells an agent to wrap a command in `verify.mjs`.
 

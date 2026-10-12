@@ -60,6 +60,7 @@ out=$(node --test --test-reporter=tap tests/subtracted.test.mjs 2>&1) \
 | 4 — it is used | nothing measures this yet |
 
 ## Mutation Log
+- 2026-10-12 · 7f5cda1f* · mutant killed · exit 1 · `plugin/skills/quality-policy/SKILL.md` · a shipped skill that sends an agent to the removed wrapper again goes unnoticed · acceptance-sha256:a3322d0de7a382c5885e7577ea60df1b39e4aa092cbe98feeb092d81cf89dae5 · covers:the absence of the wrapper
 
 ## Invariants
 
@@ -78,3 +79,8 @@ Stop and ask if any hook, gate or record other than those listed turns out to re
 - The other removals (T2, T3)
 
 ## Verification Log
+- 2026-10-12 · 7f5cda1f* · exit 1 · `out=$(node --test --test-reporter=tap tests/subtracted.test.mjs 2>&1) \ …` · acceptance-sha256:a3322d0de7a382c5885e7577ea60df1b39e4aa092cbe98feeb092d81cf89dae5 · ms:221 · test-lock-sha256:3dfaebd7bbf1b8819888d78ee446744e5703d7f36c618a879f17b105a529348c · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvc3VidHJhY3RlZC50ZXN0Lm1qcwl2ZXJpZnkubWpzIGlzIG5vdCBzaGlwcGVkLCBhbmQgbm90aGluZyBzaGlwcGVkIG9yIHRlc3RlZCBuYW1lcyBpdAk1Zjc3ODgxNzlkYzBiMjg4Y2E3ZmUzMzRiZmIyOGM3NjA1MDE3YmE0Yzg2NDUyNmJkYTlkNzM4NWNkNDM5NWEz
+  ```
+  ```
+- 2026-10-12 · 7f5cda1f* · exit 0 · `out=$(node --test --test-reporter=tap tests/subtracted.test.mjs 2>&1) \ …` · acceptance-sha256:a3322d0de7a382c5885e7577ea60df1b39e4aa092cbe98feeb092d81cf89dae5 · ms:294
+- 2026-10-12 · 7f5cda1f* · exit 0 · `out=$(node --test --test-reporter=tap tests/subtracted.test.mjs 2>&1) \ …` · acceptance-sha256:a3322d0de7a382c5885e7577ea60df1b39e4aa092cbe98feeb092d81cf89dae5 · ms:228

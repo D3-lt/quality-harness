@@ -48,10 +48,8 @@ exitCode: integer, or null when unavailable
 summary: useful output or the concrete limitation
 ```
 
-Use normal project commands. If a custom command is not recognizable as a test, lint, build,
-check, verify, or validator, run it through
-`node ${CLAUDE_PLUGIN_ROOT}/scripts/verify.mjs --cwd <repo> -- <command> <args>` so lifecycle hooks can
-identify the executed gate. A nonzero result cannot support a clean verdict.
+Use normal project commands, and run the project's declared check through `qh-check`: that is what records the run
+where the completion and publish rules read it. A nonzero result cannot support a clean verdict.
 
 ## Blocking review findings
 

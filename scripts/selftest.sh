@@ -159,7 +159,6 @@ done
 
 node --check "$ROOT/scripts/lifecycle.mjs"
 node --check "$ROOT/scripts/run-shell-hook.mjs"
-node --check "$ROOT/scripts/verify.mjs"
 # §2: NOT `node --check` — a Workflow script is neither ESM nor CJS and node's two
 # parse goals disagree about it between releases. workflow-parse.mjs reads it the way
 # the runtime does, and ships beside the post-edit hook that needs the same answer.

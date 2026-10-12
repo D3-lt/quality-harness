@@ -19,6 +19,16 @@
       "from": "`subagent_type: quality-harness:qh-correctness-reviewer`",
       "to": "`subagent_type: quality-harness:qh-correctness-reviewer-typo`",
       "only": "^(?:the Moderate tier spawns the correctness reviewer by name|the Moderate tier names a whole shipped agent, not a prefix of one)$"
+    },
+    {
+      "label": "ADR-097 T1: no shipped skill sends an agent to the removed wrapper",
+      "file": "plugin/skills/quality-policy/SKILL.md",
+      "tests": [
+        "tests/subtracted.test.mjs"
+      ],
+      "from": "where the completion and publish rules read it.",
+      "to": "where the completion and publish rules read it, or wrap it in `scripts/verify.mjs`.",
+      "only": "^verify\\.mjs is not shipped, and nothing shipped or tested names it$"
     }
   ]
 }

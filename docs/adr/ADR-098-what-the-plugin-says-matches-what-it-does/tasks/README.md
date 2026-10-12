@@ -19,7 +19,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | one Codex launcher, with stdin closed, a hard budget and the sol pin | done | none — no spec | `node --test tests/codex-launcher.test.mjs …` (five named tests) and no `gpt-6-astra` in `plugin/` |
-| T2 | one blocking definition, one severity vocabulary, the leaf contract once per audience | pending | none — no spec | `node --test tests/review-contract.test.mjs …` (six named tests) and four blocking-definition lines in `plugin/` |
+| T2 | one blocking definition, one severity vocabulary, the leaf contract once per audience | done | none — no spec | `node --test tests/review-contract.test.mjs …` (six named tests) and four blocking-definition lines in `plugin/` |
 | T3 | the ADR-ownership notice says nothing is blocked | done | none — no spec | `node --test tests/advice-says-advice.test.mjs …` (two named tests) |
 
 ## Contract Coupling

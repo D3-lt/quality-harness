@@ -28,7 +28,7 @@ if (evidence.status === 'executed' && evidence.exitCode !== 0) {
   return { status: 'gate-failed', evidence }
 }
 
-const LEAF = `You are an assigned read-only leaf reviewer. Do not invoke /quality-harness:work, /quality-harness:consensus, /quality-harness:review-ring, /quality-harness:quality-cycle, or spawn another agent. Stay inside the supplied diff and requirements. Do not propose new features, broad cleanup, speculative abstractions, configuration, fallbacks, or compatibility layers.`
+const LEAF = `You are an assigned read-only leaf reviewer.`
 const TARGET = `Repository: ${JSON.stringify(repo)}. Scope: ${JSON.stringify(scope)}. Requirements: ${JSON.stringify(requirements || 'use repository-owned acceptance criteria')}. Non-goals: ${JSON.stringify(nonGoals || 'no new scope')}. Caller-observed evidence (immutable): ${JSON.stringify(evidence)}.`
 
 const REVIEW = {
@@ -53,7 +53,7 @@ const REVIEW = {
 }
 
 const reviewerTasks = [
-  () => agent(`${LEAF}\n${TARGET}\nReview correctness, security/safety, contracts, state transitions, error paths, and integration wiring. A blocker must be in scope, material, exactly evidenced, reproducible or contract-backed, and minimally fixable. Passing evidence must be addressed, not ignored.`, { label: 'correctness', phase: 'Review', schema: REVIEW, model: 'opus', agentType: 'quality-harness:qh-correctness-reviewer' }),
+  () => agent(`${LEAF}\n${TARGET}\nReview correctness, security/safety, contracts, state transitions, error paths, and integration wiring. Apply your blocking criteria.`, { label: 'correctness', phase: 'Review', schema: REVIEW, model: 'opus', agentType: 'quality-harness:qh-correctness-reviewer' }),
   () => agent(`${LEAF}\n${TARGET}\nReview scope and design economy. Distinguish duplicated knowledge from similar syntax. Treat SOLID as a diagnostic for real ownership or substitution seams, not a demand for more layers. Block complexity only when it creates a concrete correctness or maintenance defect in the current requirements; otherwise mark it advisory.`, { label: 'scope-simplicity', phase: 'Review', schema: REVIEW, model: 'haiku', agentType: 'quality-harness:qh-scope-reviewer' }),
 ]
 
@@ -104,7 +104,7 @@ if (reviews.some(review => review.status === 'unavailable')) {
 const reviewerEvidenceLimited = reviews.some(review => review.status === 'evidence-limited')
 
 phase('Synthesize')
-const synthesis = await agent(`${LEAF}\n${TARGET}\nIndependent reviews: ${JSON.stringify(reviews)}. Deduplicate findings. A finding is blocking only if all are true: in stated scope or caused by the diff; material to correctness/security/data/required behavior/concrete maintainability; exact evidence; minimal in-scope remedy; and an explanation of why passing checks do not settle it. Downgrade style, future-proofing, architecture alternatives, speculative edges, and optional cleanup. Do not invent findings.`, { label: 'synthesis', phase: 'Synthesize', schema: REVIEW, model: 'opus', agentType: 'quality-harness:qh-synthesis' })
+const synthesis = await agent(`${LEAF}\n${TARGET}\nIndependent reviews: ${JSON.stringify(reviews)}. Deduplicate findings and apply your blocking criteria.`, { label: 'synthesis', phase: 'Synthesize', schema: REVIEW, model: 'opus', agentType: 'quality-harness:qh-synthesis' })
 
 if (!synthesis) return { status: 'reviewer-unavailable', reason: 'the synthesis reviewer returned nothing', evidence, reviews }
 if (synthesis.status === 'unavailable') {

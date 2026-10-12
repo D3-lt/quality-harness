@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage; the evidence is in Context, each claim re-read at its cited line on 2026-10-12
 **Cross-references:** ADR-005, ADR-029, ADR-053, ADR-057, ADR-060, ADR-061, ADR-062, ADR-066, ADR-068, ADR-080, ADR-092, ADR-096, CLAUDE.md, .claude/rules/12-reviews.md, docs/BACKLOG.md
 **Governs:** None — declared by its tasks
-**Enforced-by:** None — each task adds one catalogue mutation per `Rests-on` name; name those labels here when T1-T3 are done, since a pointer now would point at nothing
+**Enforced-by:** `ADR-098 T1: the codex-review skill launches through host-review`, `ADR-098 T2: review-ring's severity enum is blocking or advisory`, `advice: the ADR-ownership notice says nothing is blocked (ADR-098 T3)`
 **Invalidates:** ADR-062 — its Decision "`codex` uses the invocation the review skill already specifies" (line 27) and its Existing Primitives "`codex-review` already pins `gpt-6-astra`" (line 19) stop being true: the skills launch through `host-review.mjs` and the pin becomes `gpt-6.1-sol` (T1).
 **Served-path change:** A Codex review or advice started by either Codex skill runs through `host-review.mjs` with stdin closed, a hard-killed budget and the `gpt-6.1-sol` pin; every reviewer applies one blocking definition and one severity vocabulary, and every editing role is told not to publish; and the per-edit ADR-ownership notice stops telling the model it "blocks at commit and completion".
 

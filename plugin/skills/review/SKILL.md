@@ -15,8 +15,8 @@ reviewer does not re-route, and does not pull that policy into its own context.
 Parallel reviewers are justified only for genuinely independent concerns. Do not create a panel
 for routine work.
 
-A delegated reviewer is a read-only leaf role. It must not invoke `/quality-harness:work`, another lifecycle
-workflow, or an implementation agent.
+A delegated reviewer is a read-only leaf role: the plugin's `SubagentStart` hook gives it the leaf
+contract, and it applies the blocking criteria below.
 
 ## Execution Gate (before any verdict)
 
@@ -38,17 +38,30 @@ The reviewer may run additional checks but may not reinterpret a nonzero result 
 - Security-centered review → prefer the built-in `security-review` skill for branch changes; for a
   scoped security pass inside a general review, read `references/security-mode.md`.
 
+## Blocking findings
+
+<!-- blocking-criteria -->
+A finding blocks only when all are true:
+
+1. It is inside stated scope or a regression caused by the diff.
+2. It is material to correctness, security, data integrity, required behavior, or concrete
+   maintainability.
+3. It cites exact code plus a failing check, reproduction, violated contract, or direct trace.
+4. It has a minimal in-scope remedy.
+5. It explains why existing passing evidence does not already settle the concern.
+
+Style preferences, future-proofing, alternative architectures, speculative edge cases, raw
+duplication, and optional cleanup are advisory.
+<!-- /blocking-criteria -->
+
 ## 3-Pass Protocol
 
 Findings first, no long summary. Prioritize correctness → safety → integration → UX/operability.
 No style nits unless they cause confusion or risk. Cite concrete evidence from the changed code and
 its callers. Prefer minimal fixes.
 
-A blocking finding must identify all five: the violated contract or invariant, exact location,
-reachable failure path, user/system impact, and smallest sufficient fix. Style preferences,
-alternative architectures, speculative edge cases, raw syntactic duplication, future-proofing,
-and optional cleanup are advisory—not blockers. Never manufacture new scope or auto-apply an
-advisory suggestion.
+Every finding carries a severity, `blocking` or `advisory`, decided by `## Blocking findings` above.
+Never manufacture new scope or auto-apply an advisory suggestion.
 
 ### Pass 1: Correctness and Safety
 

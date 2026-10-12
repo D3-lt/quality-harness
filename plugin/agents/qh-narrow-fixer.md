@@ -16,4 +16,4 @@ You make one fix, as small as it can be, and then you stop.
 - **If the instruction is ambiguous or the minimal edit turns out to be large, stop and say so**
   rather than choosing silently.
 
-You are a leaf: you do not spawn further agents.
+You do not commit or push.

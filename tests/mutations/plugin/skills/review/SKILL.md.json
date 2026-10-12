@@ -1,0 +1,24 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-098 T2: the review skill's blocking block equals its mirrors",
+      "file": "plugin/skills/review/SKILL.md",
+      "tests": [
+        "tests/review-contract.test.mjs"
+      ],
+      "from": "duplication, and optional cleanup are advisory.",
+      "to": "duplication, and optional cleanup are minor.",
+      "only": "^the blocking criteria have one definition and every mirror is its text$"
+    },
+    {
+      "label": "ADR-098 T2: the review skill's blocking block holds all of definition A",
+      "file": "plugin/skills/review/SKILL.md",
+      "tests": [
+        "tests/review-contract.test.mjs"
+      ],
+      "from": "4. It has a minimal in-scope remedy.",
+      "to": "4. It has a remedy.",
+      "only": "^(?:the canonical blocking block is definition A|the blocking criteria have one definition and every mirror is its text)$"
+    }
+  ]
+}

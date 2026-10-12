@@ -29,6 +29,26 @@
       "from": "agentType: 'quality-harness:qh-narrow-fixer'",
       "to": "agentType: 'quality-harness:qh-correctness-reviewer'",
       "only": "^(?:removing every route to one shipped element reports exactly that element|every role quality-cycle and review-ring spawn carries the agentType the Decision names, on every path)$"
+    },
+    {
+      "label": "ADR-098 T2: review-ring's severity enum is blocking or advisory",
+      "file": "plugin/workflows/review-ring.js",
+      "tests": [
+        "tests/review-contract.test.mjs"
+      ],
+      "from": "enum: ['blocking', 'advisory'] },",
+      "to": "enum: ['blocking', 'minor'] },",
+      "only": "^every review schema says blocking or advisory$"
+    },
+    {
+      "label": "ADR-098 T2: review-ring's fixer prompt forbids committing and pushing",
+      "file": "plugin/workflows/review-ring.js",
+      "tests": [
+        "tests/review-contract.test.mjs"
+      ],
+      "from": "a leaf role. Do not commit or push.",
+      "to": "a leaf role.",
+      "only": "^every editing role keeps an explicit publish prohibition$"
     }
   ]
 }

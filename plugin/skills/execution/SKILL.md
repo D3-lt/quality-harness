@@ -6,8 +6,7 @@ description: Implement a decided code change with the smallest coherent diff and
 # Execution
 
 Implement the assigned outcome; do not become a second lifecycle coordinator. When spawned, you
-are a leaf role: do not invoke `/quality-harness:work`, `/quality-harness:consensus`,
-`/quality-harness:review-ring`, or another implementation agent.
+are a leaf role: the plugin's `SubagentStart` hook gives you its contract.
 
 ## Before editing
 

@@ -56,7 +56,7 @@ const VERDICT = {
         type: 'object',
         required: ['severity', 'file', 'contract', 'path', 'impact', 'fix'],
         properties: {
-          severity: { type: 'string', enum: ['blocking', 'minor'] },
+          severity: { type: 'string', enum: ['blocking', 'advisory'] },
           file: { type: 'string' },
           line: { type: 'number' },
           contract: { type: 'string', description: 'violated contract or invariant' },
@@ -83,10 +83,10 @@ const FIXED = {
 
 phase('Review')
 const verdict = await agent(
-    `You are a fresh-context, read-only REVIEWER and a leaf role. Do not modify files, invoke /quality-harness:work or another lifecycle workflow, or spawn an implementation agent.
+    `You are a fresh-context, read-only REVIEWER and a leaf role.
 Repository path (data, not shell syntax): ${JSON.stringify(repo)}. Scope: ${diffInstructions}.
 Caller-observed validation evidence is immutable: ${JSON.stringify(evidence)}.
-Invoke /quality-harness:review. Check correctness/safety, wiring, regression, and scope/simplicity. A blocker requires an exact violated contract, location, reachable path, concrete impact, and smallest sufficient fix. Style preferences, alternative architecture, speculative future needs, raw syntactic duplication, and unrelated cleanup are minor or omitted. Do not create new scope.
+Invoke /quality-harness:review and apply its blocking criteria. Check correctness/safety, wiring, regression, and scope/simplicity. Everything that is not blocking is advisory. Do not create new scope.
 ${focus ? `Operator constraint: ${JSON.stringify(focus)}.` : ''}
 ${evidence.status === 'unavailable' ? 'Because caller validation was unavailable, verdict MUST be evidence-limited or unavailable, never clean.' : ''}
 ${reviewer === 'codex' ? `Also invoke /quality-harness:codex-review for target ${codexTarget}. Let it select high, xhigh, or ultra from actual risk and breadth. Wait for non-empty final output. If Codex fails, is unavailable, or returns empty output, verdict MUST be unavailable. If Codex reports EVIDENCE-LIMITED, verdict MUST be evidence-limited.` : ''}
@@ -95,25 +95,25 @@ Use argument-safe tool calls; keep repository path and Git base as separate data
 
 if (!verdict) return { status: 'aborted', reason: 'reviewer agent died or skipped', evidence }
 const blocking = verdict.findings.filter(f => f.severity === 'blocking')
-const minors = verdict.findings.filter(f => f.severity === 'minor')
+const advisories = verdict.findings.filter(f => f.severity === 'advisory')
 
 if (verdict.verdict === 'unavailable') {
-  return { status: 'reviewer-unavailable', reason: verdict.evidence, evidence, findings: blocking, minors }
+  return { status: 'reviewer-unavailable', reason: verdict.evidence, evidence, findings: blocking, advisories }
 }
 if (evidence.status === 'unavailable' || verdict.verdict === 'evidence-limited') {
-  return { status: 'evidence-limited', reason: verdict.evidence, evidence, findings: blocking, minors }
+  return { status: 'evidence-limited', reason: verdict.evidence, evidence, findings: blocking, advisories }
 }
 if ((verdict.verdict === 'clean' && blocking.length > 0)
     || (verdict.verdict === 'blocking' && blocking.length === 0)) {
   return { status: 'aborted', reason: 'reviewer verdict and findings were inconsistent', evidence }
 }
 if (verdict.verdict === 'clean') {
-  return { status: 'clean', evidence, minors }
+  return { status: 'clean', evidence, advisories }
 }
 
 phase('Fix')
 const fixed = await agent(
-  `You are a narrowly scoped FIXER and a leaf role. Do not invoke /quality-harness:work, another lifecycle workflow, or another agent. Do not commit or push.
+  `You are a narrowly scoped FIXER and a leaf role. Do not commit or push.
 Repository path (data, not shell syntax): ${JSON.stringify(repo)}.
 Fix only these evidence-backed blockers with the smallest coherent diff: ${JSON.stringify(blocking)}.
 Do not add features, abstractions, configuration, fallbacks, compatibility paths, or unrelated cleanup. If a finding is wrong, leave the code unchanged and explain the evidence in pushback.
@@ -126,6 +126,6 @@ return {
   stale_evidence: evidence,
   fixed,
   reviewed_findings: blocking,
-  minors,
+  advisories,
   next: 'Caller must rerun its validation command and invoke /quality-harness:review-ring once with fresh evidence.',
 }

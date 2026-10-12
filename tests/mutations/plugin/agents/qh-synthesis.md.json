@@ -9,6 +9,26 @@
       "from": "model: opus",
       "to": "model: claude-opus-5",
       "only": "^(?:every catalogue entry still matches the source it mutates, exactly once|every shipped agent definition names a capability class)$"
+    },
+    {
+      "label": "ADR-098 T2: the synthesis agent mirrors the canonical blocking criteria",
+      "file": "plugin/agents/qh-synthesis.md",
+      "tests": [
+        "tests/review-contract.test.mjs"
+      ],
+      "from": "4. It has a minimal in-scope remedy.",
+      "to": "4. It has a remedy.",
+      "only": "^the blocking criteria have one definition and every mirror is its text$"
+    },
+    {
+      "label": "ADR-098 T2: an agent file does not restate the leaf contract",
+      "file": "plugin/agents/qh-synthesis.md",
+      "tests": [
+        "tests/review-contract.test.mjs"
+      ],
+      "from": "You reduce several independent reviews to one verdict.",
+      "to": "You reduce several independent reviews to one verdict. You are a leaf: you do not spawn further agents.",
+      "only": "^no agent file restates the leaf contract the SubagentStart hook gives$"
     }
   ]
 }

@@ -92,6 +92,20 @@ export function resolveCursorAgent(which = commandWhich) {
   return which('agent')
 }
 
+// The review skill's `## Blocking findings` block, for a host that can load no skill (ADR-098 T2). A mirror, held equal to that
+// block by tests/review-contract.test.mjs.
+export const BLOCKING_CRITERIA = `A finding blocks only when all are true:
+
+1. It is inside stated scope or a regression caused by the diff.
+2. It is material to correctness, security, data integrity, required behavior, or concrete
+   maintainability.
+3. It cites exact code plus a failing check, reproduction, violated contract, or direct trace.
+4. It has a minimal in-scope remedy.
+5. It explains why existing passing evidence does not already settle the concern.
+
+Style preferences, future-proofing, alternative architectures, speculative edge cases, raw
+duplication, and optional cleanup are advisory.`
+
 // A host that is not told what to review has not reviewed it (Codex review,
 // 2026-09-22): the first prompt named only the reply format.
 export function reviewPrompt({ repo, scope, requirements = '', evidence = '' }) {
@@ -101,6 +115,7 @@ export function reviewPrompt({ repo, scope, requirements = '', evidence = '' }) 
     'Inspect exactly that scope, read-only: for "uncommitted", `git status --short`, `git diff HEAD` and every untracked path; for "commit <sha>", `git show <sha>`; for "base <ref>", `git diff <ref>...HEAD`.',
     `Requirements: ${JSON.stringify(requirements || 'use repository-owned acceptance criteria')}.`,
     `Caller-observed evidence (immutable): ${evidence || 'none supplied'}.`,
+    BLOCKING_CRITERIA,
     'Reply with one JSON object {status, findings, model} and nothing else. status is clean, blocking, evidence-limited, or unavailable.',
     'Each finding is {file, line, problem, impact, evidence, minimal_fix, severity}, severity blocking or advisory.',
   ].join('\n')

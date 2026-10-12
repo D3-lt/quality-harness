@@ -53,18 +53,10 @@ where the completion and publish rules read it. A nonzero result cannot support 
 
 ## Blocking review findings
 
-A finding blocks only when all are true:
-
-1. It is inside stated scope or a regression caused by the diff.
-2. It is material to correctness, security, data integrity, required behavior, or concrete
-   maintainability.
-3. It cites exact code plus a failing check, reproduction, violated contract, or direct trace.
-4. It has a minimal in-scope remedy.
-5. It explains why existing passing evidence does not already settle the concern.
-
-Style preferences, future-proofing, alternative architectures, speculative edge cases, raw
-duplication, and optional cleanup are advisory. Never auto-apply reviewer suggestions. Permit one
-fix and one re-review; repeated or disputed findings return to the coordinator.
+What makes a finding blocking is the `## Blocking findings` block of `quality-harness:review`: the
+coordinator reads the criteria there and does not restate them. Never auto-apply reviewer
+suggestions. Permit one fix and one re-review; repeated or disputed findings return to the
+coordinator.
 
 ## Delegation boundary
 

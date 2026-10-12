@@ -27,7 +27,7 @@ const DEFAULT_LENSES = [
 ]
 const lenses = (lensArg && lensArg.length ? lensArg : DEFAULT_LENSES).slice(0, drafters)
 const ground = repo ? `Ground yourself in the actual repo first: explore ${repo} (read what the plan touches — real files, real contracts, not assumptions).` : ''
-const LEAF = 'You are a read-only leaf role. Do not invoke /quality-harness:work, another lifecycle workflow, or another agent.'
+const LEAF = 'You are a read-only leaf role.'
 
 const DRAFT = {
   type: 'object',

@@ -100,3 +100,4 @@ whose catalog says what each one's decision effect is now.
 | [ADR-096](ADR-096-turn-end-findings-reach-the-agent.md) | Turn-end findings reach the agent | Accepted |
 | [ADR-097](ADR-097-remove-what-nothing-acts-on.md) | Remove what nothing acts on | Accepted |
 | [ADR-098](ADR-098-what-the-plugin-says-matches-what-it-does.md) | What the plugin says matches what it does | Accepted |
+| [ADR-099](ADR-099-sessionstart-does-not-list-ready-tasks.md) | SessionStart does not list ready tasks; work-next owns ready | Accepted |

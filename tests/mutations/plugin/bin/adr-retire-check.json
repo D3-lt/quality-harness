@@ -349,6 +349,16 @@
       "from": "    return own if _present(own) else active_root.parent / \"BACKLOG.md\"",
       "to": "    return active_root.parent / \"BACKLOG.md\" if _present(active_root.parent / \"BACKLOG.md\") else own",
       "only": "^(?:adr-retire-check reads the backlog the sibling roots share when the active root has none)$"
+    },
+    {
+      "label": "BACKLOG: a ticked receipt is not counted",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if re.match(r\"^\\s*- \\[[ xX]\\]\", line) and adr_id in references_in(line)",
+      "to": "        if re.match(r\"^\\s*- \\[ \\]\", line) and adr_id in references_in(line)",
+      "only": "^(?:adr-retire-check counts a ticked receipt, and still fails when that receipt is removed)$"
     }
   ]
 }

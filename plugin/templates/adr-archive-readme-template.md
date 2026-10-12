@@ -36,7 +36,7 @@ a month and a separator reads as a date, so name such a record with an `# ADR-N`
 
 - `none` only when the retired decision unit has no meaningful deferred or unchecked item;
 - the path to the active corpus's `BACKLOG.md` (the active root's own, or, where it has none, the
-  one in the directory the two roots share), whose `## Follow-ups` unchecked bullets name the
+  one in the directory the two roots share), whose `## Follow-ups` bullets, open or ticked, name the
   source ADR exactly, by its ADR id or, for a dated record, its stem or path; or
 - `disposed: <reason>` when every apparent item is a placeholder, completed, or deliberately
   abandoned.

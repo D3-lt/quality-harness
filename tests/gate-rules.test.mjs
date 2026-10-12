@@ -546,6 +546,32 @@ test('adr-retire-check reads the backlog the sibling roots share when the active
   assert.equal(adoption().status, 0, adoption().stdout)
 })
 
+// A receipt is the proof that an archived obligation was carried into the active backlog, not that it is still
+// open: ticking it when the work is done must not turn the archive red, and deleting it must. Both entry points.
+test('adr-retire-check counts a ticked receipt, and still fails when that receipt is removed', () => {
+  const dir = scratch('ticked-receipt')
+  const source = join(repoRoot, 'tests', 'fixtures', 'ok')
+  cpSync(join(source, 'adr-archive'), join(dir, 'adr-archive'), { recursive: true })
+  cpSync(join(source, 'adr'), join(dir, 'adr'), { recursive: true })
+  const backlog = join(dir, 'adr', 'BACKLOG.md')
+  const open = readFileSync(backlog, 'utf8')
+  const line = '- [ ] Revisit the historical operator sign-off (from ADR-001).\n'
+  assert.ok(open.includes(line), 'the receipt to tick is in the fixture')
+  const verdict = () => run('adr-retire-check', ['adr-archive/README.md'], dir)
+  const adoption = () => run('adr-retire-check', ['--adopt', 'adr', 'adr-archive'], dir)
+
+  // CLEAN: the same receipt, ticked, in either case of x.
+  for (const tick of ['x', 'X']) {
+    writeFileSync(backlog, open.replace(line, line.replace('[ ]', `[${tick}]`)))
+    assert.equal(verdict().status, 0, verdict().stdout)
+    assert.equal(adoption().status, 0, adoption().stdout)
+  }
+  // DIRTY: the ticked receipt removed.
+  writeFileSync(backlog, open.replace(line, ''))
+  assert.match(verdict().stdout, /ADR-001: archive has 2 obligation\(s\), active receipt has 1/, verdict().stdout)
+  assert.match(adoption().stdout, /ADR-001: 2 archived obligation\(s\), 1 active BACKLOG receipt\(s\)/, adoption().stdout)
+})
+
 
 test('every adr-retire-check row rule has a case that makes it fire', () => {
   const dir = scratch('archive')

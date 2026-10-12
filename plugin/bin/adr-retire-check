@@ -334,10 +334,12 @@ def meaningful_obligations(root, known=frozenset(), records=None):
 
 
 def receipt_count(lines, adr_id):
-    """Unchecked BACKLOG lines naming `adr_id`, by ADR-063's reference rule."""
+    """BACKLOG lines naming `adr_id`, by ADR-063's reference rule, open or ticked. A receipt proves the
+    obligation was carried into the active backlog, not that it is still open: ticking one when its work is
+    done must not turn the archive red, and only a removed one is a lost obligation."""
     return sum(
         1 for line in lines
-        if re.match(r"^\s*- \[ \]", line) and adr_id in references_in(line)
+        if re.match(r"^\s*- \[[ xX]\]", line) and adr_id in references_in(line)
     )
 
 

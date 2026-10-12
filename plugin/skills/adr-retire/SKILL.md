@@ -50,7 +50,7 @@ decision effect controls whether a choice still governs. Archive is not a synony
    - `withdrawn`: decision never became authoritative or was explicitly abandoned.
 4. Copy every meaningful archived `(deferred: ...)` and unchecked `## Follow-ups` item into the
    active corpus's `BACKLOG.md` (the active root's own, or the shared parent's where the root has none),
-   under `## Follow-ups`. Each unchecked bullet names its source ADR.
+   under `## Follow-ups`. Each bullet names its source ADR; when its work is done it is ticked, never removed.
    Explicitly dispose placeholders, completed items, and abandoned work in the archive catalog
    rather than silently ignoring them.
 5. Update the active `README.md`: current-format ADRs keep active links; governing archived ADRs get

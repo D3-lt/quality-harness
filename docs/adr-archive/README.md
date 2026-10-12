@@ -34,7 +34,7 @@ bytes. `Decision effect` is exactly `governing`, `superseded by ADR-NNN`, or `wi
 
 - `none` only when the retired decision unit has no meaningful deferred or unchecked item;
 - the path to the active corpus's `BACKLOG.md` (the active root's own, or, where it has none, the
-  one in the directory the two roots share), whose `## Follow-ups` unchecked bullets name the
+  one in the directory the two roots share), whose `## Follow-ups` bullets, open or ticked, name the
   source ADR exactly; or
 - `disposed: <reason>` when every apparent item is a placeholder, completed, or deliberately
   abandoned.

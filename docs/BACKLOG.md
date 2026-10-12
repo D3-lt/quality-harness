@@ -16,16 +16,16 @@ never reused or renumbered, so every `BACKLOG §N` citation in records, code and
 ## Follow-ups
 
 Receipts for the open obligations of archived records: `adr-retire-check` reads them here, in the `BACKLOG.md`
-the active corpus (`docs/adr/`) and its archive (`docs/adr-archive/`) share. Each unchecked line names its source
-record; it is checked off when the work is done or the owner abandons it, never removed.
+the active corpus (`docs/adr/`) and its archive (`docs/adr-archive/`) share. Each line names its source record; it
+is ticked when the work is done or the owner abandons it, never removed, and the checker counts it either way.
 
 - [ ] ADR-095: read the decision corpus once per session instead of per governed path (§378; the first governed Edit cost 347 ms, the next 79 ms).
 - [ ] ADR-095: a per-test verdict cache for the repository's own gate (§378).
 - [ ] ADR-095 T4: a per-test verdict cache for the repository's own gate, the same item as the record's, deferred again by T4 (§378).
 - [ ] ADR-095: the outside run (CLAUDE.md §18) timing SessionStart and Stop on a corpus of 70 records or more, before and after; since ADR-099 removed the cache, only Stop's timing is left to take.
-- [ ] ADR-095: run the ready-line cache's misses concurrently. Moot since ADR-099 deleted the cache (§378); check it off when the owner confirms it abandoned.
-- [ ] ADR-095 T2: the same concurrent-misses item, deferred by the withdrawn T2; moot for the same reason.
-- [ ] ADR-095 T6: the same concurrent-misses item, deferred by T6; moot for the same reason.
+- [x] ADR-095: run the ready-line cache's misses concurrently. Moot: ADR-099 (Accepted 2026-10-12) deleted the cache, so there are no misses to run (§378).
+- [x] ADR-095 T2: the same concurrent-misses item, deferred by the withdrawn T2; moot for the same reason.
+- [x] ADR-095 T6: the same concurrent-misses item, deferred by T6; moot for the same reason.
 
 ## 1. CLOSED — a commit gate where one unresolved Bash path bricked committing for the whole session (`a48c608`)
 

@@ -63,16 +63,16 @@ test('...and it finds the two orphans this repository actually shipped', () => {
   // commits are in this repository's history, so this cannot rot into a tautology
   // the way a hand-built fixture can.
   //
-  // 818031c (in v2.47.0) shipped `implausibly_fast` — BACKLOG §99, GitHub issue #6.
+  // 1a6693a (in v2.47.0; 818031c before the 2026-10-12 history rewrite) shipped `implausibly_fast` — BACKLOG §99, GitHub issue #6.
   // It carries `gitBranch` too, which §100 later deleted.
-  const shipped = orphanDefinitions(shippedAt('818031c')).orphans.map(o => o.name).sort()
+  const shipped = orphanDefinitions(shippedAt('1a6693a')).orphans.map(o => o.name).sort()
   assert.deepEqual(shipped, ['DURATION_REQUIRED_FROM', 'VALIDATION_VERDICTS', '__declaredEnforcementForTest',
     '__pathMatchesDeclarationForTest', 'gitBranch', 'implausibly_fast'],
     'the sweep must catch the defect at the commit that shipped it')
 
-  // de4a2a7 is the commit that deleted gitBranch (§100), so its parent still has
+  // 944fa61 (de4a2a7 before the rewrite) is the commit that deleted gitBranch (§100), so its parent still has
   // it and no longer has implausibly_fast — a second, independent data point.
-  const before = orphanDefinitions(shippedAt('de4a2a7^')).orphans.map(o => o.name).sort()
+  const before = orphanDefinitions(shippedAt('944fa61^')).orphans.map(o => o.name).sort()
   assert.deepEqual(before, ['DURATION_REQUIRED_FROM', 'VALIDATION_VERDICTS', '__declaredEnforcementForTest',
     '__pathMatchesDeclarationForTest', 'gitBranch'])
 })

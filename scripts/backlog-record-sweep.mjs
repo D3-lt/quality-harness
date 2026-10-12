@@ -58,6 +58,43 @@ export function sections (markdown) {
   return out.map(s => ({ ...s, body: s.body.join('\n') }))
 }
 
+// The 2026-10-12 sweep moved every closed section verbatim to docs/backlog-archive/ and left its heading in
+// docs/BACKLOG.md with this pointer as its whole body, so every `BACKLOG §N` still resolves in the index.
+export const ARCHIVED = /^Archived: \[backlog-archive\/([^\]\s]+\.md)\]\(backlog-archive\/\1\)$/
+
+// The text of each `## ` block in a file, keyed by its heading line, with the lines that follow it.
+function blocksOf (text) {
+  const blocks = new Map()
+  let current = null
+  for (const line of text.split('\n')) {
+    if (line.startsWith('## ')) { current = [line]; blocks.set(line, current) } else if (current) current.push(line)
+  }
+  return blocks
+}
+
+/**
+ * The backlog whole: docs/BACKLOG.md with each archived section's pointer replaced by that section's text from
+ * docs/backlog-archive/, so a sweep reads every body it read before the split. A pointer whose section the named
+ * archive part does not hold, under the same heading, throws: a section that cannot be found was not read.
+ */
+export function readBacklog (root = repoRoot, read = file => readFileSync(file, 'utf8')) {
+  const lines = read(join(root, 'docs', 'BACKLOG.md')).split('\n')
+  const parts = new Map()
+  const out = []
+  for (let i = 0; i < lines.length; i++) {
+    const pointer = lines[i].startsWith('## ') && lines[i + 1] === '' ? ARCHIVED.exec(lines[i + 2] ?? '') : null
+    if (!pointer) { out.push(lines[i]); continue }
+    if (!parts.has(pointer[1])) parts.set(pointer[1], blocksOf(read(join(root, 'docs', 'backlog-archive', pointer[1]))))
+    const block = parts.get(pointer[1]).get(lines[i])
+    if (!block) throw new Error(`docs/BACKLOG.md points ${lines[i]} at backlog-archive/${pointer[1]}, which has no such section`)
+    const text = [...block]
+    while (text.length && text[text.length - 1] === '') text.pop()
+    out.push(...text)
+    i += 2
+  }
+  return out.join('\n')
+}
+
 /** The ADR ids a section names, in its heading and its body, without duplicates. */
 /**
  * The ADR ids a section CLAIMS ITS OWN WORK LIVES IN, without duplicates.
@@ -154,7 +191,7 @@ export function sweep (markdown, { all = false, ...opts } = {}) {
 
 export function main (argv = []) {
   const all = argv.includes('--all')
-  const markdown = readFileSync(join(repoRoot, 'docs', 'BACKLOG.md'), 'utf8')
+  const markdown = readBacklog()
   const findings = sweep(markdown, { all })
   const total = sections(markdown).filter(s => all || !CLOSED_WORDS.test(s.heading)).length
   console.log(`backlog-record-sweep: ${total} section(s) read${all ? '' : ', closed ones skipped'}`)

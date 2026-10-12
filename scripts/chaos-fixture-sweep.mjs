@@ -19,10 +19,10 @@
 // Usage:  node scripts/chaos-fixture-sweep.mjs [<BACKLOG.md>]
 // Exit code is 0 whatever it finds (CLAUDE.md §3).
 import { readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, resolve } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
-import { sections } from './backlog-record-sweep.mjs'
+import { readBacklog, sections } from './backlog-record-sweep.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 
@@ -41,8 +41,8 @@ export function unfixtured (markdown, cutoff = CUTOFF) {
 }
 
 export function main (argv = process.argv.slice(2)) {
-  const file = argv[0] ?? join(repoRoot, 'docs', 'BACKLOG.md')
-  const found = unfixtured(readFileSync(file, 'utf8'))
+  // The whole backlog by default, archived sections included: a closed section can still be an unfixtured one.
+  const found = unfixtured(argv[0] ? readFileSync(argv[0], 'utf8') : readBacklog(repoRoot))
   for (const section of found) {
     process.stdout.write(`§${section.number} ${section.heading}\n  reported from an outside run, and names no tests/fixtures/corpora/ path and no (fixture-waived: …)\n`)
   }

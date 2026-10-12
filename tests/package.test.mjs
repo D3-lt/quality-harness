@@ -8,6 +8,7 @@ import test from 'node:test'
 import { pythonArgv } from '../scripts/python-interpreter.mjs'
 import { fileURLToPath } from 'node:url'
 import { loadCatalogue } from '../scripts/mutate.mjs'
+import { readBacklog } from '../scripts/backlog-record-sweep.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 /** Every file git tracks — the exact set `source: "."` publishes. */
@@ -440,6 +441,16 @@ test('the backlog index does not undersell what the backlog says it finished', (
     + '## 38. One of three closed 2026-08-28; the two runner questions stay open\n\n'
     + '**CLOSED 2026-08-28** for the first of them.\n'
   assert.deepEqual(backlogHeadingsThatUndersell(conventional), [])
+})
+
+// The test above reads docs/BACKLOG.md, which since the 2026-10-12 sweep holds a closed section as its heading
+// and a pointer: the body it checked moved to docs/backlog-archive/. This reads the backlog whole, archive
+// included, so a heading that undersells its archived body is still found.
+test('the backlog index does not undersell what the backlog says it finished, archived sections included', () => {
+  const whole = readBacklog(repoRoot)
+  assert.ok(whole.length > readFileSync(join(repoRoot, 'docs', 'BACKLOG.md'), 'utf8').length, 'the archive was read')
+  assert.deepEqual(backlogHeadingsThatUndersell(whole), [],
+    'these sections announce a closure in the body that their heading never mentions')
 })
 
 test('every path an eval run writes to is ignored, wherever it is run from', () => {

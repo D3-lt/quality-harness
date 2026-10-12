@@ -169,7 +169,8 @@ Why: `.claude/rules/09-tests-and-the-real-repo.md`
 
 - A record is a work order only while its `Status:` is `Accepted`.
 - `<record>/tasks/README.md` is a derived index; the task files win.
-- `docs/BACKLOG.md` is where a sibling left for later goes, with the evidence that found it.
+- `docs/BACKLOG.md` is where a sibling left for later goes, with the evidence that found it. It is an index:
+  a closed section's text moves verbatim to `docs/backlog-archive/` and its heading stays, so every `§N` resolves.
 - Records and the backlog are history; they are never rewritten to match today's code.
 
 Why: `.claude/rules/10-the-adr-corpus.md`

@@ -29,6 +29,26 @@
       "from": "  if (done === 0 && open.length === 0) return { id, state: 'unknown', why: 'no tasks to judge', status }",
       "to": "  if (false) return { id, state: 'unknown', why: 'no tasks to judge', status }",
       "only": "^(?:a record it cannot resolve is COULD NOT LOOK, never a finding about the section)$"
+    },
+    {
+      "label": "backlog sweep: an archived pointer reads as the archived section's text",
+      "file": "scripts/backlog-record-sweep.mjs",
+      "tests": [
+        "tests/backlog-archive.test.mjs"
+      ],
+      "from": "    const pointer = lines[i].startsWith('## ') && lines[i + 1] === '' ? ARCHIVED.exec(lines[i + 2] ?? '') : null",
+      "to": "    const pointer = null",
+      "only": "^readBacklog puts every archived body back, and a pointer to a missing section is an error$"
+    },
+    {
+      "label": "backlog sweep: a pointer to a section the archive does not hold is an error, not a skip",
+      "file": "scripts/backlog-record-sweep.mjs",
+      "tests": [
+        "tests/backlog-archive.test.mjs"
+      ],
+      "from": "    if (!block) throw new Error(`docs/BACKLOG.md points ${lines[i]} at backlog-archive/${pointer[1]}, which has no such section`)",
+      "to": "    if (!block) { out.push(lines[i]); i += 2; continue }",
+      "only": "^readBacklog puts every archived body back, and a pointer to a missing section is an error$"
     }
   ]
 }

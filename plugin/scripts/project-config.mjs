@@ -58,6 +58,14 @@ const specCouldNameConfig = spec => {
   return lower === CONFIG_NAME || (PROSE_EXTENSION.test(spec) && lower.endsWith('.json'))
 }
 
+// ADR-096 T3: where a turn-end finding goes. `"turnEnd": "notify"` keeps it on the user's screen only; any other value, or none,
+// hands it to the agent too. A file that cannot be read declares nothing and means the default (qh-check says why it cannot).
+export function turnEndSetting(root) {
+  let config
+  try { config = JSON.parse(readFileSync(path.join(root, '.quality-harness.json'), 'utf8')) } catch { return 'agent' }
+  return config?.turnEnd === 'notify' ? 'notify' : 'agent'
+}
+
 export function proseSpecProblem(spec) {
   const plain = typeof spec === 'string' && (PROSE_LITERAL.test(spec) || PROSE_UNDER.test(spec) || PROSE_EXTENSION.test(spec))
   if (!plain) return `${JSON.stringify(spec)} is not a plain pathspec (a literal path or directory, a literal directory then a glob, or \`*.ext\`)`

@@ -146,7 +146,7 @@
       "tests": [
         "tests/turn-end-delivery.test.mjs"
       ],
-      "from": "} else if (event === 'Stop') {",
+      "from": "} else if (event === 'Stop' && turnEndFor(input) !== 'notify') {",
       "to": "} else if (false) {",
       "only": "^a\\ Stop\\ with\\ unchecked\\ work\\ gives\\ the\\ agent\\ the\\ finding\\ and\\ the\\ user\\ a\\ headline$"
     }

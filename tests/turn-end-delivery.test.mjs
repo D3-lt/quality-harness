@@ -106,3 +106,29 @@ test('SubagentStop output is unchanged', { skip }, t => {
   assert.equal(said.stdout?.hookSpecificOutput, undefined, 'nothing is added to a subagent\'s context')
   assert.match(said.stdout?.systemMessage ?? '', /qh-check/, 'the user is told, as before')
 })
+
+test('turnEnd notify keeps a finding user-only, and any other value means agent', { skip }, t => {
+  for (const [value, expected] of [['notify', false], ['shout', true], [undefined, true]]) {
+    const config = { check: 'sh check.sh', fastCheck: 'sh check.sh', ...(value === undefined ? {} : { turnEnd: value }) }
+    const { hook } = unchecked(t, `turn-end-${value ?? 'none'}`, { '.quality-harness.json': `${JSON.stringify(config)}\n` })
+    const said = hook(stop())
+    assert.equal(context(said) !== '', expected, `turnEnd ${value ?? '(none)'}: ${JSON.stringify(said.stdout)}`)
+    assert.match(said.stdout?.systemMessage ?? '', /qh-check/, 'the user is told either way')
+    if (!expected) assert.equal(context(hook(stop())), '', 'and a user-only finding is not repeated as if the agent had never heard it')
+  }
+})
+
+test('an unreadable project configuration means the default, said as such', { skip }, t => {
+  const box = sandbox(t)
+  const repo = fixtureRepo(box, 'turn-end-broken', { ...BASE, '.quality-harness.json': '{"turnEnd": "notify",}\n' })
+  const session = 'turn-end-broken-1'
+  const hook = payload => runHook(box, repo, session, payload)
+  hook({ hook_event_name: 'SessionStart', source: 'startup' })
+  // qh-check is the reader that says the file cannot be read; the hook reads it as declaring nothing.
+  assert.match(runQhCheck(box, repo).stderr + runQhCheck(box, repo).stdout, /not valid JSON/, 'the file is said to be unreadable')
+  const bad = path.join(repo, 'docs', 'adr', 'ADR-001-bad.md')
+  mkdirSync(path.dirname(bad), { recursive: true })
+  writeFileSync(bad, '# ADR-001: bad\n\nno status here\n')
+  hook(wrote(bad))
+  assert.match(context(hook(stop())), /ADR-001-bad/, 'an unreadable file declares nothing: the finding still reaches the agent')
+})

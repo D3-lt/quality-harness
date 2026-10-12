@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage; the evidence is in Context
 **Cross-references:** ADR-035, ADR-053, ADR-060, ADR-061, ADR-080
 **Governs:** None — declared by its tasks
-**Enforced-by:** None — the mutation labels arrive with T2's catalogue entries; name one here when T2 is done
+**Enforced-by:** `ADR-096 T2: a Stop hands the finding to the agent`
 **Invalidates:** ADR-035 — its Wiring row "Stop `systemMessage` text … the model, the user" (line 141) is false; the model never saw that text
 **Served-path change:** At the end of a main-agent turn with unchecked work, writes git could not see, a claim of done the ledgers do not back, or an artifact finding, the agent is told in its own context and the turn continues once so it can act; today only the user is shown it.
 

@@ -10,6 +10,7 @@ import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, la
 import { gitRepositoryLookup, mark, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { once } from './lazily.mjs'
+import { turnEndSetting } from './project-config.mjs'
 
 // ---- Notes that sat above these functions in lifecycle.mjs; stage B of BACKLOG section 375 moved the code and they stayed behind.
 // ⚠ THE VALIDATION PATTERN TABLE WENT WITH THE CLASSIFIERS (ADR-060 T7), and two
@@ -612,6 +613,7 @@ export function completionFacts(input, ended) {
     sentence: once(() => runTheCheckSentence(input.cwd)),
     locationKey: () => canonical(root ?? path.resolve(input.cwd ?? process.cwd())),
     nudge: changed => evidenceNudge(input.cwd, changed),
+    turnEnd: turnEndSetting(root ?? path.resolve(input.cwd ?? process.cwd())),
   }
 }
 
@@ -630,7 +632,7 @@ export function completionJudgement(facts, input) {
   }
   const actions = []
   // A finding said only to the user has not been said to the agent: each audience is counted on its own (ADR-096).
-  const channel = channelOf(input.hook_event_name)
+  const channel = channelOf(input.hook_event_name, facts.turnEnd)
   // The opt-in today's advice already requires: a project that named no check
   // cannot be asked to run one (reported from redash-api, 2026-08-26). A refused
   // declaration is a check that does not count, not a project that named none.

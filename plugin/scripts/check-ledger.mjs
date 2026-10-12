@@ -471,13 +471,14 @@ export function checkRevision(log, tree) {
 // nothing has moved.
 // Who a finding is for (ADR-096): on Stop and PreToolUse the agent, whose context those events reach; on every other event only
 // the user. A finding a rule decides whether to say is checked against what that audience has already heard.
-export function channelOf(event) {
-  return event === 'Stop' || event === 'PreToolUse' ? 'agent' : 'user'
+export function channelOf(event, turnEnd = 'agent') {
+  if (event === 'Stop') return turnEnd === 'notify' ? 'user' : 'agent'
+  return event === 'PreToolUse' ? 'agent' : 'user'
 }
-// Who a delivery reached: Stop and PreToolUse reach the agent's context and the user's screen together, so a finding said there
-// is not said again to either; every other event reaches the user alone.
-export function deliveredTo(event) {
-  return channelOf(event) === 'agent' ? 'both' : 'user'
+// Who a delivery reached: Stop (unless the project keeps turn-end findings user-only) and PreToolUse reach the agent's context and
+// the user's screen together, so a finding said there is not said again to either; every other event reaches the user alone.
+export function deliveredTo(event, turnEnd = 'agent') {
+  return channelOf(event, turnEnd) === 'agent' ? 'both' : 'user'
 }
 // A row counts for an audience when its delivery reached it. A row written before ADR-096 carries no channel and counts for every
 // audience, so nothing said before the upgrade is said again; with no audience asked for, every row counts.

@@ -74,6 +74,10 @@ The evidence chain rests on two gates:
 
 No model writes those logs. If a row says `exit 0`, a process exited 0.
 
+At the end of a turn with unchecked work, writes git could not see, or a finding about a record, the agent is told in its own
+context and its turn continues once so it can act; you are shown the same text (ADR-096). `"turnEnd": "notify"` in
+`.quality-harness.json` keeps those findings on your screen only.
+
 Run your project's check through `qh-check`. It runs the command declared as `check` in
 `.quality-harness.json` (or one inferred from a manifest), records the result with the machine load
 at start and end, and is what the commit and completion advisories read. A check run any other way

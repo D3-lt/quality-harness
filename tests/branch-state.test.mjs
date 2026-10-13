@@ -1736,3 +1736,27 @@ test('a branch tracking an upstream of another name is counted against it, with 
   assert.equal(cache.state.ahead, 1, JSON.stringify(cache.state))
   assert.equal(cache.state.behind, 0, JSON.stringify(cache.state))
 })
+
+test('a detached HEAD is listed by its commit, and an empty listing says so of the commit', () => {
+  const sha = 'd'.repeat(40)
+  const row = { headSha: sha, status: 'completed', conclusion: 'success', databaseId: 7, startedAt: '2026-10-13T00:00:00Z',
+    event: 'push', workflowDatabaseId: 1, workflowName: 'selftest' }
+  const table = listing => [['git rev-parse --abbrev-ref', ok('HEAD')], ['git rev-parse HEAD', ok(sha)],
+    [`gh run list --commit ${sha}`, listing], ...GIT_CLEAN]
+  const seen = []
+  const spy = rows => argv => { seen.push(argv.join(' ')); return runner(rows)(argv) }
+  const state = collect(spy(table(ok(JSON.stringify([row])))))
+  assert.equal(state.ci.looked, true, JSON.stringify(state.ci))
+  assert.equal(state.ci.conclusion, 'success')
+  assert.equal(seen.some(command => command.startsWith('gh run list --branch')), false, 'never a branch named HEAD')
+  assert.equal(collect(runner(table(ok('[]')))).ci.note, 'no run recorded for this commit')
+})
+
+test('a branch behind its upstream says so, as well as what it is ahead by', () => {
+  const at = (ahead, behind) => render(collect(runner([['git rev-list --left-right', ok(`${behind}\t${ahead}`)], ...GIT_CLEAN,
+    ['gh run list', ok(JSON.stringify([{ headSha: '0a18d04ff', status: 'completed', conclusion: 'success', databaseId: 1 }]))]])))
+  assert.match(at(2, 0), /, clean, 2 ahead of origin/)
+  assert.match(at(0, 3), /, clean, 3 behind origin/)
+  assert.match(at(2, 3), /, clean, 2 ahead and 3 behind origin/)
+  assert.doesNotMatch(at(0, 0), / ahead| behind/)
+})

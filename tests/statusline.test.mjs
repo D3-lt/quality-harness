@@ -20,6 +20,12 @@ const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
 const script = join(repoRoot, 'plugin', 'scripts', 'statusline.mjs')
 
+// Run alone, this file left every session's status cache, and the event-log fallback for a directory with no .git, in
+// the real temp directory. selftest gives each run its own (scripts/selftest.sh); a direct `node --test` gets one here,
+// removed when the file ends (a Windows outside run, 2026-10-13).
+const sandbox = mkdtempSync(join(tmpdir(), 'qh-statusline-tests-'))
+process.env.TMPDIR = process.env.TMP = process.env.TEMP = sandbox
+process.on('exit', () => rmSync(sandbox, { recursive: true, force: true }))
 const QH_STATUSLINE_ONE_LINER = 'node "$(qh-root)/scripts/statusline.mjs" <<< "$input"'
 
 function stripFenceTicks(line) {
@@ -308,6 +314,10 @@ test('ahead and unreviewed come from the branch-state cache, and only while it i
     assert.equal(renderGit(gitReading(dir, now)), '↑1', 'no review ledger, no review token')
     write({ ahead: 2, unreviewed: null })
     assert.equal(renderGit(gitReading(dir, now)), '↑2', 'a count that could not be taken is not a zero and not a number')
+    write({ ahead: 2, behind: 3, unreviewed: 1 })
+    assert.equal(renderGit(gitReading(dir, now)), '↑2 ↓3 · !rev 1', 'a diverged branch says both ways')
+    write({ behind: 4 })
+    assert.equal(renderGit(gitReading(dir, now)), '↓4', 'a branch only behind says so')
     write({ ahead: '5', unreviewed: -1 })
     assert.equal(renderGit(gitReading(dir, now)), '', 'a cache is input: a count that is not a positive integer is no token')
     write({ ahead: 3, unreviewed: 2 }, now - CI_STALE_MS - 60_000)
@@ -358,6 +368,28 @@ test('a check or a campaign in flight for this checkout is shown from its lease,
   }
 })
 
+
+test('a cwd that does not exist yet is matched by the part of it that does', () => {
+  const real = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-statusline-real-')))
+  const links = mkdtempSync(join(tmpdir(), 'qh-statusline-links-'))
+  const leases = mkdtempSync(join(tmpdir(), 'qh-statusline-canon-leases-'))
+  try {
+    const alias = join(links, 'alias')
+    linkDirectory(real, alias)
+    const now = Date.now()
+    const lease = root => writeFileSync(join(leases, 'a.json'),
+      JSON.stringify({ pid: 1, command: 'qh-check: x', root, start: new Date(now).toISOString(), state: 'running' }))
+    const look = cwd => renderFlight(flightReading(cwd, { dir: leases, now, alive: pid => (pid === 1 ? 'alive' : 'dead') }))
+    lease(real)
+    assert.equal(look(join(alias, 'not', 'yet')), '⧗ check 0s', 'a missing cwd reached through a link is in the checkout')
+    lease(alias)
+    assert.equal(look(join(real, 'not', 'yet')), '⧗ check 0s', 'and a lease named through the link matches the real path')
+  } finally {
+    rmSync(links, { recursive: true, force: true })
+    rmSync(real, { recursive: true, force: true })
+    rmSync(leases, { recursive: true, force: true })
+  }
+})
 test('a linked worktree nested inside a checkout is its own checkout, not a subdirectory of the parent', () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'qh-statusline-nested-')))
   const leases = mkdtempSync(join(tmpdir(), 'qh-statusline-nested-leases-'))

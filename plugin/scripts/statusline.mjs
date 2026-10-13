@@ -11,7 +11,7 @@
 //   QH ? unknown                              a session with a check and no event log yet
 //   QH CI ✓                 CI of this branch is green (no session token)
 //   QH CI ✗ / QH CI … / QH CI ?   CI red, in flight, or unknown
-//   … · ↑3 · !rev 2         3 commits ahead of origin, 2 no recorded review reaches (branch-state's cache)
+//   … · ↑3 ↓1 · !rev 2      3 commits ahead of origin, 1 behind it, 2 no recorded review reaches (branch-state's cache)
 //   … · ⧗ check 2m          a qh-check (or ⧗ campaign, a mutation run) in flight for this checkout, from its lease
 //   … · ⧗ waiting 1m        a run waiting for its turn
 //   … · load 1.52×          the load average over the core count, only when it is above 1: a pass now is unattributable
@@ -181,20 +181,29 @@ export function gitReading(cwd, now = Date.now()) {
   const key = snapshotKey(gitDir)
   if (key === null || cache.key !== key) return null
   const count = value => (Number.isSafeInteger(value) && value > 0 ? value : 0)
-  return { ahead: count(cache.state.ahead), unreviewed: count(cache.state.unreviewed) }
+  return { ahead: count(cache.state.ahead), behind: count(cache.state.behind), unreviewed: count(cache.state.unreviewed) }
 }
 
 export function renderGit(git) {
   if (!git) return ''
-  return [git.ahead ? `↑${git.ahead}` : '', git.unreviewed ? `!rev ${git.unreviewed}` : ''].filter(Boolean).join(' · ')
+  const drift = [git.ahead ? `↑${git.ahead}` : '', git.behind ? `↓${git.behind}` : ''].filter(Boolean).join(' ')
+  return [drift, git.unreviewed ? `!rev ${git.unreviewed}` : ''].filter(Boolean).join(' · ')
 }
 
 // A check or a campaign in flight for this checkout, from its lease (ADR-077). Read only: `lease.observe` removes a dead
 // run's lease, and a status line that renders every few seconds must not write. A run is in flight only while one of its
 // processes is proven alive; dead and unknown are not shown.
 const SPOKEN = [[/^qh-check\b/, 'check'], [/^mutate\.mjs\b/, 'campaign']]
+// The filesystem's spelling of a path for the part of it that exists, with the rest joined on as written. A cwd that did
+// not exist was resolved by spelling alone, and beside a root the filesystem resolved, an 8.3 short name or a link spelled
+// the two apart (CI windows, 3.8.24).
 const canonicalPath = target => {
-  try { return realpathSync.native(target) } catch { return path.resolve(target) }
+  const missing = []
+  for (let at = path.resolve(target); ; at = path.dirname(at)) {
+    try { return path.join(realpathSync.native(at), ...missing) } catch {}
+    if (path.dirname(at) === at) return path.resolve(target)
+    missing.unshift(path.basename(at))
+  }
 }
 
 export function flightReading(cwd, { dir = leaseDir(), now = Date.now(), alive: isAlive = alive } = {}) {

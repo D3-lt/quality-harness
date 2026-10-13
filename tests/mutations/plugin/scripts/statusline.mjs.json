@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "status line: a branch behind its upstream shows it",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^ahead and unreviewed come from the branch-state cache, and only while it is fresh$",
+      "from": "git.behind ? `↓${git.behind}` : ''",
+      "to": "''"
+    },
+    {
+      "label": "status line: the behind count is read from the cache",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^ahead and unreviewed come from the branch-state cache, and only while it is fresh$",
+      "from": "behind: count(cache.state.behind), ",
+      "to": ""
+    },
+    {
+      "label": "status line: a missing cwd is matched by the part of it that exists",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^a cwd that does not exist yet is matched by the part of it that does$",
+      "from": "    missing.unshift(path.basename(at))",
+      "to": "    return path.resolve(target)"
+    },
+    {
       "label": "status line: counts taken for another HEAD or upstream are not shown",
       "file": "plugin/scripts/statusline.mjs",
       "tests": ["tests/statusline.test.mjs"],

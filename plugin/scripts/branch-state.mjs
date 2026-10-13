@@ -223,8 +223,13 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
   const unreadable = !remotes.ok
   const onGitHub = remotes.ok && /github/i.test(remotes.out)
   const RUN_FIELDS = 'headSha,status,conclusion,databaseId,startedAt,event,workflowDatabaseId,workflowName'
+  // A detached HEAD has no branch to list runs for. `--branch HEAD` named none, and the by-commit retry below waits for a
+  // page with rows, so a detached checkout (the outside-run recipe makes one) read "no run recorded for this branch" while
+  // its commit had runs (a Windows outside run, 2026-10-13). It is listed by the commit it is.
+  const detached = branch.out === 'HEAD' && whole.ok
   const runs = onGitHub
-    ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', String(RUN_WINDOW), '--json', RUN_FIELDS])
+    ? run(['gh', 'run', 'list', ...(detached ? ['--commit', whole.out] : ['--branch', branch.out]),
+      '--limit', String(RUN_WINDOW), '--json', RUN_FIELDS])
     : {
       ok: false,
       out: '',
@@ -232,7 +237,7 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
         ? `the remotes could not be read (${remotes.note ?? 'no reason given'}), so \`gh\` was not asked`
         : 'no remote names a GitHub host, so `gh` was not asked',
     }
-  let ci = { looked: false, note: runs.ok ? 'no run recorded for this branch' : runs.note }
+  let ci = { looked: false, note: runs.ok ? `no run recorded for this ${detached ? 'commit' : 'branch'}` : runs.note }
   if (runs.ok) {
     let rows = []
     try { rows = JSON.parse(runs.out) } catch { rows = [] }
@@ -452,12 +457,18 @@ export function headRuns(rows, head = '', upstream = null) {
  * third — but it never goes silent when something is wrong: a red CI keeps its
  * ⚠ and its job names in brief too, since the whole point is to be seen.
  */
+// Where HEAD stands against its upstream, both ways: a diverged branch said only what it was ahead by and read like an
+// unpushed one (a Windows outside run, 2026-10-13).
+function drift({ ahead, behind }) {
+  const said = [ahead ? `${ahead} ahead` : '', behind ? `${behind} behind` : ''].filter(Boolean)
+  return said.length === 0 ? '' : `, ${said.join(' and ')}${behind ? '' : ' of'} origin`
+}
 export function render(state, { brief = false } = {}) {
   if (!state.looked) return `branch-state: COULD NOT LOOK — ${state.note}. This says nothing about the branch.`
   const head = `branch-state: ${state.branch} @ ${state.head}`
     + `${state.dirty === null ? ', cleanliness COULD NOT LOOK'
       : state.dirty ? `, ${state.dirty} uncommitted path(s)` : ', clean'}`
-    + `${state.ahead ? `, ${state.ahead} ahead of origin` : ''}`
+    + drift(state)
 
   // A tip's answer is the pushed commit's as this clone last fetched it, not HEAD's.
   const named = state.ci.sha

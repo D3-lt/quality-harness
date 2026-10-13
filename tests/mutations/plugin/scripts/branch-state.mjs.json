@@ -1,6 +1,22 @@
 {
   "mutations": [
     {
+      "label": "branch-state: a detached HEAD is listed by its commit",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^a detached HEAD is listed by its commit, and an empty listing says so of the commit$",
+      "from": "  const detached = branch.out === 'HEAD' && whole.ok",
+      "to": "  const detached = false"
+    },
+    {
+      "label": "branch-state: a branch behind its upstream says so",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^a branch behind its upstream says so, as well as what it is ahead by$",
+      "from": "  const said = [ahead ? `${ahead} ahead` : '', behind ? `${behind} behind` : ''].filter(Boolean)",
+      "to": "  const said = [ahead ? `${ahead} ahead` : ''].filter(Boolean)"
+    },
+    {
       "label": "branch-state: a branch tracking an upstream of another name is counted against it",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],

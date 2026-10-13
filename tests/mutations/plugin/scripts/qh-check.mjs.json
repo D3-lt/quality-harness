@@ -1,6 +1,20 @@
 {
   "mutations": [
     {
+      "label": "ADR-100 T2: only a run the ledger certifies is committed",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "  if (!certified) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-100 T2: -S takes its key attached, not the next word",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "        if (flag === 'S' || flag === 'u') break",
+      "to": "        if (flag === 'u') break"
+    },
+    {
       "label": "ADR-100 T2: a red check never reaches git commit",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": ["tests/qh-check-commit.test.mjs"],

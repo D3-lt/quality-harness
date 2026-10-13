@@ -11,7 +11,7 @@ const dispatch = (status = 'completed') => ({ databaseId: 2, event: 'workflow_di
 // A world the fake answers from. `runs` is a list of answers to `gh run list --commit`, the last one repeated.
 function world(overrides = {}) {
   const state = {
-    version: '1.0.1', tags: ['v1.0.0'], released: false, porcelain: '', origin: SHA,
+    version: '1.0.1', tags: ['v1.0.0'], remoteTags: [], released: false, porcelain: '', origin: SHA,
     check: 0, deadCode: 0, evidence: [0], runs: [[push(), dispatch()]], inFlight: [], ...overrides,
   }
   const calls = []
@@ -28,7 +28,7 @@ function world(overrides = {}) {
     if (line.startsWith('gh release view')) return state.released ? ok('{}') : { status: 1, stdout: '', stderr: 'release not found' }
     if (line.endsWith('plugin/scripts/qh-check.mjs')) return { status: state.check, stdout: '', stderr: '' }
     if (line === 'bash scripts/dead-code-scan.sh') return { status: state.deadCode, stdout: '', stderr: '' }
-    if (line === 'git fetch -q origin main') return ok()
+    if (line === 'git fetch -q --tags origin main') { state.tags = [...new Set([...state.tags, ...state.remoteTags])]; return ok() }
     if (line === 'git rev-parse origin/main') return ok(`${state.origin}\n`)
     if (line.startsWith('git merge-base --is-ancestor')) return { status: state.origin === SHA ? 0 : 1, stdout: '', stderr: '' }
     if (line === 'git push origin main') { state.origin = SHA; return ok() }
@@ -118,4 +118,13 @@ test('a red check or a dead-code finding stops the release before any push', () 
     assert.ok(!pushed(w.calls), JSON.stringify(overrides))
     assert.ok(!w.calls.some(line => line.startsWith('gh ')), JSON.stringify(overrides))
   }
+})
+
+// The advisor's review of e6a00957: a release `gh release create` made on the forge has a tag this clone may never have
+// fetched, and the command must read the forge's tags, or a resumed run tries to release it again.
+test('a release made on the forge but not fetched here is said as released', () => {
+  const w = world({ remoteTags: ['v1.0.1'], released: true })
+  assert.equal(w.run(), 0, w.said.join('\n'))
+  assert.match(w.said.join('\n'), /already released/)
+  assert.ok(!tagged(w.calls) && !pushed(w.calls))
 })

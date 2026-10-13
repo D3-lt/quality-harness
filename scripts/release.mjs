@@ -61,6 +61,9 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const version = parsed(text('git', ['show', `HEAD:${MANIFEST}`]) ?? '')?.version
   if (typeof version !== 'string' || !/^\d+\.\d+\.\d+$/.test(version)) { log(`release: ${MANIFEST} names no version ${at}`); return 1 }
   const tag = `v${version}`
+  // The forge's tags too: `gh release create` makes its tag there, and a clone that never fetched it reads the version as
+  // unreleased (an advisor's review of e6a00957). The branch is fetched in the same call, for the push decision below.
+  ran('git', ['fetch', '-q', '--tags', 'origin', 'main'])
   const tags = (text('git', ['tag', '--list', 'v*']) ?? '').split('\n').filter(Boolean)
   if (tags.includes(tag)) {
     if (ran('gh', ['release', 'view', tag, '--json', 'tagName']).status === 0) { log(`release: ${tag} is already released`); return 0 }
@@ -74,7 +77,6 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const scan = ran('bash', ['scripts/dead-code-scan.sh'], true).status
   if (scan !== 0) { log(`release: the dead-code scan exited ${scan}${scan === 3 ? ' (a scanner could not run: UNPROVEN)' : ''} ${at}; nothing was pushed`); return 1 }
 
-  ran('git', ['fetch', '-q', 'origin', 'main'])
   if (ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status !== 0) {
     const pushed = ran('git', ['push', 'origin', 'main'], true).status
     if (pushed !== 0) { log(`release: git push exited ${pushed} ${at}`); return 1 }

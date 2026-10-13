@@ -1,6 +1,13 @@
 {
   "mutations": [
     {
+      "label": "ADR-100 T3: the forge's tags are fetched before they are read",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "  ran('git', ['fetch', '-q', '--tags', 'origin', 'main'])",
+      "to": "  ran('git', ['fetch', '-q', 'origin', 'main'])"
+    },
+    {
       "label": "ADR-100 T3: a release already on origin/main is not pushed again",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],

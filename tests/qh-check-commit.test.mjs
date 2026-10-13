@@ -7,6 +7,7 @@ import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { commitArgsProblem } from '../plugin/scripts/qh-check.mjs'
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const qhCheck = join(repoRoot, 'plugin', 'scripts', 'qh-check.mjs')
@@ -123,5 +124,31 @@ test('qh-check --commit refuses a pathspec and says when the commit records a tr
   } finally {
     rmSync(dir, { recursive: true, force: true })
     rmSync(hooks, { recursive: true, force: true })
+  }
+})
+
+// The advisor's review of e6a00957: a check that stages a file while it runs ends on a tree it did not start on, and the
+// ledger grades that run unproven; its exit 0 is not a pass of the tree being committed.
+test('a check that stages a file while it runs is not committed', () => {
+  const dir = project()
+  try {
+    writeFileSync(join(dir, 'check.mjs'), "import fs from 'node:fs'\nimport { execFileSync } from 'node:child_process'\nif (fs.existsSync('stage.txt')) { fs.writeFileSync('c.txt', 'staged mid-run\\n'); execFileSync('git', ['add', 'c.txt']) }\n")
+    writeFileSync(join(dir, 'stage.txt'), 'go\n')
+    git(dir, 'add', '-A')
+    const before = head(dir)
+    const run = commit(dir, ['-m', 'mid-run'])
+    assert.equal(run.status, 1, run.stdout + run.stderr)
+    assert.equal(head(dir), before, 'nothing is committed')
+    assert.match(run.stderr, /did not certify/)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+// `-S[<keyid>]` takes its key attached, never the next word: read as taking one, `-S -m x` refused `x` as a pathspec.
+test('a signing flag takes no next word, and a pathspec is still refused', () => {
+  for (const args of [['-S', '-m', 'x'], ['-Sabc', '-m', 'x'], ['--gpg-sign', '-m', 'x'], ['--gpg-sign=abc', '-F', '-'], ['-am', 'x'], ['--amend', '--no-edit']]) {
+    assert.equal(commitArgsProblem(args), null, args.join(' '))
+  }
+  for (const args of [['-S', '-m', 'x', 'a.txt'], ['-m', 'x', '--', 'a.txt'], ['-pm', 'x']]) {
+    assert.notEqual(commitArgsProblem(args), null, args.join(' '))
   }
 })

@@ -15,7 +15,7 @@ import { isMainModule } from './main-module.mjs'
 import { firstMentionHere } from './session-notes.mjs'
 import { projectConfigProblem, proseSpecs } from './project-config.mjs'
 import { checkCommandOrigin, fastCheckCommand } from './check-command.mjs'
-import { checkEventName, passedAlready } from './check-ledger.mjs'
+import { checkEventName, latestFastPass, passedAlready } from './check-ledger.mjs'
 import { observe, observeBudgetMs } from './tree-facts.mjs'
 import * as leaseModule from './lease.mjs'
 import { contention, loadLine, sampleLoad } from './load.mjs'
@@ -177,7 +177,8 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
 // `--`, or a word no option takes), `-p`/`--patch`, `--interactive`, `-o`/`--only`, `-i`/`--include` (the cold review of
 // ADR-100: `git commit -- A` with A and B staged commits a tree no check saw). A word this does not recognise is read as a
 // pathspec, the direction that refuses (CLAUDE.md §16). Options that take a value consume the next word.
-const COMMIT_VALUE_SHORT = new Set(['m', 'F', 'C', 'c', 't', 'S'])
+// `-S[<keyid>]` takes its key attached, never the next word, so it is no value-taking flag here.
+const COMMIT_VALUE_SHORT = new Set(['m', 'F', 'C', 'c', 't'])
 const COMMIT_VALUE_LONG = new Set(['--message', '--file', '--reuse-message', '--reedit-message', '--template', '--author', '--date', '--fixup', '--squash', '--cleanup', '--trailer'])
 const COMMIT_OTHER_TREE_SHORT = new Set(['p', 'o', 'i'])
 const COMMIT_OTHER_TREE_LONG = new Set(['--patch', '--interactive', '--only', '--include', '--pathspec-from-file'])
@@ -195,6 +196,8 @@ export function commitArgsProblem(args) {
       for (let letter = 1; letter < word.length; letter++) {
         const flag = word[letter]
         if (COMMIT_OTHER_TREE_SHORT.has(flag)) return `\`-${flag}\` commits a tree other than the index`
+        // `-S<keyid>` and `-u<mode>` take what follows in the same word, if anything: the rest of the cluster is theirs.
+        if (flag === 'S' || flag === 'u') break
         if (COMMIT_VALUE_SHORT.has(flag)) {
           if (letter === word.length - 1) at++
           break
@@ -244,9 +247,20 @@ export async function runCommit({ cwd = process.cwd(), env = process.env, args =
     stderr.write(`qh-check: --commit refused, before any check ran: the working tree differs from the index (${shown}). The check observes the working tree and the commit takes the index; stage or remove these first.\n`)
     return 2
   }
-  const code = await runCheck({ cwd: root, env, ...check, fast: Boolean(fastCheckCommand(root)) })
+  const fast = Boolean(fastCheckCommand(root))
+  const code = await runCheck({ cwd: root, env, ...check, fast })
   if (code !== 0) return code
+  // The check's exit is not the ledger's verdict: a run whose tree moved while it ran is graded unproven
+  // (`checkEventName`). Only the ledger's latest row on the tree as it is now, a pass with no unseen write after it,
+  // certifies what is about to be committed (an advisor's review of e6a00957).
   const checked = observe(root, observeBudgetMs(env))
+  const certified = checked?.ok === true && (fast
+    ? latestFastPass(root, checked.tree)
+    : passedAlready({ root, git: true, command: checkCommandOrigin(root).command, env, prose: proseSpecs(root).specs }))
+  if (!certified) {
+    stderr.write('qh-check: the check exited 0, but the ledger did not certify the tree as it is now (it moved while the check ran, or a write git cannot see came after the pass), so nothing was committed.\n')
+    return 1
+  }
   const committed = spawnSync('git', ['-C', root, 'commit', ...args], { stdio: [stdin, 'inherit', 'inherit'], env, timeout: checkTimeoutMs(env), windowsHide: true })
   if (committed.error || committed.status !== 0) return committed.status ?? 1
   const tree = listed(root, ['rev-parse', 'HEAD^{tree}'])?.[0]

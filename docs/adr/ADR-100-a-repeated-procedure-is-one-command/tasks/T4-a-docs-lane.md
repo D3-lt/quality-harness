@@ -1,6 +1,6 @@
 # Task ADR-100-T4: A change only under docs/ runs the tests that read docs/, if a replay of 20 commits says it is faster and agrees
 
-**Status:** withdrawn — measured 2026-10-13 at e6a00957 plus the uncommitted ADR-101 tree: the derived lane is 140 of 218 test files (1,732 tests) and took 270 s in one run, against the current fast list at 97 to 123 s on four runs that day; the ship rule needs the lane faster, so the 20-commit replay and the seeded faults were not run (BACKLOG §378)
+**Status:** withdrawn — measured 2026-10-13 at e6a00957 plus the uncommitted ADR-101 tree: the derived lane is 140 of 218 test files (1,732 tests) and took 270 s in one run, against the current fast list at 97 to 123 s on four runs that day; the ship rule needs the lane faster, so the 20-commit replay and the seeded faults were not run (BACKLOG §378) The time is not the only leg: the lane holds 8 of the list's 12 files (js-reading, gates, publish-command, qh-check-reads-the-ledger, test-locks, corpus-probe, attest-import, hook-goldens, the slowest among them) and 132 more, so it does strictly more work than the list and is not faster under any load.
 **Depends-on:** none
 **Covers:** none — no spec
 **Estimated scope:** M (one new repository script, its tests, the declared `fastCheck`, a measurement)

@@ -11,6 +11,10 @@
 //   QH ? unknown                              a session with a check and no event log yet
 //   QH CI ✓                 CI of this branch is green (no session token)
 //   QH CI ✗ / QH CI … / QH CI ?   CI red, in flight, or unknown
+//   … · ↑3 · !rev 2         3 commits ahead of origin, 2 no recorded review reaches (branch-state's cache)
+//   … · ⧗ check 2m          a qh-check (or ⧗ campaign, a mutation run) in flight for this checkout, from its lease
+//   … · ⧗ waiting 1m        a run waiting for its turn
+//   … · load 1.52×          the load average over the core count, only when it is above 1: a pass now is unattributable
 //   (nothing)               not a project this plugin can read
 //
 // Reads the statusLine JSON Claude Code pipes to a statusLine command (stdin:
@@ -28,7 +32,7 @@
 //   [ -n "$qh" ] && printf '%s\n' "$qh"
 // Exit is always 0 and stderr is never written: an error string in a status
 // line is permanent noise on the one surface a user cannot dismiss.
-import { readFileSync, statSync, writeFileSync } from 'node:fs'
+import { readdirSync, readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
@@ -39,6 +43,8 @@ import { projectCheckCommand } from './check-command.mjs'
 import { sessionBaseline } from './tree-facts.mjs'
 import { usableCache } from './branch-state.mjs'
 import { findGitDir } from './git-directory.mjs'
+import { alive, leaseDir } from './lease.mjs'
+import { sampleLoad } from './load.mjs'
 
 // An observation older than this is not a verdict about the tree as it is now;
 // it is the last thing that WAS seen, and the segment says so instead.
@@ -143,12 +149,18 @@ function observedReading(log, observed, check) {
 export const CI_STALE_MS = 15 * 60_000
 
 
-export function ciReading(cwd, now = Date.now()) {
+// The branch-state cache, or null when there is none this reader may trust (the hook's own guard).
+function branchCache(cwd, now) {
   const gitDir = findGitDir(cwd ?? process.cwd())
   if (!gitDir) return null
   let cache
   try { cache = JSON.parse(readFileSync(path.join(gitDir, 'qh-branch-state.json'), 'utf8')) } catch { return null }
-  if (!usableCache(cache, now)) return null
+  return usableCache(cache, now) ? cache : null
+}
+
+export function ciReading(cwd, now = Date.now()) {
+  const cache = branchCache(cwd, now)
+  if (!cache) return null
   const age = now - cache.at
   if (age > CI_STALE_MS) return { state: 'stale', ageMinutes: Math.round(age / 60_000) }
   const ci = cache.state.looked ? cache.state.ci : null
@@ -156,6 +168,63 @@ export function ciReading(cwd, now = Date.now()) {
   if (ci.status !== 'completed') return { state: 'running', sha: ci.sha }
   if (ci.conclusion === 'success') return { state: 'green', sha: ci.sha }
   return { state: 'red', sha: ci.sha, failed: ci.failed ?? [] }
+}
+
+// What is ahead of origin and what no recorded review reaches, from the same cache on the same terms: fresh, or nothing.
+// A count the hook could not take (null) or did not take (no review ledger) is no token, never a zero.
+export function gitReading(cwd, now = Date.now()) {
+  const cache = branchCache(cwd, now)
+  if (!cache || now - cache.at > CI_STALE_MS || cache.state.looked !== true) return null
+  const count = value => (Number.isSafeInteger(value) && value > 0 ? value : 0)
+  return { ahead: count(cache.state.ahead), unreviewed: count(cache.state.unreviewed) }
+}
+
+export function renderGit(git) {
+  if (!git) return ''
+  return [git.ahead ? `↑${git.ahead}` : '', git.unreviewed ? `!rev ${git.unreviewed}` : ''].filter(Boolean).join(' · ')
+}
+
+// A check or a campaign in flight for this checkout, from its lease (ADR-077). Read only: `lease.observe` removes a dead
+// run's lease, and a status line that renders every few seconds must not write. A run is in flight only while one of its
+// processes is proven alive; dead and unknown are not shown.
+const SPOKEN = [[/^qh-check\b/, 'check'], [/^mutate\.mjs\b/, 'campaign']]
+const canonicalPath = target => {
+  try { return realpathSync.native(target) } catch { return path.resolve(target) }
+}
+
+export function flightReading(cwd, { dir = leaseDir(), now = Date.now(), alive: isAlive = alive } = {}) {
+  const here = canonicalPath(cwd ?? process.cwd())
+  let names
+  try { names = readdirSync(dir).filter(name => name.endsWith('.json')).sort() } catch { return null }
+  for (const name of names) {
+    let lease = null
+    try { lease = JSON.parse(readFileSync(path.join(dir, name), 'utf8')) } catch { continue }
+    if (!lease || typeof lease !== 'object' || typeof lease.root !== 'string') continue
+    if (![lease.pid, lease.child].some(pid => pid !== undefined && isAlive(pid) === 'alive')) continue
+    const relative = path.relative(canonicalPath(lease.root), here)
+    if (relative.startsWith('..') || path.isAbsolute(relative)) continue
+    const started = Date.parse(lease.start ?? '')
+    const what = lease.state === 'waiting' ? 'waiting'
+      : SPOKEN.find(([pattern]) => pattern.test(String(lease.command ?? '')))?.[1] ?? 'run'
+    return { what, ageMs: Number.isFinite(started) ? Math.max(0, now - started) : null }
+  }
+  return null
+}
+
+export function renderFlight(flight) {
+  if (!flight) return ''
+  return `⧗ ${flight.what}${flight.ageMs === null ? '' : ` ${renderAge(flight.ageMs)}`}`
+}
+
+// A contended machine, where a gate's pass is unattributable (CLAUDE.md §18): the load average over the core count, only
+// above 1, rounded UP so just over is never shown as 1.00. A platform that keeps no load average says nothing (load.mjs).
+export function loadReading(sampler = {}) {
+  const { load, cores } = sampleLoad(sampler)
+  return load !== null && cores !== null && load > cores ? load / cores : null
+}
+
+export function renderLoad(ratio) {
+  return ratio === null ? '' : `load ${(Math.ceil(ratio * 100) / 100).toFixed(2)}×`
 }
 
 export function renderCi(ci) {
@@ -172,7 +241,7 @@ export function renderCi(ci) {
   return 'CI ?'
 }
 
-export function render(value, ci = null) {
+export function render(value, ci = null, extras = []) {
   const parts = []
   const age = typeof value?.ageMs === 'number' ? `last observed ${renderAge(value.ageMs)} ago` : null
   if (value) {
@@ -190,6 +259,8 @@ export function render(value, ci = null) {
   }
   const tail = renderCi(ci)
   if (tail) parts.push(parts.length ? tail : `QH ${tail}`)
+  // The extras ride on a QH or CI piece and never stand alone: a project this plugin cannot read gets nothing.
+  if (parts.length) parts.push(...extras.filter(Boolean))
   return parts.join(' · ')
 }
 
@@ -201,7 +272,10 @@ export async function main(stdin = process.stdin, stdout = process.stdout) {
   let input
   try { input = JSON.parse(text) } catch { return 0 }
   let segment = ''
-  try { segment = render(reading(input), ciReading(input?.workspace?.current_dir ?? input?.cwd)) } catch { segment = '' }
+  const cwd = input?.workspace?.current_dir ?? input?.cwd
+  try {
+    segment = render(reading(input), ciReading(cwd), [renderGit(gitReading(cwd)), renderFlight(flightReading(cwd)), renderLoad(loadReading())])
+  } catch { segment = '' }
   if (segment) stdout.write(`${segment}\n`)
   return 0
 }

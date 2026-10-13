@@ -1,6 +1,78 @@
 {
   "mutations": [
     {
+      "label": "status line: a stale branch-state cache speaks for neither ahead nor unreviewed",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^ahead and unreviewed come from the branch-state cache, and only while it is fresh$",
+      "from": "  if (!cache || now - cache.at > CI_STALE_MS || cache.state.looked !== true) return null",
+      "to": "  if (!cache || cache.state.looked !== true) return null"
+    },
+    {
+      "label": "status line: a count that could not be taken is no token",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^ahead and unreviewed come from the branch-state cache, and only while it is fresh$",
+      "from": "  const count = value => (Number.isSafeInteger(value) && value > 0 ? value : 0)",
+      "to": "  const count = value => value"
+    },
+    {
+      "label": "status line: a run is in flight only while a process of it is proven alive",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^a check or a campaign in flight for this checkout is shown from its lease, and no lease is removed$",
+      "from": "    if (![lease.pid, lease.child].some(pid => pid !== undefined && isAlive(pid) === 'alive')) continue\n",
+      "to": ""
+    },
+    {
+      "label": "status line: another checkout's lease is not this one's",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^a check or a campaign in flight for this checkout is shown from its lease, and no lease is removed$",
+      "from": "    if (relative.startsWith('..') || path.isAbsolute(relative)) continue",
+      "to": "    if (path.isAbsolute(relative)) continue"
+    },
+    {
+      "label": "status line: a run waiting for its turn says waiting",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^a check or a campaign in flight for this checkout is shown from its lease, and no lease is removed$",
+      "from": "    const what = lease.state === 'waiting' ? 'waiting'",
+      "to": "    const what = false ? 'waiting'"
+    },
+    {
+      "label": "status line: at the core count is not contended",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^a contended machine is shown as load over cores, and an unread load says nothing$",
+      "from": "  return load !== null && cores !== null && load > cores ? load / cores : null",
+      "to": "  return load !== null && cores !== null && load >= cores ? load / cores : null"
+    },
+    {
+      "label": "status line: just over the core count is never shown as 1.00",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^a contended machine is shown as load over cores, and an unread load says nothing$",
+      "from": "(Math.ceil(ratio * 100) / 100)",
+      "to": "(Math.round(ratio * 100) / 100)"
+    },
+    {
+      "label": "status line: the extras never stand alone",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^ahead and unreviewed come from the branch-state cache, and only while it is fresh$",
+      "from": "  if (parts.length) parts.push(...extras.filter(Boolean))",
+      "to": "  parts.push(...extras.filter(Boolean))"
+    },
+    {
+      "label": "status line: the CLI selects the new pieces",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^the CLI selects every new piece: ahead and unreviewed from the cache, and a check in flight from its lease$",
+      "from": "ciReading(cwd), [renderGit(gitReading(cwd)), renderFlight(flightReading(cwd)), renderLoad(loadReading())])",
+      "to": "ciReading(cwd), [renderLoad(loadReading())])"
+    },
+    {
       "label": "statusline: a stale CI cache is said to be stale, not read as current",
       "file": "plugin/scripts/statusline.mjs",
       "tests": [

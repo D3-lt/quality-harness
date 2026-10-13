@@ -22,13 +22,6 @@
       "to": "    ? ancestor(commit, row.head)"
     },
     {
-      "label": "ADR-100 T1: an unavailable review covers nothing",
-      "file": "scripts/release-evidence.mjs",
-      "tests": ["tests/review-ledger.test.mjs"],
-      "from": "const COVERING = new Set(['clean', 'blocking', 'evidence-limited'])",
-      "to": "const COVERING = new Set(['clean', 'blocking', 'evidence-limited', 'unavailable', 'unparsed'])"
-    },
-    {
       "label": "ADR-100 T1: only the manifest's version line is a bump",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/review-ledger.test.mjs"],

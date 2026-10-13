@@ -17,7 +17,11 @@ copy, and how many lint findings fail versus only advise, all measured when it r
 
 It shows the gates' reading of the session: `QH ✓ checked`, `QH ✗ 3 unverified`,
 `QH · nothing edited` or `QH ? could not look`, with the observation's age, and a `CI ✓`, `CI ✗`,
-`CI …` or `CI ?` tail for the branch. The plugin cannot set your `statusLine`. Keep that command
+`CI …` or `CI ?` tail for the branch. After it: `↑3` commits ahead of the remote and `!rev 2` that no
+recorded review reaches (both from the branch-state cache; `!rev` only where `host-review` records
+reviews, and a hint, not the release's answer), `⧗ check 2m` or `⧗ campaign 5m` while a run holds its
+lease for this checkout, and `load 1.52×` when the load average is above the core count, where a
+gate's pass is unattributable. The plugin cannot set your `statusLine`. Keep that command
 (and any `refreshInterval`), feed the same `$input` to this script, and append its stdout:
 
     qh=$(node "$(qh-root)/scripts/statusline.mjs" <<< "$input" 2>/dev/null)

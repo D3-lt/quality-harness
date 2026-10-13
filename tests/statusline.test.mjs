@@ -5,14 +5,14 @@
 // log is NOT read twice, because a status line renders constantly.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { linkDirectory } from './symlink-support.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
-import { CI_STALE_MS, STALE_MS, ciReading, reading, render, renderCi } from '../plugin/scripts/statusline.mjs'
+import { CI_STALE_MS, STALE_MS, ciReading, flightReading, gitReading, loadReading, reading, render, renderCi, renderFlight, renderGit, renderLoad } from '../plugin/scripts/statusline.mjs'
 import { findGitDir } from '../plugin/scripts/git-directory.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -158,7 +158,8 @@ test('the CLI reads the statusLine JSON from stdin, prints the segment, and neve
     const run = input => spawnSync(process.execPath, [script], { input, encoding: 'utf8', timeout: 30_000 })
     const ok = run(JSON.stringify({ session_id: session, workspace: { current_dir: dir } }))
     assert.equal(ok.status, 0)
-    assert.match(ok.stdout.trim(), /^QH ✗ 1 unverified · last observed \d+[smh] ago$/)
+    // The child reads this machine's real load average, so a contended run may end in a load token (the CLI test below).
+    assert.match(ok.stdout.trim(), /^QH ✗ 1 unverified · last observed \d+[smh] ago(?: · load \d+\.\d{2}×)?$/)
     assert.equal(ok.stderr, '', 'a status line never carries an error string')
     const garbage = run('not json')
     assert.equal(garbage.status, 0)
@@ -281,4 +282,98 @@ test('a workflow whose jobs were not read is counted apart from jobs', () => {
     'CI ✗ 1 job(s) +2 unread')
   assert.equal(red(['a workflow (push): failure — jobs not read']), 'CI ✗ +1 unread')
   assert.equal(red(['windows: failure', 'lint: failure']), 'CI ✗ 2 job(s)')
+})
+
+// Owner, 2026-10-13: three more things a person watching a session wants to see, each from something already
+// written, so a render starts no process: what is ahead and unreviewed (branch-state's cache), a check or a
+// campaign in flight (its lease), and a contended machine (the load average).
+test('ahead and unreviewed come from the branch-state cache, and only while it is fresh', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-statusline-git-'))
+  try {
+    const gitDir = join(dir, '.git')
+    mkdirSync(join(gitDir, 'objects'), { recursive: true })
+    mkdirSync(join(gitDir, 'refs'))
+    writeFileSync(join(gitDir, 'HEAD'), 'ref: refs/heads/main\n')
+    const now = Date.now()
+    const write = (state, at = now - 1_000) => writeFileSync(join(gitDir, 'qh-branch-state.json'),
+      JSON.stringify({ at, state: { looked: true, branch: 'main', head: 'abc', dirty: 0, ci: { looked: false }, ...state } }))
+    write({ ahead: 3, unreviewed: 2 })
+    assert.equal(renderGit(gitReading(dir, now)), '↑3 · !rev 2')
+    write({ ahead: 0, unreviewed: 0 })
+    assert.equal(renderGit(gitReading(dir, now)), '', 'nothing ahead and nothing unreviewed says nothing')
+    write({ ahead: 1 })
+    assert.equal(renderGit(gitReading(dir, now)), '↑1', 'no review ledger, no review token')
+    write({ ahead: 2, unreviewed: null })
+    assert.equal(renderGit(gitReading(dir, now)), '↑2', 'a count that could not be taken is not a zero and not a number')
+    write({ ahead: '5', unreviewed: -1 })
+    assert.equal(renderGit(gitReading(dir, now)), '', 'a cache is input: a count that is not a positive integer is no token')
+    write({ ahead: 3, unreviewed: 2 }, now - CI_STALE_MS - 60_000)
+    assert.equal(renderGit(gitReading(dir, now)), '', 'a stale cache speaks for neither')
+    write({ ahead: 3, unreviewed: 2 }, now + 60_000)
+    assert.equal(gitReading(dir, now), null, 'a future-dated cache is refused')
+    assert.equal(render({ kind: 'checked' }, { state: 'green' }, ['↑3 · !rev 2']), 'QH ✓ checked · CI ✓ · ↑3 · !rev 2')
+    assert.equal(render(null, null, ['↑3']), '', 'no QH reading and no CI: the extras say nothing alone')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a check or a campaign in flight for this checkout is shown from its lease, and no lease is removed', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'qh-statusline-root-')))
+  const leases = mkdtempSync(join(tmpdir(), 'qh-statusline-leases-'))
+  try {
+    const start = '2026-10-13T12:00:00.000Z'
+    const now = Date.parse(start) + 125_000
+    const lease = (name, body) => writeFileSync(join(leases, name), JSON.stringify(body))
+    const alive = pid => (pid === 1 ? 'alive' : pid === 2 ? 'dead' : 'unknown')
+    const look = cwd => renderFlight(flightReading(cwd, { dir: leases, now, alive }))
+    assert.equal(look(root), '', 'no lease, nothing')
+    lease('a.json', { pid: 1, command: 'qh-check: bash scripts/selftest.sh', root, start, state: 'running' })
+    assert.equal(look(root), '⧗ check 2m')
+    assert.equal(look(join(root, 'sub')), '⧗ check 2m', 'a subdirectory is the same checkout')
+    assert.equal(look(realpathSync(tmpdir())), '', "another checkout's lease is not this one's")
+    writeFileSync(join(leases, 'a.json'), JSON.stringify({ pid: 1, command: 'mutate.mjs --case x', root, start, state: 'waiting' }))
+    assert.equal(look(root), '⧗ waiting 2m', 'a run waiting for its turn says waiting, not running')
+    writeFileSync(join(leases, 'a.json'), JSON.stringify({ pid: 1, command: 'mutate.mjs', root, start, state: 'running' }))
+    assert.equal(look(root), '⧗ campaign 2m')
+    writeFileSync(join(leases, 'a.json'), JSON.stringify({ pid: 2, command: 'qh-check: x', root, start, state: 'running' }))
+    lease('b.json', { pid: 3, command: 'qh-check: x', root, start, state: 'running' })
+    lease('c.json', 'not a lease')
+    assert.equal(look(root), '', 'a dead or unknown run is not in flight')
+    assert.deepEqual(readdirSync(leases).sort(), ['a.json', 'b.json', 'c.json'], 'a render never removes a lease')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+    rmSync(leases, { recursive: true, force: true })
+  }
+})
+
+test('a contended machine is shown as load over cores, and an unread load says nothing', () => {
+  assert.equal(renderLoad(loadReading({ loadavg: () => [15.2, 9, 8], cores: 10 })), 'load 1.52×')
+  assert.equal(renderLoad(loadReading({ loadavg: () => [10.01, 9, 8], cores: 10 })), 'load 1.01×', 'just over is never shown as 1.00')
+  assert.equal(renderLoad(loadReading({ loadavg: () => [10, 9, 8], cores: 10 })), '', 'at the core count is not contended')
+  assert.equal(renderLoad(loadReading({ loadavg: () => [0, 0, 0], cores: 10 })), '', 'Windows keeps no load average')
+  assert.equal(renderLoad(loadReading({ loadavg: () => { throw new Error('no') }, cores: 10 })), '')
+})
+
+test('the CLI selects every new piece: ahead and unreviewed from the cache, and a check in flight from its lease', () => {
+  const dir = realpathSync(mkdtempSync(join(tmpdir(), 'qh-statusline-wired-')))
+  const leases = mkdtempSync(join(tmpdir(), 'qh-statusline-wired-leases-'))
+  try {
+    const gitDir = join(dir, '.git')
+    mkdirSync(join(gitDir, 'objects'), { recursive: true })
+    mkdirSync(join(gitDir, 'refs'))
+    writeFileSync(join(gitDir, 'HEAD'), 'ref: refs/heads/main\n')
+    writeFileSync(join(gitDir, 'qh-branch-state.json'), JSON.stringify({ at: Date.now() - 1_000, state: {
+      looked: true, branch: 'main', head: 'abc', dirty: 0, ahead: 2, unreviewed: 1,
+      ci: { looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] } } }))
+    writeFileSync(join(leases, 'x.json'), JSON.stringify({ pid: process.pid, command: 'qh-check: bash x.sh', root: dir,
+      start: new Date().toISOString(), state: 'running' }))
+    const out = spawnSync(process.execPath, [script], { input: JSON.stringify({ workspace: { current_dir: dir } }), encoding: 'utf8',
+      timeout: 30_000, env: { ...process.env, QUALITY_HARNESS_LEASE_DIR: leases } })
+    assert.equal(out.status, 0)
+    assert.match(out.stdout.trim(), /^QH CI ✓ · ↑2 · !rev 1 · ⧗ check \d+s(?: · load \d+\.\d{2}×)?$/, out.stdout)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+    rmSync(leases, { recursive: true, force: true })
+  }
 })

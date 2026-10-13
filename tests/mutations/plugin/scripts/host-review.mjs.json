@@ -1,6 +1,13 @@
 {
   "mutations": [
     {
+      "label": "ADR-100 T1: an unavailable review covers nothing",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "export const REVIEW_COVERING = new Set(['clean', 'blocking', 'evidence-limited'])",
+      "to": "export const REVIEW_COVERING = new Set(['clean', 'blocking', 'evidence-limited', 'unavailable', 'unparsed'])"
+    },
+    {
       "label": "ADR-100 T1: the JSON form records the review it ran",
       "file": "plugin/scripts/host-review.mjs",
       "tests": ["tests/review-ledger.test.mjs"],

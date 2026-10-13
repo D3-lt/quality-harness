@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -1642,4 +1642,67 @@ test('a refused rename still writes the snapshot, and an abandoned temporary is 
   assert.equal(readFileSync(file, 'utf8'), '{"at":2}')
   assert.deepEqual(readdirSync(directory).sort(),
     ['other.json.999993.tmp', 'qh-branch-state.json', 'qh-branch-state.json.999992.tmp'])
+})
+
+// Owner, 2026-10-13: the status line says how many commits on HEAD no recorded review reaches. The count is
+// gathered here, with the git half, and only when a review ledger exists: no ledger, no spawn.
+test('collect counts the commits on HEAD no recorded review reaches, only when a review ledger exists', () => {
+  const head = 'a'.repeat(40)
+  const table = answer => [['git rev-list --count --ignore-missing HEAD --not', answer], ...GIT_CLEAN]
+  const seen = []
+  const spy = rows => argv => { seen.push(argv.join(' ')); return runner(rows)(argv) }
+  assert.equal(collect(spy(table(ok('3\n'))), () => {}, Date.now, [head]).unreviewed, 3)
+  assert.ok(seen.includes(`git rev-list --count --ignore-missing HEAD --not ${head}`), seen.join('\n'))
+  seen.length = 0
+  const none = collect(spy(table(ok('3'))), () => {}, Date.now, null)
+  assert.equal('unreviewed' in none, false, 'no ledger, no field')
+  assert.equal(seen.some(command => command.includes('--ignore-missing')), false, 'no ledger, no spawn')
+  assert.equal(collect(runner(table(no('fatal: bad object'))), () => {}, Date.now, [head]).unreviewed, null)
+  assert.equal(collect(runner(table(ok('three'))), () => {}, Date.now, [head]).unreviewed, null)
+  assert.equal(collect(runner(table(ok('3'))), () => {}, Date.now, []).unreviewed, null, 'a ledger with no covering head says nothing')
+})
+
+test('reviewedHeads reads the covering rows of reviews.jsonl, and nothing else', () => {
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-reviews-'))
+  try {
+    assert.equal(branchState.reviewedHeads(dir), null, 'no ledger is null, not an empty list')
+    const a = 'a'.repeat(40)
+    const c = 'c'.repeat(64)
+    writeFileSync(path.join(dir, 'reviews.jsonl'), [
+      JSON.stringify({ status: 'clean', head: a }),
+      JSON.stringify({ status: 'killed', head: 'b'.repeat(40) }),
+      'not json',
+      JSON.stringify({ status: 'unparsed', head: 'd'.repeat(40) }),
+      JSON.stringify({ status: 'blocking', head: 'abc123' }),
+      JSON.stringify({ status: 'blocking', head: c }),
+      JSON.stringify({ status: 'evidence-limited', head: a }),
+      JSON.stringify({ status: 'clean', head: null }),
+    ].join('\n'))
+    assert.deepEqual(branchState.reviewedHeads(dir), [a, c])
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('the hook writes the unreviewed count into its cache from the review ledger, with real git', t => {
+  const project = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'qh-unreviewed-')))
+  t.after(() => rmSync(project, { recursive: true, force: true }))
+  const git = (...args) => spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', ...args],
+    { cwd: project, encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  git('init', '-q', '-b', 'main')
+  writeFileSync(path.join(project, 'a.txt'), 'a\n')
+  git('add', '.')
+  git('commit', '-qm', 'one')
+  const reviewed = git('rev-parse', 'HEAD').stdout.trim()
+  writeFileSync(path.join(project, 'a.txt'), 'b\n')
+  git('commit', '-qam', 'two')
+  const state = path.join(project, '.git', 'quality-harness')
+  mkdirSync(state, { recursive: true })
+  writeFileSync(path.join(state, 'reviews.jsonl'), `${JSON.stringify({ status: 'clean', head: reviewed })}\n`)
+  const env = { ...process.env }
+  delete env.QUALITY_HARNESS_STATE_DIR
+  const run = spawnSync(process.execPath, [branchScript, '--cached', '120'], { cwd: project, env, encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  assert.equal(run.status, 0, run.stderr)
+  const cache = JSON.parse(readFileSync(path.join(project, '.git', 'qh-branch-state.json'), 'utf8'))
+  assert.equal(cache.state.unreviewed, 1, JSON.stringify(cache.state))
 })

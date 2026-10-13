@@ -1,6 +1,38 @@
 {
   "mutations": [
     {
+      "label": "status line: no review ledger, no unreviewed field and no spawn",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^collect counts the commits on HEAD no recorded review reaches, only when a review ledger exists$",
+      "from": "    ...(heads === null ? {} : { unreviewed: unreviewedCount(run, heads) }),",
+      "to": "    ...(heads !== null ? {} : { unreviewed: unreviewedCount(run, heads) }),"
+    },
+    {
+      "label": "status line: a ledger with no covering head counts nothing",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^collect counts the commits on HEAD no recorded review reaches, only when a review ledger exists$",
+      "from": "  if (heads.length === 0) return null\n",
+      "to": ""
+    },
+    {
+      "label": "status line: only a covering review row's head is a reviewed head",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^reviewedHeads reads the covering rows of reviews.jsonl, and nothing else$",
+      "from": "    if (row && REVIEW_COVERING.has(row.status) && typeof row.head === 'string'",
+      "to": "    if (row && typeof row.head === 'string'"
+    },
+    {
+      "label": "status line: the hook passes the review ledger to collect",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^the hook writes the unreviewed count into its cache from the review ledger, with real git$",
+      "from": "    gather: checkpoint => collect(run, checkpoint, Date.now, ledgerHeads()),",
+      "to": "    gather: checkpoint => collect(run, checkpoint),"
+    },
+    {
       "label": "branch-state: the brief's said stamp replaces the snapshot rather than rewriting it in place",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [

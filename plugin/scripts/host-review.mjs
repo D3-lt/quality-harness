@@ -198,6 +198,10 @@ export function verdictStatus(text) {
 // One row per Codex run the launcher started, beside `checks.jsonl`, where `release-evidence` reads it (ADR-100 T1). A row
 // that cannot be written is said and changes nothing else: the review's own answer still reaches its caller.
 export const REVIEWS_FILE = 'reviews.jsonl'
+// What counts as a review: one that ran and said something. `unavailable` did not finish, `unparsed` said nothing this could
+// read, and `evidence-limited` ran over its scope without runnable evidence (ADR-100 T1). The one definition: release-evidence
+// asks it of a release, and branch-state of HEAD for the status line.
+export const REVIEW_COVERING = new Set(['clean', 'blocking', 'evidence-limited'])
 export function recordReview(repo, row) {
   try {
     const directory = stateDir(repo)

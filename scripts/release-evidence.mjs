@@ -28,6 +28,7 @@ import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { stateDir } from '../plugin/scripts/event-log.mjs'
+import { REVIEW_COVERING, REVIEWS_FILE } from '../plugin/scripts/host-review.mjs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { READER_DIRECTORIES } from '../plugin/scripts/reader-paths.mjs'
 
@@ -383,7 +384,7 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
 // ADR-100 T1. What counts as a review: one that ran and said something. `unavailable` did not finish; `unparsed` said nothing
 // this could read. `evidence-limited` ran over its scope without runnable evidence, which the skill calls its strongest verdict
 // then (`plugin/skills/codex-review/SKILL.md:181`); the owner may narrow it.
-const COVERING = new Set(['clean', 'blocking', 'evidence-limited'])
+const COVERING = REVIEW_COVERING
 const MANIFEST = 'plugin/.claude-plugin/plugin.json'
 
 /**
@@ -415,7 +416,7 @@ export function reviewEvidence(sha, { cwd = process.cwd(), exec = execFileSync, 
   }
   if (needed.length === 0) return { verdict: 'not-required', tag, uncovered: [], reason: `no plugin commit since ${tag} needs a review (a version bump needs none)` }
   let text = ''
-  try { text = readFileSync(ledger ?? join(stateDir(cwd), 'reviews.jsonl'), 'utf8') } catch { /* no ledger is no review */ }
+  try { text = readFileSync(ledger ?? join(stateDir(cwd), REVIEWS_FILE), 'utf8') } catch { /* no ledger is no review */ }
   const rows = text.split('\n').filter(line => line.trim()).flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
   const usable = rows.filter(row => row && COVERING.has(row.status) && typeof row.head === 'string')
   // Three answers: `true`, `false` only for git's definite "no" (exit 1), and `null` for a revision this clone cannot

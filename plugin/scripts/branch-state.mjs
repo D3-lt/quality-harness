@@ -26,6 +26,8 @@ import { fileURLToPath } from 'node:url'
 import { isMainModule } from './main-module.mjs'
 import { findGitDir } from './git-directory.mjs'
 import { startPerformanceTrace } from './performance-trace.mjs'
+import { stateDir } from './event-log.mjs'
+import { REVIEW_COVERING, REVIEWS_FILE } from './host-review.mjs'
 /**
  * Where `.git` is, so the cache lands somewhere never tracked and never shipped.
  *
@@ -112,6 +114,34 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
  * prompt for ever — BACKLOG §152 with a language barrier in front of it. The pin
  * is the fix; a longer regex would only be a bigger guess.
  */
+/**
+ * The heads of every covering row of the review ledger `host-review.mjs` writes in `directory` (ADR-100 T1), or null when
+ * there is no ledger. Newest last, each once, at most 64, so the one `git rev-list` they feed has a bounded argv.
+ */
+export function reviewedHeads(directory, read = readFileSync) {
+  let text
+  try { text = read(join(directory, REVIEWS_FILE), 'utf8') } catch { return null }
+  const heads = []
+  for (const line of String(text).split('\n')) {
+    let row = null
+    try { row = JSON.parse(line) } catch { continue }
+    if (row && REVIEW_COVERING.has(row.status) && typeof row.head === 'string' && /^[0-9a-f]{40,64}$/.test(row.head)) heads.push(row.head)
+  }
+  return [...new Set(heads)].slice(-64)
+}
+
+/**
+ * How many commits on HEAD no reviewed head reaches: a hint for the status line, never release-evidence's answer. An exact
+ * `commit <sha>` row reaches its ancestors here too, and a docs commit counts like any other. A head this clone does not hold
+ * is ignored rather than failing the count, and a count git could not take is null, never 0.
+ */
+function unreviewedCount(run, heads) {
+  if (heads.length === 0) return null
+  const answer = run(['git', 'rev-list', '--count', '--ignore-missing', 'HEAD', '--not', ...heads])
+  const out = answer.ok ? String(answer.out).trim() : ''
+  return /^\d+$/.test(out) ? Number(out) : null
+}
+
 const NO_TAGS = /No names found|cannot describe anything/i
 
 /**
@@ -125,7 +155,7 @@ const NO_TAGS = /No names found|cannot describe anything/i
  * half still leaves something behind — see `cached`. `clock` is the seam the job-view
  * budget reads (BACKLOG §348).
  */
-export function collect(run = shell, checkpoint = () => {}, clock = Date.now) {
+export function collect(run = shell, checkpoint = () => {}, clock = Date.now, heads = null) {
   const branch = run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
   if (!branch.ok) return { looked: false, note: branch.note }
   const head = run(['git', 'rev-parse', '--short', 'HEAD'])
@@ -144,6 +174,8 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now) {
     head: head.ok ? head.out : '(unknown)',
     dirty: dirty.ok ? dirty.out.split('\n').filter(Boolean).length : null,
     ahead, behind,
+    // Only where a review ledger exists: a repository that never records a review is told nothing about one.
+    ...(heads === null ? {} : { unreviewed: unreviewedCount(run, heads) }),
   }
   // ⚠ THE RELEASE HALF IS GIT ONLY, SO IT IS READ BEFORE `gh` (BACKLOG §348). On a Windows
   // desktop the job views alone took 5.7 s, and the release half, read after them, was the
@@ -817,6 +849,8 @@ function main(argv = process.argv.slice(2)) {
   // Cache discovery shares the collection's deadline too. It previously had a
   // separate 15s Git timeout before the reader even began its 8s budget.
   const run = budgeted(BUDGET_MS)
+  // The review ledger, found the way the hook finds its own state: without starting a process.
+  const ledgerHeads = () => reviewedHeads(stateDir(process.cwd(), { spawn: false }))
   const read = store => {
     if (!store) return null
     try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null }
@@ -840,7 +874,7 @@ function main(argv = process.argv.slice(2)) {
     try {
       if (home) {
         const store = join(home, 'qh-branch-state.json')
-        cached(0, { read: () => read(store), write: writer(store), gather: checkpoint => collect(run, checkpoint),
+        cached(0, { read: () => read(store), write: writer(store), gather: checkpoint => collect(run, checkpoint, Date.now, ledgerHeads()),
           key: snapshotKey(home) })
       }
     } finally {
@@ -850,7 +884,7 @@ function main(argv = process.argv.slice(2)) {
     return 0
   }
   if (at < 0) {
-    const state = collect(run)
+    const state = collect(run, () => {}, Date.now, ledgerHeads())
     process.stdout.write(`${render(state, { brief })}\n`)
     finish(state.looked ? 'refreshed' : 'unavailable', { status: 0 })
     return 0
@@ -897,7 +931,7 @@ function main(argv = process.argv.slice(2)) {
   const { state, fromCache, ageSeconds } = cached(servedFor, {
     read: () => read(store),
     write: writer(store),
-    gather: checkpoint => collect(run, checkpoint),
+    gather: checkpoint => collect(run, checkpoint, Date.now, ledgerHeads()),
     key: home ? snapshotKey(home) : null,
   })
   emitCachedBranchState(state, {

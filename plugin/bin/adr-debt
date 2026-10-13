@@ -427,9 +427,34 @@ def receipted(pointer, md_file, scan_dir, src_id):
             if adr_id_of(dest, scan_dir) == src_id:
                 return False, True, None  # same ADR's own tree
             pat = re.sub(r"[-_]", "", src_id).lower()
-            body = re.sub(r"[-_]", "", dest.read_text(errors="replace", encoding="utf-8")).lower()
-            return True, pat in body, dest
+            body = re.sub(r"[-_]", "", receipt_text(dest, root)).lower()
+            # Said as the pointer wrote it: `dest` is resolved against the git root, which names this machine's home.
+            return True, pat in body, Path(t).as_posix()
     return False, True, None
+
+
+# A backlog that is an index (CLAUDE.md §10): a closed section's text moved verbatim to an archive file and
+# its heading stays with this link. The receipt moved with the text.
+ARCHIVED_LINK = re.compile(r"^Archived:\s*\[[^\]\n]*\]\(([^)\s]+)\)", re.M)
+
+
+def receipt_text(dest, root):
+    """`dest`'s text and the text of every file its `Archived:` lines link to, inside the git root (or
+    beside `dest` outside git). Found 2026-10-13: the backlog became an index (db1db5fa) and every
+    receipt in a moved section read as missing, 0 UNRECEIPTED to 44. A link that cannot be read, or that
+    leaves the root, adds nothing."""
+    text = dest.read_text(errors="replace", encoding="utf-8")
+    fence = Path(root).resolve() if root else dest.parent.resolve()
+    parts = [text]
+    for link in sorted(set(ARCHIVED_LINK.findall(text))):
+        target = dest.parent / link
+        try:
+            if os.path.commonpath([str(target.resolve()), str(fence)]) != str(fence):
+                continue
+            parts.append(read_regular(target))
+        except (OSError, ValueError):
+            continue
+    return "\n".join(parts)
 
 
 def reject_unknown_flags(known=()):

@@ -4,6 +4,7 @@
 // ADR-049's "(deferred: ADR-046 Follow-ups …)". adr-lint learned the same lesson for
 // citations (`archived_record_numbers`); this is its sibling for deferral pointers.
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -42,4 +43,30 @@ test('a deferral to a record retired into the archive is unswept, and one to no 
   const plain = corpus({ catalog: 'Some notes about archives.' })
   assert.match(plain.stdout, /UNRESOLVED \[adr\] \S*: \('ADR-001 Follow-ups/, plain.stdout)
   assert.doesNotMatch(plain.stdout, /UNSWEPT/, plain.stdout)
+})
+
+// The backlog became an index on 2026-10-12 (db1db5fa): a closed section's text moved verbatim to
+// docs/backlog-archive/ and its heading stays with an `Archived:` link. Receipts moved with it, so
+// `adr-debt docs/adr` went from 0 to 44 UNRECEIPTED, each printed with the resolved home path.
+test('a receipt the backlog index moved to its archive still counts, and one the archive never names does not', () => {
+  const run = archived => {
+    const dir = mkdtempSync(join(os.tmpdir(), 'qh-debt-receipt-'))
+    const active = join(dir, 'docs', 'adr')
+    mkdirSync(active, { recursive: true })
+    mkdirSync(join(dir, 'docs', 'backlog-archive'), { recursive: true })
+    spawnSync('git', ['init', '-q'], { cwd: dir, windowsHide: true, timeout: 30_000 })
+    writeFileSync(join(active, 'ADR-002-probe.md'), '# ADR-002: Probe\n\n## Out of Scope\n\n- Rate limiting (deferred: docs/BACKLOG.md §5)\n')
+    writeFileSync(join(dir, 'docs', 'BACKLOG.md'),
+      '# Backlog\n\n## 5. CLOSED — rate limiting\n\nArchived: [backlog-archive/BACKLOG-001-100.md](backlog-archive/BACKLOG-001-100.md)\n')
+    writeFileSync(join(dir, 'docs', 'backlog-archive', 'BACKLOG-001-100.md'), `## 5. CLOSED — rate limiting\n\n${archived}\n`)
+    const scan = runPython([gate, active], { cwd: dir, encoding: 'utf8', windowsHide: true })
+    rmSync(dir, { recursive: true, force: true })
+    return scan
+  }
+  const moved = run('Deferred here by ADR-002.')
+  assert.match(moved.stdout, /0 unreceipted/, moved.stdout)
+  const never = run('Nobody names the source here.')
+  assert.match(never.stdout, /1 unreceipted/, never.stdout)
+  // Said as the pointer wrote it, never as a resolved path on this machine.
+  assert.match(never.stdout, /UNRECEIPTED \S*ADR-002-probe\.md → docs\/BACKLOG\.md: Rate limiting/, never.stdout)
 })

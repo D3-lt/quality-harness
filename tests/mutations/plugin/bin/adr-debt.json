@@ -1,6 +1,24 @@
 {
   "mutations": [
     {
+      "label": "adr-debt: a receipt the backlog index archived still counts",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/adr-debt-archive.test.mjs"
+      ],
+      "from": "    for link in sorted(set(ARCHIVED_LINK.findall(text))):",
+      "to": "    for link in []:"
+    },
+    {
+      "label": "adr-debt: an unreceipted destination is said as the pointer wrote it",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/adr-debt-archive.test.mjs"
+      ],
+      "from": "            return True, pat in body, Path(t).as_posix()",
+      "to": "            return True, pat in body, dest"
+    },
+    {
       "label": "adr-debt: a pointer to a record in the sibling archive resolves there",
       "file": "plugin/bin/adr-debt",
       "tests": [

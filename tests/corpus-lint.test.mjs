@@ -102,7 +102,8 @@ test('this repository\'s own deferral pointers all resolve under adr-debt', () =
     assert.match(control.stdout, /UNRESOLVED \[adr\]/)
   } finally { rmSync(scratch, { recursive: true, force: true }) }
   const run = spawnSync('python3', [adrDebt, join(repoRoot, 'docs', 'adr')], { cwd: repoRoot, encoding: 'utf8', timeout: LINT_TIMEOUT_MS })
-  const unresolved = run.stdout.split('\n').filter(line => /^\s+(UNRESOLVED|BROKEN) /.test(line))
+  // UNRECEIPTED too: a backlog made an index moved 44 receipts out of sight unseen (BACKLOG §378, 2026-10-13).
+  const unresolved = run.stdout.split('\n').filter(line => /^\s+(UNRESOLVED|BROKEN|UNRECEIPTED) /.test(line))
   assert.deepEqual(unresolved, [], run.stdout)
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)
 })

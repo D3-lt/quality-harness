@@ -673,6 +673,12 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   assert.equal(done('observed; Stop Condition limit: reached'), false)
   assert.equal(done('observed; Stop Condition limit: met'), false)
   assert.equal(done('approved; Stop Condition limit: not reached'), true)
+  // The review of 289e71f5..b02048b7: the separator BEFORE the word between, and a verdict later in the clause.
+  assert.equal(done('observed; Stop Condition: limit reached'), false)
+  assert.equal(done('observed; the Stop Condition, which was reached'), false)
+  assert.equal(done('approved; Stop Condition: limit not reached'), true)
+  assert.equal(done('approved; the Stop Condition was never hit'), true)
+  assert.equal(done('approved; the Stop Condition has not yet been reached'), true)
   assert.equal(done('observed, stop'), false)
 })
 

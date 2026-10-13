@@ -221,12 +221,33 @@ NEUTRALISED = re.compile(
     # The WHOLE label, then a separator, then a whole number: with the separator
     # optional, backtracking read the digits inside `failed-on-ios18` as its count
     # and erased a real stop (Codex review of 2f45348).
-    r"|(?<![\w-])\w+(?:-\w+)+(?:\s*[=:]\s*|\s+)\d+(?![\w-])"
-    # The task template's `## Stop Condition` section, cited by name, is a heading and not a verdict: ADR-078 T2's
-    # approval "under the Stop Condition's 25%" read as stopped. The condition said to be met still stops.
-    r"|(?<![a-z])stop\s+conditions?(?:['’]s)?(?![a-z'’])"
-    r"(?!\s*(?:(?!(?:not|never|no)(?![a-z]))[a-z]+(?:\s+|(?=\s*[:—–-])))?[:—–-]?\s*(?:(?:was|were|is|are|has|have|been|now|got)\s+){0,2}(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z]))",
+    r"|(?<![\w-])\w+(?:-\w+)+(?:\s*[=:]\s*|\s+)\d+(?![\w-])",
     re.I)
+
+# The task template's `## Stop Condition` section, cited by name, is a heading and not a verdict: ADR-078 T2's
+# approval "under the Stop Condition's 25%" read as stopped. The condition said to be met still stops, and that is
+# judged over the rest of its CLAUSE, not the next few words: five review rounds each found a spelling an adjacency
+# pattern missed ("were met", ": met", "limit — reached", "limit: reached", ": limit reached"; BACKLOG §378). So the
+# name is blanked only when no verdict follows it before the clause ends, or every one that does is denied ("not
+# met", "was never hit"). A comma is no break: "the Stop Condition, which was reached" stops. The cost is a false
+# stop on "under the Stop Condition's 25%, all checks met" — the direction this reader errs in (§16).
+STOP_CONDITION = re.compile(r"(?<![a-z])stop\s+conditions?(?:['’]s)?(?![a-z'’])", re.I)
+STOP_CONDITION_CLAUSE = re.compile(r"[^.;!?\n]*")
+STOP_CONDITION_VERDICT = re.compile(
+    r"(?<![a-z])(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z])", re.I)
+STOP_CONDITION_DENIED = re.compile(
+    r"(?<![a-z])(?:not|never|no)\s+(?:(?:yet|ever|been|was|were|is|are|has|have|had)\s+){0,2}$", re.I)
+
+
+def neutralise(text):
+    """text with what is not a verdict blanked: NEUTRALISED's forms, and a Stop Condition cited by name."""
+    def cited(m):
+        clause = STOP_CONDITION_CLAUSE.match(text, m.end()).group()
+        for verdict in STOP_CONDITION_VERDICT.finditer(clause):
+            if not STOP_CONDITION_DENIED.search(clause[:verdict.start()]):
+                return m.group()
+        return " "
+    return NEUTRALISED.sub(" ", STOP_CONDITION.sub(cited, text))
 
 # ⚠ A RUN REPORT QUOTES ITS RED RUN AS EVIDENCE. "observed: red run 111: TestAlpha failed; green run
 # 222: ok" affirms a red-then-green sequence, and its «failed» was read as the verdict (BACKLOG §361).
@@ -272,7 +293,7 @@ def run_report_removed(text):
 
 def not_the_verdict(text):
     """text with what it reports rather than decides blanked: a run report, a negated negative, a counter."""
-    return NEUTRALISED.sub(" ", ABSENT_FAILURE.sub(r"\1 ", run_report_removed(text)))
+    return neutralise(ABSENT_FAILURE.sub(r"\1 ", run_report_removed(text)))
 
 
 # A record NUMBER from a filename, and NOT the year of an ISO date. Every
@@ -379,7 +400,7 @@ def human_outcome(note):
     outside = not_the_verdict(outside)
     if NEGATIVE.search(outside):
         return "stop"
-    if NEGATIVE.search(NEUTRALISED.sub(" ", note)):
+    if NEGATIVE.search(neutralise(note)):
         return "pass" if AFFIRMATIVE.search(outside) else "stop"
     if AFFIRMATIVE.search(note):
         return "pass"
@@ -695,7 +716,7 @@ def stop_words(note):
             return m.group(0)
     if outside.count("❌"):
         return "❌"
-    for text in (not_the_verdict(outside), NEUTRALISED.sub(" ", note)):
+    for text in (not_the_verdict(outside), neutralise(note)):
         if (m := NEGATIVE.search(text)):
             return m.group(0)
     return None

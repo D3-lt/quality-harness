@@ -7,28 +7,28 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "    r\"|(?<![a-z])stop\\s+conditions?(?:['’]s)?(?![a-z'’])\"",
-      "to": "    r\"|(?<![a-z])stop\\s+conditionsXX(?:['’]s)?(?![a-z'’])\""
+      "from": "    return NEUTRALISED.sub(\" \", STOP_CONDITION.sub(cited, text))",
+      "to": "    return NEUTRALISED.sub(\" \", text)"
     },
     {
-      "label": "next: the possessive cannot be backed out of to pass a Stop Condition met (Codex review of ce54814c)",
+      "label": "next: a Stop Condition said to be met keeps its name, so it stops",
       "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "    r\"|(?<![a-z])stop\\s+conditions?(?:['’]s)?(?![a-z'’])\"",
-      "to": "    r\"|(?<![a-z])stop\\s+conditions?(?:['’]s)?(?![a-z])\""
+      "from": "            if not STOP_CONDITION_DENIED.search(clause[:verdict.start()]):\n                return m.group()",
+      "to": "            if not STOP_CONDITION_DENIED.search(clause[:verdict.start()]):\n                return \" \""
     },
     {
-      "label": "next: a word between the Stop Condition and its verdict still stops (Codex review of ce54814c)",
+      "label": "next: a separator inside the clause does not end it, so ': limit reached' still stops (review of 289e71f5..b02048b7)",
       "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "    r\"(?!\\s*(?:(?!(?:not|never|no)(?![a-z]))[a-z]+(?:\\s+|(?=\\s*[:—–-])))?[:—–-]?\\s*(?:",
-      "to": "    r\"(?!\\s*[:—–-]?\\s*(?:"
+      "from": "STOP_CONDITION_CLAUSE = re.compile(r\"[^.;!?\\n]*\")",
+      "to": "STOP_CONDITION_CLAUSE = re.compile(r\"[^.;!?\\n,:—]*\")"
     },
     {
       "label": "next: a Stop Condition said not met is no stop (verification review of 7eb7be00)",
@@ -37,18 +37,18 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "(?:(?!(?:not|never|no)(?![a-z]))[a-z]+(?:\\s+|(?=\\s*[:—–-])))?",
-      "to": "(?:[a-z]+(?:\\s+|(?=\\s*[:—–-])))?"
+      "from": "            if not STOP_CONDITION_DENIED.search(clause[:verdict.start()]):",
+      "to": "            if True:"
     },
     {
-      "label": "next: a word with punctuation attached before the verdict still stops (scoped review of 289e71f5)",
+      "label": "next: a denial with its auxiliaries is still a denial ('has not yet been reached')",
       "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "[a-z]+(?:\\s+|(?=\\s*[:—–-])))?",
-      "to": "[a-z]+\\s+)?"
+      "from": "(?:(?:yet|ever|been|was|were|is|are|has|have|had)\\s+){0,2}$\", re.I)",
+      "to": "$\", re.I)"
     },
     {
       "label": "next: a Stop Condition said to be met still stops",
@@ -57,8 +57,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z]))\",",
-      "to": "(?:metXX)(?![a-z]))\","
+      "from": "    r\"(?<![a-z])(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z])\", re.I)",
+      "to": "    r\"(?<![a-z])(?:metXX)(?![a-z])\", re.I)"
     },
     {
       "label": "§355: a task name with a dot after .md is a task file too",
@@ -324,8 +324,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\"\n",
-      "to": "    r\"|(?!x)x\"\n",
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\",\n",
+      "to": "    r\"|(?!x)x\",\n",
       "only": "^(?:a negated stop word and a counter name are not verdicts, and the plain stop still is)$"
     },
     {
@@ -334,8 +334,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\"\n",
-      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\"\n",
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\",\n",
+      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\",\n",
       "only": "^(?:a negated stop word and a counter name are not verdicts, and the plain stop still is)$"
     },
     {
@@ -1324,8 +1324,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    return NEUTRALISED.sub(\" \", ABSENT_FAILURE.sub(r\"\\1 \", run_report_removed(text)))",
-      "to": "    return NEUTRALISED.sub(\" \", ABSENT_FAILURE.sub(r\"\\1 \", text))",
+      "from": "    return neutralise(ABSENT_FAILURE.sub(r\"\\1 \", run_report_removed(text)))",
+      "to": "    return neutralise(ABSENT_FAILURE.sub(r\"\\1 \", text))",
       "only": "^an affirmed red-then-green run report is evidence, not a stop$|^the run report in the row shape it was found in"
     },
     {
@@ -1344,8 +1344,8 @@
       "tests": [
         "tests/human-stop-red-green.test.mjs"
       ],
-      "from": "    for text in (not_the_verdict(outside), NEUTRALISED.sub(\" \", note)):",
-      "to": "    for text in (NEUTRALISED.sub(\" \", outside), NEUTRALISED.sub(\" \", note)):",
+      "from": "    for text in (not_the_verdict(outside), neutralise(note)):",
+      "to": "    for text in (neutralise(outside), neutralise(note)):",
       "only": "^a stop after a run report names its own word, not the red run it quoted$"
     },
     {

@@ -17,28 +17,28 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "            if not STOP_CONDITION_DENIED.search(clause[:verdict.start()]):\n                return m.group()",
-      "to": "            if not STOP_CONDITION_DENIED.search(clause[:verdict.start()]):\n                return \" \""
+      "from": "            if not STOP_CONDITION_DENIED.search(after[:verdict.start()]):\n                return m.group()",
+      "to": "            if not STOP_CONDITION_DENIED.search(after[:verdict.start()]):\n                return \" \""
     },
     {
-      "label": "next: a separator inside the clause does not end it, so ': limit reached' still stops (review of 289e71f5..b02048b7)",
+      "label": "next: a separator after the name does not end the scan, so ': limit reached' still stops (review of 289e71f5..b02048b7)",
       "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "STOP_CONDITION_CLAUSE = re.compile(r\"(?:[^.;!?\\n]|\\.(?!\\s|$))*\")",
-      "to": "STOP_CONDITION_CLAUSE = re.compile(r\"(?:[^.;!?\\n,:—]|\\.(?!\\s|$))*\")"
+      "from": "        after = text[m.end():]\n",
+      "to": "        after = re.split(r\"[:,—]\", text[m.end():])[0]\n"
     },
     {
-      "label": "next: a decimal point does not end the clause, so 'limit 25.0% reached' still stops (verification review of 3ddfe748)",
+      "label": "next: a full stop does not end the scan, so 'max. 25.0% reached' still stops (verification review of a9a265fd)",
       "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "STOP_CONDITION_CLAUSE = re.compile(r\"(?:[^.;!?\\n]|\\.(?!\\s|$))*\")",
-      "to": "STOP_CONDITION_CLAUSE = re.compile(r\"(?:[^.;!?\\n])*\")"
+      "from": "        after = text[m.end():]\n",
+      "to": "        after = re.split(r\"\\.\\s\", text[m.end():])[0]\n"
     },
     {
       "label": "next: a Stop Condition said not met is no stop (verification review of 7eb7be00)",
@@ -47,7 +47,7 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "            if not STOP_CONDITION_DENIED.search(clause[:verdict.start()]):",
+      "from": "            if not STOP_CONDITION_DENIED.search(after[:verdict.start()]):",
       "to": "            if True:"
     },
     {

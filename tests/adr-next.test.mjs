@@ -683,6 +683,9 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   assert.equal(done('observed; Stop Condition: limit 25.0% reached'), false)
   assert.equal(done('approved; Stop Condition was not being met'), true)
   assert.equal(done("approved; the Stop Condition wasn't reached"), true)
+  // The verification review of a9a265fd: an abbreviation's full stop hid the verdict, so no clause boundary is read.
+  assert.equal(done('observed; Stop Condition: max. 25.0% reached'), false)
+  assert.equal(done('observed; the Stop Condition. It was reached'), false)
   assert.equal(done('observed, stop'), false)
 })
 

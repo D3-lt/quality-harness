@@ -669,6 +669,10 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   assert.equal(done('approved; Stop Condition not met'), true)
   assert.equal(done('approved; Stop Condition unmet'), true)
   assert.equal(done('approved; the Stop Condition was not reached'), true)
+  // The scoped review of 289e71f5: punctuation attached to the word between is still the condition said met.
+  assert.equal(done('observed; Stop Condition limit: reached'), false)
+  assert.equal(done('observed; Stop Condition limit: met'), false)
+  assert.equal(done('approved; Stop Condition limit: not reached'), true)
   assert.equal(done('observed, stop'), false)
 })
 

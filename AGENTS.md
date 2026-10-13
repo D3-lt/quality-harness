@@ -11,7 +11,7 @@ The rules whose cost of missing is not a wasted hour are repeated here:
   In the tests, `repoRoot` is the repository and `root` is the plugin — different directories.
 - **Never commit while a gate is red, and never pipe or filter a gate.** `bash scripts/selftest.sh` must exit
   0 after your last edit. `| tail` and `|| true` hide the exit code; `grep -v advice` hides the findings. Never chain a commit after a
-  test in one command.
+  test in one command; `qh-check --commit -F -` is the one sanctioned pair (it commits only on the check's pass).
 - **Call a gate by its working-tree path, never its bare name.** `adr-lint` on `PATH` runs an
   installed release, not your edit. Use `python3 plugin/bin/adr-lint`, `node plugin/scripts/…`.
 - **Nothing personal reaches GitHub.** Public repository; it publishes its own corpus. Never write

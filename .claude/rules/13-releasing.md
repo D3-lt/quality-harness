@@ -78,3 +78,12 @@ newer and needs no change to the tool — §154 already breaks an exact TIE towa
 and this is not a tie, it is a loss.
 
 `gh release create vX.Y.Z --latest` — `--latest` is not the default and has been forgotten.
+
+## The command (ADR-100, 2026-10-13)
+
+`node scripts/release.mjs` performs the steps above from observations: the tag list for "bump", the check ledger through
+`qh-check` (which reuses a pass already taken on the tree), `merge-base --is-ancestor` against `origin/main` for the push,
+`gh run list --commit` for the push run and the dispatch, `release-evidence` for the verdict. It keeps no state file, so it
+can never disagree with what those say. The old "do not push while the release run is in flight" predates the event in the
+workflow's concurrency key (`.github/workflows/selftest.yml:19-21`): since then a push cancels only an earlier push run,
+and a second dispatch cancels the first, which is the case the command waits out.

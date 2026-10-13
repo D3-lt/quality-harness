@@ -37,3 +37,12 @@ campaign.
 - **Forbid it from spawning another `codex exec`.** That same run burned its whole budget recursing
   into a nested one that could not start under the sandbox.
 - **Reconcile every finding against source.** Neither accept nor dismiss one by authority.
+
+## The launcher and its record (ADR-100, 2026-10-13)
+
+The rules above are what `plugin/scripts/host-review.mjs` now does, so §12 points at it rather than restating them: stdin
+closed, a hard kill at `CODEX_TIMEOUT_MS`, the model pinned in `CODEX_MODEL`, and the contract's leaf instruction forbidding
+a nested `codex exec`. What it adds is the record: every run it starts appends `{base, head, exact, status}` to
+`reviews.jsonl`, and `release-evidence` reads it. Before that, whether a review ran before a tag was prose; v3.8.22's
+release took 34 tool calls between its bump and its tag (measured 2026-10-13 over that session's transcript), and none of
+them asked whether the review had covered every commit.

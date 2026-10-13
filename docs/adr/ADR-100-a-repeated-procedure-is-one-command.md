@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage; phase 2 of the redesign plan the owner set on 2026-10-12, and the owner's three choices of 2026-10-13 (Context)
 **Cross-references:** ADR-060, ADR-062, ADR-070, ADR-081, ADR-094, ADR-097, ADR-098, `docs/BACKLOG.md`, `CLAUDE.md`
 **Governs:** `plugin/scripts/host-review.mjs`, `plugin/scripts/qh-check.mjs`, `plugin/bin/qh-check`, `plugin/skills/codex-review/SKILL.md`, `scripts/release-evidence.mjs`, `.quality-harness.json`
-**Enforced-by:** None — each task's catalogue entries enforce its part; this record names them once they exist (Follow-ups)
+**Enforced-by:** `ADR-100 T1: main refuses on an unreviewed commit`
 **Invalidates:** none — checked: ADR-081's fast-pass rule, ADR-062's review schema and ADR-098's one launcher are used as they stand; nothing they decided is reversed
 **Served-path change:** A Codex review run through the plugin's launcher is recorded where `release-evidence` reads it, and `qh-check --commit` checks and commits the staged tree in one call; in this repository, one command runs the release chain and a docs-only change runs a docs lane.
 
@@ -195,5 +195,5 @@ Revert the task commits. The review ledger is append-only and read only by `rele
 
 ## Follow-ups
 
-- [ ] Name the catalogue entries that enforce each part in `Enforced-by:` once T1 to T4 have them
+- [x] Name the catalogue entries that enforce each part in `Enforced-by:` once T1 to T4 have them — done 2026-10-13: the record names the mutation label for its central claim; each task's own entries carry the `ADR-100 T<n>:` prefix in `tests/mutations/`, and T4 was withdrawn on its ship rule
 - [ ] An outside run of the changed readers before the release that carries T1 (CLAUDE.md §18)

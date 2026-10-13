@@ -56,7 +56,9 @@ python3 scripts/test-locks.py <test-file> [name]    # before editing an existing
   stores its test names base64-encoded, so grepping the corpus for a name finds nothing. A locked test
   stays byte-identical: add a test beside it, or change a helper it calls.
 
-- **Never commit while a gate is red**, and never chain a commit after a test in one command.
+- **Never commit while a gate is red**, and never chain a commit after a test in one command. The one sanctioned pair is
+  `qh-check --commit -F -` (ADR-100): it refuses a working tree unlike the index and a pathspec, commits only on the
+  check's pass, and returns the check's exit, so nothing is hidden.
 - **Commit messages go through `git commit -F -` with a quoted heredoc**, never `-m "..."`.
 
 Why: `.claude/rules/02-running-the-checks.md`
@@ -187,10 +189,13 @@ Why: `.claude/rules/11-outside-evidence.md`
 - **A substantive change gets a different-lineage (Codex) review after the gate is green and
   before the tag.** Substantive means behaviour changed: a gate's logic, a script's semantics, a
   new check. Not a version bump, prose, or a test-only edit.
-- A clean pass is one reviewer's silence, not a verdict. A killed review (`gtimeout` exit 124)
-  certifies nothing. Reconcile every finding against source.
-- `codex exec`: redirect stdin from `/dev/null`, hard-kill it, scope it to the files whose
-  semantics changed, and forbid it from spawning another `codex exec`.
+- **Run it through the launcher, with its range:** the codex-review skill builds the contract, and
+  `node plugin/scripts/host-review.mjs --host codex --effort high --repo . --prompt-file <contract> --range <base>..<head>`
+  runs it read-only, with stdin closed, the model pinned and a hard kill at its budget. Every run is recorded in
+  `reviews.jsonl` beside the check ledger, and `release-evidence` refuses a plugin commit since the last tag that no
+  recorded review covers (ADR-100). A review run any other way is not recorded.
+- A clean pass is one reviewer's silence, not a verdict. A killed review certifies nothing.
+  Reconcile every finding against source.
 
 Why: `.claude/rules/12-reviews.md`
 
@@ -199,31 +204,28 @@ Why: `.claude/rules/12-reviews.md`
 **A green shipped change is released, not parked.** `plugin/` unchanged means nothing to release;
 CI not finished means not green.
 
-1. `bash scripts/selftest.sh` green after the last edit; Codex review done (§12).
-   **Scan for dead code before every release** (the owner, 2026-09-27): `node scripts/orphan-sweep.mjs`
-   must print `0 orphan(s)`. A definition in `plugin/` that nothing shipped reaches — dead, or read
-   only by tests or repository tooling — is deleted or wired, never allow-listed. The selftest
-   fails on it at HEAD too; the sweep is how you see which, before the commit that would.
-   **And a standard tool per language, run locally** (the owner, 2026-09-27): `bash
-   scripts/dead-code-scan.sh` runs orphan-sweep, `vulture` over the Python through `uvx`, `knip`
-   over the JavaScript through `npx`, and `scripts/unused-names.sh` (ruff and biome, an import or a
-   local unused in its own file, which the other three cannot see; the selftest runs it on every
-   gate too), and prints each tool's version, command and count. A deliberate
-   Python name goes into `scripts/vulture-allowlist.py` with its reason; exit 3 means a scanner could
-   not run, which is UNPROVEN, never clean.
-2. Bump `version` in `plugin/.claude-plugin/plugin.json`; push.
-3. **Wait for the push's own run to EXIST, then ask for the full campaign at the sha you are about
-   to tag**: `gh run list --commit <sha> --limit 1` until it answers, then `gh workflow run
-   selftest.yml --ref main`. A push measures only what its cache could not reuse; only a dispatched
-   run measures the whole catalogue, and `release-evidence` refuses a sha whose newest run was a
-   push. Dispatching immediately can lose that ordering by a second (BACKLOG §159).
-4. Wait for **every** CI job — ask for the list, never carry a count.
-5. `node scripts/release-evidence.mjs <sha>` and act only on its **SUCCESS**. Never read a watch's
-   exit code. Its own header defines its exit codes; when a summary elsewhere disagrees, the header
-   wins. It also asks whether anybody outside has run the readers that changed since the last tag
-   (§18): an attestation in `docs/corpus-reports/` at a commit after that tag, or UNPROVEN.
-6. **Do not push while the release run is in flight** — `cancel-in-progress` kills it silently.
-7. `gh release create vX.Y.Z --latest` — `--latest` is not the default.
+**`node scripts/release.mjs` runs steps 3 to 7 from what it observes**, so a second run resumes where the first
+stopped (ADR-100). Exit 0 released, 1 a step failed, 2 a step needs an action it does not take (it names it), 3 a
+wait reached its deadline. The steps stay numbered because records and source comments cite them.
+
+1. `bash scripts/selftest.sh` green after the last edit (the command runs `qh-check` again, which reuses that pass);
+   Codex review done through the launcher (§12); when a reader changed since the last tag, an outside run filed with
+   `attest-import` (§18). **Dead code is deleted or wired, never allow-listed** (the owner, 2026-09-27):
+   `node scripts/orphan-sweep.mjs` prints `0 orphan(s)`, and `bash scripts/dead-code-scan.sh` (which the command runs)
+   prints each standard tool's version, command and count; a deliberate Python name goes into
+   `scripts/vulture-allowlist.py` with its reason, and exit 3 is UNPROVEN, never clean.
+2. Bump `version` in `plugin/.claude-plugin/plugin.json` and commit it; then run the command. It pushes when
+   the remote's main lacks the sha.
+3. It waits for the push's own run to EXIST, then dispatches the full campaign at that sha: a push measures only
+   what its cache could not reuse, and `release-evidence` refuses a sha whose newest run was a push. Dispatching
+   immediately can lose that ordering by a second (BACKLOG §159).
+4. It waits for **every** job of the dispatched run, bounded; it never reads a watch's exit code.
+5. It runs `node scripts/release-evidence.mjs <sha>` and acts only on its **SUCCESS**. Its own header defines its exit
+   codes; when a summary elsewhere disagrees, the header wins. It also asks whether anybody outside has run the
+   readers that changed since the last tag (§18) and whether a recorded review covers every plugin commit (§12).
+6. It never dispatches while another dispatched run on the ref is in flight: the workflow's concurrency group keys on
+   the event (`.github/workflows/selftest.yml:19-21`), so a second dispatch cancels the first, while a push does not.
+7. It runs `gh release create vX.Y.Z --target <full sha> --latest` — `--latest` is not the default.
 
 Why: `.claude/rules/13-releasing.md`
 

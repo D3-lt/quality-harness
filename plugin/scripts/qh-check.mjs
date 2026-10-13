@@ -173,12 +173,101 @@ export async function runCheck({ cwd = process.cwd(), env = process.env, platfor
   return exit ?? 1
 }
 
+// ADR-100 T2. `git commit` arguments that commit a tree other than the index, refused before the check: a pathspec (after
+// `--`, or a word no option takes), `-p`/`--patch`, `--interactive`, `-o`/`--only`, `-i`/`--include` (the cold review of
+// ADR-100: `git commit -- A` with A and B staged commits a tree no check saw). A word this does not recognise is read as a
+// pathspec, the direction that refuses (CLAUDE.md §16). Options that take a value consume the next word.
+const COMMIT_VALUE_SHORT = new Set(['m', 'F', 'C', 'c', 't', 'S'])
+const COMMIT_VALUE_LONG = new Set(['--message', '--file', '--reuse-message', '--reedit-message', '--template', '--author', '--date', '--fixup', '--squash', '--cleanup', '--trailer'])
+const COMMIT_OTHER_TREE_SHORT = new Set(['p', 'o', 'i'])
+const COMMIT_OTHER_TREE_LONG = new Set(['--patch', '--interactive', '--only', '--include', '--pathspec-from-file'])
+export function commitArgsProblem(args) {
+  for (let at = 0; at < args.length; at++) {
+    const word = String(args[at])
+    if (word === '--') return 'a pathspec (`--` and what follows) commits a tree other than the index'
+    if (word.startsWith('--')) {
+      const name = word.split('=')[0]
+      if (COMMIT_OTHER_TREE_LONG.has(name)) return `\`${name}\` commits a tree other than the index`
+      if (COMMIT_VALUE_LONG.has(name) && !word.includes('=')) at++
+      continue
+    }
+    if (word.startsWith('-') && word.length > 1) {
+      for (let letter = 1; letter < word.length; letter++) {
+        const flag = word[letter]
+        if (COMMIT_OTHER_TREE_SHORT.has(flag)) return `\`-${flag}\` commits a tree other than the index`
+        if (COMMIT_VALUE_SHORT.has(flag)) {
+          if (letter === word.length - 1) at++
+          break
+        }
+      }
+      continue
+    }
+    return `\`${word}\` is a pathspec, which commits a tree other than the index`
+  }
+  return null
+}
+
+const listed = (cwd, args) => {
+  const run = spawnSync('git', ['-C', cwd, ...args], { encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  return run.status === 0 ? String(run.stdout ?? '').split('\n').filter(Boolean) : null
+}
+
+/**
+ * `qh-check --commit [<git commit arguments>]` (ADR-100 T2): the check on a tree equal to the index, then `git commit` only on
+ * its pass, in one call. The owner's rule against a commit chained after a check exists because the chain hides the check's
+ * exit; here a red check never reaches git and its code is the exit. The fast check when one is declared, else the full one.
+ * After git commits, the commit's tree is compared with the tree the check ran on: a hook that rewrote the index, or a peer
+ * staging mid-run, is said and exits 1, because that commit was not checked.
+ */
+export async function runCommit({ cwd = process.cwd(), env = process.env, args = [], stdin = 'inherit', ...check } = {}) {
+  const stderr = check.stderr ?? process.stderr
+  const top = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000, windowsHide: true })
+  if (repositoryDiscovery(top) !== true) {
+    stderr.write('qh-check: --commit needs a git repository, and this directory is not in one.\n')
+    return 2
+  }
+  const root = top.stdout.trim()
+  const problem = commitArgsProblem(args)
+  if (problem) {
+    stderr.write(`qh-check: --commit refused, before any check ran: ${problem}. It commits the index, the tree the check observes.\n`)
+    return 2
+  }
+  const unstaged = listed(root, ['diff', '--name-only'])
+  const untracked = listed(root, ['ls-files', '--others', '--exclude-standard'])
+  if (unstaged === null || untracked === null) {
+    stderr.write('qh-check: --commit could not compare the working tree with the index, so nothing was checked or committed.\n')
+    return 2
+  }
+  const differing = [...unstaged, ...untracked]
+  if (differing.length) {
+    const shown = differing.slice(0, 10).join(', ') + (differing.length > 10 ? `, +${differing.length - 10} more` : '')
+    stderr.write(`qh-check: --commit refused, before any check ran: the working tree differs from the index (${shown}). The check observes the working tree and the commit takes the index; stage or remove these first.\n`)
+    return 2
+  }
+  const code = await runCheck({ cwd: root, env, ...check, fast: Boolean(fastCheckCommand(root)) })
+  if (code !== 0) return code
+  const checked = observe(root, observeBudgetMs(env))
+  const committed = spawnSync('git', ['-C', root, 'commit', ...args], { stdio: [stdin, 'inherit', 'inherit'], env, timeout: checkTimeoutMs(env), windowsHide: true })
+  if (committed.error || committed.status !== 0) return committed.status ?? 1
+  const tree = listed(root, ['rev-parse', 'HEAD^{tree}'])?.[0]
+  if (checked?.ok !== true || tree !== checked.tree) {
+    stderr.write(`qh-check: the commit was made, but its tree ${tree ?? '(unreadable)'} is not the tree the check ran on (${checked?.tree ?? 'unobserved'}): a hook rewrote the index, or something staged while the check ran. That commit was not checked; run qh-check on it.\n`)
+    return 1
+  }
+  return 0
+}
+
 if (isMainModule(import.meta.url)) {
-  const argv = process.argv.slice(2)
+  const all = process.argv.slice(2)
+  // Everything after `--commit` is git's (ADR-100 T2).
+  const at = all.indexOf('--commit')
+  const argv = at >= 0 ? all.slice(0, at) : all
   const unknown = argv.filter(word => !['--wait', '--again', '--fast'].includes(word))
   if (unknown.length) {
-    process.stderr.write(`qh-check: unknown option: ${unknown[0]}\nusage: qh-check [--wait] [--again] [--fast]\n`)
+    process.stderr.write(`qh-check: unknown option: ${unknown[0]}\nusage: qh-check [--wait] [--again] [--fast] [--commit <git commit arguments>]\n`)
     process.exitCode = 2
+  } else if (at >= 0) {
+    process.exitCode = await runCommit({ args: all.slice(at + 1), wait: argv.includes('--wait'), again: argv.includes('--again') })
   } else {
     process.exitCode = await runCheck({ wait: argv.includes('--wait'), again: argv.includes('--again'), fast: argv.includes('--fast') })
   }

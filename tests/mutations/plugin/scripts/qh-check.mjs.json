@@ -1,6 +1,55 @@
 {
   "mutations": [
     {
+      "label": "ADR-100 T2: a red check never reaches git commit",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "  if (code !== 0) return code",
+      "to": "  void code"
+    },
+    {
+      "label": "ADR-100 T2: a working tree unlike the index is refused",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "  if (differing.length) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-100 T2: a pathspec is refused",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "    return `\\`${word}\\` is a pathspec, which commits a tree other than the index`",
+      "to": "    continue"
+    },
+    {
+      "label": "ADR-100 T2: -p, -o and -i are refused",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "const COMMIT_OTHER_TREE_SHORT = new Set(['p', 'o', 'i'])",
+      "to": "const COMMIT_OTHER_TREE_SHORT = new Set([])"
+    },
+    {
+      "label": "ADR-100 T2: a commit whose tree the check did not see is said",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "  if (checked?.ok !== true || tree !== checked.tree) {",
+      "to": "  if (checked?.ok !== true) {"
+    },
+    {
+      "label": "ADR-100 T2: the caller's arguments and stdin reach git",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "['-C', root, 'commit', ...args], { stdio: [stdin, 'inherit', 'inherit']",
+      "to": "['-C', root, 'commit', '-m', 'qh-check'], { stdio: ['ignore', 'inherit', 'inherit']"
+    },
+    {
+      "label": "ADR-100 T2: the CLI selects --commit",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "  } else if (at >= 0) {",
+      "to": "  } else if (false) {"
+    },
+    {
       "label": "qh-check: the kept output is the tail, where a runner prints its summary",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": [

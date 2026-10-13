@@ -82,6 +82,8 @@ Run your project's check through `qh-check`. It runs the command declared as `ch
 `.quality-harness.json` (or one inferred from a manifest), records the result with the machine load
 at start and end, and is what the commit and completion advisories read. A check run any other way
 is not recorded.
+`qh-check --commit -F -` (or `-m <message>`) checks the staged tree and commits it in one call, and
+only on a pass; it refuses a working tree that differs from the index, and a pathspec.
 
 Every gate answers `--version` with the version of the tree it was loaded from. Ask the gate whose
 output you are questioning.

@@ -1,0 +1,81 @@
+{
+  "mutations": [
+    {
+      "label": "ADR-100 T3: a release already on origin/main is not pushed again",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "  if (ran('git', ['merge-base', '--is-ancestor', sha, 'origin/main']).status !== 0) {",
+      "to": "  if (true) {"
+    },
+    {
+      "label": "ADR-100 T3: no tag without release-evidence exit 0",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "  if (evidence.status !== 0) {",
+      "to": "  if (evidence.status === 1) {"
+    },
+    {
+      "label": "ADR-100 T3: the tag names the full sha and --latest",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "['release', 'create', tag, '--target', sha, '--latest', ...notes]",
+      "to": "['release', 'create', tag, '--target', sha.slice(0, 7), ...notes]"
+    },
+    {
+      "label": "ADR-100 T3: the dispatch waits for the push run",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "    return runs.some(run => run.event === 'push') ? runs : null",
+      "to": "    return runs"
+    },
+    {
+      "label": "ADR-100 T3: an existing dispatch is not dispatched again",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "  if (!withPush.some(run => run.event === 'workflow_dispatch')) {",
+      "to": "  if (true) {"
+    },
+    {
+      "label": "ADR-100 T3: no dispatch while another is in flight",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "      return Array.isArray(busy) && !busy.some(run => run.status !== 'completed')",
+      "to": "      return true"
+    },
+    {
+      "label": "ADR-100 T3: every wait has a deadline",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "      if (now() >= deadline) {",
+      "to": "      if (false) {"
+    },
+    {
+      "label": "ADR-100 T3: a red check stops before the push",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "  if (check !== 0) { log(",
+      "to": "  if (false) { log("
+    },
+    {
+      "label": "ADR-100 T3: a dead-code finding stops before the push",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "  if (scan !== 0) { log(",
+      "to": "  if (scan === 3) { log("
+    },
+    {
+      "label": "ADR-100 T3: release-evidence not finished is waited on",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "    return evidence.status === 3 ? null : evidence",
+      "to": "    return evidence"
+    },
+    {
+      "label": "ADR-100 T3: a version that is already a tag stops for a bump",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "  if (tags.includes(tag)) {",
+      "to": "  if (false) {"
+    }
+  ]
+}

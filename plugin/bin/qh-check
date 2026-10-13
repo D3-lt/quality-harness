@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """qh-check — run this project's check and record what it observed.
 
-Usage: qh-check [--wait] [--again] [--fast]
+Usage: qh-check [--wait] [--again] [--fast] [--commit <git commit arguments>]
 
 ADR-060 T2. Advisories count a check only when it was run through this gate: it
 runs the project's check at the repository root (the `check` declared in
@@ -34,6 +34,15 @@ runs it anyway.
 `fast-checks.jsonl`, where no reader of a full pass looks. A pass there lets a command
 that is one commit and nothing else through, with a warning; a push still needs the
 full check (ADR-081). With no `fastCheck` declared it says so and exits 2.
+
+`--commit <git commit arguments>` checks the staged tree and commits it in one call
+(ADR-100): it refuses, with exit 2 and before anything runs, a working tree that
+differs from the index and any argument that commits another tree (a pathspec, `-p`,
+`--interactive`, `-o`, `-i`); runs the `fastCheck` (the full check when none is
+declared); and only on its pass runs `git commit` with those arguments and this
+gate's stdin. A red check never reaches git and its code is the exit. When the
+commit's tree is not the tree the check ran on (a hook rewrote the index), it says
+so and exits 1.
 
 A skip appends one row to `skips.jsonl` (the pass it reused, the tree, and that pass's duration as
 an estimate of the time saved), where no reader of a pass looks, so how often the skip saves a run can be counted.

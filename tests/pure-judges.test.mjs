@@ -94,7 +94,6 @@ const JUDGES = [
   'plugin/scripts/check-ledger.mjs::checkStanding',
   'plugin/scripts/check-ledger.mjs::latestOf',
   'plugin/scripts/check-ledger.mjs::latestCheckFor',
-  'plugin/scripts/check-ledger.mjs::treeChecked',
   'plugin/scripts/check-ledger.mjs::logIncomplete',
   'plugin/scripts/check-ledger.mjs::tornRecord',
   'plugin/scripts/completion-rules.mjs::ledgerEvidence',

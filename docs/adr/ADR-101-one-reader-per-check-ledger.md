@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage; phase 3 of the redesign plan the owner set on 2026-10-12 (`docs/BACKLOG.md` §378, the ADR-100 deferral)
 **Cross-references:** ADR-060, ADR-081, ADR-088, ADR-094, ADR-097, ADR-100, `docs/BACKLOG.md`
 **Governs:** `plugin/scripts/check-ledger.mjs`
-**Enforced-by:** None — the two tasks' tests and catalogue entries enforce it; named in Follow-ups once they exist
+**Enforced-by:** `ADR-101 T2: a torn last line after a pass is refused, not dropped`
 **Invalidates:** none — checked: ADR-081's fast-pass rule, ADR-088's binding of the refusal to imported events and ADR-094's prose reuse keep every answer; only how many functions give it changes
 **Served-path change:** None — this ADR changes only how the answers are computed; every hook's output and every publish verdict is unchanged, which the goldens hold.
 
@@ -127,4 +127,4 @@ Revert the two task commits; nothing persistent changes.
 
 ## Follow-ups
 
-- [ ] Name the enforcing tests and catalogue entries in `Enforced-by:` once they exist
+- [x] Name the enforcing tests and catalogue entries in `Enforced-by:` once they exist — done 2026-10-13; T1's equivalence is held by `tests/one-verdict-reader.test.mjs`, T2's by `tests/one-ledger-reader.test.mjs`

@@ -6,7 +6,7 @@ import path from 'node:path'
 import { appendFileSync, existsSync, mkdirSync } from 'node:fs'
 import { canonical, nearestExistingDirectory, readEvents } from './event-log.mjs'
 import { checkCommandOrigin, runTheCheckSentence } from './check-command.mjs'
-import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, treeChecked, unobservableWrites } from './check-ledger.mjs'
+import { channelOf, checkRevision, checkStanding, emittedFor, latestCheckFor, latestOf, logIncomplete, namedByPublish, namedByReview, revisionFor, tornRecord, unobservableWrites } from './check-ledger.mjs'
 import { gitRepositoryLookup, mark, sessionBaseline, sessionCommits, statusPaths } from './tree-facts.mjs'
 import { queueAction } from './hook-queue.mjs'
 import { once } from './lazily.mjs'
@@ -415,7 +415,7 @@ export function observedFacts(log, root, observation) {
   // the note print — and SessionEnd persist — "Last check: … passed" beside
   // `checked: false` (different-lineage review, 2026-09-19).
   const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), { unresolved: 'say-so' })
-  const treeUnchecked = observation?.ok === true && !treeChecked(log, observation.tree)
+  const treeUnchecked = observation?.ok === true && checkStanding(log, observation.tree) !== 'passed'
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
   // ⚠ ONE REASON NOTHING HERE MAY BE READ AS A VERDICT, OR NONE. The tree that
   // could not be observed had its arm; a `git status` that FAILED and a log that
@@ -438,8 +438,8 @@ export function observedFacts(log, root, observation) {
     // with no check ever run, and an unobservable tree yields an empty file list,
     // which read as stillness. Found by a different-lineage review, 2026-09-18.
     // The LAST check about this tree by when it RAN, for the same reason
-    // `treeChecked` no longer trusts log position.
-    checked: latestCheckFor(log, observation?.tree)?.event === 'check.passed',
+    // the verdict reader (`checkStanding`, ADR-101) no longer trusts log position.
+    checked: checkStanding(log, observation?.tree) === 'passed',
     treeOrder: observation?.ok === true ? checkStanding(log, observation.tree) : null,
     // Whose word the pass is. A check this tool GUESSED from a manifest may be
     // green while the project is red — `pnpm test` over a monorepo whose PHP half
@@ -564,16 +564,16 @@ function ledgerEvidence(log, observation, baseline, commits, writes, check, stat
   // ran and really failed; an absent `ok` is a caller that asked git nothing.
   if (commits?.ok === false || status?.ok === false) return 'could-not-look'
   // ⚠ AND A LOG READ WHOLE IS A PRECONDITION OF EVERY POSITIVE ANSWER BELOW.
-  // `treeChecked` asks the log whether a check passed on these bytes; asked of a
+  // `checkStanding` asks the log whether a check passed on these bytes; asked of a
   // log with a torn line it can only answer from what survived, so an older pass
   // outliving a newer failure reads as `verified`. `complete === false` is set
   // only by a read that really happened and really lost something.
   if (logIncomplete(log)) return 'could-not-look'
   if (!check) return 'no-check'
-  const treeUnchecked = !treeChecked(log, observation.tree)
+  const treeUnchecked = checkStanding(log, observation.tree) !== 'passed'
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
   if (treeUnchecked || writes.length > 0) return 'unverified'
-  if (commits.some(commit => !treeChecked(log, commit.tree))) return 'unverified'
+  if (commits.some(commit => checkStanding(log, commit.tree) !== 'passed')) return 'unverified'
   return 'verified'
 }
 
@@ -644,7 +644,7 @@ export function completionJudgement(facts, input) {
   const quiet = (docsOnly(changed) && evidenceLimited(input.last_assistant_message))
     || (input.hook_event_name === 'Stop' && interimResponse(input.last_assistant_message))
   const revision = revisionFor(log, observation)
-  const treeUnchecked = observation?.ok === true && !treeChecked(log, observation.tree)
+  const treeUnchecked = observation?.ok === true && checkStanding(log, observation.tree) !== 'passed'
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
   if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {
     const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`
@@ -657,7 +657,7 @@ export function completionJudgement(facts, input) {
   const unchecked = commits.filter(commit => {
     // The observed working tree is R1's to speak for, and a tree P has already
     // named at this revision has been said once.
-    if (treeChecked(log, commit.tree)) return false
+    if (checkStanding(log, commit.tree) === 'passed') return false
     if (observation?.ok === true && commit.tree === observation.tree) return false
     const commitRevision = checkRevision(log, commit.tree)
     if (namedByPublish(log, commit.tree, commitRevision)) return false
@@ -689,7 +689,7 @@ export function completionJudgement(facts, input) {
   }
   // The check passed and a task file changed: the corpus wants that recorded,
   // not asserted. Not a rule — it repeats while the state it is about holds.
-  if (observation?.ok === true && treeChecked(log, observation.tree)) {
+  if (observation?.ok === true && checkStanding(log, observation.tree) === 'passed') {
     const nudge = facts.nudge(changed)
     // An identity like the rules' (ADR-096): said once per tree to each audience, so a turn is never continued twice for it.
     if (nudge && !emittedFor(log, 'N', observation.tree, channel, recipient)) actions.push({ rule: 'N', key: observation.tree, text: nudge })

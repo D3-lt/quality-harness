@@ -178,8 +178,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "    if (record?.after?.tree === tree) { latest = record; latestSeq = count }\n  }\n  if (!latest || checkEventName(latest) !== 'check.passed') return null",
-      "to": "    if (record?.after?.tree === tree) { latest = record; latestSeq = count }\n  }\n  if (!latest) return null",
+      "from": "  if (!latest || checkEventName(latest) !== 'check.passed') return null\n  if (unseenWriteSince(vetoRoot",
+      "to": "  if (!latest) return null\n  if (unseenWriteSince(vetoRoot",
       "only": "^a commit with no fast pass, or a failed one, is still refused$"
     },
     {
@@ -208,7 +208,7 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "  if (unseenWriteSince(root, { seen: 'fastSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null",
+      "from": "  if (unseenWriteSince(vetoRoot, { seen, seq: latestSeq, started: Date.parse(latest.before?.at) })) return null",
       "to": "  if (false) return null",
       "only": "^a write git cannot see, after a fast pass, takes the commit back to the full check$"
     },
@@ -288,8 +288,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "read as the importer reads `checks.jsonl`.\n  const lines = text.split('\\n')\n  if (lines.pop().trim()) return null",
-      "to": "read as the importer reads `checks.jsonl`.\n  const lines = text.split('\\n')\n  ;",
+      "from": "  if (lines.pop().trim()) return null\n  let latest = null",
+      "to": "  ;\n  let latest = null",
       "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
     },
     {
@@ -328,8 +328,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "    if (record?.command === command && (sameTree || sameCode)) latest = record",
-      "to": "    if (!latest && record?.command === command && (sameTree || sameCode)) latest = record",
+      "from": "    if (match(record)) { latest = record; latestSeq = count }",
+      "to": "    if (!latest && match(record)) { latest = record; latestSeq = count }",
       "only": "^a pass followed by a failure on the same tree checks again$"
     },
     {
@@ -338,8 +338,8 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "    if (typeof record?.id !== 'string') return null\n    byId.set(record.id, record)\n    seq += 1",
-      "to": "    if (false) return null\n    byId.set(record.id, record)\n    seq += 1",
+      "from": "    if (typeof record?.id !== 'string') return null\n    byId.set(record.id, record)\n    count += 1",
+      "to": "    if (false) return null\n    byId.set(record.id, record)\n    count += 1",
       "only": "^a row that is not a record proves nothing, in either ledger$"
     },
     {
@@ -348,9 +348,16 @@
       "tests": [
         "tests/qh-check-reads-the-ledger.test.mjs"
       ],
-      "from": "reads it (ADR-088).\n  const lines = text.split('\\n')\n  if (lines.pop().trim()) return null",
-      "to": "reads it (ADR-088).\n  const lines = text.split('\\n')\n  ;",
+      "from": "  if (lines.pop().trim()) return null\n  let latest = null",
+      "to": "  ;\n  let latest = null",
       "only": "^(?:an unterminated last line proves nothing, in either ledger)$"
+    },
+    {
+      "label": "ADR-101 T2: a torn last line after a pass is refused, not dropped",
+      "file": "plugin/scripts/check-ledger.mjs",
+      "tests": ["tests/one-ledger-reader.test.mjs"],
+      "from": "  if (lines.pop().trim()) return null\n  let latest = null",
+      "to": "  lines.pop()\n  let latest = null"
     },
     {
       "label": "ADR-094 T3: a pass is reused whatever the code tree is",
@@ -368,8 +375,8 @@
       "tests": [
         "tests/prose-reuse.test.mjs"
       ],
-      "from": "  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null\n  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)",
-      "to": "  const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)",
+      "from": "  if (unseenWriteSince(vetoRoot, { seen, seq: latestSeq, started: Date.parse(latest.before?.at) })) return null\n  return { latest",
+      "to": "  return { latest",
       "only": "^an unseen write after the original pass vetoes a reuse$"
     },
     {

@@ -9,35 +9,48 @@ import { spawnSync } from 'node:child_process'
 import { gitRepositoryRoot, observe, observeBudgetMs, observedClean, sameObservation } from './tree-facts.mjs'
 
 /**
- * latestFastPass reads `fast-checks.jsonl`, which no reader of a full pass opens
- * (ADR-081): the LATEST fast record on this tree must grade as a pass. A line it
- * cannot read answers null, so a torn file exempts nothing. `count` is how many
- * fast records there are, which the publish advisory's key carries. A write git
- * cannot see, logged after that pass, answers null too: the full skip's veto,
- * read against the fast ledger's own count (BACKLOG §343).
+ * ledgerPass reads one check ledger strictly (ADR-101 T2): `checks.jsonl` for the full check, `fast-checks.jsonl` for the
+ * fast one, the same rules for both. The LATEST row `match` accepts, by position, must grade `check.passed`, and no write
+ * git cannot see may be logged after it (`unseenWriteSince`, against `seen`, the ledger's own count key). Anything it cannot
+ * establish answers null (ADR-005): a ledger it cannot read, a last line with no newline (qh-check ends every record with
+ * one, so that line was not written whole even when it parses), an unparsable line, or a row without an `id`. The answer
+ * carries the row, its position, the number of rows and every row by id, so each caller builds what it says from one read.
+ * `vetoRoot` is the tree the unseen writes are judged inside.
  */
-export function latestFastPass(cwd, tree, root = cwd) {
+export function ledgerPass(stateRoot, { file, seen, match, vetoRoot = stateRoot }) {
   let text
-  try { text = readFileSync(path.join(stateDir(cwd), 'fast-checks.jsonl'), 'utf8') } catch { return null }
+  try { text = readFileSync(path.join(stateDir(stateRoot), file), 'utf8') } catch { return null }
+  const lines = text.split('\n')
+  if (lines.pop().trim()) return null
   let latest = null
   let latestSeq = 0
   let count = 0
-  // ⚠ qh-check ends every record with a newline, so a last line without one was not written
-  // whole even when it parses, and proves nothing: read as the importer reads `checks.jsonl`.
-  const lines = text.split('\n')
-  if (lines.pop().trim()) return null
+  const byId = new Map()
   for (const line of lines) {
     if (!line.trim()) continue
     let record
     try { record = JSON.parse(line) } catch { return null }
     // A row that is not a record proves nothing, as the importer reads it.
     if (typeof record?.id !== 'string') return null
+    byId.set(record.id, record)
     count += 1
-    if (record?.after?.tree === tree) { latest = record; latestSeq = count }
+    if (match(record)) { latest = record; latestSeq = count }
   }
   if (!latest || checkEventName(latest) !== 'check.passed') return null
-  if (unseenWriteSince(root, { seen: 'fastSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
-  return { command: latest.command, count }
+  if (unseenWriteSince(vetoRoot, { seen, seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
+  return { latest, seq: latestSeq, count, byId }
+}
+
+/**
+ * latestFastPass reads `fast-checks.jsonl`, which no reader of a full pass opens
+ * (ADR-081): the LATEST fast record on this tree must grade as a pass. `count` is how
+ * many fast records there are, which the publish advisory's key carries. A write git
+ * cannot see, logged after that pass, answers null: the full skip's veto, read
+ * against the fast ledger's own count (BACKLOG §343).
+ */
+export function latestFastPass(cwd, tree, root = cwd) {
+  const pass = ledgerPass(cwd, { file: 'fast-checks.jsonl', seen: 'fastSeen', match: record => record?.after?.tree === tree, vetoRoot: root })
+  return pass ? { command: pass.latest.command, count: pass.count } : null
 }
 
 /**
@@ -109,38 +122,21 @@ export function passedAlready({ root, git, command, env = process.env, observeTr
   if (git !== true) return null
   const now = prose.length ? observeTree(root, observeBudgetMs(env), { without: prose }) : observeTree(root)
   if (now?.ok !== true) return null
-  let text
-  try { text = readFileSync(path.join(stateDir(root), 'checks.jsonl'), 'utf8') } catch { return null }
-  let latest = null
-  const byId = new Map()
-  let seq = 0
-  let latestSeq = 0
-  // ⚠ qh-check ends every record with a newline, so a last line without one was not written
-  // whole even when it parses, and proves nothing: read as the importer reads it (ADR-088).
-  const lines = text.split('\n')
-  if (lines.pop().trim()) return null
-  for (const line of lines) {
-    if (!line.trim()) continue
-    let record
-    try { record = JSON.parse(line) } catch { return null }
-    // A row that is not a record proves nothing, as the importer reads it.
-    if (typeof record?.id !== 'string') return null
-    byId.set(record.id, record)
-    seq += 1
+  const match = record => {
     const sameTree = record?.after?.tree === now.tree
     const sameCode = !sameTree && prose.length > 0 && typeof now.codeTree === 'string' && record?.after?.codeTree === now.codeTree
       && Array.isArray(record?.prose) && record.prose.length === prose.length && record.prose.every((spec, at) => spec === prose[at])
-    if (record?.command === command && (sameTree || sameCode)) latest = record
-    if (latest === record) latestSeq = seq
+    return record?.command === command && (sameTree || sameCode)
   }
-  if (!latest || checkEventName(latest) !== 'check.passed') return null
-  if (unseenWriteSince(root, { seen: 'checksSeen', seq: latestSeq, started: Date.parse(latest.before?.at) })) return null
+  const pass = ledgerPass(root, { file: 'checks.jsonl', seen: 'checksSeen', match })
+  if (!pass) return null
+  const { latest, byId, count } = pass
   const ms = Date.parse(latest.after?.at) - Date.parse(latest.before?.at)
   // The pass that actually ran: a reuse row names it (`reusedFrom`), so a chain of reuses never stands in for it. A tree
   // identical to the one that pass was taken on is not "prose changed" - nothing changed (a Windows run of 3.8.17).
   const original = typeof latest.reusedFrom === 'string' ? byId.get(latest.reusedFrom) : latest
   const sameAsPass = original?.after?.tree === now.tree
-  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, passOf: original?.id ?? latest.id, tree: now.tree, record: latest, now, rows: seq, viaProse: latest.after.tree !== now.tree && !sameAsPass }
+  return { at: latest.after.at, ms: Number.isFinite(ms) ? ms : null, id: latest.id, passOf: original?.id ?? latest.id, tree: now.tree, record: latest, now, rows: count, viaProse: latest.after.tree !== now.tree && !sameAsPass }
 }
 
 // ADR-005: an observation that could not be made never matches anything.
@@ -437,10 +433,6 @@ export function latestOf(events, { unresolved = 'not-a-pass' } = {}) {
   // to be told the order could not be established instead.
   if (unresolved === 'say-so' && new Set(candidates.map(entry => entry.event)).size > 1) return ORDER_UNRESOLVED
   return candidates.find(entry => entry.event !== 'check.passed') ?? candidates[0]
-}
-
-export function treeChecked(log, tree) {
-  return latestCheckFor(log, tree)?.event === 'check.passed'
 }
 
 // 'passed' certifies. 'unresolved' is an order that could not be established:

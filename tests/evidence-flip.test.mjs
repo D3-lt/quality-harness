@@ -284,7 +284,6 @@ test('every reader of the session log is driven above, or says why a lost line c
     tornRecord: 'names which record tore, asked only once logIncomplete is true; a lost session-log line makes it name the session log, and it answers nothing positive',
     answeredBlobs: 'reads only complete artifact.gated rows; a lost line removes an answer, so the path is gated again, which is the safe direction (ADR-005)',
     lateBaselineAllowed: 'its first condition is logIncomplete; a log not read whole never lets a late baseline be adopted',
-    treeChecked: 'asks latestCheckFor, which is driven above, and nothing else',
     checkStanding: 'its first line is logIncomplete, answered \'unknown\'; a log not read whole certifies nothing',
     checkRevision: 'a count of the tree\'s check events; a lost line can only lower it, and it certifies nothing',
     revisionFor: 'a count of check events (checkRevision, or every check event where nothing can be observed); it certifies nothing',

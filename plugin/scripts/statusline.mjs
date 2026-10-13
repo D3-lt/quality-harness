@@ -103,7 +103,7 @@ function observedReading(log, observed, check) {
     && (typeof since !== 'string' || typeof entry.at !== 'string' || entry.at > since))
   // ⚠ THE SAME RULE THE ADVISORIES USE — THE SAME FUNCTION, AND THE SAME PRECONDITION.
   // This was a second copy of the rule, `…filter(…).at(-1)`, under a comment that
-  // already claimed they agreed. They did not: when `treeChecked` learned to
+  // already claimed they agreed. They did not: when the verdict reader learned to
   // dedupe re-imports and refuse an unresolved order, this kept certifying from
   // the last-APPENDED event, so a stale re-imported pass still read `checked`
   // here after the advisories had stopped believing it. Two copies of one rule is

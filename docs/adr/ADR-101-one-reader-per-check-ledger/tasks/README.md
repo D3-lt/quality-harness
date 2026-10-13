@@ -17,8 +17,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The session log has one verdict reader; treeChecked is gone | pending | none — no spec | two named tests, the goldens and decision tables, a clean `mutate.mjs --stale` |
-| T2 | checks.jsonl and fast-checks.jsonl are read by one strict reader | pending | none — no spec | two named tests, the prose-reuse and ledger suites, the goldens, a clean `mutate.mjs --stale` |
+| T1 | The session log has one verdict reader; treeChecked is gone | done | none — no spec | two named tests, the goldens and decision tables, a clean `mutate.mjs --stale` |
+| T2 | checks.jsonl and fast-checks.jsonl are read by one strict reader | done | none — no spec | two named tests, the prose-reuse and ledger suites, the goldens, a clean `mutate.mjs --stale` |
 
 ## Contract Coupling
 

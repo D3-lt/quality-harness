@@ -55,6 +55,9 @@ test "$(node --test --test-reporter=tap tests/one-verdict-reader.test.mjs 2>&1 |
 | 4 — it is used | every Stop and PreToolUse judgement |
 
 ## Mutation Log
+- 2026-10-13 · e6a00957* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · a commit whose check is unresolved or unknown reads verified; the caller no longer asks the one verdict reader · acceptance-sha256:ccd96ed7dc94acef384cea0c0abaecf589af9a247f0973bc83c42051e63bb0ab · covers:no caller asks treeChecked
+- 2026-10-13 · e6a00957* · mutant killed · exit 1 · `plugin/scripts/check-ledger.mjs` · an order that cannot be established certifies, where the removed spelling refused it · acceptance-sha256:ccd96ed7dc94acef384cea0c0abaecf589af9a247f0973bc83c42051e63bb0ab · covers:the two spellings agree on every generated log
+- 2026-10-13 · e6a00957* · mutant killed · exit 1 · `plugin/scripts/completion-rules.mjs` · R2 names a commit whose tree a check passed on as unchecked · acceptance-sha256:ccd96ed7dc94acef384cea0c0abaecf589af9a247f0973bc83c42051e63bb0ab · covers:the goldens, tables and catalogue are unchanged
 
 ## Invariants
 
@@ -74,3 +77,9 @@ Stop and ask if a generated log makes the two spellings disagree, or if a locked
 - `latestCheckFor`'s field reads (they are not verdicts).
 
 ## Verification Log
+- 2026-10-13 · e6a00957* · exit 1 · `test "$(node --test --test-reporter=tap tests/one-verdict-reader.test.mjs 2>&1 | grep -cE '^ok [0-9]+ - (the session log verdict is checkStanding passed on every generated log|check-ledger exports no treeChecked)$')" = 2 \ …` · acceptance-sha256:ccd96ed7dc94acef384cea0c0abaecf589af9a247f0973bc83c42051e63bb0ab · ms:203 · test-lock-sha256:fe36dd297931c3e1d83f908907fcb04688de1620e8c8869518cb657d3f57c105 · test-lock-b64:Y2hlY2tAMglmN2UyNTFiNTAzY2FlZmVjYmExMTIyMWFkMmNjMjIyNzcwNjE0MDU3M2JlYTIwZDYxZDk5ODdkYTdiNjA1MjU2CmJvZHkJdGVzdHMvb25lLXZlcmRpY3QtcmVhZGVyLnRlc3QubWpzCWNoZWNrLWxlZGdlciBleHBvcnRzIG5vIHRyZWVDaGVja2VkCWJmMTY2NGY0MTg0MDg4ZDk4YTdmYjRmYjExNjY3OTZjYWRlMDVmZDQ2MDM3Zjk4ZDE1NmIwM2MxOWYwZGQwYTkKYm9keQl0ZXN0cy9vbmUtdmVyZGljdC1yZWFkZXIudGVzdC5tanMJdGhlIHNlc3Npb24gbG9nIHZlcmRpY3QgaXMgY2hlY2tTdGFuZGluZyBwYXNzZWQgb24gZXZlcnkgZ2VuZXJhdGVkIGxvZwkyOGI5ZjI0NzBkZDUwY2U1ODVmMDlhODY2ZGZkZGM4MDg0MmYwZjI3M2M2ODVhNTJiNWNjMDQ4YjU4N2RlY2Nj
+  ```
+  ```
+- 2026-10-13 · e6a00957* · exit 0 · `test "$(node --test --test-reporter=tap tests/one-verdict-reader.test.mjs 2>&1 | grep -cE '^ok [0-9]+ - (the session log verdict is checkStanding passed on every generated log|check-ledger exports no treeChecked)$')" = 2 \ …` · acceptance-sha256:ccd96ed7dc94acef384cea0c0abaecf589af9a247f0973bc83c42051e63bb0ab · ms:69215
+- 2026-10-13 · e6a00957* · exit 0 · `test "$(node --test --test-reporter=tap tests/one-verdict-reader.test.mjs 2>&1 | grep -cE '^ok [0-9]+ - (the session log verdict is checkStanding passed on every generated log|check-ledger exports no treeChecked)$')" = 2 \ …` · acceptance-sha256:ccd96ed7dc94acef384cea0c0abaecf589af9a247f0973bc83c42051e63bb0ab · ms:47001
+- 2026-10-13 · e6a00957* · exit 0 · `test "$(node --test --test-reporter=tap tests/one-verdict-reader.test.mjs 2>&1 | grep -cE '^ok [0-9]+ - (the session log verdict is checkStanding passed on every generated log|check-ledger exports no treeChecked)$')" = 2 \ …` · acceptance-sha256:ccd96ed7dc94acef384cea0c0abaecf589af9a247f0973bc83c42051e63bb0ab · ms:46970

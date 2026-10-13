@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
 import { CI_STALE_MS, STALE_MS, ciReading, flightReading, gitReading, loadReading, reading, render, renderCi, renderFlight, renderGit, renderLoad } from '../plugin/scripts/statusline.mjs'
 import { findGitDir } from '../plugin/scripts/git-directory.mjs'
+import { snapshotKey } from '../plugin/scripts/branch-state.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -292,11 +293,13 @@ test('ahead and unreviewed come from the branch-state cache, and only while it i
   try {
     const gitDir = join(dir, '.git')
     mkdirSync(join(gitDir, 'objects'), { recursive: true })
-    mkdirSync(join(gitDir, 'refs'))
+    mkdirSync(join(gitDir, 'refs', 'heads'), { recursive: true })
     writeFileSync(join(gitDir, 'HEAD'), 'ref: refs/heads/main\n')
+    writeFileSync(join(gitDir, 'refs', 'heads', 'main'), `${'a'.repeat(40)}\n`)
+    assert.notEqual(snapshotKey(gitDir), null, 'the fixture has a key the hook would write')
     const now = Date.now()
-    const write = (state, at = now - 1_000) => writeFileSync(join(gitDir, 'qh-branch-state.json'),
-      JSON.stringify({ at, state: { looked: true, branch: 'main', head: 'abc', dirty: 0, ci: { looked: false }, ...state } }))
+    const write = (state, at = now - 1_000, key = snapshotKey(gitDir)) => writeFileSync(join(gitDir, 'qh-branch-state.json'),
+      JSON.stringify({ at, key, state: { looked: true, branch: 'main', head: 'abc', dirty: 0, ci: { looked: false }, ...state } }))
     write({ ahead: 3, unreviewed: 2 })
     assert.equal(renderGit(gitReading(dir, now)), '↑3 · !rev 2')
     write({ ahead: 0, unreviewed: 0 })
@@ -311,6 +314,11 @@ test('ahead and unreviewed come from the branch-state cache, and only while it i
     assert.equal(renderGit(gitReading(dir, now)), '', 'a stale cache speaks for neither')
     write({ ahead: 3, unreviewed: 2 }, now + 60_000)
     assert.equal(gitReading(dir, now), null, 'a future-dated cache is refused')
+    write({ ahead: 3, unreviewed: 2 }, now - 1_000, JSON.stringify(['ref: refs/heads/main', 'b'.repeat(40), 'unfetched']))
+    assert.equal(renderGit(gitReading(dir, now)), '', 'a commit, a push or a switch since the hook counted: the counts are of another tree')
+    unlinkSync(join(gitDir, 'refs', 'heads', 'main'))
+    write({ ahead: 3, unreviewed: 2 }, now - 1_000, null)
+    assert.equal(renderGit(gitReading(dir, now)), '', 'a key that cannot be proved is no answer, even beside a cache that has none')
     assert.equal(render({ kind: 'checked' }, { state: 'green' }, ['↑3 · !rev 2']), 'QH ✓ checked · CI ✓ · ↑3 · !rev 2')
     assert.equal(render(null, null, ['↑3']), '', 'no QH reading and no CI: the extras say nothing alone')
   } finally {
@@ -347,6 +355,39 @@ test('a check or a campaign in flight for this checkout is shown from its lease,
   }
 })
 
+test('a linked worktree nested inside a checkout is its own checkout, not a subdirectory of the parent', () => {
+  const root = realpathSync(mkdtempSync(join(tmpdir(), 'qh-statusline-nested-')))
+  const leases = mkdtempSync(join(tmpdir(), 'qh-statusline-nested-leases-'))
+  try {
+    const gitDir = join(root, '.git')
+    mkdirSync(join(gitDir, 'objects'), { recursive: true })
+    mkdirSync(join(gitDir, 'refs'))
+    writeFileSync(join(gitDir, 'HEAD'), 'ref: refs/heads/main\n')
+    const linked = join(gitDir, 'worktrees', 'other')
+    mkdirSync(linked, { recursive: true })
+    writeFileSync(join(linked, 'HEAD'), 'ref: refs/heads/other\n')
+    writeFileSync(join(linked, 'commondir'), '../..\n')
+    const other = join(root, '.worktrees', 'other')
+    mkdirSync(join(other, 'sub'), { recursive: true })
+    writeFileSync(join(other, '.git'), `gitdir: ${linked}\n`)
+    mkdirSync(join(root, 'sub'))
+    assert.notEqual(findGitDir(other), findGitDir(root), 'the fixture is two checkouts')
+    const now = Date.now()
+    const lease = at => writeFileSync(join(leases, 'a.json'),
+      JSON.stringify({ pid: 1, command: 'qh-check: x', root: at, start: new Date(now).toISOString(), state: 'running' }))
+    const look = cwd => renderFlight(flightReading(cwd, { dir: leases, now, alive: pid => (pid === 1 ? 'alive' : 'dead') }))
+    lease(root)
+    assert.equal(look(join(root, 'sub')), '⧗ check 0s', 'a subdirectory of the checkout is the checkout')
+    assert.equal(look(join(other, 'sub')), '', "the parent's run is not the nested worktree's")
+    lease(other)
+    assert.equal(look(join(other, 'sub')), '⧗ check 0s', "the nested worktree's own run is")
+    assert.equal(look(root), '', "and the nested worktree's run is not the parent's")
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+    rmSync(leases, { recursive: true, force: true })
+  }
+})
+
 test('a contended machine is shown as load over cores, and an unread load says nothing', () => {
   assert.equal(renderLoad(loadReading({ loadavg: () => [15.2, 9, 8], cores: 10 })), 'load 1.52×')
   assert.equal(renderLoad(loadReading({ loadavg: () => [10.01, 9, 8], cores: 10 })), 'load 1.01×', 'just over is never shown as 1.00')
@@ -361,9 +402,10 @@ test('the CLI selects every new piece: ahead and unreviewed from the cache, and 
   try {
     const gitDir = join(dir, '.git')
     mkdirSync(join(gitDir, 'objects'), { recursive: true })
-    mkdirSync(join(gitDir, 'refs'))
+    mkdirSync(join(gitDir, 'refs', 'heads'), { recursive: true })
     writeFileSync(join(gitDir, 'HEAD'), 'ref: refs/heads/main\n')
-    writeFileSync(join(gitDir, 'qh-branch-state.json'), JSON.stringify({ at: Date.now() - 1_000, state: {
+    writeFileSync(join(gitDir, 'refs', 'heads', 'main'), `${'a'.repeat(40)}\n`)
+    writeFileSync(join(gitDir, 'qh-branch-state.json'), JSON.stringify({ at: Date.now() - 1_000, key: snapshotKey(gitDir), state: {
       looked: true, branch: 'main', head: 'abc', dirty: 0, ahead: 2, unreviewed: 1,
       ci: { looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] } } }))
     writeFileSync(join(leases, 'x.json'), JSON.stringify({ pid: process.pid, command: 'qh-check: bash x.sh', root: dir,

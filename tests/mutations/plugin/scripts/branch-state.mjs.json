@@ -1,6 +1,38 @@
 {
   "mutations": [
     {
+      "label": "status line: every reviewed head reaches git, however many",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^the hook writes the unreviewed count into its cache from the review ledger, with real git$",
+      "from": "heads.map(head => `^${head}\\n`)",
+      "to": "heads.slice(-64).map(head => `^${head}\\n`)"
+    },
+    {
+      "label": "status line: the reviewed heads are given to git",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^the hook writes the unreviewed count into its cache from the review ledger, with real git$",
+      "from": "{ input: heads.map(head => `^${head}\\n`).join('') }",
+      "to": "{}"
+    },
+    {
+      "label": "status line: a child given input reads it on stdin",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^the hook writes the unreviewed count into its cache from the review ledger, with real git$",
+      "from": "      stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true }).trim() }",
+      "to": "      stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }"
+    },
+    {
+      "label": "status line: the budget passes a command's input through",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^the hook writes the unreviewed count into its cache from the review ledger, with real git$",
+      "from": "    return run(argv, { ...options, timeout: Math.min(left, 15_000) })",
+      "to": "    return run(argv, { timeout: Math.min(left, 15_000) })"
+    },
+    {
       "label": "status line: no review ledger, no unreviewed field and no spawn",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
@@ -258,8 +290,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }",
-      "to": "      { cwd, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }"
+      "from": "out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, input, encoding: 'utf8',",
+      "to": "out: execFileSync(argv[0], argv.slice(1), { cwd, timeout, input, encoding: 'utf8',"
     },
     {
       "label": "branch-state: gh is not asked where no remote names a GitHub host",
@@ -457,8 +489,8 @@
       "tests": [
         "tests/untimed-spawns.test.mjs"
       ],
-      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }",
-      "to": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }",
+      "from": "      stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true }).trim() }",
+      "to": "      stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'] }).trim() }",
       "only": "passes windowsHide"
     },
     {

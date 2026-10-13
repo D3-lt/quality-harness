@@ -1648,15 +1648,16 @@ test('a refused rename still writes the snapshot, and an abandoned temporary is 
 // gathered here, with the git half, and only when a review ledger exists: no ledger, no spawn.
 test('collect counts the commits on HEAD no recorded review reaches, only when a review ledger exists', () => {
   const head = 'a'.repeat(40)
-  const table = answer => [['git rev-list --count --ignore-missing HEAD --not', answer], ...GIT_CLEAN]
+  const count = 'git rev-list --count --ignore-missing --stdin HEAD'
+  const table = answer => [[count, answer], ...GIT_CLEAN]
   const seen = []
-  const spy = rows => argv => { seen.push(argv.join(' ')); return runner(rows)(argv) }
+  const spy = rows => (argv, options) => { seen.push([argv.join(' '), options?.input]); return runner(rows)(argv) }
   assert.equal(collect(spy(table(ok('3\n'))), () => {}, Date.now, [head]).unreviewed, 3)
-  assert.ok(seen.includes(`git rev-list --count --ignore-missing HEAD --not ${head}`), seen.join('\n'))
+  assert.ok(seen.some(([command, input]) => command === count && input === `^${head}\n`), 'the reviewed heads reach git on its stdin')
   seen.length = 0
   const none = collect(spy(table(ok('3'))), () => {}, Date.now, null)
   assert.equal('unreviewed' in none, false, 'no ledger, no field')
-  assert.equal(seen.some(command => command.includes('--ignore-missing')), false, 'no ledger, no spawn')
+  assert.equal(seen.some(([command]) => command.includes('--ignore-missing')), false, 'no ledger, no spawn')
   assert.equal(collect(runner(table(no('fatal: bad object'))), () => {}, Date.now, [head]).unreviewed, null)
   assert.equal(collect(runner(table(ok('three'))), () => {}, Date.now, [head]).unreviewed, null)
   assert.equal(collect(runner(table(ok('3'))), () => {}, Date.now, []).unreviewed, null, 'a ledger with no covering head says nothing')
@@ -1698,7 +1699,9 @@ test('the hook writes the unreviewed count into its cache from the review ledger
   git('commit', '-qam', 'two')
   const state = path.join(project, '.git', 'quality-harness')
   mkdirSync(state, { recursive: true })
-  writeFileSync(path.join(state, 'reviews.jsonl'), `${JSON.stringify({ status: 'clean', head: reviewed })}\n`)
+  // Every reviewed head reaches git, however many: the one that covers HEAD's parent is the OLDEST of 65 rows.
+  const others = Array.from({ length: 64 }, (_, index) => JSON.stringify({ status: 'clean', head: index.toString(16).padStart(40, 'e') }))
+  writeFileSync(path.join(state, 'reviews.jsonl'), `${[JSON.stringify({ status: 'clean', head: reviewed }), ...others].join('\n')}\n`)
   const env = { ...process.env }
   delete env.QUALITY_HARNESS_STATE_DIR
   const run = spawnSync(process.execPath, [branchScript, '--cached', '120'], { cwd: project, env, encoding: 'utf8', timeout: 30_000, windowsHide: true })

@@ -59,7 +59,7 @@ const BUDGET_MS = 8_000
 
 export function budgeted(totalMs, run = shell, now = Date.now) {
   const deadline = now() + totalMs
-  return argv => {
+  return (argv, options = {}) => {
     const left = deadline - now()
     // `budget: true` marks a command PREVENTED rather than one that answered no.
     // Without it the two are one `ok: false` and the release line renders silence
@@ -68,11 +68,11 @@ export function budgeted(totalMs, run = shell, now = Date.now) {
     if (left <= 0) {
       return { ok: false, out: '', budget: true, note: `budget of ${totalMs}ms spent before \`${argv.join(' ')}\`` }
     }
-    return run(argv, { timeout: Math.min(left, 15_000) })
+    return run(argv, { ...options, timeout: Math.min(left, 15_000) })
   }
 }
 /** Run a command and report what happened, never throwing. */
-export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
+export function shell(argv, { cwd = process.cwd(), timeout = 15_000, input } = {}) {
   try {
     // ⚠ `LC_ALL=C` IS LOAD-BEARING, not tidiness. Git localises its diagnostics,
     // and this reader distinguishes "positively no tags" from "could not read the
@@ -97,11 +97,41 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
     // imports `usableCache` and never calls `shell`. Corrected before release by a
     // different-lineage review — a comment is a claim, and this one was wrong on
     // the day it was written (CLAUDE.md, "Comments Lie — Follow the Code").
-    return { ok: true, out: execFileSync(argv[0], argv.slice(1),
-      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], windowsHide: true }).trim() }
+    // A child given `input` reads it on stdin; any other gets none, so it never waits on the hook's own.
+    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, input, encoding: 'utf8',
+      stdio: [input === undefined ? 'ignore' : 'pipe', 'pipe', 'pipe'], windowsHide: true }).trim() }
   } catch (error) {
     return { ok: false, out: '', note: (error.stderr || error.message || 'failed').toString().split('\n')[0] }
   }
+}
+
+/**
+ * The heads of every covering row of the review ledger `host-review.mjs` writes in `directory` (ADR-100 T1), or null when
+ * there is no ledger. Newest last, each once, and every one: they reach `git rev-list` on its stdin, so no argv bound drops
+ * an old review that still covers HEAD (the first cut kept the newest 64; Codex review of ceea7705).
+ */
+export function reviewedHeads(directory, read = readFileSync) {
+  let text
+  try { text = read(join(directory, REVIEWS_FILE), 'utf8') } catch { return null }
+  const heads = []
+  for (const line of String(text).split('\n')) {
+    let row = null
+    try { row = JSON.parse(line) } catch { continue }
+    if (row && REVIEW_COVERING.has(row.status) && typeof row.head === 'string' && /^[0-9a-f]{40,64}$/.test(row.head)) heads.push(row.head)
+  }
+  return [...new Set(heads)]
+}
+
+/**
+ * How many commits on HEAD no reviewed head reaches: a hint for the status line, never release-evidence's answer. An exact
+ * `commit <sha>` row reaches its ancestors here too, and a docs commit counts like any other. A head this clone does not hold
+ * is ignored rather than failing the count, and a count git could not take is null, never 0.
+ */
+function unreviewedCount(run, heads) {
+  if (heads.length === 0) return null
+  const answer = run(['git', 'rev-list', '--count', '--ignore-missing', '--stdin', 'HEAD'], { input: heads.map(head => `^${head}\n`).join('') })
+  const out = answer.ok ? String(answer.out).trim() : ''
+  return /^\d+$/.test(out) ? Number(out) : null
 }
 
 /**
@@ -114,34 +144,6 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
  * prompt for ever — BACKLOG §152 with a language barrier in front of it. The pin
  * is the fix; a longer regex would only be a bigger guess.
  */
-/**
- * The heads of every covering row of the review ledger `host-review.mjs` writes in `directory` (ADR-100 T1), or null when
- * there is no ledger. Newest last, each once, at most 64, so the one `git rev-list` they feed has a bounded argv.
- */
-export function reviewedHeads(directory, read = readFileSync) {
-  let text
-  try { text = read(join(directory, REVIEWS_FILE), 'utf8') } catch { return null }
-  const heads = []
-  for (const line of String(text).split('\n')) {
-    let row = null
-    try { row = JSON.parse(line) } catch { continue }
-    if (row && REVIEW_COVERING.has(row.status) && typeof row.head === 'string' && /^[0-9a-f]{40,64}$/.test(row.head)) heads.push(row.head)
-  }
-  return [...new Set(heads)].slice(-64)
-}
-
-/**
- * How many commits on HEAD no reviewed head reaches: a hint for the status line, never release-evidence's answer. An exact
- * `commit <sha>` row reaches its ancestors here too, and a docs commit counts like any other. A head this clone does not hold
- * is ignored rather than failing the count, and a count git could not take is null, never 0.
- */
-function unreviewedCount(run, heads) {
-  if (heads.length === 0) return null
-  const answer = run(['git', 'rev-list', '--count', '--ignore-missing', 'HEAD', '--not', ...heads])
-  const out = answer.ok ? String(answer.out).trim() : ''
-  return /^\d+$/.test(out) ? Number(out) : null
-}
-
 const NO_TAGS = /No names found|cannot describe anything/i
 
 /**

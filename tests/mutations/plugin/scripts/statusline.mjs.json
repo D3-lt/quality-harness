@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "status line: counts taken for another HEAD or upstream are not shown",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^ahead and unreviewed come from the branch-state cache, and only while it is fresh$",
+      "from": "  if (key === null || cache.key !== key) return null\n",
+      "to": ""
+    },
+    {
+      "label": "status line: a key that cannot be proved is no answer",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^ahead and unreviewed come from the branch-state cache, and only while it is fresh$",
+      "from": "  if (key === null || cache.key !== key) return null",
+      "to": "  if (cache.key !== key) return null"
+    },
+    {
+      "label": "status line: a nested linked worktree is not the parent checkout",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^a linked worktree nested inside a checkout is its own checkout, not a subdirectory of the parent$",
+      "from": "    if (findGitDir(root) !== home) continue\n",
+      "to": ""
+    },
+    {
       "label": "status line: a stale branch-state cache speaks for neither ahead nor unreviewed",
       "file": "plugin/scripts/statusline.mjs",
       "tests": ["tests/statusline.test.mjs"],

@@ -41,7 +41,7 @@ import { readEvents, sessionLogFile } from './lifecycle.mjs'
 import { latestCheckFor, logIncomplete } from './check-ledger.mjs'
 import { projectCheckCommand } from './check-command.mjs'
 import { sessionBaseline } from './tree-facts.mjs'
-import { usableCache } from './branch-state.mjs'
+import { snapshotKey, usableCache } from './branch-state.mjs'
 import { findGitDir } from './git-directory.mjs'
 import { alive, leaseDir } from './lease.mjs'
 import { sampleLoad } from './load.mjs'
@@ -149,17 +149,18 @@ function observedReading(log, observed, check) {
 export const CI_STALE_MS = 15 * 60_000
 
 
-// The branch-state cache, or null when there is none this reader may trust (the hook's own guard).
+// The branch-state cache and the Git directory it was found in, or null when there is none this reader may trust (the
+// hook's own guard).
 function branchCache(cwd, now) {
   const gitDir = findGitDir(cwd ?? process.cwd())
   if (!gitDir) return null
   let cache
   try { cache = JSON.parse(readFileSync(path.join(gitDir, 'qh-branch-state.json'), 'utf8')) } catch { return null }
-  return usableCache(cache, now) ? cache : null
+  return usableCache(cache, now) ? { cache, gitDir } : null
 }
 
 export function ciReading(cwd, now = Date.now()) {
-  const cache = branchCache(cwd, now)
+  const { cache } = branchCache(cwd, now) ?? {}
   if (!cache) return null
   const age = now - cache.at
   if (age > CI_STALE_MS) return { state: 'stale', ageMinutes: Math.round(age / 60_000) }
@@ -173,8 +174,12 @@ export function ciReading(cwd, now = Date.now()) {
 // What is ahead of origin and what no recorded review reaches, from the same cache on the same terms: fresh, or nothing.
 // A count the hook could not take (null) or did not take (no review ledger) is no token, never a zero.
 export function gitReading(cwd, now = Date.now()) {
-  const cache = branchCache(cwd, now)
+  const { cache, gitDir } = branchCache(cwd, now) ?? {}
   if (!cache || now - cache.at > CI_STALE_MS || cache.state.looked !== true) return null
+  // Both are counts of HEAD against its upstream, so a commit, a push or a branch switch since the hook took them makes them
+  // another tree's. The key is read from files, as the hook reads it, and a key that cannot be proved is no answer.
+  const key = snapshotKey(gitDir)
+  if (key === null || cache.key !== key) return null
   const count = value => (Number.isSafeInteger(value) && value > 0 ? value : 0)
   return { ahead: count(cache.state.ahead), unreviewed: count(cache.state.unreviewed) }
 }
@@ -194,6 +199,9 @@ const canonicalPath = target => {
 
 export function flightReading(cwd, { dir = leaseDir(), now = Date.now(), alive: isAlive = alive } = {}) {
   const here = canonicalPath(cwd ?? process.cwd())
+  // A checkout is its Git directory, not a path prefix: a linked worktree nested inside another checkout is a subdirectory
+  // of it on disk and still a different checkout, so containment alone showed the parent's run there.
+  const home = findGitDir(here)
   let names
   try { names = readdirSync(dir).filter(name => name.endsWith('.json')).sort() } catch { return null }
   for (const name of names) {
@@ -201,8 +209,10 @@ export function flightReading(cwd, { dir = leaseDir(), now = Date.now(), alive: 
     try { lease = JSON.parse(readFileSync(path.join(dir, name), 'utf8')) } catch { continue }
     if (!lease || typeof lease !== 'object' || typeof lease.root !== 'string') continue
     if (![lease.pid, lease.child].some(pid => pid !== undefined && isAlive(pid) === 'alive')) continue
-    const relative = path.relative(canonicalPath(lease.root), here)
+    const root = canonicalPath(lease.root)
+    const relative = path.relative(root, here)
     if (relative.startsWith('..') || path.isAbsolute(relative)) continue
+    if (findGitDir(root) !== home) continue
     const started = Date.parse(lease.start ?? '')
     const what = lease.state === 'waiting' ? 'waiting'
       : SPOKEN.find(([pattern]) => pattern.test(String(lease.command ?? '')))?.[1] ?? 'run'

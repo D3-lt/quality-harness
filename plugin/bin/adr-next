@@ -244,7 +244,7 @@ STOP_CONDITION_VERDICT = re.compile(
     r"crossed|fulfilled|surpassed|matched|invoked|activated|attained|achieved|violated)(?![a-z])", re.I)
 # The denial takes NEGATOR's forms, contractions too, and every auxiliary either list knows.
 STOP_CONDITION_DENIED = re.compile(
-    r"(?<![a-z])(?:not|never|no|[a-z]+n['’]t)\s+"
+    r"(?<![a-z])(?:not|never|no(?:\s+longer)?|[a-z]+n['’]t)\s+"
     r"(?:(?:yet|ever|been|be|being|was|were|is|are|has|have|had)\s+){0,2}$", re.I)
 STOP_CONDITION_UNMET = re.compile(
     r"(?<![a-z])un(?:met|reached|triggered|tripped|fired|hit|satisfied|fulfilled|attained|achieved)(?![a-z])", re.I)

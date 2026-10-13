@@ -696,6 +696,8 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   // The review of a9a265fd..1542b962: a verdict BEFORE the name, a negated un- verdict, and the verdicts the list lacked.
   assert.equal(done('observed: the condition was met per the Stop Condition'), false)
   assert.equal(done('observed: Stop Condition was not unmet'), false)
+  // The pre-release review of 59d54e3d: "no longer", which NEGATOR knows, negates an un- verdict too.
+  assert.equal(done('observed: Stop Condition is no longer unmet'), false)
   assert.equal(done('observed: under the Stop Condition limit, which was achieved'), false)
   assert.equal(done('observed: under the Stop Condition limit, which was violated'), false)
   assert.equal(done('approved; see the Stop Condition section for the budget'), true)

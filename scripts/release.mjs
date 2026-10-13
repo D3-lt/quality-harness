@@ -18,6 +18,8 @@ import { isMainModule } from '../plugin/scripts/main-module.mjs'
 
 const MANIFEST = 'plugin/.claude-plugin/plugin.json'
 const POLL_MS = 60_000
+// Every child's bound: the full check and the dead-code scan are the longest, well under an hour (CLAUDE.md §2).
+const CHILD_TIMEOUT_MS = 3_600_000
 const runsOf = sha => ['run', 'list', '--commit', sha, '--workflow', 'selftest.yml', '--json', 'databaseId,event,status,conclusion,headSha']
 const DISPATCHES = ['run', 'list', '--workflow', 'selftest.yml', '--event', 'workflow_dispatch', '--json', 'status,headSha', '--limit', '20']
 
@@ -30,7 +32,7 @@ function parsed(text) {
  * clock. Pure of everything else, so a test drives every branch with a fake git and gh (tests/release.test.mjs).
  */
 export function release({ exec, log = console.log, now = Date.now, sleep, waitMaxMinutes = 90, notesFile = null }) {
-  const ran = (cmd, args, stream = false) => exec(cmd, args, { stream })
+  const ran = (cmd, args, stream = false) => exec(cmd, args, { stream, timeout: CHILD_TIMEOUT_MS })
   const text = (cmd, args) => {
     const answer = ran(cmd, args)
     return answer.status === 0 ? String(answer.stdout ?? '').trim() : null
@@ -133,8 +135,8 @@ if (isMainModule(import.meta.url)) {
     process.exit(argv.includes('--help') ? 0 : 2)
   }
   const minutes = Number(option(argv, '--wait-max') ?? 90)
-  const exec = (cmd, args, { stream }) => {
-    const run = spawnSync(cmd, args, { encoding: 'utf8', stdio: stream ? 'inherit' : ['ignore', 'pipe', 'pipe'], timeout: 3_600_000, windowsHide: true })
+  const exec = (cmd, args, { stream, timeout }) => {
+    const run = spawnSync(cmd, args, { encoding: 'utf8', stdio: stream ? 'inherit' : ['ignore', 'pipe', 'pipe'], timeout, windowsHide: true })
     return { status: run.error ? 1 : run.status ?? 1, stdout: run.stdout ?? '' }
   }
   const pause = new Int32Array(new SharedArrayBuffer(4))

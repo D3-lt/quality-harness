@@ -338,6 +338,9 @@ test('a check or a campaign in flight for this checkout is shown from its lease,
     assert.equal(look(root), '', 'no lease, nothing')
     lease('a.json', { pid: 1, command: 'qh-check: bash scripts/selftest.sh', root, start, state: 'running' })
     assert.equal(look(root), '⧗ check 2m')
+    // A status line's cwd exists. Left uncreated, `sub` was resolved by spelling while the lease's root was resolved
+    // by the filesystem, and a Windows temp directory under an 8.3 short name spells the two apart (CI, 3.8.24).
+    mkdirSync(join(root, 'sub'))
     assert.equal(look(join(root, 'sub')), '⧗ check 2m', 'a subdirectory is the same checkout')
     assert.equal(look(realpathSync(tmpdir())), '', "another checkout's lease is not this one's")
     writeFileSync(join(leases, 'a.json'), JSON.stringify({ pid: 1, command: 'mutate.mjs --case x', root, start, state: 'waiting' }))

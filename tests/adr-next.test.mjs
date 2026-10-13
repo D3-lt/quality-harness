@@ -665,6 +665,10 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   assert.equal(done('observed: the Stop Conditions were met'), false)
   assert.equal(done('observed: Stop Condition: met'), false)
   assert.equal(done("observed: the Stop Condition's limit — reached"), false)
+  // The verification review of 7eb7be00: a condition said NOT met is no stop, whether negated or `un`-prefixed.
+  assert.equal(done('approved; Stop Condition not met'), true)
+  assert.equal(done('approved; Stop Condition unmet'), true)
+  assert.equal(done('approved; the Stop Condition was not reached'), true)
   assert.equal(done('observed, stop'), false)
 })
 

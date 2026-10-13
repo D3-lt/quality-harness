@@ -27,8 +27,18 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "    r\"(?!\\s*(?:[a-z]+\\s*)?[:—–-]?\\s*(?:",
+      "from": "    r\"(?!\\s*(?:(?!(?:not|never|no)(?![a-z]))[a-z]+\\s+)?[:—–-]?\\s*(?:",
       "to": "    r\"(?!\\s*[:—–-]?\\s*(?:"
+    },
+    {
+      "label": "next: a Stop Condition said not met is no stop (verification review of 7eb7be00)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "(?:(?!(?:not|never|no)(?![a-z]))[a-z]+\\s+)?",
+      "to": "(?:[a-z]+\\s+)?"
     },
     {
       "label": "next: a Stop Condition said to be met still stops",

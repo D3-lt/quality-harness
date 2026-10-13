@@ -225,7 +225,7 @@ NEUTRALISED = re.compile(
     # The task template's `## Stop Condition` section, cited by name, is a heading and not a verdict: ADR-078 T2's
     # approval "under the Stop Condition's 25%" read as stopped. The condition said to be met still stops.
     r"|(?<![a-z])stop\s+conditions?(?:['’]s)?(?![a-z'’])"
-    r"(?!\s*(?:[a-z]+\s*)?[:—–-]?\s*(?:(?:was|were|is|are|has|have|been|now|got)\s+){0,2}(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z]))",
+    r"(?!\s*(?:(?!(?:not|never|no)(?![a-z]))[a-z]+\s+)?[:—–-]?\s*(?:(?:was|were|is|are|has|have|been|now|got)\s+){0,2}(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z]))",
     re.I)
 
 # ⚠ A RUN REPORT QUOTES ITS RED RUN AS EVIDENCE. "observed: red run 111: TestAlpha failed; green run

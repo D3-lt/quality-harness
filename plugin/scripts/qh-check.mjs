@@ -182,11 +182,16 @@ const COMMIT_VALUE_SHORT = new Set(['m', 'F', 'C', 'c', 't'])
 const COMMIT_VALUE_LONG = new Set(['--message', '--file', '--reuse-message', '--reedit-message', '--template', '--author', '--date', '--fixup', '--squash', '--cleanup', '--trailer'])
 const COMMIT_OTHER_TREE_SHORT = new Set(['p', 'o', 'i'])
 const COMMIT_OTHER_TREE_LONG = new Set(['--patch', '--interactive', '--only', '--include', '--pathspec-from-file'])
-// The long options that commit the index, by their whole names. git accepts any unambiguous prefix (`--on` is `--only`),
-// so a name not on this list is refused rather than passed through (the Codex review of ce54814c; CLAUDE.md §16).
-const COMMIT_INDEX_LONG = new Set([...COMMIT_VALUE_LONG, '--amend', '--all', '--edit', '--no-edit', '--quiet', '--verbose',
-  '--signoff', '--no-signoff', '--allow-empty', '--allow-empty-message', '--verify', '--no-verify', '--gpg-sign',
-  '--no-gpg-sign', '--reset-author', '--status', '--no-status', '--no-post-rewrite'])
+// The long options that commit the index, by their whole names, each also as `--no-<name>`: measured from `git commit -h` on
+// git 2.56.0 (2026-10-13), less the ones that commit another tree (`--patch`, `--interactive`, `--only`, `--include`,
+// `--pathspec-*`) and `-p`'s diff context. git accepts any unambiguous prefix (`--on` is `--only`), so a name not on this
+// list is refused rather than passed through (the Codex review of ce54814c; its verification found `--untracked-files=no`
+// and `--no-verbose` refused by a hand-typed list; CLAUDE.md §16).
+const COMMIT_INDEX_BASE = ['ahead-behind', 'all', 'amend', 'author', 'branch', 'cleanup', 'date', 'dry-run', 'edit', 'file',
+  'fixup', 'gpg-sign', 'long', 'message', 'null', 'porcelain', 'quiet', 'reedit-message', 'reset-author', 'reuse-message',
+  'short', 'signoff', 'squash', 'status', 'template', 'trailer', 'untracked-files', 'verbose', 'allow-empty',
+  'allow-empty-message', 'post-rewrite', 'verify']
+const COMMIT_INDEX_LONG = new Set(COMMIT_INDEX_BASE.flatMap(base => [`--${base}`, `--no-${base}`]))
 export function commitArgsProblem(args) {
   for (let at = 0; at < args.length; at++) {
     const word = String(args[at])

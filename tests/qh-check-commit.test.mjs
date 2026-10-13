@@ -163,3 +163,15 @@ test('an abbreviated or unknown long option is refused', () => {
     assert.equal(commitArgsProblem(args), null, args.join(' '))
   }
 })
+
+// The verification review of 7eb7be00: a hand-typed allowlist refused `--untracked-files=no` and `--no-verbose`. Every
+// option `git commit -h` lists (git 2.56.0) that keeps the index is accepted, with and without `--no-`.
+test('every whole git commit option that keeps the index is accepted, as itself and negated', () => {
+  for (const base of ['ahead-behind', 'all', 'amend', 'branch', 'dry-run', 'edit', 'gpg-sign', 'long', 'null', 'porcelain',
+    'quiet', 'reset-author', 'short', 'signoff', 'status', 'untracked-files', 'verbose', 'allow-empty', 'allow-empty-message',
+    'post-rewrite', 'verify']) {
+    assert.equal(commitArgsProblem([`--${base}`, '-m', 'x']), null, `--${base}`)
+    assert.equal(commitArgsProblem([`--no-${base}`, '-m', 'x']), null, `--no-${base}`)
+  }
+  assert.equal(commitArgsProblem(['--untracked-files=no', '-m', 'x']), null)
+})

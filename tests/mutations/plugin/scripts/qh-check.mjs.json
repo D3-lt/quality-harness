@@ -1,6 +1,13 @@
 {
   "mutations": [
     {
+      "label": "ADR-100 T2: a measured option is accepted negated too (verification review of 7eb7be00)",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "COMMIT_INDEX_BASE.flatMap(base => [`--${base}`, `--no-${base}`])",
+      "to": "COMMIT_INDEX_BASE.map(base => `--${base}`)"
+    },
+    {
       "label": "ADR-100 T2: a long option is a whole name this command knows (Codex review of ce54814c)",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": ["tests/qh-check-commit.test.mjs"],

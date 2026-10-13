@@ -1752,6 +1752,18 @@ test('a detached HEAD is listed by its commit, and an empty listing says so of t
   assert.equal(collect(runner(table(ok('[]')))).ci.note, 'no run recorded for this commit')
 })
 
+test('a detached HEAD whose commit cannot be read is not asked about, and is not green', () => {
+  const tip = 'e'.repeat(40)
+  const seen = []
+  const table = [['git rev-parse --abbrev-ref', ok('HEAD')], ['git rev-parse HEAD', no('fatal: unreadable')],
+    ['git rev-parse origin/HEAD', ok(tip)],
+    ['gh run list', ok(JSON.stringify([{ headSha: tip, status: 'completed', conclusion: 'success', databaseId: 9 }]))], ...GIT_CLEAN]
+  const state = collect(argv => { seen.push(argv.join(' ')); return runner(table)(argv) })
+  assert.equal(state.ci.looked, false, JSON.stringify(state.ci))
+  assert.match(state.ci.note, /HEAD is detached and its commit could not be read/)
+  assert.equal(seen.some(command => command.startsWith('gh run list')), false, 'gh is not asked')
+})
+
 test('a branch behind its upstream says so, as well as what it is ahead by', () => {
   const at = (ahead, behind) => render(collect(runner([['git rev-list --left-right', ok(`${behind}\t${ahead}`)], ...GIT_CLEAN,
     ['gh run list', ok(JSON.stringify([{ headSha: '0a18d04ff', status: 'completed', conclusion: 'success', databaseId: 1 }]))]])))

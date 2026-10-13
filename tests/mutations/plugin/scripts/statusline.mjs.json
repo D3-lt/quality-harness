@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "status line: a path is resolved by the filesystem before its .. is",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": ["tests/statusline.test.mjs"],
+      "only": "^a path through a link is resolved by the filesystem before its \\.\\. is$",
+      "from": "  try { return realpathSync.native(target) } catch {}\n",
+      "to": ""
+    },
+    {
       "label": "status line: a branch behind its upstream shows it",
       "file": "plugin/scripts/statusline.mjs",
       "tests": ["tests/statusline.test.mjs"],

@@ -8,7 +8,7 @@ import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { linkDirectory } from './symlink-support.mjs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, resolve, sep } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { sessionLogFile } from '../plugin/scripts/lifecycle.mjs'
@@ -25,6 +25,9 @@ const script = join(repoRoot, 'plugin', 'scripts', 'statusline.mjs')
 // removed when the file ends (a Windows outside run, 2026-10-13).
 const sandbox = mkdtempSync(join(tmpdir(), 'qh-statusline-tests-'))
 process.env.TMPDIR = process.env.TMP = process.env.TEMP = sandbox
+// An inherited state-directory override would send the session logs this file writes outside the sandbox (the Codex
+// review of 26440a7d); nothing in selftest sets one.
+delete process.env.QUALITY_HARNESS_STATE_DIR
 process.on('exit', () => rmSync(sandbox, { recursive: true, force: true }))
 const QH_STATUSLINE_ONE_LINER = 'node "$(qh-root)/scripts/statusline.mjs" <<< "$input"'
 
@@ -390,6 +393,31 @@ test('a cwd that does not exist yet is matched by the part of it that does', () 
     rmSync(leases, { recursive: true, force: true })
   }
 })
+
+test('a path through a link is resolved by the filesystem before its .. is', { skip: process.platform === 'win32'
+  ? 'Windows removes a .. lexically before it follows a junction, so the case does not arise there' : false }, () => {
+  const real = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-statusline-dots-')))
+  const links = mkdtempSync(join(tmpdir(), 'qh-statusline-dots-links-'))
+  const leases = mkdtempSync(join(tmpdir(), 'qh-statusline-dots-leases-'))
+  try {
+    mkdirSync(join(real, 'inner'))
+    const alias = join(links, 'alias')
+    linkDirectory(join(real, 'inner'), alias)
+    const now = Date.now()
+    writeFileSync(join(leases, 'a.json'),
+      JSON.stringify({ pid: 1, command: 'qh-check: x', root: real, start: new Date(now).toISOString(), state: 'running' }))
+    const look = cwd => renderFlight(flightReading(cwd, { dir: leases, now, alive: pid => (pid === 1 ? 'alive' : 'dead') }))
+    assert.equal(look(`${alias}${sep}..`), '⧗ check 0s', "the link's parent is the checkout, not the directory holding the link")
+    writeFileSync(join(leases, 'a.json'),
+      JSON.stringify({ pid: 1, command: 'qh-check: x', root: links, start: new Date(now).toISOString(), state: 'running' }))
+    assert.equal(look(`${alias}${sep}..`), '', 'and the directory holding the link is another place')
+  } finally {
+    rmSync(links, { recursive: true, force: true })
+    rmSync(real, { recursive: true, force: true })
+    rmSync(leases, { recursive: true, force: true })
+  }
+})
+
 test('a linked worktree nested inside a checkout is its own checkout, not a subdirectory of the parent', () => {
   const root = realpathSync(mkdtempSync(join(tmpdir(), 'qh-statusline-nested-')))
   const leases = mkdtempSync(join(tmpdir(), 'qh-statusline-nested-leases-'))

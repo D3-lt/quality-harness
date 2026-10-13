@@ -1,12 +1,20 @@
 {
   "mutations": [
     {
+      "label": "branch-state: a detached HEAD whose commit cannot be read is not asked about",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^a detached HEAD whose commit cannot be read is not asked about, and is not green$",
+      "from": "    : detached && !whole.ok",
+      "to": "    : false"
+    },
+    {
       "label": "branch-state: a detached HEAD is listed by its commit",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
       "only": "^a detached HEAD is listed by its commit, and an empty listing says so of the commit$",
-      "from": "  const detached = branch.out === 'HEAD' && whole.ok",
-      "to": "  const detached = false"
+      "from": "  const detached = branch.out === 'HEAD'\n",
+      "to": "  const detached = false\n"
     },
     {
       "label": "branch-state: a branch behind its upstream says so",

@@ -226,17 +226,21 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
   // A detached HEAD has no branch to list runs for. `--branch HEAD` named none, and the by-commit retry below waits for a
   // page with rows, so a detached checkout (the outside-run recipe makes one) read "no run recorded for this branch" while
   // its commit had runs (a Windows outside run, 2026-10-13). It is listed by the commit it is.
-  const detached = branch.out === 'HEAD' && whole.ok
-  const runs = onGitHub
-    ? run(['gh', 'run', 'list', ...(detached ? ['--commit', whole.out] : ['--branch', branch.out]),
-      '--limit', String(RUN_WINDOW), '--json', RUN_FIELDS])
-    : {
+  // A detached HEAD whose commit cannot be read is not asked about at all: listed as a branch named HEAD, an upstream
+  // fallback of `origin/HEAD` could answer with the default branch's green (the Codex review of 26440a7d).
+  const detached = branch.out === 'HEAD'
+  const runs = !onGitHub
+    ? {
       ok: false,
       out: '',
       note: unreadable
         ? `the remotes could not be read (${remotes.note ?? 'no reason given'}), so \`gh\` was not asked`
         : 'no remote names a GitHub host, so `gh` was not asked',
     }
+    : detached && !whole.ok
+      ? { ok: false, out: '', note: 'HEAD is detached and its commit could not be read, so `gh` was not asked' }
+      : run(['gh', 'run', 'list', ...(detached ? ['--commit', whole.out] : ['--branch', branch.out]),
+        '--limit', String(RUN_WINDOW), '--json', RUN_FIELDS])
   let ci = { looked: false, note: runs.ok ? `no run recorded for this ${detached ? 'commit' : 'branch'}` : runs.note }
   if (runs.ok) {
     let rows = []

@@ -194,10 +194,12 @@ export function renderGit(git) {
 // run's lease, and a status line that renders every few seconds must not write. A run is in flight only while one of its
 // processes is proven alive; dead and unknown are not shown.
 const SPOKEN = [[/^qh-check\b/, 'check'], [/^mutate\.mjs\b/, 'campaign']]
-// The filesystem's spelling of a path for the part of it that exists, with the rest joined on as written. A cwd that did
-// not exist was resolved by spelling alone, and beside a root the filesystem resolved, an 8.3 short name or a link spelled
-// the two apart (CI windows, 3.8.24).
+// The filesystem's spelling of a path, and for one that does not exist, of the part of it that does, with the rest joined
+// on as written. A cwd that did not exist was resolved by spelling alone, and beside a root the filesystem resolved, an 8.3
+// short name or a link spelled the two apart (CI windows, 3.8.24). The whole path is asked first: `path.resolve` removes a
+// `..` lexically, before a link it follows is followed (the Codex review of 26440a7d).
 const canonicalPath = target => {
+  try { return realpathSync.native(target) } catch {}
   const missing = []
   for (let at = path.resolve(target); ; at = path.dirname(at)) {
     try { return path.join(realpathSync.native(at), ...missing) } catch {}

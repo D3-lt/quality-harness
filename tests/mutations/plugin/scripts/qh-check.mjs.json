@@ -1,6 +1,13 @@
 {
   "mutations": [
     {
+      "label": "ADR-100 T2: a long option is a whole name this command knows (Codex review of ce54814c)",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": ["tests/qh-check-commit.test.mjs"],
+      "from": "      if (!COMMIT_INDEX_LONG.has(name)) return",
+      "to": "      if (false) return"
+    },
+    {
       "label": "ADR-100 T2: only a run the ledger certifies is committed",
       "file": "plugin/scripts/qh-check.mjs",
       "tests": ["tests/qh-check-commit.test.mjs"],

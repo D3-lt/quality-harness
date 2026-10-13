@@ -1,11 +1,32 @@
 {
   "mutations": [
     {
+      "label": "ADR-100 T3: a failed fetch stops the release (Codex review of ce54814c)",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "  if (fetched !== 0) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-100 T3: a tag list that could not be read stops the release (Codex review of ce54814c)",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "  if (listed === null) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "ADR-100 T3: only gh's release-not-found is a missing release (Codex review of ce54814c)",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "from": "    if (!/release not found/i.test(String(view.stderr ?? ''))) {",
+      "to": "    if (false) {"
+    },
+    {
       "label": "ADR-100 T3: the forge's tags are fetched before they are read",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],
-      "from": "  ran('git', ['fetch', '-q', '--tags', 'origin', 'main'])",
-      "to": "  ran('git', ['fetch', '-q', 'origin', 'main'])"
+      "from": "= ran('git', ['fetch', '-q', '--tags', 'origin', 'main']).status",
+      "to": "= ran('git', ['fetch', '-q', 'origin', 'main']).status"
     },
     {
       "label": "ADR-100 T3: a release already on origin/main is not pushed again",

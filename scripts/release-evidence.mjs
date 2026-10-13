@@ -418,11 +418,13 @@ export function reviewEvidence(sha, { cwd = process.cwd(), exec = execFileSync, 
   try { text = readFileSync(ledger ?? join(stateDir(cwd), 'reviews.jsonl'), 'utf8') } catch { /* no ledger is no review */ }
   const rows = text.split('\n').filter(line => line.trim()).flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
   const usable = rows.filter(row => row && COVERING.has(row.status) && typeof row.head === 'string')
-  // `false` for "no" and for a revision this clone cannot resolve alike: an unresolvable row covers nothing.
-  const ancestor = (a, b) => { try { git(['merge-base', '--is-ancestor', a, b]); return true } catch { return false } }
+  // Three answers: `true`, `false` only for git's definite "no" (exit 1), and `null` for a revision this clone cannot
+  // resolve. A row covers a commit only on a definite answer at both ends: a base that does not resolve is not "outside the
+  // base" (the Codex review of ce54814c: such a row covered every commit since the tag).
+  const ancestor = (a, b) => { try { git(['merge-base', '--is-ancestor', a, b]); return true } catch (error) { return error?.status === 1 ? false : null } }
   const holds = (row, commit) => row.exact === true
     ? row.head === commit
-    : typeof row.base === 'string' && ancestor(commit, row.head) && !ancestor(commit, row.base)
+    : typeof row.base === 'string' && ancestor(commit, row.head) === true && ancestor(commit, row.base) === false
   const covers = new Map(needed.map(commit => [commit, usable.find(row => holds(row, commit)) ?? null]))
   const uncovered = needed.filter(commit => !covers.get(commit))
   if (uncovered.length) {

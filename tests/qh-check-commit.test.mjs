@@ -152,3 +152,14 @@ test('a signing flag takes no next word, and a pathspec is still refused', () =>
     assert.notEqual(commitArgsProblem(args), null, args.join(' '))
   }
 })
+
+// The Codex review of ce54814c: git accepts an unambiguous prefix of a long option, so `--on` is `--only` and `--amend --on`
+// amends with a tree no check saw. Only whole names this command knows commit the index; anything else is refused.
+test('an abbreviated or unknown long option is refused', () => {
+  for (const args of [['--amend', '--on', '--no-edit'], ['--inc', '-m', 'x'], ['--amen'], ['--pathspec-file-nul', '-m', 'x'], ['--frobnicate']]) {
+    assert.notEqual(commitArgsProblem(args), null, args.join(' '))
+  }
+  for (const args of [['--amend', '--no-edit'], ['--message=x'], ['--file', '-'], ['--signoff', '-m', 'x'], ['--no-verify', '-F', '-']]) {
+    assert.equal(commitArgsProblem(args), null, args.join(' '))
+  }
+})

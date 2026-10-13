@@ -178,3 +178,18 @@ test('release-evidence asks the review question from its main path', () => {
   })
   assert.equal(cleared, 0)
 })
+
+// The Codex review of ce54814c: a row whose head resolves and whose base does not read "not an ancestor of the base"
+// for every commit, so it covered them all. Ancestry is three-valued: only a definite "no" leaves a commit outside the base.
+test('a review row whose base does not resolve covers nothing', () => {
+  const { dir, first } = released()
+  try {
+    const change = commit(dir, 'plugin/a.mjs', 'two\n')
+    review(dir, 'f'.repeat(40), change)
+    const refused = reviewEvidence(change, { cwd: dir })
+    assert.deepEqual([refused.verdict, refused.uncovered], ['unproven', [change]], refused.reason)
+    // The twin: the same row with a base that resolves covers the change.
+    review(dir, first, change)
+    assert.equal(reviewEvidence(change, { cwd: dir }).verdict, 'reviewed')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})

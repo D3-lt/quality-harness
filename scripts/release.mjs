@@ -63,10 +63,20 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
   const tag = `v${version}`
   // The forge's tags too: `gh release create` makes its tag there, and a clone that never fetched it reads the version as
   // unreleased (an advisor's review of e6a00957). The branch is fetched in the same call, for the push decision below.
-  ran('git', ['fetch', '-q', '--tags', 'origin', 'main'])
-  const tags = (text('git', ['tag', '--list', 'v*']) ?? '').split('\n').filter(Boolean)
+  const fetched = ran('git', ['fetch', '-q', '--tags', 'origin', 'main']).status
+  if (fetched !== 0) { log(`release: git fetch exited ${fetched} ${at}; whether ${tag} exists on the forge could not be read`); return 1 }
+  // A catalogue that could not be read is not an empty one (the Codex review of ce54814c).
+  const listed = text('git', ['tag', '--list', 'v*'])
+  if (listed === null) { log(`release: git tag --list failed ${at}; the tags could not be read`); return 1 }
+  const tags = listed.split('\n').filter(Boolean)
   if (tags.includes(tag)) {
-    if (ran('gh', ['release', 'view', tag, '--json', 'tagName']).status === 0) { log(`release: ${tag} is already released`); return 0 }
+    const view = ran('gh', ['release', 'view', tag, '--json', 'tagName'])
+    if (view.status === 0) { log(`release: ${tag} is already released`); return 0 }
+    // Only gh's own "release not found" is absence; an auth or network failure is a question nobody answered.
+    if (!/release not found/i.test(String(view.stderr ?? ''))) {
+      log(`release: gh release view ${tag} failed (${String(view.stderr ?? '').trim().split('\n')[0] || `exit ${view.status}`}); whether it is released could not be read`)
+      return 1
+    }
     log(`release: ${tag} is already a tag and has no release; bump ${MANIFEST} past it, or release that tag by hand`)
     return 2
   }
@@ -139,7 +149,7 @@ if (isMainModule(import.meta.url)) {
   const minutes = Number(option(argv, '--wait-max') ?? 90)
   const exec = (cmd, args, { stream, timeout }) => {
     const run = spawnSync(cmd, args, { encoding: 'utf8', stdio: stream ? 'inherit' : ['ignore', 'pipe', 'pipe'], timeout, windowsHide: true })
-    return { status: run.error ? 1 : run.status ?? 1, stdout: run.stdout ?? '' }
+    return { status: run.error ? 1 : run.status ?? 1, stdout: run.stdout ?? '', stderr: run.stderr ?? '' }
   }
   const pause = new Int32Array(new SharedArrayBuffer(4))
   process.exit(release({

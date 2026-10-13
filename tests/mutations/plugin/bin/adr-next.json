@@ -7,8 +7,28 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "    r\"|(?<![a-z])stop\\s+conditions?(?:['’]s)?(?![a-z])\"",
-      "to": "    r\"|(?<![a-z])stop\\s+conditionsXX(?:['’]s)?(?![a-z])\""
+      "from": "    r\"|(?<![a-z])stop\\s+conditions?(?:['’]s)?(?![a-z'’])\"",
+      "to": "    r\"|(?<![a-z])stop\\s+conditionsXX(?:['’]s)?(?![a-z'’])\""
+    },
+    {
+      "label": "next: the possessive cannot be backed out of to pass a Stop Condition met (Codex review of ce54814c)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "    r\"|(?<![a-z])stop\\s+conditions?(?:['’]s)?(?![a-z'’])\"",
+      "to": "    r\"|(?<![a-z])stop\\s+conditions?(?:['’]s)?(?![a-z])\""
+    },
+    {
+      "label": "next: a word between the Stop Condition and its verdict still stops (Codex review of ce54814c)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "    r\"(?!\\s*(?:[a-z]+\\s*)?[:—–-]?\\s*(?:",
+      "to": "    r\"(?!\\s*[:—–-]?\\s*(?:"
     },
     {
       "label": "next: a Stop Condition said to be met still stops",

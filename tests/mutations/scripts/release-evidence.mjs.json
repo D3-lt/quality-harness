@@ -4,8 +4,15 @@
       "label": "ADR-100 T1: a row with no base covers nothing",
       "file": "scripts/release-evidence.mjs",
       "tests": ["tests/review-ledger.test.mjs"],
-      "from": "    : typeof row.base === 'string' && ancestor(commit, row.head) && !ancestor(commit, row.base)",
-      "to": "    : ancestor(commit, row.head) && !(typeof row.base === 'string' && ancestor(commit, row.base))"
+      "from": "    : typeof row.base === 'string' && ancestor(commit, row.head) === true && ancestor(commit, row.base) === false",
+      "to": "    : ancestor(commit, row.head) === true && !(typeof row.base === 'string' && ancestor(commit, row.base) === true)"
+    },
+    {
+      "label": "ADR-100 T1: a base that does not resolve covers nothing (Codex review of ce54814c)",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "ancestor(commit, row.base) === false",
+      "to": "ancestor(commit, row.base) !== true"
     },
     {
       "label": "ADR-100 T1: an exact row covers its own commit only",

@@ -661,6 +661,10 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   assert.equal(done('observed: the Stop Condition was met'), false)
   assert.equal(done("observed; the Stop Condition's limit is reached, so stop"), false)
   assert.equal(done('observed: Stop Condition hit'), false)
+  // The Codex review of ce54814c: a plural with `were`, and a colon before the verdict, are the condition said met.
+  assert.equal(done('observed: the Stop Conditions were met'), false)
+  assert.equal(done('observed: Stop Condition: met'), false)
+  assert.equal(done("observed: the Stop Condition's limit — reached"), false)
   assert.equal(done('observed, stop'), false)
 })
 

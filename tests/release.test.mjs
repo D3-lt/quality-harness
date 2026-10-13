@@ -24,11 +24,15 @@ function world(overrides = {}) {
     if (line === 'git rev-parse HEAD') return ok(`${SHA}\n`)
     if (line === 'git status --porcelain') return ok(state.porcelain)
     if (line === 'git show HEAD:plugin/.claude-plugin/plugin.json') return ok(JSON.stringify({ version: state.version }))
-    if (line.startsWith('git tag --list')) return ok(state.tags.join('\n'))
-    if (line.startsWith('gh release view')) return state.released ? ok('{}') : { status: 1, stdout: '', stderr: 'release not found' }
+    if (line.startsWith('git tag --list')) return state.tagListFails ? { status: 128, stdout: '', stderr: 'fatal' } : ok(state.tags.join('\n'))
+    if (line.startsWith('gh release view')) return state.released ? ok('{}') : { status: 1, stdout: '', stderr: state.viewError ?? 'release not found' }
     if (line.endsWith('plugin/scripts/qh-check.mjs')) return { status: state.check, stdout: '', stderr: '' }
     if (line === 'bash scripts/dead-code-scan.sh') return { status: state.deadCode, stdout: '', stderr: '' }
-    if (line === 'git fetch -q --tags origin main') { state.tags = [...new Set([...state.tags, ...state.remoteTags])]; return ok() }
+    if (line === 'git fetch -q --tags origin main') {
+      if (state.fetchFails) return { status: 128, stdout: '', stderr: 'fatal: unable to access' }
+      state.tags = [...new Set([...state.tags, ...state.remoteTags])]
+      return ok()
+    }
     if (line === 'git rev-parse origin/main') return ok(`${state.origin}\n`)
     if (line.startsWith('git merge-base --is-ancestor')) return { status: state.origin === SHA ? 0 : 1, stdout: '', stderr: '' }
     if (line === 'git push origin main') { state.origin = SHA; return ok() }
@@ -127,4 +131,23 @@ test('a release made on the forge but not fetched here is said as released', () 
   assert.equal(w.run(), 0, w.said.join('\n'))
   assert.match(w.said.join('\n'), /already released/)
   assert.ok(!tagged(w.calls) && !pushed(w.calls))
+})
+
+// The Codex review of ce54814c: a tag catalogue that could not be read is not an empty one, and a release the forge could not
+// be asked about is not a release that is missing. Either way nothing is pushed, dispatched or tagged.
+test('a failed tag fetch or tag list stops the release', () => {
+  for (const overrides of [{ fetchFails: true }, { tagListFails: true }]) {
+    const w = world({ origin: 'b'.repeat(40), ...overrides })
+    assert.equal(w.run(), 1, JSON.stringify(overrides))
+    assert.ok(!pushed(w.calls) && !dispatched(w.calls) && !tagged(w.calls), JSON.stringify(overrides))
+  }
+})
+
+test('a forge that cannot be asked is not read as a release that is missing', () => {
+  const w = world({ tags: ['v1.0.0', 'v1.0.1'], viewError: 'HTTP 401: Bad credentials' })
+  assert.equal(w.run(), 1, w.said.join('\n'))
+  assert.doesNotMatch(w.said.join('\n'), /bump/)
+  const missing = world({ tags: ['v1.0.0', 'v1.0.1'] })
+  assert.equal(missing.run(), 2)
+  assert.match(missing.said.join('\n'), /has no release/)
 })

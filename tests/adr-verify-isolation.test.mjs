@@ -399,3 +399,44 @@ test('a mutant run stopped while its fence runs removes its worktree', { skip: p
   await exited
   assert.equal(worktrees(dir), 1, 'the worktree outlived its run')
 })
+// Reported from an outside corpus, 2026-10-13: a failed run's quoted output was indented line by line,
+// blank lines included, so the task file held a line of two spaces and `git diff --check` exited 2.
+test("a failed run's quoted output leaves no trailing whitespace for git diff --check", () => {
+  const { dir } = corpus({ fence: ['```bash', "printf 'first\\n\\n   \\nlast  \\n'", 'exit 1', '```'].join('\n') })
+  const argv = [path.join(bin, 'adr-verify'), 'tasks/T1-fixture.md', '--cwd', '.']
+  const run = spawnSync(process.platform === 'win32' ? 'python3' : argv[0], process.platform === 'win32' ? argv : argv.slice(1),
+    { cwd: dir, encoding: 'utf8', timeout: 120_000, windowsHide: true })
+  assert.equal(run.status, 1, run.stdout + run.stderr)
+  const task = readFileSync(path.join(dir, 'tasks', 'T1-fixture.md'), 'utf8')
+  assert.match(task, /^ {2}first$/m, 'the quoted output lost its content')
+  assert.match(task, /^ {2}last$/m, 'the quoted output lost its content')
+  const check = () => spawnSync('git', ['diff', '--check'], { cwd: dir, encoding: 'utf8', timeout: 60_000, windowsHide: true })
+  assert.equal(check().status, 0, `git diff --check found whitespace adr-verify wrote:\n${check().stdout}`)
+  // The same check, shown red on the same repository, so the green above is not a check that cannot fail.
+  writeFileSync(path.join(dir, 'tasks', 'T1-fixture.md'), `${task}trailing  \n`)
+  assert.notEqual(check().status, 0, 'git diff --check did not see trailing whitespace')
+})
+
+// Reported from an outside corpus, 2026-10-13: an ignored dependency directory is not carried into the
+// worktree, so a fence that passed in the checkout failed its clean run there, and nothing said why.
+test('a clean fence that fails in the worktree says the worktree holds no ignored file, and names --in-place', () => {
+  const fence = FENCE.replace('```bash\n', '```bash\ntest -f dep/ok || { echo "dep/ok is missing"; exit 1; }\n')
+  const isolated = corpus({ fence })
+  writeFileSync(path.join(isolated.dir, '.gitignore'), 'dep/\n')
+  mkdirSync(path.join(isolated.dir, 'dep'))
+  writeFileSync(path.join(isolated.dir, 'dep', 'ok'), '')
+  const run = verify(isolated.dir)
+  assert.equal(run.status, 1, run.stdout + run.stderr)
+  assert.match(run.stdout.split('\n')[0], /isolated/, run.stdout)
+  assert.match(run.stdout, /UNPROVEN/, run.stdout)
+  assert.match(run.stdout, /no ignored file/, run.stdout)
+  assert.match(run.stdout, /--in-place/, run.stdout)
+  // The remedy it names works on the same checkout.
+  assert.equal(verify(isolated.dir, ['--in-place']).status, 0)
+  // And a clean fence that fails in place is not told about a worktree it never ran in.
+  const inPlace = corpus({ fence })
+  const bare = verify(inPlace.dir, ['--in-place'])
+  assert.equal(bare.status, 1, bare.stdout + bare.stderr)
+  assert.match(bare.stdout, /UNPROVEN/, bare.stdout)
+  assert.doesNotMatch(bare.stdout, /no ignored file/, bare.stdout)
+})

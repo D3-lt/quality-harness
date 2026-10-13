@@ -102,7 +102,9 @@ first line says where it went. It runs in place, as before, with --in-place,
 outside a git checkout, when the fence names this checkout's absolute path, when
 the target lies outside the checkout, and when no worktree can be built; the
 first line says which. A fence that reaches the checkout through an environment
-variable or a symlink is not detected.
+variable or a symlink is not detected. The worktree carries tracked and untracked
+files but no ignored one (a dependency directory, a build output): a fence that
+needs one makes it itself, or runs with --in-place.
 
 Exit: the Acceptance command's exit code (0 for --human; 0 for --restore) · for
 --mutant the code is the VERDICT, not the fence: 0 `killed` · 1 `survived`, a
@@ -481,8 +483,13 @@ def excerpt_fence(lines):
     And each line goes through `record.visible` before that: a control byte in the quoted output
     is written as `\\u{0}`, never raw, because a NUL makes git read the task file as binary and
     every tool that edits text then refuses it (BACKLOG §320.2).
+
+    And each line is stripped on its right after that: an indented blank line, or output that
+    ended in a space, put trailing whitespace into the task file, and `git diff --check` refused
+    it (reported from an outside corpus, 2026-10-13). The record walk reads the excerpt by its
+    fence markers alone, so a blank line inside it is still inside it.
     """
-    return "\n".join(["  ```"] + ["  " + fence_safe(visible(ln)) for ln in lines] + ["  ```"])
+    return "\n".join(["  ```"] + [("  " + fence_safe(visible(ln))).rstrip() for ln in lines] + ["  ```"])
 
 
 def collapse_repeats(lines):
@@ -1749,6 +1756,12 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                 observed = "the clean fence exited 0 but reported that no tests ran"
             print(f"[adr-verify] UNPROVEN: {observed}. No mutant was applied and no Mutation "
                   f"Log row was written.")
+            if isolated:
+                # The fence passed in the checkout, perhaps, and failed here for want of a file the
+                # worktree never carries (reported from an outside corpus, 2026-10-13).
+                print("[adr-verify] it ran in a worktree, which holds no ignored file (a dependency "
+                      "directory, a build output): if the fence needs one, have it make it, or run "
+                      "with --in-place.")
             for line in failure_tail(clean.stdout, clean.stderr):
                 print(f"  {line}")
             # No mutant ran on this path, so recording here cannot contaminate one.

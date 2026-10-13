@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "excerpt: a quoted line is stripped on its right, so git diff --check passes",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "[(\"  \" + fence_safe(visible(ln))).rstrip() for ln in lines]",
+      "to": "[(\"  \" + fence_safe(visible(ln))) for ln in lines]",
+      "only": "^(?:a failed run's quoted output leaves no trailing whitespace for git diff --check)$"
+    },
+    {
+      "label": "isolation: a clean fence failing in the worktree is told the worktree holds no ignored file",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                  f\"Log row was written.\")\n            if isolated:",
+      "to": "                  f\"Log row was written.\")\n            if False:",
+      "only": "^(?:a clean fence that fails in the worktree says the worktree holds no ignored file, and names --in-place)$"
+    },
+    {
+      "label": "isolation: the worktree hint is said only where the run was isolated",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-verify-isolation.test.mjs"
+      ],
+      "from": "                  f\"Log row was written.\")\n            if isolated:",
+      "to": "                  f\"Log row was written.\")\n            if True:",
+      "only": "^(?:a clean fence that fails in the worktree says the worktree holds no ignored file, and names --in-place)$"
+    },
+    {
       "label": "evidence: exit-0-but-scored-nothing is a failure",
       "file": "plugin/bin/adr-verify",
       "tests": [
@@ -962,8 +992,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    return \"\\n\".join([\"  ```\"] + [\"  \" + fence_safe(visible(ln)) for ln in lines] + [\"  ```\"])",
-      "to": "    return \"\\n\".join([\"  ```\"] + [\"  \" + visible(ln) for ln in lines] + [\"  ```\"])",
+      "from": "    return \"\\n\".join([\"  ```\"] + [(\"  \" + fence_safe(visible(ln))).rstrip() for ln in lines] + [\"  ```\"])",
+      "to": "    return \"\\n\".join([\"  ```\"] + [(\"  \" + visible(ln)).rstrip() for ln in lines] + [\"  ```\"])",
       "only": "^a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked$"
     },
     {

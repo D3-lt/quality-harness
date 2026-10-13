@@ -225,31 +225,36 @@ NEUTRALISED = re.compile(
     re.I)
 
 # The task template's `## Stop Condition` section, cited by name, is a heading and not a verdict: ADR-078 T2's
-# approval "under the Stop Condition's 25%" read as stopped. The condition said to be met still stops, and that is
-# judged over EVERYTHING AFTER the name, not the next few words or its clause. Seven review rounds each found a
-# spelling a narrower scope missed: adjacency ("were met", ": met", "limit — reached", "limit: reached", ": limit
-# reached"), then a clause boundary ("limit 25.0% reached", "max. 25.0% reached"; BACKLOG §378). A boundary is where
-# a verdict can hide, so there is none: the name is blanked only when no verdict word follows it in the note, or
-# every one that does is denied ("not met", "was not being met", "wasn't reached"). The cost, in the direction this
-# reader errs (§16): a note citing the section that later says anything met or reached, "under the Stop
-# Condition's 25%; all checks met", reads as a stop.
+# approval "under the Stop Condition's 25%" read as stopped. Seven review rounds then each found a spelling of the
+# condition SAID MET that an exemption read as a pass — adjacency ("were met", ": met", "limit — reached", "limit:
+# reached", ": limit reached"), then a clause boundary ("limit 25.0% reached", "max. 25.0% reached"; BACKLOG §378) —
+# and a probe of the last fix found the verdict itself an open set ("satisfied", "exceeded", "breached"). So the
+# default is the stop, and the exemption is the closed side (§16): the name is blanked only when it is CITED as a
+# measure ("under", "within", "inside", "below", "beneath" or "per" before it) with no undenied verdict word after
+# it anywhere in the note, or when every verdict word after it is denied ("not met", "was not being met", "wasn't
+# reached", "unmet"). Anything else — "the Stop Condition was satisfied", a phrasing nobody listed — stays a stop.
 STOP_CONDITION = re.compile(r"(?<![a-z])stop\s+conditions?(?:['’]s)?(?![a-z'’])", re.I)
+STOP_CONDITION_MEASURE = re.compile(
+    r"(?<![a-z])(?:under|within|inside|below|beneath|per)\s+(?:the\s+)?(?:task['’]s\s+)?$", re.I)
 STOP_CONDITION_VERDICT = re.compile(
     r"(?<![a-z])(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z])", re.I)
 # The denial takes NEGATOR's forms, contractions too, and every auxiliary either list knows.
 STOP_CONDITION_DENIED = re.compile(
     r"(?<![a-z])(?:not|never|no|[a-z]+n['’]t)\s+"
     r"(?:(?:yet|ever|been|be|being|was|were|is|are|has|have|had)\s+){0,2}$", re.I)
+STOP_CONDITION_UNMET = re.compile(r"(?<![a-z])un(?:met|reached|triggered|tripped|fired|hit)(?![a-z])", re.I)
 
 
 def neutralise(text):
     """text with what is not a verdict blanked: NEUTRALISED's forms, and a Stop Condition cited by name."""
     def cited(m):
         after = text[m.end():]
+        denied = bool(STOP_CONDITION_UNMET.search(after))
         for verdict in STOP_CONDITION_VERDICT.finditer(after):
             if not STOP_CONDITION_DENIED.search(after[:verdict.start()]):
                 return m.group()
-        return " "
+            denied = True
+        return " " if denied or STOP_CONDITION_MEASURE.search(text[:m.start()]) else m.group()
     return NEUTRALISED.sub(" ", STOP_CONDITION.sub(cited, text))
 
 # ⚠ A RUN REPORT QUOTES ITS RED RUN AS EVIDENCE. "observed: red run 111: TestAlpha failed; green run

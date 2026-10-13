@@ -81,6 +81,46 @@
       "to": "    r\"(?<![a-z])(?:not|never|no)\\s+\""
     },
     {
+      "label": "next: a Stop Condition is a stop unless cited as a measure or denied ('was satisfied' stops; probe of 2f97b6d0)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "        return \" \" if denied or STOP_CONDITION_MEASURE.search(text[:m.start()]) else m.group()",
+      "to": "        return \" \""
+    },
+    {
+      "label": "next: a Stop Condition cited as a measure is a heading ('under the Stop Condition's 25%')",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "        return \" \" if denied or STOP_CONDITION_MEASURE.search(text[:m.start()]) else m.group()",
+      "to": "        return \" \" if denied else m.group()"
+    },
+    {
+      "label": "next: a denied verdict cites the Stop Condition without a measure ('Stop Condition not met')",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "                return m.group()\n            denied = True\n",
+      "to": "                return m.group()\n"
+    },
+    {
+      "label": "next: an un-prefixed verdict denies the Stop Condition ('unmet')",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "        denied = bool(STOP_CONDITION_UNMET.search(after))",
+      "to": "        denied = False"
+    },
+    {
       "label": "next: a Stop Condition said to be met still stops",
       "file": "plugin/bin/adr-next",
       "tests": [

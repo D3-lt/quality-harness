@@ -686,6 +686,13 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   // The verification review of a9a265fd: an abbreviation's full stop hid the verdict, so no clause boundary is read.
   assert.equal(done('observed; Stop Condition: max. 25.0% reached'), false)
   assert.equal(done('observed; the Stop Condition. It was reached'), false)
+  // A probe of 2f97b6d0: a verdict is an open set ("satisfied", "exceeded", "breached" read as pass), so the name
+  // stays a stop word unless it is cited by a measure ("under", "within") or every verdict after it is denied.
+  assert.equal(done('observed: the Stop Condition was satisfied'), false)
+  assert.equal(done('observed: the Stop Condition was exceeded'), false)
+  assert.equal(done('observed: the Stop Condition was breached'), false)
+  assert.equal(done("approved: within the Stop Condition's budget"), true)
+  assert.equal(done("observed: under the Stop Condition's limit. It was reached"), false)
   assert.equal(done('observed, stop'), false)
 })
 

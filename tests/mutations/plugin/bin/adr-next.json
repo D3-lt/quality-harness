@@ -1,6 +1,36 @@
 {
   "mutations": [
     {
+      "label": "next: a negated un- verdict is the condition met ('not unmet', review of a9a265fd..1542b962)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "            if said == (verdict.re is STOP_CONDITION_VERDICT):",
+      "to": "            if said and verdict.re is STOP_CONDITION_VERDICT:"
+    },
+    {
+      "label": "next: 'see' cites the Stop Condition section as a measure does",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "under|within|inside|below|beneath|per|see)",
+      "to": "under|within|inside|below|beneath|per)"
+    },
+    {
+      "label": "next: the verdict list carries what a review found it lacked ('achieved', 'violated')",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "|activated|attained|achieved|violated)(?![a-z])\", re.I)",
+      "to": "|activated|attained)(?![a-z])\", re.I)"
+    },
+    {
       "label": "next: a sign-off citing the Stop Condition section is not a stop (ADR-078 T2)",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -17,18 +47,18 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "            if not STOP_CONDITION_DENIED.search(after[:verdict.start()]):\n                return m.group()",
-      "to": "            if not STOP_CONDITION_DENIED.search(after[:verdict.start()]):\n                return \" \""
+      "from": "            if said == (verdict.re is STOP_CONDITION_VERDICT):\n                return m.group()",
+      "to": "            if said == (verdict.re is STOP_CONDITION_VERDICT):\n                return \" \""
     },
     {
-      "label": "next: a separator after the name does not end the scan, so ': limit reached' still stops (review of 289e71f5..b02048b7)",
+      "label": "next: a verdict before the name is read, so 'met per the Stop Condition' stops (review of a9a265fd..1542b962)",
       "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "        after = text[m.end():]\n",
-      "to": "        after = re.split(r\"[:,—]\", text[m.end():])[0]\n"
+      "from": "        for verdict in [*STOP_CONDITION_VERDICT.finditer(text), *STOP_CONDITION_UNMET.finditer(text)]:",
+      "to": "        for verdict in [*STOP_CONDITION_VERDICT.finditer(text, m.end()), *STOP_CONDITION_UNMET.finditer(text)]:"
     },
     {
       "label": "next: a full stop does not end the scan, so 'max. 25.0% reached' still stops (verification review of a9a265fd)",
@@ -37,8 +67,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "        after = text[m.end():]\n",
-      "to": "        after = re.split(r\"\\.\\s\", text[m.end():])[0]\n"
+      "from": "        for verdict in [*STOP_CONDITION_VERDICT.finditer(text), *STOP_CONDITION_UNMET.finditer(text)]:",
+      "to": "        for verdict in [*STOP_CONDITION_VERDICT.finditer(text, 0, (text.find(\". \", m.end()) + 1 or len(text) + 1) - 1), *STOP_CONDITION_UNMET.finditer(text)]:"
     },
     {
       "label": "next: a Stop Condition said not met is no stop (verification review of 7eb7be00)",
@@ -47,8 +77,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "            if not STOP_CONDITION_DENIED.search(after[:verdict.start()]):",
-      "to": "            if True:"
+      "from": "            said = not STOP_CONDITION_DENIED.search(text[:verdict.start()])",
+      "to": "            said = True"
     },
     {
       "label": "next: a denial with its auxiliaries is still a denial ('has not yet been reached')",
@@ -117,8 +147,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "        denied = bool(STOP_CONDITION_UNMET.search(after))",
-      "to": "        denied = False"
+      "from": "        for verdict in [*STOP_CONDITION_VERDICT.finditer(text), *STOP_CONDITION_UNMET.finditer(text)]:",
+      "to": "        for verdict in [*STOP_CONDITION_VERDICT.finditer(text)]:"
     },
     {
       "label": "next: a Stop Condition said to be met still stops",
@@ -127,8 +157,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "    r\"(?<![a-z])(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z])\", re.I)",
-      "to": "    r\"(?<![a-z])(?:metXX)(?![a-z])\", re.I)"
+      "from": "    r\"(?<![a-z])(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held|satisfied|exceeded|breached|\"",
+      "to": "    r\"(?<![a-z])(?:metXX|\""
     },
     {
       "label": "§355: a task name with a dot after .md is a task file too",

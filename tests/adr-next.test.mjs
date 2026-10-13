@@ -693,6 +693,14 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   assert.equal(done('observed: the Stop Condition was breached'), false)
   assert.equal(done("approved: within the Stop Condition's budget"), true)
   assert.equal(done("observed: under the Stop Condition's limit. It was reached"), false)
+  // The review of a9a265fd..1542b962: a verdict BEFORE the name, a negated un- verdict, and the verdicts the list lacked.
+  assert.equal(done('observed: the condition was met per the Stop Condition'), false)
+  assert.equal(done('observed: Stop Condition was not unmet'), false)
+  assert.equal(done('observed: under the Stop Condition limit, which was achieved'), false)
+  assert.equal(done('observed: under the Stop Condition limit, which was violated'), false)
+  assert.equal(done('approved; see the Stop Condition section for the budget'), true)
+  // A verdict no list names still stops: the default is the stop, not the exemption.
+  assert.equal(done('observed: the Stop Condition was in effect'), false)
   assert.equal(done('observed, stop'), false)
 })
 

@@ -234,24 +234,30 @@ NEUTRALISED = re.compile(
 # it anywhere in the note, or when every verdict word after it is denied ("not met", "was not being met", "wasn't
 # reached", "unmet"). Anything else — "the Stop Condition was satisfied", a phrasing nobody listed — stays a stop.
 STOP_CONDITION = re.compile(r"(?<![a-z])stop\s+conditions?(?:['’]s)?(?![a-z'’])", re.I)
+# The review of a9a265fd..1542b962: a verdict BEFORE the name ("met per the Stop Condition") and a negated un-
+# verdict ("not unmet") read as passes, so the verdicts are read over the WHOLE note, and an un- verdict denies only
+# when nothing negates it. "see" cites the section as the measures do.
 STOP_CONDITION_MEASURE = re.compile(
-    r"(?<![a-z])(?:under|within|inside|below|beneath|per)\s+(?:the\s+)?(?:task['’]s\s+)?$", re.I)
+    r"(?<![a-z])(?:under|within|inside|below|beneath|per|see)\s+(?:the\s+)?(?:task['’]s\s+)?$", re.I)
 STOP_CONDITION_VERDICT = re.compile(
-    r"(?<![a-z])(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z])", re.I)
+    r"(?<![a-z])(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held|satisfied|exceeded|breached|"
+    r"crossed|fulfilled|surpassed|matched|invoked|activated|attained|achieved|violated)(?![a-z])", re.I)
 # The denial takes NEGATOR's forms, contractions too, and every auxiliary either list knows.
 STOP_CONDITION_DENIED = re.compile(
     r"(?<![a-z])(?:not|never|no|[a-z]+n['’]t)\s+"
     r"(?:(?:yet|ever|been|be|being|was|were|is|are|has|have|had)\s+){0,2}$", re.I)
-STOP_CONDITION_UNMET = re.compile(r"(?<![a-z])un(?:met|reached|triggered|tripped|fired|hit)(?![a-z])", re.I)
+STOP_CONDITION_UNMET = re.compile(
+    r"(?<![a-z])un(?:met|reached|triggered|tripped|fired|hit|satisfied|fulfilled|attained|achieved)(?![a-z])", re.I)
 
 
 def neutralise(text):
     """text with what is not a verdict blanked: NEUTRALISED's forms, and a Stop Condition cited by name."""
     def cited(m):
-        after = text[m.end():]
-        denied = bool(STOP_CONDITION_UNMET.search(after))
-        for verdict in STOP_CONDITION_VERDICT.finditer(after):
-            if not STOP_CONDITION_DENIED.search(after[:verdict.start()]):
+        denied = False
+        for verdict in [*STOP_CONDITION_VERDICT.finditer(text), *STOP_CONDITION_UNMET.finditer(text)]:
+            said = not STOP_CONDITION_DENIED.search(text[:verdict.start()])
+            # "met" said is the condition met; "unmet" said is it denied, and "not unmet" is it met again.
+            if said == (verdict.re is STOP_CONDITION_VERDICT):
                 return m.group()
             denied = True
         return " " if denied or STOP_CONDITION_MEASURE.search(text[:m.start()]) else m.group()

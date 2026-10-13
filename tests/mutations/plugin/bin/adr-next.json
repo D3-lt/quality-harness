@@ -27,8 +27,18 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "STOP_CONDITION_CLAUSE = re.compile(r\"[^.;!?\\n]*\")",
-      "to": "STOP_CONDITION_CLAUSE = re.compile(r\"[^.;!?\\n,:—]*\")"
+      "from": "STOP_CONDITION_CLAUSE = re.compile(r\"(?:[^.;!?\\n]|\\.(?!\\s|$))*\")",
+      "to": "STOP_CONDITION_CLAUSE = re.compile(r\"(?:[^.;!?\\n,:—]|\\.(?!\\s|$))*\")"
+    },
+    {
+      "label": "next: a decimal point does not end the clause, so 'limit 25.0% reached' still stops (verification review of 3ddfe748)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "STOP_CONDITION_CLAUSE = re.compile(r\"(?:[^.;!?\\n]|\\.(?!\\s|$))*\")",
+      "to": "STOP_CONDITION_CLAUSE = re.compile(r\"(?:[^.;!?\\n])*\")"
     },
     {
       "label": "next: a Stop Condition said not met is no stop (verification review of 7eb7be00)",
@@ -47,8 +57,28 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "(?:(?:yet|ever|been|was|were|is|are|has|have|had)\\s+){0,2}$\", re.I)",
-      "to": "$\", re.I)"
+      "from": "    r\"(?:(?:yet|ever|been|be|being|was|were|is|are|has|have|had)\\s+){0,2}$\", re.I)",
+      "to": "    r\"$\", re.I)"
+    },
+    {
+      "label": "next: 'being' is an auxiliary of a denial ('was not being met', verification review of 3ddfe748)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "(?:(?:yet|ever|been|be|being|was|were|is|are|has|have|had)\\s+){0,2}$\", re.I)",
+      "to": "(?:(?:yet|ever|been|be|was|were|is|are|has|have|had)\\s+){0,2}$\", re.I)"
+    },
+    {
+      "label": "next: a contracted negator denies a Stop Condition ('wasn't reached')",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "    r\"(?<![a-z])(?:not|never|no|[a-z]+n['’]t)\\s+\"",
+      "to": "    r\"(?<![a-z])(?:not|never|no)\\s+\""
     },
     {
       "label": "next: a Stop Condition said to be met still stops",

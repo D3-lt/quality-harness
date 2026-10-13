@@ -232,11 +232,15 @@ NEUTRALISED = re.compile(
 # met", "was never hit"). A comma is no break: "the Stop Condition, which was reached" stops. The cost is a false
 # stop on "under the Stop Condition's 25%, all checks met" — the direction this reader errs in (§16).
 STOP_CONDITION = re.compile(r"(?<![a-z])stop\s+conditions?(?:['’]s)?(?![a-z'’])", re.I)
-STOP_CONDITION_CLAUSE = re.compile(r"[^.;!?\n]*")
+# A full stop ends the clause only where a sentence would end, before a space or the note's end: "limit 25.0%
+# reached" is one clause (the verification review of 3ddfe748). The denial takes NEGATOR's forms, "wasn't" too,
+# and every auxiliary either list knows: "was not being met" is denied.
+STOP_CONDITION_CLAUSE = re.compile(r"(?:[^.;!?\n]|\.(?!\s|$))*")
 STOP_CONDITION_VERDICT = re.compile(
     r"(?<![a-z])(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z])", re.I)
 STOP_CONDITION_DENIED = re.compile(
-    r"(?<![a-z])(?:not|never|no)\s+(?:(?:yet|ever|been|was|were|is|are|has|have|had)\s+){0,2}$", re.I)
+    r"(?<![a-z])(?:not|never|no|[a-z]+n['’]t)\s+"
+    r"(?:(?:yet|ever|been|be|being|was|were|is|are|has|have|had)\s+){0,2}$", re.I)
 
 
 def neutralise(text):

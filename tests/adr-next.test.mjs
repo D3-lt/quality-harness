@@ -679,6 +679,10 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   assert.equal(done('approved; Stop Condition: limit not reached'), true)
   assert.equal(done('approved; the Stop Condition was never hit'), true)
   assert.equal(done('approved; the Stop Condition has not yet been reached'), true)
+  // The verification review of 3ddfe748: a decimal point is no clause break, and every auxiliary of a denial is one.
+  assert.equal(done('observed; Stop Condition: limit 25.0% reached'), false)
+  assert.equal(done('approved; Stop Condition was not being met'), true)
+  assert.equal(done("approved; the Stop Condition wasn't reached"), true)
   assert.equal(done('observed, stop'), false)
 })
 

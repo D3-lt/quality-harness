@@ -21,11 +21,13 @@
 //   1  a job did not conclude success (failed, cancelled, timed out, skipped)
 //   2  could not look (no gh, no run for this sha, unreadable answer, the run
 //      was not a full campaign — see `cached` below — or the readers changed since
-//      the last tag and nobody outside has run them, see `outsideRun`)
+//      the last tag and nobody outside has run them, see `outsideRun`, or a plugin
+//      commit since the last tag no recorded review covers, see `reviewEvidence`)
 //   3  the run is not finished yet
 import { execFileSync } from 'node:child_process'
 import { readdirSync, readFileSync } from 'node:fs'
 import { join } from 'node:path'
+import { stateDir } from '../plugin/scripts/event-log.mjs'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
 import { READER_DIRECTORIES } from '../plugin/scripts/reader-paths.mjs'
 
@@ -378,6 +380,65 @@ export function outsideRunEvidence(sha, exec = execFileSync, reportsDir = 'docs/
   return { ...outsideRun(changed, readAttestations(reportsDir), covers), tag }
 }
 
+// ADR-100 T1. What counts as a review: one that ran and said something. `unavailable` did not finish; `unparsed` said nothing
+// this could read. `evidence-limited` ran over its scope without runnable evidence, which the skill calls its strongest verdict
+// then (`plugin/skills/codex-review/SKILL.md:181`); the owner may narrow it.
+const COVERING = new Set(['clean', 'blocking', 'evidence-limited'])
+const MANIFEST = 'plugin/.claude-plugin/plugin.json'
+
+/**
+ * The review question for `sha`, asked of git and of the review ledger `host-review.mjs` writes (ADR-100 T1): every commit
+ * since the last tag that touches `plugin/`, other than a version bump, must lie in the range of a recorded review that ran.
+ * A bump is a first-parent diff naming only the manifest and changing only its `"version"` line. A row whose range is null,
+ * or whose shas this clone cannot resolve, covers nothing; only git failing on the release's own commits is could-not-look,
+ * so one stale row can never turn every release UNPROVEN (the cold review of ADR-100). A review's own status is said, never
+ * judged: which blocking findings were fixed is not a fact the ledger holds.
+ */
+export function reviewEvidence(sha, { cwd = process.cwd(), exec = execFileSync, ledger = null } = {}) {
+  const git = args => exec('git', args, { cwd, encoding: 'utf8', timeout: 30_000, stdio: ['ignore', 'pipe', 'pipe'] }).trim()
+  const unlisted = (tag, what) => ({ verdict: 'unproven', kind: 'unlisted', tag, uncovered: [], reason: `whether a plugin commit since ${tag ?? 'the last tag'} needs a review could not be established — git could not ${what}` })
+  let tag
+  try { tag = git(['describe', '--tags', '--abbrev=0', `${sha}~1`]) } catch { return unlisted(null, 'name the tag') }
+  let commits
+  try { commits = git(['rev-list', '--reverse', `${tag}..${sha}`, '--', 'plugin/']).split('\n').filter(Boolean) } catch { return unlisted(tag, 'list the commits') }
+  const needed = []
+  for (const commit of commits) {
+    try {
+      const names = git(['diff', '--no-renames', '--name-only', `${commit}^1`, commit, '--', 'plugin/']).split('\n').filter(Boolean)
+      const changed = names.length === 1 && names[0] === MANIFEST
+        ? git(['diff', '--no-renames', '-U0', `${commit}^1`, commit, '--', MANIFEST]).split('\n')
+          .filter(line => /^[+-]/.test(line) && !/^(\+\+\+|---)( |$)/.test(line))
+        : null
+      const bump = Array.isArray(changed) && changed.length > 0 && changed.every(line => /^[+-]\s*"version"\s*:/.test(line))
+      if (!bump) needed.push(commit)
+    } catch { return unlisted(tag, `diff ${commit.slice(0, 7)}`) }
+  }
+  if (needed.length === 0) return { verdict: 'not-required', tag, uncovered: [], reason: `no plugin commit since ${tag} needs a review (a version bump needs none)` }
+  let text = ''
+  try { text = readFileSync(ledger ?? join(stateDir(cwd), 'reviews.jsonl'), 'utf8') } catch { /* no ledger is no review */ }
+  const rows = text.split('\n').filter(line => line.trim()).flatMap(line => { try { return [JSON.parse(line)] } catch { return [] } })
+  const usable = rows.filter(row => row && COVERING.has(row.status) && typeof row.head === 'string')
+  // `false` for "no" and for a revision this clone cannot resolve alike: an unresolvable row covers nothing.
+  const ancestor = (a, b) => { try { git(['merge-base', '--is-ancestor', a, b]); return true } catch { return false } }
+  const holds = (row, commit) => row.exact === true
+    ? row.head === commit
+    : typeof row.base === 'string' && ancestor(commit, row.head) && !ancestor(commit, row.base)
+  const covers = new Map(needed.map(commit => [commit, usable.find(row => holds(row, commit)) ?? null]))
+  const uncovered = needed.filter(commit => !covers.get(commit))
+  if (uncovered.length) {
+    return {
+      verdict: 'unproven', kind: 'unreviewed', tag, uncovered,
+      reason: `${uncovered.length} plugin commit(s) since ${tag} no recorded review covers: ${uncovered.map(c => c.slice(0, 8)).join(', ')}`,
+    }
+  }
+  const said = new Map()
+  for (const row of covers.values()) said.set(row.status, (said.get(row.status) ?? 0) + 1)
+  return {
+    verdict: 'reviewed', tag, uncovered: [],
+    reason: `${needed.length} plugin commit(s) since ${tag} covered by a recorded review (${[...said].map(([status, n]) => `${status} ${n}`).join(', ')})`,
+  }
+}
+
 // `cached` shares exit 2 with `unreadable` on purpose: both mean "I could not
 // look at a full campaign for this sha", which is the one thing a release needs.
 const EXIT = { success: 0, failed: 1, unreadable: 2, incomplete: 3, cached: 2, unproven: 2 }
@@ -411,7 +472,8 @@ const USAGE = [
   '  2  could not look (no gh, no run for this sha, unreadable answer, bad usage, or readers',
   '     changed since the last tag with no outside run attested in docs/corpus-reports/ — §18,',
   '     or with an outside run that regressed, compared nothing, or read only part of its corpus',
-  '     (partial-only) — ADR-082, ADR-089)',
+  '     (partial-only) — ADR-082, ADR-089 — or with a plugin commit since the last tag that no review',
+  '     recorded by host-review.mjs covers, ADR-100)',
   '  3  the run is not finished yet',
 ].join('\n')
 
@@ -430,15 +492,20 @@ export function tagAdvice(kind) {
       + '--since <earlier report>`, file that attestation, and ask again (ADR-082).',
     'partial-only': 'Do NOT tag this sha. Every outside run that attests it read only part of its corpus — a PARTIAL run '
       + 'attests a release only beside one whose look is ok: get a run over a corpus the readers read whole, file it, and ask again (ADR-089).',
+    unreviewed: 'Do NOT tag this sha. A plugin commit since the last tag has no recorded review — run one scoped review through '
+      + 'the launcher (the codex-review skill, `host-review.mjs --prompt-file … --range <tag>..<sha>`) over what it names, and ask again (ADR-100).',
+    'review-unlisted': 'Do NOT tag this sha. Whether its plugin commits since the last tag were reviewed could not be established '
+      + 'from git here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.',
   }
   return advice[kind] ?? ('Do NOT tag this sha. Whether its readers changed since the last tag could not be established from git '
     + 'here — that is could-not-look, not cleared (ADR-005). Fetch the tags, then ask again.')
 }
 
-function main(argv) {
+// The CLI, exported with its readers as seams so the review question is shown asked from this path (ADR-100 T1).
+export function main(argv, { fetch = fetchRun, outside: outsideOf = outsideRunEvidence, review: reviewOf = reviewEvidence, log = console.log } = {}) {
   const argument = classifyArgument(argv[0])
   if (argument.kind === 'help') {
-    console.log(USAGE)
+    log(USAGE)
     return EXIT.success
   }
   if (argument.kind === 'unknown') {
@@ -454,29 +521,34 @@ function main(argv) {
       return EXIT.unreadable
     }
   }
-  const run = fetchRun(sha)
+  const run = fetch(sha)
   const result = evaluateRun(run)
   for (const j of result.jobs) {
-    console.log(`  ${j.name}: ${j.status} ${j.conclusion ?? '-'}`)
+    log(`  ${j.name}: ${j.status} ${j.conclusion ?? '-'}`)
   }
   const head = run?.headSha ? ` (${String(run.headSha).slice(0, 7)})` : ''
   // A green campaign is necessary, not sufficient: the readers it ships must have
-  // been run by somebody else since the last tag (CLAUDE.md §18). Asked only once
-  // CI has cleared the sha, so a red run is reported as red and nothing else.
+  // been run by somebody else since the last tag (CLAUDE.md §18), and every plugin
+  // commit since it reviewed (ADR-100). Asked only once CI has cleared the sha, so a
+  // red run is reported as red and nothing else.
   let { verdict, reason } = result
   let outside = null
+  let review = null
   if (verdict === 'success') {
-    outside = outsideRunEvidence(sha)
-    reason = `${reason}; since ${outside.tag ?? 'the last tag'}: ${outside.reason}`
-    if (outside.verdict === 'unproven') verdict = 'unproven'
+    outside = outsideOf(sha)
+    review = reviewOf(sha)
+    reason = `${reason}; since ${outside.tag ?? 'the last tag'}: ${outside.reason}; ${review.reason}`
+    if (outside.verdict === 'unproven' || review.verdict === 'unproven') verdict = 'unproven'
   }
-  console.log(`${verdict.toUpperCase()}${head} — ${reason}`)
+  log(`${verdict.toUpperCase()}${head} — ${reason}`)
   if (verdict === 'unproven') {
     // Each could-not-look said apart: nobody ran the readers, git could not check a run, a run
-    // regressed or compared nothing, or git could not say whether they changed (Codex review of 013149e, P2).
-    console.log(tagAdvice(outside?.kind))
+    // regressed or compared nothing, git could not say whether they changed (Codex review of 013149e,
+    // P2), or a plugin commit has no recorded review (ADR-100).
+    if (outside?.verdict === 'unproven') log(tagAdvice(outside.kind))
+    if (review?.verdict === 'unproven') log(tagAdvice(review.kind === 'unreviewed' ? 'unreviewed' : 'review-unlisted'))
   } else if (verdict !== 'success') {
-    console.log('Do NOT tag this sha. A run that did not finish is "I could not look", '
+    log('Do NOT tag this sha. A run that did not finish is "I could not look", '
       + 'not "nothing was wrong" — see BACKLOG §104 and CLAUDE.md §13.')
   }
   return EXIT[verdict]

@@ -26,8 +26,8 @@ says the step has not happened, and stopping with the action named whenever a st
 ## Ordered Steps
 
 1. [S1] Write `tests/release.test.mjs` and run the Acceptance fence red. [proof: acceptance]
-2. [S2] The observations, each a function of `exec`: the tree is clean; `plugin.json`'s version against `git describe --tags --abbrev=0`; a full pass on this tree (`passedAlready`); `HEAD` against `origin/main`; the runs for the sha (`gh run list --commit <sha> --workflow selftest.yml`), split into push and dispatch; `release-evidence <sha>`'s exit code and last line; the tag and the release.
-3. [S3] The steps, in §13's order, each skipped when its observation says done: stop "bump" (exit 2) when the version names an existing tag; run `qh-check` when no full pass; run `bash scripts/dead-code-scan.sh` (exit 3 there is UNPROVEN, stop); `git push origin main` when ahead; wait for the push run; `gh workflow run selftest.yml --ref main` when no dispatch run exists for the sha; wait for every job of the dispatch run; `release-evidence`.
+2. [S2] The observations, each a function of `exec`, with the full sha read once at the start and named in every later step and line: the tree is clean; `plugin.json`'s version against the newest `v*` tag (`git tag --list 'v*' --sort=-v:refname`, not `describe`); a full pass on this tree (`passedAlready`); `HEAD` against `origin/main`; the runs for the sha (`gh run list --commit <sha> --workflow selftest.yml`), split into push and dispatch, with each one's status; `release-evidence <sha>`'s exit code and last line; the tag and the release.
+3. [S3] The steps, in §13's order, each skipped when its observation says done: stop "bump" (exit 2) when a `v<version>` tag already exists; run `qh-check` when no full pass, and stop with its exit code (exit 1) when it is red, before any push; run `bash scripts/dead-code-scan.sh` and stop on any non-zero exit (1 is a finding, 3 is UNPROVEN), before any push; `git push origin main` when ahead; wait for the push run; `gh workflow run selftest.yml --ref main` only when no dispatch run for the sha exists, and never while another dispatch run for the ref is in flight (the concurrency group keys on the event, `.github/workflows/selftest.yml:19-21`, so a second dispatch cancels the first, while a push does not); wait for every job of the dispatch run; `release-evidence`, where exit 3 (not finished) is waited on like any run.
 4. [S4] Only on `release-evidence` exit 0, `gh release create v<version> --target <full sha> --latest --generate-notes` (or `--notes-file <path>` when given). Exit 2 from `release-evidence` prints its advice and stops with exit 2; exit 1 stops with exit 1.
 5. [S5] Every wait polls at most once a minute and has a deadline (`--wait-max <minutes>`, default 90); past it, exit 3 naming the run and what it waited for. [proof: acceptance]
 6. [S6] Catalogue entries for the step guards in S3 to S5, killed. [proof: mutation]
@@ -35,7 +35,7 @@ says the step has not happened, and stopping with the action named whenever a st
 ## Acceptance
 
 ```bash
-test "$(node --test --test-reporter=tap tests/release.test.mjs 2>&1 | grep -cE '^ok [0-9]+ - (release stops and says bump when plugin.json names the newest tag.s version|release resumes from what it observes and repeats no step whose result is already there|release dispatches the campaign only after the push run exists|release tags only a sha release-evidence clears, with its full sha and --latest|a wait past its deadline exits 3 and names what it waited for)$')" = 5
+test "$(node --test --test-reporter=tap tests/release.test.mjs 2>&1 | grep -oE '^ok [0-9]+ - (release stops and says bump when plugin.json names the newest tag.s version|release resumes from what it observes and repeats no step whose result is already there|release dispatches the campaign only after the push run exists|release tags only a sha release-evidence clears, with its full sha and --latest|a wait past its deadline exits 3 and names what it waited for|a red check or a dead-code finding stops the release before any push)$' | sed -E 's/^ok [0-9]+ - //' | sort -u | wc -l | tr -d ' ')" = 6
 ```
 
 ## Tests
@@ -47,12 +47,13 @@ test "$(node --test --test-reporter=tap tests/release.test.mjs 2>&1 | grep -cE '
 | `release dispatches the campaign only after the push run exists` | `tests/release.test.mjs` | with no push run listed, no `gh workflow run` is made before one appears | — | S3 |
 | `release tags only a sha release-evidence clears, with its full sha and --latest` | `tests/release.test.mjs` | exit 0 tags with the 40-character sha; exit 2 and exit 1 never tag | — | S4 |
 | `a wait past its deadline exits 3 and names what it waited for` | `tests/release.test.mjs` | a fake clock past `--wait-max` | — | S5 |
+| `a red check or a dead-code finding stops the release before any push` | `tests/release.test.mjs` | `qh-check` exit 1, dead-code exit 1 and exit 3 each stop with no `git push` and no `gh` call | — | S3 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the five tests |
+| 1 — exists | the six tests |
 | 2 — something selects it | the script's `main`; the agent runs it when asked to release |
 | 3 — the caller can discover it | CLAUDE.md §13 (T5) and `--help` |
 | 4 — it is used | the tool calls of the next release, against the 34 measured in the parent record |
@@ -62,7 +63,8 @@ test "$(node --test --test-reporter=tap tests/release.test.mjs 2>&1 | grep -cE '
 ## Invariants
 
 - No tag without `release-evidence` exit 0 for the same full sha, read in the same run.
-- No push while a dispatch run for the sha is in flight (CLAUDE.md §13 step 6).
+- No dispatch while another dispatch run for the ref is in flight (it would cancel it); the push is safe beside a dispatch run because the concurrency group keys on the event (`.github/workflows/selftest.yml:19-21`), which CLAUDE.md §13 step 6 predates and T5 re-reads.
+- No push after a red check or a dead-code finding.
 - No step writes a tracked file.
 
 ## Risks

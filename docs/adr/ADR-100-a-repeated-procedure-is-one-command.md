@@ -93,6 +93,18 @@ the command stops for rather than makes.
 6. **The rulebook points at the commands (T5).** CLAUDE.md §12 and §13 keep their headings and anchors and replace the
    procedure text with the commands that now carry it; the evidence moves to `.claude/rules/12-reviews.md` and
    `13-releasing.md`.
+7. **Amended 2026-10-13, after the owner's Accept and before any task ran, from the record's cold read-only review** (six
+   blocking findings, each checked against source; the task files carry the detail). Decision 1: `commit <sha>` is recorded
+   exact, covering that commit alone, not `<sha>^..<sha>`; the skill's `EVIDENCE-LIMITED — …` line parses; a review handed its
+   output writes no row. Decision 2: a row whose range is null or does not resolve covers nothing, and only a git failure on
+   the release's own commits is UNPROVEN; the bump exemption is a first-parent diff that names only `plugin.json` and changes
+   only its `"version"` line. Decision 3: a pathspec, `-p`, `--interactive`, `-o` or `-i` is refused before the check, and a
+   commit whose `HEAD^{tree}` is not the checked tree is said and exits 1. Decision 4: a red check or a dead-code finding stops
+   before any push, and no dispatch is made while another for the ref is in flight (the workflow's concurrency group keys on
+   the event, `.github/workflows/selftest.yml:19-21`, so a push no longer cancels a dispatch and a second dispatch does).
+   Decision 5: changed paths are read with `--no-renames`; the lane also takes a quoted `'docs'` path segment; seeded docs
+   faults must turn the lane red, because a replay of commits the list already passed cannot; the no-ship branch withdraws
+   the task.
 
 **This fails if** a Codex run through the launcher leaves no row; a commit since the last tag that touches `plugin/` and no
 recorded review covers passes `release-evidence`; `qh-check --commit` reaches `git commit` after a red check or on a working

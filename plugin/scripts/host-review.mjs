@@ -6,9 +6,11 @@
 // codex-advise skills launch through the `--prompt-file` form below rather than writing their own command.
 // Pi stays unavailable until a command that prints its interface has been run; nothing here guesses argv.
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
+import { randomUUID } from 'node:crypto'
+import { appendFileSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { stateDir } from './event-log.mjs'
 import { isMainModule } from './main-module.mjs'
 
 export const CODEX_MODEL = 'gpt-6.1-sol'
@@ -168,6 +170,46 @@ export function runCodex({ bin, repo, effort, prompt, skipGitRepoCheck = false, 
   }
 }
 
+// ADR-100 T1: what a review covered, as full shas resolved before it ran. `base <ref>` is `<ref>..HEAD`; `commit <sha>` is
+// exact, that commit alone, because Codex is shown `git show <sha>`, a merge included; `uncommitted` names no commit.
+function gitSha(repo, ref) {
+  const run = spawnSync('git', ['-C', repo, 'rev-parse', '--verify', '--quiet', `${ref}^{commit}`], { encoding: 'utf8', timeout: 10_000, windowsHide: true })
+  const sha = run.status === 0 ? String(run.stdout ?? '').trim() : ''
+  return /^[0-9a-f]{40,64}$/.test(sha) ? sha : null
+}
+
+export function scopeRange(repo, scope) {
+  const words = String(scope ?? '').trim().split(/\s+/)
+  if (words[0] === 'base' && words[1]) return { base: gitSha(repo, words[1]), head: gitSha(repo, 'HEAD'), exact: false }
+  if (words[0] === 'commit' && words[1]) return { base: null, head: gitSha(repo, words[1]), exact: true }
+  return { base: null, head: null, exact: false }
+}
+
+// The status of a `--prompt-file` run, from the LAST verdict line Codex printed: the contract quotes the grammar itself, and
+// the skill's strongest verdict without runnable evidence carries a suffix (`codex-review/SKILL.md:181`). None is `unparsed`.
+const VERDICT_LINE = /^VERDICT:\s*(APPROVE|REQUEST CHANGES|EVIDENCE-LIMITED)(?:\s+—\s+.*)?\s*$/
+const VERDICT_STATUS = { APPROVE: 'clean', 'REQUEST CHANGES': 'blocking', 'EVIDENCE-LIMITED': 'evidence-limited' }
+export function verdictStatus(text) {
+  const lines = String(text ?? '').split(/\r?\n/).map(line => line.trim()).filter(line => line.startsWith('VERDICT:'))
+  const last = lines.length ? VERDICT_LINE.exec(lines.at(-1)) : null
+  return last ? VERDICT_STATUS[last[1]] : 'unparsed'
+}
+
+// One row per Codex run the launcher started, beside `checks.jsonl`, where `release-evidence` reads it (ADR-100 T1). A row
+// that cannot be written is said and changes nothing else: the review's own answer still reaches its caller.
+export const REVIEWS_FILE = 'reviews.jsonl'
+export function recordReview(repo, row) {
+  try {
+    const directory = stateDir(repo)
+    mkdirSync(directory, { recursive: true })
+    appendFileSync(path.join(directory, REVIEWS_FILE), `${JSON.stringify({ id: randomUUID(), at: new Date().toISOString(), ...row })}\n`, 'utf8')
+    return true
+  } catch (error) {
+    process.stderr.write(`host-review: the review was not recorded (${error?.code ?? error?.message ?? error})\n`)
+    return false
+  }
+}
+
 export function hostReview({ host, effort = 'high', model = null, repo, scope, requirements, evidence, resolve, run = spawnSync, output } = {}) {
   if (host === 'pi') return unavailable('pi', null, PI_UNMEASURED)
   const target = { repo, scope, requirements, evidence }
@@ -179,9 +221,11 @@ export function hostReview({ host, effort = 'high', model = null, repo, scope, r
   if (!bin) return unavailable('codex', effort, 'codex binary is absent', CODEX_MODEL)
   const missing = missingTarget(target)
   if (missing) return unavailable('codex', effort, missing, CODEX_MODEL)
+  const range = scopeRange(repo, scope)
   const result = runCodex({ bin, repo, effort, prompt: `CODEX-REVIEW-LEAF: ${reviewPrompt(target)}`, run })
-  if (result.reason) return unavailable('codex', effort, result.reason, CODEX_MODEL)
-  return reviewFromOutput(result.text, { host: 'codex', model: CODEX_MODEL, effort })
+  const review = result.reason ? unavailable('codex', effort, result.reason, CODEX_MODEL) : reviewFromOutput(result.text, { host: 'codex', model: CODEX_MODEL, effort })
+  recordReview(repo, { host: 'codex', model: review.model ?? CODEX_MODEL, effort, ...range, status: review.status, findings: review.findings.length })
+  return review
 }
 
 function missingTarget({ repo, scope }) {
@@ -205,35 +249,51 @@ function runCursor({ model, target, resolve, run, output }) {
   return reviewFromOutput(child.stdout, { host: 'cursor', model, effort: null })
 }
 
-function arg(name) {
-  const index = process.argv.indexOf(name)
-  return index >= 0 ? process.argv[index + 1] : undefined
+function arg(name, argv = process.argv) {
+  const index = argv.indexOf(name)
+  return index >= 0 ? argv[index + 1] : undefined
 }
 
 // The `--prompt-file` form is the skills' launcher: the caller's own prompt (codex-review's VERDICT block, codex-advise's
-// advice), run through `runCodex`, and Codex's final message printed as it is. Exit 2 with the reason when it could not run.
-function promptFileMain() {
-  const effort = arg('--effort') ?? 'high'
-  const repo = arg('--repo')
-  const file = arg('--prompt-file')
-  const fail = reason => { process.stderr.write(`host-review: unavailable — ${reason}\n`); process.exit(2) }
-  if (arg('--host') !== 'codex') fail('--prompt-file runs Codex only: pass --host codex')
-  if (!EFFORTS.has(effort)) fail(`effort is not one of ${[...EFFORTS].join(', ')}`)
-  if (typeof repo !== 'string' || !repo) fail('no repository was named (--repo)')
+// advice), run through `runCodex`, and Codex's final message printed as it is. Code 2 with the reason when it could not run.
+// `--range <base>..<head>` names what it reviewed, resolved before the run; the row records the status of the last
+// VERDICT line (ADR-100 T1). Exported with its seams so the row is testable without a real Codex.
+export function promptFileReview({ argv = process.argv, resolve = resolveCodex, run = spawnSync } = {}) {
+  const effort = arg('--effort', argv) ?? 'high'
+  const repo = arg('--repo', argv)
+  const file = arg('--prompt-file', argv)
+  const fail = reason => ({ code: 2, out: '', err: `host-review: unavailable — ${reason}\n` })
+  if (arg('--host', argv) !== 'codex') return fail('--prompt-file runs Codex only: pass --host codex')
+  if (!EFFORTS.has(effort)) return fail(`effort is not one of ${[...EFFORTS].join(', ')}`)
+  if (typeof repo !== 'string' || !repo) return fail('no repository was named (--repo)')
+  let range = { base: null, head: null, exact: false }
+  if (argv.includes('--range')) {
+    const named = /^([^\s.]+)\.\.([^\s.]+)$/.exec(String(arg('--range', argv) ?? ''))
+    const resolved = named && { base: gitSha(repo, named[1]), head: gitSha(repo, named[2]), exact: false }
+    if (!resolved?.base || !resolved?.head) return fail(`--range must be <base>..<head>, two revisions this repository has (got ${JSON.stringify(arg('--range', argv) ?? '')})`)
+    range = resolved
+  }
   let prompt
-  try { prompt = readFileSync(file, 'utf8') } catch (error) { fail(`the prompt file could not be read: ${error.code ?? error.message}`) }
-  if (!prompt.trim()) fail('the prompt file is empty')
-  const bin = resolveCodex()
-  if (!bin) fail('codex binary is absent')
-  const result = runCodex({ bin, repo, effort, prompt, skipGitRepoCheck: process.argv.includes('--skip-git-repo-check') })
-  if (result.reason) fail(result.reason)
-  if (!result.text.trim()) fail('codex returned an empty final message')
-  process.stdout.write(result.text.endsWith('\n') ? result.text : `${result.text}\n`)
-  process.exit(0)
+  try { prompt = readFileSync(file, 'utf8') } catch (error) { return fail(`the prompt file could not be read: ${error.code ?? error.message}`) }
+  if (!prompt.trim()) return fail('the prompt file is empty')
+  const bin = resolve()
+  if (!bin) return fail('codex binary is absent')
+  const result = runCodex({ bin, repo, effort, prompt, skipGitRepoCheck: argv.includes('--skip-git-repo-check'), run })
+  const text = result.reason ? '' : result.text
+  const status = result.reason || !text.trim() ? 'unavailable' : verdictStatus(text)
+  recordReview(repo, { host: 'codex', model: CODEX_MODEL, effort, ...range, status, findings: null })
+  if (result.reason) return fail(result.reason)
+  if (!text.trim()) return fail('codex returned an empty final message')
+  return { code: 0, out: text.endsWith('\n') ? text : `${text}\n`, err: '' }
 }
 
 if (isMainModule(import.meta.url)) {
-  if (process.argv.includes('--prompt-file')) promptFileMain()
+  if (process.argv.includes('--prompt-file')) {
+    const said = promptFileReview()
+    process.stdout.write(said.out)
+    process.stderr.write(said.err)
+    process.exit(said.code)
+  }
   const result = hostReview({
     host: arg('--host'), effort: arg('--effort') ?? 'high', model: arg('--model') ?? null, repo: arg('--repo'),
     scope: arg('--scope'), requirements: arg('--requirements') ?? '', evidence: arg('--evidence') ?? '',

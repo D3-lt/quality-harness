@@ -27,16 +27,16 @@ the lane agrees with the list on the last 20 docs-only commits and is faster.
 ## Ordered Steps
 
 1. [S1] Write `tests/fast-check.test.mjs` and run the Acceptance fence red. [proof: acceptance]
-2. [S2] The changed paths against `HEAD`: `git diff --name-only HEAD` plus `git ls-files --others --exclude-standard`. All under `docs/` (none outside it, at least one) selects the docs lane; anything else, or a git answer it cannot get, selects the whole list.
-3. [S3] The docs lane: every `tests/*.test.mjs` whose source names `docs/` or lists tracked files (`ls-files`), derived at run time, plus `node scripts/mutate.mjs --stale`. The whole list is today's `fastCheck`, moved into the script unchanged.
-4. [S4] Measure: list the last 20 commits whose diff is only under `docs/`; in a worktree at each, run the lane and the list once each, at a load below the core count, recording exit codes and seconds. [proof: human: the sign-off carries the table of 20 rows, the load, and the medians]
-5. [S5] Ship only if every row's two exit codes agree and the lane's median is lower; then set `fastCheck`. Otherwise record the table in the BACKLOG, delete the script and its test, and mark this task with the measurement. [proof: human: the sign-off states which branch was taken and why]
+2. [S2] The changed paths against `HEAD`, with renames split into their two sides: `git diff --name-only --no-renames HEAD` plus `git ls-files --others --exclude-standard`. All under `docs/` (none outside it, at least one) selects the docs lane; anything else, or a git answer it cannot get, selects the whole list. A rename out of `plugin/` into `docs/` names both paths, so it runs the whole list (the cold review of ADR-100 reproduced `git diff --name-only` printing only the destination).
+3. [S3] The docs lane: every `tests/*.test.mjs` whose source names `docs/`, a quoted `'docs'` or `"docs"` path segment (`join(repoRoot, 'docs', 'adr')`, `tests/test-locks.test.mjs:20`), or lists tracked files (`ls-files`), derived at run time, plus `node scripts/mutate.mjs --stale`. The lane must include every member of today's list that reads `docs/`; the third test names `tests/test-locks.test.mjs`. The whole list is today's `fastCheck`, moved into the script unchanged.
+4. [S4] Measure, in a worktree: (a) the last 20 commits whose `--no-renames` diff is only under `docs/`, the lane and the list run once each at every one, recording exit codes and seconds; (b) seeded docs faults on the newest of them, each of which the list turns red (rename a locked task file, remove a record's `## Decision` heading, delete a `docs/backlog-archive/` file a stub links, write a home path into a doc), and the lane must turn red on every one. Run at a load below the core count. [proof: human: the sign-off carries the 20-row table, the seeded-fault table, the load, and the medians]
+5. [S5] Ship only if every replayed row's two exit codes agree, every seeded fault turns the lane red, and the lane's median is lower; then set `fastCheck`. Otherwise record both tables in the BACKLOG, delete the script and its test, and set this task's `**Status:** withdrawn — <the measurement that failed>`, which `adr-next` reads as terminal, so the fence below is not asked of a lane that was not shipped. [proof: human: the sign-off states which branch was taken and why]
 6. [S6] Catalogue entries for S2 and S3, killed. [proof: mutation]
 
 ## Acceptance
 
 ```bash
-test "$(node --test --test-reporter=tap tests/fast-check.test.mjs 2>&1 | grep -cE '^ok [0-9]+ - (a change only under docs runs the docs lane, and any other change runs the whole fast list|an untracked file outside docs widens the lane|the docs lane is every test file that names docs or lists tracked files)$')" = 3
+test "$(node --test --test-reporter=tap tests/fast-check.test.mjs 2>&1 | grep -oE '^ok [0-9]+ - (a change only under docs runs the docs lane, and any other change runs the whole fast list|an untracked file outside docs widens the lane|the docs lane is every test file that names docs or lists tracked files|a rename out of plugin into docs runs the whole fast list)$' | sed -E 's/^ok [0-9]+ - //' | sort -u | wc -l | tr -d ' ')" = 4
 ```
 
 ## Tests
@@ -45,13 +45,14 @@ test "$(node --test --test-reporter=tap tests/fast-check.test.mjs 2>&1 | grep -c
 |-----------|------|----------|--------|-------|
 | `a change only under docs runs the docs lane, and any other change runs the whole fast list` | `tests/fast-check.test.mjs` | the choice, both directions, and no change at all selects the whole list | — | S2 |
 | `an untracked file outside docs widens the lane` | `tests/fast-check.test.mjs` | an untracked `plugin/x.mjs` beside a docs edit selects the whole list | — | S2 |
-| `the docs lane is every test file that names docs or lists tracked files` | `tests/fast-check.test.mjs` | the derivation over fixture sources, and over this repository it includes `tests/corpus-lint.test.mjs` and `tests/path-length.test.mjs` | — | S3 |
+| `the docs lane is every test file that names docs or lists tracked files` | `tests/fast-check.test.mjs` | the derivation over fixture sources (a `docs/` literal, a quoted `'docs'` segment, an `ls-files` call, and a file with none), and over this repository it includes `tests/corpus-lint.test.mjs`, `tests/path-length.test.mjs` and `tests/test-locks.test.mjs` | — | S3 |
+| `a rename out of plugin into docs runs the whole fast list` | `tests/fast-check.test.mjs` | a staged `git mv plugin/x.mjs docs/x.mjs` selects the whole list | — | S2 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the three tests |
+| 1 — exists | the four tests |
 | 2 — something selects it | `.quality-harness.json` `fastCheck`, set only by S5 |
 | 3 — the caller can discover it | `qh-check --fast` prints the command it ran |
 | 4 — it is used | the fast ledger's durations on docs-only trees after the switch |
@@ -65,7 +66,7 @@ test "$(node --test --test-reporter=tap tests/fast-check.test.mjs 2>&1 | grep -c
 
 ## Risks
 
-- A test reads `docs/` through a helper without naming it: the replay's agreement rule is the guard, and the derivation errs wide.
+- A test reads `docs/` through a helper without naming it: the replay alone cannot see that, because those commits are on `main` and the list passed on them, so a subset of the list passes too (the cold review of ADR-100). The seeded faults of S4 (b) are the guard: each must turn the lane red.
 - The replay costs about 20 x (100 s + the lane) of machine time: priced and run once, at a load below the core count (costly-runs).
 
 ## Stop Condition

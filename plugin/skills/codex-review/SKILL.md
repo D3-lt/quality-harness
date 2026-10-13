@@ -121,7 +121,7 @@ Write the reviewer contract to a file in a fresh `mktemp -d` directory, starting
 it through the plugin's launcher:
 
 ```bash
-node "${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs" --host codex --effort <high|xhigh|max|ultra> --repo "<repo-root>" --prompt-file "<contract-file>"
+node "${CLAUDE_PLUGIN_ROOT}/scripts/host-review.mjs" --host codex --effort <high|xhigh|max|ultra> --repo "<repo-root>" --prompt-file "<contract-file>" --range "<base>..<head>"
 ```
 
 The launcher resolves Codex (`CODEX_CLI_PATH`, then the ChatGPT-bundled binary, then `command -v codex`), passes
@@ -131,6 +131,12 @@ final message to a unique temporary file, closes stdin, and kills the run at its
 Codex's final message. Exit 2: Codex was unavailable, killed at the budget, or returned nothing, and standard error
 says which; report it as a failed review and do not substitute another reviewer under Codex's name. For an explicit
 non-Git artifact review add `--skip-git-repo-check`. Remove the contract's directory after the result is reported.
+
+`--range` names the commits the contract reviews, as two revisions (`<base>..<head>`, the same range the contract's scope
+names; omit it only for uncommitted work, which no range holds). The launcher records each run, the range resolved to
+full shas and the status of the last `VERDICT:` line, in `reviews.jsonl` beside the project's check ledger, where this
+repository's release gate reads whether every shipped commit since the last tag was reviewed (ADR-100). A malformed
+or unresolvable range runs nothing and exits 2.
 
 What the launcher runs, built in one place (`codexInvocation` in `host-review.mjs`), shown so a reader can check a
 run against it; do not type it yourself:

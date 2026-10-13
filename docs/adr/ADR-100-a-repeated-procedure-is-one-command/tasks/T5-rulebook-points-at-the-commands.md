@@ -1,11 +1,11 @@
 # Task ADR-100-T5: CLAUDE.md §12 and §13 point at the commands that now carry their procedure
 
-**Depends-on:** T2, T3, T4
+**Depends-on:** T1, T2, T3, T4
 **Covers:** none — no spec
 **Estimated scope:** S (the rulebook and two rule files)
 **Owner:** unassigned
 **Produces:** none
-**Consumes:** `qh-check --commit` (T2), `scripts/release.mjs` (T3), `scripts/fast-check.mjs` (T4)
+**Consumes:** `reviews.jsonl` (T1), `qh-check --commit` (T2), `scripts/release.mjs` (T3), `scripts/fast-check.mjs` (T4)
 **Data dependency:** hermetic
 **Proof map:** v1
 **Rests-on:** none — the fence greps one file for the commands and the anchors
@@ -25,7 +25,7 @@ The rulebook says to run the commands, keeps every cited heading, and moves the 
 ## Ordered Steps
 
 1. [S1] Run the Acceptance fence red (the commands are not named yet). [proof: acceptance]
-2. [S2] Edit §2, §12 and §13, keeping `## 12. Reviews` and `## 13. Releasing` and every rule a record cites by number. [proof: acceptance]
+2. [S2] Edit §2, §12 and §13, keeping `## 12. Reviews` and `## 13. Releasing` and every rule a record cites by number. Re-read §13 step 6 against `.github/workflows/selftest.yml:19-21` first: the concurrency group keys on the event, so a push no longer cancels a dispatch run, and a second dispatch cancels the first; the rule is restated as that, with the workflow line cited. [proof: acceptance]
 3. [S3] Move the evidence to the rule files; state no counts (CLAUDE.md's own rule). [proof: human: the reviewer reads the diff and finds no procedure step dropped without a command or a rule file carrying it]
 
 ## Acceptance

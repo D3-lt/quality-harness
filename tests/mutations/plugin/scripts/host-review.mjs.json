@@ -1,6 +1,48 @@
 {
   "mutations": [
     {
+      "label": "ADR-100 T1: the JSON form records the review it ran",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "  recordReview(repo, { host: 'codex', model: review.model ?? CODEX_MODEL, effort, ...range, status: review.status, findings: review.findings.length })",
+      "to": "  void range"
+    },
+    {
+      "label": "ADR-100 T1: the prompt-file form records the review it ran",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "  recordReview(repo, { host: 'codex', model: CODEX_MODEL, effort, ...range, status, findings: null })",
+      "to": "  void status"
+    },
+    {
+      "label": "ADR-100 T1: a commit scope covers that commit alone",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "return { base: null, head: gitSha(repo, words[1]), exact: true }",
+      "to": "return { base: gitSha(repo, `${words[1]}^`), head: gitSha(repo, words[1]), exact: false }"
+    },
+    {
+      "label": "ADR-100 T1: the last VERDICT line is the status",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "VERDICT_LINE.exec(lines.at(-1))",
+      "to": "VERDICT_LINE.exec(lines[0])"
+    },
+    {
+      "label": "ADR-100 T1: EVIDENCE-LIMITED with the skill's suffix parses",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "(APPROVE|REQUEST CHANGES|EVIDENCE-LIMITED)(?:\\s+—\\s+.*)?\\s*$/",
+      "to": "(APPROVE|REQUEST CHANGES|EVIDENCE-LIMITED)\\s*$/"
+    },
+    {
+      "label": "ADR-100 T1: a malformed --range runs nothing",
+      "file": "plugin/scripts/host-review.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "    if (!resolved?.base || !resolved?.head) return fail(",
+      "to": "    if (false) return fail("
+    },
+    {
       "label": "host-review: a result without a findings array is not a review",
       "file": "plugin/scripts/host-review.mjs",
       "tests": [

@@ -28,16 +28,16 @@ it passes, runs `git commit` with the caller's arguments and stdin.
 ## Ordered Steps
 
 1. [S1] Write `tests/qh-check-commit.test.mjs` and run the Acceptance fence red. [proof: acceptance]
-2. [S2] Before running anything: `git diff --quiet` (unstaged changes) and `git ls-files --others --exclude-standard` (untracked, not ignored); either non-empty refuses with exit 2, naming up to ten paths.
+2. [S2] Before running anything, refuse with exit 2, naming what: a working tree unlike the index (`git diff --quiet` for unstaged changes, `git ls-files --others --exclude-standard` for untracked paths that are not ignored, up to ten named); and any git argument that commits a tree other than the index — a pathspec (an argument after `--`, or one that is not an option), `-p`/`--patch`, `--interactive`, `-o`/`--only`, `-i`/`--include` (the cold review of ADR-100, 2026-10-13: `git commit -- A` with A and B staged commits a tree no check saw). `--amend`, `-a`, `-F`, `-m` and `--no-edit` are allowed: on a tree equal to the index they commit the index.
 3. [S3] Run the check exactly as `qh-check --fast` does (the full check when no `fastCheck` is declared), recorded in the same ledger, its output printed.
-4. [S4] On exit 0 only, spawn `git commit <arguments after --commit>` with stdin inherited; return git's exit code. On any other exit, return it and never spawn git.
+4. [S4] On exit 0 only, spawn `git commit <arguments after --commit>` with stdin inherited. When git exits 0, compare `HEAD^{tree}` with the tree the check recorded; a mismatch (a pre-commit hook that rewrote the index, a peer staging mid-run) is said, naming both trees and that the commit was made, and exits 1. Otherwise return git's exit code; on any check exit but 0, return it and never spawn git.
 5. [S5] The docstring and the README line. [proof: acceptance]
 6. [S6] Catalogue entries for S2 to S4, killed. [proof: mutation]
 
 ## Acceptance
 
 ```bash
-test "$(node --test --test-reporter=tap tests/qh-check-commit.test.mjs 2>&1 | grep -cE '^ok [0-9]+ - (qh-check --commit commits the staged tree only after its check passes|a red check never reaches git commit and its exit code is the check.s|qh-check --commit refuses a working tree that differs from the index before running anything|qh-check --commit passes its git arguments and stdin through)$')" = 4 \
+test "$(node --test --test-reporter=tap tests/qh-check-commit.test.mjs 2>&1 | grep -oE '^ok [0-9]+ - (qh-check --commit commits the staged tree only after its check passes|a red check never reaches git commit and its exit code is the check.s|qh-check --commit refuses a working tree that differs from the index before running anything|qh-check --commit passes its git arguments and stdin through|qh-check --commit refuses a pathspec and says when the commit records a tree the check did not see)$' | sed -E 's/^ok [0-9]+ - //' | sort -u | wc -l | tr -d ' ')" = 5 \
   && node --test tests/qh-check.test.mjs tests/qh-check-reads-the-ledger.test.mjs tests/qh-check-shell.test.mjs \
   && grep -q -- '--commit' plugin/bin/qh-check
 ```
@@ -50,12 +50,13 @@ test "$(node --test --test-reporter=tap tests/qh-check-commit.test.mjs 2>&1 | gr
 | `a red check never reaches git commit and its exit code is the check's` | `tests/qh-check-commit.test.mjs` | a check exiting 3 leaves HEAD unchanged and `qh-check` exits 3 | — | S4 |
 | `qh-check --commit refuses a working tree that differs from the index before running anything` | `tests/qh-check-commit.test.mjs` | an unstaged edit and, separately, an untracked file each exit 2 with no ledger row; an ignored file does not refuse | — | S2 |
 | `qh-check --commit passes its git arguments and stdin through` | `tests/qh-check-commit.test.mjs` | `--commit -F -` with a message on stdin commits that message | — | S4 |
+| `qh-check --commit refuses a pathspec and says when the commit records a tree the check did not see` | `tests/qh-check-commit.test.mjs` | `--commit -- a.txt` and `--commit -p` exit 2 with no check run; a pre-commit hook that stages another file makes the commit exit 1 naming both trees | — | S2, S4 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
-| 1 — exists | the four tests |
+| 1 — exists | the five tests |
 | 2 — something selects it | `qh-check.mjs`'s argument parser; a catalogue entry removes `--commit` from the accepted words |
 | 3 — the caller can discover it | `qh-check --help`, `plugin/README.md` |
 | 4 — it is used | the fast ledger's rows followed by a commit at the same tree; nothing measures this yet |
@@ -65,11 +66,12 @@ test "$(node --test --test-reporter=tap tests/qh-check-commit.test.mjs 2>&1 | gr
 ## Invariants
 
 - `qh-check` without `--commit` behaves exactly as before (its locked tests stay byte-identical: 4 locks on `tests/qh-check.test.mjs`, 2026-10-13).
-- No `git commit` is spawned unless the check exited 0 on a tree equal to the index.
+- No `git commit` is spawned unless the check exited 0 on a tree equal to the index, with no argument that commits another tree; a commit whose `HEAD^{tree}` is not the checked tree is never reported as a success.
 
 ## Risks
 
 - git's own hooks (ADR-066's `prepare-commit-msg`) run inside the commit and judge the tree: the fast pass just recorded is what they read, so the commit goes through with ADR-081's advice.
+- A fixture repository's commit judged by this session's publish hook (BACKLOG §371): the tests strip the `GIT_CONFIG_*` variables the session hands git and run git with `core.hooksPath` set by the test.
 
 ## Stop Condition
 

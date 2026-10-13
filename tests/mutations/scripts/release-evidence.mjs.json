@@ -1,6 +1,48 @@
 {
   "mutations": [
     {
+      "label": "ADR-100 T1: a row with no base covers nothing",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "    : typeof row.base === 'string' && ancestor(commit, row.head) && !ancestor(commit, row.base)",
+      "to": "    : ancestor(commit, row.head) && !(typeof row.base === 'string' && ancestor(commit, row.base))"
+    },
+    {
+      "label": "ADR-100 T1: an exact row covers its own commit only",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "    ? row.head === commit",
+      "to": "    ? ancestor(commit, row.head)"
+    },
+    {
+      "label": "ADR-100 T1: an unavailable review covers nothing",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "const COVERING = new Set(['clean', 'blocking', 'evidence-limited'])",
+      "to": "const COVERING = new Set(['clean', 'blocking', 'evidence-limited', 'unavailable', 'unparsed'])"
+    },
+    {
+      "label": "ADR-100 T1: only the manifest's version line is a bump",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "changed.every(line => /^[+-]\\s*\"version\"\\s*:/.test(line))",
+      "to": "changed.every(line => line.length > 0)"
+    },
+    {
+      "label": "ADR-100 T1: a bump alone needs no review",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "      if (!bump) needed.push(commit)",
+      "to": "      needed.push(commit)"
+    },
+    {
+      "label": "ADR-100 T1: main refuses on an unreviewed commit",
+      "file": "scripts/release-evidence.mjs",
+      "tests": ["tests/review-ledger.test.mjs"],
+      "from": "    if (outside.verdict === 'unproven' || review.verdict === 'unproven') verdict = 'unproven'",
+      "to": "    if (outside.verdict === 'unproven') verdict = 'unproven'"
+    },
+    {
       "label": "ADR-082 T3: a regressed run attests",
       "file": "scripts/release-evidence.mjs",
       "tests": [

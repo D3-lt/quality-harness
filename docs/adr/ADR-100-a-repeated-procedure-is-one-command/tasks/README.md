@@ -14,16 +14,16 @@ README must be regenerated.
 | 2 | T2 | none |
 | 3 | T4 | none |
 | 4 | T3 | T1 |
-| 5 | T5 | T2, T3, T4 |
+| 5 | T5 | T1, T2, T3, T4 |
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A Codex review is recorded where release-evidence reads it, and an unreviewed plugin change is refused | pending | none — no spec | five named tests in `tests/review-ledger.test.mjs`, the host-review and release-evidence suites, `--range` in the codex-review skill |
-| T2 | `qh-check --commit` checks the staged tree and commits it in one call | pending | none — no spec | four named tests in `tests/qh-check-commit.test.mjs`, the qh-check suites, `--commit` in the gate's help |
-| T3 | `node scripts/release.mjs` runs this repository's release chain, resumably, from what it observes | pending | none — no spec | five named tests in `tests/release.test.mjs` |
-| T4 | A change only under docs/ runs the tests that read docs/, if a replay of 20 commits says it is faster and agrees | pending | none — no spec | three named tests in `tests/fast-check.test.mjs`; the replay in the sign-off |
+| T1 | A Codex review is recorded where release-evidence reads it, and an unreviewed plugin change is refused | done | none — no spec | five named tests in `tests/review-ledger.test.mjs`, the host-review and release-evidence suites, `--range` in the codex-review skill |
+| T2 | `qh-check --commit` checks the staged tree and commits it in one call | pending | none — no spec | five named tests in `tests/qh-check-commit.test.mjs`, the qh-check suites, `--commit` in the gate's help |
+| T3 | `node scripts/release.mjs` runs this repository's release chain, resumably, from what it observes | pending | none — no spec | six named tests in `tests/release.test.mjs` |
+| T4 | A change only under docs/ runs the tests that read docs/, if a replay of 20 commits says it is faster and agrees | pending | none — no spec | four named tests in `tests/fast-check.test.mjs`; the replay and seeded faults in the sign-off |
 | T5 | CLAUDE.md §12 and §13 point at the commands that now carry their procedure | pending | none — no spec | the commands and anchors in CLAUDE.md, and `tests/package.test.mjs` |
 
 ## Contract Coupling

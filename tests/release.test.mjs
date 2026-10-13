@@ -26,7 +26,10 @@ function world(overrides = {}) {
     if (line === 'git show HEAD:plugin/.claude-plugin/plugin.json') return ok(JSON.stringify({ version: state.version }))
     if (line.startsWith('git tag --list')) return state.tagListFails ? { status: 128, stdout: '', stderr: 'fatal' } : ok(state.tags.join('\n'))
     if (line.startsWith('gh release view')) return state.released ? ok('{}') : { status: 1, stdout: '', stderr: state.viewError ?? 'release not found' }
-    if (line.endsWith('plugin/scripts/qh-check.mjs')) return { status: state.check, stdout: '', stderr: '' }
+    if (line.startsWith('node plugin/scripts/qh-check.mjs')) {
+      state.checks = (state.checks ?? 0) + 1
+      return { status: state.check, stdout: '', stderr: '' }
+    }
     if (line === 'bash scripts/dead-code-scan.sh') return { status: state.deadCode, stdout: '', stderr: '' }
     if (line === 'git fetch -q --tags origin main') {
       if (state.fetchFails) return { status: 128, stdout: '', stderr: 'fatal: unable to access' }
@@ -54,7 +57,14 @@ function world(overrides = {}) {
   }
   let clock = 0
   const said = []
-  const run = (extra = {}) => release({ exec, log: line => said.push(line), now: () => clock, sleep: ms => { clock += ms }, ...extra })
+  // The load each sample reads, the last one repeated: a quiet machine unless a test says otherwise, so the real machine's
+  // load never decides a test.
+  let loadCalls = 0
+  const load = () => {
+    const loads = state.loads ?? [1]
+    return { load: loads[Math.min(loadCalls++, loads.length - 1)], cores: 10 }
+  }
+  const run = (extra = {}) => release({ exec, log: line => said.push(line), now: () => clock, sleep: ms => { clock += ms }, load, ...extra })
   return { state, calls, said, run }
 }
 
@@ -150,4 +160,23 @@ test('a forge that cannot be asked is not read as a release that is missing', ()
   const missing = world({ tags: ['v1.0.0', 'v1.0.1'] })
   assert.equal(missing.run(), 2)
   assert.match(missing.said.join('\n'), /has no release/)
+})
+
+// v3.8.25 was pushed on a full check qh-check itself recorded as unattributable (load 18.01 on 10 cores; BACKLOG).
+test('a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release', () => {
+  const again = world({ origin: 'b'.repeat(40), loads: [12, 14, 3, 2, 2] })
+  assert.equal(again.run(), 0, again.said.join('\n'))
+  assert.equal(again.state.checks, 2, 'the contended pass was taken again')
+  assert.ok(again.calls.filter(line => line === 'node plugin/scripts/qh-check.mjs --again').length === 2, 'never a reused pass')
+  assert.ok(pushed(again.calls))
+  assert.match(again.said.join('\n'), /contended machine/)
+  const twice = world({ origin: 'b'.repeat(40), loads: [12, 14, 3, 11, 12] })
+  assert.equal(twice.run(), 2, twice.said.join('\n'))
+  assert.ok(!pushed(twice.calls) && !twice.calls.some(line => line.startsWith('gh ')), 'nothing left this machine')
+  const quietWasNever = world({ origin: 'b'.repeat(40), loads: [12, 14, 15] })
+  assert.equal(quietWasNever.run({ waitMaxMinutes: 2 }), 3)
+  assert.equal(quietWasNever.state.checks, 1)
+  const unread = world({ origin: 'b'.repeat(40), loads: [null] })
+  assert.equal(unread.run(), 0, 'a load that cannot be read is not contended')
+  assert.equal(unread.state.checks, 1)
 })

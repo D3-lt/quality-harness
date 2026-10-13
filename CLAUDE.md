@@ -208,7 +208,7 @@ CI not finished means not green.
 stopped (ADR-100). Exit 0 released, 1 a step failed, 2 a step needs an action it does not take (it names it), 3 a
 wait reached its deadline. The steps stay numbered because records and source comments cite them.
 
-1. `bash scripts/selftest.sh` green after the last edit (the command runs `qh-check` again, which reuses that pass);
+1. `bash scripts/selftest.sh` green after the last edit (the command runs `qh-check --again` itself, and takes its pass only from a machine not contended across it);
    Codex review done through the launcher (§12); when a reader changed since the last tag, an outside run filed with
    `attest-import` (§18). **Dead code is deleted or wired, never allow-listed** (the owner, 2026-09-27):
    `node scripts/orphan-sweep.mjs` prints `0 orphan(s)`, and `bash scripts/dead-code-scan.sh` (which the command runs)

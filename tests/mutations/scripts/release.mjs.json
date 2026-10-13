@@ -1,6 +1,30 @@
 {
   "mutations": [
     {
+      "label": "release: a contended full check is taken again",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "only": "^a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release$",
+      "from": "  if (check.status === 0 && check.contended) {\n    log(",
+      "to": "  if (false) {\n    log("
+    },
+    {
+      "label": "release: a second contended pass stops the release",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "only": "^a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release$",
+      "from": "    if (check.status === 0 && check.contended) {\n      log(",
+      "to": "    if (false) {\n      log("
+    },
+    {
+      "label": "release: the full check is never a reused pass",
+      "file": "scripts/release.mjs",
+      "tests": ["tests/release.test.mjs"],
+      "only": "^a full check that passed on a contended machine is taken again when it is quiet, and twice contended stops the release$",
+      "from": "['plugin/scripts/qh-check.mjs', '--again']",
+      "to": "['plugin/scripts/qh-check.mjs']"
+    },
+    {
       "label": "ADR-100 T3: a failed fetch stops the release (Codex review of ce54814c)",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],
@@ -81,7 +105,7 @@
       "label": "ADR-100 T3: a red check stops before the push",
       "file": "scripts/release.mjs",
       "tests": ["tests/release.test.mjs"],
-      "from": "  if (check !== 0) { log(",
+      "from": "  if (check.status !== 0) { log(",
       "to": "  if (false) { log("
     },
     {

@@ -2,8 +2,8 @@
 // release.mjs — CLAUDE.md §13's release chain as one command, for this repository only (ADR-100 T3).
 //
 // Every step is decided from what can be observed now, never from a state file, so a second run resumes where the first
-// stopped: the clean tree, the version against the tags, a full `qh-check` pass (qh-check reuses one already taken on this
-// tree, ADR-081), the dead-code scan, the push, the push's own run, the dispatched campaign, `release-evidence`, the tag.
+// stopped: the clean tree, the version against the tags, a full `qh-check` taken here on a machine that was not contended
+// across it, the dead-code scan, the push, the push's own run, the dispatched campaign, `release-evidence`, the tag.
 //
 // Usage: node scripts/release.mjs [--wait-max <minutes>] [--notes-file <path>]
 //
@@ -15,6 +15,7 @@
 //   3  a wait reached its deadline; it names what it waited for, and running again resumes
 import { spawnSync } from 'node:child_process'
 import { isMainModule } from '../plugin/scripts/main-module.mjs'
+import { contention, sampleLoad } from '../plugin/scripts/load.mjs'
 
 const MANIFEST = 'plugin/.claude-plugin/plugin.json'
 const POLL_MS = 60_000
@@ -31,7 +32,7 @@ function parsed(text) {
  * The chain, with its world as seams: `exec(cmd, args, { stream })` answers `{ status, stdout }`, `now` and `sleep` are the
  * clock. Pure of everything else, so a test drives every branch with a fake git and gh (tests/release.test.mjs).
  */
-export function release({ exec, log = console.log, now = Date.now, sleep, waitMaxMinutes = 90, notesFile = null }) {
+export function release({ exec, log = console.log, now = Date.now, sleep, waitMaxMinutes = 90, notesFile = null, load = () => sampleLoad() }) {
   const ran = (cmd, args, stream = false) => exec(cmd, args, { stream, timeout: CHILD_TIMEOUT_MS })
   const text = (cmd, args) => {
     const answer = ran(cmd, args)
@@ -81,9 +82,31 @@ export function release({ exec, log = console.log, now = Date.now, sleep, waitMa
     return 2
   }
 
-  // The full check, then the dead-code scan, both before anything leaves this machine.
-  const check = ran('node', ['plugin/scripts/qh-check.mjs'], true).status
-  if (check !== 0) { log(`release: qh-check exited ${check} ${at}; nothing was pushed`); return 1 }
+  // The full check, then the dead-code scan, both before anything leaves this machine. The check runs here once per release
+  // and is never reused (one push per release, one full check right before it: the owner, 2026-10-13), and its pass counts
+  // only if the machine was not contended across it, sampled with qh-check's own `contention`. v3.8.25 was pushed on a pass
+  // qh-check had itself recorded as unattributable (CLAUDE.md §18, BACKLOG). A contended pass is taken again once the load is
+  // below the core count; a second one stops the release with nothing pushed. A load that cannot be read is not contended.
+  const fullCheck = () => {
+    const start = load()
+    const status = ran('node', ['plugin/scripts/qh-check.mjs', '--again'], true).status
+    return { status, contended: contention(start.load, load().load, start.cores) === true }
+  }
+  let check = fullCheck()
+  if (check.status === 0 && check.contended) {
+    log(`release: the check passed on a contended machine ${at}; it is taken again once the load is below the core count`)
+    const quiet = waitFor('the load to fall below the core count', () => {
+      const sample = load()
+      return contention(sample.load, sample.load, sample.cores) === false
+    })
+    if (!quiet) return 3
+    check = fullCheck()
+    if (check.status === 0 && check.contended) {
+      log(`release: the check passed on a contended machine twice ${at}; nothing was pushed: run again when it is quieter`)
+      return 2
+    }
+  }
+  if (check.status !== 0) { log(`release: qh-check exited ${check.status} ${at}; nothing was pushed`); return 1 }
   const scan = ran('bash', ['scripts/dead-code-scan.sh'], true).status
   if (scan !== 0) { log(`release: the dead-code scan exited ${scan}${scan === 3 ? ' (a scanner could not run: UNPROVEN)' : ''} ${at}; nothing was pushed`); return 1 }
 

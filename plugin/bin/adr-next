@@ -246,6 +246,9 @@ STOP_CONDITION_VERDICT = re.compile(
 STOP_CONDITION_DENIED = re.compile(
     r"(?<![a-z])(?:not|never|no(?:\s+longer)?|[a-z]+n['’]t)\s+"
     r"(?:(?:yet|ever|been|be|being|was|were|is|are|has|have|had)\s+){0,2}$", re.I)
+# A denial that is itself negated, "not no longer met", "never not reached", is no denial (the coverage review of
+# 5bd51f8a): the verdict counts as said.
+STOP_CONDITION_NEGATED = re.compile(r"(?<![a-z])(?:not|never|no|[a-z]+n['’]t)\s+$", re.I)
 STOP_CONDITION_UNMET = re.compile(
     r"(?<![a-z])un(?:met|reached|triggered|tripped|fired|hit|satisfied|fulfilled|attained|achieved)(?![a-z])", re.I)
 
@@ -255,7 +258,8 @@ def neutralise(text):
     def cited(m):
         denied = False
         for verdict in [*STOP_CONDITION_VERDICT.finditer(text), *STOP_CONDITION_UNMET.finditer(text)]:
-            said = not STOP_CONDITION_DENIED.search(text[:verdict.start()])
+            denial = STOP_CONDITION_DENIED.search(text[:verdict.start()])
+            said = not denial or bool(STOP_CONDITION_NEGATED.search(text[:denial.start()]))
             # "met" said is the condition met; "unmet" said is it denied, and "not unmet" is it met again.
             if said == (verdict.re is STOP_CONDITION_VERDICT):
                 return m.group()

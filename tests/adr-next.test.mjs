@@ -698,6 +698,9 @@ test('a sign-off naming the Stop Condition section is not a stop, and a Stop Con
   assert.equal(done('observed: Stop Condition was not unmet'), false)
   // The pre-release review of 59d54e3d: "no longer", which NEGATOR knows, negates an un- verdict too.
   assert.equal(done('observed: Stop Condition is no longer unmet'), false)
+  // The coverage review of 5bd51f8a: a denial that is itself negated is no denial.
+  assert.equal(done('observed: Stop Condition is not no longer met'), false)
+  assert.equal(done('observed: the Stop Condition was never not reached'), false)
   assert.equal(done('observed: under the Stop Condition limit, which was achieved'), false)
   assert.equal(done('observed: under the Stop Condition limit, which was violated'), false)
   assert.equal(done('approved; see the Stop Condition section for the budget'), true)

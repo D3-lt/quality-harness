@@ -77,8 +77,18 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
-      "from": "            said = not STOP_CONDITION_DENIED.search(text[:verdict.start()])",
+      "from": "            said = not denial or bool(STOP_CONDITION_NEGATED.search(text[:denial.start()]))",
       "to": "            said = True"
+    },
+    {
+      "label": "next: a negated denial is no denial ('not no longer met' stops; coverage review of 5bd51f8a)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "            said = not denial or bool(STOP_CONDITION_NEGATED.search(text[:denial.start()]))",
+      "to": "            said = not denial"
     },
     {
       "label": "next: a denial with its auxiliaries is still a denial ('has not yet been reached')",

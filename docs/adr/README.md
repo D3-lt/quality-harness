@@ -101,3 +101,5 @@ whose catalog says what each one's decision effect is now.
 | [ADR-097](ADR-097-remove-what-nothing-acts-on.md) | Remove what nothing acts on | Accepted |
 | [ADR-098](ADR-098-what-the-plugin-says-matches-what-it-does.md) | What the plugin says matches what it does | Accepted |
 | [ADR-099](ADR-099-sessionstart-does-not-list-ready-tasks.md) | SessionStart does not list ready tasks; work-next owns ready | Accepted |
+| [ADR-100](ADR-100-a-repeated-procedure-is-one-command.md) | A procedure the agent repeats is one command | Accepted |
+| [ADR-101](ADR-101-one-reader-per-check-ledger.md) | One reader per check ledger | Accepted |

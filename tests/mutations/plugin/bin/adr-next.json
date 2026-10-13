@@ -1,6 +1,26 @@
 {
   "mutations": [
     {
+      "label": "next: a sign-off citing the Stop Condition section is not a stop (ADR-078 T2)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "    r\"|(?<![a-z])stop\\s+conditions?(?:['’]s)?(?![a-z])\"",
+      "to": "    r\"|(?<![a-z])stop\\s+conditionsXX(?:['’]s)?(?![a-z])\""
+    },
+    {
+      "label": "next: a Stop Condition said to be met still stops",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "^(?:a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is)$",
+      "from": "(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z]))\",",
+      "to": "(?:metXX)(?![a-z]))\","
+    },
+    {
       "label": "§355: a task name with a dot after .md is a task file too",
       "file": "plugin/bin/adr-next",
       "tests": [
@@ -264,8 +284,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\", re.I)",
-      "to": "    r\"|(?!x)x\", re.I)",
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\"\n",
+      "to": "    r\"|(?!x)x\"\n",
       "only": "^(?:a negated stop word and a counter name are not verdicts, and the plain stop still is)$"
     },
     {
@@ -274,8 +294,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\", re.I)",
-      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\", re.I)",
+      "from": "    r\"|(?<![\\w-])\\w+(?:-\\w+)+(?:\\s*[=:]\\s*|\\s+)\\d+(?![\\w-])\"\n",
+      "to": "    r\"|\\b\\w+(?:-\\w+)+\\s*[=:]?\\s*\\d\"\n",
       "only": "^(?:a negated stop word and a counter name are not verdicts, and the plain stop still is)$"
     },
     {

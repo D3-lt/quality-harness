@@ -647,6 +647,23 @@ test('a negated stop word and a counter name are not verdicts, and the plain sto
   assert.equal(done('shipped; refused-unverifiable=0'), true)
 })
 
+// A sign-off that cites the task's `## Stop Condition` section names a heading, not a verdict: ADR-078 T2's
+// approval ("+8%, under the Stop Condition's 25%") printed `stopped`, and work-next named it as missing evidence.
+// The condition reported as met is still a stop, and so is the plain word.
+test('a sign-off naming the Stop Condition section is not a stop, and a Stop Condition met still is', () => {
+  const done = note => {
+    const signoff = `- 2026-10-13 · human-observed · ${note}`
+    const { tasksDir } = corpus([{ id: 'T1', human: true, evidence: true, signoff }])
+    return /^done\s+T1/m.test(next([tasksDir, '--all'], root).stdout)
+  }
+  assert.equal(done("observed and signed off: 34.4s with T2 (+8%, under the Stop Condition's 25%)"), true)
+  assert.equal(done('approved; well inside the stop conditions'), true)
+  assert.equal(done('observed: the Stop Condition was met'), false)
+  assert.equal(done("observed; the Stop Condition's limit is reached, so stop"), false)
+  assert.equal(done('observed: Stop Condition hit'), false)
+  assert.equal(done('observed, stop'), false)
+})
+
 test('a human-observed task is told how to sign itself off', () => {
   const { tasksDir } = corpus([{ id: 'T1', human: true }])
   const result = next([tasksDir], root)

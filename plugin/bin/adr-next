@@ -221,7 +221,12 @@ NEUTRALISED = re.compile(
     # The WHOLE label, then a separator, then a whole number: with the separator
     # optional, backtracking read the digits inside `failed-on-ios18` as its count
     # and erased a real stop (Codex review of 2f45348).
-    r"|(?<![\w-])\w+(?:-\w+)+(?:\s*[=:]\s*|\s+)\d+(?![\w-])", re.I)
+    r"|(?<![\w-])\w+(?:-\w+)+(?:\s*[=:]\s*|\s+)\d+(?![\w-])"
+    # The task template's `## Stop Condition` section, cited by name, is a heading and not a verdict: ADR-078 T2's
+    # approval "under the Stop Condition's 25%" read as stopped. The condition said to be met still stops.
+    r"|(?<![a-z])stop\s+conditions?(?:['’]s)?(?![a-z])"
+    r"(?!\s+(?:(?:was|is|has|have|been|now|got)\s+){0,2}(?:met|reached|hit|triggered|tripped|fired|applie[sd]|holds|held)(?![a-z]))",
+    re.I)
 
 # ⚠ A RUN REPORT QUOTES ITS RED RUN AS EVIDENCE. "observed: red run 111: TestAlpha failed; green run
 # 222: ok" affirms a red-then-green sequence, and its «failed» was read as the verdict (BACKLOG §361).

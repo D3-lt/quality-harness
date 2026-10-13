@@ -316,7 +316,8 @@ def _walked(scan_dir, markdown=False):
 
 
 def _resolve_adr_id(token, scan_dir):
-    """("adr", whether this corpus holds a record with that number).
+    """("adr", whether this corpus holds a record with that number), or ("adr-archive", True)
+    when only a sibling archive does.
 
     One body, two callers — the leading-token test above and the anywhere-in-the
     -string fallback below it — because two copies of a resolver is how the two
@@ -328,7 +329,39 @@ def _resolve_adr_id(token, scan_dir):
             and pat in re.sub(r"[-_]", "", f.stem).lower()] + \
            [d for d in walked if d.is_dir()
             and pat == re.sub(r"[-_]", "", d.name).lower()]
-    return "adr", bool(hits)
+    if hits:
+        return "adr", True
+    return ("adr-archive", True) if _archive_holding(pat, scan_dir) else ("adr", False)
+
+
+# The exact line adr-lint's ARCHIVE_LIFECYCLE_RE and adr-retire-check recognise an archive by.
+ARCHIVE_LIFECYCLE = re.compile(r"^\*\*Lifecycle:\*\* Frozen historical ADR records\s*$", re.M)
+
+
+def _archive_holding(pat, scan_dir):
+    """The sibling archive of this corpus holding a record whose name carries `pat`, or None.
+
+    A record the adr-retire stage moved is still the record that was written, so a pointer to it is
+    not "a typo, or another repository's" (found 2026-10-13: archiving ADR-046 turned ADR-049's
+    deferral UNRESOLVED and the run red). adr-lint's `archived_record_numbers` is the same rule for
+    citations. A sibling is an archive only when its README carries the Lifecycle line, and one that
+    cannot be read adds nothing: this only ever moves a pointer from unresolved to unswept.
+    """
+    here = Path(scan_dir).resolve()
+    try:
+        siblings = sorted(p for p in here.parent.iterdir() if p.is_dir() and p.resolve() != here)
+    except OSError:
+        return None
+    for sibling in siblings:
+        try:
+            if not ARCHIVE_LIFECYCLE.search(read_regular(sibling / "README.md")):
+                continue
+            names = [p.name for p in sibling.iterdir() if p.is_file()]
+        except OSError:
+            continue
+        if any(n.lower().endswith(".md") and pat in re.sub(r"[-_]", "", n[:-3]).lower() for n in names):
+            return sibling
+    return None
 
 
 def adr_id_of(md_file, scan_dir):
@@ -352,6 +385,11 @@ def unswept(pointer, md_file, scan_dir):
     decision record; future work belongs somewhere a sweep will find it.
     """
     kind, ok = resolve(pointer, md_file, scan_dir)
+    if kind == "adr-archive":
+        lead = re.search(r"(?<!\w)(ADR-?\s?\d+)(?!\w)", pointer, re.I)
+        found = _archive_holding(re.sub(r"[-_\s]", "", lead.group(1)).lower(), scan_dir)
+        # Spelled from the scan directory as given, never resolved: a resolved path names this machine's home.
+        return True, f"{(Path(scan_dir).parent / found.name).as_posix()} ({lead.group(1)})"
     if kind != "path" or not ok:
         return False, None
     t = pointer.strip().strip("`").split()[0].rstrip(",.;")

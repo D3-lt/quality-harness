@@ -89,3 +89,20 @@ test('the archive, where there is one, passes adr-retire-check', () => {
   assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)
   assert.match(run.stdout, /\[PASS\]/)
 })
+
+// adr-debt over this repository's own corpus: no pointer it cannot resolve. Nothing in the gate ran it, and
+// ADR-099 T2's archive move turned it red unseen (BACKLOG §378, 2026-10-13). The control is shown failing first.
+test('this repository\'s own deferral pointers all resolve under adr-debt', () => {
+  const adrDebt = join(repoRoot, 'plugin', 'bin', 'adr-debt')
+  const scratch = mkdtempSync(join(tmpdir(), 'qh-corpus-debt-'))
+  try {
+    writeFileSync(join(scratch, 'ADR-901-probe.md'), '# ADR-901: Probe\n\n## Out of Scope\n\n- A thing (deferred: ADR-404)\n')
+    const control = spawnSync('python3', [adrDebt, scratch], { cwd: repoRoot, encoding: 'utf8', timeout: LINT_TIMEOUT_MS })
+    assert.equal(control.status, 1, `the control pointer must FAIL, or a pass below proves nothing: ${control.stdout}`)
+    assert.match(control.stdout, /UNRESOLVED \[adr\]/)
+  } finally { rmSync(scratch, { recursive: true, force: true }) }
+  const run = spawnSync('python3', [adrDebt, join(repoRoot, 'docs', 'adr')], { cwd: repoRoot, encoding: 'utf8', timeout: LINT_TIMEOUT_MS })
+  const unresolved = run.stdout.split('\n').filter(line => /^\s+(UNRESOLVED|BROKEN) /.test(line))
+  assert.deepEqual(unresolved, [], run.stdout)
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)
+})

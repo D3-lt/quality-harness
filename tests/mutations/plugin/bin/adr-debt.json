@@ -1,6 +1,33 @@
 {
   "mutations": [
     {
+      "label": "adr-debt: a pointer to a record in the sibling archive resolves there",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/adr-debt-archive.test.mjs"
+      ],
+      "from": "    return (\"adr-archive\", True) if _archive_holding(pat, scan_dir) else (\"adr\", False)",
+      "to": "    return (\"adr\", False)"
+    },
+    {
+      "label": "adr-debt: a sibling is an archive only when its catalog says so",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/adr-debt-archive.test.mjs"
+      ],
+      "from": "            if not ARCHIVE_LIFECYCLE.search(read_regular(sibling / \"README.md\")):",
+      "to": "            if not read_regular(sibling / \"README.md\"):"
+    },
+    {
+      "label": "adr-debt: a deferral into an archived record is unswept",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/adr-debt-archive.test.mjs"
+      ],
+      "from": "    if kind == \"adr-archive\":",
+      "to": "    if False:"
+    },
+    {
       "label": "gates: a deferred pointer must resolve",
       "file": "plugin/bin/adr-debt",
       "tests": [

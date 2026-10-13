@@ -162,12 +162,18 @@ export function collect(run = shell, checkpoint = () => {}, clock = Date.now, he
   if (!branch.ok) return { looked: false, note: branch.note }
   const head = run(['git', 'rev-parse', '--short', 'HEAD'])
   const dirty = run(['git', 'status', '--short'])
-  const counts = run(['git', 'rev-list', '--left-right', '--count', `origin/${branch.out}...HEAD`])
-  const [behind, ahead] = counts.ok ? counts.out.split(/\s+/).map(Number) : [null, null]
+  const counted = run(['git', 'rev-list', '--left-right', '--count', `origin/${branch.out}...HEAD`])
   // The pushed tip, resolved as `snapshotKey` resolves it (the configured upstream, else
   // origin/<branch>), and HEAD whole. Read here, before `gh`, so a spent budget costs the
   // network half rather than these (Codex review of 3.2.1).
   const configured = run(['git', 'rev-parse', '@{upstream}'])
+  // A branch with no origin/<branch> that tracks an upstream of another name (a new branch made from
+  // origin/master) is counted against that upstream, the one its pushed tip is read from. Counted only
+  // against origin/<branch>, it was ahead:null, and nothing said it held a commit no remote did (an
+  // outside run, 2026-10-13).
+  const counts = counted.ok || !configured.ok ? counted
+    : run(['git', 'rev-list', '--left-right', '--count', '@{upstream}...HEAD'])
+  const [behind, ahead] = counts.ok ? counts.out.split(/\s+/).map(Number) : [null, null]
   const tip = configured.ok ? configured : run(['git', 'rev-parse', `origin/${branch.out}`])
   const whole = run(['git', 'rev-parse', 'HEAD'])
   const git = {

@@ -1709,3 +1709,30 @@ test('the hook writes the unreviewed count into its cache from the review ledger
   const cache = JSON.parse(readFileSync(path.join(project, '.git', 'qh-branch-state.json'), 'utf8'))
   assert.equal(cache.state.unreviewed, 1, JSON.stringify(cache.state))
 })
+
+test('a branch tracking an upstream of another name is counted against it, with real git', t => {
+  const scratch = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'qh-upstream-')))
+  t.after(() => rmSync(scratch, { recursive: true, force: true }))
+  const remote = path.join(scratch, 'remote.git')
+  const project = path.join(scratch, 'project')
+  const git = (cwd, ...args) => spawnSync('git', ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', ...args],
+    { cwd, encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  git(scratch, 'init', '-q', '--bare', remote)
+  git(scratch, 'init', '-q', '-b', 'main', project)
+  writeFileSync(path.join(project, 'a.txt'), 'a\n')
+  git(project, 'add', '.')
+  git(project, 'commit', '-qm', 'one')
+  git(project, 'remote', 'add', 'origin', remote)
+  git(project, 'push', '-q', 'origin', 'main')
+  git(project, 'checkout', '-qb', 'feature', '--track', 'origin/main')
+  writeFileSync(path.join(project, 'a.txt'), 'b\n')
+  git(project, 'commit', '-qam', 'two')
+  assert.equal(git(project, 'rev-parse', '--verify', '-q', 'origin/feature').status, 1, 'the fixture has no origin/<branch>')
+  const env = { ...process.env }
+  delete env.QUALITY_HARNESS_STATE_DIR
+  const run = spawnSync(process.execPath, [branchScript, '--cached', '120'], { cwd: project, env, encoding: 'utf8', timeout: 30_000, windowsHide: true })
+  assert.equal(run.status, 0, run.stderr)
+  const cache = JSON.parse(readFileSync(path.join(project, '.git', 'qh-branch-state.json'), 'utf8'))
+  assert.equal(cache.state.ahead, 1, JSON.stringify(cache.state))
+  assert.equal(cache.state.behind, 0, JSON.stringify(cache.state))
+})

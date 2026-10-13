@@ -1,6 +1,14 @@
 {
   "mutations": [
     {
+      "label": "branch-state: a branch tracking an upstream of another name is counted against it",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": ["tests/branch-state.test.mjs"],
+      "only": "^a branch tracking an upstream of another name is counted against it, with real git$",
+      "from": "  const counts = counted.ok || !configured.ok ? counted\n",
+      "to": "  const counts = counted.ok || true ? counted\n"
+    },
+    {
       "label": "status line: every reviewed head reaches git, however many",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": ["tests/branch-state.test.mjs"],
